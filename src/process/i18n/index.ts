@@ -1,0 +1,72 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import i18n from 'i18next';
+import { ConfigStorage } from '@/common/storage';
+import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
+
+// Static imports – Vite bundles these into the main-process output so they
+// work correctly in both development and production (no fs.readFile needed).
+import enUS from '@renderer/i18n/locales/en-US/index';
+import zhCN from '@renderer/i18n/locales/zh-CN/index';
+import jaJP from '@renderer/i18n/locales/ja-JP/index';
+import zhTW from '@renderer/i18n/locales/zh-TW/index';
+import koKR from '@renderer/i18n/locales/ko-KR/index';
+import trTR from '@renderer/i18n/locales/tr-TR/index';
+
+// All locale data keyed by language code.
+// NOTE: When adding a new language, add a static import above and an entry here.
+// These MUST be static imports (not dynamic) because the main process is bundled
+// by Vite and the JSON files won't exist on disk in production.
+const localeData: LocaleData = {
+  'en-US': enUS,
+  'zh-CN': zhCN,
+  'ja-JP': jaJP,
+  'zh-TW': zhTW,
+  'ko-KR': koKR,
+  'tr-TR': trTR,
+};
+
+const fallbackData = localeData[DEFAULT_LANGUAGE] ?? {};
+
+function getLocaleModules(locale: string): Record<string, unknown> {
+  const data = localeData[locale];
+  if (!data) return fallbackData;
+  if (locale === DEFAULT_LANGUAGE) return data;
+  return mergeWithFallback(fallbackData, data);
+}
+
+const initPromise = (async (): Promise<void> => {
+  await i18n.init({
+    resources: {
+      [DEFAULT_LANGUAGE]: { translation: getLocaleModules(DEFAULT_LANGUAGE) },
+    },
+    fallbackLng: DEFAULT_LANGUAGE,
+    debug: false,
+    interpolation: { escapeValue: false },
+  });
+
+  const language = await ConfigStorage.get('language');
+  if (language) {
+    await ensureAndSwitch(i18n, language, getLocaleModules);
+  }
+})().catch((error) => {
+  console.error('[Main Process] Failed to initialize i18n:', error);
+});
+
+/**
+ * 切换语言 / Change language
+ *
+ * 可以在其他地方调用此函数来切换主进程的语言
+ * Can be called from elsewhere to change the main process language
+ */
+export async function changeLanguage(language: string): Promise<void> {
+  await initPromise;
+  await ensureAndSwitch(i18n, language, getLocaleModules);
+}
+
+export { normalizeLanguageCode };
+export default i18n;
