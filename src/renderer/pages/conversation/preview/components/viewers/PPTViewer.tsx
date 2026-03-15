@@ -5,69 +5,164 @@
  */
 
 import { ipcBridge } from '@/common';
-import { Button } from '@arco-design/web-react';
-import React from 'react';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
+import { Button, Message } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import PDFViewer from './PDFViewer';
 
 interface PPTPreviewProps {
   /**
-   * PPT file path (absolute path on disk)
    * PPT 文件路径（磁盘上的绝对路径）
+   * PPT file path (absolute path on disk)
    */
   filePath?: string;
-  /**
-   * PPT content (not used, kept for compatibility)
-   * PPT 内容（暂不使用，保留用于兼容）
-   */
-  content?: string;
+  hideToolbar?: boolean;
 }
 
 /**
- * PPT 演示文稿预览组件
+ * PPT 演示文稿预览组件（LibreOffice PDF 方案）
  *
- * 由于 PPT 格式复杂，无法在纯 JavaScript 中完美渲染，
- * 此组件引导用户在系统应用（PowerPoint/Keynote/WPS）中打开文件
+ * 功能：
+ * 1. 使用 LibreOffice 将 PPT/PPTX 转换为 PDF
+ * 2. 使用 PDFViewer 统一渲染
+ * 3. 支持在系统应用中打开
  */
-const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath }) => {
+const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }) => {
   const { t } = useTranslation();
-  const handleOpenExternal = async () => {
-    if (!filePath) return;
+  const [messageApi, messageContextHolder] = Message.useMessage();
+  const toolbarExtrasContext = usePreviewToolbarExtras();
+  const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
+
+  const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleOpenExternal = useCallback(async () => {
+    if (!filePath) {
+      messageApi.error(t('preview.errors.openWithoutPath'));
+      return;
+    }
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
+      messageApi.info(t('preview.openInSystemSuccess'));
     } catch (err) {
-      // 静默处理错误 / Silently handle error
+      messageApi.error(t('preview.openInSystemFailed'));
     }
-  };
+  }, [filePath, messageApi, t]);
 
-  const handleShowInFolder = async () => {
-    if (!filePath) return;
+  const handleShowInFolder = useCallback(async () => {
+    if (!filePath) {
+      return;
+    }
     try {
       await ipcBridge.shell.showItemInFolder.invoke(filePath);
     } catch (err) {
       // 静默处理错误 / Silently handle error
     }
-  };
+  }, [filePath]);
+
+  // 使用 LibreOffice 将 PPT 转换为 PDF
+  useEffect(() => {
+    const convertToPdf = async () => {
+      if (!filePath) {
+        setError(t('preview.errors.missingFilePath'));
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
+
+        if (response.to !== 'libreoffice-pdf') {
+          throw new Error(t('preview.errors.conversionFailed'));
+        }
+
+        if (response.result.success && response.result.data) {
+          setPdfPath(response.result.data);
+        } else {
+          throw new Error(response.result.error || t('preview.errors.conversionFailed'));
+        }
+      } catch (err) {
+        const defaultMessage = t('preview.ppt.loadFailed');
+        const errorMessage = err instanceof Error ? err.message : defaultMessage;
+        setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
+        messageApi.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void convertToPdf();
+  }, [filePath]); // 移除 t 和 messageApi 依赖，避免不必要的重渲染
+
+  // 设置工具栏扩展
+  useEffect(() => {
+    if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
+
+    toolbarExtrasContext.setExtras({
+      left: (
+        <div className='flex items-center gap-8px'>
+          <span className='text-13px text-t-secondary'>📊 {t('preview.pptTitle')}</span>
+          <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+        </div>
+      ),
+      right: null,
+    });
+    return () => toolbarExtrasContext.setExtras(null);
+  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error]);
+
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        {messageContextHolder}
+        <div className='text-14px text-t-secondary'>{t('preview.ppt.loading')}</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        {messageContextHolder}
+        <div className='text-center'>
+          <div className='text-16px text-t-error mb-8px'>❌ {error}</div>
+          <div className='text-12px text-t-secondary'>{t('preview.ppt.invalid')}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className='h-full w-full bg-bg-1 flex items-center justify-center'>
-      <div className='text-center max-w-400px'>
-        <div className='text-48px mb-16px'>📊</div>
-        <div className='text-16px text-t-primary font-medium mb-8px'>{t('preview.pptTitle')}</div>
-        <div className='text-13px text-t-secondary mb-24px'>{t('preview.pptOpenHint')}</div>
+    <div className='h-full w-full flex flex-col bg-bg-1'>
+      {messageContextHolder}
 
-        {filePath && (
-          <div className='flex items-center justify-center gap-12px'>
-            <Button size='small' onClick={handleOpenExternal}>
-              <span>{t('preview.pptOpenFile')}</span>
-            </Button>
-            <Button size='small' onClick={handleShowInFolder}>
-              {t('preview.pptShowLocation')}
-            </Button>
+      {/* 工具栏 */}
+      {!usePortalToolbar && !hideToolbar && (
+        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b border-border-1'>
+          <div className='flex items-center gap-8px'>
+            <span className='text-13px text-t-secondary'>📊 {t('preview.pptTitle')}</span>
+            <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
           </div>
-        )}
 
-        <div className='text-11px text-t-tertiary mt-16px'>{t('preview.pptSystemAppHint')}</div>
-      </div>
+          <div className='flex items-center gap-8px'>
+            <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenExternal} title={t('preview.openWithApp', { app: 'PowerPoint' })}>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                <polyline points='15 3 21 3 21 9' />
+                <line x1='10' y1='14' x2='21' y2='3' />
+              </svg>
+              <span>{t('preview.openWithApp', { app: 'PowerPoint' })}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF 渲染区域 */}
+      <div className='flex-1 overflow-hidden'>{pdfPath && <PDFViewer filePath={pdfPath} hideToolbar />}</div>
     </div>
   );
 };

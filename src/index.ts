@@ -442,6 +442,11 @@ const createWindow = (): void => {
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       webviewTag: true, // 启用 webview 标签用于 HTML 预览 / Enable webview tag for HTML preview
+      allowRunningInsecureContent: false,
+      webSecurity: true,
+      // Allow webview to load file:// URLs for local PDF preview
+      // 允许 webview 加载本地文件协议用于 PDF 预览
+      sandbox: false,
     },
   });
   console.log(`[AionUi] Main window created (id=${mainWindow.id})`);

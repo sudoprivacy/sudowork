@@ -6,10 +6,10 @@
 
 import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
-import { Message } from '@arco-design/web-react';
+import { Button, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import MarkdownPreview from './MarkdownViewer';
+import PDFViewer from './PDFViewer';
 
 interface WordPreviewProps {
   filePath?: string;
@@ -18,16 +18,17 @@ interface WordPreviewProps {
 }
 
 /**
- * Word 文档预览组件
+ * Word 文档预览组件（LibreOffice PDF 方案）
  *
- * 核心流程：
- * 1. Word → Markdown (mammoth + turndown)
- * 2. 使用 MarkdownPreview 渲染预览
- * 3. 点击"在 Word 中打开"可以用系统默认应用编辑
+ * 功能：
+ * 1. 使用 LibreOffice 将 Word 文档转换为 PDF
+ * 2. 使用 PDFViewer 统一渲染
+ * 3. 保留更多格式（表格、图片、样式等）
+ * 4. 点击"在 Word 中打开"可以用系统默认应用编辑
  */
 const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false }) => {
   const { t } = useTranslation();
-  const [markdown, setMarkdown] = useState('');
+  const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messageApi, messageContextHolder] = Message.useMessage();
@@ -40,10 +41,10 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   }, [messageApi]);
 
   /**
-   * 加载 Word 文档并转换为 Markdown
+   * 使用 LibreOffice 将 Word 文档转换为 PDF
    */
   useEffect(() => {
-    const loadDocument = async () => {
+    const convertToPdf = async () => {
       setLoading(true);
       setError(null);
 
@@ -52,16 +53,14 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
           throw new Error(t('preview.errors.missingFilePath'));
         }
 
-        // 使用后端转换服务 / Use backend conversion service
-        // 通过统一的 document.convert IPC 请求转换 / Request conversion via unified document.convert IPC
-        const response = await ipcBridge.document.convert.invoke({ filePath, to: 'markdown' });
+        const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
 
-        if (response.to !== 'markdown') {
+        if (response.to !== 'libreoffice-pdf') {
           throw new Error(t('preview.errors.conversionFailed'));
         }
 
         if (response.result.success && response.result.data) {
-          setMarkdown(response.result.data);
+          setPdfPath(response.result.data);
         } else {
           throw new Error(response.result.error || t('preview.errors.conversionFailed'));
         }
@@ -75,8 +74,8 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
       }
     };
 
-    void loadDocument();
-  }, [filePath, t]);
+    void convertToPdf();
+  }, [filePath]); // 移除 t 依赖，避免不必要的重渲染
 
   /**
    * 在系统默认应用中打开 Word 文档
@@ -104,6 +103,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
       left: (
         <div className='flex items-center gap-8px'>
           <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
+          <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
       right: null,
@@ -139,6 +139,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
         <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
+            <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
           </div>
 
           {/* 右侧按钮组 / Right button group */}
@@ -155,10 +156,8 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
         </div>
       )}
 
-      {/* 内容区域 */}
-      <div className='flex-1 overflow-hidden'>
-        <MarkdownPreview content={markdown} hideToolbar />
-      </div>
+      {/* 内容区域 - PDF 渲染 */}
+      <div className='flex-1 overflow-hidden'>{pdfPath && <PDFViewer filePath={pdfPath} hideToolbar />}</div>
     </div>
   );
 };
