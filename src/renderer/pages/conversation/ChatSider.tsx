@@ -24,7 +24,36 @@ const ChatSider: React.FC<{
   }
 
   if (!workspaceNode) {
-    return <div></div>;
+    // DEBUG: 显示调试信息
+    const debugInfo = {
+      conversationId: conversation?.id,
+      type: conversation?.type,
+      extra: conversation?.extra,
+      hasWorkspace: !!(conversation?.extra as { workspace?: string })?.workspace,
+    };
+    return (
+      <div style={{ padding: '12px', fontSize: '12px', color: 'var(--color-text-3)' }}>
+        <button
+          type='button'
+          onClick={() => {
+            console.log('[ChatSider DEBUG]', debugInfo);
+            alert(JSON.stringify(debugInfo, null, 2));
+          }}
+          style={{
+            padding: '4px 8px',
+            fontSize: '11px',
+            cursor: 'pointer',
+            border: '1px solid var(--color-border-2)',
+            borderRadius: '4px',
+            background: 'var(--color-fill-2)',
+            color: 'var(--color-text-2)',
+            width: '100%',
+          }}
+        >
+          🔍 Debug: 点击查看面板状态
+        </button>
+      </div>
+    );
   }
 
   return (
