@@ -62,6 +62,12 @@
     "conversionFailed": "Conversion failed",
     "emptySnapshot": "Snapshot content is empty"
   },
+  "libreOffice": {
+    "notInstalled": "LibreOffice is not installed. Please install LibreOffice to preview this file.",
+    "convertFailed": "LibreOffice conversion failed",
+    "timeout": "Conversion timed out. The file may be too large or complex.",
+    "fileNotFound": "Source file not found"
+  },
   "word": {
     "title": "Word Document",
     "loading": "Loading Word document...",
@@ -78,6 +84,19 @@
     "loadFailed": "Failed to load Excel workbook",
     "emptySheet": "This worksheet has no data",
     "emptySheetHint": "Check whether the sheet contains data or images"
+  },
+  "ppt": {
+    "title": "PowerPoint Presentation",
+    "loading": "Loading PowerPoint presentation...",
+    "noSlides": "No slides found",
+    "noSlidesHint": "This PowerPoint file appears to be empty or corrupted",
+    "noTextContent": "No text content on this slide",
+    "slideNumber": "Slide {{num}}",
+    "slideOf": "Slide {{current}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
+    "convertFailed": "PowerPoint conversion failed",
+    "loadFailed": "Failed to load PowerPoint presentation"
   },
   "pdf": {
     "title": "PDF Document",

@@ -18,12 +18,14 @@
 import { ipcBridge } from '@/common';
 import type { DocumentConversionTarget } from '@/common/types/conversion';
 import path from 'path';
+import fs from 'fs';
 import { conversionService } from '../services/conversionService';
 
 // 支持的文件扩展名集合 / Supported file extension sets
 const WORD_EXTENSIONS = new Set(['.doc', '.docx']); // Word 文档扩展名 / Word document extensions
 const EXCEL_EXTENSIONS = new Set(['.xls', '.xlsx']); // Excel 工作簿扩展名 / Excel workbook extensions
 const PPT_EXTENSIONS = new Set(['.ppt', '.pptx']); // PowerPoint 演示文稿扩展名 / PowerPoint presentation extensions
+const LIBREOFFICE_EXTENSIONS = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods']); // LibreOffice 支持的扩展名 / LibreOffice supported extensions
 
 /**
  * 生成不支持的转换结果
@@ -60,13 +62,15 @@ const ensureExtension = (filePath: string, allowed: Set<string>) => {
  *
  * 注册 IPC 处理器以响应来自渲染进程的文档转换请求
  * 支持以下转换类型：
- * - Word → Markdown
+ * - Word → Markdown (旧版，为了兼容保留)
+ * - Word → HTML (新版，保留更多格式)
  * - Excel → JSON
  * - PowerPoint → JSON
  *
  * Register IPC handler to respond to document conversion requests from renderer process
  * Supports the following conversion types:
- * - Word → Markdown
+ * - Word → Markdown (legacy, kept for compatibility)
+ * - Word → HTML (new, preserves more formatting)
  * - Excel → JSON
  * - PowerPoint → JSON
  */
@@ -79,6 +83,14 @@ export function initDocumentBridge(): void {
           return unsupportedResult(to, 'Only Word documents can be converted to markdown');
         }
         const result = await conversionService.wordToMarkdown(filePath);
+        return { to, result };
+      }
+      case 'word-html': {
+        // Word 文档转 HTML / Word document to HTML
+        if (!ensureExtension(filePath, WORD_EXTENSIONS)) {
+          return unsupportedResult(to, 'Only Word documents can be converted to HTML');
+        }
+        const result = await conversionService.wordToHtml(filePath);
         return { to, result };
       }
       case 'excel-json': {
@@ -95,6 +107,28 @@ export function initDocumentBridge(): void {
           return unsupportedResult(to, 'Only PowerPoint files can be converted to JSON');
         }
         const result = await conversionService.pptToJson(filePath);
+        return { to, result };
+      }
+      case 'pptx-arraybuffer': {
+        // PowerPoint 演示文稿读取为 ArrayBuffer / PowerPoint presentation to ArrayBuffer
+        if (!ensureExtension(filePath, PPT_EXTENSIONS)) {
+          return unsupportedResult(to, 'Only PowerPoint files can be read as ArrayBuffer');
+        }
+        try {
+          const buffer = await fs.promises.readFile(filePath);
+          const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+          return { to, result: { success: true, data: arrayBuffer } };
+        } catch (error) {
+          return { to, result: { success: false, error: error instanceof Error ? error.message : 'Failed to read file' } };
+        }
+      }
+      case 'libreoffice-pdf': {
+        // LibreOffice 转换为 PDF / LibreOffice to PDF conversion
+        // 支持 doc, docx, ppt, pptx, xls, xlsx, odt, odp, ods
+        if (!ensureExtension(filePath, LIBREOFFICE_EXTENSIONS)) {
+          return unsupportedResult(to, 'Only Office documents can be converted to PDF via LibreOffice');
+        }
+        const result = await conversionService.libreOfficeToPdf(filePath);
         return { to, result };
       }
       default:

@@ -52,8 +52,10 @@ export default defineConfig({
       include: [
         // Process / bridge
         'src/process/services/autoUpdaterService.ts',
+        'src/process/services/conversionService.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
+        'src/process/bridge/documentBridge.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',
@@ -62,9 +64,15 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/update/models/VersionInfo.ts',
+        'src/common/types/conversion.ts',
         // Renderer utils
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
+        // Preview components
+        'src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx',
+        'src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx',
+        'src/renderer/pages/conversation/preview/components/renderers/WordHtmlRenderer.tsx',
+        'src/renderer/pages/conversation/preview/components/renderers/PPTHtmlRenderer.tsx',
         // Extension system (only files with existing tests)
         'src/extensions/ExtensionLoader.ts',
         'src/extensions/{dependencyResolver,pathSafety,statePersistence,entryPointResolver,envResolver,fileResolver}.ts',
