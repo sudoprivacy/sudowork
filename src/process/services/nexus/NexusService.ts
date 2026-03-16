@@ -3,32 +3,32 @@ import { spawn, ChildProcess } from 'child_process';
 import * as net from 'net';
 import * as path from 'path';
 
-const NEXUS_PORT = 8080;
-
 class NexusService {
   private process: ChildProcess | null = null;
   private _running = false;
+  private _port = 0;
 
   get isRunning(): boolean {
     return this._running;
   }
 
   get port(): number {
-    return NEXUS_PORT;
+    return this._port;
   }
 
   async start(): Promise<void> {
     if (this._running) return;
 
+    this._port = await this.findFreePort();
     const scriptPath = this.resolveScriptPath();
-    console.log(`[Nexus] Starting server from: ${scriptPath}`);
+    console.log(`[Nexus] Starting server from: ${scriptPath} on port ${this._port}`);
 
     if (app.isPackaged) {
       // Production: run the PyInstaller-compiled binary
-      this.process = spawn(scriptPath, [String(NEXUS_PORT)], { stdio: 'pipe' });
+      this.process = spawn(scriptPath, [String(this._port)], { stdio: 'pipe' });
     } else {
       // Development: run the .py script directly with python3
-      this.process = spawn('python3', [scriptPath, String(NEXUS_PORT)], { stdio: 'pipe' });
+      this.process = spawn('python3', [scriptPath, String(this._port)], { stdio: 'pipe' });
     }
 
     this.process.stdout?.on('data', (d: Buffer) => {
@@ -46,9 +46,20 @@ class NexusService {
       this._running = false;
     });
 
-    await this.waitForPort(NEXUS_PORT);
+    await this.waitForPort(this._port);
     this._running = true;
-    console.log(`[Nexus] Server ready on http://127.0.0.1:${NEXUS_PORT}`);
+    console.log(`[Nexus] Server ready on http://127.0.0.1:${this._port}`);
+  }
+
+  private findFreePort(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, '127.0.0.1', () => {
+        const addr = server.address() as net.AddressInfo;
+        server.close((err) => (err ? reject(err) : resolve(addr.port)));
+      });
+      server.on('error', reject);
+    });
   }
 
   stop(): void {
