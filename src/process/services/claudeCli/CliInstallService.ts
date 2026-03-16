@@ -152,7 +152,7 @@ export class CliInstallService {
       const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf-8'));
       const bin = pkg.bin;
       if (!bin) return null;
-      const entry = typeof bin === 'string' ? bin : Object.values(bin)[0] as string;
+      const entry = typeof bin === 'string' ? bin : (Object.values(bin)[0] as string);
       return path.join(this.pkgDir, entry);
     } catch {
       return null;
@@ -161,17 +161,7 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, this.cfg.name);
-    const content = [
-      '#!/bin/sh',
-      `# ${this.cfg.name} wrapper — managed by Sudowork`,
-      `CLI="${entryFile}"`,
-      'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
-      '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
-      '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
-      'done',
-      'echo "Error: Node.js not found. Install it from https://nodejs.org" >&2',
-      'exit 1',
-    ].join('\n') + '\n';
+    const content = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${entryFile}"`, 'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do', '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi', '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi', 'done', 'echo "Error: Node.js not found. Install it from https://nodejs.org" >&2', 'exit 1'].join('\n') + '\n';
     fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
   }
 
@@ -258,9 +248,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         silent: true,
       }).show();
 
-      const emitter = svc.commandName === 'claude'
-        ? ipcBridge.claudeCli.installResult
-        : ipcBridge.geminiCli.installResult;
+      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : ipcBridge.geminiCli.installResult;
 
       try {
         await svc.install();

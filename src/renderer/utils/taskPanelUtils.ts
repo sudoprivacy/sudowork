@@ -23,11 +23,11 @@ export async function checkTasksDirectory(workspacePath: string): Promise<boolea
       path: workspacePath,
       workspace: workspacePath,
       conversation_id: '', // 空 ID，因为我们只需要文件结构
-      search: ''
+      search: '',
     });
 
     // 检查是否有名为 .tasks 的目录
-    const tasksDir = workspaceFiles.find(item => item.name === '.tasks' && item.isDir);
+    const tasksDir = workspaceFiles.find((item) => item.name === '.tasks' && item.isDir);
     return !!tasksDir;
   } catch (error) {
     console.error('Error checking .tasks directory:', error);
@@ -54,7 +54,7 @@ export async function checkDagFiles(workspacePath: string): Promise<{ exists: bo
       path: tasksDirPath,
       workspace: workspacePath,
       conversation_id: '',
-      search: ''
+      search: '',
     });
 
     if (tasksFiles.length === 0) {
@@ -72,7 +72,7 @@ export async function checkDagFiles(workspacePath: string): Promise<{ exists: bo
           path: dagSubDirPath,
           workspace: workspacePath,
           conversation_id: '',
-          search: ''
+          search: '',
         });
 
         // 查找以 dag_ 开头并以 .json 结尾的文件
@@ -164,45 +164,45 @@ export async function createSampleDagFile(workspacePath: string): Promise<boolea
 
     // 创建示例 DAG JSON 文件
     const sampleDag = {
-      "dag_id": dagId,
-      "title": "示例任务",
-      "status": "completed",
-      "created_at": new Date().toISOString(),
-      "progress": {
-        "total": 1,
-        "completed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "running": 0,
-        "queued": 0,
-        "pending": 0
+      dag_id: dagId,
+      title: '示例任务',
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      progress: {
+        total: 1,
+        completed: 1,
+        failed: 0,
+        skipped: 0,
+        running: 0,
+        queued: 0,
+        pending: 0,
       },
-      "tasks": [
+      tasks: [
         {
-          "task_id": "sample_task_1",
-          "name": "示例任务",
-          "description": "这是一个示例 DAG 任务",
-          "type": "analyze",
-          "dependencies": [],
-          "status": "completed",
-          "metrics": {
-            "duration_ms": 100,
-            "input_tokens": 10,
-            "output_tokens": 5,
-            "total_tokens": 15
+          task_id: 'sample_task_1',
+          name: '示例任务',
+          description: '这是一个示例 DAG 任务',
+          type: 'analyze',
+          dependencies: [],
+          status: 'completed',
+          metrics: {
+            duration_ms: 100,
+            input_tokens: 10,
+            output_tokens: 5,
+            total_tokens: 15,
           },
-          "result": {
-            "content": "示例任务完成"
-          }
-        }
+          result: {
+            content: '示例任务完成',
+          },
+        },
       ],
-      "summary": "示例 DAG 任务已完成"
+      summary: '示例 DAG 任务已完成',
     };
 
     const dagFilePath = `${dagDirPath}/${dagId}.json`;
     await ipcBridge.fs.writeFile.invoke({
       path: dagFilePath,
-      content: JSON.stringify(sampleDag, null, 2)
+      content: JSON.stringify(sampleDag, null, 2),
     });
 
     console.log(`Created sample DAG file at: ${dagFilePath}`);

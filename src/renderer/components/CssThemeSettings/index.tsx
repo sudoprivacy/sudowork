@@ -472,14 +472,7 @@ const CssThemeSettings: React.FC = () => {
               }
             : { backgroundColor: previewPalette.appBg };
           return (
-            <div
-              key={theme.id}
-              className={`relative cursor-pointer rounded-12px overflow-hidden border-2 transition-all duration-200 h-112px w-180px ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-border-2'}`}
-              style={cardStyle}
-              onClick={() => handleSelectTheme(theme)}
-              onMouseEnter={() => setHoveredThemeId(theme.id)}
-              onMouseLeave={() => setHoveredThemeId(null)}
-            >
+            <div key={theme.id} className={`relative cursor-pointer rounded-12px overflow-hidden border-2 transition-all duration-200 h-112px w-180px ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-border-2'}`} style={cardStyle} onClick={() => handleSelectTheme(theme)} onMouseEnter={() => setHoveredThemeId(theme.id)} onMouseLeave={() => setHoveredThemeId(null)}>
               {!theme.cover && <ThemeLayoutPreview palette={previewPalette} />}
 
               {/* 底部渐变遮罩与名称、编辑按钮 / Bottom gradient overlay with name and edit button */}

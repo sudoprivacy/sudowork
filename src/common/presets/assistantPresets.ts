@@ -323,16 +323,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': '任务编排助手。分析输入、将复杂任务拆分为 DAG 写入文件系统，由 Worker Pool 异步调度执行，Copilot 与 Worker 通过文件解耦。',
     },
     promptsI18n: {
-      'en-US': [
-        'Research top AI writing tools and generate a comparison report',
-        '@plan Build a full data pipeline: fetch, clean, analyze, and export',
-        'What is the current status of my running tasks?',
-      ],
-      'zh-CN': [
-        '调研主流 AI 写作工具并生成竞品对比报告',
-        '@plan 构建完整数据流水线：拉取、清洗、分析、导出',
-        '当前正在执行的任务进度是什么？',
-      ],
+      'en-US': ['Research top AI writing tools and generate a comparison report', '@plan Build a full data pipeline: fetch, clean, analyze, and export', 'What is the current status of my running tasks?'],
+      'zh-CN': ['调研主流 AI 写作工具并生成竞品对比报告', '@plan 构建完整数据流水线：拉取、清洗、分析、导出', '当前正在执行的任务进度是什么？'],
     },
   },
   {

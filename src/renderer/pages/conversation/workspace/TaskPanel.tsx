@@ -70,35 +70,34 @@ export interface Dag {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<TaskStatus, { label: string; color: string; bg: string; border: string; dot: string; pulse?: boolean }> = {
-  pending:   { label: '待执行', color: '#94a3b8', bg: '#f8fafc',   border: '#e2e8f0', dot: '#cbd5e1' },
-  queued:    { label: '已入队', color: '#3b82f6', bg: '#eff6ff',   border: '#bfdbfe', dot: '#60a5fa' },
-  running:   { label: '执行中', color: '#2563eb', bg: '#dbeafe',   border: '#93c5fd', dot: '#3b82f6', pulse: true },
-  completed: { label: '已完成', color: '#16a34a', bg: '#f0fdf4',   border: '#bbf7d0', dot: '#22c55e' },
-  failed:    { label: '失败',   color: '#dc2626', bg: '#fef2f2',   border: '#fecaca', dot: '#ef4444' },
-  skipped:   { label: '已跳过', color: '#9ca3af', bg: '#f9fafb',   border: '#e5e7eb', dot: '#d1d5db' },
-  paused:    { label: '已暂停', color: '#d97706', bg: '#fffbeb',   border: '#fde68a', dot: '#f59e0b' },
+  pending: { label: '待执行', color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0', dot: '#cbd5e1' },
+  queued: { label: '已入队', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', dot: '#60a5fa' },
+  running: { label: '执行中', color: '#2563eb', bg: '#dbeafe', border: '#93c5fd', dot: '#3b82f6', pulse: true },
+  completed: { label: '已完成', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', dot: '#22c55e' },
+  failed: { label: '失败', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444' },
+  skipped: { label: '已跳过', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb', dot: '#d1d5db' },
+  paused: { label: '已暂停', color: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b' },
 };
 
 const TYPE_CFG: Record<TaskType, { icon: string; label: string }> = {
-  search:    { icon: '🔍', label: '搜索'   },
-  analyze:   { icon: '🧠', label: '分析'   },
-  generate:  { icon: '✍️', label: '生成'   },
-  code:      { icon: '💻', label: '代码'   },
-  file:      { icon: '📁', label: '文件'   },
-  api:       { icon: '🔌', label: 'API'    },
-  review:    { icon: '🔎', label: '审阅'   },
-  summarize: { icon: '📋', label: '汇总'   },
-  custom:    { icon: '⚙️', label: '自定义' },
+  search: { icon: '🔍', label: '搜索' },
+  analyze: { icon: '🧠', label: '分析' },
+  generate: { icon: '✍️', label: '生成' },
+  code: { icon: '💻', label: '代码' },
+  file: { icon: '📁', label: '文件' },
+  api: { icon: '🔌', label: 'API' },
+  review: { icon: '🔎', label: '审阅' },
+  summarize: { icon: '📋', label: '汇总' },
+  custom: { icon: '⚙️', label: '自定义' },
 };
 
 const DAG_STATUS_COLOR: Record<string, string> = {
-  running:   '#3b82f6',
+  running: '#3b82f6',
   completed: '#22c55e',
-  failed:    '#ef4444',
-  pending:   '#94a3b8',
-  paused:    '#f59e0b',
+  failed: '#ef4444',
+  pending: '#94a3b8',
+  paused: '#f59e0b',
 };
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout computation
@@ -111,29 +110,34 @@ const ROW_GAP = 12;
 const COL_STRIDE = NODE_W + COL_GAP;
 const PAD = 16;
 
-interface NodePos { x: number; y: number; w: number; h: number }
+interface NodePos {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 function computeLayout(tasks: SubTask[]): { positions: Record<string, NodePos>; canvasW: number; canvasH: number } {
   const levelMap: Record<string, number> = {};
 
   function getLevel(id: string): number {
     if (levelMap[id] !== undefined) return levelMap[id];
-    const t = tasks.find(x => x.task_id === id);
+    const t = tasks.find((x) => x.task_id === id);
     if (!t || t.dependencies.length === 0) return (levelMap[id] = 0);
     return (levelMap[id] = 1 + Math.max(...t.dependencies.map(getLevel)));
   }
 
-  tasks.forEach(t => getLevel(t.task_id));
+  tasks.forEach((t) => getLevel(t.task_id));
 
   const cols: Record<number, string[]> = {};
-  tasks.forEach(t => {
+  tasks.forEach((t) => {
     const lvl = levelMap[t.task_id];
     if (!cols[lvl]) cols[lvl] = [];
     cols[lvl].push(t.task_id);
   });
 
   const maxLvl = Math.max(...Object.keys(cols).map(Number));
-  const maxColSize = Math.max(...Object.values(cols).map(c => c.length));
+  const maxColSize = Math.max(...Object.values(cols).map((c) => c.length));
   const totalH = maxColSize * NODE_H + Math.max(0, maxColSize - 1) * ROW_GAP;
 
   const positions: Record<string, NodePos> = {};
@@ -144,7 +148,8 @@ function computeLayout(tasks: SubTask[]): { positions: Record<string, NodePos>; 
       positions[id] = {
         x: PAD + Number(lvl) * COL_STRIDE,
         y: startY + i * (NODE_H + ROW_GAP),
-        w: NODE_W, h: NODE_H,
+        w: NODE_W,
+        h: NODE_H,
       };
     });
   });
@@ -163,17 +168,31 @@ function computeLayout(tasks: SubTask[]): { positions: Record<string, NodePos>; 
 const StatusBadge: React.FC<{ status: TaskStatus; small?: boolean }> = ({ status, small }) => {
   const c = STATUS_CFG[status] ?? STATUS_CFG.pending;
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: small ? '1px 5px' : '2px 7px',
-      borderRadius: 99, fontSize: small ? 10 : 11, fontWeight: 600,
-      color: c.color, background: c.bg, border: `1px solid ${c.border}`,
-      whiteSpace: 'nowrap',
-    }}>
-      <span style={{
-        width: 5, height: 5, borderRadius: '50%', background: c.dot, flexShrink: 0,
-        animation: c.pulse ? 'copilotPulse 1.4s ease-in-out infinite' : 'none',
-      }} />
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: small ? '1px 5px' : '2px 7px',
+        borderRadius: 99,
+        fontSize: small ? 10 : 11,
+        fontWeight: 600,
+        color: c.color,
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: c.dot,
+          flexShrink: 0,
+          animation: c.pulse ? 'copilotPulse 1.4s ease-in-out infinite' : 'none',
+        }}
+      />
       {c.label}
     </span>
   );
@@ -197,8 +216,8 @@ const ProgressBar: React.FC<{ progress: DagProgress }> = ({ progress }) => {
 const DAGEdges: React.FC<{ tasks: SubTask[]; positions: Record<string, NodePos> }> = ({ tasks, positions }) => {
   const edges: { id: string; d: string; srcStatus: TaskStatus }[] = [];
 
-  tasks.forEach(task => {
-    task.dependencies.forEach(depId => {
+  tasks.forEach((task) => {
+    task.dependencies.forEach((depId) => {
       const src = positions[depId];
       const tgt = positions[task.task_id];
       if (!src || !tgt) return;
@@ -210,7 +229,7 @@ const DAGEdges: React.FC<{ tasks: SubTask[]; positions: Record<string, NodePos> 
       edges.push({
         id: `${depId}→${task.task_id}`,
         d: `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`,
-        srcStatus: (tasks.find(t => t.task_id === depId)?.status ?? 'pending') as TaskStatus,
+        srcStatus: (tasks.find((t) => t.task_id === depId)?.status ?? 'pending') as TaskStatus,
       });
     });
   });
@@ -224,23 +243,16 @@ const DAGEdges: React.FC<{ tasks: SubTask[]; positions: Record<string, NodePos> 
   return (
     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
-        {(['default', 'done', 'fail'] as const).map(id => (
-          <marker key={id} id={`cp-arr-${id}`} markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
-            <path d="M 0 1 L 5 3.5 L 0 6 Z" fill={id === 'done' ? '#86efac' : id === 'fail' ? '#fca5a5' : '#cbd5e1'} />
+        {(['default', 'done', 'fail'] as const).map((id) => (
+          <marker key={id} id={`cp-arr-${id}`} markerWidth='7' markerHeight='7' refX='5' refY='3.5' orient='auto'>
+            <path d='M 0 1 L 5 3.5 L 0 6 Z' fill={id === 'done' ? '#86efac' : id === 'fail' ? '#fca5a5' : '#cbd5e1'} />
           </marker>
         ))}
       </defs>
-      {edges.map(e => {
+      {edges.map((e) => {
         const markerId = e.srcStatus === 'completed' ? 'done' : e.srcStatus === 'failed' ? 'fail' : 'default';
         const dashed = e.srcStatus === 'pending' || e.srcStatus === 'skipped' || e.srcStatus === 'queued';
-        return (
-          <path key={e.id} d={e.d}
-            stroke={getEdgeColor(e.srcStatus)}
-            strokeWidth={1.5} fill="none"
-            strokeDasharray={dashed ? '4 3' : 'none'}
-            markerEnd={`url(#cp-arr-${markerId})`}
-          />
-        );
+        return <path key={e.id} d={e.d} stroke={getEdgeColor(e.srcStatus)} strokeWidth={1.5} fill='none' strokeDasharray={dashed ? '4 3' : 'none'} markerEnd={`url(#cp-arr-${markerId})`} />;
       })}
     </svg>
   );
@@ -262,39 +274,39 @@ const TaskNode: React.FC<{
       onClick={() => onClick(task)}
       style={{
         position: 'absolute',
-        left: pos.x, top: pos.y,
-        width: pos.w, height: pos.h,
+        left: pos.x,
+        top: pos.y,
+        width: pos.w,
+        height: pos.h,
         borderRadius: 8,
         background: selected ? '#eff6ff' : isFailed ? '#fff8f8' : '#ffffff',
         border: `1.5px solid ${selected ? '#3b82f6' : sc.border}`,
-        boxShadow: selected
-          ? '0 0 0 3px #bfdbfe, 0 2px 8px rgba(59,130,246,0.12)'
-          : isRunning
-            ? `0 0 0 2px ${sc.border}, 0 2px 6px rgba(0,0,0,0.04)`
-            : '0 1px 3px rgba(0,0,0,0.05)',
+        boxShadow: selected ? '0 0 0 3px #bfdbfe, 0 2px 8px rgba(59,130,246,0.12)' : isRunning ? `0 0 0 2px ${sc.border}, 0 2px 6px rgba(0,0,0,0.04)` : '0 1px 3px rgba(0,0,0,0.05)',
         cursor: 'pointer',
         padding: '7px 9px',
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         userSelect: 'none',
         transition: 'box-shadow 0.15s, border-color 0.15s, transform 0.1s',
         animation: isRunning ? 'copilotNodePulse 2s ease-in-out infinite' : 'none',
       }}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+      }}
     >
       {/* Top row: emoji + name */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
         <span style={{ fontSize: 13, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>{tc.icon}</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: '#1e293b', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-          {task.name}
-        </span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: '#1e293b', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
       </div>
       {/* Bottom row: badge + task_id */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
         <StatusBadge status={task.status} small />
-        <span style={{ fontSize: 9.5, color: '#cbd5e1', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-          {task.task_id}
-        </span>
+        <span style={{ fontSize: 9.5, color: '#cbd5e1', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>{task.task_id}</span>
       </div>
     </div>
   );
@@ -315,13 +327,22 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
   const m = task.metrics ?? {};
 
   return (
-    <div style={{
-      position: 'absolute', top: 0, right: 0, bottom: 0, width: 264,
-      background: '#ffffff', borderLeft: '1px solid #e2e8f0',
-      boxShadow: '-6px 0 20px rgba(0,0,0,0.06)',
-      display: 'flex', flexDirection: 'column', zIndex: 20,
-      animation: 'cpDrawerIn 0.18s ease-out',
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 264,
+        background: '#ffffff',
+        borderLeft: '1px solid #e2e8f0',
+        boxShadow: '-6px 0 20px rgba(0,0,0,0.06)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 20,
+        animation: 'cpDrawerIn 0.18s ease-out',
+      }}
+    >
       {/* Header */}
       <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -332,11 +353,26 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
             </div>
           </div>
-          <button onClick={onClose} style={{
-            width: 24, height: 24, borderRadius: 6, border: '1px solid #e2e8f0',
-            background: '#f8fafc', cursor: 'pointer', fontSize: 13, color: '#94a3b8',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0,
-          }}>×</button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              border: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              cursor: 'pointer',
+              fontSize: 13,
+              color: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
         </div>
         <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <StatusBadge status={task.status} />
@@ -350,22 +386,28 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
-
         {/* Dependencies */}
         {task.dependencies.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>依赖</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {task.dependencies.map(d => {
-                const dep = dag.tasks.find(t => t.task_id === d);
+              {task.dependencies.map((d) => {
+                const dep = dag.tasks.find((t) => t.task_id === d);
                 return (
-                  <span key={d} style={{
-                    padding: '2px 7px', borderRadius: 6,
-                    background: dep ? STATUS_CFG[dep.status].bg : '#f1f5f9',
-                    border: `1px solid ${dep ? STATUS_CFG[dep.status].border : '#e2e8f0'}`,
-                    fontSize: 10.5, fontFamily: 'monospace', color: '#475569',
-                  }}>
-                    {d}{dep ? ` · ${STATUS_CFG[dep.status].label}` : ''}
+                  <span
+                    key={d}
+                    style={{
+                      padding: '2px 7px',
+                      borderRadius: 6,
+                      background: dep ? STATUS_CFG[dep.status].bg : '#f1f5f9',
+                      border: `1px solid ${dep ? STATUS_CFG[dep.status].border : '#e2e8f0'}`,
+                      fontSize: 10.5,
+                      fontFamily: 'monospace',
+                      color: '#475569',
+                    }}
+                  >
+                    {d}
+                    {dep ? ` · ${STATUS_CFG[dep.status].label}` : ''}
                   </span>
                 );
               })}
@@ -377,9 +419,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
         {task.description && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>任务说明</div>
-            <div style={{ fontSize: 11.5, color: '#475569', lineHeight: 1.6, background: '#f8fafc', borderRadius: 7, padding: 9 }}>
-              {task.description}
-            </div>
+            <div style={{ fontSize: 11.5, color: '#475569', lineHeight: 1.6, background: '#f8fafc', borderRadius: 7, padding: 9 }}>{task.description}</div>
           </div>
         )}
 
@@ -388,11 +428,11 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>执行指标</div>
             <div style={{ background: '#f8fafc', borderRadius: 7, padding: '2px 9px' }}>
-              <MetricRow label="耗时" value={m.duration_ms ? `${(m.duration_ms / 1000).toFixed(1)}s` : undefined} />
-              <MetricRow label="Token" value={m.total_tokens?.toLocaleString()} />
-              <MetricRow label="费用" value={m.cost_usd != null ? `$${m.cost_usd.toFixed(4)}` : undefined} />
-              <MetricRow label="开始时间" value={m.started_at ?? undefined} />
-              <MetricRow label="完成时间" value={m.completed_at ?? undefined} />
+              <MetricRow label='耗时' value={m.duration_ms ? `${(m.duration_ms / 1000).toFixed(1)}s` : undefined} />
+              <MetricRow label='Token' value={m.total_tokens?.toLocaleString()} />
+              <MetricRow label='费用' value={m.cost_usd != null ? `$${m.cost_usd.toFixed(4)}` : undefined} />
+              <MetricRow label='开始时间' value={m.started_at ?? undefined} />
+              <MetricRow label='完成时间' value={m.completed_at ?? undefined} />
             </div>
           </div>
         )}
@@ -401,9 +441,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
         {task.result?.content && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>执行结果</div>
-            <div style={{ fontSize: 11, color: '#334155', lineHeight: 1.65, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 7, padding: 9 }}>
-              {task.result.content}
-            </div>
+            <div style={{ fontSize: 11, color: '#334155', lineHeight: 1.65, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 7, padding: 9 }}>{task.result.content}</div>
           </div>
         )}
 
@@ -419,11 +457,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
         )}
 
         {/* Worker ID */}
-        {task.worker_id && (
-          <div style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'monospace', textAlign: 'right' }}>
-            worker: {task.worker_id}
-          </div>
-        )}
+        {task.worker_id && <div style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'monospace', textAlign: 'right' }}>worker: {task.worker_id}</div>}
       </div>
     </div>
   );
@@ -458,7 +492,7 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
   const dag = dags[activeDagIdx] ?? dags[0];
 
   const handleNodeClick = useCallback((task: SubTask) => {
-    setSelectedTask(prev => (prev?.task_id === task.task_id ? null : task));
+    setSelectedTask((prev) => (prev?.task_id === task.task_id ? null : task));
   }, []);
 
   const handleTabClick = useCallback((i: number) => {
@@ -471,28 +505,28 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
     return (
       <>
         <style>{STYLES}</style>
-        <div style={{
-          borderBottom: '1px solid var(--bg-3, #e2e8f0)',
-          background: 'var(--color-bg-1, #fff)',
-          padding: '6px 12px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          cursor: 'pointer', userSelect: 'none',
-        }} onClick={() => {
-          console.log('[TaskPanel] Header clicked, expanding panel');
-          setExpanded(true);
-        }}>
+        <div
+          style={{
+            borderBottom: '1px solid var(--bg-3, #e2e8f0)',
+            background: 'var(--color-bg-1, #fff)',
+            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+          onClick={() => {
+            console.log('[TaskPanel] Header clicked, expanding panel');
+            setExpanded(true);
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>任务面板</span>
             {dags.map((d) => (
               <span key={d.dag_id} style={{ width: 7, height: 7, borderRadius: '50%', background: DAG_STATUS_COLOR[d.status] ?? '#94a3b8' }} />
             ))}
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>
-              {isLoading
-                ? '加载中…'
-                : dags.reduce((s, d) => s + d.progress.running, 0) > 0
-                  ? `${dags.reduce((s, d) => s + d.progress.running, 0)} 个任务执行中`
-                  : dags.length > 0 ? `${dags.length} 个任务` : '暂无任务'}
-            </span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>{isLoading ? '加载中…' : dags.reduce((s, d) => s + d.progress.running, 0) > 0 ? `${dags.reduce((s, d) => s + d.progress.running, 0)} 个任务执行中` : dags.length > 0 ? `${dags.length} 个任务` : '暂无任务'}</span>
           </div>
           <span style={{ fontSize: 12, color: '#94a3b8' }}>▾</span>
         </div>
@@ -505,25 +539,22 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
     return (
       <>
         <style>{STYLES}</style>
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          borderBottom: '1px solid var(--bg-3, #e2e8f0)',
-          background: 'var(--color-bg-1, #fff)',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderBottom: '1px solid var(--bg-3, #e2e8f0)',
+            background: 'var(--color-bg-1, #fff)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          }}
+        >
           <div style={{ padding: '7px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              任务面板
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>任务面板</span>
             <button onClick={() => setExpanded(false)} style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>
               ▴ 收起
             </button>
           </div>
-          <div style={{ padding: '20px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
-            {isLoading
-              ? '扫描任务目录…'
-              : '暂无任务 — 使用 Copilot 创建任务计划'}
-          </div>
+          <div style={{ padding: '20px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>{isLoading ? '扫描任务目录…' : '暂无任务 — 使用 Copilot 创建任务计划'}</div>
         </div>
       </>
     );
@@ -534,21 +565,24 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
   return (
     <>
       <style>{STYLES}</style>
-      <div style={{
-        display: 'flex', flexDirection: 'column',
-        borderBottom: '1px solid var(--bg-3, #e2e8f0)',
-        background: 'var(--color-bg-1, #fff)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        userSelect: 'none',
-      }}>
-
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderBottom: '1px solid var(--bg-3, #e2e8f0)',
+          background: 'var(--color-bg-1, #fff)',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          userSelect: 'none',
+        }}
+      >
         {/* ── Panel title row ───────────────────────────────────────────── */}
         <div style={{ padding: '7px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-            任务面板
-          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>任务面板</span>
           <button
-            onClick={() => { setExpanded(false); setSelectedTask(null); }}
+            onClick={() => {
+              setExpanded(false);
+              setSelectedTask(null);
+            }}
             style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
           >
             ▴ 收起
@@ -561,22 +595,27 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
             const active = i === activeDagIdx;
             const sc = DAG_STATUS_COLOR[d.status] ?? '#94a3b8';
             return (
-              <button key={d.dag_id} onClick={() => handleTabClick(i)} style={{
-                flexShrink: 0, minWidth: 100, maxWidth: 160,
-                padding: '6px 10px 5px',
-                borderRadius: '6px 6px 0 0',
-                border: `1px solid ${active ? '#e2e8f0' : 'transparent'}`,
-                borderBottom: active ? '1px solid var(--color-bg-1, #fff)' : '1px solid transparent',
-                background: active ? 'var(--color-bg-1, #fff)' : 'transparent',
-                cursor: 'pointer', textAlign: 'left',
-                transition: 'background 0.1s',
-                marginBottom: active ? '-1px' : 0,
-              }}>
+              <button
+                key={d.dag_id}
+                onClick={() => handleTabClick(i)}
+                style={{
+                  flexShrink: 0,
+                  minWidth: 100,
+                  maxWidth: 160,
+                  padding: '6px 10px 5px',
+                  borderRadius: '6px 6px 0 0',
+                  border: `1px solid ${active ? '#e2e8f0' : 'transparent'}`,
+                  borderBottom: active ? '1px solid var(--color-bg-1, #fff)' : '1px solid transparent',
+                  background: active ? 'var(--color-bg-1, #fff)' : 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.1s',
+                  marginBottom: active ? '-1px' : 0,
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc, flexShrink: 0, animation: d.status === 'running' ? 'copilotPulse 1.4s ease-in-out infinite' : 'none' }} />
-                  <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500, color: active ? '#1e293b' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                    {d.title}
-                  </span>
+                  <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500, color: active ? '#1e293b' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{d.title}</span>
                 </div>
                 <ProgressBar progress={d.progress} />
                 <div style={{ marginTop: 3, fontSize: 9.5, color: '#94a3b8' }}>
@@ -595,49 +634,42 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpan
           <div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
             <div style={{ position: 'relative', width: canvasW, height: canvasH, minWidth: '100%', minHeight: '100%' }}>
               <DAGEdges tasks={dag.tasks} positions={positions} />
-              {dag.tasks.map(task => (
-                <TaskNode
-                  key={task.task_id}
-                  task={task}
-                  pos={positions[task.task_id]}
-                  selected={selectedTask?.task_id === task.task_id}
-                  onClick={handleNodeClick}
-                />
+              {dag.tasks.map((task) => (
+                <TaskNode key={task.task_id} task={task} pos={positions[task.task_id]} selected={selectedTask?.task_id === task.task_id} onClick={handleNodeClick} />
               ))}
             </div>
           </div>
 
           {/* Detail drawer (overlays on right side) */}
-          {selectedTask && (
-            <DetailDrawer
-              task={selectedTask}
-              dag={dag}
-              onClose={() => setSelectedTask(null)}
-            />
-          )}
+          {selectedTask && <DetailDrawer task={selectedTask} dag={dag} onClose={() => setSelectedTask(null)} />}
         </div>
 
         {/* ── Footer stats ─────────────────────────────────────────────── */}
-        <div style={{
-          padding: '5px 12px', display: 'flex', gap: 12, alignItems: 'center',
-          background: '#f8fafc', borderTop: '1px solid #f1f5f9', flexShrink: 0,
-        }}>
+        <div
+          style={{
+            padding: '5px 12px',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            background: '#f8fafc',
+            borderTop: '1px solid #f1f5f9',
+            flexShrink: 0,
+          }}
+        >
           {[
             { label: '完成', val: dag.progress.completed, color: '#16a34a' },
             { label: '执行中', val: dag.progress.running, color: '#2563eb' },
             { label: '失败', val: dag.progress.failed, color: '#dc2626' },
             { label: '待执行', val: (dag.progress.pending ?? 0) + (dag.progress.queued ?? 0), color: '#94a3b8' },
-          ].map(s => (
+          ].map((s) =>
             s.val > 0 || s.label === '待执行' ? (
               <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.val}</span>
                 <span style={{ fontSize: 10, color: '#94a3b8' }}>{s.label}</span>
               </div>
             ) : null
-          ))}
-          <span style={{ marginLeft: 'auto', fontSize: 9, color: '#e2e8f0', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-            {dag.dag_id}
-          </span>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 9, color: '#e2e8f0', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>{dag.dag_id}</span>
         </div>
       </div>
     </>

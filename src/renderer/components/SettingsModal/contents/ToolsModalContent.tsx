@@ -345,9 +345,7 @@ const ToolsModalContent: React.FC = () => {
                     ))}
                   </AionSelect>
                 ) : (
-                  <div className='text-t-secondary flex items-center'>
-                    {t('settings.noAvailable')}
-                  </div>
+                  <div className='text-t-secondary flex items-center'>{t('settings.noAvailable')}</div>
                 )}
               </Form.Item>
             </Form>

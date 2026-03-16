@@ -365,7 +365,12 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
-export interface ICliStatus { installed: boolean; path?: string; version?: string; source: string }
+export interface ICliStatus {
+  installed: boolean;
+  path?: string;
+  version?: string;
+  source: string;
+}
 
 // Claude CLI installer / 安装 claude 命令行工具
 export const claudeCli = {
@@ -386,7 +391,10 @@ export const geminiCli = {
 };
 
 // LibreOffice installer / LibreOffice 在线安装
-export interface ILibreOfficeStatus { installed: boolean; version?: string }
+export interface ILibreOfficeStatus {
+  installed: boolean;
+  version?: string;
+}
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'cleanup';
 
 export const libreOffice = {

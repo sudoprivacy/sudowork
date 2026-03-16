@@ -33,20 +33,9 @@ interface ToolRow {
 
 // ── sub-components ───────────────────────────────────────────────────────────
 
-const StatusDot: React.FC<{ ok: boolean }> = ({ ok }) => (
-  <span
-    className={classNames(
-      'inline-block w-6px h-6px rd-full flex-shrink-0',
-      ok ? 'bg-green-5' : 'bg-gray-4',
-    )}
-  />
-);
+const StatusDot: React.FC<{ ok: boolean }> = ({ ok }) => <span className={classNames('inline-block w-6px h-6px rd-full flex-shrink-0', ok ? 'bg-green-5' : 'bg-gray-4')} />;
 
-const VersionBadge: React.FC<{ version?: string }> = ({ version }) => (
-  <span className='px-8px py-2px rd-full text-11px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>
-    {version ?? '—'}
-  </span>
-);
+const VersionBadge: React.FC<{ version?: string }> = ({ version }) => <span className='px-8px py-2px rd-full text-11px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>{version ?? '—'}</span>;
 
 const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
   const isLoading = row.loadState !== 'idle';
@@ -79,11 +68,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
       unmounting: '清理中…',
       cleanup: '清理中…',
     };
-    statusText = (
-      <span className='text-12px text-t-tertiary'>
-        {phaseLabel[row.installPhase ?? 'downloading'] ?? '安装中…'}
-      </span>
-    );
+    statusText = <span className='text-12px text-t-tertiary'>{phaseLabel[row.installPhase ?? 'downloading'] ?? '安装中…'}</span>;
   } else if (row.status === null) {
     statusText = <span className='text-12px text-t-tertiary'>检查中…</span>;
   } else if (row.status.installed) {
@@ -91,9 +76,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
       <span className='flex items-center gap-6px text-12px'>
         <StatusDot ok={true} />
         <span className='color-green-6 font-500'>已安装</span>
-        {row.status.source === 'managed' && (
-          <span className='text-11px text-t-tertiary bg-fill-2 px-5px py-1px rd-4px'>Sudowork</span>
-        )}
+        {row.status.source === 'managed' && <span className='text-11px text-t-tertiary bg-fill-2 px-5px py-1px rd-4px'>Sudowork</span>}
       </span>
     );
   } else {
@@ -108,18 +91,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
   return (
     <div className='flex items-center gap-12px py-14px px-16px rd-8px transition-all duration-150 hover:bg-fill-1'>
       {/* Left badge */}
-      <div className={classNames(
-        'w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700',
-        row.key === 'nexus'
-          ? 'bg-orange-1 color-orange-6'
-          : row.key === 'claude'
-          ? 'bg-orange-1 color-orange-6'
-          : row.key === 'libreoffice'
-          ? 'bg-green-1 color-green-6'
-          : 'bg-blue-1 color-blue-6',
-      )}>
-        {row.badge}
-      </div>
+      <div className={classNames('w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700', row.key === 'nexus' ? 'bg-orange-1 color-orange-6' : row.key === 'claude' ? 'bg-orange-1 color-orange-6' : row.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6')}>{row.badge}</div>
 
       {/* Name + command */}
       <div className='flex flex-col gap-2px flex-1 min-w-0'>
@@ -131,34 +103,20 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
       <VersionBadge version={version} />
 
       {/* Status */}
-      <div className='w-120px flex-shrink-0 flex items-center'>
-        {statusText}
-      </div>
+      <div className='w-120px flex-shrink-0 flex items-center'>{statusText}</div>
 
       {/* Action - fixed layout: install slot + refresh button always visible */}
       <div className='flex items-center gap-6px flex-shrink-0'>
         {/* Install slot - always occupies fixed width to keep layout stable */}
         <div className='w-52px flex justify-end'>
           {row.onInstall && !installed && (
-            <Button
-              type='primary'
-              size='mini'
-              loading={row.loadState === 'installing'}
-              disabled={row.loadState === 'loading'}
-              onClick={row.onInstall}
-            >
+            <Button type='primary' size='mini' loading={row.loadState === 'installing'} disabled={row.loadState === 'loading'} onClick={row.onInstall}>
               安装
             </Button>
           )}
         </div>
         {/* Refresh - always visible */}
-        <Button
-          type='text'
-          size='mini'
-          disabled={isLoading}
-          onClick={row.onRefresh}
-          style={{ fontSize: 11, color: 'var(--color-text-3)' }}
-        >
+        <Button type='text' size='mini' disabled={isLoading} onClick={row.onRefresh} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
           刷新
         </Button>
       </div>
@@ -284,7 +242,12 @@ const AboutModalContent: React.FC = () => {
       if (percent != null) setLibreOfficePercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
     });
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
-    return () => { unsubClaude(); unsubGemini(); unsubLoProgress(); unsubLoResult(); };
+    return () => {
+      unsubClaude();
+      unsubGemini();
+      unsubLoProgress();
+      unsubLoResult();
+    };
   }, [refreshClaude, refreshGemini]);
 
   const toolRows: ToolRow[] = [
@@ -338,7 +301,6 @@ const AboutModalContent: React.FC = () => {
     <div className='flex flex-col h-full w-full'>
       <div className={classNames('flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-24px', isPageMode && 'px-0 overflow-visible')}>
         <div className='flex flex-col max-w-540px mx-auto'>
-
           {/* App info */}
           <div className='flex flex-col items-center py-28px'>
             <div className='w-56px h-56px rd-16px bg-gradient-to-br from-orange-4 to-orange-6 flex items-center justify-center mb-12px shadow-md'>
@@ -348,9 +310,7 @@ const AboutModalContent: React.FC = () => {
               Sudowork
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
-            <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>
-              v{packageJson.version}
-            </span>
+            <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>v{packageJson.version}</span>
           </div>
 
           {/* External tools card */}
@@ -376,7 +336,6 @@ const AboutModalContent: React.FC = () => {
               <ToolRowItem row={nexusRow} />
             </div>
           </div>
-
         </div>
       </div>
     </div>

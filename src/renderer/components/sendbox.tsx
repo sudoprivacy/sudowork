@@ -303,8 +303,7 @@ const SendBox: React.FC<{
     clearDomSnippets();
 
     onSend(finalMessage)
-      .then(() => {
-      })
+      .then(() => {})
       .catch((error) => {
         console.error('[SendBox] Error in onSend', error);
       })
