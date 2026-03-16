@@ -10,10 +10,10 @@ import { cronService } from '@process/services/cron/CronService';
 
 logger.config({ print: true });
 
-// 初始化所有IPC桥接
+// 初始化所有 IPC 桥接
 initAllBridges();
 
 // Initialize cron service (load jobs from database and start timers)
 void cronService.init().catch((error) => {
-  console.error('[initBridge] Failed to initialize CronService:', error);
+  console.warn('[initBridge] CronService initialization failed:', error.message);
 });

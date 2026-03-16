@@ -363,6 +363,9 @@ export const preview = {
 
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
+  libreOffice: {
+    isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
+  },
 };
 
 export interface ICliStatus {

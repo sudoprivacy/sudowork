@@ -50,6 +50,15 @@ files:
   - node_modules/default-browser-id/**/*
   - node_modules/run-applescript/**/*
   - node_modules/bundle-name/**/*
+  # @office-ai packages and their dependencies
+  - node_modules/@office-ai/**/*
+  # axios/form-data dependencies (required by @office-ai packages)
+  - node_modules/form-data/**/*
+  - node_modules/follow-redirects/**/*
+  - node_modules/mime-types/**/*
+  - node_modules/mime-db/**/*
+  - node_modules/axios/**/*
+  - node_modules/proxy-from-env/**/*
   # tree-sitter WASM dependencies
   - node_modules/web-tree-sitter/**/*
   - node_modules/tree-sitter-bash/**/*

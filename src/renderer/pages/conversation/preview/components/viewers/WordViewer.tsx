@@ -6,11 +6,12 @@
 
 import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
-import { Button, Message, Spin } from '@arco-design/web-react';
+import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
+import CodeViewer from './CodeViewer';
 
 // 缓存 Map / Cache Map
 const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
@@ -41,16 +42,41 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
+  // LibreOffice availability state
+  const [libreOfficeAvailable, setLibreOfficeAvailable] = useState<boolean | null>(null);
+
   const messageApiRef = useRef(messageApi);
   useEffect(() => {
     messageApiRef.current = messageApi;
   }, [messageApi]);
 
   /**
+   * Check LibreOffice availability on mount
+   */
+  useEffect(() => {
+    const checkLibreOffice = async () => {
+      try {
+        const available = await ipcBridge.document.libreOffice.isAvailable.invoke();
+        setLibreOfficeAvailable(available);
+      } catch (err) {
+        console.error('[WordPreview] Failed to check LibreOffice availability:', err);
+        setLibreOfficeAvailable(false);
+      }
+    };
+    void checkLibreOffice();
+  }, []);
+
+  /**
    * 使用 LibreOffice 将 Word 文档转换为 PDF
    */
   useEffect(() => {
     const convertToPdf = async (forceRefresh = false) => {
+      // Skip conversion if LibreOffice is not available
+      if (libreOfficeAvailable === false) {
+        setLoading(false);
+        return;
+      }
+
       // 检查缓存 / Check cache
       if (!forceRefresh && filePath) {
         const cached = pdfCache.get(filePath);
@@ -100,11 +126,11 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     };
 
     void convertToPdf(false);
-  }, [filePath]); // 移除 t 依赖，避免不必要的重渲染
+  }, [filePath, libreOfficeAvailable]); // 添加 libreOfficeAvailable 依赖
 
   // 刷新处理 / Refresh handler
   const handleRefresh = useCallback(async () => {
-    if (filePath) {
+    if (filePath && libreOfficeAvailable !== false) {
       pdfCache.delete(filePath);
       const convertToPdf = async () => {
         setLoading(true);
@@ -126,7 +152,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
       };
       await convertToPdf();
     }
-  }, [filePath]);
+  }, [filePath, libreOfficeAvailable]);
 
   /**
    * 在系统默认应用中打开 Word 文档
@@ -175,6 +201,26 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     });
     return () => toolbarExtrasContext.setExtras(null);
   }, [usePortalToolbar, toolbarExtrasContext, t, loading, error, handleOpenInSystem, handleRefresh, refreshing]);
+
+  // LibreOffice not installed - fallback to raw content preview
+  if (libreOfficeAvailable === false) {
+    return (
+      <div className='h-full w-full flex flex-col bg-bg-1'>
+        {messageContextHolder}
+        {!usePortalToolbar && !hideToolbar && (
+          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+            <div className='flex items-center gap-8px'>
+              <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
+              <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+            </div>
+          </div>
+        )}
+        <div className='flex-1 overflow-hidden'>
+          <CodeViewer content={content || ''} language='plaintext' hideToolbar />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

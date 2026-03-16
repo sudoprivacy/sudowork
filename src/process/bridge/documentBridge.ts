@@ -66,6 +66,7 @@ const ensureExtension = (filePath: string, allowed: Set<string>) => {
  * - Word → HTML (新版，保留更多格式)
  * - Excel → JSON
  * - PowerPoint → JSON
+ * - LibreOffice → PDF (Office 文档转 PDF)
  *
  * Register IPC handler to respond to document conversion requests from renderer process
  * Supports the following conversion types:
@@ -73,6 +74,7 @@ const ensureExtension = (filePath: string, allowed: Set<string>) => {
  * - Word → HTML (new, preserves more formatting)
  * - Excel → JSON
  * - PowerPoint → JSON
+ * - LibreOffice → PDF (Office documents to PDF)
  */
 export function initDocumentBridge(): void {
   ipcBridge.document.convert.provider(async ({ filePath, to }) => {
@@ -135,5 +137,11 @@ export function initDocumentBridge(): void {
         // 不支持的转换格式 / Unsupported conversion format
         return unsupportedResult(to, `Unsupported target format: ${to}`);
     }
+  });
+
+  // LibreOffice availability check endpoint
+  // LibreOffice 可用性检测接口
+  ipcBridge.document.libreOffice.isAvailable.provider(async () => {
+    return await conversionService.isLibreOfficeAvailable();
   });
 }

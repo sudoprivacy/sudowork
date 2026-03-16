@@ -1167,6 +1167,15 @@ class ConversionService {
     console.warn('[ConversionService] LibreOffice not found');
     return null;
   }
+
+  /**
+   * Check if LibreOffice is available
+   * Public method for frontend to check LibreOffice availability
+   */
+  public async isLibreOfficeAvailable(): Promise<boolean> {
+    const libreOfficePath = await this.findLibreOffice();
+    return libreOfficePath !== null;
+  }
 }
 
 export const conversionService = new ConversionService();

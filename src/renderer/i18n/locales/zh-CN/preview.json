@@ -73,7 +73,9 @@
     "title": "Word 文档",
     "loading": "加载 Word 文档中...",
     "invalid": "请检查文件是否为有效的 Word 文档",
-    "loadFailed": "加载 Word 文档失败"
+    "loadFailed": "加载 Word 文档失败",
+    "libreOfficeRequired": "需要 LibreOffice",
+    "libreOfficeRequiredDesc": "请安装 LibreOffice 以预览 Word 文件"
   },
   "excel": {
     "title": "Excel 表格",
@@ -84,7 +86,9 @@
     "convertFailed": "Excel 转换失败",
     "loadFailed": "加载 Excel 文档失败",
     "emptySheet": "此工作表无数据",
-    "emptySheetHint": "请检查 Excel 文件是否包含数据或图片"
+    "emptySheetHint": "请检查 Excel 文件是否包含数据或图片",
+    "libreOfficeRequired": "需要 LibreOffice",
+    "libreOfficeRequiredDesc": "请安装 LibreOffice 以预览 Excel 文件"
   },
   "ppt": {
     "title": "PowerPoint 演示文稿",
@@ -97,7 +101,9 @@
     "previous": "上一页",
     "next": "下一页",
     "convertFailed": "PowerPoint 转换失败",
-    "loadFailed": "加载 PowerPoint 演示文稿失败"
+    "loadFailed": "加载 PowerPoint 演示文稿失败",
+    "libreOfficeRequired": "需要 LibreOffice",
+    "libreOfficeRequiredDesc": "请安装 LibreOffice 以预览 PowerPoint 文件"
   },
   "pdf": {
     "title": "PDF 文档",

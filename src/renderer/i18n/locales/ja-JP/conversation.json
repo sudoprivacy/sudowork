@@ -137,7 +137,8 @@
       "addToChat": "チャットに追加",
       "addedToChat": "チャットに追加しました",
       "openFailed": "開けませんでした",
-      "revealFailed": "フォルダーを開けませんでした"
+      "revealFailed": "フォルダーを開けませんでした",
+      "libreOfficeNotAvailable": "LibreOffice がインストールされていないため、Office ファイルはテキストモードでプレビューされます"
     }
   },
   "chat": {

@@ -137,7 +137,8 @@
       "addToChat": "채팅에 추가",
       "addedToChat": "채팅에 추가됨",
       "openFailed": "열기 실패",
-      "revealFailed": "포함 폴더 열기 실패"
+      "revealFailed": "포함 폴더 열기 실패",
+      "libreOfficeNotAvailable": "LibreOffice 가 설치되지 않아 Office 파일은 텍스트 모드로 미리보기됩니다"
     }
   },
   "chat": {

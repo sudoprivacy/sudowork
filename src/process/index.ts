@@ -13,7 +13,7 @@ if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
 import initStorage from './initStorage';
-import './initBridge';
+// initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
@@ -21,6 +21,14 @@ import { nexusService } from './services/nexus/NexusService';
 
 export const initializeProcess = async () => {
   await initStorage();
+
+  // Initialize bridge after storage is ready (dynamic import for correct order)
+  try {
+    await import('./initBridge');
+    console.log('[Process] Bridge initialized successfully');
+  } catch (error) {
+    console.error('[Process] Bridge initialization failed:', error);
+  }
 
   // Initialize Extension Registry (scan and resolve all extensions)
   try {
@@ -35,7 +43,6 @@ export const initializeProcess = async () => {
     await getChannelManager().initialize();
   } catch (error) {
     console.error('[Process] Failed to initialize ChannelManager:', error);
-    // Don't fail app startup if channel fails to initialize
   }
 
   // Start Nexus Python server

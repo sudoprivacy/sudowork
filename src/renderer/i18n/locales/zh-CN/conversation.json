@@ -137,7 +137,8 @@
       "addToChat": "添加到聊天",
       "addedToChat": "已添加到聊天",
       "openFailed": "打开失败",
-      "revealFailed": "无法打开所在目录"
+      "revealFailed": "无法打开所在目录",
+      "libreOfficeNotAvailable": "LibreOffice 未安装，Office 文件将以文本模式预览"
     }
   },
   "chat": {

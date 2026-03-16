@@ -6,11 +6,12 @@
 
 import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
-import { Button, Message, Spin } from '@arco-design/web-react';
+import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
+import CodeViewer from './CodeViewer';
 
 interface PPTPreviewProps {
   /**
@@ -18,6 +19,7 @@ interface PPTPreviewProps {
    * PPT file path (absolute path on disk)
    */
   filePath?: string;
+  content?: string; // ArrayBuffer as base64 (for fallback when LibreOffice not installed)
   hideToolbar?: boolean;
 }
 
@@ -50,6 +52,9 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false); // 刷新状态
 
+  // LibreOffice availability state
+  const [libreOfficeAvailable, setLibreOfficeAvailable] = useState<boolean | null>(null);
+
   const handleOpenExternal = useCallback(async () => {
     if (!filePath) {
       messageApi.error(t('preview.errors.openWithoutPath'));
@@ -74,9 +79,31 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
     }
   }, [filePath]);
 
+  /**
+   * Check LibreOffice availability on mount
+   */
+  useEffect(() => {
+    const checkLibreOffice = async () => {
+      try {
+        const available = await ipcBridge.document.libreOffice.isAvailable.invoke();
+        setLibreOfficeAvailable(available);
+      } catch (err) {
+        console.error('[PPTPreview] Failed to check LibreOffice availability:', err);
+        setLibreOfficeAvailable(false);
+      }
+    };
+    void checkLibreOffice();
+  }, []);
+
   // 转换函数 / Convert function
   const convertToPdf = useCallback(
     async (forceRefresh = false) => {
+      // Skip conversion if LibreOffice is not available
+      if (libreOfficeAvailable === false) {
+        setLoading(false);
+        return;
+      }
+
       if (!filePath) {
         setError(t('preview.errors.missingFilePath'));
         setLoading(false);
@@ -127,7 +154,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
         setRefreshing(false);
       }
     },
-    [filePath, t]
+    [filePath, t, libreOfficeAvailable]
   );
 
   // 初始加载 / Initial load
@@ -137,11 +164,11 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
 
   // 刷新处理 / Refresh handler
   const handleRefresh = useCallback(async () => {
-    if (filePath) {
+    if (filePath && libreOfficeAvailable !== false) {
       pdfCache.delete(filePath); // 清除缓存
       await convertToPdf(true);
     }
-  }, [filePath, convertToPdf]);
+  }, [filePath, convertToPdf, libreOfficeAvailable]);
 
   // 设置工具栏扩展
   useEffect(() => {
@@ -172,6 +199,26 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
     });
     return () => toolbarExtrasContext.setExtras(null);
   }, [usePortalToolbar, toolbarExtrasContext, t, loading, error, handleOpenExternal, handleRefresh, refreshing]);
+
+  // LibreOffice not installed - fallback to CodeViewer with raw content
+  if (libreOfficeAvailable === false) {
+    return (
+      <div className='h-full w-full flex flex-col bg-bg-1'>
+        {messageContextHolder}
+        {!usePortalToolbar && !hideToolbar && (
+          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b border-border-1'>
+            <div className='flex items-center gap-8px'>
+              <span className='text-13px text-t-secondary'>📊 {t('preview.pptTitle')}</span>
+              <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+            </div>
+          </div>
+        )}
+        <div className='flex-1 overflow-hidden'>
+          <CodeViewer content={content || ''} language='plaintext' hideToolbar />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

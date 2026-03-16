@@ -73,7 +73,9 @@
     "title": "Word Document",
     "loading": "Loading Word document...",
     "invalid": "Please confirm the file is a valid Word document",
-    "loadFailed": "Failed to load Word document"
+    "loadFailed": "Failed to load Word document",
+    "libreOfficeRequired": "LibreOffice Required",
+    "libreOfficeRequiredDesc": "Please install LibreOffice to preview Word files"
   },
   "excel": {
     "title": "Excel Spreadsheet",
@@ -84,7 +86,9 @@
     "convertFailed": "Excel conversion failed",
     "loadFailed": "Failed to load Excel workbook",
     "emptySheet": "This worksheet has no data",
-    "emptySheetHint": "Check whether the sheet contains data or images"
+    "emptySheetHint": "Check whether the sheet contains data or images",
+    "libreOfficeRequired": "LibreOffice Required",
+    "libreOfficeRequiredDesc": "Please install LibreOffice to preview Excel files"
   },
   "ppt": {
     "title": "PowerPoint Presentation",
@@ -97,7 +101,9 @@
     "previous": "Previous",
     "next": "Next",
     "convertFailed": "PowerPoint conversion failed",
-    "loadFailed": "Failed to load PowerPoint presentation"
+    "loadFailed": "Failed to load PowerPoint presentation",
+    "libreOfficeRequired": "LibreOffice Required",
+    "libreOfficeRequiredDesc": "Please install LibreOffice to preview PowerPoint files"
   },
   "pdf": {
     "title": "PDF Document",
