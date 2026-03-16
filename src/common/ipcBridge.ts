@@ -393,6 +393,8 @@ export const libreOffice = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ILibreOfficeStatus>, void>('libreoffice.check-installed'),
   getDownloadUrl: bridge.buildProvider<IBridgeResponse<{ url: string }>, void>('libreoffice.get-download-url'),
   install: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.install'),
+  /** Returns the current install state so the UI can restore progress after navigation */
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ILibreOfficeInstallPhase; percent?: number }>, void>('libreoffice.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
   installProgress: bridge.buildEmitter<{ phase: ILibreOfficeInstallPhase; percent?: number }>('libreoffice.install-progress'),
   /** Emitted once when installation completes (success or failure) */

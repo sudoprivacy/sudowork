@@ -704,7 +704,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />
 
         {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
-        <TaskPanel workspace={workspace} />
+        <TaskPanel workspaceFiles={treeHook.files} />
 
         {/* Search Input */}
         <div className='px-12px'>

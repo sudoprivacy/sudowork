@@ -1,48 +1,48 @@
 /**
- * useTaskDags — 扫描 workspace/.tasks/ 目录，读取 DAG JSON 并实时监听变化
+ * useTaskDags — 从文件树数据中提取 .tasks/ DAG JSON 并读取内容
  *
- * 逻辑链路：会话 → workspace 路径 → 扫描 .tasks/ → 读取 JSON → 监听变化
- * 完全独立于 Tree 组件，直接通过 IPC 读取文件系统。
- *
- * 监听策略（三层）：
- *   1. workspace 根目录  → .tasks/ 目录首次出现时触发重扫
- *   2. .tasks/ 目录      → 新增 dag_xxx/ 子目录时触发重扫
- *   3. dag_xxx.json 文件 → 文件内容更新时刷新对应 DAG 状态
+ * 直接复用 treeHook.files（文件树已加载的目录树），不额外发起任何目录扫描请求。
+ * 找到 JSON 路径后用 readFile 读取内容，并通过 fileWatch 监听文件内容变更。
  */
 
 import { ipcBridge } from '@/common';
+import type { IDirOrFile } from '@/common/ipcBridge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dag } from '../TaskPanel';
 
-/** 列出 workspace/.tasks/ 下所有 dag_xxx/dag_xxx.json 的绝对路径 */
-async function scanDagJsonPaths(workspace: string): Promise<string[]> {
-  if (!workspace) return [];
-  const tasksDir = `${workspace}/.tasks`;
-  try {
-    const entries = await ipcBridge.fs.getFilesByDir.invoke({ dir: tasksDir, root: workspace });
-    const dagDirs = (entries[0]?.children ?? []).filter(e => e.isDir && e.name.startsWith('dag_'));
-    return dagDirs.map(e => `${e.fullPath}/${e.name}.json`);
-  } catch {
-    return [];
+/** 在目录树中找出所有 .tasks/dag_xxx/dag_xxx.json 文件节点 */
+function findDagJsonNodes(nodes: IDirOrFile[]): IDirOrFile[] {
+  for (const node of nodes) {
+    // 找到 .tasks/ 节点
+    if (node.isDir && node.name === '.tasks') {
+      const results: IDirOrFile[] = [];
+      for (const dagDir of node.children ?? []) {
+        if (!dagDir.isDir || !dagDir.name.startsWith('dag_')) continue;
+        for (const file of dagDir.children ?? []) {
+          if (file.isFile && file.name.startsWith('dag_') && file.name.endsWith('.json')) {
+            results.push(file);
+          }
+        }
+      }
+      return results;
+    }
+    // 递归（工作空间根节点可能是 wrapper）
+    if (node.isDir && (node.children?.length ?? 0) > 0) {
+      const found = findDagJsonNodes(node.children!);
+      if (found.length > 0) return found;
+    }
   }
+  return [];
 }
 
-export function useTaskDags(workspace: string) {
+export function useTaskDags(workspaceFiles: IDirOrFile[]) {
   const [dags, setDags] = useState<Dag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const watchedRef = useRef<Set<string>>(new Set());
 
-  /** 已监听的 JSON 文件路径集合 */
-  const watchedJsonRef = useRef<Set<string>>(new Set());
-  /** 当前 workspace 路径（供 fileChanged 回调使用）*/
-  const workspaceRef = useRef('');
-  /** .tasks/ 目录路径（供 fileChanged 回调使用）*/
-  const tasksDirRef = useRef('');
-  /** 序列号：丢弃被并发调用覆盖的旧结果 */
-  const loadSeqRef = useRef(0);
-
-  const loadDag = useCallback(async (jsonPath: string): Promise<Dag | null> => {
+  const loadDag = useCallback(async (path: string): Promise<Dag | null> => {
     try {
-      const content = await ipcBridge.fs.readFile.invoke({ path: jsonPath });
+      const content = await ipcBridge.fs.readFile.invoke({ path });
       if (!content) return null;
       return JSON.parse(content) as Dag;
     } catch {
@@ -50,129 +50,92 @@ export function useTaskDags(workspace: string) {
     }
   }, []);
 
-  const loadAllDags = useCallback(async (): Promise<Dag[]> => {
-    if (!workspace) return [];
-    const seq = ++loadSeqRef.current;
+  // 文件树变化时，重新派生 dag 文件路径并读取内容
+  useEffect(() => {
+    const jsonNodes = findDagJsonNodes(workspaceFiles);
+    if (jsonNodes.length === 0) {
+      setDags([]);
+      return;
+    }
+
     setIsLoading(true);
-    try {
-      const jsonPaths = await scanDagJsonPaths(workspace);
+    let cancelled = false;
 
-      if (seq !== loadSeqRef.current) return [];
-
+    (async () => {
       const results: Dag[] = [];
       const activePaths: string[] = [];
 
-      for (const p of jsonPaths) {
-        if (seq !== loadSeqRef.current) return [];
-        const dag = await loadDag(p);
+      for (const node of jsonNodes) {
+        const dag = await loadDag(node.fullPath);
         if (dag) {
           results.push(dag);
-          activePaths.push(p);
+          activePaths.push(node.fullPath);
         }
       }
 
-      if (seq !== loadSeqRef.current) return [];
+      if (cancelled) return;
 
       results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setDags(results);
+      setIsLoading(false);
 
-      // 同步 JSON 文件 watcher（只监听已成功解析的文件）
+      // 同步 watcher（监听 JSON 内容变更，Worker 写入结果时实时刷新）
       for (const p of activePaths) {
-        if (!watchedJsonRef.current.has(p)) {
+        if (!watchedRef.current.has(p)) {
           ipcBridge.fileWatch.startWatch.invoke({ filePath: p }).catch(() => {});
-          watchedJsonRef.current.add(p);
+          watchedRef.current.add(p);
         }
       }
-      for (const p of watchedJsonRef.current) {
+      for (const p of watchedRef.current) {
         if (!activePaths.includes(p)) {
           ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
-          watchedJsonRef.current.delete(p);
+          watchedRef.current.delete(p);
         }
       }
+    })();
 
-      return results;
-    } catch {
-      return [];
-    } finally {
-      if (seq === loadSeqRef.current) setIsLoading(false);
-    }
-  }, [workspace, loadDag]);
+    return () => { cancelled = true; };
+  }, [workspaceFiles, loadDag]);
 
-  // workspace 变化：立即扫描，并监听两层目录
-  useEffect(() => {
-    if (!workspace) return;
-    workspaceRef.current = workspace;
-    tasksDirRef.current = `${workspace}/.tasks`;
-
-    void loadAllDags();
-
-    // 层 1：监听 workspace 根目录 —— .tasks/ 首次创建时触发
-    ipcBridge.fileWatch.startWatch.invoke({ filePath: workspace }).catch(() => {});
-    // 层 2：监听 .tasks/ 目录 —— 新增 dag_xxx/ 子目录时触发（.tasks/ 可能尚不存在，失败静默）
-    ipcBridge.fileWatch.startWatch.invoke({ filePath: tasksDirRef.current }).catch(() => {});
-
-    return () => {
-      ipcBridge.fileWatch.stopWatch.invoke({ filePath: workspace }).catch(() => {});
-      ipcBridge.fileWatch.stopWatch.invoke({ filePath: tasksDirRef.current }).catch(() => {});
-      workspaceRef.current = '';
-      tasksDirRef.current = '';
-    };
-  }, [workspace, loadAllDags]);
-
-  // 文件/目录变更监听
+  // 监听 JSON 文件内容变更（Worker 写入后实时更新对应 DAG）
   useEffect(() => {
     const unsub = ipcBridge.fileWatch.fileChanged.on(async ({ filePath, eventType }) => {
+      if (!watchedRef.current.has(filePath)) return;
 
-      // ── 层 1/2：根目录或 .tasks/ 目录变化 → 重新扫描全部 DAG ──────────────
-      if (filePath === workspaceRef.current || filePath === tasksDirRef.current) {
-        // .tasks/ 可能刚被创建，尝试补注册其 watcher
-        ipcBridge.fileWatch.startWatch.invoke({ filePath: tasksDirRef.current }).catch(() => {});
-        void loadAllDags();
+      if (eventType === 'unlink') {
+        ipcBridge.fileWatch.stopWatch.invoke({ filePath }).catch(() => {});
+        watchedRef.current.delete(filePath);
+        setDags(prev => prev.filter(d => !filePath.includes(d.dag_id)));
         return;
       }
 
-      // ── 层 3：JSON 文件变化 → 刷新对应 DAG ────────────────────────────────
-      if (!watchedJsonRef.current.has(filePath)) return;
-
-      // 'rename' 表示文件被原子替换（tmp → mv），旧 inode 已失效，需重新注册 watcher
-      if (eventType === 'rename') {
-        ipcBridge.fileWatch.startWatch.invoke({ filePath }).catch(() => {});
-      }
-
-      // 原子写入时文件在极短时间内可能不存在，稍作延迟再读
-      const doRead = async () => {
+      // rename = 原子写入完成，稍等 50ms 再读
+      const read = async () => {
         const updated = await loadDag(filePath);
         if (!updated) return;
+        // rename 后 inode 变了，重新注册 watcher
+        if (eventType === 'rename') {
+          ipcBridge.fileWatch.startWatch.invoke({ filePath }).catch(() => {});
+        }
         setDags(prev => {
           const idx = prev.findIndex(d => d.dag_id === updated.dag_id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
-          }
-          // 新文件（首次写入完成），追加到列表头部
+          if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next; }
           return [updated, ...prev];
         });
       };
 
-      if (eventType === 'rename') {
-        // 等待原子写入完成（rename 后新文件落盘）
-        setTimeout(() => void doRead(), 50);
-      } else {
-        void doRead();
-      }
+      if (eventType === 'rename') setTimeout(() => void read(), 50);
+      else void read();
     });
     return () => unsub();
-  }, [loadAllDags, loadDag]);
+  }, [loadDag]);
 
-  // 卸载时清理所有 JSON 文件 watcher
-  useEffect(() => {
-    return () => {
-      for (const p of watchedJsonRef.current) {
-        ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
-      }
-    };
+  // 卸载时清理
+  useEffect(() => () => {
+    for (const p of watchedRef.current) {
+      ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+    }
   }, []);
 
-  return { dags, isLoading, reload: loadAllDags };
+  return { dags, isLoading };
 }

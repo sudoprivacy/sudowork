@@ -2,8 +2,8 @@ import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
-import * as os from 'os';
 import * as path from 'path';
+import { app } from 'electron';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
@@ -11,7 +11,7 @@ const execAsync = promisify(exec);
 
 // Update this version constant when a new LibreOffice stable release is available.
 // Download page: https://www.libreoffice.org/download/download-libreoffice/
-const LIBREOFFICE_VERSION = '25.2.2';
+const LIBREOFFICE_VERSION = '26.2.1';
 
 const APP_PATH = '/Applications/LibreOffice.app';
 
@@ -50,16 +50,25 @@ export class LibreOfficeService {
     return `https://download.documentfoundation.org/libreoffice/stable/${v}/mac/${arch}/LibreOffice_${v}_MacOS_${arch}.dmg`;
   }
 
+  private getCachedDmgPath(): string {
+    const cacheDir = path.join(app.getPath('userData'), 'libreoffice-cache');
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+    return path.join(cacheDir, `LibreOffice_${LIBREOFFICE_VERSION}.dmg`);
+  }
+
   async install(onProgress: ProgressCallback): Promise<void> {
-    const tmpDir = os.tmpdir();
-    const dmgPath = path.join(tmpDir, `LibreOffice_${LIBREOFFICE_VERSION}.dmg`);
+    const dmgPath = this.getCachedDmgPath();
     let mountPoint: string | undefined;
 
     try {
-      // 1. Download
-      await this.downloadFile(this.getDownloadUrl(), dmgPath, (percent) => {
-        onProgress('downloading', percent);
-      });
+      // 1. Download (skip if valid cache exists)
+      if (fs.existsSync(dmgPath) && fs.statSync(dmgPath).size > 0) {
+        onProgress('downloading', 100);
+      } else {
+        await this.downloadFile(this.getDownloadUrl(), dmgPath, (percent) => {
+          onProgress('downloading', percent);
+        });
+      }
 
       // 2. Mount
       onProgress('mounting');
@@ -73,29 +82,27 @@ export class LibreOfficeService {
       const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
       await execFileAsync('osascript', ['-e', script]);
 
+    } catch (err) {
+      // If install fails after download, remove the cached DMG so next attempt re-downloads
+      try { if (fs.existsSync(dmgPath)) fs.rmSync(dmgPath); } catch { /* ignore */ }
+      throw err;
     } finally {
       // 4. Unmount
       if (mountPoint) {
         onProgress('unmounting');
         try { await execFileAsync('hdiutil', ['detach', mountPoint, '-quiet']); } catch { /* ignore */ }
       }
-      // 5. Cleanup temp file
       onProgress('cleanup');
-      try { if (fs.existsSync(dmgPath)) fs.rmSync(dmgPath); } catch { /* ignore */ }
     }
   }
 
   private mountDmg(dmgPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      execFile('hdiutil', ['attach', dmgPath, '-nobrowse', '-quiet'], (err, stdout) => {
+      execFile('hdiutil', ['attach', dmgPath, '-nobrowse', '-plist'], (err, stdout) => {
         if (err) return reject(err);
-        // stdout lines: "/dev/disk2s1  Apple_HFS  /Volumes/LibreOffice"
-        const lines = stdout.trim().split('\n');
-        for (let i = lines.length - 1; i >= 0; i--) {
-          const parts = lines[i].split('\t');
-          const mp = parts[parts.length - 1]?.trim();
-          if (mp && mp.startsWith('/Volumes/')) return resolve(mp);
-        }
+        // plist output contains <key>mount-point</key><string>/Volumes/...</string>
+        const match = stdout.match(/<key>mount-point<\/key>\s*<string>([^<]+)<\/string>/);
+        if (match?.[1]) return resolve(match[1]);
         reject(new Error('Could not determine DMG mount point'));
       });
     });

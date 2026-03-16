@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import type { IDirOrFile } from '@/common/ipcBridge';
 import { useTaskDags } from './hooks/useTaskDags';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -433,17 +434,18 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void }> =
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TaskPanelProps {
-  workspace?: string;
+  /** 文件树已加载的目录树数据，直接来自 treeHook.files */
+  workspaceFiles?: IDirOrFile[];
   defaultExpanded?: boolean;
 }
 
-const TaskPanel: React.FC<TaskPanelProps> = ({ workspace, defaultExpanded = true }) => {
+const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], defaultExpanded = true }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [activeDagIdx, setActiveDagIdx] = useState(0);
   const [selectedTask, setSelectedTask] = useState<SubTask | null>(null);
 
   // ── Data source ─────────────────────────────────────────────────────────
-  const { dags, isLoading } = useTaskDags(workspace ?? '');
+  const { dags, isLoading } = useTaskDags(workspaceFiles);
 
   // active tab 越界时重置
   useEffect(() => {

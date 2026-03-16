@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Typography } from '@arco-design/web-react';
+import { Button, Message, Typography } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
@@ -106,7 +106,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
   }
 
   return (
-    <div className='flex items-center gap-12px py-14px px-16px rd-8px transition-all duration-150 hover:bg-fill-1 group'>
+    <div className='flex items-center gap-12px py-14px px-16px rd-8px transition-all duration-150 hover:bg-fill-1'>
       {/* Left badge */}
       <div className={classNames(
         'w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700',
@@ -135,29 +135,32 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
         {statusText}
       </div>
 
-      {/* Action */}
-      <div className='w-72px flex-shrink-0 flex justify-end'>
-        {row.onInstall && !installed && (
-          <Button
-            type='primary'
-            size='mini'
-            loading={row.loadState === 'installing'}
-            onClick={row.onInstall}
-          >
-            安装
-          </Button>
-        )}
-        {!isLoading && (
-          <Button
-            type='text'
-            size='mini'
-            className={classNames('opacity-0 group-hover:opacity-100 transition-opacity', (!row.onInstall || installed) && 'opacity-0 group-hover:opacity-100')}
-            onClick={row.onRefresh}
-            style={{ fontSize: 11, color: 'var(--color-text-3)' }}
-          >
-            刷新
-          </Button>
-        )}
+      {/* Action - fixed layout: install slot + refresh button always visible */}
+      <div className='flex items-center gap-6px flex-shrink-0'>
+        {/* Install slot - always occupies fixed width to keep layout stable */}
+        <div className='w-52px flex justify-end'>
+          {row.onInstall && !installed && (
+            <Button
+              type='primary'
+              size='mini'
+              loading={row.loadState === 'installing'}
+              disabled={row.loadState === 'loading'}
+              onClick={row.onInstall}
+            >
+              安装
+            </Button>
+          )}
+        </div>
+        {/* Refresh - always visible */}
+        <Button
+          type='text'
+          size='mini'
+          disabled={isLoading}
+          onClick={row.onRefresh}
+          style={{ fontSize: 11, color: 'var(--color-text-3)' }}
+        >
+          刷新
+        </Button>
       </div>
     </div>
   );
@@ -236,7 +239,14 @@ const AboutModalContent: React.FC = () => {
     setLibreOfficeLoad('installing');
     try {
       const res = await libreOfficeIpc.install.invoke();
-      if (res?.success) await refreshLibreOffice();
+      if (res?.success) {
+        await refreshLibreOffice();
+        Message.success('LibreOffice 安装成功');
+      } else {
+        Message.error(res?.msg || 'LibreOffice 安装失败');
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : 'LibreOffice 安装失败');
     } finally {
       setLibreOfficeLoad('idle');
       setLibreOfficePhase(undefined);
@@ -250,12 +260,19 @@ const AboutModalContent: React.FC = () => {
     else setNexusPort(undefined);
   }, []);
 
-  // Load all on mount
+  // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
     void refreshClaude();
     void refreshGemini();
     void refreshNexus();
     void refreshLibreOffice();
+    void libreOfficeIpc.getInstallState.invoke().then((res) => {
+      if (res?.success && res.data?.installing) {
+        setLibreOfficeLoad('installing');
+        if (res.data.phase) setLibreOfficePhase(res.data.phase);
+        if (res.data.percent != null) setLibreOfficePercent(res.data.percent);
+      }
+    });
   }, []);
 
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
@@ -264,13 +281,13 @@ const AboutModalContent: React.FC = () => {
     const unsubGemini = geminiCliIpc.installResult.on(() => void refreshGemini());
     const unsubLoProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
       setLibreOfficePhase(phase);
-      if (percent != null) setLibreOfficePercent(percent);
+      if (percent != null) setLibreOfficePercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
     });
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
     return () => { unsubClaude(); unsubGemini(); unsubLoProgress(); unsubLoResult(); };
   }, [refreshClaude, refreshGemini]);
 
-  const rows: ToolRow[] = [
+  const toolRows: ToolRow[] = [
     {
       key: 'claude',
       displayName: 'Claude Code',
@@ -303,18 +320,19 @@ const AboutModalContent: React.FC = () => {
       onRefresh: refreshLibreOffice,
       onInstall: installLibreOffice,
     },
-    {
-      key: 'nexus',
-      displayName: 'Nexus Server',
-      command: '内置服务',
-      badge: 'NX',
-      status: { installed: true, source: 'managed' },
-      nexusPort,
-      appVersion: packageJson.version,
-      loadState: 'idle',
-      onRefresh: refreshNexus,
-    },
   ];
+
+  const nexusRow: ToolRow = {
+    key: 'nexus',
+    displayName: 'Nexus Server',
+    command: '内置服务',
+    badge: 'NX',
+    status: { installed: true, source: 'managed' },
+    nexusPort,
+    appVersion: packageJson.version,
+    loadState: 'idle',
+    onRefresh: refreshNexus,
+  };
 
   return (
     <div className='flex flex-col h-full w-full'>
@@ -335,20 +353,27 @@ const AboutModalContent: React.FC = () => {
             </span>
           </div>
 
-          {/* Tool status card */}
-          <div className='rd-12px border border-solid border-bd-2 overflow-hidden mb-24px'>
-            {/* Card header */}
-            <div className='px-16px py-10px bg-fill-1 border-b border-solid border-bd-2 flex items-center justify-between'>
-              <span className='text-12px font-600 text-t-secondary uppercase tracking-wider'>组件状态</span>
+          {/* External tools card */}
+          <div className='rd-12px border border-solid border-bd-2 overflow-hidden mb-12px'>
+            <div className='px-16px py-10px bg-fill-1 border-b border-solid border-bd-2'>
+              <span className='text-12px font-600 text-t-secondary uppercase tracking-wider'>外部工具</span>
             </div>
-
-            {/* Rows */}
-            <div className='px-4px py-4px divide-y divide-bd-1'>
-              {rows.map((row, i) => (
+            <div className='px-4px py-4px'>
+              {toolRows.map((row, i) => (
                 <div key={row.key} className={i > 0 ? 'border-t border-solid border-bd-1' : ''}>
                   <ToolRowItem row={row} />
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Built-in services card */}
+          <div className='rd-12px border border-solid border-bd-2 overflow-hidden mb-24px'>
+            <div className='px-16px py-10px bg-fill-1 border-b border-solid border-bd-2'>
+              <span className='text-12px font-600 text-t-secondary uppercase tracking-wider'>内置服务</span>
+            </div>
+            <div className='px-4px py-4px'>
+              <ToolRowItem row={nexusRow} />
             </div>
           </div>
 
