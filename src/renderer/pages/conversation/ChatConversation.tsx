@@ -30,7 +30,40 @@ import GeminiModelSelector from './gemini/GeminiModelSelector';
 import { useGeminiModelSelection } from './gemini/useGeminiModelSelection';
 import { usePreviewContext } from './preview';
 import StarOfficeMonitorCard from './openclaw/StarOfficeMonitorCard.tsx';
+import { TaskPanelHeaderProvider, useTaskPanelHeader } from './workspace/TaskPanelHeaderContext';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
+
+const SiderTitle: React.FC = () => {
+  const { dagCount, openFullscreenRef } = useTaskPanelHeader();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, gap: 8 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-1)', letterSpacing: '0.01em' }}>任务面板</span>
+      {dagCount > 0 && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-3)', fontVariantNumeric: 'tabular-nums' }}>
+            {dagCount} 个任务
+          </span>
+          <button
+            onClick={() => openFullscreenRef.current?.()}
+            title='展开全屏'
+            style={{
+              width: 22, height: 22, borderRadius: 5,
+              border: '1px solid var(--bg-3)', background: 'var(--color-fill-2)',
+              cursor: 'pointer', color: 'var(--color-text-2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0, flexShrink: 0,
+            }}
+          >
+            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+              <polyline points='15 3 21 3 21 9' /><polyline points='9 21 3 21 3 15' />
+              <line x1='21' y1='3' x2='14' y2='10' /><line x1='3' y1='21' x2='10' y2='14' />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
@@ -179,7 +212,7 @@ const ChatConversation: React.FC<{
   // Use unified hook for preset assistant info (ACP/Codex conversations)
   const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(isGeminiConversation ? undefined : conversation);
 
-  const sliderTitle = useMemo<null>(() => null, []);
+  const sliderTitle = <SiderTitle />;
 
   // For ACP/Codex conversations, use AcpModelSelector that can show/switch models.
   // For other non-Gemini conversations, show disabled GeminiModelSelector.
@@ -199,7 +232,11 @@ const ChatConversation: React.FC<{
   if (conversation && conversation.type === 'gemini') {
     // Gemini 会话独立渲染，带右上角模型选择
     // Render Gemini layout with dedicated top-right model selector
-    return <GeminiConversationPanel key={conversation.id} conversation={conversation} sliderTitle={sliderTitle} />;
+    return (
+      <TaskPanelHeaderProvider>
+        <GeminiConversationPanel key={conversation.id} conversation={conversation} sliderTitle={sliderTitle} />
+      </TaskPanelHeaderProvider>
+    );
   }
 
   // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
@@ -238,9 +275,11 @@ const ChatConversation: React.FC<{
   );
 
   return (
-    <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
-      {conversationNode}
-    </ChatLayout>
+    <TaskPanelHeaderProvider>
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
+        {conversationNode}
+      </ChatLayout>
+    </TaskPanelHeaderProvider>
   );
 };
 

@@ -941,3 +941,37 @@ body,
 [data-theme='dark'] .model-provider-action-btn.arco-btn:active {
   background-color: var(--color-bg-1) !important;
 }
+
+/* Workspace search input - blend with sidebar background */
+.chat-workspace .workspace-search-input .arco-input-inner-wrapper {
+  background-color: var(--color-bg-2) !important;
+  border: 1px solid var(--color-bg-3) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+
+.chat-workspace .workspace-search-input .arco-input-inner-wrapper:hover {
+  border-color: var(--color-border) !important;
+}
+
+.chat-workspace .workspace-search-input .arco-input-inner-wrapper:focus-within {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+}
+
+.chat-workspace .workspace-search-input .arco-input {
+  background-color: transparent !important;
+  color: var(--color-text-1) !important;
+  font-size: 13px !important;
+}
+
+.chat-workspace .workspace-search-input .arco-input::placeholder {
+  color: var(--color-text-3) !important;
+}
+
+.chat-workspace .workspace-search-input .arco-input-prefix,
+.chat-workspace .workspace-search-input .arco-input-suffix {
+  color: var(--color-text-3) !important;
+}
+
