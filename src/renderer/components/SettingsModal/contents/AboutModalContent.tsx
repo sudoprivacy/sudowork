@@ -7,6 +7,7 @@
 import { Button, Message, Typography } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
@@ -129,6 +130,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
 const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { t } = useTranslation();
 
   const [claudeStatus, setClaudeStatus] = useState<ICliStatus | null>(null);
   const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
@@ -311,6 +313,9 @@ const AboutModalContent: React.FC = () => {
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
             <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>v{packageJson.version}</span>
+            <Button size='small' type='outline' className='mt-12px' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
+              {t('settings.checkForUpdates')}
+            </Button>
           </div>
 
           {/* External tools card */}

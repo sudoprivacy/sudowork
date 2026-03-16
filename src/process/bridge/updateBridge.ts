@@ -37,8 +37,8 @@ interface AutoUpdateCheckParams {
   includePrerelease?: boolean;
 }
 
-const DEFAULT_REPO = 'iOfficeAI/AionUi';
-const DEFAULT_USER_AGENT = 'AionUi';
+const DEFAULT_REPO = 'sudoprivacy/sudowork';
+const DEFAULT_USER_AGENT = 'Sudowork';
 const ALLOWED_ASSET_EXTS = ['.exe', '.msi', '.dmg', '.zip', '.AppImage', '.deb', '.rpm'];
 const ALLOWED_DOWNLOAD_HOSTS = new Set<string>(['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'release-assets.githubusercontent.com']);
 const MAX_REDIRECTS = 8;
