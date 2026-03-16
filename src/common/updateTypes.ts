@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,7 +32,7 @@ export interface UpdateCheckResult {
 
 export interface UpdateCheckRequest {
   includePrerelease?: boolean;
-  /** Defaults to iOfficeAI/AionUi when omitted */
+  /** Defaults to sudoprivacy/Sudowork when omitted */
   repo?: string;
 }
 

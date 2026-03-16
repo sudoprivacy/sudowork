@@ -74,7 +74,7 @@ for f in builder-debug-win-x64.yml builder-debug-win-arm64.yml builder-debug-mac
   fi
 done
 
-for f in AionUi-1.0.0-win-x64.exe AionUi-1.0.0-win-arm64.exe AionUi-1.0.0-mac-x64.dmg AionUi-1.0.0-mac-arm64.dmg AionUi-1.0.0.AppImage AionUi-1.0.0-arm64.AppImage AionUi-1.0.0.deb; do
+for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-mac-x64.dmg Sudowork-1.0.0-mac-arm64.dmg Sudowork-1.0.0.AppImage Sudowork-1.0.0-arm64.AppImage Sudowork-1.0.0.deb; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing distributable: $f"
     ERRORS=$((ERRORS + 1))

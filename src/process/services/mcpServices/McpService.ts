@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -22,7 +22,7 @@ import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncR
  *
  * Agent 类型说明：
  * - AcpBackend ('claude', 'qwen', 'iflow', 'gemini', 'codex'等): 支持的 ACP 后端
- * - 'aionui': @office-ai/aioncli-core (AionUi 本地管理的 Gemini 实现)
+ * - 'aionui': @office-ai/aioncli-core (Sudowork 本地管理的 Gemini 实现)
  */
 export class McpService {
   private agents: Map<McpSource, IMcpProtocol>;
@@ -80,7 +80,7 @@ export class McpService {
       ['qwen', new QwenMcpAgent()],
       ['iflow', new IflowMcpAgent()],
       ['gemini', new GeminiMcpAgent()],
-      ['aionui', new AionuiMcpAgent()], // AionUi 本地 @office-ai/aioncli-core
+      ['aionui', new AionuiMcpAgent()], // Sudowork 本地 @office-ai/aioncli-core
       ['codex', new CodexMcpAgent()],
     ]);
   }

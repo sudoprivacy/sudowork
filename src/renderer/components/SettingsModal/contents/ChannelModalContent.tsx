@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -521,7 +521,7 @@ const ChannelModalContent: React.FC = () => {
     const telegramChannel: ChannelConfig = {
       id: 'telegram',
       title: t('settings.channels.telegramTitle', 'Telegram'),
-      description: t('settings.channels.telegramDesc', 'Chat with AionUi assistant via Telegram'),
+      description: t('settings.channels.telegramDesc', 'Chat with Sudowork assistant via Telegram'),
       status: 'active',
       enabled: pluginStatus?.enabled || false,
       disabled: enableLoading,
@@ -543,7 +543,7 @@ const ChannelModalContent: React.FC = () => {
     const larkChannel: ChannelConfig = {
       id: 'lark',
       title: t('settings.channels.larkTitle', 'Lark / Feishu'),
-      description: t('settings.channels.larkDesc', 'Chat with AionUi assistant via Lark or Feishu'),
+      description: t('settings.channels.larkDesc', 'Chat with Sudowork assistant via Lark or Feishu'),
       status: 'active',
       enabled: larkPluginStatus?.enabled || false,
       disabled: larkEnableLoading,
@@ -555,7 +555,7 @@ const ChannelModalContent: React.FC = () => {
     const dingtalkChannel: ChannelConfig = {
       id: 'dingtalk',
       title: t('settings.channels.dingtalkTitle', 'DingTalk'),
-      description: t('settings.channels.dingtalkDesc', 'Chat with AionUi assistant via DingTalk'),
+      description: t('settings.channels.dingtalkDesc', 'Chat with Sudowork assistant via DingTalk'),
       status: 'active',
       enabled: dingtalkPluginStatus?.enabled || false,
       disabled: dingtalkEnableLoading,
@@ -596,7 +596,7 @@ const ChannelModalContent: React.FC = () => {
     }
     return undefined;
   };
-  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, and DingTalk to interact with AionUi from IM apps.' });
+  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, and DingTalk to interact with Sudowork from IM apps.' });
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 
   return (

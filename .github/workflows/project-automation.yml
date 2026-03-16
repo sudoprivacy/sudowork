@@ -12,7 +12,7 @@ permissions:
 
 env:
   PROJECT_NUMBER: 5
-  ORG_NAME: iOfficeAI
+  ORG_NAME: sudoprivacy
   PROJECT_ID: PVT_kwDOCKhK-M4BN1Ah
   STATUS_FIELD_ID: PVTSSF_lADOCKhK-M4BN1Ahzg8tcak
   # Status option IDs
@@ -48,7 +48,7 @@ jobs:
         id: add
         uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/orgs/iOfficeAI/projects/5
+          project-url: https://github.com/orgs/sudoprivacy/projects/5
           github-token: ${{ steps.mint_token.outputs.token }}
 
   set-issue-initial-status:
@@ -130,7 +130,7 @@ jobs:
               }
             `;
 
-            const result = await github.graphql(query, { org: 'iOfficeAI', number: 5 });
+            const result = await github.graphql(query, { org: 'sudoprivacy', number: 5 });
             const item = result.organization.projectV2.items.nodes.find(i => i.content?.id === contentId);
 
             if (!item) {
@@ -196,7 +196,7 @@ jobs:
               }
             `;
 
-            const result = await github.graphql(query, { org: 'iOfficeAI', number: 5 });
+            const result = await github.graphql(query, { org: 'sudoprivacy', number: 5 });
             const item = result.organization.projectV2.items.nodes.find(i => i.content?.id === contentId);
 
             if (!item) {
@@ -322,7 +322,7 @@ jobs:
               }
             `;
 
-            const result = await github.graphql(query, { org: 'iOfficeAI', number: 5 });
+            const result = await github.graphql(query, { org: 'sudoprivacy', number: 5 });
             const projectItems = result.organization.projectV2.items.nodes;
 
             const mutation = `

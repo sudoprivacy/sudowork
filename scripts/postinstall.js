@@ -1,5 +1,5 @@
 /**
- * Postinstall script for AionUi
+ * Postinstall script for Sudowork
  * Handles native module installation for different environments
  */
 

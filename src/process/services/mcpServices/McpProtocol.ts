@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -16,7 +16,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
 
 /**
- * MCP源类型 - 包括所有ACP后端和AionUi内置
+ * MCP源类型 - 包括所有ACP后端和Sudowork内置
  */
 export type McpSource = AcpBackendAll | 'aionui';
 

@@ -1,6 +1,6 @@
-# AionUi Database System
+# Sudowork Database System
 
-本文档介绍 AionUi 的新数据库系统，它使用 **better-sqlite3** (主进程) 作为持久化存储。
+本文档介绍 Sudowork 的新数据库系统，它使用 **better-sqlite3** (主进程) 作为持久化存储。
 
 ## 架构概览
 
@@ -132,9 +132,9 @@ const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
 
 其中 `{userData}` 为：
 
-- macOS: `~/Library/Application Support/AionUi/`
-- Windows: `%APPDATA%/AionUi/`
-- Linux: `~/.config/AionUi/`
+- macOS: `~/Library/Application Support/Sudowork/`
+- Windows: `%APPDATA%/Sudowork/`
+- Linux: `~/.config/Sudowork/`
 
 ## 迁移管理
 

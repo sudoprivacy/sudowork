@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -272,7 +272,7 @@ export function initFsBridge(): void {
           {
             headers: {
               'User-Agent': 'AionUI-Preview',
-              Referer: 'https://github.com/iOfficeAI/AionUi',
+              Referer: 'https://github.com/sudoprivacy/Sudowork',
             },
           },
           (response) => {

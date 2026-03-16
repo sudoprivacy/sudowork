@@ -12,7 +12,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/iOfficeAI/Sudowork.git
+git clone https://github.com/sudoprivacy/sudowork.git
 cd Sudowork
 
 # Install dependencies

@@ -21,7 +21,7 @@ Deploy sudowork WebUI on headless Linux servers — cloud VMs, Kubernetes Pods, 
 
 - Linux x86_64 (Ubuntu 20.04+ / Debian 11+ recommended)
 - At least 2GB RAM
-- sudowork `.deb` package from [Releases](https://github.com/iOfficeAI/sudowork/releases)
+- sudowork `.deb` package from [Releases](https://github.com/sudoprivacy/sudowork/releases)
 
 ---
 
@@ -29,7 +29,7 @@ Deploy sudowork WebUI on headless Linux servers — cloud VMs, Kubernetes Pods, 
 
 ```bash
 # Download the latest .deb package
-wget https://github.com/iOfficeAI/sudowork/releases/latest/download/sudowork-linux-amd64.deb
+wget https://github.com/sudoprivacy/sudowork/releases/latest/download/sudowork-linux-amd64.deb
 
 # Install
 sudo dpkg -i sudowork-linux-amd64.deb
@@ -320,13 +320,13 @@ For Gemini API calls, configure the proxy inside sudowork WebUI:
 
 - Linux x86_64（推荐 Ubuntu 20.04+ / Debian 11+）
 - 至少 2GB 内存
-- sudowork `.deb` 安装包（[下载地址](https://github.com/iOfficeAI/sudowork/releases)）
+- sudowork `.deb` 安装包（[下载地址](https://github.com/sudoprivacy/sudowork/releases)）
 
 ## 安装
 
 ```bash
 # 下载最新 .deb 包
-wget https://github.com/iOfficeAI/sudowork/releases/latest/download/sudowork-linux-amd64.deb
+wget https://github.com/sudoprivacy/sudowork/releases/latest/download/sudowork-linux-amd64.deb
 
 # 安装
 sudo dpkg -i sudowork-linux-amd64.deb

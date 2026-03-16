@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -38,7 +38,7 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   delete cleanEnv.NODE_INSPECT;
   delete cleanEnv.NODE_DEBUG;
   // Remove CLAUDECODE env var to prevent claude-agent-sdk from detecting
-  // a nested session when AionUi itself is launched from Claude Code.
+  // a nested session when Sudowork itself is launched from Claude Code.
   delete cleanEnv.CLAUDECODE;
   // Strip npm lifecycle vars inherited from parent `npm start` process.
   // These (npm_config_*, npm_lifecycle_*, npm_package_*) can cause npx to

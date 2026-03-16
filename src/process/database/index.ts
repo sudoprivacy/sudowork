@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -19,7 +19,7 @@ import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/ch
 import { encryptCredentials, decryptCredentials } from '@/channels/utils/credentialCrypto';
 
 /**
- * Main database class for AionUi
+ * Main database class for Sudowork
  * Uses better-sqlite3 for fast, synchronous SQLite operations
  */
 export class AionUIDatabase {

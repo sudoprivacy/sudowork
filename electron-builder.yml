@@ -4,9 +4,9 @@ executableName: Sudowork
 copyright: Copyright © 2024 Sudowork
 
 protocols:
-  - name: AionUi Protocol
+  - name: Sudowork Protocol
     schemes:
-      - aionui
+      - sudowork
 
 asar:
   smartUnpack: true
@@ -197,9 +197,9 @@ linux:
     entry:
       Name: Sudowork
       Comment: ${description}
-      Icon: aionui
+      Icon: sudowork
       Categories: Office;Utility;
-      MimeType: x-scheme-handler/aionui;
+      MimeType: x-scheme-handler/sudowork;
 
 npmRebuild: false
 buildDependenciesFromSource: false

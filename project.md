@@ -282,7 +282,7 @@ brew install sudowork
 
 **方式 2：DMG 安装**
 
-1. 从 [GitHub Releases](https://github.com/iOfficeAI/sudowork/releases) 下载 `.dmg` 文件
+1. 从 [GitHub Releases](https://github.com/sudoprivacy/sudowork/releases) 下载 `.dmg` 文件
 2. 双击打开 DMG
 3. 将 sudowork 拖拽到 Applications 文件夹
 
@@ -379,7 +379,7 @@ open -a sudowork
 
 ```bash
 # 下载并安装
-wget https://github.com/iOfficeAI/sudowork/releases/download/vVERSION/sudowork_VERSION_amd64.deb
+wget https://github.com/sudoprivacy/sudowork/releases/download/vVERSION/sudowork_VERSION_amd64.deb
 sudo apt install ./sudowork_*.deb
 ```
 
@@ -387,7 +387,7 @@ sudo apt install ./sudowork_*.deb
 
 ```bash
 # 下载 AppImage
-wget https://github.com/iOfficeAI/sudowork/releases/download/vVERSION/sudowork_VERSION_amd64.AppImage
+wget https://github.com/sudoprivacy/sudowork/releases/download/vVERSION/sudowork_VERSION_amd64.AppImage
 
 # 添加执行权限
 chmod +x sudowork-*.AppImage

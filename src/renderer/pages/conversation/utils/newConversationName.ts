@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2026 AionUi (aionui.com)
+ * Copyright 2026 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 

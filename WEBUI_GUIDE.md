@@ -224,7 +224,7 @@ sudo systemctl status sudowork-webui.service
 >
 > **Original Tutorial**: [Running sudowork WebUI on Android via Termux + Proot Ubuntu](https://gist.github.com/Manamama/b4f903c279b5e73bdad4c2c0a58d5ddd)
 >
-> **Related Issues**: [#217 - Android Support Discussion](https://github.com/iOfficeAI/sudowork/issues/217)
+> **Related Issues**: [#217 - Android Support Discussion](https://github.com/sudoprivacy/sudowork/issues/217)
 
 ### Prerequisites
 
@@ -285,11 +285,11 @@ apt install -y \
 
 ```bash
 # Download the ARM64 .deb package (replace VERSION with the actual version)
-# Check latest version at: https://github.com/iOfficeAI/sudowork/releases
-wget https://github.com/iOfficeAI/sudowork/releases/download/vVERSION/sudowork_VERSION_arm64.deb
+# Check latest version at: https://github.com/sudoprivacy/sudowork/releases
+wget https://github.com/sudoprivacy/sudowork/releases/download/vVERSION/sudowork_VERSION_arm64.deb
 
 # Example (replace VERSION with the release tag, e.g. v1.5.2):
-wget https://github.com/iOfficeAI/sudowork/releases/download/vVERSION/sudowork_VERSION_arm64.deb
+wget https://github.com/sudoprivacy/sudowork/releases/download/vVERSION/sudowork_VERSION_arm64.deb
 
 # Install the package
 apt install -y ./sudowork_*.deb
@@ -418,7 +418,7 @@ proot-distro login ubuntu -- bash -c "sudowork --no-sandbox --webui --remote"
 If you encounter issues or have suggestions for improving Android support:
 
 1. Check the [original community guide](https://gist.github.com/Manamama/b4f903c279b5e73bdad4c2c0a58d5ddd)
-2. Report issues at [GitHub Issues #217](https://github.com/iOfficeAI/sudowork/issues/217)
+2. Report issues at [GitHub Issues #217](https://github.com/sudoprivacy/sudowork/issues/217)
 3. Share your experience to help other Android users!
 
 ---
@@ -678,7 +678,7 @@ npm run --resetpass username
 - [Main README](./readme.md)
 - [中文说明](./readme_ch.md)
 - [日本語ドキュメント](./readme_jp.md)
-- [GitHub Issues](https://github.com/iOfficeAI/sudowork/issues)
+- [GitHub Issues](https://github.com/sudoprivacy/sudowork/issues)
 
 ---
 
@@ -687,8 +687,8 @@ npm run --resetpass username
 If you encounter any issues:
 
 1. Check the [Troubleshooting](#troubleshooting) section
-2. Search [existing issues](https://github.com/iOfficeAI/sudowork/issues)
-3. Create a [new issue](https://github.com/iOfficeAI/sudowork/issues/new) with:
+2. Search [existing issues](https://github.com/sudoprivacy/sudowork/issues)
+3. Create a [new issue](https://github.com/sudoprivacy/sudowork/issues/new) with:
    - Your OS and version
    - sudowork version
    - Steps to reproduce

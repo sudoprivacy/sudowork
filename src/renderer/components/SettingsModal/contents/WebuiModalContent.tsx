@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -601,7 +601,7 @@ const WebuiModalContent: React.FC = () => {
               <span className='text-t-secondary'>
                 {t('settings.webui.allowRemoteDesc')}
                 {'  '}
-                <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
+                <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/sudoprivacy/Sudowork/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
                   {t('settings.webui.viewGuide')}
                 </button>
               </span>

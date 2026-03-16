@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -107,7 +107,7 @@ const deepLinkFromArgv = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_S
 const gotTheLock = isE2ETestMode ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
 
 if (!gotTheLock) {
-  console.warn('[AionUi] Another instance is already running; current process will exit.');
+  console.warn('[Sudowork] Another instance is already running; current process will exit.');
   app.quit();
 } else {
   app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
@@ -397,7 +397,7 @@ const destroyTray = (): void => {
 };
 
 const createWindow = (): void => {
-  console.log('[AionUi] Creating main window...');
+  console.log('[Sudowork] Creating main window...');
   // Get primary display size
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
@@ -449,7 +449,7 @@ const createWindow = (): void => {
       sandbox: false,
     },
   });
-  console.log(`[AionUi] Main window created (id=${mainWindow.id})`);
+  console.log(`[Sudowork] Main window created (id=${mainWindow.id})`);
 
   // Show window after content is ready to prevent FOUC (Flash of Unstyled Content)
   // Use 'ready-to-show' which fires when renderer has painted first frame,
@@ -504,31 +504,31 @@ const createWindow = (): void => {
 
   if (!app.isPackaged && rendererUrl) {
     mainWindow.loadURL(rendererUrl).catch((error) => {
-      console.error('[AionUi] loadURL failed, falling back to file:', error.message || error);
+      console.error('[Sudowork] loadURL failed, falling back to file:', error.message || error);
       mainWindow.loadFile(fallbackFile).catch((e2) => {
-        console.error('[AionUi] loadFile fallback also failed:', e2.message || e2);
+        console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
       });
     });
   } else {
     mainWindow.loadFile(fallbackFile).catch((error) => {
-      console.error('[AionUi] loadFile failed:', error.message || error);
+      console.error('[Sudowork] loadFile failed:', error.message || error);
     });
   }
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    console.error('[AionUi] did-fail-load:', { errorCode, errorDescription, validatedURL, isMainFrame });
+    console.error('[Sudowork] did-fail-load:', { errorCode, errorDescription, validatedURL, isMainFrame });
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[AionUi] render-process-gone:', details);
+    console.error('[Sudowork] render-process-gone:', details);
   });
 
   mainWindow.webContents.on('unresponsive', () => {
-    console.warn('[AionUi] Renderer became unresponsive');
+    console.warn('[Sudowork] Renderer became unresponsive');
   });
 
   mainWindow.on('closed', () => {
-    console.log('[AionUi] Main window closed');
+    console.log('[Sudowork] Main window closed');
   });
 
   // 只在开发环境自动打开 DevTools / Only auto-open DevTools in development
@@ -830,7 +830,7 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', async () => {
-  console.log('[AionUi] before-quit');
+  console.log('[Sudowork] before-quit');
   isQuitting = true;
   isExplicitQuit = true;
   destroyTray();

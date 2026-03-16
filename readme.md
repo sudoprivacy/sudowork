@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/v/release/iOfficeAI/Sudowork?style=flat-square&color=32CD32" alt="Version">
+  <img src="https://img.shields.io/github/v/release/sudoprivacy/sudowork?style=flat-square&color=32CD32" alt="Version">
   &nbsp;
   <img src="https://img.shields.io/badge/license-Apache--2.0-32CD32?style=flat-square&logo=apache&logoColor=white" alt="License">
   &nbsp;
@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/iOfficeAI/Sudowork/releases">
+  <a href="https://github.com/sudoprivacy/sudowork/releases">
     <img src="https://img.shields.io/badge/⬇️%20Download%20Now-Latest%20Release-32CD32?style=for-the-badge&logo=github&logoColor=white" alt="Download Latest Release" height="50">
   </a>
 </p>
@@ -199,7 +199,7 @@ _Your 24/7 AI assistant — access Sudowork from any device, anywhere._
 
 <p align="center"><em>Remote control &amp; monitor your agent — Claude, Gemini, Codex. Use from browser or phone, same as Claude Code remote.</em></p>
 
-> [Remote Internet Access Tutorial](https://github.com/iOfficeAI/Sudowork/wiki/Remote-Internet-Access-Guide-Chinese)
+> [Remote Internet Access Tutorial](https://github.com/sudoprivacy/sudowork/wiki/Remote-Internet-Access-Guide-Chinese)
 
 ## ✨ Cowork in Action
 
@@ -343,7 +343,7 @@ _Intelligent image generation, editing, and recognition, powered by Gemini_
 
 </details>
 
-> [Image generation model configuration guide](https://github.com/iOfficeAI/Sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide)
+> [Image generation model configuration guide](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide)
 
 ---
 
@@ -490,7 +490,7 @@ A: All data is stored locally in a SQLite database. Nothing is uploaded to any s
 ### Install
 
 <p>
-  <a href="https://github.com/iOfficeAI/Sudowork/releases">
+  <a href="https://github.com/sudoprivacy/sudowork/releases">
     <img src="https://img.shields.io/badge/Download-Latest%20Release-32CD32?style=for-the-badge&logo=github&logoColor=white" alt="Download Latest Release" height="50">
   </a>
 </p>
@@ -515,23 +515,23 @@ brew install sudowork
 
 **🚀 Quick Start**
 
-- [📖 Complete Installation Guide](https://github.com/iOfficeAI/Sudowork/wiki/Getting-Started) — Detailed steps from download to configuration
-- [⚙️ LLM Configuration Guide](https://github.com/iOfficeAI/Sudowork/wiki/LLM-Configuration) — Multi-platform AI model configuration
-- [🤖 Multi-Agent Mode Setup](https://github.com/iOfficeAI/Sudowork/wiki/ACP-Setup) — Integrate terminal AI agents
-- [🔌 MCP Tool Configuration](https://github.com/iOfficeAI/Sudowork/wiki/MCP-Configuration-Guide) — Model Context Protocol server setup
-- [🌐 WebUI Configuration Guide](https://github.com/iOfficeAI/Sudowork/wiki/WebUI-Configuration-Guide) — Complete WebUI setup and configuration tutorial
+- [📖 Complete Installation Guide](https://github.com/sudoprivacy/sudowork/wiki/Getting-Started) — Detailed steps from download to configuration
+- [⚙️ LLM Configuration Guide](https://github.com/sudoprivacy/sudowork/wiki/LLM-Configuration) — Multi-platform AI model configuration
+- [🤖 Multi-Agent Mode Setup](https://github.com/sudoprivacy/sudowork/wiki/ACP-Setup) — Integrate terminal AI agents
+- [🔌 MCP Tool Configuration](https://github.com/sudoprivacy/sudowork/wiki/MCP-Configuration-Guide) — Model Context Protocol server setup
+- [🌐 WebUI Configuration Guide](https://github.com/sudoprivacy/sudowork/wiki/WebUI-Configuration-Guide) — Complete WebUI setup and configuration tutorial
 
 **🎯 Use Cases**
 
-- [📁 File Management](https://github.com/iOfficeAI/Sudowork/wiki/file-management) — Smart file organization
-- [📊 Excel Processing](https://github.com/iOfficeAI/Sudowork/wiki/excel-processing) — AI-driven data processing
-- [🎨 Image Generation](https://github.com/iOfficeAI/Sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide) — AI image creation
-- [📚 More Use Cases](https://github.com/iOfficeAI/Sudowork/wiki/Use-Cases-Overview)
+- [📁 File Management](https://github.com/sudoprivacy/sudowork/wiki/file-management) — Smart file organization
+- [📊 Excel Processing](https://github.com/sudoprivacy/sudowork/wiki/excel-processing) — AI-driven data processing
+- [🎨 Image Generation](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide) — AI image creation
+- [📚 More Use Cases](https://github.com/sudoprivacy/sudowork/wiki/Use-Cases-Overview)
 
 **❓ Support & Help**
 
-- [❓ FAQ](https://github.com/iOfficeAI/Sudowork/wiki/FAQ) — Questions and troubleshooting
-- [🔧 Configuration & Usage Tutorials](https://github.com/iOfficeAI/Sudowork/wiki/Configuration-Guides) — Complete configuration documentation
+- [❓ FAQ](https://github.com/sudoprivacy/sudowork/wiki/FAQ) — Questions and troubleshooting
+- [🔧 Configuration & Usage Tutorials](https://github.com/sudoprivacy/sudowork/wiki/Configuration-Guides) — Complete configuration documentation
 
 </details>
 
@@ -547,9 +547,9 @@ brew install sudowork
   </a>
 </p>
 
-- [GitHub Discussions](https://github.com/iOfficeAI/Sudowork/discussions) — share ideas and exchange tips
-- [Report Issues](https://github.com/iOfficeAI/Sudowork/issues) — bugs and feature requests
-- [Release Updates](https://github.com/iOfficeAI/Sudowork/releases) — get the latest version
+- [GitHub Discussions](https://github.com/sudoprivacy/sudowork/discussions) — share ideas and exchange tips
+- [Report Issues](https://github.com/sudoprivacy/sudowork/issues) — bugs and feature requests
+- [Release Updates](https://github.com/sudoprivacy/sudowork/releases) — get the latest version
 - [WeChat Group](./resources/wechat_group4.png) — Chinese community
 
 
@@ -567,8 +567,8 @@ brew install sudowork
 ## Contributors
 
 <p align="center">
-  <a href="https://github.com/iOfficeAI/Sudowork/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=iOfficeAI/Sudowork&max=50" alt="Contributors" />
+  <a href="https://github.com/sudoprivacy/sudowork/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=sudoprivacy/sudowork&max=50" alt="Contributors" />
   </a>
 </p>
 

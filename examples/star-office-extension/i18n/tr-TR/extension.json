@@ -3,7 +3,7 @@
   "description": "Tüm ajanların aktivitelerini görselleştiren Star Office tarzı sekme.",
   "settingsTabs": {
     "star-office": { "name": "Star Office" },
-    "aionui-home": { "name": "AionUI Ana Sayfa" },
-    "aionui-issues": { "name": "AionUI Sorunlar" }
+    "sudowork-home": { "name": "Sudowork Ana Sayfa" },
+    "sudowork-issues": { "name": "Sudowork Sorunlar" }
   }
 }

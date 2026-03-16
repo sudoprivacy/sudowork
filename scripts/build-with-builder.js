@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Simplified build script for AionUi
+ * Simplified build script for Sudowork
  * Coordinates electron-vite (bundling) and electron-builder (packaging)
  *
  * Features:
@@ -491,14 +491,14 @@ try {
     const winUnpackedDir = path.join(outDir, 'win-unpacked');
     let cleaned = tryRemoveDir(winUnpackedDir);
     if (!cleaned) {
-      const aionRunning = isProcessRunningWindows('AionUi.exe');
+      const aionRunning = isProcessRunningWindows('Sudowork.exe');
       const electronRunning = isProcessRunningWindows('electron.exe');
       if (aionRunning || electronRunning) {
-        console.log('⚠️  Detected running AionUi/Electron process. Attempting to close...');
-        killWindowsProcesses(['AionUi.exe', 'electron.exe']);
+        console.log('⚠️  Detected running Sudowork/Electron process. Attempting to close...');
+        killWindowsProcesses(['Sudowork.exe', 'electron.exe']);
         cleaned = tryRemoveDir(winUnpackedDir);
         if (!cleaned) {
-          console.log('⚠️  Directory still locked. Please close any running AionUi/Electron processes and retry.');
+          console.log('⚠️  Directory still locked. Please close any running Sudowork/Electron processes and retry.');
         }
       }
     }
@@ -513,7 +513,7 @@ try {
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
-    const winExePath = path.join(outDir, 'win-unpacked', 'AionUi.exe');
+    const winExePath = path.join(outDir, 'win-unpacked', 'Sudowork.exe');
     const firstError = formatExecError(error);
     const canRetryWithoutExecutableEdit = process.platform === 'win32'
       && isWindowsBuild
@@ -524,14 +524,14 @@ try {
       throw error;
     }
 
-    console.log('⚠️  Windows local build failed after AionUi.exe was produced.');
+    console.log('⚠️  Windows local build failed after Sudowork.exe was produced.');
     if (firstError) {
       console.log('   First failure summary:');
       console.log(firstError.split(/\r?\n/).slice(0, 6).map((line) => `   ${line}`).join('\n'));
     }
     console.log('   Retrying local build with win.signAndEditExecutable=false...');
     console.log('   This fallback is intended for transient rcedit / file-lock failures on developer machines.');
-    killWindowsProcesses(['AionUi.exe', 'electron.exe']);
+    killWindowsProcesses(['Sudowork.exe', 'electron.exe']);
     cleanupWindowsPackOutput();
 
     try {

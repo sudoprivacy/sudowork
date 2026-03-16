@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -81,8 +81,8 @@ function btn(label: string, action: string, params?: Record<string, string>): Di
  */
 export function createMainMenuCard(): DingTalkCard {
   return {
-    title: 'AionUi Assistant',
-    text: '### AionUi Assistant\n\nWelcome! Choose an action below:',
+    title: 'Sudowork Assistant',
+    text: '### Sudowork Assistant\n\nWelcome! Choose an action below:',
     btnOrientation: '1',
     btns: [btn('New Chat', 'session.new'), btn('Agent', 'agent.show'), btn('Status', 'session.status'), btn('Help', 'help.show')],
   };
@@ -94,7 +94,7 @@ export function createMainMenuCard(): DingTalkCard {
 export function createPairingCard(pairingCode: string): DingTalkCard {
   return {
     title: 'Pairing Required',
-    text: ['### Pairing Required', '', 'Please pair your account with AionUi:', '', `**Pairing Code:** \`${pairingCode}\``, '', '1. Open AionUi settings', '2. Go to Channels > DingTalk', '3. Enter this pairing code', '', 'Code expires in 10 minutes.'].join('\n'),
+    text: ['### Pairing Required', '', 'Please pair your account with Sudowork:', '', `**Pairing Code:** \`${pairingCode}\``, '', '1. Open Sudowork settings', '2. Go to Channels > DingTalk', '3. Enter this pairing code', '', 'Code expires in 10 minutes.'].join('\n'),
     btnOrientation: '1',
     btns: [btn('Refresh Code', 'pairing.refresh'), btn('Help', 'pairing.help')],
   };
@@ -106,7 +106,7 @@ export function createPairingCard(pairingCode: string): DingTalkCard {
 export function createPairingStatusCard(pairingCode: string): DingTalkCard {
   return {
     title: 'Waiting for Approval',
-    text: ['### Waiting for Approval', '', 'Your pairing request is pending approval.', '', `**Pairing Code:** \`${pairingCode}\``, '', 'Please approve in AionUi settings:', '1. Open AionUi app', '2. Go to WebUI > Channels', '3. Click "Approve" for this code'].join('\n'),
+    text: ['### Waiting for Approval', '', 'Your pairing request is pending approval.', '', `**Pairing Code:** \`${pairingCode}\``, '', 'Please approve in Sudowork settings:', '1. Open Sudowork app', '2. Go to WebUI > Channels', '3. Click "Approve" for this code'].join('\n'),
     btnOrientation: '1',
     btns: [btn('Check Status', 'pairing.check'), btn('New Code', 'pairing.refresh')],
   };
@@ -118,7 +118,7 @@ export function createPairingStatusCard(pairingCode: string): DingTalkCard {
 export function createPairingHelpCard(): DingTalkCard {
   return {
     title: 'Pairing Help',
-    text: ['### Pairing Help', '', '**What is pairing?**', 'Pairing links your DingTalk account with the local AionUi application.', 'You need to pair before using the AI assistant.', '', '**How to pair:**', '1. Send any message to this bot', '2. You will receive a pairing code', '3. Open AionUi desktop app', '4. Go to WebUI > Channels > DingTalk', '5. Click "Approve" for your code', '', '**FAQ:**', '- Pairing code valid for 10 minutes', '- AionUi app must be running', '- One account can only pair once'].join('\n'),
+    text: ['### Pairing Help', '', '**What is pairing?**', 'Pairing links your DingTalk account with the local Sudowork application.', 'You need to pair before using the AI assistant.', '', '**How to pair:**', '1. Send any message to this bot', '2. You will receive a pairing code', '3. Open Sudowork desktop app', '4. Go to WebUI > Channels > DingTalk', '5. Click "Approve" for your code', '', '**FAQ:**', '- Pairing code valid for 10 minutes', '- Sudowork app must be running', '- One account can only pair once'].join('\n'),
     btns: [btn('Get Pairing Code', 'pairing.show')],
   };
 }
@@ -171,8 +171,8 @@ export function createSessionStatusCard(session?: { id: string; agentType: Chann
  */
 export function createHelpCard(): DingTalkCard {
   return {
-    title: 'AionUi Assistant Help',
-    text: ['### AionUi Assistant Help', '', 'A remote assistant to interact with AionUi via DingTalk.', '', '**Common Actions:**', '- New Chat - Start a new session', '- Agent - Switch AI agent', '- Status - View current session status', '- Help - Show this help message', '', 'Send a message to chat with the AI assistant.'].join('\n'),
+    title: 'Sudowork Assistant Help',
+    text: ['### Sudowork Assistant Help', '', 'A remote assistant to interact with Sudowork via DingTalk.', '', '**Common Actions:**', '- New Chat - Start a new session', '- Agent - Switch AI agent', '- Status - View current session status', '- Help - Show this help message', '', 'Send a message to chat with the AI assistant.'].join('\n'),
     btnOrientation: '0',
     btns: [btn('Features', 'help.features'), btn('Pairing Guide', 'help.pairing'), btn('Tips', 'help.tips')],
   };
@@ -195,7 +195,7 @@ export function createFeaturesCard(): DingTalkCard {
 export function createPairingGuideCard(): DingTalkCard {
   return {
     title: 'Pairing Guide',
-    text: ['### Pairing Guide', '', '**First-time Setup:**', '1. Send any message to the bot', '2. Bot displays pairing code', '3. Approve pairing in AionUi settings', '4. Ready to use after pairing', '', '**Notes:**', '- Pairing code valid for 10 minutes', '- AionUi app must be running', '- One DingTalk account can only pair once'].join('\n'),
+    text: ['### Pairing Guide', '', '**First-time Setup:**', '1. Send any message to the bot', '2. Bot displays pairing code', '3. Approve pairing in Sudowork settings', '4. Ready to use after pairing', '', '**Notes:**', '- Pairing code valid for 10 minutes', '- Sudowork app must be running', '- One DingTalk account can only pair once'].join('\n'),
     btns: [btn('Back to Help', 'help.show')],
   };
 }
@@ -256,7 +256,7 @@ export function createToolConfirmationCard(callId: string, title: string, descri
 export function createSettingsCard(): DingTalkCard {
   return {
     title: 'Settings',
-    text: ['### Settings', '', 'Channel settings need to be configured in the AionUi app.', '', 'Open AionUi > WebUI > Channels'].join('\n'),
+    text: ['### Settings', '', 'Channel settings need to be configured in the Sudowork app.', '', 'Open Sudowork > WebUI > Channels'].join('\n'),
     btns: [btn('Back', 'help.show')],
   };
 }

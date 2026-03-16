@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 AionUi (aionui.com)
+ * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -52,7 +52,7 @@ const migrateLegacyData = async () => {
         try {
           return existsSync(newDir) && readdirSync(newDir).length === 0;
         } catch (error) {
-          console.warn('[AionUi] Warning: Could not read new directory during migration check:', error);
+          console.warn('[Sudowork] Warning: Could not read new directory during migration check:', error);
           return false; // 假设非空以避免迁移覆盖
         }
       })();
@@ -73,7 +73,7 @@ const migrateLegacyData = async () => {
           try {
             await fs.rm(oldDir, { recursive: true });
           } catch (cleanupError) {
-            console.warn('[AionUi] 原目录清理失败，请手动删除:', oldDir, cleanupError);
+            console.warn('[Sudowork] 原目录清理失败，请手动删除:', oldDir, cleanupError);
           }
         }
       }
@@ -81,7 +81,7 @@ const migrateLegacyData = async () => {
       return true;
     }
   } catch (error) {
-    console.error('[AionUi] 数据迁移失败:', error);
+    console.error('[Sudowork] 数据迁移失败:', error);
   }
 
   return false;
@@ -381,7 +381,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       }
     }
 
-    console.warn(`[AionUi] Could not find builtin ${dirPath} directory, tried:`, candidates);
+    console.warn(`[Sudowork] Could not find builtin ${dirPath} directory, tried:`, candidates);
     return candidates[0];
   };
 
@@ -401,7 +401,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       // 复制内置技能到用户目录（不覆盖已存在的文件）
       await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: false });
     } catch (error) {
-      console.warn(`[AionUi] Failed to copy skills directory:`, error);
+      console.warn(`[Sudowork] Failed to copy skills directory:`, error);
     }
   }
 
@@ -431,7 +431,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceRulesPath)) {
-            console.warn(`[AionUi] Source rule file not found: ${sourceRulesPath}`);
+            console.warn(`[Sudowork] Source rule file not found: ${sourceRulesPath}`);
             continue;
           }
 
@@ -444,7 +444,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           await fs.writeFile(targetPath, content, 'utf-8');
         } catch (error) {
           // 忽略缺失的语言文件 / Ignore missing locale files
-          console.warn(`[AionUi] Failed to copy rule file ${ruleFile}:`, error);
+          console.warn(`[Sudowork] Failed to copy rule file ${ruleFile}:`, error);
         }
       }
     } else {
@@ -476,7 +476,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceSkillsPath)) {
-            console.warn(`[AionUi] Source skill file not found: ${sourceSkillsPath}`);
+            console.warn(`[Sudowork] Source skill file not found: ${sourceSkillsPath}`);
             continue;
           }
 
@@ -489,7 +489,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           await fs.writeFile(targetPath, content, 'utf-8');
         } catch (error) {
           // 忽略缺失的技能文件 / Ignore missing skill files
-          console.warn(`[AionUi] Failed to copy skill file ${skillFile}:`, error);
+          console.warn(`[Sudowork] Failed to copy skill file ${skillFile}:`, error);
         }
       }
     } else {
@@ -613,15 +613,15 @@ const cleanupOrphanedHealthCheckConversations = () => {
     });
 
     if (deletedCount > 0) {
-      console.log(`[AionUi] Cleaned up ${deletedCount} orphaned health-check conversation(s) on startup`);
+      console.log(`[Sudowork] Cleaned up ${deletedCount} orphaned health-check conversation(s) on startup`);
     }
   } catch (error) {
-    console.warn('[AionUi] Failed to cleanup orphaned health-check conversations:', error);
+    console.warn('[Sudowork] Failed to cleanup orphaned health-check conversations:', error);
   }
 };
 
 const initStorage = async () => {
-  console.log('[AionUi] Starting storage initialization...');
+  console.log('[Sudowork] Starting storage initialization...');
 
   // 1. 先执行数据迁移（在任何目录创建之前）
   await migrateLegacyData();
@@ -645,10 +645,10 @@ const initStorage = async () => {
     if (!existingMcpConfig || !Array.isArray(existingMcpConfig) || existingMcpConfig.length === 0) {
       const defaultServers = getDefaultMcpServers();
       await configFile.set('mcp.config', defaultServers);
-      console.log('[AionUi] Default MCP servers initialized');
+      console.log('[Sudowork] Default MCP servers initialized');
     }
   } catch (error) {
-    console.error('[AionUi] Failed to initialize default MCP servers:', error);
+    console.error('[Sudowork] Failed to initialize default MCP servers:', error);
   }
   // 5. 初始化内置助手（Assistants）
   try {
@@ -754,7 +754,7 @@ const initStorage = async () => {
       await configFile.set(PROMPTS_I18N_MIGRATION_KEY, true);
     }
   } catch (error) {
-    console.error('[AionUi] Failed to initialize builtin assistants:', error);
+    console.error('[Sudowork] Failed to initialize builtin assistants:', error);
   }
 
   // 6. 初始化数据库（better-sqlite3）
@@ -850,7 +850,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
         skillContents.push(`## Skill: ${skillName}\n${content}`);
       }
     } catch (error) {
-      console.warn(`[AionUi] Failed to load skill ${skillName}:`, error);
+      console.warn(`[Sudowork] Failed to load skill ${skillName}:`, error);
     }
   }
 
