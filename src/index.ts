@@ -137,7 +137,6 @@ if (!gotTheLock) {
     }
 
     if (app.isReady()) {
-      console.log('[AionUi] second-instance received with no active window, recreating main window');
       createWindow();
     }
   });
@@ -456,18 +455,15 @@ const createWindow = (): void => {
   // combined with 'did-finish-load' as belt-and-suspenders approach.
   const showWindow = () => {
     if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      console.log('[AionUi] Showing main window');
       mainWindow.show();
       mainWindow.focus();
     }
   };
   mainWindow.once('ready-to-show', () => {
-    console.log('[AionUi] Window ready-to-show');
     showWindow();
   });
   // Belt-and-suspenders: also show on did-finish-load in case ready-to-show already fired
   mainWindow.webContents.once('did-finish-load', () => {
-    console.log('[AionUi] Renderer did-finish-load');
     showWindow();
   });
   // Fallback: show window after 5s even if events don't fire (e.g. loadURL failure)
@@ -498,7 +494,6 @@ const createWindow = (): void => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);
       });
   } else {
-    console.log('[AionUi] Auto-updater disabled via env/CI guard');
   }
 
   // Load the renderer: dev server URL in development, built HTML file in production
@@ -506,7 +501,6 @@ const createWindow = (): void => {
   const fallbackFile = path.join(__dirname, '../renderer/index.html');
 
   if (!app.isPackaged && rendererUrl) {
-    console.log(`[AionUi] Loading renderer URL: ${rendererUrl}`);
     mainWindow.loadURL(rendererUrl).catch((error) => {
       console.error('[AionUi] loadURL failed, falling back to file:', error.message || error);
       mainWindow.loadFile(fallbackFile).catch((e2) => {
@@ -514,7 +508,6 @@ const createWindow = (): void => {
       });
     });
   } else {
-    console.log(`[AionUi] Loading renderer file: ${fallbackFile}`);
     mainWindow.loadFile(fallbackFile).catch((error) => {
       console.error('[AionUi] loadFile failed:', error.message || error);
     });
@@ -604,11 +597,9 @@ ipcBridge.application.openDevTools.provider(() => {
 });
 
 const handleAppReady = async (): Promise<void> => {
-  console.log('[AionUi] app.whenReady resolved');
 
   // CLI mode: print app version and exit immediately (used by CI smoke tests)
   if (isVersionMode) {
-    console.log(app.getVersion());
     app.exit(0);
     return;
   }
@@ -624,7 +615,6 @@ const handleAppReady = async (): Promise<void> => {
       filePath = filePath.slice(1);
     }
     if (!fs.existsSync(filePath)) {
-      console.warn(`[aion-asset] File not found: ${request.url} -> ${filePath}`);
     }
     return net.fetch(pathToFileURL(filePath).href);
   });
@@ -766,16 +756,12 @@ const handleAppReady = async (): Promise<void> => {
   if (cdpPort) {
     const cdpReady = await verifyCdpReady(cdpPort);
     if (cdpReady) {
-      console.log(`[CDP] Remote debugging server ready at http://127.0.0.1:${cdpPort}`);
-      console.log(`[CDP] MCP chrome-devtools: npx chrome-devtools-mcp@latest --browser-url=http://127.0.0.1:${cdpPort}`);
     } else {
-      console.warn(`[CDP] Warning: Remote debugging port ${cdpPort} not responding`);
     }
   }
 
   // Listen for system resume (wake from sleep/hibernate) to recover missed cron jobs
   powerMonitor.on('resume', () => {
-    console.log('[App] System resumed from sleep, triggering cron recovery');
     import('@process/services/cron/CronService')
       .then(({ cronService }) => {
         void cronService.handleSystemResume();
@@ -865,11 +851,9 @@ app.on('before-quit', async () => {
 });
 
 app.on('will-quit', () => {
-  console.log('[AionUi] will-quit');
 });
 
 app.on('quit', (_event, exitCode) => {
-  console.log(`[AionUi] quit (exitCode=${exitCode})`);
 });
 
 // In this file you can include the rest of your app's specific main process

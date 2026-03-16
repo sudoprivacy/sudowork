@@ -47,8 +47,8 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
             return true;
           }
         }
-      } catch {
-        // Ignore errors, will show confirmation dialog
+      } catch (error) {
+        console.error('[ConversationChatConfirm] Error in auto-confirm check', error);
       }
 
       return false;
@@ -268,7 +268,9 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
           </div>
         </div>
       )}
-      <div className={hasConfirmation ? 'hidden' : ''}>{children}</div>
+      <div className={hasConfirmation ? 'hidden' : ''} style={hasConfirmation ? { visibility: 'hidden', height: 0, overflow: 'hidden' } : {}}>
+        {children}
+      </div>
     </>
   );
 };

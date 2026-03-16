@@ -179,13 +179,7 @@ const ChatConversation: React.FC<{
   // Use unified hook for preset assistant info (ACP/Codex conversations)
   const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(isGeminiConversation ? undefined : conversation);
 
-  const sliderTitle = useMemo(() => {
-    return (
-      <div className='flex items-center justify-between'>
-        <span className='text-16px font-bold text-t-primary'>{t('conversation.workspace.title')}</span>
-      </div>
-    );
-  }, [t]);
+  const sliderTitle = useMemo(() => null, []);
 
   // For ACP/Codex conversations, use AcpModelSelector that can show/switch models.
   // For other non-Gemini conversations, show disabled GeminiModelSelector.

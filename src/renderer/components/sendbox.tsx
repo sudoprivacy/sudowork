@@ -303,8 +303,13 @@ const SendBox: React.FC<{
     clearDomSnippets();
 
     onSend(finalMessage)
-      .catch(() => {})
+      .then(() => {
+      })
+      .catch((error) => {
+        console.error('[SendBox] Error in onSend', error);
+      })
       .finally(() => {
+        // 只有在组件仍挂载的情况下才更新状态
         setIsLoading(false);
       });
   };

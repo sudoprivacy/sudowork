@@ -29,6 +29,7 @@ import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
+import TaskPanel from './TaskPanel';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 
@@ -702,7 +703,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Directory Selection Modal (for WebUI only) */}
         <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />
 
-        {/* Search Input - 最上方 */}
+        {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
+        <TaskPanel workspace={workspace} />
+
+        {/* Search Input */}
         <div className='px-12px'>
           {(showSearch || searchText) && (
             <div className='pb-8px workspace-toolbar-search'>

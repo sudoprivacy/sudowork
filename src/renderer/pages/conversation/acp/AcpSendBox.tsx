@@ -113,8 +113,23 @@ const useAcpMessage = (conversation_id: string) => {
     };
   }, []);
 
+  // 添加一个 ref 来跟踪组件是否已挂载
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const handleResponseMessage = useCallback(
     (message: IResponseMessage) => {
+      // 检查组件是否已挂载
+      if (!isMountedRef.current) {
+        return;
+      }
+
       if (conversation_id !== message.conversation_id) {
         return;
       }
@@ -145,22 +160,24 @@ const useAcpMessage = (conversation_id: string) => {
           // 不在这里重置 aiProcessing - 让 content 到达时处理
           break;
         case 'finish':
+          console.log('[AcpSendBox] Processing finish message');
           {
             // Use delayed reset to detect true end of task
             // 使用延迟重置来检测任务的真正结束
             const timeoutId = setTimeout(() => {
-              setRunning(false);
-              runningRef.current = false;
-              setAiProcessing(false);
-              aiProcessingRef.current = false;
-              setThought({ subject: '', description: '' });
+              if (isMountedRef.current) {
+                setRunning(false);
+                runningRef.current = false;
+                setAiProcessing(false);
+                aiProcessingRef.current = false;
+                setThought({ subject: '', description: '' });
+              }
             }, 1000);
             (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = timeoutId;
             hasContentInTurnRef.current = false;
             // Log request completion
             if (requestTraceRef.current) {
               const duration = Date.now() - requestTraceRef.current.startTime;
-              console.log(`%c[RequestTrace]%c ✅ FINISH | ${requestTraceRef.current.backend} → ${requestTraceRef.current.modelId} | ${duration}ms | ${new Date().toISOString()}`, 'color: #52c41a; font-weight: bold', 'color: inherit');
               requestTraceRef.current = null;
             }
           }
@@ -188,7 +205,7 @@ const useAcpMessage = (conversation_id: string) => {
             status?: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error';
             backend?: string;
           };
-          if (agentData?.status) {
+          if (isMountedRef.current && agentData?.status) {
             setAcpStatus(agentData.status);
             // Reset running state when authentication is complete
             if (['authenticated', 'session_active'].includes(agentData.status)) {
@@ -222,7 +239,7 @@ const useAcpMessage = (conversation_id: string) => {
           break;
         case 'acp_context_usage': {
           const usageData = message.data as { used: number; size: number };
-          if (usageData && typeof usageData.used === 'number') {
+          if (isMountedRef.current && usageData && typeof usageData.used === 'number') {
             setTokenUsage({ totalTokens: usageData.used });
             if (usageData.size > 0) {
               setContextLimit(usageData.size);
@@ -239,20 +256,20 @@ const useAcpMessage = (conversation_id: string) => {
               modelId: String(trace.modelId || 'unknown'),
               sessionMode: trace.sessionMode as string | undefined,
             };
-            console.log(`%c[RequestTrace]%c ➡️ START | ${trace.backend} → ${trace.modelId} | ${new Date().toISOString()}`, 'color: #1890ff; font-weight: bold', 'color: inherit', trace);
           }
           break;
         case 'error':
           // Stop all loading states when error occurs
-          setRunning(false);
-          runningRef.current = false;
-          setAiProcessing(false);
-          aiProcessingRef.current = false;
+          if (isMountedRef.current) {
+            setRunning(false);
+            runningRef.current = false;
+            setAiProcessing(false);
+            aiProcessingRef.current = false;
+          }
           addOrUpdateMessage(transformedMessage);
           // Log request error
           if (requestTraceRef.current) {
             const duration = Date.now() - requestTraceRef.current.startTime;
-            console.log(`%c[RequestTrace]%c ❌ ERROR | ${requestTraceRef.current.backend} → ${requestTraceRef.current.modelId} | ${duration}ms | ${new Date().toISOString()}`, 'color: #ff4d4f; font-weight: bold', 'color: inherit', message.data);
             requestTraceRef.current = null;
           }
           break;
@@ -266,7 +283,7 @@ const useAcpMessage = (conversation_id: string) => {
           break;
       }
     },
-    [conversation_id, addOrUpdateMessage, throttledSetThought, setThought, setRunning, setAiProcessing, setAcpStatus]
+    [conversation_id, addOrUpdateMessage, throttledSetThought, setThought, setRunning, setAiProcessing, setAcpStatus, setTokenUsage, setContextLimit, isMountedRef]
   );
 
   useEffect(() => {
@@ -385,6 +402,29 @@ const AcpSendBox: React.FC<{
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
 
+  // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
+  const hasInitialized = useRef(false);
+
+  // 添加组件挂载日志
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+
+      // 清除任何残留的定时器
+      const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      }
+    } else {
+    }
+
+    // 组件卸载时的清理
+    return () => {
+      hasInitialized.current = false;
+    };
+  }, [conversation_id]);
+
   // 使用 useLatestRef 保存最新的 setContent/atPath，避免重复注册 handler
   // Use useLatestRef to keep latest setters to avoid re-registering handler
   const setContentRef = useLatestRef(setContent);
@@ -431,7 +471,9 @@ const AcpSendBox: React.FC<{
     const storageKey = `acp_initial_message_${conversation_id}`;
     const storedMessage = sessionStorage.getItem(storageKey);
 
-    if (!storedMessage) return;
+    if (!storedMessage) {
+      return;
+    }
 
     // Clear immediately to prevent duplicate sends (e.g., if component remounts while sendMessage is pending)
     sessionStorage.removeItem(storageKey);
@@ -463,7 +505,6 @@ const AcpSendBox: React.FC<{
           emitter.emit('chat.history.refresh');
         } else {
           // Handle send failure
-          console.error('[ACP-FRONTEND] Failed to send initial message:', result);
           // Create error message in UI
           const errorMessage: TMessage = {
             id: uuid(),
@@ -481,15 +522,13 @@ const AcpSendBox: React.FC<{
           setAiProcessing(false); // Stop loading state on failure
         }
       } catch (error) {
-        console.error('Error sending initial message:', error);
-        setAiProcessing(false); // Stop loading state on error
+        // Stop loading state on error
       }
     };
 
     sendInitialMessage().catch((error) => {
-      console.error('Failed to send initial message:', error);
     });
-  }, [conversation_id, backend]);
+  }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
 
   const onSendHandler = async (message: string) => {
     const msg_id = uuid();
@@ -508,16 +547,16 @@ const AcpSendBox: React.FC<{
     clearFiles();
 
     // Start AI processing loading state
-    setAiProcessing(true);
 
     // Send message via ACP
     try {
-      await ipcBridge.acpConversation.sendMessage.invoke({
+      const result = await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
         files: allFiles,
       });
+
       void checkAndUpdateTitle(conversation_id, message);
       emitter.emit('chat.history.refresh');
     } catch (error: unknown) {

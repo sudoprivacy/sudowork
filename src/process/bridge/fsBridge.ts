@@ -131,7 +131,6 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
     const fileName = fileNamePattern(assistantId, loc);
     try {
       const content = await fs.readFile(path.join(builtinDir, fileName), 'utf-8');
-      console.log(`[fsBridge] Read builtin ${resourceType} for ${assistantId}: ${fileName}`);
       return content;
     } catch {
       // Try next locale
@@ -151,7 +150,6 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
     await fs.mkdir(assistantsDir, { recursive: true });
     const fileName = fileNamePattern(assistantId, locale);
     await fs.writeFile(path.join(assistantsDir, fileName), content, 'utf-8');
-    console.log(`[fsBridge] Wrote assistant ${resourceType}: ${fileName}`);
     return true;
   } catch (error) {
     console.error(`Failed to write assistant ${resourceType}:`, error);
@@ -170,7 +168,6 @@ async function deleteAssistantResource(resourceType: ResourceType, filePattern: 
     for (const file of files) {
       if (filePattern.test(file)) {
         await fs.unlink(path.join(assistantsDir, file));
-        console.log(`[fsBridge] Deleted assistant ${resourceType}: ${file}`);
       }
     }
     return true;
@@ -184,12 +181,47 @@ async function deleteAssistantResource(resourceType: ResourceType, filePattern: 
 const ruleFilePattern = (id: string, loc: string) => `${id}.${loc}.md`;
 const skillFilePattern = (id: string, loc: string) => `${id}-skills.${loc}.md`;
 
+// 在文件顶部添加一个新的 Map 来跟踪每个目录的 AbortController
+const directoryAbortControllers = new Map<string, AbortController>();
+
 export function initFsBridge(): void {
   const canceledZipRequests = new Set<string>();
 
+  ipcBridge.fs.listDir.provider(async ({ dir }) => {
+    try {
+      const items = await fs.readdir(dir);
+      return items;
+    } catch {
+      return [];
+    }
+  });
+
   ipcBridge.fs.getFilesByDir.provider(async ({ dir }) => {
-    const tree = await readDirectoryRecursive(dir);
-    return tree ? [tree] : [];
+    // 检查是否已有正在进行的相同目录请求，如果有则取消它
+    if (directoryAbortControllers.has(dir)) {
+      const previousController = directoryAbortControllers.get(dir);
+      previousController?.abort();
+    }
+
+    const abortController = new AbortController();
+    directoryAbortControllers.set(dir, abortController);
+
+    try {
+      const tree = await readDirectoryRecursive(dir, { abortController });
+
+      // 请求完成后清理 abort controller
+      directoryAbortControllers.delete(dir);
+
+      return tree ? [tree] : [];
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        // Directory read was aborted, return empty array
+      } else {
+        console.error('[fsBridge] Error reading directory', { dir, error });
+      }
+      directoryAbortControllers.delete(dir);
+      return []; // Return empty array on error instead of throwing
+    }
   });
 
   ipcBridge.fs.getImageBase64.provider(async ({ path: filePath }) => {
@@ -340,6 +372,11 @@ export function initFsBridge(): void {
       const content = await fs.readFile(filePath, 'utf-8');
       return content;
     } catch (error) {
+      // 文件不存在时静默返回空字符串，不打印错误、不抛出异常，避免影响正常任务流程
+      // File not found: return empty string silently so callers can skip gracefully
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return '';
+      }
       console.error('Failed to read file:', error);
       throw error;
     }
@@ -416,6 +453,17 @@ export function initFsBridge(): void {
       return true;
     } catch (error) {
       console.error('Failed to write file:', error);
+      return false;
+    }
+  });
+
+  // 创建目录
+  ipcBridge.fs.createDir.provider(async ({ path: dirPath }) => {
+    try {
+      await fs.mkdir(dirPath, { recursive: true });
+      return true;
+    } catch (error) {
+      console.error('Failed to create directory:', error);
       return false;
     }
   });
@@ -531,7 +579,7 @@ export function initFsBridge(): void {
       return true;
     } catch (error) {
       if (error instanceof Error && error.message.includes('canceled')) {
-        console.log('[fsBridge] Zip export canceled:', requestId || '(no requestId)');
+        // Zip export was canceled, silently return false
       } else {
         console.error('Failed to create zip file:', error);
       }
