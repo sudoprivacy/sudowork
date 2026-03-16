@@ -108,7 +108,7 @@ jobs:
       - name: Build Nexus server binary
         shell: bash
         run: |
-          pip install pyinstaller psutil
+          pip install pyinstaller -r nexus/requirements.txt
           bun run nexus:build
 
       # Restore Electron/Electron-Builder caches before any build-related install
