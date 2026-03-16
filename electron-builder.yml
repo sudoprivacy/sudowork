@@ -100,6 +100,11 @@ files:
 extraResources:
   - from: public
     to: .
+  # CLI tgz bundles — extracted at runtime by CliInstallService
+  - from: resources/claude-code.tgz
+    to: claude-code.tgz
+  - from: resources/gemini-cli.tgz
+    to: gemini-cli.tgz
 
 win:
   target:
@@ -112,6 +117,7 @@ win:
     # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
     - from: nexus/dist/server.exe
       to: nexus/server.exe
+
 
 nsis:
   oneClick: false

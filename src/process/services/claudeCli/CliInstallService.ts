@@ -1,0 +1,289 @@
+import { app, BrowserWindow, dialog, Notification } from 'electron';
+import { ipcBridge } from '@/common';
+import { execFile, exec } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { promisify } from 'util';
+import { ProcessConfig } from '@/process/initStorage';
+
+const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
+
+export interface CliStatus {
+  installed: boolean;
+  path?: string;
+  version?: string;
+  source: 'managed' | 'system' | 'none';
+}
+
+interface CliConfig {
+  /** CLI command name, e.g. 'claude' or 'gemini' */
+  name: string;
+  /** npm package name used as fallback in dev mode, e.g. '@anthropic-ai/claude-code' */
+  npmPackage: string;
+  /** Filename of the tgz in extraResources, e.g. 'claude-code.tgz' */
+  tgzResource: string;
+  /** ProcessConfig key to store "user declined install" flag */
+  declinedKey: string;
+  /** Human-readable display label for dialogs */
+  label: string;
+}
+
+const MANAGED_ROOT = path.join(os.homedir(), '.sudowork', 'cli');
+const BIN_DIR = path.join(os.homedir(), '.sudowork', 'bin');
+
+export class CliInstallService {
+  private readonly cfg: CliConfig;
+  private readonly installDir: string;
+  private readonly pkgDir: string;
+
+  constructor(cfg: CliConfig) {
+    this.cfg = cfg;
+    this.installDir = path.join(MANAGED_ROOT, cfg.name);
+    this.pkgDir = path.join(this.installDir, 'package');
+  }
+
+  async checkInstalled(): Promise<CliStatus> {
+    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
+    const managedBin = path.join(BIN_DIR, binName);
+    const entryFile = this.resolveEntryFile();
+
+    if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile)) {
+      // Read version directly from installed package.json — no PATH dependency
+      return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() };
+    }
+
+    try {
+      const cmd = process.platform === 'win32' ? `where ${this.cfg.name}` : `which ${this.cfg.name}`;
+      const { stdout } = await execAsync(cmd);
+      const p = stdout.trim();
+      if (p) return { installed: true, path: p, source: 'system', version: await this.getVersionFromPath(p) };
+    } catch {
+      // not in PATH
+    }
+
+    return { installed: false, source: 'none' };
+  }
+
+  /** Read version from the installed package.json — always works regardless of PATH */
+  private getManagedVersion(): string | undefined {
+    const pkgJson = path.join(this.pkgDir, 'package.json');
+    if (!fs.existsSync(pkgJson)) return undefined;
+    try {
+      return JSON.parse(fs.readFileSync(pkgJson, 'utf-8')).version ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Run `<binPath> --version` to get version for system-installed binaries */
+  private async getVersionFromPath(binPath: string): Promise<string | undefined> {
+    try {
+      const { stdout } = await execAsync(`"${binPath}" --version`);
+      const match = stdout.trim().match(/\d+\.\d+[\w.-]*/);
+      return match ? match[0] : stdout.trim().split('\n')[0].trim();
+    } catch {
+      return undefined;
+    }
+  }
+
+  async install(): Promise<void> {
+    const tgzPath = this.resolveTgzPath();
+
+    if (!fs.existsSync(tgzPath)) {
+      throw new Error(`Package not found at: ${tgzPath}`);
+    }
+
+    fs.mkdirSync(this.installDir, { recursive: true });
+    fs.mkdirSync(BIN_DIR, { recursive: true });
+
+    await execFileAsync('tar', ['-xzf', tgzPath, '-C', this.installDir]);
+
+    const entryFile = this.resolveEntryFile();
+    if (!entryFile) throw new Error(`Cannot determine CLI entry file in ${this.pkgDir}`);
+
+    if (process.platform === 'win32') {
+      this.createWindowsWrapper(entryFile);
+    } else {
+      this.createUnixWrapper(entryFile);
+    }
+
+    await this.updateShellConfig();
+  }
+
+  async uninstall(): Promise<void> {
+    fs.rmSync(this.installDir, { recursive: true, force: true });
+    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
+    const managedBin = path.join(BIN_DIR, binName);
+    if (fs.existsSync(managedBin)) fs.rmSync(managedBin);
+  }
+
+  async isDeclined(): Promise<boolean> {
+    return (await ProcessConfig.get(this.cfg.declinedKey)) === true;
+  }
+
+  async setDeclined(value: boolean): Promise<void> {
+    await ProcessConfig.set(this.cfg.declinedKey, value);
+  }
+
+  get label(): string {
+    return this.cfg.label;
+  }
+
+  get commandName(): string {
+    return this.cfg.name;
+  }
+
+  // ── private helpers ──────────────────────────────────────────────────────
+
+  private resolveTgzPath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, this.cfg.tgzResource);
+    }
+    return path.join(app.getAppPath(), 'resources', this.cfg.tgzResource);
+  }
+
+  /** Read bin entry from extracted package.json to find the CLI entry file */
+  private resolveEntryFile(): string | null {
+    const pkgJson = path.join(this.pkgDir, 'package.json');
+    if (!fs.existsSync(pkgJson)) return null;
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf-8'));
+      const bin = pkg.bin;
+      if (!bin) return null;
+      const entry = typeof bin === 'string' ? bin : Object.values(bin)[0] as string;
+      return path.join(this.pkgDir, entry);
+    } catch {
+      return null;
+    }
+  }
+
+  private createUnixWrapper(entryFile: string): void {
+    const wrapperPath = path.join(BIN_DIR, this.cfg.name);
+    const content = [
+      '#!/bin/sh',
+      `# ${this.cfg.name} wrapper — managed by Sudowork`,
+      `CLI="${entryFile}"`,
+      'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
+      '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
+      '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
+      'done',
+      'echo "Error: Node.js not found. Install it from https://nodejs.org" >&2',
+      'exit 1',
+    ].join('\n') + '\n';
+    fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
+  }
+
+  private createWindowsWrapper(entryFile: string): void {
+    const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
+    fs.writeFileSync(wrapperPath, `@echo off\nnode "${entryFile}" %*\n`);
+  }
+
+  private async updateShellConfig(): Promise<void> {
+    if (process.platform === 'win32') {
+      const current = process.env.PATH ?? '';
+      if (!current.split(path.delimiter).includes(BIN_DIR)) {
+        await execFileAsync('setx', ['PATH', `${current}${path.delimiter}${BIN_DIR}`]);
+      }
+      return;
+    }
+
+    const exportLine = `\n# added by Sudowork\nexport PATH="${BIN_DIR}:$PATH"\n`;
+    for (const rc of [path.join(os.homedir(), '.zshrc'), path.join(os.homedir(), '.bashrc')]) {
+      try {
+        const content = fs.existsSync(rc) ? fs.readFileSync(rc, 'utf-8') : '';
+        if (!content.includes(BIN_DIR)) fs.appendFileSync(rc, exportLine);
+      } catch {
+        // ignore unwritable rc files
+      }
+    }
+  }
+}
+
+export const claudeCliService = new CliInstallService({
+  name: 'claude',
+  npmPackage: '@anthropic-ai/claude-code',
+  tgzResource: 'claude-code.tgz',
+  declinedKey: 'claudeCli.installDeclined',
+  label: 'Claude Code CLI',
+});
+
+export const geminiCliService = new CliInstallService({
+  name: 'gemini',
+  npmPackage: '@google/gemini-cli',
+  tgzResource: 'gemini-cli.tgz',
+  declinedKey: 'geminiCli.installDeclined',
+  label: 'Gemini CLI',
+});
+
+/**
+ * Called once after the main window is ready.
+ * For each CLI tool not yet installed and not previously declined,
+ * show a native dialog asking the user. Installs on consent, records
+ * the refusal on decline so the prompt never appears again.
+ */
+export async function promptCliInstallsIfNeeded(): Promise<void> {
+  const tools = [claudeCliService, geminiCliService];
+  const toPrompt: CliInstallService[] = [];
+
+  for (const svc of tools) {
+    const [status, declined] = await Promise.all([svc.checkInstalled(), svc.isDeclined()]);
+    if (!status.installed && !declined) {
+      toPrompt.push(svc);
+    }
+  }
+
+  if (toPrompt.length === 0) return;
+
+  const names = toPrompt.map((s) => `• ${s.label}  (${s.commandName})`).join('\n');
+  const parentWindow = BrowserWindow.getAllWindows()[0] ?? null;
+
+  const { response } = await dialog.showMessageBox(parentWindow!, {
+    type: 'question',
+    title: '安装 CLI 工具',
+    message: '检测到以下 CLI 工具尚未安装：',
+    detail: `${names}\n\n安装后可在终端直接使用这些命令。`,
+    buttons: ['安装', '暂不安装'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (response === 0) {
+    // User agreed — install one by one with notifications
+    for (const svc of toPrompt) {
+      new Notification({
+        title: `正在安装 ${svc.label}`,
+        body: `请稍候，安装完成后会通知您…`,
+        silent: true,
+      }).show();
+
+      const emitter = svc.commandName === 'claude'
+        ? ipcBridge.claudeCli.installResult
+        : ipcBridge.geminiCli.installResult;
+
+      try {
+        await svc.install();
+        console.log(`[CLI] ${svc.label} installed successfully`);
+        new Notification({
+          title: `${svc.label} 安装成功`,
+          body: `重新开一个终端，执行 ${svc.commandName} 即可使用`,
+        }).show();
+        emitter.emit({ success: true });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[CLI] Failed to install ${svc.label}:`, err);
+        new Notification({
+          title: `${svc.label} 安装失败`,
+          body: msg,
+        }).show();
+        emitter.emit({ success: false, msg });
+      }
+    }
+  } else {
+    // User declined — record so we never ask again
+    for (const svc of toPrompt) {
+      await svc.setDeclined(true);
+    }
+  }
+}

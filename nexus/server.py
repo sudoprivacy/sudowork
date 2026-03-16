@@ -9,6 +9,7 @@ import json
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import psutil
 
 
 class NexusHandler(BaseHTTPRequestHandler):
@@ -34,11 +35,18 @@ class NexusHandler(BaseHTTPRequestHandler):
                 "port": self.server.server_address[1],
             })
         elif self.path == "/info":
+            mem = psutil.virtual_memory()
             self._send_json(200, {
                 "name": "nexus",
                 "version": "0.1.0",
                 "python": sys.version,
                 "platform": sys.platform,
+                "cpu_percent": psutil.cpu_percent(interval=0.1),
+                "memory": {
+                    "total_mb": round(mem.total / 1024 / 1024),
+                    "used_mb": round(mem.used / 1024 / 1024),
+                    "percent": mem.percent,
+                },
             })
         else:
             self._send_json(404, {"error": "Not found", "path": self.path})

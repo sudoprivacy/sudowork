@@ -28,7 +28,7 @@ export class AionUIDatabase {
   private readonly systemPasswordPlaceholder = '';
 
   constructor() {
-    const finalPath = path.join(getDataPath(), 'aionui.db');
+    const finalPath = path.join(getDataPath(), 'sudowork.db');
     console.log(`[Database] Initializing database at: ${finalPath}`);
 
     const dir = path.dirname(finalPath);

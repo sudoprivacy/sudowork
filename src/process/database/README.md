@@ -30,7 +30,7 @@
 │                                     │
 │  - 图片文件 (message.resultDisplay) │
 │  - 大文件附件                       │
-│  - 数据库文件 (aionui.db)           │
+│  - 数据库文件 (sudowork.db)           │
 └─────────────────────────────────────┘
 ```
 
@@ -127,7 +127,7 @@ const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
 
 ## 数据库文件位置
 
-- **数据库文件**: `{userData}/config/aionui.db`
+- **数据库文件**: `{userData}/config/sudowork.db`
 - **图片文件**: `{userData}/data/images/`
 
 其中 `{userData}` 为：
@@ -197,7 +197,7 @@ await importDatabaseFromJSON(data);
 
 ### 数据库文件备份
 
-直接复制 `aionui.db` 和 `aionui.db-wal` 文件即可。
+直接复制 `sudowork.db` 和 `sudowork.db-wal` 文件即可。
 
 ## API 参考
 

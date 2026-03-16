@@ -365,6 +365,26 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+export interface ICliStatus { installed: boolean; path?: string; version?: string; source: string }
+
+// Claude CLI installer / 安装 claude 命令行工具
+export const claudeCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('claude-cli.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.uninstall'),
+  /** Emitted by main process when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('claude-cli.install-result'),
+};
+
+// Gemini CLI installer / 安装 gemini 命令行工具
+export const geminiCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('gemini-cli.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.uninstall'),
+  /** Emitted by main process when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
+};
+
 // Nexus Python server / 内置 Python 服务
 export const nexus = {
   /** Ping the Nexus server to verify it is running */

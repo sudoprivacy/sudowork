@@ -14,6 +14,7 @@ import { initMainAdapterWithWindow } from './adapter/main';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
+import { promptCliInstallsIfNeeded } from './process/services/claudeCli/CliInstallService';
 import { ProcessConfig } from './process/initStorage';
 import { loadShellEnvironmentAsync, mergePaths } from './process/utils/shellEnv';
 import { initializeAcpDetector } from './process/bridge';
@@ -461,6 +462,8 @@ const createWindow = (): void => {
   };
   mainWindow.once('ready-to-show', () => {
     showWindow();
+    // Prompt to install CLI tools on first launch (only if not already installed/declined)
+    setTimeout(() => void promptCliInstallsIfNeeded(), 2000);
   });
   // Belt-and-suspenders: also show on did-finish-load in case ready-to-show already fired
   mainWindow.webContents.once('did-finish-load', () => {

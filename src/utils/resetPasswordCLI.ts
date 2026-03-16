@@ -74,7 +74,7 @@ export async function resetPasswordCLI(username: string): Promise<void> {
     log.info(`Target user: ${username}`);
 
     // Get database path using the same logic as the main app
-    const dbPath = path.join(getDataPath(), 'aionui.db');
+    const dbPath = path.join(getDataPath(), 'sudowork.db');
     log.info(`Database path: ${dbPath}`);
 
     // Ensure directory exists
