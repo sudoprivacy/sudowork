@@ -546,8 +546,7 @@ jobs:
             out/*.dmg
             out/*.deb
             out/*.AppImage
-            out/AionUi-*-win32-*.zip
-            out/AionUi-*-mac-*.zip
+            out/*.zip
             out/*.yml
             out/*.blockmap
           if-no-files-found: warn
