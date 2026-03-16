@@ -18,6 +18,12 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 10000,
+    server: {
+      deps: {
+        // zod 3.25+ uses ESM-only exports; force Vite to inline/transform it in SSR mode
+        inline: ['zod'],
+      },
+    },
     // Use projects to run different environments (Vitest 4+)
     projects: [
       // Node environment tests (existing tests)

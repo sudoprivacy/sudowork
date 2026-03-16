@@ -32,7 +32,7 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
   fs.mkdirSync(userDataDir, { recursive: true });
 
   const configPath = path.join(userDataDir, 'cdp.config.json');
-  const registryPath = path.join(sandbox, '.aionui-cdp-registry.json');
+  const registryPath = path.join(sandbox, '.nexus-cdp-registry.json');
 
   if (options.config) {
     fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf-8');
@@ -43,9 +43,9 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
   }
 
   process.env = { ...originalEnv };
-  delete process.env.AIONUI_CDP_PORT;
+  delete process.env.NEXUS_CDP_PORT;
   if (options.envPort !== undefined) {
-    process.env.AIONUI_CDP_PORT = options.envPort;
+    process.env.NEXUS_CDP_PORT = options.envPort;
   }
 
   const appendSwitch = vi.fn();
@@ -55,10 +55,8 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
 
   vi.doMock('os', async () => {
     const actual = await vi.importActual<typeof import('os')>('os');
-    return {
-      ...actual,
-      homedir: () => sandbox,
-    };
+    const mocked = { ...actual, homedir: () => sandbox };
+    return { ...mocked, default: mocked };
   });
 
   vi.doMock('electron', () => ({

@@ -58,9 +58,9 @@ describe('extensions/ExtensionLoader', () => {
     fs.mkdirSync(envDir, { recursive: true });
     setSandboxEnv(homeDir);
     process.chdir(projectRoot);
-    process.env.AIONUI_EXTENSIONS_PATH = envDir;
+    process.env.NEXUS_EXTENSIONS_PATH = envDir;
 
-    createExtension(path.join(homeDir, '.aionui', 'extensions'), 'ext-shadow', 'ext-shadow', '1.0.0');
+    createExtension(path.join(homeDir, '.nexus', 'extensions'), 'ext-shadow', 'ext-shadow', '1.0.0');
     createExtension(envDir, 'ext-shadow', 'ext-shadow', '2.0.0');
     createExtension(path.join(projectRoot, 'examples'), 'dev-example', 'dev-example', '1.0.0');
 
@@ -83,10 +83,10 @@ describe('extensions/ExtensionLoader', () => {
     fs.mkdirSync(envDir, { recursive: true });
     setSandboxEnv(homeDir);
     process.chdir(projectRoot);
-    process.env.AIONUI_EXTENSIONS_PATH = envDir;
-    process.env.AIONUI_E2E_TEST = '1';
+    process.env.NEXUS_EXTENSIONS_PATH = envDir;
+    process.env.NEXUS_E2E_TEST = '1';
 
-    createExtension(path.join(homeDir, '.aionui', 'extensions'), 'user-only', 'user-only');
+    createExtension(path.join(homeDir, '.nexus', 'extensions'), 'user-only', 'user-only');
     createExtension(appDataExtensionsDir, 'appdata-only', 'appdata-only');
     createExtension(path.join(projectRoot, 'examples'), 'dev-example', 'dev-example');
     createExtension(envDir, 'env-only', 'env-only');

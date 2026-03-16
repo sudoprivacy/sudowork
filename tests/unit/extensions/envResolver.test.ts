@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AIONUI_STRICT_ENV_ENV } from '../../../src/extensions/constants';
+import { NEXUS_STRICT_ENV_ENV as AIONUI_STRICT_ENV_ENV } from '../../../src/extensions/constants';
 import { UndefinedEnvVariableError, clearStrictModeCache, isGlobalStrictMode, resolveEnvInObject, resolveEnvTemplates } from '../../../src/extensions/envResolver';
 
 describe('extensions/envResolver', () => {
