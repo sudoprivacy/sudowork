@@ -26,34 +26,30 @@ export function initFileWatchBridge(): void {
       // When 'rename' fires on a file watcher, we re-create the watcher after a short
       // delay so subsequent writes are still detected.
       const createWatcher = () => {
-        try {
-          const watcher = fs.watch(filePath, (eventType) => {
-            ipcBridge.fileWatch.fileChanged.emit({ filePath, eventType });
+        const watcher = fs.watch(filePath, (eventType) => {
+          ipcBridge.fileWatch.fileChanged.emit({ filePath, eventType });
 
-            // 文件被原子替换后旧 inode 失效，延迟重建 watcher 以继续监听新 inode
-            if (eventType === 'rename') {
-              setTimeout(() => {
-                if (!watchers.has(filePath)) return; // 已被 stopWatch 清理，不再重建
-                try {
-                  watchers.get(filePath)?.close();
-                  watchers.set(filePath, createWatcher());
-                } catch {
-                  // 文件暂时不存在（写入中），忽略，等待下次事件
-                  watchers.delete(filePath);
-                }
-              }, 100);
-            }
-          });
+          // 文件被原子替换后旧 inode 失效，延迟重建 watcher 以继续监听新 inode
+          if (eventType === 'rename') {
+            setTimeout(() => {
+              if (!watchers.has(filePath)) return; // 已被 stopWatch 清理，不再重建
+              try {
+                watchers.get(filePath)?.close();
+                watchers.set(filePath, createWatcher());
+              } catch {
+                // 文件暂时不存在（写入中），忽略，等待下次事件
+                watchers.delete(filePath);
+              }
+            }, 100);
+          }
+        });
 
-          watcher.on('error', () => {
-            // watcher 出错（文件被删除等），静默清理
-            watchers.delete(filePath);
-          });
+        watcher.on('error', () => {
+          // watcher 出错（文件被删除等），静默清理
+          watchers.delete(filePath);
+        });
 
-          return watcher;
-        } catch (err) {
-          throw err;
-        }
+        return watcher;
       };
 
       watchers.set(filePath, createWatcher());

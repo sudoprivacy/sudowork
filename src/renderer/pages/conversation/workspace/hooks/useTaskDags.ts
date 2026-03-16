@@ -61,7 +61,7 @@ export function useTaskDags(workspaceFiles: IDirOrFile[]) {
     setIsLoading(true);
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       const results: Dag[] = [];
       const activePaths: string[] = [];
 
@@ -94,7 +94,9 @@ export function useTaskDags(workspaceFiles: IDirOrFile[]) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceFiles, loadDag]);
 
   // 监听 JSON 文件内容变更（Worker 写入后实时更新对应 DAG）
@@ -105,7 +107,7 @@ export function useTaskDags(workspaceFiles: IDirOrFile[]) {
       if (eventType === 'unlink') {
         ipcBridge.fileWatch.stopWatch.invoke({ filePath }).catch(() => {});
         watchedRef.current.delete(filePath);
-        setDags(prev => prev.filter(d => !filePath.includes(d.dag_id)));
+        setDags((prev) => prev.filter((d) => !filePath.includes(d.dag_id)));
         return;
       }
 
@@ -117,9 +119,13 @@ export function useTaskDags(workspaceFiles: IDirOrFile[]) {
         if (eventType === 'rename') {
           ipcBridge.fileWatch.startWatch.invoke({ filePath }).catch(() => {});
         }
-        setDags(prev => {
-          const idx = prev.findIndex(d => d.dag_id === updated.dag_id);
-          if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next; }
+        setDags((prev) => {
+          const idx = prev.findIndex((d) => d.dag_id === updated.dag_id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
+          }
           return [updated, ...prev];
         });
       };
@@ -131,11 +137,14 @@ export function useTaskDags(workspaceFiles: IDirOrFile[]) {
   }, [loadDag]);
 
   // 卸载时清理
-  useEffect(() => () => {
-    for (const p of watchedRef.current) {
-      ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      for (const p of watchedRef.current) {
+        ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+      }
+    },
+    []
+  );
 
   return { dags, isLoading };
 }

@@ -1,5 +1,6 @@
 import { app } from 'electron';
-import { spawn, exec, ChildProcess } from 'child_process';
+import { spawn, exec } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import * as net from 'net';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -83,7 +84,10 @@ class NexusService {
       // We filter stdout to lines starting with '/' to discard session-restore banners.
       const cmd = `${shell} -i -c "python3 -c \\"import psutil, sys; print(sys.executable)\\"" 2>/dev/null`;
       exec(cmd, { timeout: 8000 }, (_err, stdout) => {
-        const p = stdout.split('\n').map(l => l.trim()).find(l => l.startsWith('/'));
+        const p = stdout
+          .split('\n')
+          .map((l) => l.trim())
+          .find((l) => l.startsWith('/'));
         resolve(p || 'python3');
       });
     });

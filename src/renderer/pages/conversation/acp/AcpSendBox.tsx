@@ -416,7 +416,6 @@ const AcpSendBox: React.FC<{
         clearTimeout(pendingTimeout);
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
-    } else {
     }
 
     // 组件卸载时的清理
@@ -526,8 +525,7 @@ const AcpSendBox: React.FC<{
       }
     };
 
-    sendInitialMessage().catch((error) => {
-    });
+    sendInitialMessage().catch((error) => {});
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
 
   const onSendHandler = async (message: string) => {

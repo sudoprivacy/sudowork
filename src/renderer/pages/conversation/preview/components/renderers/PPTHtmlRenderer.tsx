@@ -99,7 +99,7 @@ const PPTHtmlRenderer: React.FC<PPTHtmlRendererProps> = ({ filePath }) => {
       }
     };
 
-    initPreview();
+    void initPreview();
 
     // 清理函数
     return () => {

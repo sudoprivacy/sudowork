@@ -496,7 +496,6 @@ const createWindow = (): void => {
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);
       });
-  } else {
   }
 
   // Load the renderer: dev server URL in development, built HTML file in production
@@ -600,7 +599,6 @@ ipcBridge.application.openDevTools.provider(() => {
 });
 
 const handleAppReady = async (): Promise<void> => {
-
   // CLI mode: print app version and exit immediately (used by CI smoke tests)
   if (isVersionMode) {
     app.exit(0);
@@ -616,8 +614,6 @@ const handleAppReady = async (): Promise<void> => {
     let filePath = decodeURIComponent(url.pathname);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
-    }
-    if (!fs.existsSync(filePath)) {
     }
     return net.fetch(pathToFileURL(filePath).href);
   });
@@ -757,10 +753,7 @@ const handleAppReady = async (): Promise<void> => {
   // Verify CDP is ready and log status
   const { cdpPort, verifyCdpReady } = await import('./utils/configureChromium');
   if (cdpPort) {
-    const cdpReady = await verifyCdpReady(cdpPort);
-    if (cdpReady) {
-    } else {
-    }
+    await verifyCdpReady(cdpPort);
   }
 
   // Listen for system resume (wake from sleep/hibernate) to recover missed cron jobs
@@ -861,11 +854,9 @@ app.on('before-quit', async () => {
   }
 });
 
-app.on('will-quit', () => {
-});
+app.on('will-quit', () => {});
 
-app.on('quit', (_event, exitCode) => {
-});
+app.on('quit', (_event, exitCode) => {});
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
