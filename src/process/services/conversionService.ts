@@ -1066,7 +1066,20 @@ class ConversionService {
       return { success: false, error: 'LibreOffice is not installed or not found in PATH' };
     }
 
-    const command = `"${libreOfficePath}" --headless --norestore --nofirststartwizard --convert-to pdf --outdir "${tempDir}" "${sourcePath}"`;
+    // Use specific PDF export filters for better style preservation
+    // - calc_pdf_Export: Excel/spreadsheet (preserves borders, colors, formatting)
+    // - writer_pdf_Export: Word documents
+    // - impress_pdf_Export: PowerPoint presentations
+    let pdfFilter = 'pdf'; // Default fallback
+    if (['.xls', '.xlsx', '.ods'].includes(ext.toLowerCase())) {
+      pdfFilter = 'calc_pdf_Export';
+    } else if (['.doc', '.docx', '.odt'].includes(ext.toLowerCase())) {
+      pdfFilter = 'writer_pdf_Export';
+    } else if (['.ppt', '.pptx', '.odp'].includes(ext.toLowerCase())) {
+      pdfFilter = 'impress_pdf_Export';
+    }
+
+    const command = `"${libreOfficePath}" --headless --norestore --nofirststartwizard --convert-to pdf:${pdfFilter} --outdir "${tempDir}" "${sourcePath}"`;
 
     console.log('[ConversionService] Executing LibreOffice command:', command);
 
