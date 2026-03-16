@@ -15,6 +15,19 @@ const path = require('path');
  * Check if vx is available in the system
  */
 function isVxAvailable() {
+  // vx requires bun, so check bun first
+  const hasBun = (() => {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('bun', ['--version'], { stdio: 'ignore' });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (!hasBun) return false;
+
   try {
     const result = spawnSync('vx', ['--version'], { stdio: 'ignore' });
     return result.status === 0;
@@ -28,9 +41,24 @@ function isVxAvailable() {
  * Windows requires bunx.cmd, others use bunx
  * Note: does NOT add 'vx' prefix here — the caller's cmdPrefix (e.g. 'vx --with msvc')
  * already provides the vx entry point, so we must not nest another 'vx' call.
+ *
+ * Fallback to npx if bun is not available
  */
 function getBunxCommand() {
-  return process.platform === 'win32' ? 'bun x' : 'bun x';
+  // Check if bun is available
+  const hasBun = (() => {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('bun', ['--version'], { stdio: 'ignore' });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  })();
+
+  // Use npx as fallback if bun is not available
+  const cmd = hasBun ? 'bun x' : 'npx';
+  return process.platform === 'win32' ? cmd : cmd;
 }
 
 /**

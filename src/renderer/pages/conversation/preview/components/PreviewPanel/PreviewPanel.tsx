@@ -516,7 +516,7 @@ const PreviewPanel: React.FC = () => {
     } else if (contentType === 'pdf') {
       return <PDFPreview filePath={metadata?.filePath} content={content} />;
     } else if (contentType === 'ppt') {
-      return <PPTPreview filePath={metadata?.filePath} content={content} />;
+      return <PPTPreview filePath={metadata?.filePath} />;
     } else if (contentType === 'word') {
       return <WordPreview filePath={metadata?.filePath} content={content} />;
     } else if (contentType === 'excel') {

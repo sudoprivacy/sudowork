@@ -68,17 +68,28 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
       const webview = webviewRef.current;
       if (webview) {
         const handleLoad = () => {
+          console.log('[PDFViewer] WebView did-finish-load:', filePath);
           setLoading(false);
         };
-        const handleError = () => {
-          setError(t('preview.pdf.loadFailed'));
+        const handleError = (event: any) => {
+          console.error('[PDFViewer] WebView did-fail-load:', event);
+          setError(`${t('preview.pdf.loadFailed')}: ${event?.description || 'Unknown error'}`);
           setLoading(false);
         };
+
+        // Timeout to detect if webview doesn't respond
+        const timeoutId = setTimeout(() => {
+          if (loading) {
+            console.warn('[PDFViewer] WebView loading timeout, forcing hide');
+            setLoading(false);
+          }
+        }, 10000); // 10 second timeout
 
         webview.addEventListener('did-finish-load', handleLoad);
         webview.addEventListener('did-fail-load', handleError);
 
         return () => {
+          clearTimeout(timeoutId);
           webview.removeEventListener('did-finish-load', handleLoad);
           webview.removeEventListener('did-fail-load', handleError);
         };
@@ -89,7 +100,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
       setError(`${t('preview.pdf.loadFailed')}: ${err instanceof Error ? err.message : String(err)}`);
       setLoading(false);
     }
-  }, [filePath, content, t]);
+  }, [filePath, content]); // 移除 t 依赖，避免不必要的重渲染
 
   // 设置工具栏扩展（必须在所有条件返回之前调用）
   // Set toolbar extras (must be called before any conditional returns)
@@ -110,6 +121,14 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
   // 使用 Electron webview 加载本地 PDF 文件
   // Use Electron webview to load local PDF files
   const pdfSrc = filePath ? `file://${filePath}` : content || '';
+
+  // 设置 webview 的 webPreferences 以允许加载本地文件
+  // Set webview webPreferences to allow loading local files
+  const webPreferences = {
+    webviewtag: true,
+    allowRunningInsecureContent: false,
+    webSecurity: true,
+  };
 
   if (error) {
     return (
@@ -156,7 +175,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
       {/* PDF 内容区域 / PDF content area */}
       <div className='flex-1 overflow-hidden bg-bg-1'>
         {/* key 确保文件路径改变时 webview 重新挂载 / key ensures webview remounts when file path changes */}
-        <webview key={pdfSrc} ref={webviewRef} src={pdfSrc} className='w-full h-full' style={{ display: 'inline-flex' }} />
+        <webview key={pdfSrc} ref={webviewRef} src={pdfSrc} className='w-full h-full' style={{ display: 'inline-flex' }} webpreferences={JSON.stringify(webPreferences)} allowpopups='true' />
       </div>
     </div>
   );

@@ -45,6 +45,7 @@ export interface PPTJsonData {
 export interface ConversionServiceApi {
   // Word
   wordToMarkdown: (filePath: string) => Promise<ConversionResult<string>>;
+  wordToHtml: (filePath: string) => Promise<ConversionResult<string>>;
   markdownToWord: (markdown: string, targetPath: string) => Promise<ConversionResult<void>>;
 
   // Excel
@@ -57,10 +58,13 @@ export interface ConversionServiceApi {
   // PDF
   markdownToPdf: (markdown: string, targetPath: string) => Promise<ConversionResult<void>>;
   htmlToPdf: (html: string, targetPath: string) => Promise<ConversionResult<void>>;
+
+  // LibreOffice PDF Conversion
+  libreOfficeToPdf: (filePath: string, outputDir?: string) => Promise<ConversionResult<string>>;
 }
 
 // 文档转换目标格式 / Supported document conversion targets
-export type DocumentConversionTarget = 'markdown' | 'excel-json' | 'ppt-json';
+export type DocumentConversionTarget = 'markdown' | 'word-html' | 'excel-json' | 'ppt-json' | 'pptx-arraybuffer' | 'libreoffice-pdf';
 
 // 统一的文档转换请求参数 / Unified document conversion request payload
 export interface DocumentConversionRequest {
@@ -69,4 +73,4 @@ export interface DocumentConversionRequest {
 }
 
 // 根据目标格式返回不同的数据类型 / Result payload differs per target format
-export type DocumentConversionResponse = { to: 'markdown'; result: ConversionResult<string> } | { to: 'excel-json'; result: ConversionResult<ExcelWorkbookData> } | { to: 'ppt-json'; result: ConversionResult<PPTJsonData> };
+export type DocumentConversionResponse = { to: 'markdown'; result: ConversionResult<string> } | { to: 'word-html'; result: ConversionResult<string> } | { to: 'excel-json'; result: ConversionResult<ExcelWorkbookData> } | { to: 'ppt-json'; result: ConversionResult<PPTJsonData> } | { to: 'pptx-arraybuffer'; result: ConversionResult<ArrayBuffer> } | { to: 'libreoffice-pdf'; result: ConversionResult<string> };

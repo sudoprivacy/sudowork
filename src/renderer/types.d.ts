@@ -14,3 +14,17 @@ declare module '*.png' {
 }
 
 declare module 'unocss';
+
+declare module 'pptx-preview' {
+  interface PreviewerOptions {
+    width?: number;
+    height?: number;
+  }
+
+  interface Previewer {
+    preview(arrayBuffer: ArrayBuffer): Promise<void>;
+    destroy?(): void;
+  }
+
+  export function init(container: HTMLElement, options?: PreviewerOptions): Previewer;
+}
