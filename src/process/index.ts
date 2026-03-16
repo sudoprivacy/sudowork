@@ -17,6 +17,7 @@ import './initBridge';
 import './i18n'; // Initialize i18n for main process
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
+import { nexusService } from './services/nexus/NexusService';
 
 export const initializeProcess = async () => {
   await initStorage();
@@ -35,5 +36,13 @@ export const initializeProcess = async () => {
   } catch (error) {
     console.error('[Process] Failed to initialize ChannelManager:', error);
     // Don't fail app startup if channel fails to initialize
+  }
+
+  // Start Nexus Python server
+  try {
+    await nexusService.start();
+  } catch (error) {
+    console.error('[Process] Failed to start Nexus server:', error);
+    // Don't fail app startup if Nexus server fails to start
   }
 };

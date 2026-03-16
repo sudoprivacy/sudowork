@@ -365,6 +365,14 @@ export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
 };
 
+// Nexus Python server / 内置 Python 服务
+export const nexus = {
+  /** Ping the Nexus server to verify it is running */
+  ping: bridge.buildProvider<IBridgeResponse<{ message: string; timestamp: number; port: number }>, void>('nexus.ping'),
+  /** Get the current status of the Nexus server */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number }>, void>('nexus.get-status'),
+};
+
 // Deep link protocol handling / 深度链接协议处理
 export const deepLink = {
   /** Emitted when app is opened via aionui:// protocol URL */
