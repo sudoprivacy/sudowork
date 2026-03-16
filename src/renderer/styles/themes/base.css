@@ -948,7 +948,9 @@ body,
   border: 1px solid var(--color-bg-3) !important;
   border-radius: 8px !important;
   box-shadow: none !important;
-  transition: border-color 0.18s, box-shadow 0.18s !important;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s !important;
 }
 
 .chat-workspace .workspace-search-input .arco-input-inner-wrapper:hover {
@@ -974,4 +976,3 @@ body,
 .chat-workspace .workspace-search-input .arco-input-suffix {
   color: var(--color-text-3) !important;
 }
-
