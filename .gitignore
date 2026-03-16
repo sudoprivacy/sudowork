@@ -187,3 +187,4 @@ vx.lock
 vx.toml
 .taichuy/
 .worktrees/
+.claude/worktrees/
