@@ -9,8 +9,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc } from '@/common/ipcBridge';
-import type { ICliStatus } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeStatus, ILibreOfficeInstallPhase } from '@/common/ipcBridge';
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,8 @@ interface ToolRow {
   nexusPort?: number;
   appVersion?: string;
   loadState: LoadState;
+  installPhase?: ILibreOfficeInstallPhase;
+  installPercent?: number;
   onRefresh: () => Promise<void>;
   onInstall?: () => Promise<void>;
 }
@@ -69,6 +71,19 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
         </span>
       );
     }
+  } else if (row.loadState === 'installing') {
+    const phaseLabel: Record<string, string> = {
+      downloading: `下载中 ${row.installPercent != null ? row.installPercent + '%' : ''}`,
+      mounting: '挂载中…',
+      copying: '安装中…',
+      unmounting: '清理中…',
+      cleanup: '清理中…',
+    };
+    statusText = (
+      <span className='text-12px text-t-tertiary'>
+        {phaseLabel[row.installPhase ?? 'downloading'] ?? '安装中…'}
+      </span>
+    );
   } else if (row.status === null) {
     statusText = <span className='text-12px text-t-tertiary'>检查中…</span>;
   } else if (row.status.installed) {
@@ -99,6 +114,8 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
           ? 'bg-orange-1 color-orange-6'
           : row.key === 'claude'
           ? 'bg-orange-1 color-orange-6'
+          : row.key === 'libreoffice'
+          ? 'bg-green-1 color-green-6'
           : 'bg-blue-1 color-blue-6',
       )}>
         {row.badge}
@@ -160,6 +177,11 @@ const AboutModalContent: React.FC = () => {
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
 
+  const [libreOfficeStatus, setLibreOfficeStatus] = useState<ILibreOfficeStatus | null>(null);
+  const [libreOfficeLoad, setLibreOfficeLoad] = useState<LoadState>('idle');
+  const [libreOfficePhase, setLibreOfficePhase] = useState<ILibreOfficeInstallPhase | undefined>(undefined);
+  const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
+
   const refreshClaude = useCallback(async () => {
     setClaudeLoad('loading');
     try {
@@ -200,6 +222,28 @@ const AboutModalContent: React.FC = () => {
     }
   }, [refreshGemini]);
 
+  const refreshLibreOffice = useCallback(async () => {
+    setLibreOfficeLoad('loading');
+    try {
+      const res = await libreOfficeIpc.checkInstalled.invoke();
+      if (res?.success && res.data) setLibreOfficeStatus(res.data);
+    } finally {
+      setLibreOfficeLoad('idle');
+    }
+  }, []);
+
+  const installLibreOffice = useCallback(async () => {
+    setLibreOfficeLoad('installing');
+    try {
+      const res = await libreOfficeIpc.install.invoke();
+      if (res?.success) await refreshLibreOffice();
+    } finally {
+      setLibreOfficeLoad('idle');
+      setLibreOfficePhase(undefined);
+      setLibreOfficePercent(undefined);
+    }
+  }, [refreshLibreOffice]);
+
   const refreshNexus = useCallback(async () => {
     const res = await nexusIpc.getStatus.invoke();
     if (res?.success && res.data?.running) setNexusPort(res.data.port);
@@ -211,13 +255,19 @@ const AboutModalContent: React.FC = () => {
     void refreshClaude();
     void refreshGemini();
     void refreshNexus();
+    void refreshLibreOffice();
   }, []);
 
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
   useEffect(() => {
     const unsubClaude = claudeCliIpc.installResult.on(() => void refreshClaude());
     const unsubGemini = geminiCliIpc.installResult.on(() => void refreshGemini());
-    return () => { unsubClaude(); unsubGemini(); };
+    const unsubLoProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
+      setLibreOfficePhase(phase);
+      if (percent != null) setLibreOfficePercent(percent);
+    });
+    const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
+    return () => { unsubClaude(); unsubGemini(); unsubLoProgress(); unsubLoResult(); };
   }, [refreshClaude, refreshGemini]);
 
   const rows: ToolRow[] = [
@@ -240,6 +290,18 @@ const AboutModalContent: React.FC = () => {
       loadState: geminiLoad,
       onRefresh: refreshGemini,
       onInstall: installGemini,
+    },
+    {
+      key: 'libreoffice',
+      displayName: 'LibreOffice',
+      command: '文档处理套件',
+      badge: 'LO',
+      status: libreOfficeStatus ? { installed: libreOfficeStatus.installed, source: 'system', version: libreOfficeStatus.version } : null,
+      loadState: libreOfficeLoad,
+      installPhase: libreOfficePhase,
+      installPercent: libreOfficePercent,
+      onRefresh: refreshLibreOffice,
+      onInstall: installLibreOffice,
     },
     {
       key: 'nexus',

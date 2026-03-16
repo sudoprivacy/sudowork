@@ -385,6 +385,20 @@ export const geminiCli = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
 };
 
+// LibreOffice installer / LibreOffice 在线安装
+export interface ILibreOfficeStatus { installed: boolean; version?: string }
+export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'cleanup';
+
+export const libreOffice = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ILibreOfficeStatus>, void>('libreoffice.check-installed'),
+  getDownloadUrl: bridge.buildProvider<IBridgeResponse<{ url: string }>, void>('libreoffice.get-download-url'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.install'),
+  /** Emitted periodically during installation with current phase and download percent */
+  installProgress: bridge.buildEmitter<{ phase: ILibreOfficeInstallPhase; percent?: number }>('libreoffice.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
+};
+
 // Nexus Python server / 内置 Python 服务
 export const nexus = {
   /** Ping the Nexus server to verify it is running */

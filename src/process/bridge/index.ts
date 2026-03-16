@@ -31,6 +31,7 @@ import { initWindowControlsBridge } from './windowControlsBridge';
 import { initExtensionsBridge } from './extensionsBridge';
 import { initNexusBridge } from './nexusBridge';
 import { initClaudeCliBridge } from './claudeCliBridge';
+import { initLibreOfficeBridge } from './libreofficeBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -63,6 +64,7 @@ export function initAllBridges(): void {
   initStarOfficeBridge();
   initNexusBridge();
   initClaudeCliBridge();
+  initLibreOfficeBridge();
 }
 
 /**
