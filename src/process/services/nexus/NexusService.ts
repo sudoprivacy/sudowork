@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { spawn, exec, ChildProcess } from 'child_process';
 import * as net from 'net';
 import * as path from 'path';
+import * as fs from 'fs';
 
 class NexusService {
   private process: ChildProcess | null = null;
@@ -23,11 +24,12 @@ class NexusService {
     const scriptPath = this.resolveScriptPath();
     console.log(`[Nexus] Starting server from: ${scriptPath} on port ${this._port}`);
 
-    if (app.isPackaged) {
-      // Production: run the PyInstaller-compiled binary
+    if (app.isPackaged || this.devBinaryExists()) {
+      // Production or dev with pre-built binary: run the PyInstaller-compiled binary
+      if (!app.isPackaged) console.log(`[Nexus] Using pre-built dev binary: ${scriptPath}`);
       this.process = spawn(scriptPath, [String(this._port)], { stdio: 'pipe' });
     } else {
-      // Development: resolve python3 from the user's login shell so conda/pyenv envs are found
+      // Development (no binary): resolve python3 from the user's login shell so conda/pyenv envs are found
       const python3 = await this.resolvePython3Dev();
       console.log(`[Nexus] Using Python: ${python3}`);
       this.process = spawn(python3, [scriptPath, String(this._port)], { stdio: 'pipe' });
@@ -87,11 +89,20 @@ class NexusService {
     });
   }
 
+  private devBinaryExists(): boolean {
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    return fs.existsSync(path.join(app.getAppPath(), 'nexus', 'dist', `server${ext}`));
+  }
+
   private resolveScriptPath(): string {
     if (app.isPackaged) {
       const ext = process.platform === 'win32' ? '.exe' : '';
       return path.join(process.resourcesPath, 'nexus', `server${ext}`);
     }
+    // Dev: prefer pre-built binary from nexus/dist/, fall back to .py script
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const devBinary = path.join(app.getAppPath(), 'nexus', 'dist', `server${ext}`);
+    if (fs.existsSync(devBinary)) return devBinary;
     return path.join(app.getAppPath(), 'nexus', 'server.py');
   }
 
