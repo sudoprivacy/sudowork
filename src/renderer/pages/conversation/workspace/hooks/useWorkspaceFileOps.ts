@@ -15,6 +15,43 @@ import type { MessageApi, RenameModalState, DeleteModalState } from '../types';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { getPathSeparator, replacePathInList, updateTreeForRename } from '../utils/treeHelpers';
 
+// Module-level cache for LibreOffice availability
+// 模块级别的 LibreOffice 可用性缓存
+let libreOfficeAvailableCache: boolean | null = null;
+let libreOfficeCheckPromise: Promise<boolean> | null = null;
+
+/**
+ * Check if LibreOffice is available (with caching)
+ * 检查 LibreOffice 是否可用（带缓存）
+ */
+async function checkLibreOfficeAvailable(): Promise<boolean> {
+  // Return cached value if available
+  if (libreOfficeAvailableCache !== null) {
+    return libreOfficeAvailableCache;
+  }
+
+  // If a check is already in progress, wait for it
+  if (libreOfficeCheckPromise) {
+    return libreOfficeCheckPromise;
+  }
+
+  libreOfficeCheckPromise = (async () => {
+    try {
+      const result = await ipcBridge.document.libreOffice.isAvailable.invoke();
+      libreOfficeAvailableCache = result;
+      return result;
+    } catch (error) {
+      console.error('[useWorkspaceFileOps] Failed to check LibreOffice availability:', error);
+      libreOfficeAvailableCache = false;
+      return false;
+    } finally {
+      libreOfficeCheckPromise = null;
+    }
+  })();
+
+  return libreOfficeCheckPromise;
+}
+
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
   eventPrefix: 'gemini' | 'acp' | 'codex';
@@ -263,6 +300,12 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         // 支持的图片格式列表 / List of supported image formats
         const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif'];
 
+        // Office 文件扩展名 / Office file extensions
+        const pptExtensions = ['ppt', 'pptx', 'odp'];
+        const wordExtensions = ['doc', 'docx', 'odt'];
+        const excelExtensions = ['xls', 'xlsx', 'ods'];
+        const officeExtensions = [...pptExtensions, ...wordExtensions, ...excelExtensions];
+
         let contentType: PreviewContentType = 'code';
         let content = '';
         let isLargeTextTruncated = false;
@@ -274,11 +317,14 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'diff';
         } else if (ext === 'pdf') {
           contentType = 'pdf';
-        } else if (['ppt', 'pptx', 'odp'].includes(ext)) {
+        } else if (pptExtensions.includes(ext)) {
           contentType = 'ppt';
-        } else if (['doc', 'docx', 'odt'].includes(ext)) {
+        } else if (wordExtensions.includes(ext)) {
           contentType = 'word';
-        } else if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) {
+        } else if (excelExtensions.includes(ext)) {
+          contentType = 'excel';
+        } else if (ext === 'csv') {
+          // CSV files use excel viewer but don't require LibreOffice
           contentType = 'excel';
         } else if (['html', 'htm'].includes(ext)) {
           contentType = 'html';
@@ -291,9 +337,43 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'code';
         }
 
+        // For Office files, check LibreOffice availability
+        // 如果是 Office 文件，检查 LibreOffice 是否可用
+        const isOfficeFile = officeExtensions.includes(ext);
+        let isLibreOfficeAvailableForFile = true;
+        if (isOfficeFile) {
+          isLibreOfficeAvailableForFile = await checkLibreOfficeAvailable();
+
+          // If LibreOffice is not available, downgrade to code preview
+          // 如果 LibreOffice 不可用，降级为代码预览
+          if (!isLibreOfficeAvailableForFile) {
+            contentType = 'code';
+            messageApi.info(t('conversation.workspace.contextMenu.libreOfficeNotAvailable'));
+          }
+        }
+
         // 根据文件类型读取内容 / Read content based on file type
-        if (contentType === 'pdf' || contentType === 'word' || contentType === 'excel' || contentType === 'ppt') {
+        if (contentType === 'pdf') {
           content = '';
+        } else if (contentType === 'word' || contentType === 'excel' || contentType === 'ppt') {
+          // Office 文件：LibreOffice 可用时留空（由 Viewer 负责转换 PDF）
+          // Office files: Leave empty when LibreOffice is available (Viewer handles PDF conversion)
+          content = '';
+        } else if (isOfficeFile && !isLibreOfficeAvailableForFile) {
+          // Office 文件但 LibreOffice 不可用：读取原始二进制内容用于回退显示
+          // Office file but LibreOffice not available: read raw binary content for fallback display
+          try {
+            const arrayBuffer = await ipcBridge.fs.readFileBuffer.invoke({ path: nodeData.fullPath });
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            content = btoa(binary);
+          } catch (readError) {
+            console.error('[handlePreviewFile] Failed to read Office file buffer:', readError);
+            content = '';
+          }
         } else if (contentType === 'image') {
           // 图片: 读取为 Base64 格式 / Image: Read as Base64 format
           content = await ipcBridge.fs.getImageBase64.invoke({ path: nodeData.fullPath });
