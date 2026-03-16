@@ -15,11 +15,7 @@ const TaskPanelHeaderCtx = createContext<TaskPanelHeaderCtx>({
 export const TaskPanelHeaderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dagCount, setDagCount] = useState(0);
   const openFullscreenRef = useRef<(() => void) | null>(null);
-  return (
-    <TaskPanelHeaderCtx.Provider value={{ dagCount, setDagCount, openFullscreenRef }}>
-      {children}
-    </TaskPanelHeaderCtx.Provider>
-  );
+  return <TaskPanelHeaderCtx.Provider value={{ dagCount, setDagCount, openFullscreenRef }}>{children}</TaskPanelHeaderCtx.Provider>;
 };
 
 export const useTaskPanelHeader = () => useContext(TaskPanelHeaderCtx);

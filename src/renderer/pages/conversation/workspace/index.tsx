@@ -720,15 +720,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   onSearch(value);
                 }}
                 allowClear
-                prefix={
-                  <Search
-                    theme='outline'
-                    size='14'
-                    fill={iconColors.secondary}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => searchInputRef.current?.focus?.()}
-                  />
-                }
+                prefix={<Search theme='outline' size='14' fill={iconColors.secondary} style={{ cursor: 'pointer' }} onClick={() => searchInputRef.current?.focus?.()} />}
               />
             </div>
           )}
