@@ -32,7 +32,7 @@ interface WordPreviewProps {
  * 3. 保留更多格式（表格、图片、样式等）
  * 4. 点击"在 Word 中打开"可以用系统默认应用编辑
  */
-const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false }) => {
+const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);

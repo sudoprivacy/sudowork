@@ -37,7 +37,7 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
  * 4. 缓存转换结果，避免重复转换
  * 5. 支持手动刷新
  */
-const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }) => {
+const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = Message.useMessage();
   const messageApiRef = useRef(messageApi);

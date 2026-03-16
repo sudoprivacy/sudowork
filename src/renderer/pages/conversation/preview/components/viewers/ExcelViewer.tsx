@@ -32,7 +32,7 @@ interface ExcelPreviewProps {
  * 3. 保留表格格式、公式结果、图表等
  * 4. 点击"在 Excel 中打开"可以用系统默认应用编辑
  */
-const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, hideToolbar = false }) => {
+const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
