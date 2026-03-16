@@ -841,6 +841,14 @@ app.on('before-quit', async () => {
   // 在应用退出前清理工作进程
   WorkerManage.clear();
 
+  // Stop Nexus Python server
+  try {
+    const { nexusService } = await import('./process/services/nexus/NexusService');
+    nexusService.stop();
+  } catch {
+    // Ignore cleanup errors
+  }
+
   // Shutdown Channel subsystem
   try {
     const { getChannelManager } = await import('@/channels');
