@@ -1,7 +1,7 @@
 {
   "name": "Sudowork",
   "productName": "Sudowork",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Transform your command-line AI agent into a modern, efficient AI Chat interface.",
   "main": "./out/main/index.js",
   "engines": {
