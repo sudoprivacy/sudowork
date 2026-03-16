@@ -47,6 +47,7 @@
   "openInSystemApp": "使用系统默认应用打开",
   "openInSystemSuccess": "已在系统默认应用中打开",
   "openInSystemFailed": "打开文件失败",
+  "refresh": "刷新",
   "closeLeft": "关闭左侧",
   "closeRight": "关闭右侧",
   "closeOthers": "关闭其他",

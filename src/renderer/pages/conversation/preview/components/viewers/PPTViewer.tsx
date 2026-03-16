@@ -6,8 +6,9 @@
 
 import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
-import { Button, Message } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Message, Spin } from '@arco-design/web-react';
+import { IconRefresh } from '@arco-design/web-react/icon';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
 
@@ -20,6 +21,10 @@ interface PPTPreviewProps {
   hideToolbar?: boolean;
 }
 
+// 缓存 Map / Cache Map
+const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
+const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
+
 /**
  * PPT 演示文稿预览组件（LibreOffice PDF 方案）
  *
@@ -27,16 +32,23 @@ interface PPTPreviewProps {
  * 1. 使用 LibreOffice 将 PPT/PPTX 转换为 PDF
  * 2. 使用 PDFViewer 统一渲染
  * 3. 支持在系统应用中打开
+ * 4. 缓存转换结果，避免重复转换
+ * 5. 支持手动刷新
  */
 const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = Message.useMessage();
+  const messageApiRef = useRef(messageApi);
+  useEffect(() => {
+    messageApiRef.current = messageApi;
+  }, [messageApi]);
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false); // 刷新状态
 
   const handleOpenExternal = useCallback(async () => {
     if (!filePath) {
@@ -62,17 +74,32 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
     }
   }, [filePath]);
 
-  // 使用 LibreOffice 将 PPT 转换为 PDF
-  useEffect(() => {
-    const convertToPdf = async () => {
+  // 转换函数 / Convert function
+  const convertToPdf = useCallback(
+    async (forceRefresh = false) => {
       if (!filePath) {
         setError(t('preview.errors.missingFilePath'));
         setLoading(false);
         return;
       }
 
+      // 检查缓存 / Check cache
+      if (!forceRefresh) {
+        const cached = pdfCache.get(filePath);
+        if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+          console.log('[PPTPreview] Cache hit:', filePath);
+          setPdfPath(cached.pdfPath);
+          setLoading(false);
+          return;
+        }
+        if (cached) {
+          pdfCache.delete(filePath);
+        }
+      }
+
       setLoading(true);
       setError(null);
+      setRefreshing(forceRefresh);
 
       try {
         const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
@@ -82,7 +109,11 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
         }
 
         if (response.result.success && response.result.data) {
-          setPdfPath(response.result.data);
+          const newPdfPath = response.result.data;
+          setPdfPath(newPdfPath);
+          // 保存到缓存 / Save to cache
+          pdfCache.set(filePath, { pdfPath: newPdfPath, timestamp: Date.now() });
+          console.log('[PPTPreview] Converted and cached:', filePath);
         } else {
           throw new Error(response.result.error || t('preview.errors.conversionFailed'));
         }
@@ -90,14 +121,27 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
         const defaultMessage = t('preview.ppt.loadFailed');
         const errorMessage = err instanceof Error ? err.message : defaultMessage;
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
-        messageApi.error(errorMessage);
+        messageApiRef.current?.error?.(errorMessage);
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    };
+    },
+    [filePath, t]
+  );
 
-    void convertToPdf();
-  }, [filePath]); // 移除 t 和 messageApi 依赖，避免不必要的重渲染
+  // 初始加载 / Initial load
+  useEffect(() => {
+    void convertToPdf(false);
+  }, [filePath]);
+
+  // 刷新处理 / Refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (filePath) {
+      pdfCache.delete(filePath); // 清除缓存
+      await convertToPdf(true);
+    }
+  }, [filePath, convertToPdf]);
 
   // 设置工具栏扩展
   useEffect(() => {
@@ -110,10 +154,24 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
           <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
-      right: null,
+      right: (
+        <div className='flex items-center gap-8px'>
+          <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenExternal} title={t('preview.openWithApp', { app: 'PowerPoint' })}>
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+              <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+              <polyline points='15 3 21 3 21 9' />
+              <line x1='10' y1='14' x2='21' y2='3' />
+            </svg>
+            <span>{t('preview.openWithApp', { app: 'PowerPoint' })}</span>
+          </div>
+          <Button size='mini' type='text' onClick={handleRefresh} loading={refreshing} title={t('preview.refresh')} style={{ padding: '4px' }}>
+            <IconRefresh />
+          </Button>
+        </div>
+      ),
     });
     return () => toolbarExtrasContext.setExtras(null);
-  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error]);
+  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error, handleOpenExternal, handleRefresh, refreshing]);
 
   if (loading) {
     return (
@@ -157,6 +215,9 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, hideToolbar = false }
               </svg>
               <span>{t('preview.openWithApp', { app: 'PowerPoint' })}</span>
             </div>
+            <Button size='mini' type='text' onClick={handleRefresh} loading={refreshing} title={t('preview.refresh')} style={{ padding: '4px' }}>
+              <IconRefresh />
+            </Button>
           </div>
         </div>
       )}

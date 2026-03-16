@@ -6,10 +6,15 @@
 
 import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
-import { Button, Message } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Message, Spin } from '@arco-design/web-react';
+import { IconRefresh } from '@arco-design/web-react/icon';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
+
+// 缓存 Map / Cache Map
+const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
+const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 
 interface ExcelPreviewProps {
   filePath?: string;
@@ -31,7 +36,12 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, hideToolbar = fal
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [messageApi, messageContextHolder] = Message.useMessage();
+  const messageApiRef = useRef(messageApi);
+  useEffect(() => {
+    messageApiRef.current = messageApi;
+  }, [messageApi]);
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
@@ -53,15 +63,30 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, hideToolbar = fal
    * 加载 Excel 文件并转换为 PDF
    */
   useEffect(() => {
-    const convertToPdf = async () => {
+    const convertToPdf = async (forceRefresh = false) => {
+      // 检查缓存 / Check cache
+      if (!forceRefresh && filePath) {
+        const cached = pdfCache.get(filePath);
+        if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+          console.log('[ExcelPreview] Cache hit:', filePath);
+          setPdfPath(cached.pdfPath);
+          setLoading(false);
+          return;
+        }
+        if (cached) {
+          pdfCache.delete(filePath);
+        }
+      }
+
+      setLoading(true);
+      setError(null);
+      setRefreshing(forceRefresh);
+
       if (!filePath) {
         setError(t('preview.errors.missingFilePath'));
         setLoading(false);
         return;
       }
-
-      setLoading(true);
-      setError(null);
 
       try {
         // 通过 IPC 调用 LibreOffice PDF 转换
@@ -73,32 +98,81 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, hideToolbar = fal
 
         if (response.result.success && response.result.data) {
           setPdfPath(response.result.data);
+          // 保存到缓存 / Save to cache
+          pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
+          console.log('[ExcelPreview] Converted and cached:', filePath);
         } else {
           throw new Error(response.result.error || t('preview.excel.convertFailed'));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : t('preview.excel.loadFailed'));
+        messageApiRef.current?.error?.(err instanceof Error ? err.message : t('preview.excel.loadFailed'));
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
     };
 
-    void convertToPdf();
+    void convertToPdf(false);
   }, [filePath]); // 移除 t 依赖，避免不必要的重渲染
+
+  // 刷新处理 / Refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (filePath) {
+      pdfCache.delete(filePath);
+      const convertToPdf = async () => {
+        setLoading(true);
+        setError(null);
+        setRefreshing(true);
+
+        try {
+          const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
+          if (response.result.success && response.result.data) {
+            setPdfPath(response.result.data);
+            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
+          }
+        } catch (err) {
+          messageApiRef.current?.error?.(t('preview.excel.loadFailed'));
+        } finally {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      };
+      await convertToPdf();
+    }
+  }, [filePath]);
 
   // 设置工具栏扩展
   useEffect(() => {
     if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
+
     toolbarExtrasContext.setExtras({
       left: (
         <div className='flex items-center gap-8px'>
+          <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
           <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
-      right: null,
+      right: (
+        <div className='flex items-center gap-8px'>
+          {filePath && (
+            <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Excel' })}>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                <polyline points='15 3 21 3 21 9' />
+                <line x1='10' y1='14' x2='21' y2='3' />
+              </svg>
+              <span>{t('preview.openWithApp', { app: 'Excel' })}</span>
+            </div>
+          )}
+          <Button size='mini' type='text' onClick={handleRefresh} loading={refreshing} title={t('preview.refresh')} style={{ padding: '4px' }}>
+            <IconRefresh />
+          </Button>
+        </div>
+      ),
     });
     return () => toolbarExtrasContext.setExtras(null);
-  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error]);
+  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error, filePath, handleOpenInSystem, handleRefresh, refreshing]);
 
   if (loading) {
     return (
@@ -150,6 +224,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, hideToolbar = fal
                 <span>{t('preview.openWithApp', { app: 'Excel' })}</span>
               </Button>
             )}
+            <Button size='mini' type='text' onClick={handleRefresh} loading={refreshing} title={t('preview.refresh')} style={{ padding: '4px' }}>
+              <IconRefresh />
+            </Button>
           </div>
         </div>
       )}
