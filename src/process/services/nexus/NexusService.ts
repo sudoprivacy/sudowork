@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, exec, ChildProcess } from 'child_process';
 import * as net from 'net';
 import * as path from 'path';
 
@@ -27,8 +27,10 @@ class NexusService {
       // Production: run the PyInstaller-compiled binary
       this.process = spawn(scriptPath, [String(this._port)], { stdio: 'pipe' });
     } else {
-      // Development: run the .py script directly with python3
-      this.process = spawn('python3', [scriptPath, String(this._port)], { stdio: 'pipe' });
+      // Development: resolve python3 from the user's login shell so conda/pyenv envs are found
+      const python3 = await this.resolvePython3Dev();
+      console.log(`[Nexus] Using Python: ${python3}`);
+      this.process = spawn(python3, [scriptPath, String(this._port)], { stdio: 'pipe' });
     }
 
     this.process.stdout?.on('data', (d: Buffer) => {
@@ -68,6 +70,17 @@ class NexusService {
       this.process = null;
     }
     this._running = false;
+  }
+
+  /** In dev mode, find python3 via the user's login shell so conda/pyenv PATH is respected. */
+  private resolvePython3Dev(): Promise<string> {
+    return new Promise((resolve) => {
+      const shell = process.env.SHELL || '/bin/zsh';
+      exec(`${shell} -i -c "command -v python3"`, { timeout: 5000 }, (_err, stdout) => {
+        const p = stdout.trim();
+        resolve(p || 'python3');
+      });
+    });
   }
 
   private resolveScriptPath(): string {
