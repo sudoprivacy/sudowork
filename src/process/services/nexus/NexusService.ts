@@ -72,12 +72,16 @@ class NexusService {
     this._running = false;
   }
 
-  /** In dev mode, find python3 via the user's login shell so conda/pyenv PATH is respected. */
+  /** In dev mode, find a python3 that has psutil via the user's interactive shell. */
   private resolvePython3Dev(): Promise<string> {
     return new Promise((resolve) => {
       const shell = process.env.SHELL || '/bin/zsh';
-      exec(`${shell} -i -c "command -v python3"`, { timeout: 5000 }, (_err, stdout) => {
-        const p = stdout.trim();
+      // Run inside interactive shell so conda/pyenv PATH is active.
+      // The python command prints its own executable path only if psutil is importable.
+      // We filter stdout to lines starting with '/' to discard session-restore banners.
+      const cmd = `${shell} -i -c "python3 -c \\"import psutil, sys; print(sys.executable)\\"" 2>/dev/null`;
+      exec(cmd, { timeout: 8000 }, (_err, stdout) => {
+        const p = stdout.split('\n').map(l => l.trim()).find(l => l.startsWith('/'));
         resolve(p || 'python3');
       });
     });
