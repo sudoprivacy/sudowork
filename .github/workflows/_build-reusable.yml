@@ -105,6 +105,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Build Nexus server binary
+        shell: bash
+        run: |
+          pip install pyinstaller psutil
+          bun run nexus:build
+
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts
         id: electron-cache
