@@ -108,6 +108,10 @@ win:
     - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  extraResources:
+    # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
+    - from: nexus/dist/server.exe
+      to: nexus/server.exe
 
 nsis:
   oneClick: false
@@ -130,6 +134,10 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
+  extraResources:
+    # Nexus Python server binary for macOS (build with: bun run nexus:build)
+    - from: nexus/dist/server
+      to: nexus/server
 
 dmg:
   # Use UDZO format which is more reliable on CI
@@ -164,6 +172,10 @@ linux:
   category: Utility
   maintainer: sudowork
   vendor: sudowork
+  extraResources:
+    # Nexus Python server binary for Linux (build with: bun run nexus:build)
+    - from: nexus/dist/server
+      to: nexus/server
   synopsis: ${description}
   description: ${description}
   desktop:
@@ -211,7 +223,7 @@ electronDownload:
 
 publish:
   provider: github
-  owner: iOfficeAI
-  repo: AionUi
+  owner: sudoprivacy
+  repo: sudowork
   publishAutoUpdate: true
   releaseType: release

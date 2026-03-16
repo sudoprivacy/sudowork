@@ -48,7 +48,10 @@
     "debug:custom-agent": "bunx tsx scripts/debug-custom-agent.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "prepare": "husky",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "nexus:build": "cd nexus && pyinstaller --onefile --name server server.py --distpath dist",
+    "nexus:build:win": "cd nexus && pyinstaller --onefile --name server server.py --distpath dist",
+    "nexus:clean": "cd nexus && rm -rf dist build server.spec"
   },
   "keywords": [],
   "author": {
