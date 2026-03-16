@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ConversionResult, ExcelWorkbookData, PPTJsonData } from '@/common/types/conversion';
+import type { ConversionResult, ExcelWorkbookData, PPTJsonData, PPTSlideData } from '@/common/types/conversion';
 import { DOMParser } from '@xmldom/xmldom';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
 import { BrowserWindow } from 'electron';
@@ -106,7 +106,7 @@ class ConversionService {
           convertImage: mammoth.images.imgElement(async (image) => {
             const buffer = await image.read('buffer');
             const contentType = image.contentType || 'image/png';
-            const base64 = buffer.toString('base64');
+            const base64 = Buffer.from(buffer as unknown as ArrayBuffer).toString('base64');
             return {
               src: `data:${contentType};base64,${base64}`,
             };

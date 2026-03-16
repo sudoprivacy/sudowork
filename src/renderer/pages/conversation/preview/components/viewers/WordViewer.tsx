@@ -114,8 +114,8 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
         try {
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
           if (response.result.success && response.result.data) {
-            setPdfPath(response.result.data);
-            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
+            setPdfPath(response.result.data as string);
+            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
           }
         } catch (err) {
           messageApiRef.current?.error?.(t('preview.word.loadFailed'));

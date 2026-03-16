@@ -37,7 +37,7 @@ export { analyzePermissions, getOverallRiskLevel, ExtPermissionsSchema } from '.
 export type { ExtPermissions, PermissionSummary, PermissionLevel } from './permissions';
 
 // --- Engine Validation (Figma-inspired API version locking) ---
-export { validateEngineCompatibility, filterByEngineCompatibility, AIONUI_VERSION, EXTENSION_API_VERSION } from './engineValidator';
+export { validateEngineCompatibility, filterByEngineCompatibility, EXTENSION_API_VERSION } from './engineValidator';
 
 // --- Sandbox (Figma-inspired worker thread isolation) ---
 export { SandboxHost, createSandbox, destroySandbox, destroyAllSandboxes, getSandbox } from './sandbox';

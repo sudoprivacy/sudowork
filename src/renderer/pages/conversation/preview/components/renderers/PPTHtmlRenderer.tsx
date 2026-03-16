@@ -67,11 +67,9 @@ const PPTHtmlRenderer: React.FC<PPTHtmlRendererProps> = ({ filePath }) => {
           containerRef.current.innerHTML = '';
 
           // 初始化 pptx-preview，使用 slide 模式
-          previewer = init(containerRef.current, {
-            width: containerRef.current.clientWidth || 800,
-            height: containerRef.current.clientHeight || 600,
-            mode: 'slide', // 使用幻灯片模式，支持翻页
-          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const initOptions: any = { width: containerRef.current.clientWidth || 800, height: containerRef.current.clientHeight || 600, mode: 'slide' };
+          previewer = init(containerRef.current, initOptions);
 
           previewerRef.current = previewer;
 

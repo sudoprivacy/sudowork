@@ -183,7 +183,7 @@ export async function createSampleDagFile(workspacePath: string): Promise<boolea
           name: '示例任务',
           description: '这是一个示例 DAG 任务',
           type: 'analyze',
-          dependencies: [],
+          dependencies: [] as string[],
           status: 'completed',
           metrics: {
             duration_ms: 100,
@@ -202,7 +202,7 @@ export async function createSampleDagFile(workspacePath: string): Promise<boolea
     const dagFilePath = `${dagDirPath}/${dagId}.json`;
     await ipcBridge.fs.writeFile.invoke({
       path: dagFilePath,
-      content: JSON.stringify(sampleDag, null, 2),
+      data: JSON.stringify(sampleDag, null, 2),
     });
 
     console.log(`Created sample DAG file at: ${dagFilePath}`);

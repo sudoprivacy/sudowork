@@ -120,11 +120,11 @@ export class CliInstallService {
   }
 
   async isDeclined(): Promise<boolean> {
-    return (await ProcessConfig.get(this.cfg.declinedKey)) === true;
+    return (await ProcessConfig.get(this.cfg.declinedKey as Parameters<typeof ProcessConfig.get>[0])) === true;
   }
 
   async setDeclined(value: boolean): Promise<void> {
-    await ProcessConfig.set(this.cfg.declinedKey, value);
+    await ProcessConfig.set(this.cfg.declinedKey as Parameters<typeof ProcessConfig.set>[0], value);
   }
 
   get label(): string {
