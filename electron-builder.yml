@@ -239,6 +239,6 @@ electronDownload:
 publish:
   provider: github
   owner: sudoprivacy
-  repo: sudowork
+  repo: sudorepo
   publishAutoUpdate: true
   releaseType: release

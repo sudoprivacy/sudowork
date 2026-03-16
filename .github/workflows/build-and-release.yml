@@ -238,7 +238,7 @@ jobs:
         shell: bash
         run: bash scripts/prepare-release-assets.sh build-artifacts release-assets
 
-      - name: Create Release
+      - name: Create Release on Public Repo
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag_name }}
@@ -253,7 +253,39 @@ jobs:
             release-assets/**/*.yml
             release-assets/**/*.blockmap
           generate_release_notes: true
-          draft: true
+          draft: false
           prerelease: ${{ steps.version.outputs.is_dev == 'true' || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'rc') }}
+          repository: sudoprivacy/sudorepo
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Cleanup Old Releases on Public Repo
+        run: |
+          IS_DEV="${{ steps.version.outputs.is_dev }}"
+
+          if [ "$IS_DEV" = "true" ]; then
+            # dev 版：保留最近 5 个，删除更早的
+            KEEP=5
+            FILTER='.[] | select(.isPrerelease == true) | .tagName'
+          else
+            # 正式版：保留最近 10 个，删除更早的
+            KEEP=10
+            FILTER='.[] | select(.isPrerelease == false) | .tagName'
+          fi
+
+          TO_DELETE=$(gh release list --repo sudoprivacy/sudorepo --limit 100 --json tagName,isPrerelease \
+            | jq -r "$FILTER" \
+            | tail -n +$((KEEP + 1)))
+
+          if [ -z "$TO_DELETE" ]; then
+            echo "No old releases to clean up."
+            exit 0
+          fi
+
+          echo "Deleting old releases:"
+          echo "$TO_DELETE"
+          echo "$TO_DELETE" | xargs -I{} gh release delete {} \
+            --repo sudoprivacy/sudorepo \
+            --yes \
+            --cleanup-tag
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
