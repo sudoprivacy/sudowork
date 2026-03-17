@@ -158,9 +158,9 @@ mac:
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
   extraResources:
-    # Nexus Python server binary for macOS (build with: bun run nexus:build)
-    - from: nexus/dist/server
-      to: nexus/server
+    # Nexus conda-packed environment (build with: conda-pack -n nexus -o resources/nexus.tar.gz)
+    - from: resources/nexus.tar.gz
+      to: nexus.tar.gz
 
 dmg:
   # Use UDZO format which is more reliable on CI

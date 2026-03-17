@@ -19,7 +19,11 @@ export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(() => {
     return Promise.resolve({
       success: true,
-      data: { running: nexusService.isRunning, port: nexusService.port },
+      data: {
+        running: nexusService.isRunning,
+        port: nexusService.port,
+        setupStage: nexusService.setupStage,
+      },
     });
   });
 }
