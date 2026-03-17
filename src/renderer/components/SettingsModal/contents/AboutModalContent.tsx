@@ -67,6 +67,8 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
       mounting: '挂载中…',
       copying: '安装中…',
       unmounting: '清理中…',
+      installing: '安装中…',
+      extracting: '解压中…',
       cleanup: '清理中…',
     };
     statusText = <span className='text-12px text-t-tertiary'>{phaseLabel[row.installPhase ?? 'downloading'] ?? '安装中…'}</span>;

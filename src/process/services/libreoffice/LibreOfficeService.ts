@@ -13,53 +13,129 @@ const execAsync = promisify(exec);
 // Download page: https://www.libreoffice.org/download/download-libreoffice/
 const LIBREOFFICE_VERSION = '26.2.1';
 
-const APP_PATH = '/Applications/LibreOffice.app';
+// Arch names used in download URLs.
+// Directory paths always use x86_64 (underscore), but filenames use x86-64 (hyphen).
+// aarch64 is consistent in both directory paths and filenames.
+function getArchNames(): { dir: string; file: string } {
+  if (process.arch === 'arm64') {
+    return { dir: 'aarch64', file: 'aarch64' };
+  }
+  return { dir: 'x86_64', file: 'x86-64' };
+}
 
 export interface LibreOfficeStatus {
   installed: boolean;
   version?: string;
 }
 
-export type InstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'cleanup';
+export type InstallPhase =
+  | 'downloading'
+  | 'mounting'
+  | 'copying'
+  | 'unmounting'
+  | 'installing'
+  | 'extracting'
+  | 'cleanup';
 
 export type ProgressCallback = (phase: InstallPhase, percent?: number) => void;
 
 export class LibreOfficeService {
   async checkInstalled(): Promise<LibreOfficeStatus> {
-    if (!fs.existsSync(APP_PATH)) {
-      return { installed: false };
+    if (process.platform === 'darwin') {
+      return this.checkInstalledMac();
+    } else if (process.platform === 'win32') {
+      return this.checkInstalledWindows();
+    } else {
+      return this.checkInstalledLinux();
     }
-    const version = await this.getInstalledVersion();
-    return { installed: true, version };
   }
 
-  private async getInstalledVersion(): Promise<string | undefined> {
+  private async checkInstalledMac(): Promise<LibreOfficeStatus> {
+    const appPath = '/Applications/LibreOffice.app';
+    if (!fs.existsSync(appPath)) {
+      return { installed: false };
+    }
     try {
-      const { stdout } = await execAsync(`defaults read "${APP_PATH}/Contents/Info.plist" CFBundleShortVersionString`);
-      return stdout.trim() || undefined;
+      const { stdout } = await execAsync(
+        `defaults read "${appPath}/Contents/Info.plist" CFBundleShortVersionString`,
+      );
+      return { installed: true, version: stdout.trim() || undefined };
     } catch {
-      return undefined;
+      return { installed: true };
+    }
+  }
+
+  private async checkInstalledWindows(): Promise<LibreOfficeStatus> {
+    const programFiles = process.env['ProgramFiles'] ?? 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+    const candidates = [
+      path.join(programFiles, 'LibreOffice', 'program', 'soffice.exe'),
+      path.join(programFilesX86, 'LibreOffice', 'program', 'soffice.exe'),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return { installed: true };
+      }
+    }
+    return { installed: false };
+  }
+
+  private async checkInstalledLinux(): Promise<LibreOfficeStatus> {
+    try {
+      const { stdout } = await execAsync('which libreoffice 2>/dev/null || which soffice 2>/dev/null');
+      if (stdout.trim()) {
+        return { installed: true };
+      }
+      return { installed: false };
+    } catch {
+      return { installed: false };
     }
   }
 
   getDownloadUrl(): string {
-    const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
+    const { dir, file } = getArchNames();
     const v = LIBREOFFICE_VERSION;
-    return `https://download.documentfoundation.org/libreoffice/stable/${v}/mac/${arch}/LibreOffice_${v}_MacOS_${arch}.dmg`;
+    const base = 'https://download.documentfoundation.org/libreoffice/stable';
+
+    if (process.platform === 'darwin') {
+      return `${base}/${v}/mac/${dir}/LibreOffice_${v}_MacOS_${file}.dmg`;
+    } else if (process.platform === 'win32') {
+      return `${base}/${v}/win/${dir}/LibreOffice_${v}_Win_${file}.msi`;
+    } else {
+      // Linux: deb packages bundled as tar.gz
+      return `${base}/${v}/deb/${dir}/LibreOffice_${v}_Linux_${file}_deb.tar.gz`;
+    }
   }
 
-  private getCachedDmgPath(): string {
+  private getCachedFilePath(): string {
     const cacheDir = path.join(app.getPath('userData'), 'libreoffice-cache');
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-    return path.join(cacheDir, `LibreOffice_${LIBREOFFICE_VERSION}.dmg`);
+    let ext: string;
+    if (process.platform === 'darwin') {
+      ext = 'dmg';
+    } else if (process.platform === 'win32') {
+      ext = 'msi';
+    } else {
+      ext = 'tar.gz';
+    }
+    return path.join(cacheDir, `LibreOffice_${LIBREOFFICE_VERSION}.${ext}`);
   }
 
   async install(onProgress: ProgressCallback): Promise<void> {
-    const dmgPath = this.getCachedDmgPath();
+    if (process.platform === 'darwin') {
+      return this.installMac(onProgress);
+    } else if (process.platform === 'win32') {
+      return this.installWindows(onProgress);
+    } else {
+      return this.installLinux(onProgress);
+    }
+  }
+
+  private async installMac(onProgress: ProgressCallback): Promise<void> {
+    const dmgPath = this.getCachedFilePath();
     let mountPoint: string | undefined;
 
     try {
-      // 1. Download (skip if valid cache exists)
       if (fs.existsSync(dmgPath) && fs.statSync(dmgPath).size > 0) {
         onProgress('downloading', 100);
       } else {
@@ -68,11 +144,9 @@ export class LibreOfficeService {
         });
       }
 
-      // 2. Mount
       onProgress('mounting');
       mountPoint = await this.mountDmg(dmgPath);
 
-      // 3. Copy .app to /Applications (requires admin)
       onProgress('copying');
       const appEntry = fs.readdirSync(mountPoint).find((f) => f.endsWith('.app'));
       if (!appEntry) throw new Error('No .app found in mounted DMG');
@@ -80,7 +154,6 @@ export class LibreOfficeService {
       const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
       await execFileAsync('osascript', ['-e', script]);
     } catch (err) {
-      // If install fails after download, remove the cached DMG so next attempt re-downloads
       try {
         if (fs.existsSync(dmgPath)) fs.rmSync(dmgPath);
       } catch {
@@ -88,7 +161,6 @@ export class LibreOfficeService {
       }
       throw err;
     } finally {
-      // 4. Unmount
       if (mountPoint) {
         onProgress('unmounting');
         try {
@@ -101,11 +173,97 @@ export class LibreOfficeService {
     }
   }
 
+  private async installWindows(onProgress: ProgressCallback): Promise<void> {
+    const msiPath = this.getCachedFilePath();
+
+    try {
+      if (fs.existsSync(msiPath) && fs.statSync(msiPath).size > 0) {
+        onProgress('downloading', 100);
+      } else {
+        await this.downloadFile(this.getDownloadUrl(), msiPath, (percent) => {
+          onProgress('downloading', percent);
+        });
+      }
+
+      onProgress('installing');
+      // /passive shows a minimal progress UI and triggers UAC elevation automatically
+      await execFileAsync('msiexec', ['/i', msiPath, '/passive', '/norestart']);
+    } catch (err) {
+      try {
+        if (fs.existsSync(msiPath)) fs.rmSync(msiPath);
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      onProgress('cleanup');
+    }
+  }
+
+  private async installLinux(onProgress: ProgressCallback): Promise<void> {
+    const tarGzPath = this.getCachedFilePath();
+    const extractDir = path.join(path.dirname(tarGzPath), 'libreoffice-extract');
+
+    try {
+      if (fs.existsSync(tarGzPath) && fs.statSync(tarGzPath).size > 0) {
+        onProgress('downloading', 100);
+      } else {
+        await this.downloadFile(this.getDownloadUrl(), tarGzPath, (percent) => {
+          onProgress('downloading', percent);
+        });
+      }
+
+      onProgress('extracting');
+      if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+      await execFileAsync('tar', ['-xzf', tarGzPath, '-C', extractDir]);
+
+      onProgress('installing');
+      const debsDir = this.findDebsDir(extractDir);
+      if (!debsDir) throw new Error('No DEBS directory found in LibreOffice package');
+      const debFiles = fs.readdirSync(debsDir).filter((f) => f.endsWith('.deb'));
+      if (debFiles.length === 0) throw new Error('No .deb files found');
+      const debPaths = debFiles.map((f) => path.join(debsDir, f));
+      // pkexec shows a graphical privilege escalation dialog
+      await execFileAsync('pkexec', ['dpkg', '-i', ...debPaths]);
+    } catch (err) {
+      try {
+        if (fs.existsSync(tarGzPath)) fs.rmSync(tarGzPath);
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      try {
+        if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+      onProgress('cleanup');
+    }
+  }
+
+  private findDebsDir(extractDir: string): string | undefined {
+    // LibreOffice tar.gz extracts to a subdirectory like LibreOffice_26.2.1_Linux_x86-64_deb/
+    // which contains a DEBS/ directory with the .deb packages
+    try {
+      const entries = fs.readdirSync(extractDir);
+      for (const entry of entries) {
+        const entryPath = path.join(extractDir, entry);
+        if (fs.statSync(entryPath).isDirectory()) {
+          const debsPath = path.join(entryPath, 'DEBS');
+          if (fs.existsSync(debsPath)) return debsPath;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }
+
   private mountDmg(dmgPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
       execFile('hdiutil', ['attach', dmgPath, '-nobrowse', '-plist'], (err, stdout) => {
         if (err) return reject(err);
-        // plist output contains <key>mount-point</key><string>/Volumes/...</string>
         const match = stdout.match(/<key>mount-point<\/key>\s*<string>([^<]+)<\/string>/);
         if (match?.[1]) return resolve(match[1]);
         reject(new Error('Could not determine DMG mount point'));
