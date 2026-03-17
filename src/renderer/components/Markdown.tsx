@@ -110,7 +110,7 @@ function CodeBlock(props: any) {
           });
           const katexElement = React.createElement('div', {
             className: 'katex-display',
-            dangerouslySetInnerHTML: { __html: html }
+            dangerouslySetInnerHTML: { __html: html },
           });
           return katexElement;
         } catch {

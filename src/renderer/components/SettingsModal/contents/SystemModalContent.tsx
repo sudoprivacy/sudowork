@@ -37,9 +37,9 @@ const DirInputItem: React.FC<{
               defaultPath: currentValue,
               properties: ['openDirectory', 'createDirectory'],
             })
-            .then((data) => {
-              if (data?.[0]) {
-                form.setFieldValue(field, data[0]);
+            .then((res) => {
+              if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+                form.setFieldValue(field, res.data.filePaths[0]);
               }
             })
             .catch((error) => {

@@ -14,13 +14,14 @@ const CONDA_READY_MARKER = '.nexus-conda-ready';
 
 // How long to wait for the server port after extraction (first run can be slow).
 const WAIT_PORT_TIMEOUT_AFTER_SETUP_MS = 5 * 60 * 1000; // 5 minutes
-const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000;           // 30 seconds
+const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
 
 export type NexusSetupStage =
   | 'idle'
-  | 'extracting'   // tar -xzf in progress
-  | 'unpacking'    // conda-unpack in progress
-  | 'starting'     // server process launched, waiting for port
+  | 'checking' // Checking if already installed
+  | 'extracting' // tar -xzf in progress
+  | 'unpacking' // conda-unpack in progress
+  | 'starting' // server process launched, waiting for port
   | 'ready'
   | 'error';
 
@@ -277,7 +278,7 @@ class NexusService {
       // Since glob patterns don't work with fs.existsSync, we'll look for the python directory
       const libDir = path.join(envDir, 'lib');
       if (fs.existsSync(libDir)) {
-        const pythonDirs = fs.readdirSync(libDir).filter(dir => dir.startsWith('python'));
+        const pythonDirs = fs.readdirSync(libDir).filter((dir) => dir.startsWith('python'));
         if (pythonDirs.length > 0) {
           const pythonDir = path.join(libDir, pythonDirs[0]);
           const sitePackagesDir = path.join(pythonDir, 'site-packages');
@@ -285,7 +286,7 @@ class NexusService {
             console.log(`[Nexus] Found site-packages directory at ${sitePackagesDir}`);
 
             // Look for the nexus package
-            if (fs.readdirSync(sitePackagesDir).some(file => file.startsWith('nexus'))) {
+            if (fs.readdirSync(sitePackagesDir).some((file) => file.startsWith('nexus'))) {
               console.log(`[Nexus] Found nexus package in site-packages`);
             } else {
               console.warn(`[Nexus] nexus package not found in site-packages`);

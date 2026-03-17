@@ -21,15 +21,15 @@ const CONDA_READY_MARKER = '.nexus-conda-ready';
 
 // How long to wait for the server port after extraction (first run can be slow).
 const WAIT_PORT_TIMEOUT_AFTER_SETUP_MS = 5 * 60 * 1000; // 5 minutes
-const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000;           // 30 seconds
+const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
 
 export type NexusSetupStage =
   | 'idle'
-  | 'checking'       // Checking if already installed
-  | 'downloading'    // Downloading nexus.tar.gz
-  | 'extracting'     // tar -xzf in progress
-  | 'unpacking'      // conda-unpack in progress
-  | 'starting'       // server process launched, waiting for port
+  | 'checking' // Checking if already installed
+  | 'downloading' // Downloading nexus.tar.gz
+  | 'extracting' // tar -xzf in progress
+  | 'unpacking' // conda-unpack in progress
+  | 'starting' // server process launched, waiting for port
   | 'ready'
   | 'error';
 
@@ -296,18 +296,18 @@ class DynamicNexusService {
         await new Promise<void>((resolve, reject) => {
           const file = fs.createWriteStream(dest);
 
-          const request = https.get(url, (response) => {
+          const request = https.get(url, (response: import('http').IncomingMessage) => {
             if (response.statusCode === 301 || response.statusCode === 302) {
               // Handle redirects
               const redirectUrl = response.headers.location;
               if (redirectUrl) {
                 console.log(`[DynamicNexus] Following redirect to: ${redirectUrl}`);
                 file.close(() => {
-                  try { fs.unlinkSync(dest); } catch (_) {}
+                  try {
+                    fs.unlinkSync(dest);
+                  } catch (_) {}
                   // resolve/reject is delegated to the recursive call; skip outer success log
-                  this.downloadFileWithRetry(redirectUrl, dest, 1, onPercent)
-                    .then(resolve)
-                    .catch(reject);
+                  this.downloadFileWithRetry(redirectUrl, dest, 1, onPercent).then(resolve).catch(reject);
                 });
                 return;
               }
@@ -343,7 +343,7 @@ class DynamicNexusService {
             });
           });
 
-          request.on('error', (err) => {
+          request.on('error', (err: Error) => {
             fs.unlink(dest, () => {}); // Clean up on error
             reject(err);
           });
@@ -371,7 +371,7 @@ class DynamicNexusService {
         }
 
         // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
       }
     }
   }

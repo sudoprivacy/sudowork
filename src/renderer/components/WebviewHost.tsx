@@ -76,13 +76,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   useEffect(() => {
     historyBackRef.current = [];
     historyForwardRef.current = [];
-    setCanGoBack(prev => prev !== false ? false : prev);
-    setCanGoForward(prev => prev !== false ? false : prev);
-    setCurrentUrl(prev => prev !== url ? url : prev);
-    setInputUrl(prev => prev !== url ? url : prev);
-    setIsLoading(prev => prev !== true ? true : prev);
-    setZoomFactor(prev => prev !== 1 ? 1 : prev);
-    setWebviewReady(prev => prev !== false ? false : prev);
+    setCanGoBack((prev) => (prev !== false ? false : prev));
+    setCanGoForward((prev) => (prev !== false ? false : prev));
+    setCurrentUrl((prev) => (prev !== url ? url : prev));
+    setInputUrl((prev) => (prev !== url ? url : prev));
+    setIsLoading((prev) => (prev !== true ? true : prev));
+    setZoomFactor((prev) => (prev !== 1 ? 1 : prev));
+    setWebviewReady((prev) => (prev !== false ? false : prev));
     autoFitPendingRef.current = isStarOfficeUrl(url);
   }, [url]);
 

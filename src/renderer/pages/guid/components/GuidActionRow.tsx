@@ -72,9 +72,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                 if (key === 'file') {
                   ipcBridge.dialog.showOpen
                     .invoke({ properties: ['openFile', 'multiSelections'] })
-                    .then((uploadedFiles) => {
-                      if (uploadedFiles && uploadedFiles.length > 0) {
-                        onFilesUploaded(uploadedFiles);
+                    .then((res) => {
+                      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+                        onFilesUploaded(res.data.filePaths);
                       }
                     })
                     .catch((error) => {
@@ -83,9 +83,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                 } else if (key === 'workspace') {
                   ipcBridge.dialog.showOpen
                     .invoke({ properties: ['openDirectory'] })
-                    .then((dirs) => {
-                      if (dirs && dirs[0]) {
-                        onSelectWorkspace(dirs[0]);
+                    .then((res) => {
+                      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+                        onSelectWorkspace(res.data.filePaths[0]);
                       }
                     })
                     .catch((error) => {

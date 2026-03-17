@@ -121,14 +121,14 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   useEffect(() => {
     if (!layout?.isMobile) {
-      setMobileCenterTitle(prev => prev !== appTitle ? appTitle : prev);
+      setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
       return;
     }
 
     const match = location.pathname.match(/^\/conversation\/([^/]+)/);
     const conversationId = match?.[1];
     if (!conversationId) {
-      setMobileCenterTitle(prev => prev !== appTitle ? appTitle : prev);
+      setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
       return;
     }
 
@@ -137,11 +137,11 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
       .invoke({ id: conversationId })
       .then((conversation) => {
         if (cancelled) return;
-        setMobileCenterTitle(prev => prev !== (conversation?.name || appTitle) ? (conversation?.name || appTitle) : prev);
+        setMobileCenterTitle((prev) => (prev !== (conversation?.name || appTitle) ? conversation?.name || appTitle : prev));
       })
       .catch(() => {
         if (cancelled) return;
-        setMobileCenterTitle(prev => prev !== appTitle ? appTitle : prev);
+        setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
       });
 
     return () => {
@@ -151,14 +151,14 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   useEffect(() => {
     if (!layout?.isMobile) {
-      setMobileCenterOffset(prev => prev !== 0 ? 0 : prev);
+      setMobileCenterOffset((prev) => (prev !== 0 ? 0 : prev));
       return;
     }
 
     const updateOffset = () => {
       const leftWidth = menuRef.current?.offsetWidth || 0;
       const rightWidth = toolbarRef.current?.offsetWidth || 0;
-      setMobileCenterOffset(prev => prev !== (leftWidth - rightWidth) / 2 ? (leftWidth - rightWidth) / 2 : prev);
+      setMobileCenterOffset((prev) => (prev !== (leftWidth - rightWidth) / 2 ? (leftWidth - rightWidth) / 2 : prev));
     };
 
     updateOffset();

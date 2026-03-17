@@ -113,12 +113,12 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
 
     try {
       const desktopPath = exportTargetPath || (await getDesktopPath());
-      const folders = await ipcBridge.dialog.showOpen.invoke({
+      const res = await ipcBridge.dialog.showOpen.invoke({
         properties: ['openDirectory'],
         defaultPath: desktopPath || undefined,
       });
-      if (folders && folders.length > 0) {
-        setExportTargetPath(folders[0]);
+      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+        setExportTargetPath(res.data.filePaths[0]);
       }
     } catch (error) {
       console.error('Failed to open export directory dialog:', error);

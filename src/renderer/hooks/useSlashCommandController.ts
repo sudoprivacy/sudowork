@@ -55,8 +55,8 @@ export function useSlashCommandController(options: UseSlashCommandControllerOpti
   // This prevents dropdown from reopening when ACP dynamically adds commands
   // while the user is typing.
   useEffect(() => {
-    setActiveIndex(prev => prev !== 0 ? 0 : prev);
-    setDismissed(prev => prev !== false ? false : prev);
+    setActiveIndex((prev) => (prev !== 0 ? 0 : prev));
+    setDismissed((prev) => (prev !== false ? false : prev));
   }, [query]);
 
   const filteredCommands = useMemo(() => {

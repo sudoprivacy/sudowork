@@ -234,9 +234,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     if (isElectronDesktop()) {
       // Electron: use native file dialog
       try {
-        const files = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
-        if (files && files.length > 0) {
-          setSelectedTargetPath(files[0]);
+        const res = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+        if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+          setSelectedTargetPath(res.data.filePaths[0]);
         }
       } catch (error) {
         console.error('Failed to open directory dialog:', error);

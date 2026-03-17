@@ -202,10 +202,12 @@ const AboutModalContent: React.FC = () => {
   const installNexusFromLocal = useCallback(async () => {
     try {
       // 使用现有的 dialog IPC 桥接打开文件选择对话框
-      const res = await import('@/common/ipcBridge').then(m => m.dialog.showOpen.invoke({
-        filters: [{ name: 'Nexus Archive', extensions: ['tar.gz', 'tgz'] }],
-        properties: ['openFile']
-      }));
+      const res = await import('@/common/ipcBridge').then((m) =>
+        m.dialog.showOpen.invoke({
+          filters: [{ name: 'Nexus Archive', extensions: ['tar.gz', 'tgz'] }],
+          properties: ['openFile'],
+        })
+      );
 
       if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
         const filePath = res.data.filePaths[0];
@@ -227,12 +229,12 @@ const AboutModalContent: React.FC = () => {
   const installLibreOfficeFromLocal = useCallback(async () => {
     try {
       // 使用现有的 dialog IPC 桥接打开文件选择对话框
-      const res = await import('@/common/ipcBridge').then(m => m.dialog.showOpen.invoke({
-        filters: [
-          { name: 'LibreOffice Installer', extensions: process.platform === 'win32' ? ['msi'] : process.platform === 'darwin' ? ['dmg'] : ['tar.gz'] }
-        ],
-        properties: ['openFile']
-      }));
+      const res = await import('@/common/ipcBridge').then((m) =>
+        m.dialog.showOpen.invoke({
+          filters: [{ name: 'LibreOffice Installer', extensions: process.platform === 'win32' ? ['msi'] : process.platform === 'darwin' ? ['dmg'] : ['tar.gz'] }],
+          properties: ['openFile'],
+        })
+      );
 
       if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
         const filePath = res.data.filePaths[0];
@@ -342,24 +344,13 @@ const AboutModalContent: React.FC = () => {
         const version = record.key === 'nexus' ? `v${record.appVersion}` : record.status?.version;
 
         return (
-          <div className="flex items-center gap-12px">
-            <div className={classNames('w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700',
-              record.key === 'nexus' ? 'bg-orange-1 color-orange-6' :
-              record.key === 'claude' ? 'bg-orange-1 color-orange-6' :
-              record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6')}>
-              {record.badge}
-            </div>
-            <div className="flex flex-col gap-2px flex-1 min-w-0">
+          <div className='flex items-center gap-12px'>
+            <div className={classNames('w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700', record.key === 'nexus' ? 'bg-orange-1 color-orange-6' : record.key === 'claude' ? 'bg-orange-1 color-orange-6' : record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6')}>{record.badge}</div>
+            <div className='flex flex-col gap-2px flex-1 min-w-0'>
               <span className='text-13px font-600 text-t-primary leading-none'>{value}</span>
-              <div className="flex items-center gap-6px">
-                <span className={`text-11px font-500 ${statusColor}`}>
-                  {statusText}
-                </span>
-                {version && (
-                  <span className='px-6px py-1px rd-20px text-10px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>
-                    {version}
-                  </span>
-                )}
+              <div className='flex items-center gap-6px'>
+                <span className={`text-11px font-500 ${statusColor}`}>{statusText}</span>
+                {version && <span className='px-6px py-1px rd-20px text-10px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>{version}</span>}
               </div>
             </div>
           </div>
@@ -376,13 +367,7 @@ const AboutModalContent: React.FC = () => {
         return (
           <div className='flex items-center justify-center gap-6px'>
             {/* 对 claude 和 gemini 禁用在线安装按钮，只保留本地安装功能 */}
-            <Button
-              type='text'
-              size='mini'
-              disabled={record.key === 'claude' || record.key === 'gemini' || isLoading}
-              onClick={record.onInstall}
-              style={{ fontSize: 11, color: (record.key === 'claude' || record.key === 'gemini') ? 'var(--color-text-4)' : 'var(--color-text-3)' }}
-            >
+            <Button type='text' size='mini' disabled={record.key === 'claude' || record.key === 'gemini' || isLoading} onClick={record.onInstall} style={{ fontSize: 11, color: record.key === 'claude' || record.key === 'gemini' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}>
               在线安装
             </Button>
             <Button type='text' size='mini' disabled={isLoading} onClick={record.onInstallFromLocal} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
@@ -474,14 +459,7 @@ const AboutModalContent: React.FC = () => {
           </div>
 
           {/* Tools table */}
-          <Table
-            columns={columns}
-            data={tableData}
-            pagination={false}
-            showHeader={false}
-            rowClassName={() => 'hover:bg-fill-1'}
-            scroll={{ x: 'max-content' }}
-          />
+          <Table columns={columns} data={tableData} pagination={false} showHeader={false} rowClassName={() => 'hover:bg-fill-1'} scroll={{ x: 'max-content' }} />
         </div>
       </div>
     </div>
