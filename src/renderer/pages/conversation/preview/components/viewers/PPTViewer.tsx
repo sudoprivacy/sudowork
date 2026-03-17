@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
 import CodeViewer from './CodeViewer';
@@ -144,7 +144,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     };
 
     void loadDocument();
-  }, [filePath]);
+  }, [filePath, t, messageApi]);
 
   useEffect(() => {
     if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
@@ -173,7 +173,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
       ),
     });
     return () => toolbarExtrasContext.setExtras(null);
-  }, [usePortalToolbar, toolbarExtrasContext, loading, error, handleOpenInSystem, handleRefresh, refreshing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [usePortalToolbar, toolbarExtrasContext, loading, error, handleOpenInSystem, handleRefresh, refreshing, t]);
 
   if (loading) {
     return (

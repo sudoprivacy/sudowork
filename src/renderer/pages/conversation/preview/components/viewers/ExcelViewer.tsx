@@ -28,7 +28,7 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
  *
  * 优先使用 LibreOffice 转 PDF 预览，如果 LibreOffice 不可用则回退到 JSON 渲染
  */
-const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
+const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [excelData, setExcelData] = useState<ExcelWorkbookData | null>(null);
@@ -89,7 +89,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content, hideTool
         setRefreshing(false);
       }
     }
-  }, [filePath, useLibreOffice]);
+  }, [filePath, useLibreOffice, messageApi, t]);
 
   useEffect(() => {
     const loadExcel = async () => {
