@@ -17,6 +17,7 @@
     "resetpass": "bun run cli -- --resetpass",
     "package": "electron-vite build",
     "make": "electron-vite build",
+    "clean": "rm -rf out dist .vite",
     "dist": "node scripts/build-with-builder.js",
     "cli:download": "bun run claude:download && bun run gemini:download",
     "cli:download:force": "bun run claude:download:force && bun run gemini:download:force",
