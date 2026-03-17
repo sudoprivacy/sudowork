@@ -27,16 +27,13 @@ import { EventEmitter } from 'events';
 export function getUpdateChannel(): string | undefined {
   const { platform, arch } = process;
   if (platform === 'win32' && arch === 'arm64') {
-    return 'latest-win-arm64';
+    return 'win-arm64';
   }
   if (platform === 'darwin' && arch === 'arm64') {
-    return 'latest-mac-arm64';
-  }
-  if (platform === 'darwin' && arch === 'x64') {
-    return 'latest-mac-x64';
+    return 'arm64';
   }
   if (platform === 'linux' && arch === 'arm64') {
-    return 'latest-linux-arm64';
+    return 'arm64';
   }
   // Default: x64 on all platforms uses the standard channel files:
   // latest.yml (Windows), latest-mac.yml (macOS), latest-linux.yml (Linux)
