@@ -36,6 +36,8 @@
     "build:win:x64": "bun run cli:download && bun run nexus:build:win && node scripts/build-with-builder.js x64 --win --x64",
     "build:linux": "bun run cli:download && bun run nexus:build && node scripts/build-with-builder.js auto --linux",
     "lint": "eslint --quiet --ext .ts,.tsx .",
+    "check": "bun run type:check && bun run lint && bun run format:check && bunx vitest run",
+    "type:check": "bunx tsc --noEmit",
     "lint:fix": "eslint --ext .ts,.tsx . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
