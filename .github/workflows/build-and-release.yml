@@ -252,7 +252,7 @@ jobs:
             release-assets/**/*.zip
             release-assets/**/*.yml
             release-assets/**/*.blockmap
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: ${{ steps.version.outputs.is_dev == 'true' || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'rc') }}
           repository: sudoprivacy/sudorepo
