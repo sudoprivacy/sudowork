@@ -108,7 +108,11 @@ function CodeBlock(props: any) {
             displayMode: true,
             throwOnError: false,
           });
-          return <div className='katex-display' dangerouslySetInnerHTML={{ __html: html }} />;
+          const katexElement = React.createElement('div', {
+            className: 'katex-display',
+            dangerouslySetInnerHTML: { __html: html }
+          });
+          return katexElement;
         } catch {
           // Fall through to render as code block if KaTeX fails
         }
