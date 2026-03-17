@@ -105,6 +105,14 @@ files:
   - 'out/**/react-syntax-highlighter_languages_highlight_{javascript,typescript,python,java,cpp,c,html,css,json,xml,yaml,shell,bash,dockerfile,sql,markdown,go,rust,php}'
   # Ensure vendor chunks from manual splitting are included
   - 'out/renderer/**/vendor-*.js'
+  # Explicitly exclude source code directories
+  - '!src/**/*'
+  - '!electron.vite.config.ts'
+  - '!tsconfig.json'
+  - '!scripts/**/*'
+  - '!vitest.config.ts'
+  - '!uno.config.ts'
+  - '!playwright.config.ts'
 
 extraResources:
   - from: public
@@ -122,7 +130,6 @@ win:
     - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
     - from: nexus/dist/server.exe
@@ -150,7 +157,6 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
-  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for macOS (build with: bun run nexus:build)
     - from: nexus/dist/server
@@ -189,7 +195,6 @@ linux:
   category: Utility
   maintainer: sudowork
   vendor: sudowork
-  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for Linux (build with: bun run nexus:build)
     - from: nexus/dist/server
