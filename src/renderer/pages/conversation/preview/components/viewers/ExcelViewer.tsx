@@ -146,9 +146,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           }
 
           if (response.result.success && response.result.data) {
-            setExcelData(response.result.data);
-            if (response.result.data.sheets.length > 0) {
-              setActiveSheet(response.result.data.sheets[0].name);
+            setExcelData(response.result.data as ExcelWorkbookData);
+            if ((response.result.data as ExcelWorkbookData).sheets.length > 0) {
+              setActiveSheet((response.result.data as ExcelWorkbookData).sheets[0].name);
             }
           } else {
             throw new Error(response.result.error || t('preview.excel.convertFailed'));
