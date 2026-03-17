@@ -127,14 +127,11 @@ win:
   target:
     - nsis
 #    - msi
-    - zip
+#    - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   extraResources:
     # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
-    - from: nexus/dist/server.exe
-      to: nexus/server.exe
-
 
 nsis:
   oneClick: false
@@ -149,7 +146,6 @@ nsis:
 mac:
   target:
     - dmg
-    - zip
   icon: resources/app.icns
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   category: public.app-category.productivity
@@ -158,9 +154,7 @@ mac:
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
   extraResources:
-    # Nexus conda-packed environment (build with: conda-pack -n nexus -o resources/nexus.tar.gz)
-    - from: resources/nexus.tar.gz
-      to: nexus.tar.gz
+    # No nexus conda-packed environment - now using dynamic download
 
 dmg:
   # Use UDZO format which is more reliable on CI
@@ -218,7 +212,7 @@ asarUnpack:
 compression: normal
 removePackageScripts: true
 electronDownload:
-  cache: ${env.ELECTRON_CACHE}
+  cache: .cache
 
 publish:
   provider: github

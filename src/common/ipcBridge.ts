@@ -404,6 +404,8 @@ export const libreOffice = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ILibreOfficeStatus>, void>('libreoffice.check-installed'),
   getDownloadUrl: bridge.buildProvider<IBridgeResponse<{ url: string }>, void>('libreoffice.get-download-url'),
   install: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.install'),
+  /** Install LibreOffice from a local file */
+  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('libreoffice.install-from-local-file'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ILibreOfficeInstallPhase; percent?: number }>, void>('libreoffice.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
@@ -413,11 +415,23 @@ export const libreOffice = {
 };
 
 // Nexus Python server / 内置 Python 服务
+export type NexusInstallPhase = 'checking' | 'downloading' | 'extracting' | 'unpacking' | 'starting' | 'ready' | 'error';
+
 export const nexus = {
   /** Ping the Nexus server to verify it is running */
   ping: bridge.buildProvider<IBridgeResponse<{ message: string; timestamp: number; port: number }>, void>('nexus.ping'),
   /** Get the current status of the Nexus server */
-  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number }>, void>('nexus.get-status'),
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number; setupStage: string; installed: boolean }>, void>('nexus.get-status'),
+  /** Check if Nexus is installed */
+  checkInstalled: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('nexus.check-installed'),
+  /** Install Nexus server */
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.install'),
+  /** Emitted periodically during installation with current phase and optional download percent */
+  installProgress: bridge.buildEmitter<{ phase: NexusInstallPhase; message: string; percent?: number }>('nexus.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
+  /** Install Nexus server from local file */
+  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
 };
 
 // Deep link protocol handling / 深度链接协议处理

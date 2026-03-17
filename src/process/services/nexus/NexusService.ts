@@ -64,31 +64,27 @@ class NexusService {
   async start(): Promise<void> {
     if (this._running) return;
 
-    this._port = await this.findFreePort();
+    // 使用固定端口 12012
+    this._port = 12012;
 
-    let executablePath: string;
-    let spawnArgs: string[];
-    let justExtracted = false;
+    // 现在使用动态下载方式，这里只是检查是否已安装
+    const envDir = this.getCondaEnvDir();
+    const nexusdBin = path.join(envDir, 'bin', 'nexusd');
 
-    if (app.isPackaged && process.platform !== 'win32') {
-      // Packaged macOS / Linux: use conda-packed environment
-      const result = await this.ensureCondaEnv();
-      executablePath = result.nexusdBin;
-      justExtracted = result.justExtracted;
-      spawnArgs = [String(this._port)];
-    } else if (app.isPackaged || this.devBinaryExists()) {
-      // Packaged Windows or dev with pre-built PyInstaller binary
-      executablePath = this.resolveScriptPath();
-      spawnArgs = [String(this._port)];
-    } else {
-      // Development (no binary): resolve python3 from the user's login shell
-      const python3 = await this.resolvePython3Dev();
-      console.log(`[Nexus] Using Python: ${python3}`);
-      executablePath = python3;
-      spawnArgs = [this.resolveScriptPath(), String(this._port)];
+    if (!fs.existsSync(nexusdBin)) {
+      console.log('[Nexus] Service not installed. Will be downloaded dynamically when needed.');
+      this._setupStage = 'checking';
+      return;
     }
 
-    this.emitSetup('starting', `Starting server from: ${executablePath} on port ${this._port}`);
+    // 如果已安装，使用 Python 环境启动
+    const pythonPath = path.join(envDir, 'bin', 'python');
+    const executablePath = pythonPath; // Use the python interpreter from the conda env
+
+    // 使用固定的参数启动 nexusd
+    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=embedded', '--auth-type', 'none', '--port', String(this._port)];
+
+    this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
     this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe' });
 
     this.process.stdout?.on('data', (d: Buffer) => {
@@ -107,12 +103,7 @@ class NexusService {
       this.emitSetup('error', `Failed to start process: ${err.message}`);
     });
 
-    // Use a longer timeout after first-run extraction since the env may need
-    // additional warm-up time (library loading, etc.)
-    const timeoutMs = justExtracted
-      ? WAIT_PORT_TIMEOUT_AFTER_SETUP_MS
-      : WAIT_PORT_TIMEOUT_NORMAL_MS;
-    await this.waitForPort(this._port, timeoutMs);
+    await this.waitForPort(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
     this._running = true;
     this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
   }
@@ -161,6 +152,8 @@ class NexusService {
 
   private resolveScriptPath(): string {
     if (app.isPackaged) {
+      // In modified version, we always use conda-pack for all platforms
+      // This code path should not be reached anymore, but keeping for safety
       const ext = process.platform === 'win32' ? '.exe' : '';
       return path.join(process.resourcesPath, 'nexus', `server${ext}`);
     }
@@ -199,6 +192,7 @@ class NexusService {
     if (fs.existsSync(markerFile) && fs.existsSync(nexusdBin)) {
       const markedVersion = fs.readFileSync(markerFile, 'utf8').trim();
       if (markedVersion === currentVersion) {
+        console.log(`[Nexus] Using existing conda environment for version ${currentVersion}`);
         return { nexusdBin, justExtracted: false };
       }
       this.emitSetup('extracting', `App updated (${markedVersion} → ${currentVersion}), re-extracting conda env...`);
@@ -210,7 +204,22 @@ class NexusService {
       this.emitSetup('extracting', 'First run: extracting Nexus environment (this may take a few minutes)...');
     }
 
-    const tarGzPath = path.join(process.resourcesPath, 'nexus.tar.gz');
+    // 在开发模式下，使用项目根目录下的 resources 而不是 Electron 的 resources
+    let tarGzPath = path.join(process.resourcesPath, 'nexus.tar.gz');
+    if (!app.isPackaged && !fs.existsSync(tarGzPath)) {
+      // 开发模式：检查项目目录下的 resources
+      const projectResourcesPath = path.join(__dirname, '../../../../resources/nexus.tar.gz'); // 跳过 src/process/services/nexus/
+      if (fs.existsSync(projectResourcesPath)) {
+        tarGzPath = projectResourcesPath;
+      } else {
+        // 如果项目目录下也没有，则尝试其他可能的路径
+        const altPath = path.join(app.getAppPath(), 'resources', 'nexus.tar.gz');
+        if (fs.existsSync(altPath)) {
+          tarGzPath = altPath;
+        }
+      }
+    }
+
     if (!fs.existsSync(tarGzPath)) {
       this.emitSetup('error', `nexus.tar.gz not found at ${tarGzPath}`);
       throw new Error(`[Nexus] nexus.tar.gz not found at ${tarGzPath}`);
@@ -226,13 +235,29 @@ class NexusService {
 
     // Step 1: Extract
     fs.mkdirSync(envDir, { recursive: true });
+    console.log(`[Nexus] Extracting ${tarGzPath} to ${envDir}`);
     await execAsync(`tar -xzf "${tarGzPath}" -C "${envDir}"`);
+    console.log(`[Nexus] Extraction completed`);
 
     // Step 2: Fix hardcoded paths (conda-unpack)
     const condaUnpack = path.join(envDir, 'bin', 'conda-unpack');
+    if (!fs.existsSync(condaUnpack)) {
+      console.error(`[Nexus] conda-unpack script not found at ${condaUnpack}`);
+      throw new Error(`[Nexus] conda-unpack script missing at ${condaUnpack}`);
+    }
+
     fs.chmodSync(condaUnpack, 0o755);
     this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
-    await execAsync(`"${condaUnpack}"`);
+    console.log(`[Nexus] Running conda-unpack at ${condaUnpack}`);
+    try {
+      const { stdout, stderr } = await execAsync(`"${condaUnpack}"`);
+      if (stdout) console.log(`[Nexus] conda-unpack stdout: ${stdout}`);
+      if (stderr) console.error(`[Nexus] conda-unpack stderr: ${stderr}`);
+      console.log(`[Nexus] conda-unpack completed successfully`);
+    } catch (error) {
+      console.error(`[Nexus] conda-unpack failed: ${error.message}`);
+      throw new Error(`[Nexus] conda-unpack failed: ${error.message}`);
+    }
 
     // Step 3: Ensure nexusd is executable
     if (!fs.existsSync(nexusdBin)) {
@@ -240,6 +265,35 @@ class NexusService {
       throw new Error(`[Nexus] nexusd not found at ${nexusdBin} after extraction`);
     }
     fs.chmodSync(nexusdBin, 0o755);
+    console.log(`[Nexus] nexusd executable confirmed at ${nexusdBin}`);
+
+    // Additional check: Verify that the conda environment has the necessary files
+    const pythonPath = path.join(envDir, 'bin', 'python');
+    if (fs.existsSync(pythonPath)) {
+      console.log(`[Nexus] Python executable found at ${pythonPath}`);
+
+      // Check if the nexus module directory exists
+      const sitePackagesPath = path.join(envDir, 'lib', 'python*/site-packages', 'nexus');
+      // Since glob patterns don't work with fs.existsSync, we'll look for the python directory
+      const libDir = path.join(envDir, 'lib');
+      if (fs.existsSync(libDir)) {
+        const pythonDirs = fs.readdirSync(libDir).filter(dir => dir.startsWith('python'));
+        if (pythonDirs.length > 0) {
+          const pythonDir = path.join(libDir, pythonDirs[0]);
+          const sitePackagesDir = path.join(pythonDir, 'site-packages');
+          if (fs.existsSync(sitePackagesDir)) {
+            console.log(`[Nexus] Found site-packages directory at ${sitePackagesDir}`);
+
+            // Look for the nexus package
+            if (fs.readdirSync(sitePackagesDir).some(file => file.startsWith('nexus'))) {
+              console.log(`[Nexus] Found nexus package in site-packages`);
+            } else {
+              console.warn(`[Nexus] nexus package not found in site-packages`);
+            }
+          }
+        }
+      }
+    }
 
     // Step 4: Write version marker
     fs.writeFileSync(markerFile, currentVersion);

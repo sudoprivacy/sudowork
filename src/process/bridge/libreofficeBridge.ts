@@ -44,4 +44,22 @@ export function initLibreOfficeBridge(): void {
       installState = { installing: false };
     }
   });
+
+  ipcBridge.libreOffice.installFromLocalFile.provider(async ({ filePath }) => {
+    installState = { installing: true };
+    try {
+      await libreOfficeService.installFromLocalFile(filePath, (phase, percent) => {
+        installState = { installing: true, phase, percent };
+        ipcBridge.libreOffice.installProgress.emit({ phase, percent });
+      });
+      ipcBridge.libreOffice.installResult.emit({ success: true });
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      ipcBridge.libreOffice.installResult.emit({ success: false, msg });
+      return { success: false, msg };
+    } finally {
+      installState = { installing: false };
+    }
+  });
 }
