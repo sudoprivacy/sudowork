@@ -14,7 +14,16 @@ interface UsePasteServiceProps {
  * 为所有组件提供统一的粘贴处理功能
  */
 export const usePasteService = ({ supportedExts, onFilesAdded, onTextPaste }: UsePasteServiceProps) => {
-  const componentId = useRef('paste-service-' + uuid(4)).current;
+  const componentIdRef = useRef<string | null>(null);
+
+  // 获取或创建 componentId
+  const getComponentId = useCallback(() => {
+    if (!componentIdRef.current) {
+      componentIdRef.current = 'paste-service-' + uuid(4);
+    }
+    return componentIdRef.current;
+  }, []);
+
   // 统一的粘贴事件处理
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent) => {
@@ -38,18 +47,19 @@ export const usePasteService = ({ supportedExts, onFilesAdded, onTextPaste }: Us
 
   // 焦点处理
   const handleFocus = useCallback(() => {
-    PasteService.setLastFocusedComponent(componentId);
-  }, [componentId]);
+    PasteService.setLastFocusedComponent(getComponentId());
+  }, [getComponentId]);
 
   // 注册粘贴处理器
   useEffect(() => {
+    const componentId = getComponentId();
     PasteService.init();
     PasteService.registerHandler(componentId, handlePaste);
 
     return () => {
       PasteService.unregisterHandler(componentId);
     };
-  }, [componentId, handlePaste]);
+  }, [getComponentId, handlePaste]);
 
   return {
     onFocus: handleFocus,

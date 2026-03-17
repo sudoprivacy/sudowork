@@ -58,18 +58,18 @@ export function useSlashCommands(conversationId: string, options: UseSlashComman
     let isCancelled = false;
 
     if (!conversationId) {
-      setCommands([]);
+      setCommands(prev => prev.length > 0 ? [] : prev);
       return;
     }
 
     if (!canUseCachedCommands) {
-      setCommands([]);
+      setCommands(prev => prev.length > 0 ? [] : prev);
       return;
     }
 
     const cached = getCachedCommands(conversationId);
     if (canUseCachedCommands && cached) {
-      setCommands(cached);
+      setCommands(prev => prev !== cached ? cached : prev);
     }
 
     void ipcBridge.conversation.getSlashCommands
@@ -79,18 +79,18 @@ export function useSlashCommands(conversationId: string, options: UseSlashComman
           return;
         }
         if (!response.success || !response.data?.commands) {
-          setCommands([]);
+          setCommands(prev => prev.length > 0 ? [] : prev);
           return;
         }
         setCachedCommands(conversationId, response.data.commands);
-        setCommands(response.data.commands);
+        setCommands(prev => prev !== response.data.commands ? response.data.commands : prev);
       })
       .catch((error) => {
         if (isCancelled || requestId !== requestIdRef.current) {
           return;
         }
         console.error('[useSlashCommands] Failed to load slash commands:', error);
-        setCommands([]);
+        setCommands(prev => prev.length > 0 ? [] : prev);
       });
 
     return () => {

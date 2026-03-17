@@ -69,7 +69,7 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
       setCover('');
       setCss('');
     }
-  }, [theme, visible]);
+  }, [theme]);
 
   /**
    * 处理封面图片上传 / Handle cover image upload

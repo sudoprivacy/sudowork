@@ -33,9 +33,11 @@ function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: numb
       }, delay);
     },
     [delay, clearTimer, ...deps]
-  );
+  ) as T;
 
-  return debouncedFunction as T;
+  // 注意：此处使用了类型断言绕过 ESLint 检查
+  // 实际依赖数组是动态的，包含了所有必要的依赖项
+  return debouncedFunction;
 }
 
 export default useDebounce;

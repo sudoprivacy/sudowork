@@ -142,14 +142,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   // 监听窗口尺寸变化（带防抖）/ Listen to window resize (with debounce)
   useEffect(() => {
     // 初始化移动端状态 / Initialize mobile state
-    handleResize();
+    const initialIsMobile = window.innerWidth < MOBILE_BREAKPOINT;
+    setIsMobile(initialIsMobile);
 
     // 带防抖的 resize 处理器 / Debounced resize handler
     const debouncedResize = () => {
       if (resizeTimerRef.current) {
         window.clearTimeout(resizeTimerRef.current);
       }
-      resizeTimerRef.current = window.setTimeout(handleResize, RESIZE_DEBOUNCE_DELAY);
+      resizeTimerRef.current = window.setTimeout(() => {
+        setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      }, RESIZE_DEBOUNCE_DELAY);
     };
 
     window.addEventListener('resize', debouncedResize);
@@ -159,7 +162,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
         window.clearTimeout(resizeTimerRef.current);
       }
     };
-  }, [handleResize]);
+  }, []);
 
   // Fetch extension-contributed settings tabs when modal opens
   useEffect(() => {
@@ -263,7 +266,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
 
   useEffect(() => {
     if (extensionTabMap.has(activeTab)) {
-      setMountedExtTabs((prev) => {
+      setMountedExtTabs(prev => {
         if (prev.has(activeTab)) return prev;
         const next = new Set(prev);
         next.add(activeTab);
