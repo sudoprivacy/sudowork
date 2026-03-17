@@ -75,7 +75,9 @@
     "invalid": "Please confirm the file is a valid Word document",
     "loadFailed": "Failed to load Word document",
     "libreOfficeRequired": "LibreOffice Required",
-    "libreOfficeRequiredDesc": "Please install LibreOffice to preview Word files"
+    "libreOfficeRequiredDesc": "Please install LibreOffice to preview Word files",
+    "legacyDocFormat": "Unsupported format: This file is a legacy .doc format (not .docx). Please install LibreOffice for better format support, or convert the file to .docx format",
+    "emptyContent": "Unable to extract document content"
   },
   "excel": {
     "title": "Excel Spreadsheet",

@@ -199,9 +199,34 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
   // 🎯 使用流式打字动画 Hook / Use typing animation Hook
   const previewSource = useMemo(() => convertLatexDelimiters(rewriteExternalMediaUrls(content)), [content]);
 
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeTimeoutRef = useRef<number | undefined>(undefined);
+
+  // 监听窗口大小变化，在调整大小时禁用动画以避免闪烁
+  // Listen to window resize, disable animation during resize to avoid flickering
+  useEffect(() => {
+    const handleResize = () => {
+      setIsResizing(true);
+      if (resizeTimeoutRef.current) {
+        window.clearTimeout(resizeTimeoutRef.current);
+      }
+      resizeTimeoutRef.current = window.setTimeout(() => {
+        setIsResizing(false);
+      }, 150);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeoutRef.current) {
+        window.clearTimeout(resizeTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const { displayedContent, isAnimating } = useTypingAnimation({
     content: previewSource,
-    enabled: viewMode === 'preview', // 仅在预览模式下启用 / Only enable in preview mode
+    enabled: viewMode === 'preview' && !isResizing, // 仅在预览模式下启用，窗口调整时禁用动画 / Only enable in preview mode, disable during resize
     speed: 50, // 50 字符/秒 / 50 characters per second
   });
 

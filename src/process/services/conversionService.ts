@@ -35,7 +35,9 @@ class ConversionService {
   /**
    * Word (.docx) -> Markdown
    * 将 Word 文档转换为 Markdown
-   * @deprecated 使用 wordToHtml 以获得更好的格式保真度
+   *
+   * Simple implementation using mammoth + turndown.
+   * This is the same approach as AionUi-main which works without LibreOffice.
    */
   public async wordToMarkdown(filePath: string): Promise<ConversionResult<string>> {
     try {

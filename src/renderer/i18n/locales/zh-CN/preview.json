@@ -75,7 +75,9 @@
     "invalid": "请检查文件是否为有效的 Word 文档",
     "loadFailed": "加载 Word 文档失败",
     "libreOfficeRequired": "需要 LibreOffice",
-    "libreOfficeRequiredDesc": "请安装 LibreOffice 以预览 Word 文件"
+    "libreOfficeRequiredDesc": "请安装 LibreOffice 以预览 Word 文件",
+    "legacyDocFormat": "不支持的格式：此文件是旧版 .doc 格式（非 .docx）。请安装 LibreOffice 以获得更好的格式支持，或将文件转换为 .docx 格式",
+    "emptyContent": "无法提取文档内容"
   },
   "excel": {
     "title": "Excel 表格",

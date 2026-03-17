@@ -66,7 +66,11 @@
     "title": "Word Belgesi",
     "loading": "Word belgesi yükleniyor...",
     "invalid": "Lütfen dosyanın geçerli bir Word belgesi olduğunu onaylayın",
-    "loadFailed": "Word belgesi yüklenemedi"
+    "loadFailed": "Word belgesi yüklenemedi",
+    "libreOfficeRequired": "LibreOffice Gerekli",
+    "libreOfficeRequiredDesc": "Word dosyalarını önizlemek için lütfen LibreOffice yükleyin",
+    "legacyDocFormat": "Desteklenmeyen format: Bu dosya eski .doc formatıdır (.docx değil). Daha iyi format desteği için LibreOffice yükleyin veya dosyayı .docx formatına dönüştürün",
+    "emptyContent": "Belge içeriği çıkarılamıyor"
   },
   "excel": {
     "title": "Excel Tablosu",

@@ -66,7 +66,11 @@
     "title": "Word ドキュメント",
     "loading": "Word ドキュメントを読み込み中...",
     "invalid": "有効な Word ドキュメントか確認してください",
-    "loadFailed": "Word ドキュメントの読み込みに失敗しました"
+    "loadFailed": "Word ドキュメントの読み込みに失敗しました",
+    "libreOfficeRequired": "LibreOffice が必要",
+    "libreOfficeRequiredDesc": "Word ファイルをプレビューするには LibreOffice をインストールしてください",
+    "legacyDocFormat": "サポートされていない形式：このファイルはレガシーな .doc 形式（.docx ではありません）です。より良い形式サポートのために LibreOffice をインストールするか、.docx 形式に変換してください",
+    "emptyContent": "ドキュメントの内容を抽出できません"
   },
   "excel": {
     "title": "Excel スプレッドシート",
