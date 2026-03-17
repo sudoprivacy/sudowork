@@ -69,7 +69,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
           if (response.result.success && response.result.data) {
             setPdfPath(response.result.data as string);
             // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
+            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
           }
         }
       } catch (err) {
