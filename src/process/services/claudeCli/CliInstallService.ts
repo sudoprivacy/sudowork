@@ -161,25 +161,35 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, this.cfg.name);
-    // Use Electron's own Node.js runtime via ELECTRON_RUN_AS_NODE=1 so that
-    // users without a system Node.js installation can still run the CLI.
-    // Fall back to system node if the Electron binary is missing (e.g. dev mode).
+    // Use Electron's own Node.js runtime via ELECTRON_RUN_AS_NODE=1 so users
+    // without a system Node.js installation can still run the CLI.
+    // Try candidates in order: recorded install path → standard locations → system node.
     const electronBin = process.execPath;
     const content = [
       '#!/bin/sh',
       `# ${this.cfg.name} wrapper — managed by Sudowork`,
       `CLI="${entryFile}"`,
-      `ELECTRON="${electronBin}"`,
-      '# Prefer Electron\'s built-in Node.js (no system Node required)',
-      'if [ -x "$ELECTRON" ]; then',
-      '  exec env ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"',
+      'run_with_electron() {',
+      '  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"',
+      '}',
+      '# 1. Path recorded at install time',
+      `if [ -x "${electronBin}" ]; then run_with_electron "${electronBin}" "$@"; fi`,
+      '# 2. Standard macOS install location',
+      'if [ -x "/Applications/Sudowork.app/Contents/MacOS/Sudowork" ]; then',
+      '  run_with_electron "/Applications/Sudowork.app/Contents/MacOS/Sudowork" "$@"',
       'fi',
-      '# Fallback: system Node.js',
+      '# 3. User Applications folder (macOS)',
+      `if [ -x "$HOME/Applications/Sudowork.app/Contents/MacOS/Sudowork" ]; then`,
+      `  run_with_electron "$HOME/Applications/Sudowork.app/Contents/MacOS/Sudowork" "$@"`,
+      'fi',
+      '# 4. Fallback: system Node.js',
       'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
       '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
       '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
       'done',
-      'echo "Error: Node.js not found and Sudowork is not installed. Install Node.js from https://nodejs.org" >&2',
+      'echo "Error: Sudowork not found and Node.js is not installed." >&2',
+      'echo "  - Reinstall Sudowork from https://sudowork.com, or" >&2',
+      'echo "  - Install Node.js from https://nodejs.org" >&2',
       'exit 1',
     ].join('\n') + '\n';
     fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
@@ -187,19 +197,34 @@ export class CliInstallService {
 
   private createWindowsWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
-    // Use Electron's built-in Node.js via ELECTRON_RUN_AS_NODE=1 so that
-    // users without a system Node.js installation can still run the CLI.
+    // Use Electron's built-in Node.js via ELECTRON_RUN_AS_NODE=1.
+    // Try candidates in order: recorded install path → standard locations → system node.
     const electronBin = process.execPath;
+    const localAppData = '%LOCALAPPDATA%';
+    const programFiles = '%ProgramFiles%';
     const content = [
       '@echo off',
-      `set "ELECTRON=${electronBin}"`,
       `set "CLI=${entryFile}"`,
-      'if exist "%ELECTRON%" (',
+      ':: 1. Path recorded at install time',
+      `if exist "${electronBin}" (`,
       '  set ELECTRON_RUN_AS_NODE=1',
-      '  "%ELECTRON%" "%CLI%" %*',
-      ') else (',
-      '  node "%CLI%" %*',
+      `  "${electronBin}" "%CLI%" %*`,
+      '  exit /b %ERRORLEVEL%',
       ')',
+      ':: 2. Standard per-user NSIS install location',
+      `if exist "${localAppData}\\Programs\\Sudowork\\Sudowork.exe" (`,
+      '  set ELECTRON_RUN_AS_NODE=1',
+      `  "${localAppData}\\Programs\\Sudowork\\Sudowork.exe" "%CLI%" %*`,
+      '  exit /b %ERRORLEVEL%',
+      ')',
+      ':: 3. System-wide install location',
+      `if exist "${programFiles}\\Sudowork\\Sudowork.exe" (`,
+      '  set ELECTRON_RUN_AS_NODE=1',
+      `  "${programFiles}\\Sudowork\\Sudowork.exe" "%CLI%" %*`,
+      '  exit /b %ERRORLEVEL%',
+      ')',
+      ':: 4. Fallback: system Node.js',
+      'node "%CLI%" %*',
     ].join('\r\n') + '\r\n';
     fs.writeFileSync(wrapperPath, content);
   }
