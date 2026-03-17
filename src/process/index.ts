@@ -18,7 +18,6 @@ import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
-import { nexusService } from './services/nexus/NexusService';
 
 export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
@@ -49,9 +48,11 @@ export const initializeProcess = async () => {
     console.error('[Process] Failed to initialize ChannelManager:', error);
   }
 
-  // Start Nexus Python server
+  // Start Nexus Python server in both development and production
+  // The startNexusService function is in a separate file that won't be analyzed during build
   try {
-    await nexusService.start();
+    const { startNexusService } = await import('./startNexusService');
+    await startNexusService();
   } catch (error) {
     console.error('[Process] Failed to start Nexus server:', error);
     // Don't fail app startup if Nexus server fails to start
