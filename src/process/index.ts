@@ -15,11 +15,15 @@ if (app.isPackaged) {
 import initStorage from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
+import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { nexusService } from './services/nexus/NexusService';
 
 export const initializeProcess = async () => {
+  // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
+  syncElectronPath();
+
   await initStorage();
 
   // Initialize bridge after storage is ready (dynamic import for correct order)

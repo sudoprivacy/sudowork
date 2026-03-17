@@ -30,8 +30,26 @@ interface CliConfig {
   label: string;
 }
 
-const MANAGED_ROOT = path.join(os.homedir(), '.sudowork', 'cli');
-const BIN_DIR = path.join(os.homedir(), '.sudowork', 'bin');
+const SUDOWORK_DIR = path.join(os.homedir(), '.sudowork');
+const MANAGED_ROOT = path.join(SUDOWORK_DIR, 'cli');
+const BIN_DIR = path.join(SUDOWORK_DIR, 'bin');
+// Stores the Electron binary path so wrappers can find it without hardcoded paths.
+// Updated on every app launch via syncElectronPath().
+const ELECTRON_PATH_FILE = path.join(SUDOWORK_DIR, 'electron-path');
+
+/**
+ * Writes the current Electron binary path to ~/.sudowork/electron-path.
+ * Call this on every app startup so CLI wrappers always have a fresh path
+ * even if the app has been moved or reinstalled.
+ */
+export function syncElectronPath(): void {
+  try {
+    fs.mkdirSync(SUDOWORK_DIR, { recursive: true });
+    fs.writeFileSync(ELECTRON_PATH_FILE, process.execPath, 'utf-8');
+  } catch {
+    // Non-critical — wrapper will fall back to mdfind / system node
+  }
+}
 
 export class CliInstallService {
   private readonly cfg: CliConfig;
@@ -98,6 +116,9 @@ export class CliInstallService {
     fs.mkdirSync(this.installDir, { recursive: true });
     fs.mkdirSync(BIN_DIR, { recursive: true });
 
+    // Keep the electron-path file fresh so wrappers find the binary
+    syncElectronPath();
+
     await execFileAsync('tar', ['-xzf', tgzPath, '-C', this.installDir]);
 
     const entryFile = this.resolveEntryFile();
@@ -161,35 +182,46 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, this.cfg.name);
-    // Use Electron's own Node.js runtime via ELECTRON_RUN_AS_NODE=1 so users
-    // without a system Node.js installation can still run the CLI.
-    // Try candidates in order: recorded install path → standard locations → system node.
-    const electronBin = process.execPath;
+    // Wrapper uses ELECTRON_RUN_AS_NODE=1 so users without system Node.js can
+    // run the CLI. All paths are resolved at runtime — no hardcoded locations.
     const content = [
       '#!/bin/sh',
       `# ${this.cfg.name} wrapper — managed by Sudowork`,
       `CLI="${entryFile}"`,
-      'run_with_electron() {',
+      'ELECTRON_PATH_FILE="$HOME/.sudowork/electron-path"',
+      '',
+      'run_electron() {',
       '  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"',
       '}',
-      '# 1. Path recorded at install time',
-      `if [ -x "${electronBin}" ]; then run_with_electron "${electronBin}" "$@"; fi`,
-      '# 2. Standard macOS install location',
-      'if [ -x "/Applications/Sudowork.app/Contents/MacOS/Sudowork" ]; then',
-      '  run_with_electron "/Applications/Sudowork.app/Contents/MacOS/Sudowork" "$@"',
+      '',
+      '# 1. Path stored by Sudowork (refreshed on every app launch)',
+      'if [ -f "$ELECTRON_PATH_FILE" ]; then',
+      '  ELECTRON=$(cat "$ELECTRON_PATH_FILE")',
+      '  if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi',
       'fi',
-      '# 3. User Applications folder (macOS)',
-      `if [ -x "$HOME/Applications/Sudowork.app/Contents/MacOS/Sudowork" ]; then`,
-      `  run_with_electron "$HOME/Applications/Sudowork.app/Contents/MacOS/Sudowork" "$@"`,
+      '',
+      '# 2. macOS: Spotlight search by bundle ID (works regardless of install location)',
+      'if command -v mdfind >/dev/null 2>&1; then',
+      '  APP=$(mdfind "kMDItemCFBundleIdentifier == \'com.sudowork.app\'" 2>/dev/null | head -1)',
+      '  if [ -n "$APP" ]; then',
+      '    ELECTRON="$APP/Contents/MacOS/Sudowork"',
+      '    if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi',
+      '  fi',
       'fi',
+      '',
+      '# 3. Linux: check if sudowork is in PATH',
+      'if command -v sudowork >/dev/null 2>&1; then',
+      '  run_electron "$(command -v sudowork)" "$@"',
+      'fi',
+      '',
       '# 4. Fallback: system Node.js',
       'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
       '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
       '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
       'done',
+      '',
       'echo "Error: Sudowork not found and Node.js is not installed." >&2',
-      'echo "  - Reinstall Sudowork from https://sudowork.com, or" >&2',
-      'echo "  - Install Node.js from https://nodejs.org" >&2',
+      'echo "  Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org" >&2',
       'exit 1',
     ].join('\n') + '\n';
     fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
@@ -197,33 +229,28 @@ export class CliInstallService {
 
   private createWindowsWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
-    // Use Electron's built-in Node.js via ELECTRON_RUN_AS_NODE=1.
-    // Try candidates in order: recorded install path → standard locations → system node.
-    const electronBin = process.execPath;
-    const localAppData = '%LOCALAPPDATA%';
-    const programFiles = '%ProgramFiles%';
+    // Wrapper uses ELECTRON_RUN_AS_NODE=1. Path is read at runtime from
+    // %USERPROFILE%\.sudowork\electron-path — no hardcoded install locations.
     const content = [
       '@echo off',
+      'setlocal enabledelayedexpansion',
       `set "CLI=${entryFile}"`,
-      ':: 1. Path recorded at install time',
-      `if exist "${electronBin}" (`,
-      '  set ELECTRON_RUN_AS_NODE=1',
-      `  "${electronBin}" "%CLI%" %*`,
-      '  exit /b %ERRORLEVEL%',
+      'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.sudowork\\electron-path"',
+      'set "ELECTRON="',
+      '',
+      ':: 1. Path stored by Sudowork (refreshed on every app launch)',
+      'if exist "%ELECTRON_PATH_FILE%" (',
+      '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"',
       ')',
-      ':: 2. Standard per-user NSIS install location',
-      `if exist "${localAppData}\\Programs\\Sudowork\\Sudowork.exe" (`,
-      '  set ELECTRON_RUN_AS_NODE=1',
-      `  "${localAppData}\\Programs\\Sudowork\\Sudowork.exe" "%CLI%" %*`,
-      '  exit /b %ERRORLEVEL%',
+      'if defined ELECTRON (',
+      '  if exist "!ELECTRON!" (',
+      '    set ELECTRON_RUN_AS_NODE=1',
+      '    "!ELECTRON!" "%CLI%" %*',
+      '    exit /b %ERRORLEVEL%',
+      '  )',
       ')',
-      ':: 3. System-wide install location',
-      `if exist "${programFiles}\\Sudowork\\Sudowork.exe" (`,
-      '  set ELECTRON_RUN_AS_NODE=1',
-      `  "${programFiles}\\Sudowork\\Sudowork.exe" "%CLI%" %*`,
-      '  exit /b %ERRORLEVEL%',
-      ')',
-      ':: 4. Fallback: system Node.js',
+      '',
+      ':: 2. Fallback: system Node.js',
       'node "%CLI%" %*',
     ].join('\r\n') + '\r\n';
     fs.writeFileSync(wrapperPath, content);
