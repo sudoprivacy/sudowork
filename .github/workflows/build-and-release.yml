@@ -252,6 +252,8 @@ jobs:
             release-assets/**/*.zip
             release-assets/**/*.yml
             release-assets/**/*.blockmap
+          # Excluding source distributions that are not compiled binaries
+          # Only upload actual distributables and updater metadata
           generate_release_notes: false
           draft: false
           prerelease: ${{ steps.version.outputs.is_dev == 'true' || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'rc') }}
