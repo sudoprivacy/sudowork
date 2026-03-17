@@ -32,7 +32,9 @@ try {
   const files = fs.readdirSync(tmpDir);
   const tgz = files.find((f) => f.endsWith('.tgz'));
   if (!tgz) throw new Error('npm pack did not produce a .tgz file');
-  fs.renameSync(path.join(tmpDir, tgz), OUTPUT);
+  // Use copy + unlink instead of rename for cross-device compatibility
+  fs.copyFileSync(path.join(tmpDir, tgz), OUTPUT);
+  fs.unlinkSync(path.join(tmpDir, tgz));
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
