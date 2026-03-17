@@ -398,14 +398,7 @@ export interface ILibreOfficeStatus {
   installed: boolean;
   version?: string;
 }
-export type ILibreOfficeInstallPhase =
-  | 'downloading'
-  | 'mounting'
-  | 'copying'
-  | 'unmounting'
-  | 'installing'
-  | 'extracting'
-  | 'cleanup';
+export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 
 export const libreOffice = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ILibreOfficeStatus>, void>('libreoffice.check-installed'),

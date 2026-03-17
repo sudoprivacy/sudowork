@@ -28,14 +28,7 @@ export interface LibreOfficeStatus {
   version?: string;
 }
 
-export type InstallPhase =
-  | 'downloading'
-  | 'mounting'
-  | 'copying'
-  | 'unmounting'
-  | 'installing'
-  | 'extracting'
-  | 'cleanup';
+export type InstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 
 export type ProgressCallback = (phase: InstallPhase, percent?: number) => void;
 
@@ -56,9 +49,7 @@ export class LibreOfficeService {
       return { installed: false };
     }
     try {
-      const { stdout } = await execAsync(
-        `defaults read "${appPath}/Contents/Info.plist" CFBundleShortVersionString`,
-      );
+      const { stdout } = await execAsync(`defaults read "${appPath}/Contents/Info.plist" CFBundleShortVersionString`);
       return { installed: true, version: stdout.trim() || undefined };
     } catch {
       return { installed: true };
@@ -68,10 +59,7 @@ export class LibreOfficeService {
   private async checkInstalledWindows(): Promise<LibreOfficeStatus> {
     const programFiles = process.env['ProgramFiles'] ?? 'C:\\Program Files';
     const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
-    const candidates = [
-      path.join(programFiles, 'LibreOffice', 'program', 'soffice.exe'),
-      path.join(programFilesX86, 'LibreOffice', 'program', 'soffice.exe'),
-    ];
+    const candidates = [path.join(programFiles, 'LibreOffice', 'program', 'soffice.exe'), path.join(programFilesX86, 'LibreOffice', 'program', 'soffice.exe')];
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
         return { installed: true };
