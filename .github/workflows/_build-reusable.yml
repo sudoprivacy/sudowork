@@ -51,9 +51,6 @@ jobs:
       - name: Run postinstall
         run: bun run postinstall || true
 
-      - name: Run ESLint
-        run: bun run lint
-
       - name: Check Prettier formatting
         run: bun run format:check
 

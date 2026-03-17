@@ -184,30 +184,6 @@ dmg:
 afterPack: scripts/afterPack.js
 afterSign: scripts/afterSign.js
 
-linux:
-  target:
-    - target: deb
-      arch: [x64, arm64] # armv7l
-    - target: AppImage
-      arch: [x64, arm64]
-  icon: resources/app.png
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-  category: Utility
-  maintainer: sudowork
-  vendor: sudowork
-  extraResources:
-    # Nexus Python server binary for Linux (build with: bun run nexus:build)
-    - from: nexus/dist/server
-      to: nexus/server
-  synopsis: ${description}
-  description: ${description}
-  desktop:
-    entry:
-      Name: Sudowork
-      Comment: ${description}
-      Icon: sudowork
-      Categories: Office;Utility;
-      MimeType: x-scheme-handler/sudowork;
 
 npmRebuild: false
 buildDependenciesFromSource: false

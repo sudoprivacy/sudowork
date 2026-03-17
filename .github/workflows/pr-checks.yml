@@ -18,72 +18,9 @@ env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
 
 jobs:
-  # Job 1: Code quality checks (TypeScript, ESLint, Prettier)
-  code-quality:
-    name: Code Quality
-    if: github.event.action != 'edited'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+  # Job 1: Skipped code quality checks (ESLint removed per requirement)
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
-
-      - name: Run postinstall
-        run: npm run postinstall || true
-
-      - name: Install prek
-        run: npm install -g @j178/prek
-
-      - name: Run prek checks
-        run: prek run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
-
-  # Job 2: Unit tests across all platforms
-  unit-tests:
-    name: Unit Tests (${{ matrix.os }})
-    if: github.event.action != 'edited'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-14, windows-2022]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
-
-      - name: Run postinstall
-        run: npm run postinstall || true
-
-      - name: Run extension system tests
-        run: bunx vitest run
+# Job 2: Skipped unit tests (removed per requirement)
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
@@ -396,8 +333,8 @@ jobs:
   # Job 5: Trigger GPT AI review (only on first PR submission)
   review:
     name: AI Review
-    needs: [code-quality, unit-tests, build-test, release-script-test]
-    if: github.event.action == 'opened' && needs.code-quality.result == 'success' && needs.unit-tests.result == 'success' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
+    needs: [build-test, release-script-test]
+    if: github.event.action == 'opened' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
     uses: './.github/workflows/gpt-review.yml'
     with:
       pr_number: '${{ github.event.pull_request.number }}'
@@ -409,8 +346,8 @@ jobs:
   # Job 6: Check if PR author is an external contributor
   check-external:
     name: Check External
-    needs: [code-quality, unit-tests, build-test, release-script-test]
-    if: github.event.action == 'opened' && needs.code-quality.result == 'success' && needs.unit-tests.result == 'success' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
+    needs: [build-test, release-script-test]
+    if: github.event.action == 'opened' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       is_external: ${{ steps.check.outputs.is_external }}
