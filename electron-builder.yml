@@ -122,6 +122,7 @@ win:
     - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
     - from: nexus/dist/server.exe
@@ -149,6 +150,7 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
+  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for macOS (build with: bun run nexus:build)
     - from: nexus/dist/server
@@ -187,6 +189,7 @@ linux:
   category: Utility
   maintainer: sudowork
   vendor: sudowork
+  publish: null  # Explicitly disable source code publishing
   extraResources:
     # Nexus Python server binary for Linux (build with: bun run nexus:build)
     - from: nexus/dist/server
