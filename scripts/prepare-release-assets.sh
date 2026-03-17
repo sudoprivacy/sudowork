@@ -71,17 +71,26 @@ echo "==> Writing canonical updater metadata ..."
 [ -n "$WIN_X64_LATEST" ]    && cp -f "$WIN_X64_LATEST"    "$OUTPUT_DIR/latest.yml"
 [ -n "$MAC_X64_LATEST" ]    && cp -f "$MAC_X64_LATEST"    "$OUTPUT_DIR/latest-mac.yml"
 [ -n "$LINUX_X64_LATEST" ]  && cp -f "$LINUX_X64_LATEST"  "$OUTPUT_DIR/latest-linux.yml"
-[ -n "$LINUX_ARM64_LATEST" ] && cp -f "$LINUX_ARM64_LATEST" "$OUTPUT_DIR/latest-linux-arm64.yml"
 
 # ---------------------------------------------------------------------------
-# 4) Architecture-scoped metadata for diagnostics / manual tooling
+# 4) Architecture-scoped metadata for non-x64 architectures
+#
+# electron-updater constructs the yml filename from the channel name set in
+# autoUpdaterService.ts by appending a platform suffix:
+#   macOS:   ${channel}-mac.yml
+#   Linux:   ${channel}-linux.yml
+#   Windows: ${channel}.yml  (no suffix)
+#
+# Channel names in autoUpdaterService.ts:
+#   'arm64'     → arm64-mac.yml (macOS arm64) / arm64-linux.yml (Linux arm64)
+#   'win-arm64' → win-arm64.yml (Windows arm64)
+#   undefined   → standard defaults for x64 (latest-mac.yml / latest.yml / latest-linux.yml)
 # ---------------------------------------------------------------------------
 echo "==> Writing architecture-scoped metadata ..."
 
-[ -n "$WIN_X64_LATEST" ]    && cp -f "$WIN_X64_LATEST"    "$OUTPUT_DIR/latest-win-x64.yml"
-[ -n "$WIN_ARM64_LATEST" ]  && cp -f "$WIN_ARM64_LATEST"  "$OUTPUT_DIR/latest-win-arm64.yml"
-[ -n "$MAC_X64_LATEST" ]    && cp -f "$MAC_X64_LATEST"    "$OUTPUT_DIR/latest-mac-x64.yml"
-[ -n "$MAC_ARM64_LATEST" ]  && cp -f "$MAC_ARM64_LATEST"  "$OUTPUT_DIR/latest-mac-arm64.yml"
+[ -n "$MAC_ARM64_LATEST" ]   && cp -f "$MAC_ARM64_LATEST"   "$OUTPUT_DIR/arm64-mac.yml"
+[ -n "$WIN_ARM64_LATEST" ]   && cp -f "$WIN_ARM64_LATEST"   "$OUTPUT_DIR/win-arm64.yml"
+[ -n "$LINUX_ARM64_LATEST" ] && cp -f "$LINUX_ARM64_LATEST" "$OUTPUT_DIR/arm64-linux.yml"
 
 [ -n "$WIN_X64_DEBUG" ]     && cp -f "$WIN_X64_DEBUG"     "$OUTPUT_DIR/builder-debug-win-x64.yml"
 [ -n "$WIN_ARM64_DEBUG" ]   && cp -f "$WIN_ARM64_DEBUG"   "$OUTPUT_DIR/builder-debug-win-arm64.yml"
@@ -104,7 +113,7 @@ fi
 echo "==> Validating required metadata ..."
 
 MISSING=0
-for required in latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml; do
+for required in latest.yml latest-mac.yml latest-linux.yml; do
   if [ ! -f "$OUTPUT_DIR/$required" ]; then
     echo "::error::Missing required updater metadata: $required"
     MISSING=1

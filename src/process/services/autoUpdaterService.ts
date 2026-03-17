@@ -11,23 +11,32 @@ import { EventEmitter } from 'events';
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
- * Returns undefined for the default channel (Windows x64 / Linux x64).
+ * Returns undefined for the default channel (x64 on all platforms).
+ *
+ * electron-updater constructs the yml filename as:
+ *   macOS:   ${channel}-mac.yml
+ *   Linux:   ${channel}-linux.yml
+ *   Windows: ${channel}.yml  (no platform suffix)
+ *
+ * Channel names are chosen so that the constructed filename matches the release asset:
+ *   'arm64'     on macOS  → arm64-mac.yml
+ *   'arm64'     on Linux  → arm64-linux.yml
+ *   'win-arm64' on Windows → win-arm64.yml
+ *   undefined   (x64)     → latest-mac.yml / latest-linux.yml / latest.yml
  */
 export function getUpdateChannel(): string | undefined {
   const { platform, arch } = process;
   if (platform === 'win32' && arch === 'arm64') {
-    return 'latest-win-arm64';
+    return 'win-arm64';
   }
   if (platform === 'darwin' && arch === 'arm64') {
-    return 'latest-mac-arm64';
-  }
-  if (platform === 'darwin' && arch === 'x64') {
-    return 'latest-mac-x64';
+    return 'arm64';
   }
   if (platform === 'linux' && arch === 'arm64') {
-    return 'latest-linux-arm64';
+    return 'arm64';
   }
-  // Default: Windows x64 and Linux x64 use latest.yml
+  // Default: x64 on all platforms uses the standard channel files:
+  // latest.yml (Windows), latest-mac.yml (macOS), latest-linux.yml (Linux)
   return undefined;
 }
 

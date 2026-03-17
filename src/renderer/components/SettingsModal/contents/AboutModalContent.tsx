@@ -92,7 +92,7 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
   }
 
   return (
-    <div className='flex items-center gap-12px py-14px px-16px rd-8px transition-all duration-150 hover:bg-fill-1'>
+    <div className='flex items-center gap-12px py-14px px-16px transition-all duration-150 hover:bg-fill-1'>
       {/* Left badge */}
       <div className={classNames('w-36px h-36px rd-8px flex items-center justify-center flex-shrink-0 text-10px font-700', row.key === 'nexus' ? 'bg-orange-1 color-orange-6' : row.key === 'claude' ? 'bg-orange-1 color-orange-6' : row.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6')}>{row.badge}</div>
 
@@ -108,16 +108,14 @@ const ToolRowItem: React.FC<{ row: ToolRow }> = ({ row }) => {
       {/* Status */}
       <div className='w-120px flex-shrink-0 flex items-center'>{statusText}</div>
 
-      {/* Action - fixed layout: install slot + refresh button always visible */}
+      {/* Action - conditional layout based on availability of install button */}
       <div className='flex items-center gap-6px flex-shrink-0'>
-        {/* Install slot - always occupies fixed width to keep layout stable */}
-        <div className='w-52px flex justify-end'>
-          {row.onInstall && !installed && (
-            <Button type='primary' size='mini' loading={row.loadState === 'installing'} disabled={row.loadState === 'loading'} onClick={row.onInstall}>
-              安装
-            </Button>
-          )}
-        </div>
+        {/* Install button - only show when not installed */}
+        {row.onInstall && !installed && (
+          <Button type='primary' size='mini' loading={row.loadState === 'installing'} disabled={row.loadState === 'loading'} onClick={row.onInstall}>
+            安装
+          </Button>
+        )}
         {/* Refresh - always visible */}
         <Button type='text' size='mini' disabled={isLoading} onClick={row.onRefresh} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
           刷新

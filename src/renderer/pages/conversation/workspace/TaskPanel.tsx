@@ -71,13 +71,13 @@ export interface Dag {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<TaskStatus, { label: string; color: string; bg: string; border: string; dot: string; pulse?: boolean }> = {
-  pending: { label: '待执行', color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0', dot: '#cbd5e1' },
-  queued: { label: '已入队', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', dot: '#60a5fa' },
-  running: { label: '执行中', color: '#2563eb', bg: '#dbeafe', border: '#93c5fd', dot: '#3b82f6', pulse: true },
-  completed: { label: '已完成', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', dot: '#22c55e' },
-  failed: { label: '失败', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444' },
-  skipped: { label: '已跳过', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb', dot: '#d1d5db' },
-  paused: { label: '已暂停', color: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b' },
+  pending: { label: '待执行', color: 'var(--text-secondary)', bg: 'var(--bg-1)', border: 'var(--bg-3)', dot: 'var(--bg-6)' },
+  queued: { label: '已入队', color: 'var(--primary)', bg: 'var(--color-primary-light-3)', border: 'var(--color-primary-light-1)', dot: 'var(--color-primary)' },
+  running: { label: '执行中', color: 'var(--primary)', bg: 'var(--color-primary-light-2)', border: 'var(--color-primary-light-1)', dot: 'var(--color-primary)', pulse: true },
+  completed: { label: '已完成', color: 'var(--success)', bg: 'var(--color-success-light-3)', border: 'var(--color-success-light-1)', dot: 'var(--color-success)' },
+  failed: { label: '失败', color: 'var(--danger)', bg: 'var(--color-danger-light-3)', border: 'var(--color-danger-light-1)', dot: 'var(--color-danger)' },
+  skipped: { label: '已跳过', color: 'var(--text-tertiary)', bg: 'var(--bg-1)', border: 'var(--bg-3)', dot: 'var(--bg-4)' },
+  paused: { label: '已暂停', color: 'var(--warning)', bg: 'var(--color-warning-light-3)', border: 'var(--color-warning-light-1)', dot: 'var(--color-warning)' },
 };
 
 const TYPE_CFG: Record<TaskType, { icon: string }> = {
@@ -93,12 +93,12 @@ const TYPE_CFG: Record<TaskType, { icon: string }> = {
 };
 
 const DAG_STATUS_COLOR: Record<string, string> = {
-  running: '#58a6ff',
-  completed: '#3fb950',
-  failed: '#f85149',
-  pending: '#8b949e',
-  paused: '#f59e0b',
-  queued: '#60a5fa',
+  running: 'var(--primary)',
+  completed: 'var(--success)',
+  failed: 'var(--danger)',
+  pending: 'var(--text-secondary)',
+  paused: 'var(--warning)',
+  queued: 'var(--color-primary)',
 };
 
 const DAG_STATUS_LABEL: Record<string, string> = {
@@ -189,13 +189,13 @@ function getTaskColumns(tasks: SubTask[]): SubTask[][] {
 }
 
 const DOT_COLOR: Record<TaskStatus, string> = {
-  completed: '#3fb950',
-  running: '#58a6ff',
-  queued: '#60a5fa',
-  failed: '#f85149',
-  pending: '#30363d',
-  skipped: '#444c56',
-  paused: '#f59e0b',
+  completed: 'var(--success)',
+  running: 'var(--primary)',
+  queued: 'var(--color-primary)',
+  failed: 'var(--danger)',
+  pending: 'var(--bg-3)',
+  skipped: 'var(--bg-4)',
+  paused: 'var(--warning)',
 };
 
 const SingleDot: React.FC<{ task: SubTask; size?: number }> = ({ task, size = 10 }) => {
@@ -225,7 +225,7 @@ const PathDisplay: React.FC<{ tasks: SubTask[]; dotSize?: number }> = ({ tasks, 
         const prevDone = i > 0 && cols[i - 1].every((t) => t.status === 'completed');
         return (
           <React.Fragment key={i}>
-            {i > 0 && <div style={{ flexGrow: 1, height: 2, background: prevDone ? '#3fb950' : '#30363d', minWidth: 8 }} />}
+            {i > 0 && <div style={{ flexGrow: 1, height: 2, background: prevDone ? 'var(--success)' : 'var(--bg-3)', minWidth: 8 }} />}
             {colTasks.length === 1 ? (
               <SingleDot task={colTasks[0]} size={dotSize} />
             ) : (
@@ -265,13 +265,13 @@ const DAGEdges: React.FC<{ tasks: SubTask[]; positions: Record<string, NodePos> 
       });
     });
   });
-  const edgeColor = (s: TaskStatus) => (s === 'completed' ? '#3fb950' : s === 'failed' ? '#f85149' : '#444c56');
+  const edgeColor = (s: TaskStatus) => (s === 'completed' ? 'var(--success)' : s === 'failed' ? 'var(--danger)' : 'var(--bg-4)');
   return (
     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {(['default', 'done', 'fail'] as const).map((id) => (
           <marker key={id} id={`cp-arr-fs-${id}`} markerWidth='7' markerHeight='7' refX='5' refY='3.5' orient='auto'>
-            <path d='M 0 1 L 5 3.5 L 0 6 Z' fill={id === 'done' ? '#3fb950' : id === 'fail' ? '#f85149' : '#444c56'} />
+            <path d='M 0 1 L 5 3.5 L 0 6 Z' fill={id === 'done' ? 'var(--success)' : id === 'fail' ? 'var(--danger)' : 'var(--bg-4)'} />
           </marker>
         ))}
       </defs>
@@ -304,8 +304,8 @@ const PanelTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; 
         borderRadius: 8,
         cursor: 'pointer',
         userSelect: 'none',
-        background: selected ? 'var(--color-primary-light-1, #eff6ff)' : task.status === 'failed' ? '#fff8f8' : 'var(--color-bg-1, #fff)',
-        border: `1.5px solid ${selected ? 'var(--color-primary, #3b82f6)' : sc.border}`,
+        background: selected ? 'var(--color-primary-light-1, var(--color-primary-light-1))' : task.status === 'failed' ? 'var(--color-danger-light-3)' : 'var(--color-bg-1, #fff)',
+        border: `1.5px solid ${selected ? 'var(--color-primary, var(--primary))' : sc.border}`,
         boxShadow: selected ? '0 0 0 3px rgba(59,130,246,0.15)' : isRunning ? `0 0 0 2px ${sc.border}` : '0 1px 3px rgba(0,0,0,0.05)',
         padding: '7px 9px',
         display: 'flex',
@@ -323,7 +323,7 @@ const PanelTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; 
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
         <span style={{ fontSize: 13, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>{tc.icon}</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-text-1, #1e293b)', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-text-1, var(--text-primary))', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px', borderRadius: 99, fontSize: 10, fontWeight: 600, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, whiteSpace: 'nowrap' }}>
@@ -354,7 +354,7 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
     return STATUS_CFG[task.status]?.label ?? '';
   };
 
-  const borderColor = selected ? '#58a6ff' : isDone ? '#3fb950' : isRunning ? '#3b82f6' : '#30363d';
+  const borderColor = selected ? 'var(--primary)' : isDone ? 'var(--success)' : isRunning ? 'var(--primary)' : 'var(--bg-3)';
 
   return (
     <div
@@ -367,7 +367,7 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
         minHeight: pos.h,
         borderRadius: 10,
         overflow: 'hidden',
-        background: '#1c2128',
+        background: 'var(--bg-2)',
         border: `1.5px solid ${borderColor}`,
         boxShadow: isRunning ? `0 0 0 1px ${borderColor}, 0 4px 20px rgba(88,166,255,0.12)` : selected ? '0 0 0 3px rgba(88,166,255,0.2)' : '0 4px 14px rgba(0,0,0,0.4)',
         cursor: 'pointer',
@@ -376,10 +376,10 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
       }}
     >
       <div style={{ padding: '14px 16px 10px' }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#c9d1d9', marginBottom: 5, lineHeight: 1.35 }}>{task.name}</div>
-        <div style={{ fontSize: 12, color: '#8b949e' }}>{getSubtitle()}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 5, lineHeight: 1.35 }}>{task.name}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{getSubtitle()}</div>
       </div>
-      <div style={{ background: 'rgba(255,255,255,0.025)', borderTop: '1px solid #30363d', padding: '7px 14px', display: 'flex', justifyContent: 'flex-end', gap: 14 }}>
+      <div style={{ background: 'rgba(255,255,255,0.025)', borderTop: '1px solid var(--bg-3)', padding: '7px 14px', display: 'flex', justifyContent: 'flex-end', gap: 14 }}>
         <button
           className='cp-node-action'
           onClick={(e) => {
@@ -403,7 +403,7 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
         {isFailed && (
           <button
             className='cp-node-action'
-            style={{ color: '#3fb950' }}
+            style={{ color: 'var(--success)' }}
             onClick={(e) => {
               e.stopPropagation();
               onClick(task);
@@ -424,9 +424,9 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
 const MetricRow: React.FC<{ label: string; value?: string | number | null }> = ({ label, value }) => {
   if (value === null || value === undefined) return null;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #30363d' }}>
-      <span style={{ fontSize: 11, color: '#8b949e' }}>{label}</span>
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#c9d1d9', fontFamily: 'monospace' }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--bg-3)' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{value}</span>
     </div>
   );
 };
@@ -435,11 +435,11 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
   const tc = TYPE_CFG[task.type] ?? TYPE_CFG.custom;
   const sc = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
   const m = task.metrics ?? {};
-  const bg = dark ? '#161b22' : 'var(--color-bg-1, #fff)';
-  const border = dark ? '#30363d' : 'var(--bg-3, #e2e8f0)';
-  const titleColor = dark ? '#c9d1d9' : 'var(--color-text-1, #1e293b)';
-  const textSecondary = dark ? '#8b949e' : 'var(--color-text-3, #94a3b8)';
-  const bodyBg = dark ? '#0d1117' : 'var(--color-fill-2, #f8fafc)';
+  const bg = dark ? 'var(--bg-2)' : 'var(--color-bg-1, #fff)';
+  const border = dark ? 'var(--bg-3)' : 'var(--bg-3, #e2e8f0)';
+  const titleColor = dark ? 'var(--text-primary)' : 'var(--color-text-1, #1e293b)';
+  const textSecondary = dark ? 'var(--text-secondary)' : 'var(--color-text-3, #94a3b8)';
+  const bodyBg = dark ? 'var(--bg-base)' : 'var(--color-fill-2, #f8fafc)';
 
   return (
     <div
@@ -473,12 +473,12 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
           </button>
         </div>
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, color: sc.color, background: dark ? 'rgba(0,0,0,0.3)' : sc.bg, border: `1px solid ${dark ? '#30363d' : sc.border}`, whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, color: sc.color, background: dark ? 'rgba(0,0,0,0.3)' : sc.bg, border: `1px solid ${dark ? 'var(--bg-3)' : sc.border}`, whiteSpace: 'nowrap' }}>
             <span style={{ width: 5, height: 5, borderRadius: '50%', background: sc.dot, animation: sc.pulse ? 'copilotPulse 1.4s ease-in-out infinite' : 'none' }} />
             {sc.label}
           </span>
           {task.retry && task.retry.count > 0 && (
-            <span style={{ fontSize: 10, color: '#ef4444', background: dark ? 'rgba(239,68,68,0.1)' : '#fef2f2', border: '1px solid #fecaca', borderRadius: 99, padding: '1px 6px', fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: 'var(--danger)', background: dark ? 'rgba(248,81,73,0.1)' : 'var(--color-danger-light-3)', border: '1px solid var(--color-danger-light-1)', borderRadius: 99, padding: '1px 6px', fontWeight: 600 }}>
               重试 {task.retry.count}/{task.retry.max}
             </span>
           )}
@@ -492,7 +492,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
               {task.dependencies.map((d) => {
                 const dep = dag.tasks.find((t) => t.task_id === d);
                 return (
-                  <span key={d} style={{ padding: '2px 8px', borderRadius: 6, background: dark ? '#0d1117' : dep ? STATUS_CFG[dep.status].bg : '#f1f5f9', border: `1px solid ${border}`, fontSize: 10.5, fontFamily: 'monospace', color: dark ? '#8b949e' : '#475569' }}>
+                  <span key={d} style={{ padding: '2px 8px', borderRadius: 6, background: dark ? 'var(--bg-base)' : dep ? STATUS_CFG[dep.status].bg : 'var(--color-fill-1)', border: `1px solid ${border}`, fontSize: 10.5, fontFamily: 'monospace', color: dark ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
                     {d}
                     {dep ? ` · ${STATUS_CFG[dep.status].label}` : ''}
                   </span>
@@ -504,7 +504,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
         {task.description && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>任务说明</div>
-            <div style={{ fontSize: 11.5, color: dark ? '#8b949e' : '#475569', lineHeight: 1.6, background: bodyBg, borderRadius: 7, padding: 10, border: `1px solid ${border}` }}>{task.description}</div>
+            <div style={{ fontSize: 11.5, color: dark ? 'var(--text-secondary)' : 'var(--text-tertiary)', lineHeight: 1.6, background: bodyBg, borderRadius: 7, padding: 10, border: `1px solid ${border}` }}>{task.description}</div>
           </div>
         )}
         {(m.duration_ms || m.total_tokens) && (
@@ -520,15 +520,15 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
         {task.result?.content && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>执行结果</div>
-            <div style={{ fontSize: 11, color: dark ? '#3fb950' : '#334155', lineHeight: 1.65, background: dark ? 'rgba(63,185,80,0.08)' : '#f0fdf4', border: `1px solid ${dark ? '#3fb950' : '#bbf7d0'}`, borderRadius: 7, padding: 10 }}>{task.result.content}</div>
+            <div style={{ fontSize: 11, color: dark ? 'var(--success)' : 'var(--text-tertiary)', lineHeight: 1.65, background: dark ? 'rgba(63,185,80,0.08)' : 'var(--color-success-light-3)', border: `1px solid ${dark ? 'var(--success)' : 'var(--color-success-light-1)'}`, borderRadius: 7, padding: 10 }}>{task.result.content}</div>
           </div>
         )}
         {task.error?.message && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>错误信息</div>
-            <div style={{ fontSize: 11, lineHeight: 1.6, background: dark ? 'rgba(248,81,73,0.08)' : '#fef2f2', border: `1px solid ${dark ? '#f85149' : '#fecaca'}`, borderRadius: 7, padding: 10 }}>
-              <div style={{ color: '#f85149', fontFamily: 'monospace', wordBreak: 'break-all' }}>{task.error.message}</div>
-              {task.error.code && <div style={{ marginTop: 4, color: '#f87171', fontSize: 10 }}>Code: {task.error.code}</div>}
+            <div style={{ fontSize: 11, lineHeight: 1.6, background: dark ? 'rgba(248,81,73,0.08)' : 'var(--color-danger-light-3)', border: `1px solid ${dark ? 'var(--danger)' : 'var(--color-danger-light-1)'}`, borderRadius: 7, padding: 10 }}>
+              <div style={{ color: 'var(--danger)', fontFamily: 'monospace', wordBreak: 'break-all' }}>{task.error.message}</div>
+              {task.error.code && <div style={{ marginTop: 4, color: 'var(--color-danger-light-1)', fontSize: 10 }}>Code: {task.error.code}</div>}
             </div>
           </div>
         )}
@@ -576,7 +576,7 @@ const DagCardList: React.FC<{
         position: 'fixed',
         inset: 0,
         zIndex: 9998,
-        background: '#0d1117',
+        background: 'var(--bg-base)',
         overflowY: 'auto',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         animation: 'cpFullscreenIn 0.18s ease-out',
@@ -591,16 +591,16 @@ const DagCardList: React.FC<{
           right: 0,
           zIndex: 10,
           height: 52,
-          background: '#161b22',
-          borderBottom: '1px solid #30363d',
+          background: 'var(--bg-2)',
+          borderBottom: '1px solid var(--bg-3)',
           display: 'flex',
           alignItems: 'center',
           padding: '0 16px 0 80px', // 80px left margin clears Mac traffic light buttons
           gap: 10,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#c9d1d9', flex: 1 }}>任务面板</span>
-        <span style={{ fontSize: 12, color: '#555f6e', fontVariantNumeric: 'tabular-nums' }}>{dags.length} 个任务</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>任务面板</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{dags.length} 个任务</span>
         <button
           onClick={onClose}
           title='关闭'
@@ -612,19 +612,19 @@ const DagCardList: React.FC<{
             height: 30,
             borderRadius: 8,
             padding: 0,
-            border: '1px solid #30363d',
+            border: '1px solid var(--bg-3)',
             background: 'transparent',
             cursor: 'pointer',
-            color: '#8b949e',
+            color: 'var(--text-secondary)',
             transition: 'background 0.15s, color 0.15s',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#21262d';
-            (e.currentTarget as HTMLButtonElement).style.color = '#c9d1d9';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            (e.currentTarget as HTMLButtonElement).style.color = '#8b949e';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
           }}
         >
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round'>
@@ -638,7 +638,7 @@ const DagCardList: React.FC<{
         {dags.map((dag, idx) => {
           const isExpanded = expandedSet.has(dag.dag_id);
           const percent = dag.progress.total > 0 ? Math.round((dag.progress.completed / dag.progress.total) * 100) : 0;
-          const accentColor = DAG_STATUS_COLOR[dag.status] ?? '#8b949e';
+          const accentColor = DAG_STATUS_COLOR[dag.status] ?? 'var(--text-secondary)';
           const { positions, canvasW, canvasH } = isExpanded ? computeFullLayout(dag.tasks) : { positions: {}, canvasW: 0, canvasH: 0 };
           const activeSel = selectedTask?.dagId === dag.dag_id ? selectedTask.task : null;
 
@@ -646,8 +646,8 @@ const DagCardList: React.FC<{
             <div
               key={dag.dag_id}
               style={{
-                background: '#161b22',
-                border: `1px solid ${isExpanded ? accentColor + '55' : '#30363d'}`,
+                background: 'var(--bg-2)',
+                border: `1px solid ${isExpanded ? accentColor + '55' : 'var(--bg-3)'}`,
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: isExpanded ? `0 0 30px rgba(0,0,0,0.5), 0 0 0 1px ${accentColor}22` : '0 4px 16px rgba(0,0,0,0.3)',
@@ -664,13 +664,13 @@ const DagCardList: React.FC<{
                   gap: 16,
                   cursor: 'pointer',
                   userSelect: 'none',
-                  borderBottom: isExpanded ? '1px solid #21262d' : 'none',
+                  borderBottom: isExpanded ? '1px solid var(--bg-3)' : 'none',
                 }}
               >
                 {/* Index + Title */}
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: isExpanded ? accentColor : '#555f6e', flexShrink: 0, fontFamily: 'monospace' }}>#{String(idx + 1).padStart(3, '0')}</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#c9d1d9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dag.title}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: isExpanded ? accentColor : 'var(--text-secondary)', flexShrink: 0, fontFamily: 'monospace' }}>#{String(idx + 1).padStart(3, '0')}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dag.title}</span>
                 </div>
 
                 {/* Status + path + percent + chevron */}
@@ -694,7 +694,7 @@ const DagCardList: React.FC<{
                       flexShrink: 0,
                     }}
                   >
-                    <svg width='18' height='18' viewBox='0 0 24 24' style={{ fill: isExpanded ? '#fff' : '#8b949e', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
+                    <svg width='18' height='18' viewBox='0 0 24 24' style={{ fill: isExpanded ? '#fff' : 'var(--text-secondary)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }}>
                       <path d='M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z' />
                     </svg>
                   </div>
@@ -708,8 +708,8 @@ const DagCardList: React.FC<{
                     position: 'relative',
                     height: Math.max(canvasH + 60, 300),
                     overflow: 'auto',
-                    background: '#090c10',
-                    backgroundImage: 'radial-gradient(#1f242c 1px, transparent 1px)',
+                    background: 'var(--bg-3)',
+                    backgroundImage: 'radial-gradient(var(--bg-4) 1px, transparent 1px)',
                     backgroundSize: '30px 30px',
                   }}
                 >
@@ -812,14 +812,14 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
             {dags.map((d) => {
               const p = d.progress.total > 0 ? Math.round((d.progress.completed / d.progress.total) * 100) : 0;
               const sLabel = DAG_STATUS_LABEL[d.status] ?? d.status;
-              const aColor = DAG_STATUS_COLOR[d.status] ?? '#8b949e';
+              const aColor = DAG_STATUS_COLOR[d.status] ?? 'var(--text-secondary)';
               return (
                 <div
                   key={d.dag_id}
                   style={{
-                    background: 'var(--color-bg-2, rgba(22,27,34,0.9))',
+                    background: 'var(--color-bg-2, var(--bg-2))',
                     borderRadius: 10,
-                    border: '1px solid var(--bg-3, #30363d)',
+                    border: '1px solid var(--bg-3, var(--bg-3))',
                     borderTop: `2px solid ${aColor}`,
                     padding: '10px 12px 11px',
                     flexShrink: 0,
@@ -827,8 +827,8 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
                 >
                   {/* Row 1: status + title + STEP */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
-                    <span style={{ fontSize: 11.5, color: 'var(--color-text-3, #8b949e)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                      {sLabel}: <span style={{ color: 'var(--color-text-1, #c9d1d9)', fontWeight: 500 }}>{d.title}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--color-text-3, var(--text-secondary))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {sLabel}: <span style={{ color: 'var(--color-text-1, var(--text-primary))', fontWeight: 500 }}>{d.title}</span>
                     </span>
                     <span style={{ fontSize: 11, color: aColor, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                       STEP {d.progress.completed}/{d.progress.total}
@@ -854,7 +854,7 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
                 left: 0,
                 right: 0,
                 height: 36,
-                background: 'linear-gradient(to bottom, transparent, var(--color-bg-1, #f6f8fa))',
+                background: 'linear-gradient(to bottom, transparent, var(--color-bg-1, var(--bg-1)))',
                 pointerEvents: 'none',
               }}
             />
@@ -899,11 +899,11 @@ const STYLES = `
   }
   .task-panel__card-list::-webkit-scrollbar { width: 3px; }
   .task-panel__card-list::-webkit-scrollbar-track { background: transparent; }
-  .task-panel__card-list::-webkit-scrollbar-thumb { background: var(--bg-3, #30363d); border-radius: 99px; }
-  .task-panel__card-list::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+  .task-panel__card-list::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 99px; }
+  .task-panel__card-list::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
   .cp-node-action {
     font-size: 11px;
-    color: #58a6ff;
+    color: var(--primary);
     cursor: pointer;
     text-decoration: none;
     background: none;
