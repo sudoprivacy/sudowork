@@ -93,7 +93,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         if (response.result.success && response.result.data) {
           setPdfPath(response.result.data as string);
           // 保存到缓存 / Save to cache
-          pdfCache.set(currentFilePath, { pdfPath: response.result.data, timestamp: Date.now() });
+          pdfCache.set(currentFilePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
         }
       } else {
         const response = await ipcBridge.document.convert.invoke({ filePath: currentFilePath, to: 'markdown' });

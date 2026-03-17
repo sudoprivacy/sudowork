@@ -71,14 +71,14 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           if (response.result.success && response.result.data) {
             setPdfPath(response.result.data as string);
             // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
+            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
           }
         } else {
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
           if (response.result.success && response.result.data) {
-            setExcelData(response.result.data);
-            if (response.result.data.sheets.length > 0) {
-              setActiveSheet(response.result.data.sheets[0].name);
+            setExcelData(response.result.data as ExcelWorkbookData);
+            if ((response.result.data as ExcelWorkbookData).sheets.length > 0) {
+              setActiveSheet((response.result.data as ExcelWorkbookData).sheets[0].name);
             }
           }
         }
@@ -145,9 +145,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           }
 
           if (response.result.success && response.result.data) {
-            setExcelData(response.result.data);
-            if (response.result.data.sheets.length > 0) {
-              setActiveSheet(response.result.data.sheets[0].name);
+            setExcelData(response.result.data as ExcelWorkbookData);
+            if ((response.result.data as ExcelWorkbookData).sheets.length > 0) {
+              setActiveSheet((response.result.data as ExcelWorkbookData).sheets[0].name);
             }
           } else {
             throw new Error(response.result.error || t('preview.excel.convertFailed'));
