@@ -21,6 +21,8 @@ const ChatSider: React.FC<{
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} eventPrefix='acp' messageApi={messageApi}></ChatWorkspace>;
   } else if (conversation?.type === 'codex' && conversation.extra?.workspace) {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} eventPrefix='codex' messageApi={messageApi}></ChatWorkspace>;
+  } else if (conversation?.type === 'openclaw-gateway' && conversation.extra?.workspace) {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} eventPrefix='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
   }
 
   if (!workspaceNode) {
