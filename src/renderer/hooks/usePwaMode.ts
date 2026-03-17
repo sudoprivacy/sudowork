@@ -18,9 +18,9 @@ export function usePwaMode(): boolean {
     try {
       const byMedia = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(display-mode: standalone)').matches : false;
       const byIOSStandalone = typeof navigator !== 'undefined' && (navigator as any).standalone === true;
-      setIsPwa(prev => prev !== Boolean(byMedia || byIOSStandalone) ? Boolean(byMedia || byIOSStandalone) : prev);
+      setIsPwa((prev) => (prev !== Boolean(byMedia || byIOSStandalone) ? Boolean(byMedia || byIOSStandalone) : prev));
     } catch {
-      setIsPwa(prev => prev !== false ? false : prev);
+      setIsPwa((prev) => (prev !== false ? false : prev));
     }
   }, []);
 

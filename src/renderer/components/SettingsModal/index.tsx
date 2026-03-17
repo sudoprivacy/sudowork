@@ -266,7 +266,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
 
   useEffect(() => {
     if (extensionTabMap.has(activeTab)) {
-      setMountedExtTabs(prev => {
+      setMountedExtTabs((prev) => {
         if (prev.has(activeTab)) return prev;
         const next = new Set(prev);
         next.add(activeTab);

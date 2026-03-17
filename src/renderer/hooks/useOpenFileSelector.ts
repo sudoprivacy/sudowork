@@ -23,11 +23,11 @@ export function useOpenFileSelector(options: UseOpenFileSelectorOptions): UseOpe
   const openFileSelector = useCallback(() => {
     void ipcBridge.dialog.showOpen
       .invoke({ properties: ['openFile', 'multiSelections'] })
-      .then((files) => {
-        if (!files || files.length === 0) {
+      .then((res) => {
+        if (!res?.success || !res.data || res.data.canceled || res.data.filePaths.length === 0) {
           return;
         }
-        onFilesSelected(files);
+        onFilesSelected(res.data.filePaths);
       })
       .catch((error) => {
         // In WebUI, dialog may fail if DirectorySelectionModal is not rendered

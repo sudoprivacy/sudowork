@@ -91,7 +91,7 @@ export function initNexusBridge(): void {
       const util = await import('util');
 
       const execAsync = util.promisify(exec);
-      const app = await import('electron').then(m => m.app);
+      const app = await import('electron').then((m) => m.app);
 
       // 创建临时目录
       const tempDir = path.join(os.tmpdir(), `nexus-${Date.now()}`);

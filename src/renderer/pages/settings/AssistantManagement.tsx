@@ -1105,11 +1105,11 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 icon={<FolderOpen size={16} />}
                 onClick={async () => {
                   try {
-                    const result = await ipcBridge.dialog.showOpen.invoke({
+                    const res = await ipcBridge.dialog.showOpen.invoke({
                       properties: ['openDirectory', 'multiSelections'],
                     });
-                    if (result && result.length > 0) {
-                      setSkillPath(result.join(', '));
+                    if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+                      setSkillPath(res.data.filePaths.join(', '));
                     }
                   } catch (error) {
                     console.error('Failed to open directory dialog:', error);

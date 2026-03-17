@@ -152,7 +152,8 @@ const Diff2Html = ({ diff, className, title, filePath }: { diff: string; classNa
             __html: diffHtmlContent,
           }}
         ></div>
-        {operatorRef.current && operatorRef.current.parentElement &&
+        {operatorRef.current &&
+          operatorRef.current.parentElement &&
           ReactDOM.createPortal(
             <>
               {/* side-by-side 选项 / Side-by-side option */}

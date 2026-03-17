@@ -20,7 +20,13 @@ export function initDialogBridge(): void {
     const showDialogPromise = parentWindow ? dialog.showOpenDialog(parentWindow, dialogOptions) : dialog.showOpenDialog(dialogOptions);
 
     return showDialogPromise.then((res) => {
-      return res.filePaths;
+      return {
+        success: true,
+        data: {
+          canceled: res.canceled,
+          filePaths: res.filePaths,
+        },
+      };
     });
   });
 }
