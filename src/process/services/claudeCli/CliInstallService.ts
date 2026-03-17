@@ -161,13 +161,47 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, this.cfg.name);
-    const content = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${entryFile}"`, 'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do', '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi', '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi', 'done', 'echo "Error: Node.js not found. Install it from https://nodejs.org" >&2', 'exit 1'].join('\n') + '\n';
+    // Use Electron's own Node.js runtime via ELECTRON_RUN_AS_NODE=1 so that
+    // users without a system Node.js installation can still run the CLI.
+    // Fall back to system node if the Electron binary is missing (e.g. dev mode).
+    const electronBin = process.execPath;
+    const content = [
+      '#!/bin/sh',
+      `# ${this.cfg.name} wrapper — managed by Sudowork`,
+      `CLI="${entryFile}"`,
+      `ELECTRON="${electronBin}"`,
+      '# Prefer Electron\'s built-in Node.js (no system Node required)',
+      'if [ -x "$ELECTRON" ]; then',
+      '  exec env ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"',
+      'fi',
+      '# Fallback: system Node.js',
+      'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
+      '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
+      '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
+      'done',
+      'echo "Error: Node.js not found and Sudowork is not installed. Install Node.js from https://nodejs.org" >&2',
+      'exit 1',
+    ].join('\n') + '\n';
     fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
   }
 
   private createWindowsWrapper(entryFile: string): void {
     const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
-    fs.writeFileSync(wrapperPath, `@echo off\nnode "${entryFile}" %*\n`);
+    // Use Electron's built-in Node.js via ELECTRON_RUN_AS_NODE=1 so that
+    // users without a system Node.js installation can still run the CLI.
+    const electronBin = process.execPath;
+    const content = [
+      '@echo off',
+      `set "ELECTRON=${electronBin}"`,
+      `set "CLI=${entryFile}"`,
+      'if exist "%ELECTRON%" (',
+      '  set ELECTRON_RUN_AS_NODE=1',
+      '  "%ELECTRON%" "%CLI%" %*',
+      ') else (',
+      '  node "%CLI%" %*',
+      ')',
+    ].join('\r\n') + '\r\n';
+    fs.writeFileSync(wrapperPath, content);
   }
 
   private async updateShellConfig(): Promise<void> {
