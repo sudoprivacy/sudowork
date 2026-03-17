@@ -324,8 +324,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         } else if (excelExtensions.includes(ext)) {
           contentType = 'excel';
         } else if (ext === 'csv') {
-          // CSV files use excel viewer but don't require LibreOffice
-          contentType = 'excel';
+          // CSV files are text files, read as text (don't use excel viewer)
+          contentType = 'code';
         } else if (['html', 'htm'].includes(ext)) {
           contentType = 'html';
         } else if (imageExtensions.includes(ext)) {
@@ -344,24 +344,18 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         if (isOfficeFile) {
           isLibreOfficeAvailableForFile = await checkLibreOfficeAvailable();
 
-          // If LibreOffice is not available, downgrade to code preview
-          // 如果 LibreOffice 不可用，降级为代码预览
-          if (!isLibreOfficeAvailableForFile) {
-            contentType = 'code';
-            messageApi.info(t('conversation.workspace.contextMenu.libreOfficeNotAvailable'));
-          }
+          // Viewer components will handle the fallback to CodeViewer
+          // Viewer 组件会处理回退到 CodeViewer 的逻辑
         }
 
         // 根据文件类型读取内容 / Read content based on file type
         if (contentType === 'pdf') {
           content = '';
         } else if (contentType === 'word' || contentType === 'excel' || contentType === 'ppt') {
-          // Office 文件：LibreOffice 可用时留空（由 Viewer 负责转换 PDF）
-          // Office files: Leave empty when LibreOffice is available (Viewer handles PDF conversion)
-          content = '';
-        } else if (isOfficeFile && !isLibreOfficeAvailableForFile) {
-          // Office 文件但 LibreOffice 不可用：读取原始二进制内容用于回退显示
-          // Office file but LibreOffice not available: read raw binary content for fallback display
+          // Office 文件：读取原始二进制内容
+          // Office files: read raw binary content for both LibreOffice available and unavailable cases
+          // Viewer 组件会根据 LibreOffice 可用性决定显示 PDF 还是 CodeViewer
+          // Viewer component will decide to show PDF or CodeViewer based on LibreOffice availability
           try {
             const arrayBuffer = await ipcBridge.fs.readFileBuffer.invoke({ path: nodeData.fullPath });
             const bytes = new Uint8Array(arrayBuffer);

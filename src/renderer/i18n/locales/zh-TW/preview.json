@@ -66,7 +66,11 @@
     "title": "Word 文件",
     "loading": "正在載入 Word 文件...",
     "invalid": "請確認這是有效的 Word 文件",
-    "loadFailed": "載入 Word 文件失敗"
+    "loadFailed": "載入 Word 文件失敗",
+    "libreOfficeRequired": "需要 LibreOffice",
+    "libreOfficeRequiredDesc": "請安裝 LibreOffice 以預覽 Word 文件",
+    "legacyDocFormat": "不支援的格式：此檔案是舊版 .doc 格式（非 .docx）。請安裝 LibreOffice 以獲得更好的格式支援，或將檔案轉換為 .docx 格式",
+    "emptyContent": "無法提取文件內容"
   },
   "excel": {
     "title": "Excel 試算表",

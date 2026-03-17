@@ -66,7 +66,11 @@
     "title": "Word 문서",
     "loading": "Word 문서 로딩 중...",
     "invalid": "유효한 Word 문서인지 확인하세요",
-    "loadFailed": "Word 문서를 불러오지 못했습니다"
+    "loadFailed": "Word 문서를 불러오지 못했습니다",
+    "libreOfficeRequired": "LibreOffice 필요",
+    "libreOfficeRequiredDesc": "Word 파일을 미리보려면 LibreOffice 를 설치하세요",
+    "legacyDocFormat": "지원되지 않는 형식：이 파일은 레거시 .doc 형식 (.docx 아님) 입니다. 더 나은 형식 지원을 위해 LibreOffice 를 설치하거나 .docx 형식으로 변환하세요",
+    "emptyContent": "문서 내용을 추출할 수 없습니다"
   },
   "excel": {
     "title": "Excel 스프레드시트",

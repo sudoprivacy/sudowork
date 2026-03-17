@@ -54,7 +54,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     closeDeleteModal();
     refreshWorkspace();
     emitter.emit(`${eventPrefix}.selected.file`, []);
-  }, [conversation_id, eventPrefix, refreshWorkspace, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, setContextMenu, closeRenameModal, closeDeleteModal]);
+  }, [conversation_id]); // Only depend on conversation_id to avoid infinite loop
 
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
@@ -85,7 +85,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       unsubscribeAcp();
       unsubscribeCodex();
     };
-  }, [conversation_id, eventPrefix, refreshWorkspace]);
+  }, []); // Empty dependency - event listeners are stable, refreshWorkspace is captured from closure
 
   /**
    * 监听手动刷新工作空间事件

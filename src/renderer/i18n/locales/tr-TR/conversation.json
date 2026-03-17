@@ -130,8 +130,7 @@
       "addToChat": "Sohbete ekle",
       "addedToChat": "Sohbete eklendi",
       "openFailed": "Açılamadı",
-      "revealFailed": "İçeren klasör açılamadı",
-      "libreOfficeNotAvailable": "LibreOffice kurulu değil, Office dosyaları metin modunda önizlenecek"
+      "revealFailed": "İçeren klasör açılamadı"
     },
     "expand": "Çalışma Alanını Genişlet",
     "collapse": "Çalışma Alanını Daralt"
