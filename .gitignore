@@ -189,3 +189,6 @@ vx.toml
 .taichuy/
 .worktrees/
 .claude/worktrees/
+
+# Nexus conda environment bundle (downloaded at build time, not committed)
+resources/nexus.tar.gz

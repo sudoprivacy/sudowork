@@ -59,8 +59,15 @@ if (!url) {
 }
 
 if (fs.existsSync(OUTPUT) && !FORCE) {
-  console.log(`[nexus] Already exists: ${OUTPUT}  (use --force to re-download)`);
-  process.exit(0);
+  const existingSize = fs.statSync(OUTPUT).size;
+  if (existingSize >= 1024 * 1024) {
+    // Real file (not a placeholder) — skip download
+    const sizeMb = (existingSize / 1024 / 1024).toFixed(1);
+    console.log(`[nexus] Already exists: ${OUTPUT} (${sizeMb} MB)  (use --force to re-download)`);
+    process.exit(0);
+  }
+  // Placeholder from a previous run — fall through to re-download
+  console.log(`[nexus] Existing file is a placeholder, re-downloading...`);
 }
 
 fs.mkdirSync(RESOURCES_DIR, { recursive: true });
