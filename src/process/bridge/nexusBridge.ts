@@ -18,14 +18,10 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.getStatus.provider(async () => {
     const installed = await dynamicNexusService.checkInstalled();
-    // Use actual port probe so the "About" page always reflects reality,
-    // even when the internal _running flag is stale (e.g. child process exited
-    // but nexusd is still serving, or vice-versa).
-    // TEMPORARY FIX: Using internal state to prevent blocking
-    const running = dynamicNexusService.isRunning;
-    /* ORIGINAL CODE THAT WAS CAUSING BLOCKING:
+    // Use actual process check (by PID/child process object) so the "About" page
+    // always reflects reality, even when the internal _running flag is stale
+    // (e.g. child process exited but nexusd is still serving, or vice-versa).
     const running = await dynamicNexusService.checkActualRunning();
-    */
     return {
       success: true,
       data: {
