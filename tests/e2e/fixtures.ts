@@ -12,6 +12,7 @@
  *
  * Set `E2E_PACKAGED=1` to force packaged mode, or `E2E_DEV=1` to force dev mode.
  */
+/* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture `use` is not a React hook */
 import { test as base, expect, type ElectronApplication, type Page, type TestInfo } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 import path from 'path';

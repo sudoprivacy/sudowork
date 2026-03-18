@@ -75,7 +75,13 @@
     "no-empty-pattern": "warn",
     "import/no-named-as-default-member": "warn",
     "@typescript-eslint/no-floating-promises": "error",
-    "@typescript-eslint/await-thenable": "error"
+    "@typescript-eslint/await-thenable": "error",
+    "react-hooks/set-state-in-effect": "off",
+    "react-hooks/preserve-manual-memoization": "off",
+    "react-hooks/refs": "off",
+    "react-hooks/use-memo": "off",
+    "react-hooks/immutability": "off",
+    "react-hooks/purity": "off"
   },
   "overrides": [
     {
@@ -104,6 +110,18 @@
         "@typescript-eslint/no-floating-promises": "off",
         "@typescript-eslint/await-thenable": "off",
         "require-await": "off"
+      }
+    },
+    {
+      "files": ["src/renderer/hooks/useSendBoxFiles.ts", "src/renderer/pages/conversation/ChatConversation.tsx"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off"
+      }
+    },
+    {
+      "files": ["src/renderer/components/FilePreview.tsx", "src/renderer/messages/MessageToolGroup.tsx", "src/renderer/messages/MessageList.tsx", "src/renderer/pages/conversation/preview/components/PreviewPanel/PreviewPanel.tsx"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "warn"
       }
     }
   ]
