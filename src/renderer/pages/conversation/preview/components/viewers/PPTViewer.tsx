@@ -8,10 +8,9 @@ import { ipcBridge } from '@/common';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
-import CodeViewer from './CodeViewer';
 
 interface PPTPreviewProps {
   filePath?: string;
@@ -26,9 +25,10 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 /**
  * PPT 演示文稿预览组件
  *
- * 优先使用 LibreOffice 转 PDF 预览，如果 LibreOffice 不可用则回退到原始内容显示
+ * 优先使用 LibreOffice 转 PDF 预览，如果 LibreOffice 不可用则引导用户使用系统应用打开
  */
 const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
+  void content;
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = Message.useMessage();
   const toolbarExtrasContext = usePreviewToolbarExtras();
@@ -40,20 +40,38 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   const [refreshing, setRefreshing] = useState(false);
 
   const [useLibreOffice, setUseLibreOffice] = useState<boolean>(false);
+  const messageApiRef = useRef(messageApi);
+
+  useEffect(() => {
+    messageApiRef.current = messageApi;
+  }, [messageApi]);
 
   const handleOpenInSystem = useCallback(async () => {
     if (!filePath) {
-      messageApi.error(t('preview.errors.openWithoutPath'));
+      messageApiRef.current.error(t('preview.errors.openWithoutPath'));
       return;
     }
 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
-      messageApi.info(t('preview.openInSystemSuccess'));
+      messageApiRef.current.info(t('preview.openInSystemSuccess'));
     } catch (err) {
-      messageApi.error(t('preview.openInSystemFailed'));
+      messageApiRef.current.error(t('preview.openInSystemFailed'));
     }
-  }, [filePath, messageApi, t]);
+  }, [filePath, t]);
+
+  const handleShowInFolder = useCallback(async () => {
+    if (!filePath) {
+      messageApiRef.current.error(t('preview.errors.openWithoutPath'));
+      return;
+    }
+
+    try {
+      await ipcBridge.shell.showItemInFolder.invoke(filePath);
+    } catch (err) {
+      messageApiRef.current.error(t('preview.openInSystemFailed'));
+    }
+  }, [filePath, t]);
 
   const handleRefresh = useCallback(async () => {
     if (filePath) {
@@ -74,7 +92,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
         }
       } catch (err) {
         try {
-          messageApi.error(t('preview.ppt.loadFailed'));
+          messageApiRef.current.error(t('preview.ppt.loadFailed'));
         } catch (e) {
           // Ignore if messageApi is not initialized
         }
@@ -83,7 +101,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
         setRefreshing(false);
       }
     }
-  }, [filePath, useLibreOffice, messageApi, t]);
+  }, [filePath, useLibreOffice, t]);
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -128,13 +146,15 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
           } else {
             throw new Error(response.result.error || t('preview.ppt.loadFailed'));
           }
+        } else {
+          setPdfPath(undefined);
         }
       } catch (err) {
         const defaultMessage = t('preview.ppt.loadFailed');
         const errorMessage = err instanceof Error ? err.message : defaultMessage;
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
         try {
-          messageApi.error(errorMessage);
+          messageApiRef.current.error(errorMessage);
         } catch (e) {
           // Ignore if messageApi is not initialized
         }
@@ -144,7 +164,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     };
 
     void loadDocument();
-  }, [filePath, t, messageApi]);
+  }, [filePath, t]);
 
   useEffect(() => {
     if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
@@ -196,6 +216,32 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     );
   }
 
+  if (!useLibreOffice) {
+    return (
+      <div className='h-full w-full bg-bg-1 flex items-center justify-center'>
+        {messageContextHolder}
+        <div className='text-center max-w-400px px-24px'>
+          <div className='text-48px mb-16px'>📊</div>
+          <div className='text-16px text-t-primary font-medium mb-8px'>{t('preview.pptTitle')}</div>
+          <div className='text-13px text-t-secondary mb-24px'>{t('preview.pptOpenHint')}</div>
+
+          {filePath && (
+            <div className='flex items-center justify-center gap-12px'>
+              <Button size='small' onClick={handleOpenInSystem}>
+                <span>{t('preview.pptOpenFile')}</span>
+              </Button>
+              <Button size='small' onClick={handleShowInFolder}>
+                {t('preview.pptShowLocation')}
+              </Button>
+            </div>
+          )}
+
+          <div className='text-11px text-t-tertiary mt-16px'>{t('preview.pptSystemAppHint')}</div>
+        </div>
+      </div>
+    );
+  }
+
   if (useLibreOffice && pdfPath) {
     return (
       <div className='h-full w-full flex flex-col bg-bg-1'>
@@ -231,22 +277,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     );
   }
 
-  return (
-    <div className='h-full w-full flex flex-col bg-bg-1'>
-      {messageContextHolder}
-      {!usePortalToolbar && !hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b border-border-1'>
-          <div className='flex items-center gap-8px'>
-            <span className='text-13px text-t-secondary'>📊 {t('preview.pptTitle')}</span>
-            <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
-          </div>
-        </div>
-      )}
-      <div className='flex-1 overflow-hidden'>
-        <CodeViewer content={content || ''} language='plaintext' hideToolbar />
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export default PPTPreview;
