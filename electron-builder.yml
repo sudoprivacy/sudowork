@@ -130,8 +130,6 @@ win:
 #    - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-  extraResources:
-    # Nexus Python server binary for Windows (build with: bun run nexus:build:win)
 
 nsis:
   oneClick: false
@@ -153,8 +151,6 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
-  extraResources:
-    # No nexus conda-packed environment - now using dynamic download
 
 dmg:
   # Use UDZO format which is more reliable on CI
