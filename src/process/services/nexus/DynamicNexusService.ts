@@ -310,9 +310,18 @@ class DynamicNexusService {
    * (e.g. child exited but an orphaned process is still serving).
    */
   async checkActualRunning(): Promise<boolean> {
-    if (this._running) return true;
-    if (this._port <= 0) return false;
-    return this.isPortInUse(this._port);
+    // Check if the process is actually running by verifying the process object exists
+    // and hasn't exited, which is more reliable than port checking
+    if (this.process && !this.process.killed && this._running) {
+      return true;
+    }
+
+    // If process object is gone but we think it's running, update our internal state
+    if (this._running) {
+      this._running = false;
+    }
+
+    return false;
   }
 
   private findFreePort(): Promise<number> {
