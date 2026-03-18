@@ -43,12 +43,21 @@ try {
   if (process.platform === 'win32') {
     // On Windows, tar has issues with cross-drive paths.
     // Create tarball in tmpDir first, then copy to destination.
+    // Also, tar may report "file changed as we read it" and exit with code 1,
+    // but the archive is still valid. We check if the file was created instead.
     const tmpOutput = path.join(tmpDir, 'claude-code.tgz');
-    execSync(`tar -czf claude-code.tgz .`, {
-      cwd: tmpDir,
-      stdio: 'inherit',
-      shell: true
-    });
+    try {
+      execSync(`tar -czf claude-code.tgz .`, {
+        cwd: tmpDir,
+        stdio: 'inherit',
+        shell: true
+      });
+    } catch (e) {
+      // tar may exit with code 1 if files changed during read, but archive is still valid
+      if (!fs.existsSync(tmpOutput)) {
+        throw e;
+      }
+    }
     fs.copyFileSync(tmpOutput, OUTPUT);
   } else {
     execSync(`tar -czf "${OUTPUT}" -C "${tmpDir}" .`, { stdio: 'inherit' });
