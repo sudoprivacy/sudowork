@@ -41,43 +41,45 @@ export function initNexusBridge(): void {
 
   // Register the progress callback when install is initiated
   ipcBridge.nexus.install.provider(async () => {
-    return new Promise(async (resolve) => {
-      try {
-        console.log('[NexusBridge] Starting Nexus installation...');
+    return new Promise((resolve) => {
+      void (async () => {
+        try {
+          console.log('[NexusBridge] Starting Nexus installation...');
 
-        // Register a one-time progress listener
-        const progressHandler = (status: NexusSetupStatus) => {
-          // Emit progress event to renderer
-          ipcBridge.nexus.installProgress.emit({
-            phase: status.stage as any,
-            message: status.message,
-            percent: status.percent,
-          });
-        };
+          // Register a one-time progress listener
+          const progressHandler = (status: NexusSetupStatus) => {
+            // Emit progress event to renderer
+            ipcBridge.nexus.installProgress.emit({
+              phase: status.stage as any,
+              message: status.message,
+              percent: status.percent,
+            });
+          };
 
-        dynamicNexusService.onSetupStatus(progressHandler);
+          dynamicNexusService.onSetupStatus(progressHandler);
 
-        await dynamicNexusService.install();
-        console.log('[NexusBridge] Nexus installation completed, starting service...');
+          await dynamicNexusService.install();
+          console.log('[NexusBridge] Nexus installation completed, starting service...');
 
-        // 安装完成后自动启动服务
-        await dynamicNexusService.start();
-        console.log('[NexusBridge] Nexus service started successfully');
+          // 安装完成后自动启动服务
+          await dynamicNexusService.start();
+          console.log('[NexusBridge] Nexus service started successfully');
 
-        resolve({ success: true, msg: 'Nexus 安装并启动成功' });
+          resolve({ success: true, msg: 'Nexus 安装并启动成功' });
 
-        setTimeout(() => {
-          ipcBridge.nexus.installResult.emit({ success: true, msg: 'Nexus 安装并启动成功' });
-        }, 100);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error('[NexusBridge] Error during Nexus installation/startup:', err);
-        resolve({ success: false, msg: errorMsg });
+          setTimeout(() => {
+            ipcBridge.nexus.installResult.emit({ success: true, msg: 'Nexus 安装并启动成功' });
+          }, 100);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error('[NexusBridge] Error during Nexus installation/startup:', err);
+          resolve({ success: false, msg: errorMsg });
 
-        setTimeout(() => {
-          ipcBridge.nexus.installResult.emit({ success: false, msg: errorMsg });
-        }, 100);
-      }
+          setTimeout(() => {
+            ipcBridge.nexus.installResult.emit({ success: false, msg: errorMsg });
+          }, 100);
+        }
+      })();
     });
   });
 
