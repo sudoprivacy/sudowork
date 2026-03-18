@@ -42,14 +42,15 @@ try {
   console.log('[gemini-cli] Creating tarball...');
 
   if (process.platform === 'win32') {
-    // On Windows, tar has issues with -C flag and drive letters.
-    // Work around by changing to tmpDir and using a relative output path.
-    const outputForward = OUTPUT.replace(/\\/g, '/');
-    execSync(`tar -czf "${outputForward}" .`, {
+    // On Windows, tar has issues with cross-drive paths.
+    // Create tarball in tmpDir first, then copy to destination.
+    const tmpOutput = path.join(tmpDir, 'gemini-cli.tgz');
+    execSync(`tar -czf gemini-cli.tgz .`, {
       cwd: tmpDir,
       stdio: 'inherit',
       shell: true
     });
+    fs.copyFileSync(tmpOutput, OUTPUT);
   } else {
     execSync(`tar -czf "${OUTPUT}" -C "${tmpDir}" .`, { stdio: 'inherit' });
   }
