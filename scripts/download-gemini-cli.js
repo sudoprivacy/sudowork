@@ -40,11 +40,19 @@ try {
   // 3. Create a tarball of the entire directory (including node_modules)
   // We name the root folder 'package' inside the tgz to keep compatibility with existing extraction logic
   console.log('[gemini-cli] Creating tarball...');
-  const tarCommand = process.platform === 'win32' 
-    ? `tar -czf "${OUTPUT}" -C "${tmpDir}" .` 
-    : `tar -czf "${OUTPUT}" -C "${tmpDir}" .`;
-  
-  execSync(tarCommand, { stdio: 'inherit' });
+
+  if (process.platform === 'win32') {
+    // On Windows, tar has issues with -C flag and drive letters.
+    // Work around by changing to tmpDir and using a relative output path.
+    const outputForward = OUTPUT.replace(/\\/g, '/');
+    execSync(`tar -czf "${outputForward}" .`, {
+      cwd: tmpDir,
+      stdio: 'inherit',
+      shell: true
+    });
+  } else {
+    execSync(`tar -czf "${OUTPUT}" -C "${tmpDir}" .`, { stdio: 'inherit' });
+  }
 
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
