@@ -977,10 +977,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   if (eventPrefix === 'openclaw-gateway') {
                     emitter.emit('openclaw-gateway.selected.file', conversation_id, items);
                   } else {
-                    emitter.emit(
-                      `${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file',
-                      items
-                    );
+                    emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', items);
                   }
                 }}
                 onExpand={(keys) => {

@@ -290,8 +290,7 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
       const conv = await ipcBridge.conversation.get.invoke({ id: conversation_id });
       effectiveWorkspace = (conv?.extra as { workspace?: string })?.workspace ?? '';
     }
-    const filesToSend =
-      explicitFiles.length > 0 ? explicitFiles : effectiveWorkspace ? [effectiveWorkspace] : [];
+    const filesToSend = explicitFiles.length > 0 ? explicitFiles : effectiveWorkspace ? [effectiveWorkspace] : [];
 
     const filePaths = filesToSend;
     const displayMessage = buildDisplayMessage(message, filePaths, effectiveWorkspace || workspacePath);
