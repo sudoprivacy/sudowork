@@ -21,7 +21,11 @@ export function initNexusBridge(): void {
     // Use actual port probe so the "About" page always reflects reality,
     // even when the internal _running flag is stale (e.g. child process exited
     // but nexusd is still serving, or vice-versa).
+    // TEMPORARY FIX: Using internal state to prevent blocking
+    const running = dynamicNexusService.isRunning;
+    /* ORIGINAL CODE THAT WAS CAUSING BLOCKING:
     const running = await dynamicNexusService.checkActualRunning();
+    */
     return {
       success: true,
       data: {

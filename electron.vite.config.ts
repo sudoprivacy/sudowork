@@ -163,7 +163,8 @@ export default defineConfig(({ mode }) => {
         // that go missing on the next optimise run, producing a 404 and crashing
         // the lazy-loaded conversation page. Excluding it forces Vite to serve the
         // file directly via @fs without creating any extra chunks.
-        exclude: ['electron', 'streamdown'],
+        // TEMPORARY FIX: Exclude electron only until further investigation
+        exclude: ['electron'], // ORIGINAL: ['electron', 'streamdown'],
         include: ['react', 'react-dom', 'react-router-dom', 'react-i18next', 'i18next', '@arco-design/web-react', '@icon-park/react', 'react-markdown', 'react-syntax-highlighter', 'react-virtuoso', 'classnames', 'swr', 'eventemitter3', 'katex', 'diff2html', 'remark-gfm', 'remark-math', 'remark-breaks', 'rehype-raw', 'rehype-katex'],
       },
     },

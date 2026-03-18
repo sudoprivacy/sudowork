@@ -310,9 +310,15 @@ class DynamicNexusService {
    * (e.g. child exited but an orphaned process is still serving).
    */
   async checkActualRunning(): Promise<boolean> {
+    // TEMPORARY FIX: Just return internal state to prevent blocking
+    // Original functionality commented out due to performance issues
+    return this._running;
+
+    /* ORIGINAL CODE THAT WAS CAUSING BLOCKING:
     if (this._running) return true;
     if (this._port <= 0) return false;
     return this.isPortInUse(this._port);
+    */
   }
 
   private findFreePort(): Promise<number> {
