@@ -1,8 +1,6 @@
 /**
- * Downloads @google/gemini-cli as a tgz into resources/
+ * Downloads @google/gemini-cli and its dependencies into a tgz in resources/
  * so it can be bundled as an extraResource in the packaged Electron app.
- *
- * Usage: node scripts/download-gemini-cli.js [--force]
  */
 
 const { execSync } = require('child_process');
@@ -24,19 +22,32 @@ fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 console.log('[gemini-cli] Fetching latest version info...');
 const info = JSON.parse(execSync('npm show @google/gemini-cli --json').toString());
 const version = info.version;
-console.log(`[gemini-cli] Downloading @google/gemini-cli@${version}...`);
+console.log(`[gemini-cli] Preparing self-contained bundle for @google/gemini-cli@${version}...`);
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-'));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-build-'));
 try {
-  execSync(`npm pack @google/gemini-cli@${version}`, { cwd: tmpDir, stdio: 'inherit' });
-  const files = fs.readdirSync(tmpDir);
-  const tgz = files.find((f) => f.endsWith('.tgz'));
-  if (!tgz) throw new Error('npm pack did not produce a .tgz file');
-  // Use copy + unlink instead of rename for cross-device compatibility
-  fs.copyFileSync(path.join(tmpDir, tgz), OUTPUT);
-  fs.unlinkSync(path.join(tmpDir, tgz));
+  // 1. Initialize a dummy package.json
+  fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'gemini-cli-bundle' }));
+  
+  // 2. Install the package with all its production dependencies
+  console.log('[gemini-cli] Installing dependencies (this may take a minute)...');
+  execSync(`npm install @google/gemini-cli@${version} --production --no-save`, { 
+    cwd: tmpDir, 
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production' }
+  });
+
+  // 3. Create a tarball of the entire directory (including node_modules)
+  // We name the root folder 'package' inside the tgz to keep compatibility with existing extraction logic
+  console.log('[gemini-cli] Creating tarball...');
+  const tarCommand = process.platform === 'win32' 
+    ? `tar -czf "${OUTPUT}" -C "${tmpDir}" .` 
+    : `tar -czf "${OUTPUT}" -C "${tmpDir}" .`;
+  
+  execSync(tarCommand, { stdio: 'inherit' });
+
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-console.log(`[gemini-cli] Saved to ${OUTPUT}`);
+console.log(`[gemini-cli] Saved self-contained bundle to ${OUTPUT}`);

@@ -192,3 +192,5 @@ vx.toml
 
 # Nexus conda environment bundle (downloaded at build time, not committed)
 resources/nexus.tar.gz
+resources/claude-code.tgz
+resources/gemini-cli.tgz

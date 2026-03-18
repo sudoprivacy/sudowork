@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
+import * as tar from 'tar';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -54,12 +55,10 @@ export function syncElectronPath(): void {
 export class CliInstallService {
   private readonly cfg: CliConfig;
   private readonly installDir: string;
-  private readonly pkgDir: string;
 
   constructor(cfg: CliConfig) {
     this.cfg = cfg;
     this.installDir = path.join(MANAGED_ROOT, cfg.name);
-    this.pkgDir = path.join(this.installDir, 'package');
   }
 
   async checkInstalled(): Promise<CliStatus> {
@@ -75,8 +74,12 @@ export class CliInstallService {
     try {
       const cmd = process.platform === 'win32' ? `where ${this.cfg.name}` : `which ${this.cfg.name}`;
       const { stdout } = await execAsync(cmd);
-      const p = stdout.trim();
-      if (p) return { installed: true, path: p, source: 'system', version: await this.getVersionFromPath(p) };
+      const paths = stdout.trim().split(/\r?\n/);
+      // Filter out our own managed bin from system check if it's there
+      const systemPath = paths.find((p) => !p.startsWith(BIN_DIR));
+      if (systemPath) {
+        return { installed: true, path: systemPath, source: 'system', version: await this.getVersionFromPath(systemPath) };
+      }
     } catch {
       // not in PATH
     }
@@ -86,7 +89,10 @@ export class CliInstallService {
 
   /** Read version from the installed package.json — always works regardless of PATH */
   private getManagedVersion(): string | undefined {
-    const pkgJson = path.join(this.pkgDir, 'package.json');
+    const pkgName = this.cfg.npmPackage.startsWith('@') 
+      ? this.cfg.npmPackage.split('@').slice(1, 3).join('@') 
+      : this.cfg.npmPackage.split('@')[0];
+    const pkgJson = path.join(this.installDir, 'node_modules', pkgName, 'package.json');
     if (!fs.existsSync(pkgJson)) return undefined;
     try {
       return JSON.parse(fs.readFileSync(pkgJson, 'utf-8')).version ?? undefined;
@@ -119,10 +125,14 @@ export class CliInstallService {
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
 
-    await execFileAsync('tar', ['-xzf', tgzPath, '-C', this.installDir]);
+    // Use node-tar for cross-platform reliability (no dependency on system 'tar')
+    await tar.x({
+      file: tgzPath,
+      cwd: this.installDir,
+    });
 
     const entryFile = this.resolveEntryFile();
-    if (!entryFile) throw new Error(`Cannot determine CLI entry file in ${this.pkgDir}`);
+    if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
 
     if (process.platform === 'win32') {
       this.createWindowsWrapper(entryFile);
@@ -167,14 +177,21 @@ export class CliInstallService {
 
   /** Read bin entry from extracted package.json to find the CLI entry file */
   private resolveEntryFile(): string | null {
-    const pkgJson = path.join(this.pkgDir, 'package.json');
+    // The self-contained bundle has the target package inside node_modules
+    // e.g. installDir/node_modules/@google/gemini-cli/package.json
+    const pkgName = this.cfg.npmPackage.startsWith('@') 
+      ? this.cfg.npmPackage.split('@').slice(1, 3).join('@') 
+      : this.cfg.npmPackage.split('@')[0];
+    const pkgPath = path.join(this.installDir, 'node_modules', pkgName);
+    const pkgJson = path.join(pkgPath, 'package.json');
+
     if (!fs.existsSync(pkgJson)) return null;
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf-8'));
       const bin = pkg.bin;
       if (!bin) return null;
       const entry = typeof bin === 'string' ? bin : (Object.values(bin)[0] as string);
-      return path.join(this.pkgDir, entry);
+      return path.join(pkgPath, entry);
     } catch {
       return null;
     }
@@ -189,7 +206,7 @@ export class CliInstallService {
         '#!/bin/sh',
         `# ${this.cfg.name} wrapper — managed by Sudowork`,
         `CLI="${entryFile}"`,
-        'ELECTRON_PATH_FILE="$HOME/.sudowork/electron-path"',
+        `ELECTRON_PATH_FILE="$HOME/.sudowork/electron-path"`,
         '',
         'run_electron() {',
         '  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"',
@@ -232,15 +249,60 @@ export class CliInstallService {
     const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
     // Wrapper uses ELECTRON_RUN_AS_NODE=1. Path is read at runtime from
     // %USERPROFILE%\.sudowork\electron-path — no hardcoded install locations.
-    const content = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${entryFile}"`, 'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.sudowork\\electron-path"', 'set "ELECTRON="', '', ':: 1. Path stored by Sudowork (refreshed on every app launch)', 'if exist "%ELECTRON_PATH_FILE%" (', '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"', ')', 'if defined ELECTRON (', '  if exist "!ELECTRON!" (', '    set ELECTRON_RUN_AS_NODE=1', '    "!ELECTRON!" "%CLI%" %*', '    exit /b %ERRORLEVEL%', '  )', ')', '', ':: 2. Fallback: system Node.js', 'node "%CLI%" %*'].join('\r\n') + '\r\n';
+    const content =
+      [
+        '@echo off',
+        'setlocal enabledelayedexpansion',
+        `set "CLI=${entryFile}"`,
+        'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.sudowork\\electron-path"',
+        'set "ELECTRON="',
+        '',
+        ':: 1. Path stored by Sudowork (refreshed on every app launch)',
+        'if exist "%ELECTRON_PATH_FILE%" (',
+        '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"',
+        ')',
+        'if defined ELECTRON (',
+        '  if exist "!ELECTRON!" (',
+        '    set ELECTRON_RUN_AS_NODE=1',
+        '    "!ELECTRON!" "%CLI%" %*',
+        '    exit /b %ERRORLEVEL%',
+        '  )',
+        ')',
+        '',
+        ':: 2. Fallback: system Node.js',
+        'where node >nul 2>nul',
+        'if %ERRORLEVEL% equ 0 (',
+        '  node "%CLI%" %*',
+        '  exit /b %ERRORLEVEL%',
+        ')',
+        '',
+        'echo Error: Sudowork not found and Node.js is not installed.',
+        'echo   Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org',
+        'exit /b 1',
+      ].join('\r\n') + '\r\n';
     fs.writeFileSync(wrapperPath, content);
   }
 
   private async updateShellConfig(): Promise<void> {
     if (process.platform === 'win32') {
-      const current = process.env.PATH ?? '';
-      if (!current.split(path.delimiter).includes(BIN_DIR)) {
-        await execFileAsync('setx', ['PATH', `${current}${path.delimiter}${BIN_DIR}`]);
+      // Use PowerShell to safely update the User PATH without the 1024-char limit of setx.
+      // We check if it's already there first to avoid duplication.
+      const psCommand = `
+        $binDir = "${BIN_DIR}"
+        $path = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if ($path -split ';' -notcontains $binDir) {
+          $newPath = if ([string]::IsNullOrWhiteSpace($path)) { $binDir } else { "$path;$binDir" }
+          [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+        }
+      `
+        .replace(/\n/g, ' ')
+        .trim();
+
+      try {
+        await execFileAsync('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand]);
+      } catch (err) {
+        console.error('[CLI] Failed to update Windows PATH via PowerShell:', err);
+        // Fallback to notifying user or trying setx (though setx is risky)
       }
       return;
     }
