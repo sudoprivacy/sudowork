@@ -287,7 +287,7 @@ class DynamicNexusService {
   }
 
   private async downloadFileWithRetry(url: string, dest: string, maxRetries = 3, onPercent?: (percent: number) => void): Promise<void> {
-    const https = require('https');
+    const https = await import('https');
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -305,7 +305,9 @@ class DynamicNexusService {
                 file.close(() => {
                   try {
                     fs.unlinkSync(dest);
-                  } catch (_) {}
+                  } catch (_) {
+                    // Ignore error when unlinking destination during redirect
+                  }
                   // resolve/reject is delegated to the recursive call; skip outer success log
                   this.downloadFileWithRetry(redirectUrl, dest, 1, onPercent).then(resolve).catch(reject);
                 });

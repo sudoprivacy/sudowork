@@ -200,8 +200,6 @@ export class LibreOfficeService {
       const src = path.join(mountPoint, appEntry).replace(/'/g, "'\\''");
       const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
       await execFileAsync('osascript', ['-e', script]);
-    } catch (err) {
-      throw err;
     } finally {
       if (mountPoint) {
         onProgress('unmounting');
@@ -247,8 +245,6 @@ export class LibreOfficeService {
       onProgress('installing');
       // /passive shows a minimal progress UI and triggers UAC elevation automatically
       await execFileAsync('msiexec', ['/i', filePath, '/passive', '/norestart']);
-    } catch (err) {
-      throw err;
     } finally {
       onProgress('cleanup');
     }
@@ -312,8 +308,6 @@ export class LibreOfficeService {
       const debPaths = debFiles.map((f) => path.join(debsDir, f));
       // pkexec shows a graphical privilege escalation dialog
       await execFileAsync('pkexec', ['dpkg', '-i', ...debPaths]);
-    } catch (err) {
-      throw err;
     } finally {
       try {
         if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
@@ -399,8 +393,6 @@ export class LibreOfficeService {
       const src = path.join(mountPoint, appEntry).replace(/'/g, "'\\''");
       const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
       await execFileAsync('osascript', ['-e', script]);
-    } catch (err) {
-      throw err;
     } finally {
       if (mountPoint) {
         onProgress('unmounting');
@@ -419,8 +411,6 @@ export class LibreOfficeService {
       onProgress('installing');
       // /passive shows a minimal progress UI and triggers UAC elevation automatically
       await execFileAsync('msiexec', ['/i', cachedFilePath, '/passive', '/norestart']);
-    } catch (err) {
-      throw err;
     } finally {
       onProgress('cleanup');
     }
@@ -442,8 +432,6 @@ export class LibreOfficeService {
       const debPaths = debFiles.map((f) => path.join(debsDir, f));
       // pkexec shows a graphical privilege escalation dialog
       await execFileAsync('pkexec', ['dpkg', '-i', ...debPaths]);
-    } catch (err) {
-      throw err;
     } finally {
       try {
         if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
