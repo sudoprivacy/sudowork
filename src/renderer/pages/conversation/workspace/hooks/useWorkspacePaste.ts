@@ -50,9 +50,9 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         properties: ['openFile', 'multiSelections'],
         defaultPath: workspace,
       })
-      .then((selectedFiles) => {
-        if (selectedFiles && selectedFiles.length > 0) {
-          return ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths: selectedFiles, workspace }).then((result) => {
+      .then((res) => {
+        if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+          return ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths: res.data.filePaths, workspace }).then((result) => {
             const copiedFiles = result.data?.copiedFiles ?? [];
             const failedFiles = result.data?.failedFiles ?? [];
 

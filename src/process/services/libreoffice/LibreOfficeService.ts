@@ -110,12 +110,38 @@ export class LibreOfficeService {
   }
 
   async install(onProgress: ProgressCallback): Promise<void> {
-    if (process.platform === 'darwin') {
-      return this.installMac(onProgress);
-    } else if (process.platform === 'win32') {
-      return this.installWindows(onProgress);
+    // 检查是否有有效的缓存文件，如果有则直接使用
+    const cachedFilePath = this.getCachedFilePath();
+
+    if (fs.existsSync(cachedFilePath) && fs.statSync(cachedFilePath).size > 0) {
+      onProgress('downloading', 100);
+
+      if (process.platform === 'darwin') {
+        return this.installMacFromCachedFile(cachedFilePath, onProgress);
+      } else if (process.platform === 'win32') {
+        return this.installWindowsFromCachedFile(cachedFilePath, onProgress);
+      } else {
+        return this.installLinuxFromCachedFile(cachedFilePath, onProgress);
+      }
     } else {
-      return this.installLinux(onProgress);
+      // 如果没有有效缓存，则从网络下载
+      if (process.platform === 'darwin') {
+        return this.installMac(onProgress);
+      } else if (process.platform === 'win32') {
+        return this.installWindows(onProgress);
+      } else {
+        return this.installLinux(onProgress);
+      }
+    }
+  }
+
+  async installFromLocalFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+    if (process.platform === 'darwin') {
+      return this.installMacFromLocalFile(filePath, onProgress);
+    } else if (process.platform === 'win32') {
+      return this.installWindowsFromLocalFile(filePath, onProgress);
+    } else {
+      return this.installLinuxFromLocalFile(filePath, onProgress);
     }
   }
 
@@ -161,6 +187,32 @@ export class LibreOfficeService {
     }
   }
 
+  private async installMacFromLocalFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+    let mountPoint: string | undefined;
+
+    try {
+      onProgress('mounting');
+      mountPoint = await this.mountDmg(filePath);
+
+      onProgress('copying');
+      const appEntry = fs.readdirSync(mountPoint).find((f) => f.endsWith('.app'));
+      if (!appEntry) throw new Error('No .app found in mounted DMG');
+      const src = path.join(mountPoint, appEntry).replace(/'/g, "'\\''");
+      const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
+      await execFileAsync('osascript', ['-e', script]);
+    } finally {
+      if (mountPoint) {
+        onProgress('unmounting');
+        try {
+          await execFileAsync('hdiutil', ['detach', mountPoint, '-quiet']);
+        } catch {
+          /* ignore */
+        }
+      }
+      onProgress('cleanup');
+    }
+  }
+
   private async installWindows(onProgress: ProgressCallback): Promise<void> {
     const msiPath = this.getCachedFilePath();
 
@@ -183,6 +235,16 @@ export class LibreOfficeService {
         /* ignore */
       }
       throw err;
+    } finally {
+      onProgress('cleanup');
+    }
+  }
+
+  private async installWindowsFromLocalFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+    try {
+      onProgress('installing');
+      // /passive shows a minimal progress UI and triggers UAC elevation automatically
+      await execFileAsync('msiexec', ['/i', filePath, '/passive', '/norestart']);
     } finally {
       onProgress('cleanup');
     }
@@ -220,6 +282,32 @@ export class LibreOfficeService {
         /* ignore */
       }
       throw err;
+    } finally {
+      try {
+        if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+      onProgress('cleanup');
+    }
+  }
+
+  private async installLinuxFromLocalFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+    const extractDir = path.join(path.dirname(filePath), 'libreoffice-extract-' + Date.now());
+
+    try {
+      onProgress('extracting');
+      if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+      await execFileAsync('tar', ['-xzf', filePath, '-C', extractDir]);
+
+      onProgress('installing');
+      const debsDir = this.findDebsDir(extractDir);
+      if (!debsDir) throw new Error('No DEBS directory found in LibreOffice package');
+      const debFiles = fs.readdirSync(debsDir).filter((f) => f.endsWith('.deb'));
+      if (debFiles.length === 0) throw new Error('No .deb files found');
+      const debPaths = debFiles.map((f) => path.join(debsDir, f));
+      // pkexec shows a graphical privilege escalation dialog
+      await execFileAsync('pkexec', ['dpkg', '-i', ...debPaths]);
     } finally {
       try {
         if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
@@ -291,6 +379,67 @@ export class LibreOfficeService {
       };
       doRequest(url);
     });
+  }
+  private async installMacFromCachedFile(cachedFilePath: string, onProgress: ProgressCallback): Promise<void> {
+    let mountPoint: string | undefined;
+
+    try {
+      onProgress('mounting');
+      mountPoint = await this.mountDmg(cachedFilePath);
+
+      onProgress('copying');
+      const appEntry = fs.readdirSync(mountPoint).find((f) => f.endsWith('.app'));
+      if (!appEntry) throw new Error('No .app found in mounted DMG');
+      const src = path.join(mountPoint, appEntry).replace(/'/g, "'\\''");
+      const script = `do shell script "cp -R '${src}' '/Applications/'" with administrator privileges`;
+      await execFileAsync('osascript', ['-e', script]);
+    } finally {
+      if (mountPoint) {
+        onProgress('unmounting');
+        try {
+          await execFileAsync('hdiutil', ['detach', mountPoint, '-quiet']);
+        } catch {
+          /* ignore */
+        }
+      }
+      onProgress('cleanup');
+    }
+  }
+
+  private async installWindowsFromCachedFile(cachedFilePath: string, onProgress: ProgressCallback): Promise<void> {
+    try {
+      onProgress('installing');
+      // /passive shows a minimal progress UI and triggers UAC elevation automatically
+      await execFileAsync('msiexec', ['/i', cachedFilePath, '/passive', '/norestart']);
+    } finally {
+      onProgress('cleanup');
+    }
+  }
+
+  private async installLinuxFromCachedFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+    const extractDir = path.join(path.dirname(filePath), 'libreoffice-extract-' + Date.now());
+
+    try {
+      onProgress('extracting');
+      if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+      await execFileAsync('tar', ['-xzf', filePath, '-C', extractDir]);
+
+      onProgress('installing');
+      const debsDir = this.findDebsDir(extractDir);
+      if (!debsDir) throw new Error('No DEBS directory found in LibreOffice package');
+      const debFiles = fs.readdirSync(debsDir).filter((f) => f.endsWith('.deb'));
+      if (debFiles.length === 0) throw new Error('No .deb files found');
+      const debPaths = debFiles.map((f) => path.join(debsDir, f));
+      // pkexec shows a graphical privilege escalation dialog
+      await execFileAsync('pkexec', ['dpkg', '-i', ...debPaths]);
+    } finally {
+      try {
+        if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+      onProgress('cleanup');
+    }
   }
 }
 

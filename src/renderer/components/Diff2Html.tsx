@@ -41,9 +41,12 @@ const Diff2Html = ({ diff, className, title, filePath }: { diff: string; classNa
 
   // Lazy init operatorRef to avoid creating div on every render
   const operatorRef = useRef<HTMLDivElement | null>(null);
-  if (!operatorRef.current) {
-    operatorRef.current = document.createElement('div');
-  }
+
+  React.useLayoutEffect(() => {
+    if (!operatorRef.current) {
+      operatorRef.current = document.createElement('div');
+    }
+  }, []);
 
   const normalizedTitle = useMemo(() => {
     if (!title) return '';
@@ -150,6 +153,7 @@ const Diff2Html = ({ diff, className, title, filePath }: { diff: string; classNa
           }}
         ></div>
         {operatorRef.current &&
+          operatorRef.current.parentElement &&
           ReactDOM.createPortal(
             <>
               {/* side-by-side 选项 / Side-by-side option */}

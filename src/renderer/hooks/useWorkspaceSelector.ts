@@ -25,8 +25,8 @@ export const useWorkspaceSelector = (conversationId: string, eventPrefix: Worksp
   return useCallback(async () => {
     try {
       // 选择新的工作空间目录 / Prompt user to pick a new workspace directory
-      const files = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
-      const workspacePath = files?.[0];
+      const res = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+      const workspacePath = res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0 ? res.data.filePaths[0] : undefined;
       if (!workspacePath) {
         return;
       }

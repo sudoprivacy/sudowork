@@ -54,7 +54,7 @@ async function checkLibreOfficeAvailable(): Promise<boolean> {
 
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
-  eventPrefix: 'gemini' | 'acp' | 'codex';
+  eventPrefix: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
   messageApi: MessageApi;
   t: (key: string) => string;
 

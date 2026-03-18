@@ -27,8 +27,12 @@ const LocalImageView: React.FC<{
     return joinPath(root, src);
   }, [src, root]);
 
+  // Initialize loading state and update when absolutePath changes
   useEffect(() => {
     setLoading(true);
+  }, [absolutePath]);
+
+  useEffect(() => {
     ipcBridge.fs.getImageBase64
       .invoke({ path: absolutePath })
       .then((base64) => {

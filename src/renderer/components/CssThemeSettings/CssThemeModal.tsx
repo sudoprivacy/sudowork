@@ -69,21 +69,22 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
       setCover('');
       setCss('');
     }
-  }, [theme, visible]);
+  }, [theme]);
 
   /**
    * 处理封面图片上传 / Handle cover image upload
    */
   const handleCoverUpload = useCallback(async () => {
     try {
-      const files = await ipcBridge.dialog.showOpen.invoke({
+      const res = await ipcBridge.dialog.showOpen.invoke({
         properties: ['openFile'],
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
       });
 
-      if (files && files[0]) {
+      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+        const filePath = res.data.filePaths[0];
         // 使用 IPC 读取图片并转换为 base64 / Use IPC to read image and convert to base64
-        const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: files[0] });
+        const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: filePath });
         if (base64) {
           setCover(base64);
           applyBackgroundImageToCss(base64);

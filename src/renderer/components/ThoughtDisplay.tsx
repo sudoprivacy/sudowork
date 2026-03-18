@@ -39,7 +39,12 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
   const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
+
+  // 初始化 startTimeRef
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+  }, []);
 
   // 计时器 Timer for elapsed time
   useEffect(() => {

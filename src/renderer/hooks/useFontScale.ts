@@ -41,7 +41,10 @@ const useFontScale = (): [number, (scale: number) => Promise<void>] => {
   }, []);
 
   useEffect(() => {
-    void fetchZoomFactor();
+    const fetchData = async () => {
+      await fetchZoomFactor();
+    };
+    void fetchData();
   }, [fetchZoomFactor]);
 
   // 乐观更新 slider，同时通知主进程写入 zoom / Optimistically update slider and ask main process to persist zoom

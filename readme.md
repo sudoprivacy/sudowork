@@ -10,11 +10,11 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-6C757D?style=flat-square&logo=linux&logoColor=white" alt="Platform">
 </p>
 
-<p align="center">
+<!-- <p align="center">
   <a href="https://trendshift.io/repositories/15423" target="_blank">
     <img src="https://trendshift.io/api/badge/repositories/15423" alt="GitHub Trending" height="80">
   </a>
-</p>
+</p> -->
 
 ---
 
@@ -92,9 +92,9 @@ If you already use Claude Code, Codex, or Qwen Code, Sudowork auto-detects them 
 
 **Supported Agents:** Built-in Agent (zero setup) • Claude Code • Codex • Qwen Code • Goose AI • OpenClaw • Augment Code • iFlow CLI • CodeBuddy • Kimi CLI • OpenCode • Factory Droid • GitHub Copilot • Qoder CLI • Mistral Vibe • Nanobot and more
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/multi-agent支持openclaw.gif" alt="Multi-Agent Cowork" width="800">
-</p>
+</p> -->
 
 - **Auto Detection** — automatically recognizes installed CLI tools
 - **Unified Interface** — one Cowork platform for all your AI agents
@@ -193,9 +193,9 @@ _Your 24/7 AI assistant — access Sudowork from any device, anywhere._
 
 > **Setup:** Sudowork Settings → WebUI Settings → Channel, configure the Bot Token.
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/webui-remote.gif" alt="WebUI remote access demo" width="800">
-</p>
+</p> -->
 
 <p align="center"><em>Remote control &amp; monitor your agent — Claude, Gemini, Codex. Use from browser or phone, same as Claude Code remote.</em></p>
 
@@ -244,9 +244,9 @@ _10+ formats: PDF, Word, Excel, PPT, code, Markdown, images, HTML, Diff — view
 - **Multi-Tab Support** — open multiple files simultaneously, each in its own tab
 - **Version History** — view and restore historical versions of files (Git-based)
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/preview.gif" alt="Preview Panel" width="800">
-</p>
+</p> -->
 
 <details>
 <summary><strong>🔍 View Complete Format List ▶️</strong></summary>
@@ -269,9 +269,9 @@ _10+ formats: PDF, Word, Excel, PPT, code, Markdown, images, HTML, Diff — view
 
 _Batch renaming, automatic organization, smart classification, file merging — the Cowork agent handles it for you._
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/sudowork sort file 2.gif" alt="Smart File Management" width="800">
-</p>
+</p> -->
 
 <details>
 <summary><strong>🔍 View File Management Features Details ▶️</strong></summary>
@@ -297,9 +297,9 @@ _Batch renaming, automatic organization, smart classification, file merging — 
 
 _Deeply analyze Excel data, automatically beautify reports, and generate insights — all powered by AI agents._
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/generate_xlsx.gif" alt="Excel Processing" width="800">
-</p>
+</p> -->
 
 <details>
 <summary><strong>🔍 View Excel Processing Features ▶️</strong></summary>
@@ -325,11 +325,11 @@ _Deeply analyze Excel data, automatically beautify reports, and generate insight
 ### **AI Image Generation & Editing**
 
 _Intelligent image generation, editing, and recognition, powered by Gemini_
-
+<!-- 
 <p align="center">
 
   <img src="./resources/Image_Generation.gif" alt="AI Image Generation" width="800">
-</p>
+</p> -->
 
 <details>
 <summary><strong>🔍 View Image Generation Features ▶️</strong></summary>
@@ -378,9 +378,9 @@ _Automatically generate professional documents — presentations, reports, and m
 
 _Customize with your own CSS code, make your interface match your preferences_
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/css with skin.gif" alt="CSS Customization" width="800">
-</p>
+</p> -->
 
 - ✅ **Fully Customizable** — Freely customize interface colors, styles, layout through CSS code, create your exclusive experience
 
@@ -390,9 +390,9 @@ _Customize with your own CSS code, make your interface match your preferences_
 
 _Open multiple conversations, tasks don't get mixed up, independent memory, double efficiency_
 
-<p align="center">
+<!-- <p align="center">
   <img src="./resources/multichat-side-by-side.gif" alt="Multi-Task Parallel" width="800">
-</p>
+</p> -->
 
 - ✅ **Independent Context** — Each conversation maintains its own context and history
 - ✅ **Parallel Execution** — Run multiple tasks simultaneously without interference

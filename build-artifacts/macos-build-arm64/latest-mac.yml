@@ -1,0 +1,5 @@
+version: 1.0.0
+files:
+  - url: Sudowork-1.0.0-mac-arm64.dmg
+    sha512: fake-sha512-mac-arm64
+    size: 200000

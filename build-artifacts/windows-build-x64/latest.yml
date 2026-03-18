@@ -1,0 +1,8 @@
+version: 1.0.0
+files:
+  - url: Sudowork-1.0.0-win-x64.exe
+    sha512: fake-sha512-x64
+    size: 100000
+path: Sudowork-1.0.0-win-x64.exe
+sha512: fake-sha512-x64
+releaseDate: '2025-01-01'

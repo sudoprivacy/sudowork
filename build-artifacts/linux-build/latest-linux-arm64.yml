@@ -1,0 +1,5 @@
+version: 1.0.0
+files:
+  - url: Sudowork-1.0.0-arm64.AppImage
+    sha512: fake-sha512-linux-arm64
+    size: 300000

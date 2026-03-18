@@ -102,17 +102,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Build Nexus server binary
-        shell: bash
-        run: |
-          pip install pyinstaller -r nexus/requirements.txt
-          bun run nexus:build
-
       - name: Download CLI bundles (claude-code & gemini-cli)
         shell: bash
         run: |
           node scripts/download-claude-code.js
           node scripts/download-gemini-cli.js
+
+
 
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts
