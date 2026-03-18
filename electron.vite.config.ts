@@ -157,7 +157,13 @@ export default defineConfig(({ mode }) => {
         global: 'globalThis',
       },
       optimizeDeps: {
-        exclude: ['electron'],
+        // streamdown is a native ESM package (type: "module") whose dist/index.js
+        // already re-exports from its own pre-built chunk file. Letting Vite
+        // pre-bundle it causes non-deterministic chunk splits (e.g. chunk-NRANZ4KA.js)
+        // that go missing on the next optimise run, producing a 404 and crashing
+        // the lazy-loaded conversation page. Excluding it forces Vite to serve the
+        // file directly via @fs without creating any extra chunks.
+        exclude: ['electron', 'streamdown'],
         include: ['react', 'react-dom', 'react-router-dom', 'react-i18next', 'i18next', '@arco-design/web-react', '@icon-park/react', 'react-markdown', 'react-syntax-highlighter', 'react-virtuoso', 'classnames', 'swr', 'eventemitter3', 'katex', 'diff2html', 'remark-gfm', 'remark-math', 'remark-breaks', 'rehype-raw', 'rehype-katex'],
       },
     },

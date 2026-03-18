@@ -839,8 +839,8 @@ app.on('before-quit', async () => {
 
   // Stop Nexus Python server
   try {
-    const { nexusService } = await import('./process/services/nexus/NexusService');
-    nexusService.stop();
+    const { dynamicNexusService } = await import('./process/services/nexus/DynamicNexusService');
+    dynamicNexusService.stop();
   } catch {
     // Ignore cleanup errors
   }

@@ -18,10 +18,14 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.getStatus.provider(async () => {
     const installed = await dynamicNexusService.checkInstalled();
+    // Use actual port probe so the "About" page always reflects reality,
+    // even when the internal _running flag is stale (e.g. child process exited
+    // but nexusd is still serving, or vice-versa).
+    const running = await dynamicNexusService.checkActualRunning();
     return {
       success: true,
       data: {
-        running: dynamicNexusService.isRunning,
+        running,
         port: dynamicNexusService.port,
         setupStage: dynamicNexusService.setupStage,
         installed,
