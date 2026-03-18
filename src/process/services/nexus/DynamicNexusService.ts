@@ -10,10 +10,10 @@ const execAsync = promisify(exec);
 
 // URL map for different platforms
 const NEXUS_DOWNLOAD_URLS = {
-  'darwin-arm64': 'https://github.com/sudoprivacy/sudorepo/releases/download/v0.0.1/mac-arm-nexus.tar.gz',
-  'darwin-x64': 'https://github.com/sudoprivacy/sudorepo/releases/download/v0.0.1/mac-x64-nexus.tar.gz', // Placeholder - needs real URL
-  'linux-x64': 'https://github.com/sudoprivacy/sudorepo/releases/download/v0.0.1/linux-x64-nexus.tar.gz', // Placeholder - needs real URL
-  'win32-x64': 'https://github.com/sudoprivacy/sudorepo/releases/download/v0.0.1/win-x64-nexus.tar.gz', // Placeholder - needs real URL
+  'darwin-arm64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-arm64-0.9.7.tar.gz',
+  'darwin-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-x86_64-0.9.7.tar.gz',
+  'linux-x64': '', // Placeholder - needs real URL
+  'win32-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-windows-x86_64-0.9.7.tar.gz',
 };
 
 // Marker filename written inside the extracted env to record the app version it was unpacked for.
@@ -188,7 +188,9 @@ class DynamicNexusService {
   }
 
   /**
-   * Starts the nexus service (assumes it's installed)
+   * Starts the nexus service (assumes it's installed).
+   * If the port is already occupied by an orphaned nexusd from a previous
+   * session, the old process is killed before a fresh one is spawned.
    */
   async start(): Promise<void> {
     if (this._running) return;
@@ -201,6 +203,17 @@ class DynamicNexusService {
 
     if (!fs.existsSync(nexusdBin)) {
       throw new Error('Nexus not installed. Please install it first.');
+    }
+
+    // If the port is already taken (orphaned from a previous session), force-kill it
+    // before launching a new process so nexusd doesn't exit with "already running".
+    const portOccupied = await this.isPortInUse(this._port);
+    if (portOccupied) {
+      console.log(`[DynamicNexus] Port ${this._port} already in use — killing orphaned process and restarting`);
+      this.emitSetup('starting', `Port ${this._port} already in use. Force-restarting...`);
+      await this.killProcessOnPort(this._port);
+      // Give the OS a moment to release the port
+      await new Promise<void>((resolve) => setTimeout(resolve, 800));
     }
 
     // Use the python interpreter from the conda env to run nexusd
@@ -235,14 +248,71 @@ class DynamicNexusService {
   }
 
   /**
-   * Stops the nexus service
+   * Stops the nexus service.
+   * Kills the tracked child process first, then also force-kills any orphaned
+   * nexusd that may still be holding the port (e.g. if the child exited but
+   * nexusd itself was spawned as a sub-process and detached).
    */
   stop(): void {
     if (this.process) {
-      this.process.kill();
+      this.process.kill('SIGTERM');
       this.process = null;
     }
     this._running = false;
+    // Fire-and-forget: ensure no orphaned process keeps the port occupied
+    if (this._port > 0) {
+      this.killProcessOnPort(this._port).catch(() => {});
+    }
+  }
+
+  /**
+   * Returns true when something is already listening on the given port.
+   */
+  private isPortInUse(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on('error', () => resolve(false));
+    });
+  }
+
+  /**
+   * Force-kills whatever process is currently holding the given TCP port.
+   * macOS/Linux: lsof + kill -9
+   * Windows: netstat + taskkill
+   */
+  private async killProcessOnPort(port: number): Promise<void> {
+    try {
+      if (process.platform === 'win32') {
+        const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
+        for (const line of stdout.trim().split('\n')) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && /^\d+$/.test(pid) && pid !== '0') {
+            await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
+          }
+        }
+      } else {
+        // macOS / Linux
+        await execAsync(`lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`);
+      }
+      console.log(`[DynamicNexus] Killed process on port ${port}`);
+    } catch {
+      // Port was already free, nothing to do
+    }
+  }
+
+  /**
+   * Probes whether nexusd is actually reachable on its port.
+   * Falls back to a port check when the internal _running flag is false
+   * (e.g. child exited but an orphaned process is still serving).
+   */
+  async checkActualRunning(): Promise<boolean> {
+    if (this._running) return true;
+    if (this._port <= 0) return false;
+    return this.isPortInUse(this._port);
   }
 
   private findFreePort(): Promise<number> {
