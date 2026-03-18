@@ -226,12 +226,11 @@ class NexusService {
       throw new Error(`[Nexus] nexus.tar.gz not found at ${tarGzPath}`);
     }
 
-    // Detect placeholder written by download-nexus.js when no URL is configured.
-    // A real conda-pack archive is always several hundred MB; anything under 1 MB is a placeholder.
+    // Detect placeholder file (real conda-pack archive is always several hundred MB; anything under 1 MB is a placeholder).
     const tarGzSize = fs.statSync(tarGzPath).size;
     if (tarGzSize < 1024 * 1024) {
       this.emitSetup('error', `nexus.tar.gz is a placeholder (${tarGzSize} bytes) — no conda env configured for this platform`);
-      throw new Error(`[Nexus] nexus.tar.gz is a placeholder — add the download URL in scripts/download-nexus.js`);
+      throw new Error(`[Nexus] nexus.tar.gz is a placeholder — environment not properly configured for this platform`);
     }
 
     // Step 1: Extract
