@@ -108,19 +108,7 @@ jobs:
           node scripts/download-claude-code.js
           node scripts/download-gemini-cli.js
 
-      - name: Download Nexus conda environment (macOS / Linux only)
-        if: "!startsWith(matrix.platform, 'windows')"
-        shell: bash
-        run: |
-          NODE_PLATFORM=${{ startsWith(matrix.platform, 'macos') && 'darwin' || 'linux' }}
-          node scripts/download-nexus.js --platform "$NODE_PLATFORM" --arch "${{ matrix.arch }}"
 
-      - name: Build Nexus server binary (Windows only)
-        if: startsWith(matrix.platform, 'windows')
-        shell: bash
-        run: |
-          pip install pyinstaller -r nexus/requirements.txt
-          bun run nexus:build:win
 
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts
