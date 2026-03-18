@@ -303,15 +303,54 @@ export async function verifyDirectoryFiles(dir1: string, dir2: string): Promise<
   }
 }
 
+const IGNORE_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', '.idea', '.vscode', 'dist', 'build', '.next']);
+
+/**
+ * Recursively expand directory paths to individual file paths.
+ * Files are passed through as-is; directories are expanded to all files inside.
+ * Skips common ignore dirs (node_modules, .git, etc.) to avoid huge context.
+ * 递归将目录路径展开为文件路径列表；文件原样返回，目录展开为内部所有文件；跳过常见忽略目录
+ */
+async function expandPathsToFiles(paths: string[]): Promise<string[]> {
+  const result: string[] = [];
+  for (const p of paths) {
+    const absolutePath = path.isAbsolute(p) ? p : path.resolve(p);
+    try {
+      const stats = await fs.stat(absolutePath);
+      if (stats.isDirectory()) {
+        const entries = await fs.readdir(absolutePath, { withFileTypes: true });
+        const childPaths: string[] = [];
+        for (const entry of entries) {
+          if (entry.isDirectory() && IGNORE_DIRS.has(entry.name)) continue;
+          const fullPath = path.join(absolutePath, entry.name);
+          if (entry.isDirectory()) {
+            childPaths.push(...(await expandPathsToFiles([fullPath])));
+          } else {
+            childPaths.push(fullPath);
+          }
+        }
+        result.push(...childPaths);
+      } else {
+        result.push(absolutePath);
+      }
+    } catch (error) {
+      console.warn(`[Sudowork] Cannot expand path ${absolutePath}, skipping:`, error);
+    }
+  }
+  return result;
+}
+
 export const copyFilesToDirectory = async (dir: string, files?: string[], skipCleanup = false): Promise<string[]> => {
   if (!files) return [];
+
+  const expandedFiles = await expandPathsToFiles(files);
 
   const { cacheDir } = getSystemDir();
   const tempDir = path.join(cacheDir, 'temp');
   const copiedFiles: string[] = [];
   const resolvedDir = path.resolve(dir);
 
-  for (const file of files) {
+  for (const file of expandedFiles) {
     // 确保文件路径是绝对路径
     const absoluteFilePath = path.isAbsolute(file) ? file : path.resolve(file);
 

@@ -373,13 +373,15 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     [setUploadFile]
   );
 
-  useAddEventListener('openclaw-gateway.selected.file', (items: Array<string | FileOrFolderItem>) => {
+  useAddEventListener('openclaw-gateway.selected.file', (convId: string, items: Array<string | FileOrFolderItem>) => {
+    if (convId !== conversation_id) return;
     setTimeout(() => {
       setAtPath(items);
     }, 10);
   });
 
-  useAddEventListener('openclaw-gateway.selected.file.append', (items: Array<string | FileOrFolderItem>) => {
+  useAddEventListener('openclaw-gateway.selected.file.append', (convId: string, items: Array<string | FileOrFolderItem>) => {
+    if (convId !== conversation_id) return;
     setTimeout(() => {
       const merged = mergeFileSelectionItems(atPathRef.current, items);
       if (merged !== atPathRef.current) {
@@ -402,8 +404,20 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       setAtPath([]);
       setUploadFile([]);
 
-      const filePaths = [...currentUploadFile, ...currentAtPath.map((item) => (typeof item === 'string' ? item : item.path))];
-      const displayMessage = buildDisplayMessage(message, filePaths, workspacePath);
+      // When no files selected, auto-include workspace root so "open in directory" associates context
+      // 未选择任何文件时，自动包含工作区根目录，使「在指定目录打开会话」自动关联上下文
+      const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
+      const explicitFiles = [...currentUploadFile, ...atPathStrings];
+      let effectiveWorkspace = workspacePath;
+      if (explicitFiles.length === 0 && !effectiveWorkspace) {
+        const conv = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+        effectiveWorkspace = (conv?.extra as { workspace?: string })?.workspace ?? '';
+      }
+      const filesToSend =
+        explicitFiles.length > 0 ? explicitFiles : effectiveWorkspace ? [effectiveWorkspace] : [];
+
+      const filePaths = filesToSend;
+      const displayMessage = buildDisplayMessage(message, filePaths, effectiveWorkspace || workspacePath);
 
       const userMessage: TMessage = {
         id: msg_id,
@@ -418,12 +432,11 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       setAiProcessing(true);
       aiProcessingRef.current = true;
       try {
-        const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
         await ipcBridge.openclawConversation.sendMessage.invoke({
           input: displayMessage,
           msg_id,
           conversation_id,
-          files: [...currentUploadFile, ...atPathStrings],
+          files: filesToSend,
         });
         void checkAndUpdateTitle(conversation_id, message);
         emitter.emit('chat.history.refresh');
@@ -575,7 +588,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
                         path={path}
                         onRemove={() => {
                           const newAtPath = atPath.filter((v) => (typeof v === 'string' ? v !== path : v.path !== path));
-                          emitter.emit('openclaw-gateway.selected.file', newAtPath);
+                          emitter.emit('openclaw-gateway.selected.file', conversation_id, newAtPath);
                           setAtPath(newAtPath);
                         }}
                       />
@@ -597,7 +610,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
                         closable
                         onClose={() => {
                           const newAtPath = atPath.filter((v) => (typeof v === 'string' ? true : v.path !== item.path));
-                          emitter.emit('openclaw-gateway.selected.file', newAtPath);
+                          emitter.emit('openclaw-gateway.selected.file', conversation_id, newAtPath);
                           setAtPath(newAtPath);
                         }}
                       >

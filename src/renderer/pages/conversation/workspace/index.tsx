@@ -147,6 +147,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const fileOpsHook = useWorkspaceFileOps({
     workspace,
     eventPrefix,
+    conversation_id: eventPrefix === 'openclaw-gateway' ? conversation_id : undefined,
     messageApi,
     t,
     setFiles: treeHook.setFiles,
@@ -961,7 +962,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                     treeHook.selectedNodeRef.current = null;
                   }
 
-                  const items: Array<{ path: string; name: string; isFile: boolean }> = [];
+                  const items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }> = [];
                   for (const k of newKeys) {
                     const node = findNodeByKey(treeHook.files, k);
                     if (node && node.fullPath) {
@@ -969,10 +970,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         path: node.fullPath,
                         name: node.name,
                         isFile: node.isFile,
+                        relativePath: node.relativePath,
                       });
                     }
                   }
-                  emitter.emit(`${eventPrefix}.selected.file`, items);
+                  if (eventPrefix === 'openclaw-gateway') {
+                    emitter.emit('openclaw-gateway.selected.file', conversation_id, items);
+                  } else {
+                    emitter.emit(
+                      `${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file',
+                      items
+                    );
+                  }
                 }}
                 onExpand={(keys) => {
                   treeHook.setExpandedKeys(keys);

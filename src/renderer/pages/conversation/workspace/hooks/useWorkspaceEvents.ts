@@ -53,12 +53,17 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     closeRenameModal();
     closeDeleteModal();
     refreshWorkspace();
-    emitter.emit(`${eventPrefix}.selected.file`, []);
-  }, [conversation_id]); // Only depend on conversation_id to avoid infinite loop
+    if (eventPrefix === 'openclaw-gateway') {
+      emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
+    } else {
+      emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+    }
+  }, [conversation_id, eventPrefix]); // Only depend on conversation_id to avoid infinite loop
 
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
    * Listen to agent response stream - auto refresh workspace
+   * OpenClaw uses ACP protocol, emits acp_tool_call on tool calls
    */
   useEffect(() => {
     const handleGeminiResponse = (data: { type: string }) => {
@@ -76,14 +81,21 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
         refreshWorkspace();
       }
     };
+    const handleOpenClawResponse = (data: { type: string }) => {
+      if (data.type === 'acp_tool_call') {
+        refreshWorkspace();
+      }
+    };
     const unsubscribeGemini = ipcBridge.geminiConversation.responseStream.on(handleGeminiResponse);
     const unsubscribeAcp = ipcBridge.acpConversation.responseStream.on(handleAcpResponse);
     const unsubscribeCodex = ipcBridge.codexConversation.responseStream.on(handleCodexResponse);
+    const unsubscribeOpenClaw = ipcBridge.openclawConversation.responseStream.on(handleOpenClawResponse);
 
     return () => {
       unsubscribeGemini();
       unsubscribeAcp();
       unsubscribeCodex();
+      unsubscribeOpenClaw();
     };
   }, []); // Empty dependency - event listeners are stable, refreshWorkspace is captured from closure
 
@@ -102,10 +114,15 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   /**
    * 监听选中文件变化事件（sendbox 中关闭标签时同步状态）(#1083)
    * Listen to selected files change event (sync state when closing tags in sendbox)
+   * OpenClaw uses (conversation_id, items) format; others use (items) only.
    */
   useAddEventListener(
     `${eventPrefix}.selected.file`,
-    (items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) => {
+    (...args: [Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>] | [string, Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>]) => {
+      const items = eventPrefix === 'openclaw-gateway' ? (args[1] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) : (args[0] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>);
+      if (!Array.isArray(items)) return;
+      if (eventPrefix === 'openclaw-gateway' && args[0] !== conversation_id) return;
+
       // Extract relative paths from items, filter out files (only keep folders in tree selection)
       // 从 items 中提取相对路径，过滤掉文件（树选中状态只保留文件夹）
       const newKeys = items.filter((item) => !item.isFile && item.relativePath).map((item) => item.relativePath!);
@@ -127,7 +144,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
         selectedNodeRef.current = null;
       }
     },
-    [setSelected, selectedKeysRef, selectedNodeRef]
+    [eventPrefix, conversation_id, setSelected, selectedKeysRef, selectedNodeRef]
   );
 
   /**

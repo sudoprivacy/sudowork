@@ -55,6 +55,8 @@ async function checkLibreOfficeAvailable(): Promise<boolean> {
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
   eventPrefix: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
+  /** Required when eventPrefix is 'openclaw-gateway' for scoped events */
+  conversation_id?: string;
   messageApi: MessageApi;
   t: (key: string) => string;
 
@@ -87,7 +89,7 @@ interface UseWorkspaceFileOpsOptions {
  * File operations logic (open, delete, rename, preview, add to chat)
  */
 export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
-  const { workspace, eventPrefix, messageApi, t, setFiles, setSelected, setExpandedKeys, selectedKeysRef, selectedNodeRef, ensureNodeSelected, refreshWorkspace, renameModal, deleteModal, renameLoading, setRenameLoading, closeRenameModal, closeDeleteModal, closeContextMenu, setRenameModal, setDeleteModal, openPreview } = options;
+  const { workspace, eventPrefix, conversation_id, messageApi, t, setFiles, setSelected, setExpandedKeys, selectedKeysRef, selectedNodeRef, ensureNodeSelected, refreshWorkspace, renameModal, deleteModal, renameLoading, setRenameLoading, closeRenameModal, closeDeleteModal, closeContextMenu, setRenameModal, setDeleteModal, openPreview } = options;
 
   /**
    * 打开文件或文件夹（使用系统默认程序）
@@ -155,14 +157,18 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       setSelected([]);
       selectedKeysRef.current = [];
       selectedNodeRef.current = null;
-      emitter.emit(`${eventPrefix}.selected.file`, []);
+      if (eventPrefix === 'openclaw-gateway' && conversation_id) {
+        emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
+      } else {
+        emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+      }
       closeDeleteModal();
       setTimeout(() => refreshWorkspace(), 200);
     } catch (error) {
       messageApi.error(t('conversation.workspace.contextMenu.deleteFailed'));
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
-  }, [deleteModal.target, closeDeleteModal, eventPrefix, messageApi, refreshWorkspace, t, setSelected, selectedKeysRef, selectedNodeRef, setDeleteModal]);
+  }, [deleteModal.target, closeDeleteModal, eventPrefix, conversation_id, messageApi, refreshWorkspace, t, setSelected, selectedKeysRef, selectedNodeRef, setDeleteModal]);
 
   /**
    * 超时包装器
@@ -243,7 +249,11 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           relativePath: newRelativePath,
           fullPath: newFullPath,
         };
-        emitter.emit(`${eventPrefix}.selected.file`, []);
+        if (eventPrefix === 'openclaw-gateway' && conversation_id) {
+          emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
+        } else {
+          emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+        }
       } else {
         selectedNodeRef.current = null;
       }
@@ -258,7 +268,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     } finally {
       setRenameLoading(false);
     }
-  }, [closeRenameModal, eventPrefix, messageApi, renameLoading, renameModal, t, waitWithTimeout, setFiles, setExpandedKeys, setSelected, selectedKeysRef, selectedNodeRef, setRenameLoading]);
+  }, [closeRenameModal, eventPrefix, conversation_id, messageApi, renameLoading, renameModal, t, waitWithTimeout, setFiles, setExpandedKeys, setSelected, selectedKeysRef, selectedNodeRef, setRenameLoading]);
 
   /**
    * 添加到聊天
@@ -277,10 +287,14 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         relativePath: nodeData.relativePath || undefined,
       };
 
-      emitter.emit(`${eventPrefix}.selected.file.append`, [payload]);
+      if (eventPrefix === 'openclaw-gateway' && conversation_id) {
+        emitter.emit('openclaw-gateway.selected.file.append', conversation_id, [payload]);
+      } else {
+        emitter.emit(`${eventPrefix}.selected.file.append` as 'gemini.selected.file.append' | 'acp.selected.file.append' | 'codex.selected.file.append' | 'nanobot.selected.file.append', [payload]);
+      }
       messageApi.success(t('conversation.workspace.contextMenu.addedToChat'));
     },
-    [closeContextMenu, ensureNodeSelected, eventPrefix, messageApi, t]
+    [closeContextMenu, ensureNodeSelected, eventPrefix, conversation_id, messageApi, t]
   );
 
   /**

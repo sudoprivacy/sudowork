@@ -448,7 +448,14 @@ export function initConversationBridge(): void {
 
     // 复制文件到工作空间（所有 agents 统一处理）
     // Copy files to workspace (unified for all agents)
-    const workspaceFiles = await copyFilesToDirectory(task.workspace, files, false);
+    // OpenClaw: when no files from frontend, fallback to task.workspace so "open in directory" always has context
+    let filesToProcess = files ?? [];
+    const openclawTask = task as OpenClawAgentManager;
+    if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
+      filesToProcess = [openclawTask.workspace];
+      console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
+    }
+    const workspaceFiles = await copyFilesToDirectory(task.workspace ?? '', filesToProcess, false);
 
     try {
       // 根据 task 类型调用对应的 sendMessage 方法
@@ -473,9 +480,13 @@ export function initConversationBridge(): void {
           const skillsDir = getSkillsDir();
           agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
         }
-        // Save original user text to chat history (not the injected version),
-        // then send the injected content to the agent only.
+        // OpenClaw Gateway runs in its own workspace (~/.openclaw/workspace). When user asks about
+        // "this folder" or "files here", inject context so the AI uses the attached files, not its own workspace.
         const manager = task as OpenClawAgentManager;
+        if (workspaceFiles.length > 0 && manager.workspace) {
+          const hint = `[Context: 用户工作区为 ${manager.workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
+          agentContent = hint + agentContent;
+        }
         await manager.sendMessage({ content: other.input, agentContent, files: workspaceFiles, msg_id: other.msg_id });
         return { success: true };
       } else if (task.type === 'nanobot') {

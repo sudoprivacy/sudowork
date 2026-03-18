@@ -8,8 +8,8 @@
     "node": ">=22 <25"
   },
   "scripts": {
-    "start": "electron-vite dev",
-    "cli": "electron-vite dev",
+    "start": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
+    "cli": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
     "webui": "bun run cli -- --webui",
     "webui:remote": "bun run cli -- --webui --remote",
     "webui:prod": "cross-env NODE_ENV=production bun run cli -- --webui",
@@ -85,7 +85,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.1",
-    "electron": "^37.3.1",
+    "electron": "37.10.3",
     "electron-builder": "^26.6.0",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.25.11",

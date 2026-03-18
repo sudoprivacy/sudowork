@@ -281,9 +281,20 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
     setAtPath([]);
     setUploadFile([]);
 
-    // 不再自动添加 @ 前缀，避免消息显示换行和歧义
-    const filePaths = [...currentUploadFile, ...currentAtPath.map((item) => (typeof item === 'string' ? item : item.path))];
-    const displayMessage = buildDisplayMessage(message, filePaths, workspacePath);
+    // When no files selected, auto-include workspace root so "open in directory" associates context
+    // 未选择任何文件时，自动包含工作区根目录，使「在指定目录打开会话」自动关联上下文
+    const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
+    const explicitFiles = [...currentUploadFile, ...atPathStrings];
+    let effectiveWorkspace = workspacePath;
+    if (explicitFiles.length === 0 && !effectiveWorkspace) {
+      const conv = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+      effectiveWorkspace = (conv?.extra as { workspace?: string })?.workspace ?? '';
+    }
+    const filesToSend =
+      explicitFiles.length > 0 ? explicitFiles : effectiveWorkspace ? [effectiveWorkspace] : [];
+
+    const filePaths = filesToSend;
+    const displayMessage = buildDisplayMessage(message, filePaths, effectiveWorkspace || workspacePath);
 
     // 前端先写入用户消息，避免导航/事件竞争导致看不到消息
     const userMessage: TMessage = {
@@ -298,13 +309,11 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
     addOrUpdateMessage(userMessage, true); // 立即保存到存储，避免刷新丢失
     setAiProcessing(true);
     try {
-      // 提取实际的文件路径发送给后端
-      const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
       await ipcBridge.codexConversation.sendMessage.invoke({
         input: displayMessage,
         msg_id,
         conversation_id,
-        files: [...currentUploadFile, ...atPathStrings], // 包含上传文件和选中的工作空间文件
+        files: filesToSend,
       });
       void checkAndUpdateTitle(conversation_id, message);
       emitter.emit('chat.history.refresh');

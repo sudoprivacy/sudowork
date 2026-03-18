@@ -152,16 +152,25 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           };
         }
         if (shouldEmit && nodeData.fullPath) {
-          emitter.emit(`${eventPrefix}.selected.file`, [
+          const payload = [
             {
               path: nodeData.fullPath,
               name: nodeData.name,
               isFile: nodeData.isFile,
               relativePath: nodeData.relativePath,
             },
-          ]);
+          ];
+          if (eventPrefix === 'openclaw-gateway') {
+            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
+          } else {
+            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+          }
         } else if (shouldEmit) {
-          emitter.emit(`${eventPrefix}.selected.file`, []);
+          if (eventPrefix === 'openclaw-gateway') {
+            emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
+          } else {
+            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+          }
         }
         return;
       }
@@ -176,27 +185,37 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
         };
         if (shouldEmit && nodeData.fullPath) {
           // 将文件夹对象发给发送框 / Emit folder object to send box
-          emitter.emit(`${eventPrefix}.selected.file`, [
+          const payload = [
             {
               path: nodeData.fullPath,
               name: nodeData.name,
               isFile: false,
               relativePath: nodeData.relativePath,
             },
-          ]);
+          ];
+          if (eventPrefix === 'openclaw-gateway') {
+            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
+          } else {
+            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+          }
         }
       } else if (nodeData.fullPath) {
         selectedNodeRef.current = null;
         if (shouldEmit) {
           // 选中文件时，将文件信息广播 / Broadcast file info when selected
-          emitter.emit(`${eventPrefix}.selected.file`, [
+          const payload = [
             {
               path: nodeData.fullPath,
               name: nodeData.name,
               isFile: true,
               relativePath: nodeData.relativePath,
             },
-          ]);
+          ];
+          if (eventPrefix === 'openclaw-gateway') {
+            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
+          } else {
+            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+          }
         }
       }
     },
