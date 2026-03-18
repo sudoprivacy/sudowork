@@ -132,6 +132,7 @@ const SystemModalContent: React.FC = () => {
   useEffect(() => {
     if (systemInfo) {
       initializingRef.current = true;
+      // Initialize both cacheDir and workDir, but cacheDir will be disabled in UI
       form.setFieldsValue({ cacheDir: systemInfo.cacheDir, workDir: systemInfo.workDir });
       // Allow onValuesChange to fire after initialization settles
       requestAnimationFrame(() => {
@@ -165,7 +166,7 @@ const SystemModalContent: React.FC = () => {
     async (_changedValue: unknown, allValues: Record<string, string>) => {
       if (initializingRef.current || savingRef.current || !systemInfo) return;
       const { cacheDir, workDir } = allValues;
-      const needsRestart = cacheDir !== systemInfo.cacheDir || workDir !== systemInfo.workDir;
+      const needsRestart = workDir !== systemInfo.workDir; // Only workDir changes trigger restart since cacheDir is disabled in UI
       if (!needsRestart) return;
 
       savingRef.current = true;
@@ -212,7 +213,7 @@ const SystemModalContent: React.FC = () => {
               ))}
             </div>
             <Form form={form} layout='vertical' className='space-y-16px' onValuesChange={handleValuesChange}>
-              <DirInputItem label={t('settings.cacheDir')} field='cacheDir' />
+              {/* <DirInputItem label={t('settings.cacheDir')} field='cacheDir' /> */} {/* Cache directory setting temporarily disabled */}
               <DirInputItem label={t('settings.workDir')} field='workDir' />
               {error && <Alert className='mt-16px' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
             </Form>

@@ -81,12 +81,14 @@ export const getDataPath = (): string => {
 };
 
 /**
- * Get config path, using CLI-safe symlink (~/.nexus-config) on macOS.
- * 获取配置目录路径，macOS 上使用 ~/.nexus-config 符号链接。
+ * Get config path as subdirectory of data path (~/.nexus/config).
+ * 获取配置目录路径作为数据路径的子目录 (~/.nexus/config)。
  */
 export const getConfigPath = (): string => {
-  const configPath = path.join(app.getPath('home'), '.nexus-config');
-  return ensureCliSafeSymlink(configPath, '.nexus-config');
+  const dataPath = getDataPath();
+  const configPath = path.join(dataPath, 'config');
+  ensureDirectory(configPath); // Ensure the config directory exists
+  return configPath;
 };
 
 export const generateHashWithFullName = (fullName: string): string => {
