@@ -10,10 +10,10 @@ const execAsync = promisify(exec);
 
 // URL map for different platforms
 const NEXUS_DOWNLOAD_URLS = {
-  'darwin-arm64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-arm64-0.9.7.tar.gz',
-  'darwin-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-x86_64-0.9.7.tar.gz',
+  'darwin-arm64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-arm64.tar.gz',
+  'darwin-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-macos-x86_64.tar.gz',
   'linux-x64': '', // Placeholder - needs real URL
-  'win32-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-windows-x86_64-0.9.7.tar.gz',
+  'win32-x64': 'https://github.com/nexi-lab/nexus/releases/download/v0.9.7/nexus-windows-x86_64.tar.gz',
 };
 
 // Marker filename written inside the extracted env to record the app version it was unpacked for.

@@ -48,13 +48,11 @@ export const initializeProcess = async () => {
     console.error('[Process] Failed to initialize ChannelManager:', error);
   }
 
-  // Start Nexus Python server in both development and production
+  // Start Nexus Python server in the background (non-blocking)
   // The startNexusService function is in a separate file that won't be analyzed during build
-  try {
-    const { startNexusService } = await import('./startNexusService');
-    await startNexusService();
-  } catch (error) {
-    console.error('[Process] Failed to start Nexus server:', error);
-    // Don't fail app startup if Nexus server fails to start
-  }
+  void import('./startNexusService')
+    .then(({ startNexusService }) => startNexusService())
+    .catch((error) => {
+      console.error('[Process] Failed to start Nexus server:', error);
+    });
 };

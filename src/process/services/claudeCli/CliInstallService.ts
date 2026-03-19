@@ -7,6 +7,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
 import * as tar from 'tar';
+import { getDataPath } from '@process/utils';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -31,22 +32,24 @@ interface CliConfig {
   label: string;
 }
 
-const SUDOWORK_DIR = path.join(os.homedir(), '.sudowork');
-const MANAGED_ROOT = path.join(SUDOWORK_DIR, 'cli');
-const BIN_DIR = path.join(SUDOWORK_DIR, 'bin');
+// Use getDataPath() to get ~/.nexus (CLI-safe symlink on macOS)
+const getNexusDir = (): string => getDataPath();
+const getManagedRoot = (): string => path.join(getNexusDir(), 'cli');
+const getBinDir = (): string => path.join(getNexusDir(), 'bin');
 // Stores the Electron binary path so wrappers can find it without hardcoded paths.
 // Updated on every app launch via syncElectronPath().
-const ELECTRON_PATH_FILE = path.join(SUDOWORK_DIR, 'electron-path');
+const getElectronPathFile = (): string => path.join(getNexusDir(), 'electron-path');
 
 /**
- * Writes the current Electron binary path to ~/.sudowork/electron-path.
+ * Writes the current Electron binary path to ~/.nexus/electron-path.
  * Call this on every app startup so CLI wrappers always have a fresh path
  * even if the app has been moved or reinstalled.
  */
 export function syncElectronPath(): void {
   try {
-    fs.mkdirSync(SUDOWORK_DIR, { recursive: true });
-    fs.writeFileSync(ELECTRON_PATH_FILE, process.execPath, 'utf-8');
+    const nexusDir = getNexusDir();
+    fs.mkdirSync(nexusDir, { recursive: true });
+    fs.writeFileSync(getElectronPathFile(), process.execPath, 'utf-8');
   } catch {
     // Non-critical — wrapper will fall back to mdfind / system node
   }
@@ -54,16 +57,18 @@ export function syncElectronPath(): void {
 
 export class CliInstallService {
   private readonly cfg: CliConfig;
-  private readonly installDir: string;
 
   constructor(cfg: CliConfig) {
     this.cfg = cfg;
-    this.installDir = path.join(MANAGED_ROOT, cfg.name);
+  }
+
+  private get installDir(): string {
+    return path.join(getManagedRoot(), this.cfg.name);
   }
 
   async checkInstalled(): Promise<CliStatus> {
     const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
-    const managedBin = path.join(BIN_DIR, binName);
+    const managedBin = path.join(getBinDir(), binName);
     const entryFile = this.resolveEntryFile();
 
     if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile)) {
@@ -76,7 +81,7 @@ export class CliInstallService {
       const { stdout } = await execAsync(cmd);
       const paths = stdout.trim().split(/\r?\n/);
       // Filter out our own managed bin from system check if it's there
-      const systemPath = paths.find((p) => !p.startsWith(BIN_DIR));
+      const systemPath = paths.find((p) => !p.startsWith(getBinDir()));
       if (systemPath) {
         return { installed: true, path: systemPath, source: 'system', version: await this.getVersionFromPath(systemPath) };
       }
@@ -117,7 +122,7 @@ export class CliInstallService {
     }
 
     fs.mkdirSync(this.installDir, { recursive: true });
-    fs.mkdirSync(BIN_DIR, { recursive: true });
+    fs.mkdirSync(getBinDir(), { recursive: true });
 
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
@@ -143,7 +148,7 @@ export class CliInstallService {
   async uninstall(): Promise<void> {
     fs.rmSync(this.installDir, { recursive: true, force: true });
     const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
-    const managedBin = path.join(BIN_DIR, binName);
+    const managedBin = path.join(getBinDir(), binName);
     if (fs.existsSync(managedBin)) fs.rmSync(managedBin);
   }
 
@@ -198,7 +203,7 @@ export class CliInstallService {
   }
 
   private createUnixWrapper(entryFile: string): void {
-    const wrapperPath = path.join(BIN_DIR, this.cfg.name);
+    const wrapperPath = path.join(getBinDir(), this.cfg.name);
     // Wrapper uses ELECTRON_RUN_AS_NODE=1 so users without system Node.js can
     // run the CLI. All paths are resolved at runtime — no hardcoded locations.
     const content =
@@ -206,7 +211,7 @@ export class CliInstallService {
         '#!/bin/sh',
         `# ${this.cfg.name} wrapper — managed by Sudowork`,
         `CLI="${entryFile}"`,
-        `ELECTRON_PATH_FILE="$HOME/.sudowork/electron-path"`,
+        `ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"`,
         '',
         'run_electron() {',
         '  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"',
@@ -246,15 +251,15 @@ export class CliInstallService {
   }
 
   private createWindowsWrapper(entryFile: string): void {
-    const wrapperPath = path.join(BIN_DIR, `${this.cfg.name}.cmd`);
+    const wrapperPath = path.join(getBinDir(), `${this.cfg.name}.cmd`);
     // Wrapper uses ELECTRON_RUN_AS_NODE=1. Path is read at runtime from
-    // %USERPROFILE%\.sudowork\electron-path — no hardcoded install locations.
+    // %USERPROFILE%\.nexus\electron-path — no hardcoded install locations.
     const content =
       [
         '@echo off',
         'setlocal enabledelayedexpansion',
         `set "CLI=${entryFile}"`,
-        'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.sudowork\\electron-path"',
+        'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"',
         'set "ELECTRON="',
         '',
         ':: 1. Path stored by Sudowork (refreshed on every app launch)',
@@ -284,22 +289,29 @@ export class CliInstallService {
   }
 
   private async updateShellConfig(): Promise<void> {
+    const binDir = getBinDir();
     if (process.platform === 'win32') {
       // Use PowerShell to safely update the User PATH without the 1024-char limit of setx.
-      // We check if it's already there first to avoid duplication.
+      // Use case-insensitive comparison and trim whitespace for robustness.
       const psCommand = `
-        $binDir = "${BIN_DIR}"
+        $binDir = "${binDir}"
         $path = [Environment]::GetEnvironmentVariable('Path', 'User')
-        if ($path -split ';' -notcontains $binDir) {
+        $paths = $path -split ';' | ForEach-Object { $_.Trim() }
+        $exists = $paths | Where-Object { $_ -ieq $binDir }
+        if (-not $exists) {
           $newPath = if ([string]::IsNullOrWhiteSpace($path)) { $binDir } else { "$path;$binDir" }
           [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+          Write-Output 'updated'
+        } else {
+          Write-Output 'already-exists'
         }
       `
         .replace(/\n/g, ' ')
         .trim();
 
       try {
-        await execFileAsync('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand]);
+        const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand]);
+        console.log(`[CLI] Windows PATH update: ${stdout.trim()}`);
       } catch (err) {
         console.error('[CLI] Failed to update Windows PATH via PowerShell:', err);
         // Fallback to notifying user or trying setx (though setx is risky)
@@ -307,11 +319,11 @@ export class CliInstallService {
       return;
     }
 
-    const exportLine = `\n# added by Sudowork\nexport PATH="${BIN_DIR}:$PATH"\n`;
+    const exportLine = `\n# added by Sudowork\nexport PATH="${binDir}:$PATH"\n`;
     for (const rc of [path.join(os.homedir(), '.zshrc'), path.join(os.homedir(), '.bashrc')]) {
       try {
         const content = fs.existsSync(rc) ? fs.readFileSync(rc, 'utf-8') : '';
-        if (!content.includes(BIN_DIR)) fs.appendFileSync(rc, exportLine);
+        if (!content.includes(binDir)) fs.appendFileSync(rc, exportLine);
       } catch {
         // ignore unwritable rc files
       }
