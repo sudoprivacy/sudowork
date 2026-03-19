@@ -11,6 +11,8 @@ import { copyDirectoryRecursively } from '../utils';
 import WorkerManage from '../WorkerManage';
 import { getZoomFactor, setZoomFactor } from '../utils/zoom';
 import { getCdpStatus, updateCdpConfig, verifyCdpReady } from '../../utils/configureChromium';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 
 export function initApplicationBridge(): void {
   ipcBridge.application.restart.provider(() => {
@@ -71,6 +73,32 @@ export function initApplicationBridge(): void {
       return { success: true, data: updatedConfig };
     } catch (e) {
       return { success: false, msg: e.message || e.toString() };
+    }
+  });
+
+  // Execute shell command (for OpenClaw CLI commands)
+  ipcBridge.application.execCommand.provider(async ({ command, cwd }) => {
+    try {
+      const execAsync = promisify(exec);
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: cwd || app.getPath('home'),
+        env: process.env,
+        timeout: 10000, // 10 秒超时
+      });
+      return { success: true, data: { stdout, stderr } };
+    } catch (e: any) {
+      // Command executed but may have non-zero exit code
+      if (e.stdout || e.stderr) {
+        return {
+          success: true,
+          data: { stdout: e.stdout, stderr: e.stderr },
+        };
+      }
+      return {
+        success: false,
+        msg: e.message || e.toString(),
+        data: { stdout: e.stdout, stderr: e.stderr },
+      };
     }
   });
 }

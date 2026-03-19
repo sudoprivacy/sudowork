@@ -5,6 +5,21 @@
   --titlebar-height: 36px;
 }
 
+/* Global font family / 全局字体 */
+html,
+body {
+  font-family:
+    'PingFang SC',
+    'Microsoft YaHei',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+}
+
 .app-shell {
   min-height: 0;
 }

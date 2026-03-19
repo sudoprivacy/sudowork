@@ -70,6 +70,177 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Get global OpenClaw Gateway status (independent of any conversation)
+  ipcBridge.openclawConversation.getGatewayStatus.provider(async () => {
+    try {
+      // Find any active OpenClaw conversation to get gateway status
+      const db = getDatabase();
+      const allConvs = db.getUserConversations(undefined, 0, 1000);
+      const openclawConvs = (allConvs.data || []).filter((c) => c.type === 'openclaw-gateway');
+
+      // Try to get status from any active OpenClaw task
+      for (const conv of openclawConvs) {
+        const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { cliPath?: string; gateway?: { cliPath?: string; host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
+
+        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgentManager | undefined;
+        if (task && task.type === 'openclaw-gateway') {
+          await task.bootstrap.catch(() => {});
+          const diagnostics = task.getDiagnostics();
+
+          // Extract model from conversation
+          const convModel = convAny.model;
+          const model = convModel?.useModel || convModel?.name || convAny.extra?.model;
+          const extra = convAny.extra;
+
+          const gatewayCliPath = extra?.gateway?.cliPath;
+          const gatewayHost = diagnostics.gatewayHost || extra?.gateway?.host || 'localhost';
+          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 18789;
+
+          return {
+            success: true,
+            data: {
+              gatewayRunning: true,
+              gatewayPort: gatewayPort,
+              gatewayHost: gatewayHost,
+              gatewayUrl: `ws://${gatewayHost}:${gatewayPort}`,
+              isConnected: diagnostics.isConnected,
+              hasActiveSession: diagnostics.hasActiveSession,
+              sessionKey: diagnostics.sessionKey,
+              workspace: diagnostics.workspace || extra?.workspace,
+              agentName: diagnostics.agentName || extra?.agentName,
+              model: model,
+              cliPath: diagnostics.cliPath || gatewayCliPath,
+            },
+          };
+        }
+      }
+
+      // No active OpenClaw conversation found
+      return {
+        success: true,
+        data: {
+          gatewayRunning: false,
+          gatewayPort: 18789,
+          gatewayHost: 'localhost',
+          gatewayUrl: 'ws://localhost:18789',
+          isConnected: false,
+          hasActiveSession: false,
+          sessionKey: null,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+        data: {
+          gatewayRunning: false,
+          gatewayPort: 18789,
+          gatewayHost: 'localhost',
+          gatewayUrl: 'ws://localhost:18789',
+          isConnected: false,
+          hasActiveSession: false,
+          sessionKey: null,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  });
+
+  // Get OpenClaw info via CLI (local execution)
+  ipcBridge.openclawConversation.getCliInfo.provider(async () => {
+    try {
+      const { exec } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execAsync = promisify(exec);
+
+      // Try to get OpenClaw version
+      let version: string | undefined;
+      try {
+        const { stdout } = await execAsync('openclaw --version');
+        version = stdout.trim();
+      } catch {
+        // Version not available
+      }
+
+      // Try to get gateway status
+      let gatewayPort = 18789;
+      let gatewayHost = 'localhost';
+      let workspace: string | undefined;
+      let agentName: string | undefined;
+      let model: string | undefined;
+
+      // Read OpenClaw config file
+      try {
+        const { readFile } = await import('node:fs/promises');
+        const { join } = await import('node:path');
+        const { homedir } = await import('node:os');
+        const configPath = join(homedir(), '.openclaw', 'openclaw.json');
+        const configContent = await readFile(configPath, 'utf-8');
+        const config = JSON.parse(configContent);
+
+        // Extract gateway config
+        if (config.gateway?.port) {
+          gatewayPort = config.gateway.port;
+        }
+        if (config.gateway?.host) {
+          gatewayHost = config.gateway.host;
+        }
+
+        // Extract workspace from agents.defaults
+        if (config.agents?.defaults?.workspace) {
+          workspace = config.agents.defaults.workspace;
+        }
+
+        // Extract model from agents.defaults
+        if (config.agents?.defaults?.model?.primary) {
+          model = config.agents.defaults.model.primary;
+          // Extract just the model name (e.g., 'bailian/qwen3.5-plus' -> 'qwen3.5-plus')
+          if (model.includes('/')) {
+            model = model.split('/').pop();
+          }
+        }
+
+        // Extract agent name
+        agentName = config.agents?.defaults?.agentName || '小宇';
+      } catch {
+        // Config not available
+      }
+
+      // Check if gateway is running by probing the port
+      const net = await import('node:net');
+      const isGatewayRunning = await new Promise<boolean>((resolve) => {
+        const socket = net.createConnection({ host: gatewayHost, port: gatewayPort });
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.on('error', () => resolve(false));
+        socket.setTimeout(500);
+      });
+
+      return {
+        success: true,
+        data: {
+          version,
+          workspace,
+          gatewayPort,
+          gatewayHost,
+          agentName,
+          model,
+          isConnected: isGatewayRunning,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  });
+
   ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation> => {
     // 使用 ConversationService 创建会话 / Use ConversationService to create conversation
     const result = await ConversationService.createConversation({

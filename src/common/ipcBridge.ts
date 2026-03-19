@@ -104,6 +104,8 @@ export const application = {
   logStream: bridge.buildEmitter<{ level: 'log' | 'warn' | 'error'; tag: string; message: string; data?: unknown }>('app.log-stream'),
   // DevTools state change notification
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
+  // Execute shell command (for OpenClaw CLI commands)
+  execCommand: bridge.buildProvider<IBridgeResponse<{ stdout?: string; stderr?: string }>, { command: string; cwd?: string }>('app.exec-command'),
 };
 
 // Manual (opt-in) updates via GitHub Releases
@@ -339,6 +341,39 @@ export const openclawConversation = {
     }>,
     { conversation_id: string }
   >('openclaw.get-runtime'),
+  // Get global OpenClaw Gateway status (independent of conversation)
+  getGatewayStatus: bridge.buildProvider<
+    IBridgeResponse<{
+      gatewayRunning: boolean;
+      gatewayPort: number;
+      gatewayHost: string;
+      gatewayUrl: string;
+      isConnected: boolean;
+      hasActiveSession: boolean;
+      sessionKey: string | null;
+      workspace?: string;
+      agentName?: string;
+      model?: string;
+      cliPath?: string;
+      version?: string;
+      error?: string;
+    }>,
+    void
+  >('openclaw.get-gateway-status'),
+  // Get OpenClaw info via CLI (local execution)
+  getCliInfo: bridge.buildProvider<
+    IBridgeResponse<{
+      version?: string;
+      workspace?: string;
+      gatewayPort?: number;
+      gatewayHost?: string;
+      agentName?: string;
+      model?: string;
+      isConnected?: boolean;
+      error?: string;
+    }>,
+    void
+  >('openclaw.get-cli-info'),
 };
 
 // Database operations

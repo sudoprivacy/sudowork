@@ -305,7 +305,7 @@ const Layout: React.FC<{
               >
                 <img
                   src={SudoworkIcon}
-                  alt='Sudowork'
+                  alt='SudoClaw'
                   className={classNames('absolute inset-0 m-auto', {
                     'w-5.5 h-5.5 p-1 scale-140': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
@@ -313,7 +313,7 @@ const Layout: React.FC<{
                   style={{ objectFit: 'contain' }}
                 />
               </div>
-              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>Sudowork</div>
+              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>SudoClaw</div>
               {isMobile && !collapsed && (
                 <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
                   {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}

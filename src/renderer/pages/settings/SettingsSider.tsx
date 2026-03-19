@@ -2,7 +2,7 @@ import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { Communication, Computer, Config, Earth, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit } from '@icon-park/react';
+import { Communication, Computer, Config, Earth, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit, Cloudy } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['model', 'agent', 'tools', 'skill', 'display', 'webui', 'openclaw', 'system', 'about'] as const;
+const BUILTIN_TAB_IDS = ['model', 'agent', 'tools', 'skill', 'display', 'webui', 'copilot', 'openclaw', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
@@ -96,6 +96,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
       webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
       openclaw: { id: 'openclaw', label: t('settings.openclaw', { defaultValue: 'Sudoclaw' }), icon: <Config />, path: 'openclaw' },
+      copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Cloudy theme='outline' size='16' />, path: 'copilot', isImageIcon: true },
       system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };

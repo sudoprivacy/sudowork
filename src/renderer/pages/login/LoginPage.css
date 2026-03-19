@@ -4,7 +4,10 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  font-family:
+    -apple-system,
+    PingFang SC,
+    Microsoft YaHei;
   background: linear-gradient(135deg, #97a0c5 0%, #596590 100%);
   overflow: hidden;
 }
