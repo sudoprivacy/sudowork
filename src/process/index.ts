@@ -16,12 +16,20 @@ import initStorage from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
+import { ensureNodeInstalled } from './services/claudeCli/NodeRuntimeService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 
 export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
+
+  // Ensure bundled Node.js is installed for CLI tools (avoids macOS Dock bounce)
+  try {
+    await ensureNodeInstalled();
+  } catch (err) {
+    console.error('[Process] Node.js runtime install failed:', err);
+  }
 
   // Ensure Sudoclaw (built-in OpenClaw) is installed before bridge — prevents race where OpenClaw
   // conversation starts before install completes and getSudoclawCliPath returns null

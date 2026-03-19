@@ -422,6 +422,8 @@ export const claudeCli = {
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('claude-cli.install-result'),
+  /** Emitted during installation to report progress */
+  installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'configuring'; percent?: number }>('claude-cli.install-progress'),
 };
 
 // Gemini CLI installer / 安装 gemini 命令行工具
@@ -431,6 +433,8 @@ export const geminiCli = {
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
+  /** Emitted during installation to report progress */
+  installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'configuring'; percent?: number }>('gemini-cli.install-progress'),
 };
 
 // LibreOffice installer / LibreOffice 在线安装

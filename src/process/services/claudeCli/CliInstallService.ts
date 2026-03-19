@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
+import { getNodeBinaryPath } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -30,6 +31,10 @@ interface CliConfig {
   declinedKey: string;
   /** Human-readable display label for dialogs */
   label: string;
+  /** Use bundled Node.js instead of ELECTRON_RUN_AS_NODE (avoids Dock bounce on macOS) */
+  useBundledNode?: boolean;
+  /** Progress callback during installation */
+  onProgress?: (phase: 'extracting' | 'configuring', percent?: number) => void;
 }
 
 // Use getDataPath() to get ~/.nexus (CLI-safe symlink on macOS)
@@ -127,11 +132,17 @@ export class CliInstallService {
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
 
+    // Report progress: extracting
+    this.cfg.onProgress?.('extracting', 0);
+
     // Use node-tar for cross-platform reliability (no dependency on system 'tar')
     await tar.x({
       file: tgzPath,
       cwd: this.installDir,
     });
+
+    // Report progress: configuring
+    this.cfg.onProgress?.('configuring', 50);
 
     const entryFile = this.resolveEntryFile();
     if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
@@ -143,6 +154,9 @@ export class CliInstallService {
     }
 
     await this.updateShellConfig();
+
+    // Report progress: done
+    this.cfg.onProgress?.('configuring', 100);
   }
 
   async uninstall(): Promise<void> {
@@ -204,90 +218,104 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(getBinDir(), this.cfg.name);
-    // Wrapper uses ELECTRON_RUN_AS_NODE=1 so users without system Node.js can
-    // run the CLI. All paths are resolved at runtime — no hardcoded locations.
-    const content =
-      [
-        '#!/bin/sh',
-        `# ${this.cfg.name} wrapper — managed by Sudowork`,
-        `CLI="${entryFile}"`,
-        `ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"`,
-        '',
-        'run_electron() {',
-        '  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"',
-        '}',
-        '',
-        '# 1. Path stored by Sudowork (refreshed on every app launch)',
-        'if [ -f "$ELECTRON_PATH_FILE" ]; then',
-        '  ELECTRON=$(cat "$ELECTRON_PATH_FILE")',
-        '  if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi',
-        'fi',
-        '',
-        '# 2. macOS: Spotlight search by bundle ID (works regardless of install location)',
-        'if command -v mdfind >/dev/null 2>&1; then',
-        '  APP=$(mdfind "kMDItemCFBundleIdentifier == \'com.sudowork.app\'" 2>/dev/null | head -1)',
-        '  if [ -n "$APP" ]; then',
-        '    ELECTRON="$APP/Contents/MacOS/Sudowork"',
-        '    if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi',
-        '  fi',
-        'fi',
-        '',
-        '# 3. Linux: check if sudowork is in PATH',
-        'if command -v sudowork >/dev/null 2>&1; then',
-        '  run_electron "$(command -v sudowork)" "$@"',
-        'fi',
-        '',
-        '# 4. Fallback: system Node.js',
-        'for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do',
-        '  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi',
-        '  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi',
-        'done',
-        '',
-        'echo "Error: Sudowork not found and Node.js is not installed." >&2',
-        'echo "  Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org" >&2',
-        'exit 1',
-      ].join('\n') + '\n';
-    fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
+
+    // Build wrapper script
+    const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${entryFile}"`];
+
+    if (this.cfg.useBundledNode) {
+      const nodePath = getNodeBinaryPath();
+      lines.push(`BUNDLED_NODE="${nodePath}"`);
+      lines.push('');
+      lines.push('# 1. Bundled Node.js (no Dock bounce on macOS)');
+      lines.push('if [ -x "$BUNDLED_NODE" ]; then');
+      lines.push('  exec "$BUNDLED_NODE" "$CLI" "$@"');
+      lines.push('fi');
+      lines.push('');
+    }
+
+    lines.push('ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"');
+    lines.push('');
+    lines.push('run_electron() {');
+    lines.push('  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"');
+    lines.push('}');
+    lines.push('');
+    lines.push('# 2. Path stored by Sudowork (refreshed on every app launch)');
+    lines.push('if [ -f "$ELECTRON_PATH_FILE" ]; then');
+    lines.push('  ELECTRON=$(cat "$ELECTRON_PATH_FILE")');
+    lines.push('  if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi');
+    lines.push('fi');
+    lines.push('');
+    lines.push('# 3. macOS: Spotlight search by bundle ID (works regardless of install location)');
+    lines.push('if command -v mdfind >/dev/null 2>&1; then');
+    lines.push('  APP=$(mdfind "kMDItemCFBundleIdentifier == \'com.sudowork.app\'" 2>/dev/null | head -1)');
+    lines.push('  if [ -n "$APP" ]; then');
+    lines.push('    ELECTRON="$APP/Contents/MacOS/Sudowork"');
+    lines.push('    if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi');
+    lines.push('  fi');
+    lines.push('fi');
+    lines.push('');
+    lines.push('# 4. Linux: check if sudowork is in PATH');
+    lines.push('if command -v sudowork >/dev/null 2>&1; then');
+    lines.push('  run_electron "$(command -v sudowork)" "$@"');
+    lines.push('fi');
+    lines.push('');
+    lines.push('# 5. Fallback: system Node.js');
+    lines.push('for NODE in node /usr/local/bin/node /usr/bin/node /opt/homebrew/bin/node; do');
+    lines.push('  if command -v "$NODE" >/dev/null 2>&1; then exec "$NODE" "$CLI" "$@"; fi');
+    lines.push('  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi');
+    lines.push('done');
+    lines.push('');
+    lines.push('echo "Error: Sudowork not found and Node.js is not installed." >&2');
+    lines.push('echo "  Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org" >&2');
+    lines.push('exit 1');
+
+    fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
   }
 
   private createWindowsWrapper(entryFile: string): void {
     const wrapperPath = path.join(getBinDir(), `${this.cfg.name}.cmd`);
-    // Wrapper uses ELECTRON_RUN_AS_NODE=1. Path is read at runtime from
-    // %USERPROFILE%\.nexus\electron-path — no hardcoded install locations.
-    // Note: Must capture %* outside of if blocks, otherwise it won't expand correctly.
-    const content =
-      [
-        '@echo off',
-        'setlocal enabledelayedexpansion',
-        `set "CLI=${entryFile}"`,
-        'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"',
-        'set "ARGS=%*"',
-        'set "ELECTRON="',
-        '',
-        ':: 1. Path stored by Sudowork (refreshed on every app launch)',
-        'if exist "%ELECTRON_PATH_FILE%" (',
-        '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"',
-        ')',
-        'if defined ELECTRON (',
-        '  if exist "!ELECTRON!" (',
-        '    set ELECTRON_RUN_AS_NODE=1',
-        '    "!ELECTRON!" "%CLI%" !ARGS!',
-        '    exit /b !ERRORLEVEL!',
-        '  )',
-        ')',
-        '',
-        ':: 2. Fallback: system Node.js',
-        'where node >nul 2>nul',
-        'if !ERRORLEVEL! equ 0 (',
-        '  node "%CLI%" !ARGS!',
-        '  exit /b !ERRORLEVEL!',
-        ')',
-        '',
-        'echo Error: Sudowork not found and Node.js is not installed.',
-        'echo   Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org',
-        'exit /b 1',
-      ].join('\r\n') + '\r\n';
-    fs.writeFileSync(wrapperPath, content);
+
+    const lines = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${entryFile}"`, 'set "ARGS=%*"'];
+
+    if (this.cfg.useBundledNode) {
+      const nodePath = getNodeBinaryPath();
+      lines.push('');
+      lines.push(':: 1. Bundled Node.js');
+      lines.push(`set "BUNDLED_NODE=${nodePath}"`);
+      lines.push('if exist "%BUNDLED_NODE%" (');
+      lines.push('  "%BUNDLED_NODE%" "%CLI%" !ARGS!');
+      lines.push('  exit /b !ERRORLEVEL!');
+      lines.push(')');
+    }
+
+    lines.push('');
+    lines.push('set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"');
+    lines.push('set "ELECTRON="');
+    lines.push('');
+    lines.push(':: 2. Path stored by Sudowork (refreshed on every app launch)');
+    lines.push('if exist "%ELECTRON_PATH_FILE%" (');
+    lines.push('  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"');
+    lines.push(')');
+    lines.push('if defined ELECTRON (');
+    lines.push('  if exist "!ELECTRON!" (');
+    lines.push('    set ELECTRON_RUN_AS_NODE=1');
+    lines.push('    "!ELECTRON!" "%CLI%" !ARGS!');
+    lines.push('    exit /b !ERRORLEVEL!');
+    lines.push('  )');
+    lines.push(')');
+    lines.push('');
+    lines.push(':: 3. Fallback: system Node.js');
+    lines.push('where node >nul 2>nul');
+    lines.push('if !ERRORLEVEL! equ 0 (');
+    lines.push('  node "%CLI%" !ARGS!');
+    lines.push('  exit /b !ERRORLEVEL!');
+    lines.push(')');
+    lines.push('');
+    lines.push('echo Error: Sudowork not found and Node.js is not installed.');
+    lines.push('echo   Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org');
+    lines.push('exit /b 1');
+
+    fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
   }
 
   private async updateShellConfig(): Promise<void> {
@@ -339,6 +367,10 @@ export const claudeCliService = new CliInstallService({
   tgzResource: 'claude-code.tgz',
   declinedKey: 'claudeCli.installDeclined',
   label: 'Claude Code CLI',
+  useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
+  onProgress: (phase, percent) => {
+    ipcBridge.claudeCli.installProgress.emit({ phase, percent });
+  },
 });
 
 export const geminiCliService = new CliInstallService({
@@ -347,6 +379,10 @@ export const geminiCliService = new CliInstallService({
   tgzResource: 'gemini-cli.tgz',
   declinedKey: 'geminiCli.installDeclined',
   label: 'Gemini CLI',
+  useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
+  onProgress: (phase, percent) => {
+    ipcBridge.geminiCli.installProgress.emit({ phase, percent });
+  },
 });
 
 /**

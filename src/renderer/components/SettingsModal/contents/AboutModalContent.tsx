@@ -50,9 +50,11 @@ const AboutModalContent: React.FC = () => {
 
   const [claudeStatus, setClaudeStatus] = useState<ICliStatus | null>(null);
   const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
+  const [claudePhase, setClaudePhase] = useState<'extracting' | 'configuring' | undefined>(undefined);
 
   const [geminiStatus, setGeminiStatus] = useState<ICliStatus | null>(null);
   const [geminiLoad, setGeminiLoad] = useState<LoadState>('idle');
+  const [geminiPhase, setGeminiPhase] = useState<'extracting' | 'configuring' | undefined>(undefined);
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
@@ -78,11 +80,13 @@ const AboutModalContent: React.FC = () => {
 
   const installClaude = useCallback(async () => {
     setClaudeLoad('installing');
+    setClaudePhase(undefined);
     try {
       const res = await claudeCliIpc.install.invoke();
       if (res?.success) await refreshClaude();
     } finally {
       setClaudeLoad('idle');
+      setClaudePhase(undefined);
     }
   }, [refreshClaude]);
 
@@ -98,11 +102,13 @@ const AboutModalContent: React.FC = () => {
 
   const installGemini = useCallback(async () => {
     setGeminiLoad('installing');
+    setGeminiPhase(undefined);
     try {
       const res = await geminiCliIpc.install.invoke();
       if (res?.success) await refreshGemini();
     } finally {
       setGeminiLoad('idle');
+      setGeminiPhase(undefined);
     }
   }, [refreshGemini]);
 
@@ -170,6 +176,8 @@ const AboutModalContent: React.FC = () => {
   }, [refreshNexus]);
 
   const installClaudeFromLocal = useCallback(async () => {
+    setClaudeLoad('installing');
+    setClaudePhase(undefined);
     try {
       // 调用主进程IPC来从预打包资源安装claude
       const installRes = await claudeCliIpc.install.invoke();
@@ -181,10 +189,15 @@ const AboutModalContent: React.FC = () => {
       }
     } catch (e) {
       Message.error(e instanceof Error ? e.message : 'Claude Code 安装失败');
+    } finally {
+      setClaudeLoad('idle');
+      setClaudePhase(undefined);
     }
   }, [refreshClaude]);
 
   const installGeminiFromLocal = useCallback(async () => {
+    setGeminiLoad('installing');
+    setGeminiPhase(undefined);
     try {
       // 调用主进程IPC来从预打包资源安装gemini
       const installRes = await geminiCliIpc.install.invoke();
@@ -196,6 +209,9 @@ const AboutModalContent: React.FC = () => {
       }
     } catch (e) {
       Message.error(e instanceof Error ? e.message : 'Gemini CLI 安装失败');
+    } finally {
+      setGeminiLoad('idle');
+      setGeminiPhase(undefined);
     }
   }, [refreshGemini]);
 
@@ -270,8 +286,20 @@ const AboutModalContent: React.FC = () => {
 
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
   useEffect(() => {
-    const unsubClaude = claudeCliIpc.installResult.on(() => void refreshClaude());
-    const unsubGemini = geminiCliIpc.installResult.on(() => void refreshGemini());
+    const unsubClaude = claudeCliIpc.installResult.on(() => {
+      setClaudePhase(undefined);
+      void refreshClaude();
+    });
+    const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
+      setClaudePhase(phase);
+    });
+    const unsubGemini = geminiCliIpc.installResult.on(() => {
+      setGeminiPhase(undefined);
+      void refreshGemini();
+    });
+    const unsubGeminiProgress = geminiCliIpc.installProgress.on(({ phase }) => {
+      setGeminiPhase(phase);
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent); // 直接更新，retry 时允许从 0% 重新开始
@@ -284,7 +312,9 @@ const AboutModalContent: React.FC = () => {
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
     return () => {
       unsubClaude();
+      unsubClaudeProgress();
       unsubGemini();
+      unsubGeminiProgress();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
@@ -311,7 +341,6 @@ const AboutModalContent: React.FC = () => {
             copying: '安装中…',
             unmounting: '清理中…',
             installing: '安装中…',
-            extracting: '解压中…',
             cleanup: '清理中…',
             // Nexus phases
             checking: '检查中…',
@@ -319,8 +348,11 @@ const AboutModalContent: React.FC = () => {
             starting: '启动中…',
             ready: '就绪',
             error: '出错',
+            // CLI phases
+            extracting: '解压中…',
+            configuring: '配置中…',
           };
-          statusText = phaseLabel[record.installPhase ?? 'downloading'] ?? '安装中…';
+          statusText = phaseLabel[record.installPhase ?? 'installing'] ?? '安装中…';
         } else if (record.key === 'nexus') {
           if (record.nexusRunning) {
             statusColor = 'color-green-6'; // 绿色
@@ -394,6 +426,7 @@ const AboutModalContent: React.FC = () => {
       badge: 'CC',
       status: claudeStatus,
       loadState: claudeLoad,
+      installPhase: claudePhase,
       onRefresh: refreshClaude,
       onInstall: installClaude,
       onInstallFromLocal: installClaudeFromLocal,
@@ -405,6 +438,7 @@ const AboutModalContent: React.FC = () => {
       badge: 'GC',
       status: geminiStatus,
       loadState: geminiLoad,
+      installPhase: geminiPhase,
       onRefresh: refreshGemini,
       onInstall: installGemini,
       onInstallFromLocal: installGeminiFromLocal,
