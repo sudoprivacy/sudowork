@@ -16,6 +16,7 @@ import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawCliPathAlways, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
+import WorkerManage from '@process/WorkerManage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
 
 export interface OpenClawAgentManagerData {
@@ -86,7 +87,7 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
       return this.agent;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(`Failed to start OpenClaw agent: ${errorMsg}`);
+      this.emitErrorMessage(`Failed to start Sudoclaw agent: ${errorMsg}`);
       throw error;
     }
   }
@@ -221,7 +222,7 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
       this.status = 'finished';
 
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(`Failed to send message: ${errorMsg}`);
+      this.emitErrorMessage(`Failed to send Sudoclaw message: ${errorMsg}`);
       throw error;
     }
   }
@@ -263,7 +264,10 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   }
 
   stop() {
-    return this.agent?.stop?.() ?? Promise.resolve();
+    // Only stop the gateway when no other Sudoclaw sessions exist — all sessions share one gateway
+    const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
+    const shouldStopGateway = others.length === 0;
+    return this.agent?.stop?.({ shouldStopGateway }) ?? Promise.resolve();
   }
 
   /** Restart gateway to pick up config changes (~/.sudoclaw/openclaw.json) */
@@ -274,11 +278,9 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   }
 
   kill() {
-    try {
-      this.agent?.kill?.();
-    } finally {
-      super.kill();
-    }
+    const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
+    const shouldStopGateway = others.length === 0;
+    void (this.agent?.stop?.({ shouldStopGateway }) ?? Promise.resolve()).catch((err) => console.error('[OpenClawAgentManager] agent.stop failed during kill:', err)).finally(() => super.kill());
   }
 
   getDiagnostics() {

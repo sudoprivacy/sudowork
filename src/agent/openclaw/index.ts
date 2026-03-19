@@ -121,10 +121,8 @@ export class OpenClawAgent {
       if (!useExternal) {
         const probeHost = host === 'localhost' ? '127.0.0.1' : host;
         const alreadyListening = await isTcpPortOpen(probeHost, port);
-        if (alreadyListening && stateDir) {
-          // Port in use → connecting would use wrong gateway (e.g. system OpenClaw) or stale process.
-          throw new Error(`Port ${port} is already in use. Stop the conflicting gateway: run \`pkill -f "openclaw gateway"\` in terminal.`);
-        }
+        // When port is already in use: another Sudoclaw session started the built-in gateway.
+        // Connect to it (always port 18799, never system OpenClaw 18789) — all sessions share one gateway.
         if (!alreadyListening) {
           const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({
@@ -142,8 +140,7 @@ export class OpenClawAgent {
             throw new Error(`Failed to start OpenClaw Gateway: ${errorMsg}`);
           }
         }
-        // If alreadyListening and no stateDir (useExternal-like): we'd connect to existing gateway.
-        // That path is rare; typically we have stateDir (Sudoclaw) and would have thrown above.
+        // If alreadyListening: connect to existing gateway (shared across sessions).
       }
 
       // Create and configure connection (stateDir must match gateway for device auth)
@@ -177,16 +174,18 @@ export class OpenClawAgent {
 
   /**
    * Stop the agent
+   * @param options.shouldStopGateway - If false, keep gateway running (other sessions may use it)
    */
-  async stop(): Promise<void> {
+  async stop(options?: { shouldStopGateway?: boolean }): Promise<void> {
     // Stop connection
     if (this.connection) {
       this.connection.stop();
       this.connection = null;
     }
 
-    // Stop gateway process
-    if (this.gatewayManager) {
+    // Stop gateway process only when no other sessions need it
+    const shouldStopGateway = options?.shouldStopGateway !== false;
+    if (this.gatewayManager && shouldStopGateway) {
       await this.gatewayManager.stop();
       this.gatewayManager = null;
     }
