@@ -204,12 +204,27 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       const isWindows = process.platform === 'win32';
 
-      const resolvedCli = this.resolveCommandPath(this.cliPath, env.PATH);
-      // Always use Sudoclaw path — no system openclaw (runViaNode removed)
-      const spawnCommand = resolvedCli;
-      const spawnArgs = args;
-
       const spawnCwd = this.stateDir ? path.join(this.stateDir, 'cli', 'package') : undefined;
+      const launcherPath = spawnCwd ? path.join(spawnCwd, 'launcher.mjs') : null;
+
+      // Sudoclaw: spawn Electron directly with launcher + args. Do NOT pass execPath as an arg to openclaw
+      // (wrong: spawn("openclaw", [execPath, "gateway", ...]) — causes "unknown command" error)
+      const useDirectElectron = this.stateDir && launcherPath && fs.existsSync(launcherPath) && this.cliPath.includes('.sudoclaw') && (this.cliPath.includes('bin/openclaw') || this.cliPath.includes('bin\\openclaw'));
+
+      let spawnCommand: string;
+      let spawnArgs: string[];
+
+      if (useDirectElectron) {
+        spawnCommand = process.execPath;
+        spawnArgs = [launcherPath!, ...args];
+        env.ELECTRON_RUN_AS_NODE = '1';
+        if (this.stateDir) env.OPENCLAW_STATE_DIR = this.stateDir;
+      } else {
+        const resolvedCli = this.resolveCommandPath(this.cliPath, env.PATH);
+        spawnCommand = resolvedCli;
+        spawnArgs = args;
+      }
+
       if (spawnCwd && fs.existsSync(spawnCwd)) {
         console.log('[OpenClawGatewayManager] Using cwd:', spawnCwd);
       }

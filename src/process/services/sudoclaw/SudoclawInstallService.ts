@@ -107,8 +107,12 @@ try {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const openclawPath = path.join(__dirname, 'openclaw.mjs');
 let userArgs = process.argv.slice(2);
-const isElectronOrNodePath = (s) => typeof s === 'string' && (s.includes('Electron') || s.includes('electron') || /node(\\.exe)?$/i.test(path.basename(s)));
-while (userArgs.length > 0 && isElectronOrNodePath(userArgs[0])) userArgs = userArgs.slice(1);
+// Strip leading executable paths (Electron, Node, or Sudowork app) so Commander receives correct subcommand
+const isExecutablePath = (s) => typeof s === 'string' && (
+  s.includes('Electron') || s.includes('electron') || /node(\\.exe)?$/i.test(path.basename(s)) ||
+  /\\.app[\\\\/]Contents[\\\\/]MacOS[\\\\/]/i.test(s) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
+);
+while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs.slice(1);
 process.argv = ['node', openclawPath, ...userArgs];
 if (process.versions.electron) delete process.versions.electron;
 await import('./openclaw.mjs');

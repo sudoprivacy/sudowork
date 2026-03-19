@@ -93,6 +93,7 @@ export function initSudoclawBridge(): void {
       port: testPort,
       stateDir: SUDOCLAW_DIR,
       customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
+      forceSubprocessGateway: true, // Avoid in-process — prevents main process crash when testing
     });
     let stdout = '';
     let stderr = '';
