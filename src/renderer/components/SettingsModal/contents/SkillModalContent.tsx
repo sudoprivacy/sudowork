@@ -122,8 +122,9 @@ const SkillItem: React.FC<{
         </div>
         <div className='flex items-center gap-8px ml-8px flex-shrink-0'>
           {/* Install/Update button */}
-          {latestVersionInfo && !isInstalled && (
-            installing ? (
+          {latestVersionInfo &&
+            !isInstalled &&
+            (installing ? (
               <div className='w-100px'>
                 <Progress percent={installProgress} size='small' />
               </div>
@@ -139,10 +140,9 @@ const SkillItem: React.FC<{
               >
                 {t('settings.skill.install', { defaultValue: 'Install' })}
               </Button>
-            )
-          )}
-          {hasUpdate && (
-            installing ? (
+            ))}
+          {hasUpdate &&
+            (installing ? (
               <div className='w-100px'>
                 <Progress percent={installProgress} size='small' />
               </div>
@@ -157,8 +157,7 @@ const SkillItem: React.FC<{
               >
                 {t('settings.skill.update', { defaultValue: 'Update' })}
               </Button>
-            )
-          )}
+            ))}
           <div className='flex items-center gap-4px text-t-secondary text-14px'>
             <Star theme='filled' size='16' fill='#f59e0b' />
             <span>{skill.star_count}</span>
@@ -193,7 +192,15 @@ const SkillItem: React.FC<{
                   <span className='font-semibold text-t-secondary flex-shrink-0'>{t('settings.skill.versions', { defaultValue: 'Versions' })}:</span>
                   <div className='flex flex-wrap gap-8px'>
                     {detail.versions.map((v) => (
-                      <Button key={v.id} size='small' onClick={(e) => { e.stopPropagation(); }} icon={isInstalled && v.version === installedVersion ? <Check size='14' /> : <Install size='14' />} className='bg-fill-1 border-border-2'>
+                      <Button
+                        key={v.id}
+                        size='small'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        icon={isInstalled && v.version === installedVersion ? <Check size='14' /> : <Install size='14' />}
+                        className='bg-fill-1 border-border-2'
+                      >
                         {v.version}
                         {isInstalled && v.version === installedVersion && ` (${t('settings.skill.current', { defaultValue: 'current' })})`}
                       </Button>
@@ -252,7 +259,7 @@ const SkillModalContent: React.FC = () => {
     const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
 
     // Only fetch for skills that don't have version info yet
-    const skillsToFetch = skillList.filter(s => !versionMap.has(s.id));
+    const skillsToFetch = skillList.filter((s) => !versionMap.has(s.id));
     if (skillsToFetch.length === 0) {
       setLatestVersions(versionMap);
       return;
@@ -300,69 +307,75 @@ const SkillModalContent: React.FC = () => {
   }, []);
 
   // Fetch skills (initial or load more)
-  const fetchSkills = useCallback(async (cursor?: string, append = false) => {
-    try {
-      if (append) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
-      }
-
-      const category = selectedCategory === 'all' ? '' : selectedCategory;
-      const query = searchQuery.trim();
-
-      let skillsRes: IBridgeResponse<ISkillHubListResponse>;
-
-      if (isElectronDesktop()) {
-        skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 20, query, category });
-      } else {
-        skillsRes = await fetchSkillsHttp({ cursor, limit: 20, query, category });
-      }
-
-      if (skillsRes.success && skillsRes.data) {
-        const newSkills = skillsRes.data.skills || [];
+  const fetchSkills = useCallback(
+    async (cursor?: string, append = false) => {
+      try {
         if (append) {
-          setSkills(prev => [...prev, ...newSkills]);
+          setLoadingMore(true);
         } else {
-          setSkills(newSkills);
+          setLoading(true);
         }
-        setNextCursor(skillsRes.data.next_cursor || null);
-        setHasMore(skillsRes.data.has_more || false);
-        // Fetch latest versions for new skills
-        fetchLatestVersions(newSkills, append ? latestVersions : undefined);
+
+        const category = selectedCategory === 'all' ? '' : selectedCategory;
+        const query = searchQuery.trim();
+
+        let skillsRes: IBridgeResponse<ISkillHubListResponse>;
+
+        if (isElectronDesktop()) {
+          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 20, query, category });
+        } else {
+          skillsRes = await fetchSkillsHttp({ cursor, limit: 20, query, category });
+        }
+
+        if (skillsRes.success && skillsRes.data) {
+          const newSkills = skillsRes.data.skills || [];
+          if (append) {
+            setSkills((prev) => [...prev, ...newSkills]);
+          } else {
+            setSkills(newSkills);
+          }
+          setNextCursor(skillsRes.data.next_cursor || null);
+          setHasMore(skillsRes.data.has_more || false);
+          // Fetch latest versions for new skills
+          void fetchLatestVersions(newSkills, append ? latestVersions : undefined);
+        }
+      } catch (err) {
+        console.error('Failed to fetch skills:', err);
+        Message.error(t('settings.skill.fetchFailed', { defaultValue: 'Failed to fetch skills' }));
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch skills:', err);
-      Message.error(t('settings.skill.fetchFailed', { defaultValue: 'Failed to fetch skills' }));
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [selectedCategory, searchQuery, fetchLatestVersions, latestVersions, t]);
+    },
+    [selectedCategory, searchQuery, fetchLatestVersions, latestVersions, t]
+  );
 
   // Load more skills
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore && nextCursor) {
-      fetchSkills(nextCursor, true);
+      void fetchSkills(nextCursor, true);
     }
   }, [loadingMore, hasMore, nextCursor, fetchSkills]);
 
   // Handle scroll for infinite scroll
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const { scrollTop, scrollHeight, clientHeight } = target;
-    // Load more when user scrolls to within 100px of the bottom
-    if (scrollHeight - scrollTop - clientHeight < 100) {
-      loadMore();
-    }
-  }, [loadMore]);
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      // Load more when user scrolls to within 100px of the bottom
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        loadMore();
+      }
+    },
+    [loadMore]
+  );
 
   // Initial load and when filters change
   useEffect(() => {
     setSkills([]);
     setNextCursor(null);
     setHasMore(false);
-    fetchSkills();
+    void fetchSkills();
     void fetchInstalledSkills();
   }, [selectedCategory]); // Re-fetch when category changes
 
@@ -372,7 +385,7 @@ const SkillModalContent: React.FC = () => {
       setSkills([]);
       setNextCursor(null);
       setHasMore(false);
-      fetchSkills();
+      void fetchSkills();
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]); // Re-fetch when search query changes
@@ -473,17 +486,7 @@ const SkillModalContent: React.FC = () => {
         ) : (
           <div className='space-y-8px pb-16px'>
             {skills.map((skill) => (
-              <SkillItem
-                key={skill.id}
-                skill={skill}
-                isExpanded={expandedId === skill.id}
-                installedVersion={installedSkills.get(skill.name)}
-                latestVersionInfo={latestVersions.get(skill.id)}
-                onToggle={() => setExpandedId(expandedId === skill.id ? null : skill.id)}
-                onInstall={() => handleInstall(skill.id)}
-                installing={installingSkillId === skill.id}
-                installProgress={installProgress}
-              />
+              <SkillItem key={skill.id} skill={skill} isExpanded={expandedId === skill.id} installedVersion={installedSkills.get(skill.name)} latestVersionInfo={latestVersions.get(skill.id)} onToggle={() => setExpandedId(expandedId === skill.id ? null : skill.id)} onInstall={() => handleInstall(skill.id)} installing={installingSkillId === skill.id} installProgress={installProgress} />
             ))}
             {loadingMore && (
               <div className='flex justify-center py-16px'>

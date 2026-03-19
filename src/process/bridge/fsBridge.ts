@@ -13,7 +13,7 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
-import { getSystemDir, getAssistantsDir } from '../initStorage';
+import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
 import { readDirectoryRecursive } from '../utils';
 
 // ============================================================================
@@ -1090,9 +1090,7 @@ export function initFsBridge(): void {
   // 检测 skills 路径 / Detect skills path
   ipcBridge.fs.detectCommonSkillPaths.provider(async () => {
     try {
-      const candidates = [
-        { name: 'Sudowork', path: getSkillsDir() },
-      ];
+      const candidates = [{ name: 'Sudowork', path: getSkillsDir() }];
 
       const detected: Array<{ name: string; path: string }> = [];
       for (const candidate of candidates) {

@@ -89,8 +89,7 @@ export class CliInstallService {
 
   /** Read version from the installed package.json — always works regardless of PATH */
   private getManagedVersion(): string | undefined {
-    const pkgName = this.cfg.npmPackage.startsWith('@') ? this.cfg.npmPackage.split('@').slice(1, 3).join('@') : this.cfg.npmPackage.split('@')[0];
-    const pkgJson = path.join(this.installDir, 'node_modules', pkgName, 'package.json');
+    const pkgJson = path.join(this.installDir, 'node_modules', this.cfg.npmPackage, 'package.json');
     if (!fs.existsSync(pkgJson)) return undefined;
     try {
       return JSON.parse(fs.readFileSync(pkgJson, 'utf-8')).version ?? undefined;
@@ -182,9 +181,8 @@ export class CliInstallService {
   /** Read bin entry from extracted package.json to find the CLI entry file */
   private resolveEntryFile(): string | null {
     // The self-contained bundle has the target package inside node_modules
-    // e.g. installDir/node_modules/@google/gemini-cli/package.json
-    const pkgName = this.cfg.npmPackage.startsWith('@') ? this.cfg.npmPackage.split('@').slice(1, 3).join('@') : this.cfg.npmPackage.split('@')[0];
-    const pkgPath = path.join(this.installDir, 'node_modules', pkgName);
+    // e.g. installDir/node_modules/@anthropic-ai/claude-code/package.json
+    const pkgPath = path.join(this.installDir, 'node_modules', this.cfg.npmPackage);
     const pkgJson = path.join(pkgPath, 'package.json');
 
     if (!fs.existsSync(pkgJson)) return null;
