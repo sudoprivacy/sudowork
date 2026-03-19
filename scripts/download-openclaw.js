@@ -73,24 +73,18 @@ try {
 
   // Always run npm install — dist/ imports chalk etc., npm pack excludes node_modules.
   // Use npm only (not pnpm) for flat node_modules — pnpm symlinks can cause extraction/runtime issues.
-  console.log('[openclaw] Installing dependencies (npm, flat structure)...');
+  // Windows CI needs longer timeout due to slower I/O and antivirus scanning.
+  const npmTimeout = process.platform === 'win32' ? 300_000 : 120_000;
+  console.log(`[openclaw] Installing dependencies (npm, flat structure, timeout: ${npmTimeout / 1000}s)...`);
   try {
     execSync('npm install --omit=dev --registry=https://registry.npmjs.org', {
       cwd: pkgDir,
       stdio: 'inherit',
-      timeout: 120_000,
+      timeout: npmTimeout,
     });
   } catch (err) {
-    console.error('[openclaw] npm install failed, trying pnpm...', err?.message);
-    try {
-      execSync('pnpm install --prod --registry=https://registry.npmjs.org', {
-        cwd: pkgDir,
-        stdio: 'inherit',
-        timeout: 120_000,
-      });
-    } catch (pnpmErr) {
-      throw new Error('npm and pnpm install failed');
-    }
+    console.error('[openclaw] npm install failed:', err?.message);
+    throw new Error('npm install failed. Ensure npm is available and network is stable.');
   }
 
   if (!hasDist) {

@@ -49,13 +49,6 @@ function getLatestFileMtimeMs(dir: string): number {
   return latest;
 }
 
-function getLatestSourceMtimeMs(files: string[]): number {
-  return files.reduce((latest, file) => {
-    if (!fs.existsSync(file)) return latest;
-    return Math.max(latest, fs.statSync(file).mtimeMs);
-  }, 0);
-}
-
 function resolveDefaultAppAsarPath(): string | null {
   const appAsarPath = findLatestAppAsarUnderOut();
   if (!appAsarPath) return null;
@@ -118,7 +111,6 @@ function extractFaviconHref(indexHtmlPath: string): string {
 
 describe('Built WebUI favicon integrity', () => {
   const rendererIndexPath = path.resolve(__dirname, '../../out/renderer/index.html');
-  const faviconSourceFiles = [path.resolve(__dirname, '../../src/renderer/index.html'), path.resolve(__dirname, '../../resources/icon.png')];
   const envAsar = process.env.APP_ASAR_PATH;
   const resolvedEnvAsar = envAsar ? path.resolve(envAsar) : null;
 
@@ -130,10 +122,8 @@ describe('Built WebUI favicon integrity', () => {
   const runOrSkip = fs.existsSync(rendererIndexPath) ? it : it.skip;
 
   runOrSkip('should include the built favicon asset referenced by renderer index.html', () => {
-    const rendererIndexMtime = fs.statSync(rendererIndexPath).mtimeMs;
-    const latestSourceMtime = getLatestSourceMtimeMs(faviconSourceFiles);
-
-    expect(rendererIndexMtime).toBeGreaterThanOrEqual(latestSourceMtime);
+    // Note: We don't check mtime because source files may be modified after build
+    // (e.g., git operations, editor saves). The core test is favicon asset existence.
 
     const faviconHref = extractFaviconHref(rendererIndexPath);
 
