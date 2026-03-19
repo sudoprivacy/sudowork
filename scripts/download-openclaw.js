@@ -52,9 +52,12 @@ try {
 
   const tgzPath = path.join(tmpDir, tgz);
   if (process.platform === 'win32') {
-    // On Windows, use system tar with full paths to avoid "Cannot open: No such file or directory".
-    // Use forward slashes for Git Bash compatibility (CI runs with shell: bash).
-    const toTarPath = (p) => path.resolve(p).replace(/\\/g, '/');
+    // GNU tar interprets "C:/" as remote host. Use MSYS2 format "/c/..." (Git Bash on CI).
+    const toTarPath = (p) =>
+      path
+        .resolve(p)
+        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
+        .replace(/\\/g, '/');
     execSync(`tar -xzf "${toTarPath(tgzPath)}" -C "${toTarPath(extractDir)}"`, {
       stdio: 'inherit',
       shell: true,
@@ -108,7 +111,11 @@ try {
   }
 
   if (process.platform === 'win32') {
-    const toTarPath = (p) => path.resolve(p).replace(/\\/g, '/');
+    const toTarPath = (p) =>
+      path
+        .resolve(p)
+        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
+        .replace(/\\/g, '/');
     execSync(`tar -czf "${toTarPath(OUTPUT)}" -C "${toTarPath(extractDir)}" package`, {
       stdio: 'inherit',
       shell: true,
