@@ -1087,13 +1087,11 @@ export function initFsBridge(): void {
     }
   });
 
-  // 检测常见的 skills 路径 / Detect common skills paths
+  // 检测 skills 路径 / Detect skills path
   ipcBridge.fs.detectCommonSkillPaths.provider(async () => {
     try {
-      const homedir = os.homedir();
       const candidates = [
-        { name: 'Gemini', path: path.join(homedir, '.gemini', 'skills') },
-        { name: 'Claude', path: path.join(homedir, '.claude', 'skills') },
+        { name: 'Sudowork', path: getSkillsDir() },
       ];
 
       const detected: Array<{ name: string; path: string }> = [];

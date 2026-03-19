@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Earth, Gemini, Info, LinkCloud, Puzzle, Robot, System, Toolkit } from '@icon-park/react';
+import { Communication, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -42,6 +42,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       { id: 'model', label: t('settings.model'), icon: <LinkCloud theme='outline' size='16' />, path: 'model' },
       { id: 'agent', label: t('settings.assistants', { defaultValue: 'Assistants' }), icon: <Robot theme='outline' size='16' />, path: 'agent' },
       { id: 'tools', label: t('settings.tools'), icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
+      { id: 'skill', label: t('settings.skill'), icon: <Lightning theme='outline' size='16' />, path: 'skill' },
       { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
       { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
       { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },

@@ -232,3 +232,27 @@ body[arco-theme='dark'] .arco-message-error {
     background: var(--color-primary);
   }
 }
+
+/* Skill Hub Input and Select styles - match button background for visibility */
+/* Skill Hub 输入框和下拉框样式 - 与按钮背景一致以便识别 */
+.skill-hub-input {
+  .arco-input-wrapper {
+    background-color: var(--fill-0) !important;
+  }
+  .arco-input-inner-wrapper {
+    background-color: var(--fill-0) !important;
+  }
+  .arco-input {
+    background-color: transparent !important;
+  }
+  .arco-input-prefix {
+    background-color: transparent !important;
+    color: var(--color-text-3) !important;
+  }
+}
+
+.skill-hub-select {
+  .arco-select-view {
+    background-color: var(--fill-0) !important;
+  }
+}

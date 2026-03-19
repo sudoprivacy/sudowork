@@ -329,7 +329,7 @@ export const ExtModelProviderSchema = z.object({
  * Route-page tabs:  gemini | model | agent | tools | display | webui | system | about
  * Modal-only tabs:  gemini | model | tools | webui | system | about
  */
-export const BUILTIN_SETTINGS_TAB_IDS = ['gemini', 'model', 'agent', 'tools', 'display', 'webui', 'system', 'about'] as const;
+export const BUILTIN_SETTINGS_TAB_IDS = ['gemini', 'model', 'agent', 'tools', 'skill', 'display', 'webui', 'system', 'about'] as const;
 
 export const ExtSettingsTabSchema = z.object({
   id: z.string().min(1, 'Settings tab id is required'),

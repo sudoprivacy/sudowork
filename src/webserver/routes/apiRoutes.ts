@@ -7,10 +7,16 @@
 import { type Express, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
+import https from 'https';
+import { URL } from 'url';
 import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { ExtensionRegistry } from '@/extensions';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';
+
+const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
+const SKILL_HUB_AUTHORIZATION = 'sud0@sudo';
 
 function normalizeMountPath(input: string): string {
   if (!input || input.trim() === '') return '/';
@@ -230,6 +236,83 @@ export function registerApiRoutes(app: Express): void {
    */
   app.use('/api', apiRateLimiter, validateApiAccess, (_req: Request, res: Response) => {
     res.json({ message: 'API endpoint - bridge integration working' });
+  });
+
+  /**
+   * Skill Hub API - 技能中心 API
+   * GET /api/skill-hub/skills - 获取技能列表
+   * GET /api/skill-hub/categories - 获取分类列表
+   * GET /api/skill-hub/skills/:skillId - 获取技能详情
+   */
+  app.get('/api/skill-hub/skills', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      const page = typeof req.query.page === 'string' ? req.query.page : '1';
+      const size = typeof req.query.size === 'string' ? req.query.size : '200';
+      const query = typeof req.query.query === 'string' ? req.query.query : '';
+      const category = typeof req.query.category === 'string' ? req.query.category : '';
+
+      const params = new URLSearchParams({ page, size, query, category });
+      const response = await fetch(`${SKILL_HUB_BASE_URL}?${params}`, {
+        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      });
+      const data = await response.json();
+      res.json({ success: true, data });
+    } catch (error) {
+      console.error('[SkillHub API] Failed to fetch skills:', error);
+      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get('/api/skill-hub/skills/cursor', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : '';
+      const limit = typeof req.query.limit === 'string' ? req.query.limit : '20';
+      const query = typeof req.query.query === 'string' ? req.query.query : '';
+      const category = typeof req.query.category === 'string' ? req.query.category : '';
+
+      const params = new URLSearchParams();
+      if (cursor) params.set('cursor', cursor);
+      if (limit) params.set('limit', limit);
+      if (query) params.set('query', query);
+      if (category) params.set('category', category);
+
+      const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/cursor?${params}`, {
+        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      });
+      const result = await response.json();
+      // Return only the data part to match IBridgeResponse<ISkillHubListResponse>
+      res.json({ success: true, data: result.data });
+    } catch (error) {
+      console.error('[SkillHub API] Failed to fetch skills with cursor:', error);
+      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get('/api/skill-hub/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
+    try {
+      const response = await fetch(`${SKILL_HUB_BASE_URL}/categories`, {
+        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      });
+      const data = await response.json();
+      res.json({ success: true, data: data.data || [] });
+    } catch (error) {
+      console.error('[SkillHub API] Failed to fetch categories:', error);
+      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get('/api/skill-hub/skills/:skillId', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      const { skillId } = req.params;
+      const response = await fetch(`${SKILL_HUB_BASE_URL}/${skillId}`, {
+        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      });
+      const data = await response.json();
+      res.json({ success: true, data: data.data });
+    } catch (error) {
+      console.error('[SkillHub API] Failed to fetch skill detail:', error);
+      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
+    }
   });
 }
 

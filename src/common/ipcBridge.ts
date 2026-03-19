@@ -784,6 +784,62 @@ export const extensions = {
   stateChanged: bridge.buildEmitter<{ name: string; enabled: boolean; reason?: string }>('extensions.state-changed'),
 };
 
+// ==================== Skill Hub API ====================
+
+export interface ISkillHubSkill {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  category: string;
+  emoji: string | null;
+  star_count: number;
+  homepage: string | null;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ISkillHubVersion {
+  id: string;
+  version: string;
+  source_url: string;
+  changelog: string | null;
+  checksum: string;
+  readme_content: string | null;
+  created_at: string;
+  skill_id: string;
+}
+
+export interface ISkillInstallResult {
+  skillName: string;
+  installedVersion: string;
+}
+
+export interface ISkillHubDetail {
+  skill: ISkillHubSkill;
+  versions: ISkillHubVersion[];
+}
+
+export interface ISkillHubListResponse {
+  skills: ISkillHubSkill[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export const skillHub = {
+  /** Fetch skills list from Skill Hub API with cursor-based pagination */
+  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string }>('skill-hub.fetch-skills'),
+  /** Fetch skill categories from Skill Hub API */
+  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
+  /** Fetch skill detail from Skill Hub API */
+  fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
+  /** Download and install skill from URL */
+  downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string }>('skill-hub.download-and-install-skill'),
+  /** Get installed skills with versions */
+  getInstalledSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; version: string }>>, void>('skill-hub.get-installed-skills'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
