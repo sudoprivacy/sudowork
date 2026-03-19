@@ -50,11 +50,17 @@ try {
   const extractDir = path.join(tmpDir, 'extract');
   fs.mkdirSync(extractDir, { recursive: true });
 
-  // Use system tar command instead of Node.js tar module
+  const tgzPath = path.join(tmpDir, tgz);
   if (process.platform === 'win32') {
-    execSync(`tar -xzf "${tgz}"`, { cwd: extractDir, stdio: 'inherit', shell: true });
+    // On Windows, use system tar with full paths to avoid "Cannot open: No such file or directory".
+    // Use forward slashes for Git Bash compatibility (CI runs with shell: bash).
+    const toTarPath = (p) => path.resolve(p).replace(/\\/g, '/');
+    execSync(`tar -xzf "${toTarPath(tgzPath)}" -C "${toTarPath(extractDir)}"`, {
+      stdio: 'inherit',
+      shell: true,
+    });
   } else {
-    execSync(`tar -xzf "${path.join(tmpDir, tgz)}" -C "${extractDir}"`, { stdio: 'inherit' });
+    execSync(`tar -xzf "${tgzPath}" -C "${extractDir}"`, { stdio: 'inherit' });
   }
 
   const pkgDir = path.join(extractDir, 'package');
@@ -101,22 +107,12 @@ try {
     console.log('[openclaw] Build completed');
   }
 
-  // Use system tar command to create the final tarball
-  console.log('[openclaw] Creating tarball...');
   if (process.platform === 'win32') {
-    const tmpOutput = path.join(tmpDir, 'openclaw-final.tgz');
-    try {
-      execSync(`tar -czf openclaw-final.tgz package`, {
-        cwd: extractDir,
-        stdio: 'inherit',
-        shell: true
-      });
-    } catch (e) {
-      if (!fs.existsSync(tmpOutput)) {
-        throw e;
-      }
-    }
-    fs.copyFileSync(tmpOutput, OUTPUT);
+    const toTarPath = (p) => path.resolve(p).replace(/\\/g, '/');
+    execSync(`tar -czf "${toTarPath(OUTPUT)}" -C "${toTarPath(extractDir)}" package`, {
+      stdio: 'inherit',
+      shell: true,
+    });
   } else {
     execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
   }

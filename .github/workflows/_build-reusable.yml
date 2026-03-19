@@ -102,15 +102,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Download CLI bundles (claude-code, gemini-cli, openclaw)
-        shell: bash
-        run: |
-          node scripts/download-claude-code.js
-          node scripts/download-gemini-cli.js
-          node scripts/download-openclaw.js
-
-
-
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts
         id: electron-cache
@@ -140,6 +131,13 @@ jobs:
 
       - name: Run postinstall
         run: bun run postinstall || true
+
+      - name: Download CLI bundles (claude-code, gemini-cli, openclaw)
+        shell: bash
+        run: |
+          node scripts/download-claude-code.js
+          node scripts/download-gemini-cli.js
+          node scripts/download-openclaw.js
 
       - name: Setup Windows native dependencies (for Windows only)
         if: startsWith(matrix.platform, 'windows')
