@@ -254,12 +254,14 @@ export class CliInstallService {
     const wrapperPath = path.join(getBinDir(), `${this.cfg.name}.cmd`);
     // Wrapper uses ELECTRON_RUN_AS_NODE=1. Path is read at runtime from
     // %USERPROFILE%\.nexus\electron-path — no hardcoded install locations.
+    // Note: Must capture %* outside of if blocks, otherwise it won't expand correctly.
     const content =
       [
         '@echo off',
         'setlocal enabledelayedexpansion',
         `set "CLI=${entryFile}"`,
         'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"',
+        'set "ARGS=%*"',
         'set "ELECTRON="',
         '',
         ':: 1. Path stored by Sudowork (refreshed on every app launch)',
@@ -269,16 +271,16 @@ export class CliInstallService {
         'if defined ELECTRON (',
         '  if exist "!ELECTRON!" (',
         '    set ELECTRON_RUN_AS_NODE=1',
-        '    "!ELECTRON!" "%CLI%" %*',
-        '    exit /b %ERRORLEVEL%',
+        '    "!ELECTRON!" "%CLI%" !ARGS!',
+        '    exit /b !ERRORLEVEL!',
         '  )',
         ')',
         '',
         ':: 2. Fallback: system Node.js',
         'where node >nul 2>nul',
-        'if %ERRORLEVEL% equ 0 (',
-        '  node "%CLI%" %*',
-        '  exit /b %ERRORLEVEL%',
+        'if !ERRORLEVEL! equ 0 (',
+        '  node "%CLI%" !ARGS!',
+        '  exit /b !ERRORLEVEL!',
         ')',
         '',
         'echo Error: Sudowork not found and Node.js is not installed.',
