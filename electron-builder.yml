@@ -132,6 +132,10 @@ win:
 #    - zip
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  extraResources:
+    # Node.js runtime for Windows (zip format)
+    - from: resources/node-win32-${arch}.zip
+      to: node-win32-${arch}.zip
 
 nsis:
   oneClick: false
@@ -154,6 +158,10 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
+  extraResources:
+    # Node.js runtime for macOS (tar.gz format)
+    - from: resources/node-darwin-${arch}.tar.gz
+      to: node-darwin-${arch}.tar.gz
 
 dmg:
   # Use UDZO format which is more reliable on CI

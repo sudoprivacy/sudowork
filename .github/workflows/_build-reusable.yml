@@ -139,6 +139,22 @@ jobs:
           node scripts/download-gemini-cli.js
           node scripts/download-openclaw.js
 
+      - name: Download Node.js runtime for bundled CLI execution
+        shell: bash
+        run: |
+          # Map CI platform to download-node.js platform format
+          case "${{ matrix.platform }}" in
+            macos-arm64) NODE_PLATFORM="darwin-arm64" ;;
+            macos-x64)   NODE_PLATFORM="darwin-x64" ;;
+            windows-x64) NODE_PLATFORM="win32-x64" ;;
+            windows-arm64) NODE_PLATFORM="win32-arm64" ;;
+            linux-x64)   NODE_PLATFORM="linux-x64" ;;
+            linux-arm64) NODE_PLATFORM="linux-arm64" ;;
+            *)           NODE_PLATFORM="${{ matrix.platform }}" ;;
+          esac
+          echo "Downloading Node.js for platform: $NODE_PLATFORM"
+          node scripts/download-node.js "$NODE_PLATFORM"
+
       - name: Setup Windows native dependencies (for Windows only)
         if: startsWith(matrix.platform, 'windows')
         run: |
