@@ -128,7 +128,7 @@ function createUnixWrapper(launcherFile: string): void {
       '# openclaw wrapper — managed by Sudowork (Sudoclaw), Electron-only (no local Node required)',
       `CLI="${launcherFile}"`,
       `STATE_DIR="${SUDOCLAW_DIR}"`,
-      'ELECTRON_PATH_FILE="$HOME/.sudowork/electron-path"',
+      'ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"',
       '',
       'run_electron() {',
       '  exec env ELECTRON_RUN_AS_NODE=1 OPENCLAW_STATE_DIR="$STATE_DIR" "$1" "$CLI" "$@"',
@@ -159,7 +159,7 @@ function createUnixWrapper(launcherFile: string): void {
 
 function createWindowsWrapper(launcherFile: string): void {
   const wrapperPath = path.join(SUDOCLAW_BIN_DIR, 'openclaw.cmd');
-  const content = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${launcherFile}"`, `set "OPENCLAW_STATE_DIR=${SUDOCLAW_DIR}"`, 'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.sudowork\\electron-path"', 'set "ELECTRON="', '', 'if exist "%ELECTRON_PATH_FILE%" (', '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"', ')', 'if defined ELECTRON (', '  if exist "!ELECTRON!" (', '    set ELECTRON_RUN_AS_NODE=1', '    "!ELECTRON!" "!CLI!" %*', '    exit /b %ERRORLEVEL%', '  )', ')', '', 'echo Error: Sudowork not found. Please launch Sudowork first.', 'exit /b 1'].join('\r\n') + '\r\n';
+  const content = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${launcherFile}"`, `set "OPENCLAW_STATE_DIR=${SUDOCLAW_DIR}"`, 'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"', 'set "ELECTRON="', '', 'if exist "%ELECTRON_PATH_FILE%" (', '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"', ')', 'if defined ELECTRON (', '  if exist "!ELECTRON!" (', '    set ELECTRON_RUN_AS_NODE=1', '    "!ELECTRON!" "!CLI!" %*', '    exit /b %ERRORLEVEL%', '  )', ')', '', 'echo Error: Sudowork not found. Please launch Sudowork first.', 'exit /b 1'].join('\r\n') + '\r\n';
   fs.writeFileSync(wrapperPath, content);
 }
 
