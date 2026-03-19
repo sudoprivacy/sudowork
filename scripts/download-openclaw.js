@@ -74,7 +74,7 @@ try {
   // Always run npm install — dist/ imports chalk etc., npm pack excludes node_modules.
   // Use npm only (not pnpm) for flat node_modules — pnpm symlinks can cause extraction/runtime issues.
   // Windows CI needs longer timeout due to slower I/O and antivirus scanning.
-  const npmTimeout = process.platform === 'win32' ? 300_000 : 120_000;
+  const npmTimeout = process.platform === 'win32' ? 600_000 : 120_000;
   console.log(`[openclaw] Installing dependencies (npm, flat structure, timeout: ${npmTimeout / 1000}s)...`);
   try {
     execSync('npm install --omit=dev --registry=https://registry.npmjs.org', {

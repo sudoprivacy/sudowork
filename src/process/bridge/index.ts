@@ -34,11 +34,14 @@ import { initClaudeCliBridge } from './claudeCliBridge';
 import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
+import { initInitBridge } from './initBridge';
 
 /**
  * 初始化所有IPC桥接模块
  */
 export function initAllBridges(): void {
+  // Init bridge must be first to respond to status queries during installation
+  initInitBridge();
   initDialogBridge();
   initShellBridge();
   initFsBridge();

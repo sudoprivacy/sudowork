@@ -11,10 +11,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 
 interface GatewayManagerConfig {
-  /** Path to openclaw CLI (default: 'openclaw') */
-  cliPath?: string;
   /** Gateway port (default: 18799 for Sudoclaw) */
   port?: number;
   /** Custom environment variables */
@@ -70,7 +69,6 @@ async function waitForPort(host: string, port: number, timeoutMs: number): Promi
 export class OpenClawGatewayManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private inProcess = false;
-  private readonly cliPath: string;
   private readonly port: number;
   private readonly customEnv?: Record<string, string>;
   private readonly stateDir?: string;
@@ -80,29 +78,10 @@ export class OpenClawGatewayManager extends EventEmitter {
 
   constructor(config: GatewayManagerConfig = {}) {
     super();
-    this.cliPath = config.cliPath || 'openclaw';
     this.port = config.port || 18799;
     this.customEnv = config.customEnv;
     this.stateDir = config.stateDir;
     this.forceSubprocessGateway = config.forceSubprocessGateway ?? false;
-  }
-
-  private resolveCommandPath(cmd: string, envPath?: string): string {
-    // Absolute/relative paths: use as-is.
-    if (cmd.includes('/') || cmd.includes('\\')) return cmd;
-    const p = envPath || process.env.PATH || '';
-    const sep = process.platform === 'win32' ? ';' : ':';
-    for (const dir of p.split(sep)) {
-      if (!dir) continue;
-      const candidate = path.join(dir, cmd);
-      try {
-        fs.accessSync(candidate, fs.constants.X_OK);
-        return candidate;
-      } catch {
-        // continue
-      }
-    }
-    return cmd;
   }
 
   /**
@@ -153,9 +132,7 @@ export class OpenClawGatewayManager extends EventEmitter {
     const entryPath = path.join(pkgRoot, 'openclaw.mjs');
     const hasEntry = fs.existsSync(entryPath);
     const hasDist = fs.existsSync(path.join(pkgRoot, 'dist', 'entry.mjs')) || fs.existsSync(path.join(pkgRoot, 'dist', 'entry.js'));
-    const resolvedCli = this.resolveCommandPath(this.cliPath, process.env.PATH || '');
-    const isSudoclaw = resolvedCli.includes('.sudoclaw') && (resolvedCli.includes('bin/openclaw') || resolvedCli.includes('bin\\openclaw'));
-    return isSudoclaw && hasEntry && hasDist;
+    return hasEntry && hasDist;
   }
 
   private async doStartInProcess(): Promise<number> {
@@ -198,39 +175,29 @@ export class OpenClawGatewayManager extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       const args = ['gateway', '--port', String(this.port), '--allow-unconfigured'];
-
-      // Use enhanced env with shell variables
       const env = getEnhancedEnv(this.customEnv);
-
       const isWindows = process.platform === 'win32';
+
+      // Use bundled Node.js directly (no Electron, no system Node)
+      const bundledNode = getNodeBinaryPath();
+      if (!fs.existsSync(bundledNode)) {
+        reject(new Error(`Bundled Node.js not found at ${bundledNode}. Please restart Sudowork to install it.`));
+        return;
+      }
 
       const spawnCwd = this.stateDir ? path.join(this.stateDir, 'cli', 'package') : undefined;
       const launcherPath = spawnCwd ? path.join(spawnCwd, 'launcher.mjs') : null;
 
-      // Sudoclaw: spawn Electron directly with launcher + args. Do NOT pass execPath as an arg to openclaw
-      // (wrong: spawn("openclaw", [execPath, "gateway", ...]) — causes "unknown command" error)
-      const useDirectElectron = this.stateDir && launcherPath && fs.existsSync(launcherPath) && this.cliPath.includes('.sudoclaw') && (this.cliPath.includes('bin/openclaw') || this.cliPath.includes('bin\\openclaw'));
-
-      let spawnCommand: string;
-      let spawnArgs: string[];
-
-      if (useDirectElectron) {
-        spawnCommand = process.execPath;
-        spawnArgs = [launcherPath!, ...args];
-        env.ELECTRON_RUN_AS_NODE = '1';
-        if (this.stateDir) env.OPENCLAW_STATE_DIR = this.stateDir;
-      } else {
-        const resolvedCli = this.resolveCommandPath(this.cliPath, env.PATH);
-        spawnCommand = resolvedCli;
-        spawnArgs = args;
+      if (!launcherPath || !fs.existsSync(launcherPath)) {
+        reject(new Error(`Launcher not found at ${launcherPath}. Please reinstall Sudoclaw.`));
+        return;
       }
 
-      if (spawnCwd && fs.existsSync(spawnCwd)) {
-        console.log('[OpenClawGatewayManager] Using cwd:', spawnCwd);
-      }
-      console.log(`[OpenClawGatewayManager] Starting: ${spawnCommand} ${spawnArgs.join(' ')}`);
+      if (this.stateDir) env.OPENCLAW_STATE_DIR = this.stateDir;
+      console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
+      console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${launcherPath} ${args.join(' ')}`);
 
-      this.process = spawn(spawnCommand, spawnArgs, {
+      this.process = spawn(bundledNode, [launcherPath, ...args], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
         shell: isWindows,

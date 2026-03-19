@@ -128,6 +128,8 @@ export const autoUpdate = {
   download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
   /** Quit and install the downloaded update */
   quitAndInstall: bridge.buildProvider<void, void>('auto-update.quit-and-install'),
+  /** Get the path to the downloaded update file, if any */
+  getDownloadedFilePath: bridge.buildProvider<IBridgeResponse<{ path: string | null }>, void>('auto-update.get-downloaded-file-path'),
   /** Auto-update status events */
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
 };
@@ -494,6 +496,22 @@ export const sudoclaw = {
   getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; configPath: string }>, void>('sudoclaw.get-status'),
   /** Test OpenClaw gateway connection (start gateway, verify ready, then stop) */
   testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
+};
+
+// Initialization status for runtime dependencies
+export type InitPhase = 'pending' | 'installing-node' | 'installing-sudoclaw' | 'ready' | 'error';
+
+export interface InitStatus {
+  phase: InitPhase;
+  message: string;
+  error?: string;
+}
+
+export const init = {
+  /** Get initialization status */
+  getStatus: bridge.buildProvider<IBridgeResponse<InitStatus>, void>('init.get-status'),
+  /** Subscribe to initialization status changes */
+  onStatusChange: bridge.buildEmitter<InitStatus>('init.status-change'),
 };
 
 // Nexus Python server / 内置 Python 服务

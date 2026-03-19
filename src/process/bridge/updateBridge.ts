@@ -474,21 +474,30 @@ export function initUpdateBridge(): void {
       // 中文：仅允许 GitHub 相关下载域名，并手动处理重定向（每一跳都校验白名单）。
       assertAllowedUrl(params.url);
 
-      const downloadId = uuid();
-      const abortController = new AbortController();
-
       const downloadsDir = app.getPath('downloads');
       const urlObj = new URL(params.url);
       const urlName = path.basename(urlObj.pathname);
       const baseName = sanitizeFileName(params.fileName || urlName);
+      const targetPath = path.join(downloadsDir, baseName);
 
-      const targetPath = ensureUniquePath(path.join(downloadsDir, baseName));
-      downloads.set(downloadId, { abortController, filePath: targetPath });
+      // Check if file already exists (avoid re-download)
+      if (fs.existsSync(targetPath)) {
+        const stats = fs.statSync(targetPath);
+        if (stats.size > 0) {
+          console.log(`[Update] File already exists: ${targetPath}`);
+          return Promise.resolve({ success: true, data: { downloadId: 'cached', filePath: targetPath } });
+        }
+      }
+
+      const downloadId = uuid();
+      const abortController = new AbortController();
+      const uniquePath = ensureUniquePath(targetPath);
+      downloads.set(downloadId, { abortController, filePath: uniquePath });
 
       // Start background download, but return immediately so the UI stays responsive.
-      void startDownloadInBackground(downloadId, params.url, targetPath, abortController);
+      void startDownloadInBackground(downloadId, params.url, uniquePath, abortController);
 
-      return Promise.resolve({ success: true, data: { downloadId, filePath: targetPath } });
+      return Promise.resolve({ success: true, data: { downloadId, filePath: uniquePath } });
     } catch (err: unknown) {
       return Promise.resolve({ success: false, msg: err instanceof Error ? err.message : String(err) });
     }
@@ -540,6 +549,15 @@ export function initUpdateBridge(): void {
       autoUpdaterService.quitAndInstall();
     } catch (err: unknown) {
       console.error('quitAndInstall failed:', err);
+    }
+  });
+
+  ipcBridge.autoUpdate.getDownloadedFilePath.provider(async (): Promise<{ success: boolean; data?: { path: string | null } }> => {
+    try {
+      const filePath = autoUpdaterService.getDownloadedFilePath();
+      return { success: true, data: { path: filePath } };
+    } catch (err: unknown) {
+      return { success: true, data: { path: null } };
     }
   });
 }

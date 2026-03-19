@@ -9,11 +9,19 @@ import Layout from './layout';
 import Router from './router';
 import Sider from './sider';
 import { useAuth } from './context/AuthContext';
+import { useInit } from './context/InitContext';
+import InitLoading from './components/InitLoading';
 
 const Main = () => {
-  const { ready } = useAuth();
+  const { ready: authReady } = useAuth();
+  const { isReady: initReady } = useInit();
 
-  if (!ready) {
+  // Show loading while runtime is initializing
+  if (!initReady) {
+    return <InitLoading />;
+  }
+
+  if (!authReady) {
     return null;
   }
 

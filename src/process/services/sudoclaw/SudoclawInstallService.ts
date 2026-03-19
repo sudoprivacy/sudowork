@@ -9,7 +9,7 @@
  *
  * Built-in OpenClaw installation for Sudowork. Installs to ~/.sudoclaw (separate
  * from official ~/.openclaw) so users get a one-click experience without system
- * Node.js. Runs entirely via Electron (ELECTRON_RUN_AS_NODE).
+ * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
 
 import { app } from 'electron';
@@ -17,7 +17,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
-import { syncElectronPath } from '../claudeCli/CliInstallService';
+import { getNodeBinaryPath } from '../claudeCli/NodeRuntimeService';
 
 /** Sudoclaw root: ~/.sudoclaw (macOS/Linux) or %USERPROFILE%\.sudoclaw (Windows) */
 export const SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -82,39 +82,20 @@ function resolveEntryFile(): string | null {
   }
 }
 
-/** Launcher script: fixes argv for Commander when run via Electron (no local Node required) */
+/** Launcher script: fixes argv for Commander when run via bundled Node.js */
 const LAUNCHER_CONTENT = `#!/usr/bin/env node
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const require = createRequire(import.meta.url);
-try {
-  const { app } = require('electron');
-  const hideFromDock = () => {
-    if (process.platform === 'darwin' && typeof app?.setActivationPolicy === 'function') {
-      app.setActivationPolicy('accessory');
-    }
-    if (app?.dock) {
-      try { app.dock.hide(); } catch {}
-    }
-  };
-  hideFromDock();
-  app.once('will-finish-launching', hideFromDock);
-  if (!app.isReady()) app.once('ready', hideFromDock);
-} catch {}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const openclawPath = path.join(__dirname, 'openclaw.mjs');
 let userArgs = process.argv.slice(2);
-// Strip leading executable paths (Electron, Node, or Sudowork app) so Commander receives correct subcommand
+// Strip leading executable paths so Commander receives correct subcommand
 const isExecutablePath = (s) => typeof s === 'string' && (
-  s.includes('Electron') || s.includes('electron') || /node(\\.exe)?$/i.test(path.basename(s)) ||
-  /\\.app[\\\\/]Contents[\\\\/]MacOS[\\\\/]/i.test(s) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
+  /node(\\.exe)?$/i.test(path.basename(s)) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
 );
 while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs.slice(1);
 process.argv = ['node', openclawPath, ...userArgs];
-if (process.versions.electron) delete process.versions.electron;
 await import('./openclaw.mjs');
 `;
 
@@ -126,45 +107,22 @@ function writeLauncher(pkgRoot: string): string {
 
 function createUnixWrapper(launcherFile: string): void {
   const wrapperPath = path.join(SUDOCLAW_BIN_DIR, 'openclaw');
-  const content =
-    [
-      '#!/bin/sh',
-      '# openclaw wrapper — managed by Sudowork (Sudoclaw), Electron-only (no local Node required)',
-      `CLI="${launcherFile}"`,
-      `STATE_DIR="${SUDOCLAW_DIR}"`,
-      'ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"',
-      '',
-      'run_electron() {',
-      '  exec env ELECTRON_RUN_AS_NODE=1 OPENCLAW_STATE_DIR="$STATE_DIR" "$1" "$CLI" "$@"',
-      '}',
-      '',
-      'if [ -f "$ELECTRON_PATH_FILE" ]; then',
-      '  ELECTRON=$(cat "$ELECTRON_PATH_FILE")',
-      '  if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; exit $?; fi',
-      'fi',
-      '',
-      'if command -v mdfind >/dev/null 2>&1; then',
-      '  APP=$(mdfind "kMDItemCFBundleIdentifier == \'com.sudowork.app\'" 2>/dev/null | head -1)',
-      '  if [ -n "$APP" ]; then',
-      '    ELECTRON="$APP/Contents/MacOS/Sudowork"',
-      '    if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; exit $?; fi',
-      '  fi',
-      'fi',
-      '',
-      'if command -v sudowork >/dev/null 2>&1; then',
-      '  run_electron "$(command -v sudowork)" "$@"; exit $?',
-      'fi',
-      '',
-      'echo "Error: Sudowork not found. Please launch Sudowork first." >&2',
-      'exit 1',
-    ].join('\n') + '\n';
-  fs.writeFileSync(wrapperPath, content, { mode: 0o755 });
+  const nodePath = getNodeBinaryPath();
+
+  // Simple wrapper: use bundled Node.js only (no Electron, no system Node fallback)
+  const lines = ['#!/bin/sh', '# openclaw wrapper — managed by Sudowork (Sudoclaw)', `CLI="${launcherFile}"`, `STATE_DIR="${SUDOCLAW_DIR}"`, `BUNDLED_NODE="${nodePath}"`, '', 'if [ ! -x "$BUNDLED_NODE" ]; then', '  echo "Error: Bundled Node.js not found at $BUNDLED_NODE" >&2', '  echo "Please restart Sudowork to install it." >&2', '  exit 1', 'fi', '', 'exec env OPENCLAW_STATE_DIR="$STATE_DIR" "$BUNDLED_NODE" "$CLI" "$@"'];
+
+  fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
 }
 
 function createWindowsWrapper(launcherFile: string): void {
   const wrapperPath = path.join(SUDOCLAW_BIN_DIR, 'openclaw.cmd');
-  const content = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${launcherFile}"`, `set "OPENCLAW_STATE_DIR=${SUDOCLAW_DIR}"`, 'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"', 'set "ELECTRON="', '', 'if exist "%ELECTRON_PATH_FILE%" (', '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"', ')', 'if defined ELECTRON (', '  if exist "!ELECTRON!" (', '    set ELECTRON_RUN_AS_NODE=1', '    "!ELECTRON!" "!CLI!" %*', '    exit /b %ERRORLEVEL%', '  )', ')', '', 'echo Error: Sudowork not found. Please launch Sudowork first.', 'exit /b 1'].join('\r\n') + '\r\n';
-  fs.writeFileSync(wrapperPath, content);
+  const nodePath = getNodeBinaryPath();
+
+  // Simple wrapper: use bundled Node.js only (no Electron, no system Node fallback)
+  const lines = ['@echo off', `set "CLI=${launcherFile}"`, `set "OPENCLAW_STATE_DIR=${SUDOCLAW_DIR}"`, `set "BUNDLED_NODE=${nodePath}"`, '', 'if not exist "%BUNDLED_NODE%" (', '  echo Error: Bundled Node.js not found at %BUNDLED_NODE%', '  echo Please restart Sudowork to install it.', '  exit /b 1', ')', '', '"%BUNDLED_NODE%" "%CLI%" %*'];
+
+  fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
 }
 
 /** Repair openclaw.json schema — add models array to providers, remove unrecognized keys */
@@ -214,10 +172,20 @@ function ensureDefaultConfig(): void {
     agents: {
       defaults: {
         workspace: SUDOCLAW_WORKSPACE_DIR,
-        model: { primary: 'anthropic/claude-sonnet-4-5', fallbacks: [] as string[] },
+        model: { primary: 'sudorouter/gemini-3-flash-preview', fallbacks: [] as string[] },
         models: {},
       },
       list: [{ id: 'main', identity: { name: 'OpenClaw', emoji: '🦞' } }],
+    },
+    models: {
+      mode: 'merge' as const,
+      providers: {
+        sudorouter: {
+          baseUrl: 'https://hk.sudorouter.ai/v1',
+          api: 'google-generative-ai',
+          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' }],
+        },
+      },
     },
     gateway: { port: SUDOCLAW_DEFAULT_PORT, mode: 'local' as const, auth: { mode: 'none' as const } },
   };
@@ -236,6 +204,7 @@ function ensureDefaultConfig(): void {
 /**
  * Ensure OpenClaw is installed in ~/.sudoclaw.
  * Called on app startup — runs silently, no user prompt.
+ * Note: ensureNodeInstalled() is called before this in process/index.ts
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
   repairOpenClawConfig();
@@ -246,7 +215,6 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const pkgRoot = resolvePackageRoot();
 
   if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
-    syncElectronPath();
     const launcherPath = writeLauncher(pkgRoot);
     if (process.platform === 'win32') {
       createWindowsWrapper(launcherPath);
@@ -264,7 +232,6 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   try {
     fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     fs.mkdirSync(SUDOCLAW_BIN_DIR, { recursive: true });
-    syncElectronPath();
 
     // Re-extract if existing install lacks node_modules (old tgz format)
     const existingPkg = resolvePackageRoot();
@@ -318,10 +285,4 @@ export function getSudoclawCliPath(): string | null {
     return managedBin;
   }
   return null;
-}
-
-/** Sudoclaw CLI path — always use this (no system openclaw). Returns path even when not installed. */
-export function getSudoclawCliPathAlways(): string {
-  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-  return path.join(SUDOCLAW_BIN_DIR, binName);
 }

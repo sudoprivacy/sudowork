@@ -19,26 +19,14 @@ import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { ensureNodeInstalled } from './services/claudeCli/NodeRuntimeService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
+import { initStatusManager } from './services/initStatus';
 
 export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
 
-  // Ensure bundled Node.js is installed for CLI tools (avoids macOS Dock bounce)
-  try {
-    await ensureNodeInstalled();
-  } catch (err) {
-    console.error('[Process] Node.js runtime install failed:', err);
-  }
-
-  // Ensure Sudoclaw (built-in OpenClaw) is installed before bridge — prevents race where OpenClaw
-  // conversation starts before install completes and getSudoclawCliPath returns null
-  try {
-    const { ensureSudoclawInstalled } = await import('./services/sudoclaw/SudoclawInstallService');
-    await ensureSudoclawInstalled();
-  } catch (err) {
-    console.error('[Process] Sudoclaw install failed:', err);
-  }
+  // Start async installation of runtime dependencies (non-blocking)
+  void installRuntimes();
 
   await initStorage();
 
@@ -73,3 +61,30 @@ export const initializeProcess = async () => {
       console.error('[Process] Failed to start Nexus server:', error);
     });
 };
+
+/**
+ * Install runtime dependencies (Node.js, Sudoclaw) asynchronously
+ * Updates initStatusManager so renderer can display progress
+ */
+async function installRuntimes(): Promise<void> {
+  // Install bundled Node.js
+  try {
+    initStatusManager.setStatus('installing-node', '正在安装 Node.js 运行时...');
+    await ensureNodeInstalled();
+  } catch (err) {
+    console.error('[Process] Node.js runtime install failed:', err);
+    initStatusManager.setStatus('error', 'Node.js 安装失败', err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  // Install Sudoclaw (built-in OpenClaw)
+  try {
+    initStatusManager.setStatus('installing-sudoclaw', '正在安装 SudoClaw...');
+    const { ensureSudoclawInstalled } = await import('./services/sudoclaw/SudoclawInstallService');
+    await ensureSudoclawInstalled();
+    initStatusManager.setStatus('ready', '初始化完成');
+  } catch (err) {
+    console.error('[Process] Sudoclaw install failed:', err);
+    initStatusManager.setStatus('error', 'OpenClaw 安装失败', err instanceof Error ? err.message : String(err));
+  }
+}

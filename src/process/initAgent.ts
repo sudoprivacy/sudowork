@@ -10,7 +10,7 @@ import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
-import { getSudoclawCliPathAlways, SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 
 /**
@@ -157,8 +157,6 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
   const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
 
-  // Always use Sudoclaw path — no system openclaw detection
-  const cliPath = getSudoclawCliPathAlways();
   const stateDir = SUDOCLAW_DIR;
 
   return {
@@ -169,14 +167,12 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       agentName: extra.agentName,
       customWorkspace,
       gateway: {
-        cliPath,
         stateDir,
       },
       runtimeValidation: {
         expectedWorkspace: workspace,
         expectedBackend: extra.backend,
         expectedAgentName: extra.agentName,
-        expectedCliPath: cliPath,
         // Note: model is not used by openclaw-gateway, so skip expectedModel to avoid
         // validation mismatch (conversation object doesn't store model for this type)
         expectedIdentityHash,

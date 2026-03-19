@@ -22,7 +22,7 @@ import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 
 /** Node.js LTS version to bundle */
-const NODE_VERSION = '20.18.3';
+const NODE_VERSION = '24.9.0';
 
 /** Directory to store bundled Node.js */
 const getNodeDir = (): string => path.join(getDataPath(), 'node');
@@ -33,7 +33,7 @@ export function getNodeBinaryPath(): string {
   const platform = process.platform;
   const arch = process.arch;
 
-  // Extracted directory structure: node/node-v20.18.3-darwin-x64/bin/node
+  // Extracted directory structure: node/node-v24.9.0-darwin-x64/bin/node
   const dirName = `node-v${NODE_VERSION}-${platform}-${arch}`;
 
   if (platform === 'win32') {

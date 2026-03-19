@@ -7,13 +7,15 @@
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig } from '@/common/ipcBridge';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawCliPathAlways } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawCliPath } from '../services/sudoclaw/SudoclawInstallService';
 import { OpenClawGatewayManager } from '@/agent/openclaw';
 
 const CONFIG_FILENAME = 'openclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 
 function readConfig(): SudoclawConfig | null {
   try {
@@ -40,10 +42,58 @@ function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): Su
     base.models = base.models || {};
     if (patch.models.mode !== undefined) base.models.mode = patch.models.mode;
     if (patch.models.providers) {
-      base.models.providers = patch.models.providers;
+      // Ensure each provider has models as array (not undefined)
+      const providersWithModels: typeof patch.models.providers = {};
+      for (const [key, prov] of Object.entries(patch.models.providers)) {
+        providersWithModels[key] = {
+          ...prov,
+          models: prov.models ?? [],
+        };
+      }
+      base.models.providers = providersWithModels;
     }
   }
   return base;
+}
+
+/**
+ * Sync sudorouter provider config to ~/.claude/settings.json for Claude CLI
+ * Only writes if settings.json doesn't exist yet.
+ * Only apiKey is configurable, baseUrl and model are fixed.
+ */
+function syncToClaudeSettings(config: SudoclawConfig): void {
+  // Skip if settings.json already exists
+  if (fs.existsSync(CLAUDE_SETTINGS_PATH)) {
+    return;
+  }
+
+  const sudorouter = config.models?.providers?.sudorouter;
+  if (!sudorouter) return;
+
+  const apiKey = sudorouter.apiKey || '';
+  const primaryModel = config.agents?.defaults?.model?.primary || '';
+  const modelId = primaryModel.startsWith('sudorouter/') ? primaryModel.slice('sudorouter/'.length) : primaryModel;
+
+  // Create new settings with fixed values
+  const settings: Record<string, unknown> = {
+    env: {
+      ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
+      ANTHROPIC_AUTH_TOKEN: apiKey,
+      ANTHROPIC_MODEL: modelId || 'gemini-3-flash-preview',
+    },
+  };
+
+  // Write
+  const claudeDir = path.dirname(CLAUDE_SETTINGS_PATH);
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(CLAUDE_SETTINGS_PATH, 0o600);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export function initSudoclawBridge(): void {
@@ -69,6 +119,10 @@ export function initSudoclawBridge(): void {
           // ignore
         }
       }
+
+      // Sync to ~/.claude/settings.json for Claude CLI
+      syncToClaudeSettings(merged);
+
       await WorkerManage.restartOpenClawGateways();
       return { success: true };
     } catch (err) {
@@ -86,10 +140,8 @@ export function initSudoclawBridge(): void {
   });
 
   ipcBridge.sudoclaw.testGateway.provider(async () => {
-    const cliPath = getSudoclawCliPathAlways();
     const testPort = 18799;
     const manager = new OpenClawGatewayManager({
-      cliPath,
       port: testPort,
       stateDir: SUDOCLAW_DIR,
       customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },

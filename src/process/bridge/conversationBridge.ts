@@ -44,8 +44,6 @@ export function initConversationBridge(): void {
       const diagnostics = task.getDiagnostics();
       const identityHash = await computeOpenClawIdentityHash(diagnostics.workspace || conversation.extra?.workspace);
       const conversationModel = (conversation as { model?: { useModel?: string } }).model;
-      const extra = conversation.extra as { cliPath?: string; gateway?: { cliPath?: string }; runtimeValidation?: unknown } | undefined;
-      const gatewayCliPath = extra?.gateway?.cliPath;
 
       return {
         success: true,
@@ -55,14 +53,13 @@ export function initConversationBridge(): void {
             workspace: diagnostics.workspace || conversation.extra?.workspace,
             backend: diagnostics.backend || conversation.extra?.backend,
             agentName: diagnostics.agentName || conversation.extra?.agentName,
-            cliPath: diagnostics.cliPath || extra?.cliPath || gatewayCliPath,
             model: conversationModel?.useModel,
             sessionKey: diagnostics.sessionKey,
             isConnected: diagnostics.isConnected,
             hasActiveSession: diagnostics.hasActiveSession,
             identityHash,
           },
-          expected: extra?.runtimeValidation,
+          expected: (conversation.extra as { runtimeValidation?: unknown } | undefined)?.runtimeValidation,
         },
       };
     } catch (error) {
@@ -80,7 +77,7 @@ export function initConversationBridge(): void {
 
       // Try to get status from any active OpenClaw task
       for (const conv of openclawConvs) {
-        const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { cliPath?: string; gateway?: { cliPath?: string; host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
+        const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { gateway?: { host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
 
         const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgentManager | undefined;
         if (task && task.type === 'openclaw-gateway') {
@@ -92,9 +89,8 @@ export function initConversationBridge(): void {
           const model = convModel?.useModel || convModel?.name || convAny.extra?.model;
           const extra = convAny.extra;
 
-          const gatewayCliPath = extra?.gateway?.cliPath;
           const gatewayHost = diagnostics.gatewayHost || extra?.gateway?.host || 'localhost';
-          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 18789;
+          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 18799;
 
           return {
             success: true,
@@ -109,7 +105,6 @@ export function initConversationBridge(): void {
               workspace: diagnostics.workspace || extra?.workspace,
               agentName: diagnostics.agentName || extra?.agentName,
               model: model,
-              cliPath: diagnostics.cliPath || gatewayCliPath,
             },
           };
         }

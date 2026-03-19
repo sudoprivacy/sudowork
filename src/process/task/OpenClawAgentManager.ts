@@ -15,7 +15,7 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { getSudoclawCliPathAlways, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DEFAULT_PORT, SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import WorkerManage from '@process/WorkerManage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
 
@@ -31,7 +31,6 @@ export interface OpenClawAgentManagerData {
     token?: string;
     password?: string;
     useExternalGateway?: boolean;
-    cliPath?: string;
     /** OpenClaw state directory (e.g. ~/.sudoclaw) */
     stateDir?: string;
   };
@@ -63,7 +62,6 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     const gateway = {
       ...(data.gateway ?? {}),
       port: data.gateway?.port ?? SUDOCLAW_DEFAULT_PORT,
-      cliPath: getSudoclawCliPathAlways(),
       stateDir: SUDOCLAW_DIR,
     };
     const config: OpenClawAgentConfig = {
@@ -288,7 +286,6 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
       workspace: this.workspace,
       backend: this.options.backend,
       agentName: this.options.agentName,
-      cliPath: this.options.gateway?.cliPath ?? null,
       gatewayHost: this.options.gateway?.host ?? null,
       gatewayPort: this.options.gateway?.port ?? SUDOCLAW_DEFAULT_PORT,
       conversation_id: this.conversation_id,

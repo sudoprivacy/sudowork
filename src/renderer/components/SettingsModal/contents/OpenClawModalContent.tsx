@@ -13,6 +13,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 
+const DEFAULT_BASE_URL = 'https://hk.sudorouter.ai/v1';
+
 const API_TYPE_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
@@ -42,7 +44,7 @@ const OpenClawModalContent: React.FC = () => {
       if (configRes?.success && configRes.data) {
         const c = configRes.data;
         form.setFieldsValue({
-          primaryModel: c.agents?.defaults?.model?.primary || 'anthropic/claude-sonnet-4-5',
+          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3-flash-preview',
           modelsMode: c.models?.mode || 'merge',
         });
         const prov = c.models?.providers || {};
@@ -56,7 +58,7 @@ const OpenClawModalContent: React.FC = () => {
         );
       } else {
         form.setFieldsValue({
-          primaryModel: 'anthropic/claude-sonnet-4-5',
+          primaryModel: 'sudorouter/gemini-3-flash-preview',
           modelsMode: 'merge',
         });
         setProviders([]);
@@ -82,7 +84,7 @@ const OpenClawModalContent: React.FC = () => {
         baseUrl: provider.baseUrl || undefined,
         apiKey: provider.apiKey || undefined,
         api: provider.api || undefined,
-        models: models?.length ? models : undefined,
+        models: models?.length ? models : [],
       };
     }
     return {
@@ -93,7 +95,7 @@ const OpenClawModalContent: React.FC = () => {
       agents: {
         defaults: {
           model: {
-            primary: values.primaryModel || 'anthropic/claude-sonnet-4-5',
+            primary: values.primaryModel || 'sudorouter/gemini-3-flash-preview',
           },
         },
       },
@@ -118,7 +120,21 @@ const OpenClawModalContent: React.FC = () => {
   }, [buildPatchFromForm, t]);
 
   const handleAddProvider = useCallback(() => {
-    setProviders((prev) => [...prev, { key: `provider_${Date.now()}`, provider: {} }]);
+    setProviders((prev) => {
+      // Default to 'sudorouter' if not exists
+      const hasSudorouter = prev.some((p) => p.key === 'sudorouter');
+      const defaultKey = hasSudorouter ? `provider_${Date.now()}` : 'sudorouter';
+      return [
+        ...prev,
+        {
+          key: defaultKey,
+          provider: {
+            baseUrl: DEFAULT_BASE_URL,
+            models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' }],
+          },
+        },
+      ];
+    });
   }, []);
 
   const handleRemoveProvider = useCallback((idx: number) => {
@@ -266,7 +282,7 @@ const OpenClawModalContent: React.FC = () => {
           </Form.Item>
 
           <Form.Item label={t('settings.openclaw_primaryModel')} field='primaryModel'>
-            <Input placeholder='anthropic/claude-sonnet-4-5' allowClear />
+            <Input placeholder='sudorouter/gemini-3-flash-preview' allowClear />
           </Form.Item>
           <div className='text-12px text-t-tertiary mb-16px'>{t('settings.openclaw_modelHint')}</div>
 

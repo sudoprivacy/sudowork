@@ -126,7 +126,6 @@ export class OpenClawAgent {
         if (!alreadyListening) {
           const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({
-            cliPath: gatewayConfig.cliPath || 'openclaw',
             port,
             customEnv,
             stateDir,

@@ -11,7 +11,7 @@ const path = require('path');
 const https = require('https');
 const { execSync } = require('child_process');
 
-const NODE_VERSION = '20.18.3';
+const NODE_VERSION = '24.9.0';
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
 // Platform mappings

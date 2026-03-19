@@ -76,4 +76,6 @@ export interface AutoUpdateStatus {
   releaseNotes?: string;
   progress?: AutoUpdateProgress;
   error?: string;
+  /** Path to the downloaded update file (available when status is 'downloaded') */
+  downloadedFilePath?: string;
 }

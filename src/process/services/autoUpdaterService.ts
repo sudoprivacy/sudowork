@@ -52,6 +52,8 @@ export interface AutoUpdateStatus {
     total: number;
   };
   error?: string;
+  /** Path to the downloaded update file (available when status is 'downloaded') */
+  downloadedFilePath?: string;
 }
 
 /** Callback type for broadcasting update status */
@@ -219,11 +221,12 @@ class AutoUpdaterService extends EventEmitter {
       });
     });
 
-    register('update-downloaded', (info: UpdateInfo) => {
+    register('update-downloaded', (info: UpdateInfo & { downloadedFile?: string }) => {
       log.info('Update downloaded');
       this.broadcastStatus({
         status: 'downloaded',
         version: info.version,
+        downloadedFilePath: (info as { downloadedFile?: string }).downloadedFile,
       });
     });
 
@@ -294,6 +297,16 @@ class AutoUpdaterService extends EventEmitter {
   quitAndInstall(): void {
     log.info('Quitting and installing update...');
     autoUpdater.quitAndInstall(false, true);
+  }
+
+  /**
+   * Get the path to the downloaded update file, if any.
+   * Returns null if no update has been downloaded yet.
+   */
+  getDownloadedFilePath(): string | null {
+    // Access the internal downloadedUpdateHelper to get the cached file path
+    const helper = (autoUpdater as unknown as { downloadedUpdateHelper?: { file: string | null } }).downloadedUpdateHelper;
+    return helper?.file ?? null;
   }
 
   /**

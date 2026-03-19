@@ -30,6 +30,7 @@ const UpdateModal: React.FC = () => {
   const [releasePageUrl, setReleasePageUrl] = useState('');
   const [useAutoUpdate, setUseAutoUpdate] = useState(true); // 默认使用自动更新
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
+  const [autoUpdateDownloadedPath, setAutoUpdateDownloadedPath] = useState<string | null>(null);
 
   const resetState = () => {
     setStatus('checking');
@@ -41,6 +42,7 @@ const UpdateModal: React.FC = () => {
     setDownloadPath('');
     setReleasePageUrl('');
     setAutoUpdateInfo(null);
+    setAutoUpdateDownloadedPath(null);
   };
 
   const includePrerelease = useMemo(() => localStorage.getItem('update.includePrerelease') === 'true', [visible]);
@@ -76,6 +78,11 @@ const UpdateModal: React.FC = () => {
                 setErrorMsg(t('update.noCompatibleAssetManual'));
               }
             }
+          }
+          // Check if already downloaded
+          const cachedRes = await ipcBridge.autoUpdate.getDownloadedFilePath.invoke();
+          if (cachedRes?.success && cachedRes.data?.path) {
+            setAutoUpdateDownloadedPath(cachedRes.data.path);
           }
           setStatus('available');
           return;
@@ -113,30 +120,36 @@ const UpdateModal: React.FC = () => {
     }
   };
 
-  const startDownload = async () => {
+  const startAutoDownload = async () => {
     if (!updateInfo && !autoUpdateInfo) return;
     setStatus('downloading');
     try {
-      // 使用自动更新模式
-      if (useAutoUpdate) {
-        if (updateInfo && !updateInfo.recommendedAsset) {
-          setUseAutoUpdate(false);
-          throw new Error(t('update.noCompatibleAssetManual'));
-        }
-        const res = await ipcBridge.autoUpdate.download.invoke();
-        if (!res?.success) {
-          throw new Error(res?.msg || t('update.downloadStartFailed'));
-        }
-        return;
-      }
-
-      // 手动更新模式
-      if (!updateInfo) return;
-      const asset = updateInfo.recommendedAsset;
-      if (!asset) {
+      if (updateInfo && !updateInfo.recommendedAsset) {
+        setUseAutoUpdate(false);
         throw new Error(t('update.noCompatibleAssetManual'));
       }
+      const res = await ipcBridge.autoUpdate.download.invoke();
+      if (!res?.success) {
+        throw new Error(res?.msg || t('update.downloadStartFailed'));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Download failed:', err);
+      setErrorMsg(msg);
+      setStatus('error');
+    }
+  };
 
+  const startManualDownload = async () => {
+    if (!updateInfo) return;
+    const asset = updateInfo.recommendedAsset;
+    if (!asset) {
+      setErrorMsg(t('update.noCompatibleAssetManual'));
+      return;
+    }
+
+    setStatus('downloading');
+    try {
       const res = await ipcBridge.update.download.invoke({
         url: asset.url,
         fileName: asset.name,
@@ -145,11 +158,18 @@ const UpdateModal: React.FC = () => {
         throw new Error(res?.msg || t('update.downloadStartFailed'));
       }
 
+      // If cached, show success immediately
+      if (res.data.downloadId === 'cached') {
+        setDownloadPath(res.data.filePath);
+        setStatus('success');
+        return;
+      }
+
       setDownloadId(res.data.downloadId);
       setDownloadPath(res.data.filePath);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('Download failed:', err);
+      console.error('Manual download failed:', err);
       setErrorMsg(msg);
       setStatus('error');
     }
@@ -226,6 +246,9 @@ const UpdateModal: React.FC = () => {
           break;
         case 'downloaded':
           setStatus('downloaded');
+          if (evt.downloadedFilePath) {
+            setAutoUpdateDownloadedPath(evt.downloadedFilePath);
+          }
           break;
         case 'error':
           setStatus('error');
@@ -279,8 +302,9 @@ const UpdateModal: React.FC = () => {
   };
 
   const showInFolder = () => {
-    if (!downloadPath) return;
-    void ipcBridge.shell.showItemInFolder.invoke(downloadPath).catch((error) => {
+    const pathToShow = downloadPath || autoUpdateDownloadedPath;
+    if (!pathToShow) return;
+    void ipcBridge.shell.showItemInFolder.invoke(pathToShow).catch((error) => {
       console.error('Failed to show item in folder:', error);
     });
   };
@@ -325,19 +349,24 @@ const UpdateModal: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className='flex items-center gap-12px'>
+              <div className='flex items-center gap-8px'>
                 {!hasCompatibleManualAsset && releasePageUrl ? (
                   <Button type='primary' size='small' onClick={openReleasePage} className='!px-16px'>
                     {t('update.goToRelease')}
                   </Button>
-                ) : !useAutoUpdate ? (
-                  <Button type='primary' size='small' onClick={startDownload} className='!px-16px'>
-                    {t('update.downloadButton')}
-                  </Button>
                 ) : (
-                  <Button type='primary' size='small' onClick={startDownload} className='!px-16px'>
-                    {t('update.downloadAndInstall')}
-                  </Button>
+                  <>
+                    {/* Manual download button - always show when asset is available */}
+                    <Button size='small' onClick={startManualDownload} icon={<Download size='14' />} className='!px-12px'>
+                      {t('update.downloadButton')}
+                    </Button>
+                    {/* Auto-update button */}
+                    {useAutoUpdate && (
+                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<Install size='14' />} className='!px-12px'>
+                        {t('update.downloadAndInstall')}
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -391,9 +420,14 @@ const UpdateModal: React.FC = () => {
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.readyToInstall')}</div>
             <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>{t('update.readyToInstallDesc')}</div>
-            <Button type='primary' size='small' onClick={quitAndInstall} icon={<Install size='14' />} className='!px-16px'>
-              {t('update.installNow')}
-            </Button>
+            <div className='flex gap-12px'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-16px'>
+                {t('update.showInFolder')}
+              </Button>
+              <Button type='primary' size='small' onClick={quitAndInstall} icon={<Install size='14' />} className='!px-16px'>
+                {t('update.installNow')}
+              </Button>
+            </div>
           </div>
         );
 
