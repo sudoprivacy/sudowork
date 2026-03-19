@@ -12,7 +12,6 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const tar = require('tar');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
@@ -50,7 +49,13 @@ try {
 
   const extractDir = path.join(tmpDir, 'extract');
   fs.mkdirSync(extractDir, { recursive: true });
-  tar.x({ file: path.join(tmpDir, tgz), cwd: extractDir, sync: true });
+
+  // Use system tar command instead of Node.js tar module
+  if (process.platform === 'win32') {
+    execSync(`tar -xzf "${tgz}"`, { cwd: extractDir, stdio: 'inherit', shell: true });
+  } else {
+    execSync(`tar -xzf "${path.join(tmpDir, tgz)}" -C "${extractDir}"`, { stdio: 'inherit' });
+  }
 
   const pkgDir = path.join(extractDir, 'package');
   const distEntry = path.join(pkgDir, 'dist', 'entry.mjs');
@@ -96,7 +101,25 @@ try {
     console.log('[openclaw] Build completed');
   }
 
-  tar.c({ gzip: true, file: OUTPUT, cwd: extractDir, sync: true }, ['package']);
+  // Use system tar command to create the final tarball
+  console.log('[openclaw] Creating tarball...');
+  if (process.platform === 'win32') {
+    const tmpOutput = path.join(tmpDir, 'openclaw-final.tgz');
+    try {
+      execSync(`tar -czf openclaw-final.tgz package`, {
+        cwd: extractDir,
+        stdio: 'inherit',
+        shell: true
+      });
+    } catch (e) {
+      if (!fs.existsSync(tmpOutput)) {
+        throw e;
+      }
+    }
+    fs.copyFileSync(tmpOutput, OUTPUT);
+  } else {
+    execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
+  }
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
