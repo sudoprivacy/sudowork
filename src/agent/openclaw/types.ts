@@ -265,7 +265,7 @@ export type GatewayClientName = GatewayClientId;
 export interface OpenClawGatewayConfig {
   /** Gateway host (default: localhost) */
   host?: string;
-  /** Gateway port (default: 18789) */
+  /** Gateway port (default: 18799 for Sudoclaw) */
   port: number;
   /** Authentication token */
   token?: string;
@@ -275,12 +275,18 @@ export interface OpenClawGatewayConfig {
   useExternalGateway?: boolean;
   /** CLI path for spawning gateway (default: openclaw) */
   cliPath?: string;
+  /** OpenClaw state directory (e.g. ~/.sudoclaw). Sets OPENCLAW_STATE_DIR when spawning */
+  stateDir?: string;
+  /** Force subprocess gateway (enables restart on device token mismatch; avoids in-process which cannot restart) */
+  forceSubprocessGateway?: boolean;
 }
 
 // ========== Gateway Client Options ==========
 
 export interface OpenClawGatewayClientOptions {
   url?: string;
+  /** OpenClaw state dir (e.g. ~/.sudoclaw). Must match gateway for device auth. */
+  stateDir?: string;
   token?: string;
   password?: string;
   instanceId?: string;
@@ -297,6 +303,8 @@ export interface OpenClawGatewayClientOptions {
   onHelloOk?: (hello: HelloOk) => void;
   onConnectError?: (err: Error) => void;
   onClose?: (code: number, reason: string) => void;
+  /** Called on device token mismatch before reset; use to restart gateway so it loads fresh device store */
+  onTokenMismatch?: () => void | Promise<void>;
 }
 
 // ========== Gateway Close Code Hints ==========

@@ -349,14 +349,6 @@ export const geminiCliService = new CliInstallService({
   label: 'Gemini CLI',
 });
 
-export const openclawCliService = new CliInstallService({
-  name: 'openclaw',
-  npmPackage: 'openclaw',
-  tgzResource: 'openclaw.tgz',
-  declinedKey: 'openclawCli.installDeclined',
-  label: 'OpenClaw',
-});
-
 /**
  * Called once after the main window is ready.
  * For each CLI tool not yet installed and not previously declined,
@@ -364,7 +356,8 @@ export const openclawCliService = new CliInstallService({
  * the refusal on decline so the prompt never appears again.
  */
 export async function promptCliInstallsIfNeeded(): Promise<void> {
-  const tools = [claudeCliService, geminiCliService, openclawCliService];
+  // OpenClaw is auto-installed via Sudoclaw (~/.sudoclaw), no prompt needed
+  const tools = [claudeCliService, geminiCliService];
   const toPrompt: CliInstallService[] = [];
 
   for (const svc of tools) {
@@ -399,7 +392,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         silent: true,
       }).show();
 
-      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : svc.commandName === 'gemini' ? ipcBridge.geminiCli.installResult : ipcBridge.openclawCli.installResult;
+      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : ipcBridge.geminiCli.installResult;
 
       try {
         await svc.install();

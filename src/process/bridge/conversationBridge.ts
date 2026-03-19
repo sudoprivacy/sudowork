@@ -29,12 +29,12 @@ export function initConversationBridge(): void {
       const db = getDatabase();
       const convResult = db.getConversation(conversation_id);
       if (!convResult.success || !convResult.data || convResult.data.type !== 'openclaw-gateway') {
-        return { success: false, msg: 'OpenClaw conversation not found' };
+        return { success: false, msg: 'Sudoclaw conversation not found' };
       }
       const conversation = convResult.data;
       const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgentManager | undefined;
       if (!task || task.type !== 'openclaw-gateway') {
-        return { success: false, msg: 'OpenClaw runtime not available' };
+        return { success: false, msg: 'Sudoclaw runtime not available' };
       }
 
       // Await bootstrap to ensure the agent is fully connected before returning runtime info.

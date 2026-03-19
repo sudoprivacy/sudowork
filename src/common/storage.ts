@@ -257,6 +257,8 @@ export type TChatConversation =
             password?: string;
             useExternalGateway?: boolean;
             cliPath?: string;
+            /** OpenClaw state directory (e.g. ~/.sudoclaw) */
+            stateDir?: string;
           };
           /** Session key for resume */
           sessionKey?: string;

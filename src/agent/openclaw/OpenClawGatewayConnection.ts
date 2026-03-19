@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import path from 'node:path';
 import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
 import type { ChatAbortParams, ChatSendParams, ConnectParams, EventFrame, HelloOk, OpenClawGatewayClientOptions, RequestFrame, ResponseFrame, SessionsResetParams, SessionsResolveParams } from './types';
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES, GATEWAY_CLOSE_CODE_HINTS, OPENCLAW_PROTOCOL_VERSION } from './types';
 import { buildDeviceAuthPayload, type DeviceIdentity, loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } from './deviceIdentity';
-import { clearDeviceAuthToken, loadDeviceAuthToken, storeDeviceAuthToken } from './deviceAuthStore';
+import { clearDeviceAuthToken, loadDeviceAuthToken, resetDeviceIdentityForStateDir, storeDeviceAuthToken } from './deviceAuthStore';
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -59,10 +60,12 @@ export class OpenClawGatewayConnection {
 
   // Device identity for authentication
   private deviceIdentity: DeviceIdentity;
+  private hasRetriedAfterTokenMismatch = false;
 
   constructor(opts: OpenClawGatewayClientOptions) {
-    // Load or create device identity for authentication
-    this.deviceIdentity = loadOrCreateDeviceIdentity();
+    // Use stateDir for identity path so client matches gateway (avoids "device token mismatch")
+    const identityPath = opts.stateDir ? path.join(opts.stateDir, 'identity', 'device.json') : undefined;
+    this.deviceIdentity = loadOrCreateDeviceIdentity(identityPath);
 
     this.opts = {
       minProtocol: OPENCLAW_PROTOCOL_VERSION,
@@ -85,7 +88,7 @@ export class OpenClawGatewayConnection {
       return;
     }
 
-    const url = this.opts.url ?? 'ws://127.0.0.1:18789';
+    const url = this.opts.url ?? 'ws://127.0.0.1:18799';
     this.ws = new WebSocket(url, {
       maxPayload: 25 * 1024 * 1024, // Allow large responses
     });
@@ -233,6 +236,11 @@ export class OpenClawGatewayConnection {
     const signedAtMs = Date.now();
     const nonce = this.connectNonce ?? undefined;
 
+    // Ensure deviceAuthStore uses same stateDir as gateway (caller must set OPENCLAW_STATE_DIR)
+    if (this.opts.stateDir) {
+      process.env.OPENCLAW_STATE_DIR = this.opts.stateDir;
+    }
+
     // Load stored device token first, fall back to opts.token
     const storedToken = loadDeviceAuthToken({ deviceId: this.deviceIdentity.deviceId, role })?.token;
     const authToken = storedToken ?? this.opts.token ?? undefined;
@@ -306,11 +314,29 @@ export class OpenClawGatewayConnection {
         this.startTickWatch();
         this.opts.onHelloOk?.(helloOk);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error('[OpenClawGateway] Connect failed:', err);
 
-        // Clear stored token if it was invalid and we can fall back to shared token
-        if (canFallbackToShared) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const isTokenMismatch = /device token mismatch|token mismatch|rotate|reissue/i.test(errMsg);
+
+        if (isTokenMismatch && this.opts.stateDir && !this.hasRetriedAfterTokenMismatch) {
+          this.hasRetriedAfterTokenMismatch = true;
+          // 1. Clear disk files first (identity + gateway devices store)
+          resetDeviceIdentityForStateDir(this.opts.stateDir);
+          this.deviceIdentity = loadOrCreateDeviceIdentity(path.join(this.opts.stateDir, 'identity', 'device.json'));
+          // 2. Restart gateway so it loads fresh device store from disk (subprocess only)
+          if (this.opts.onTokenMismatch) {
+            try {
+              await this.opts.onTokenMismatch();
+            } catch (e) {
+              console.error('[OpenClawGateway] onTokenMismatch failed:', e);
+            }
+          }
+          this.connectSent = false;
+          this.ws?.close(1000, 'token mismatch retry');
+          return;
+        } else if (canFallbackToShared) {
           clearDeviceAuthToken({
             deviceId: this.deviceIdentity.deviceId,
             role,
@@ -393,6 +419,7 @@ export class OpenClawGatewayConnection {
   private queueConnect(): void {
     this.connectNonce = null;
     this.connectSent = false;
+    this.hasRetriedAfterTokenMismatch = false;
     if (this.connectTimer) {
       clearTimeout(this.connectTimer);
     }

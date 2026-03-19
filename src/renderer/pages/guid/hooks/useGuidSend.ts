@@ -184,7 +184,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         });
 
         if (!conversation || !conversation.id) {
-          alert('Failed to create OpenClaw conversation. Please ensure the OpenClaw Gateway is running.');
+          alert('Failed to create Sudoclaw conversation. Please ensure the Sudoclaw Gateway is running.');
           return;
         }
 
@@ -205,7 +205,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         await navigate(`/conversation/${conversation.id}`);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create OpenClaw conversation: ${errorMessage}`);
+        alert(`Failed to create Sudoclaw conversation: ${errorMessage}`);
         throw error;
       }
       return;

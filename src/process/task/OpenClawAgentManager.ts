@@ -15,6 +15,7 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { getSudoclawCliPathAlways, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgentManager from '@process/task/BaseAgentManager';
 
 export interface OpenClawAgentManagerData {
@@ -30,6 +31,8 @@ export interface OpenClawAgentManagerData {
     password?: string;
     useExternalGateway?: boolean;
     cliPath?: string;
+    /** OpenClaw state directory (e.g. ~/.sudoclaw) */
+    stateDir?: string;
   };
   /** Session key for resume */
   sessionKey?: string;
@@ -55,15 +58,17 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   }
 
   private async initAgent(data: OpenClawAgentManagerData): Promise<OpenClawAgent> {
+    // Always use Sudoclaw path — no system openclaw detection
+    const gateway = {
+      ...(data.gateway ?? {}),
+      port: data.gateway?.port ?? SUDOCLAW_DEFAULT_PORT,
+      cliPath: getSudoclawCliPathAlways(),
+      stateDir: SUDOCLAW_DIR,
+    };
     const config: OpenClawAgentConfig = {
       id: data.conversation_id,
       workingDir: data.workspace || process.cwd(),
-      gateway: data.gateway
-        ? {
-            ...data.gateway,
-            port: data.gateway.port ?? 18789,
-          }
-        : undefined,
+      gateway,
       extra: {
         workspace: data.workspace,
         sessionKey: data.sessionKey,
@@ -261,6 +266,13 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     return this.agent?.stop?.() ?? Promise.resolve();
   }
 
+  /** Restart gateway to pick up config changes (~/.sudoclaw/openclaw.json) */
+  async restartGateway(): Promise<void> {
+    if (!this.agent) return;
+    await this.agent.stop();
+    await this.agent.start();
+  }
+
   kill() {
     try {
       this.agent?.kill?.();
@@ -276,7 +288,7 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
       agentName: this.options.agentName,
       cliPath: this.options.gateway?.cliPath ?? null,
       gatewayHost: this.options.gateway?.host ?? null,
-      gatewayPort: this.options.gateway?.port ?? 18789,
+      gatewayPort: this.options.gateway?.port ?? SUDOCLAW_DEFAULT_PORT,
       conversation_id: this.conversation_id,
       isConnected: this.agent?.isConnected ?? false,
       hasActiveSession: this.agent?.hasActiveSession ?? false,

@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit } from '@icon-park/react';
+import { Communication, Computer, Config, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -45,6 +45,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       { id: 'skill', label: t('settings.skill'), icon: <Lightning theme='outline' size='16' />, path: 'skill' },
       { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
       { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
+      { id: 'openclaw', label: t('settings.openclaw', { defaultValue: 'Sudoclaw' }), icon: <Config theme='outline' size='16' />, path: 'openclaw' },
       { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
       { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
     ];

@@ -57,16 +57,16 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
     defaultEnabledSkills: ['openclaw-setup', 'aionui-webui-setup'],
     nameI18n: {
-      'en-US': 'OpenClaw Setup Expert',
-      'zh-CN': 'OpenClaw 部署专家',
+      'en-US': 'Sudoclaw Setup Expert',
+      'zh-CN': 'Sudoclaw 部署专家',
     },
     descriptionI18n: {
-      'en-US': 'Expert guide for installing, deploying, configuring, and troubleshooting OpenClaw. Proactively helps with setup, diagnoses issues, and provides security best practices.',
-      'zh-CN': 'OpenClaw 安装、部署、配置和故障排查专家。主动协助设置、诊断问题并提供安全最佳实践。',
+      'en-US': 'Expert guide for installing, deploying, configuring, and troubleshooting Sudoclaw. Proactively helps with setup, diagnoses issues, and provides security best practices.',
+      'zh-CN': 'Sudoclaw 安装、部署、配置和故障排查专家。主动协助设置、诊断问题并提供安全最佳实践。',
     },
     promptsI18n: {
-      'en-US': ['Help me install OpenClaw step by step', "My OpenClaw isn't working, please diagnose the issue", 'Configure Telegram channel for OpenClaw integration'],
-      'zh-CN': ['帮我一步步安装 OpenClaw', '我的 OpenClaw 出问题了，请帮我诊断', '为 OpenClaw 配置 Telegram 渠道'],
+      'en-US': ['Help me install Sudoclaw step by step', "My Sudoclaw isn't working, please diagnose the issue", 'Configure Telegram channel for Sudoclaw integration'],
+      'zh-CN': ['帮我一步步安装 Sudoclaw', '我的 Sudoclaw 出问题了，请帮我诊断', '为 Sudoclaw 配置 Telegram 渠道'],
     },
   },
   {

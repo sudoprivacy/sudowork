@@ -10,7 +10,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc, openclawCli as openclawCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 
 // ── types ────────────────────────────────────────────────────────────────────
@@ -53,9 +53,6 @@ const AboutModalContent: React.FC = () => {
 
   const [geminiStatus, setGeminiStatus] = useState<ICliStatus | null>(null);
   const [geminiLoad, setGeminiLoad] = useState<LoadState>('idle');
-
-  const [openclawStatus, setOpenclawStatus] = useState<ICliStatus | null>(null);
-  const [openclawLoad, setOpenclawLoad] = useState<LoadState>('idle');
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
@@ -108,26 +105,6 @@ const AboutModalContent: React.FC = () => {
       setGeminiLoad('idle');
     }
   }, [refreshGemini]);
-
-  const refreshOpenClaw = useCallback(async () => {
-    setOpenclawLoad('loading');
-    try {
-      const res = await openclawCliIpc.checkInstalled.invoke();
-      if (res?.success && res.data) setOpenclawStatus(res.data);
-    } finally {
-      setOpenclawLoad('idle');
-    }
-  }, []);
-
-  const installOpenClaw = useCallback(async () => {
-    setOpenclawLoad('installing');
-    try {
-      const res = await openclawCliIpc.install.invoke();
-      if (res?.success) await refreshOpenClaw();
-    } finally {
-      setOpenclawLoad('idle');
-    }
-  }, [refreshOpenClaw]);
 
   const refreshLibreOffice = useCallback(async () => {
     setLibreOfficeLoad('loading');
@@ -222,20 +199,6 @@ const AboutModalContent: React.FC = () => {
     }
   }, [refreshGemini]);
 
-  const installOpenClawFromLocal = useCallback(async () => {
-    try {
-      const installRes = await openclawCliIpc.install.invoke();
-      if (installRes?.success) {
-        Message.success('OpenClaw 安装成功');
-        await refreshOpenClaw();
-      } else {
-        Message.error(installRes?.msg || 'OpenClaw 安装失败');
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : 'OpenClaw 安装失败');
-    }
-  }, [refreshOpenClaw]);
-
   const installNexusFromLocal = useCallback(async () => {
     try {
       // 使用现有的 dialog IPC 桥接打开文件选择对话框
@@ -294,7 +257,6 @@ const AboutModalContent: React.FC = () => {
   useEffect(() => {
     void refreshClaude();
     void refreshGemini();
-    void refreshOpenClaw();
     void refreshNexus();
     void refreshLibreOffice();
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
@@ -310,7 +272,6 @@ const AboutModalContent: React.FC = () => {
   useEffect(() => {
     const unsubClaude = claudeCliIpc.installResult.on(() => void refreshClaude());
     const unsubGemini = geminiCliIpc.installResult.on(() => void refreshGemini());
-    const unsubOpenClaw = openclawCliIpc.installResult.on(() => void refreshOpenClaw());
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent); // 直接更新，retry 时允许从 0% 重新开始
@@ -324,13 +285,12 @@ const AboutModalContent: React.FC = () => {
     return () => {
       unsubClaude();
       unsubGemini();
-      unsubOpenClaw();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshClaude, refreshGemini, refreshOpenClaw, refreshNexus]);
+  }, [refreshClaude, refreshGemini, refreshNexus]);
 
   const columns = [
     {
@@ -383,7 +343,7 @@ const AboutModalContent: React.FC = () => {
 
         const version = record.key === 'nexus' ? `v${record.appVersion}` : record.status?.version;
 
-        const badgeColor = record.key === 'nexus' ? 'bg-orange-1 color-orange-6' : record.key === 'claude' ? 'bg-orange-1 color-orange-6' : record.key === 'openclaw' ? 'bg-cyan-1 color-cyan-6' : record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6';
+        const badgeColor = record.key === 'nexus' ? 'bg-orange-1 color-orange-6' : record.key === 'claude' ? 'bg-orange-1 color-orange-6' : record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6';
 
         return (
           <div className='flex items-center gap-12px'>
@@ -408,8 +368,8 @@ const AboutModalContent: React.FC = () => {
 
         return (
           <div className='flex items-center justify-center gap-6px'>
-            {/* 对 claude、gemini、openclaw 禁用在线安装按钮，只保留本地安装功能（从应用内预打包资源安装） */}
-            <Button type='text' size='mini' disabled={record.key === 'claude' || record.key === 'gemini' || record.key === 'openclaw' || isLoading} onClick={record.onInstall} style={{ fontSize: 11, color: record.key === 'claude' || record.key === 'gemini' || record.key === 'openclaw' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}>
+            {/* 对 claude、gemini 禁用在线安装按钮，只保留本地安装功能（从应用内预打包资源安装） */}
+            <Button type='text' size='mini' disabled={record.key === 'claude' || record.key === 'gemini' || isLoading} onClick={record.onInstall} style={{ fontSize: 11, color: record.key === 'claude' || record.key === 'gemini' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}>
               在线安装
             </Button>
             <Button type='text' size='mini' disabled={isLoading} onClick={record.onInstallFromLocal} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
@@ -448,17 +408,6 @@ const AboutModalContent: React.FC = () => {
       onRefresh: refreshGemini,
       onInstall: installGemini,
       onInstallFromLocal: installGeminiFromLocal,
-    },
-    {
-      key: 'openclaw',
-      displayName: 'OpenClaw',
-      command: 'openclaw',
-      badge: 'OC',
-      status: openclawStatus,
-      loadState: openclawLoad,
-      onRefresh: refreshOpenClaw,
-      onInstall: installOpenClaw,
-      onInstallFromLocal: installOpenClawFromLocal,
     },
     {
       key: 'libreoffice',

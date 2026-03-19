@@ -151,3 +151,26 @@ export function clearDeviceAuthToken(params: { deviceId: string; role: string })
   delete next.tokens[role];
   writeStore(filePath, next);
 }
+
+/**
+ * Reset entire identity for a state dir (device.json + device-auth.json).
+ * Also clears gateway's devices store (paired.json, pending.json) so the gateway
+ * treats the next connection as a fresh device pairing.
+ * Use when "device token mismatch" to force fresh device registration.
+ */
+export function resetDeviceIdentityForStateDir(stateDir: string): void {
+  const base = path.resolve(stateDir.replace(/^~/, os.homedir()));
+  const identityDir = path.join(base, 'identity');
+  const devicesDir = path.join(base, 'devices');
+  const deviceFile = path.join(identityDir, 'device.json');
+  const authFile = path.join(identityDir, 'device-auth.json');
+  const pairedFile = path.join(devicesDir, 'paired.json');
+  const pendingFile = path.join(devicesDir, 'pending.json');
+  for (const file of [deviceFile, authFile, pairedFile, pendingFile]) {
+    try {
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    } catch {
+      // best-effort
+    }
+  }
+}

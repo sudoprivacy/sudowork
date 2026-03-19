@@ -23,6 +23,15 @@ export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
 
+  // Ensure Sudoclaw (built-in OpenClaw) is installed before bridge — prevents race where OpenClaw
+  // conversation starts before install completes and getSudoclawCliPath returns null
+  try {
+    const { ensureSudoclawInstalled } = await import('./services/sudoclaw/SudoclawInstallService');
+    await ensureSudoclawInstalled();
+  } catch (err) {
+    console.error('[Process] Sudoclaw install failed:', err);
+  }
+
   await initStorage();
 
   // Initialize bridge after storage is ready (dynamic import for correct order)

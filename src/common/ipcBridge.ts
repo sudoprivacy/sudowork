@@ -398,15 +398,6 @@ export const geminiCli = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
 };
 
-// OpenClaw CLI installer / 安装 openclaw 命令行工具
-export const openclawCli = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('openclaw-cli.check-installed'),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>('openclaw-cli.install'),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('openclaw-cli.uninstall'),
-  /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('openclaw-cli.install-result'),
-};
-
 // LibreOffice installer / LibreOffice 在线安装
 export interface ILibreOfficeStatus {
   installed: boolean;
@@ -426,6 +417,44 @@ export const libreOffice = {
   installProgress: bridge.buildEmitter<{ phase: ILibreOfficeInstallPhase; percent?: number }>('libreoffice.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
+};
+
+// Sudoclaw config (~/.sudoclaw) / OpenClaw 配置
+// Matches openclaw.json schema: models.providers, agents.defaults, etc.
+export type SudoclawProviderModel = { id: string; name?: string };
+export type SudoclawProvider = {
+  baseUrl?: string;
+  apiKey?: string;
+  api?: string; // e.g. openai, anthropic, google-generative-ai
+  models?: SudoclawProviderModel[];
+};
+export type SudoclawConfig = {
+  lastRunMode?: string;
+  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; models?: Record<string, { alias?: string }> } };
+  models?: {
+    mode?: 'merge' | 'replace';
+    providers?: Record<string, SudoclawProvider>;
+  };
+  env?: { vars?: Record<string, string> };
+};
+
+export type SudoclawTestGatewayResult = {
+  success: boolean;
+  port?: number;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+};
+
+export const sudoclaw = {
+  /** Get Sudoclaw config from ~/.sudoclaw/openclaw.json */
+  getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
+  /** Save Sudoclaw config */
+  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
+  /** Get Sudoclaw install status */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; configPath: string }>, void>('sudoclaw.get-status'),
+  /** Test OpenClaw gateway connection (start gateway, verify ready, then stop) */
+  testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
 };
 
 // Nexus Python server / 内置 Python 服务

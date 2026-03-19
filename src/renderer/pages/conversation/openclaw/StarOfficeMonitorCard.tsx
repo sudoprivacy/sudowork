@@ -46,7 +46,7 @@ const StarOfficeMonitorCard: React.FC<StarOfficeMonitorCardProps> = ({ conversat
   const [detectError, setDetectError] = useState('');
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [showManualUrlEditor, setShowManualUrlEditor] = useState(false);
-  const [detectFailureCount, setDetectFailureCount] = useState(0);
+  const [_detectFailureCount, setDetectFailureCount] = useState(0);
   const [showDiagnoseHint, setShowDiagnoseHint] = useState(false);
   const [previewImageFailed, setPreviewImageFailed] = useState(false);
   const [url, setUrl] = useState(() => {
@@ -265,7 +265,7 @@ const StarOfficeMonitorCard: React.FC<StarOfficeMonitorCardProps> = ({ conversat
     setVisible(false);
   }, [conversationId, detectState, detectedUrl, t]);
 
-  const handleAskOpenClawDiagnose = useCallback(() => {
+  const _handleAskOpenClawDiagnose = useCallback(() => {
     if (conversationId) {
       const text = t('starOffice.monitor.diagnosePrompt');
       emitter.emit('staroffice.install.request', { conversationId, text, detectedUrl: detectedUrl || null });

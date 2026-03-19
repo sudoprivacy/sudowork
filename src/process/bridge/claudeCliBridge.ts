@@ -1,5 +1,5 @@
 import { ipcBridge } from '../../common';
-import { claudeCliService, geminiCliService, openclawCliService } from '../services/claudeCli/CliInstallService';
+import { claudeCliService, geminiCliService } from '../services/claudeCli/CliInstallService';
 
 export function initClaudeCliBridge(): void {
   // ── Claude CLI ────────────────────────────────────────────────────────────
@@ -56,36 +56,6 @@ export function initClaudeCliBridge(): void {
   ipcBridge.geminiCli.uninstall.provider(async () => {
     try {
       await geminiCliService.uninstall();
-      return { success: true };
-    } catch (err) {
-      return { success: false, msg: err instanceof Error ? err.message : String(err) };
-    }
-  });
-
-  // ── OpenClaw CLI ──────────────────────────────────────────────────────────
-  ipcBridge.openclawCli.checkInstalled.provider(async () => {
-    try {
-      return { success: true, data: await openclawCliService.checkInstalled() };
-    } catch (err) {
-      return { success: false, msg: err instanceof Error ? err.message : String(err) };
-    }
-  });
-
-  ipcBridge.openclawCli.install.provider(async () => {
-    try {
-      await openclawCliService.install();
-      ipcBridge.openclawCli.installResult.emit({ success: true });
-      return { success: true };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      ipcBridge.openclawCli.installResult.emit({ success: false, msg });
-      return { success: false, msg };
-    }
-  });
-
-  ipcBridge.openclawCli.uninstall.provider(async () => {
-    try {
-      await openclawCliService.uninstall();
       return { success: true };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };

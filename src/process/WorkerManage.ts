@@ -189,6 +189,22 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
+/** Restart all Sudoclaw gateways to pick up config changes (~/.sudoclaw/openclaw.json) */
+const restartOpenClawGateways = async (): Promise<void> => {
+  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
+  for (const { id, task } of openclawTasks) {
+    const mgr = task as OpenClawAgentManager;
+    if (typeof mgr.restartGateway === 'function') {
+      try {
+        await mgr.restartGateway();
+        console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
+      } catch (err) {
+        console.error('[WorkerManage] Failed to restart OpenClaw gateway:', err);
+      }
+    }
+  }
+};
+
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -197,6 +213,7 @@ const WorkerManage = {
   listTasks,
   kill,
   clear,
+  restartOpenClawGateways,
 };
 
 export default WorkerManage;

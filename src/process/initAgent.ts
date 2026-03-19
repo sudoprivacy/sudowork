@@ -10,7 +10,7 @@ import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
-import { openclawCliService } from './services/claudeCli/CliInstallService';
+import { getSudoclawCliPathAlways, SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 
 /**
@@ -157,14 +157,9 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
   const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
 
-  // Use managed OpenClaw path when user has not explicitly set cliPath
-  let cliPath = extra.cliPath;
-  if (cliPath === undefined) {
-    const status = await openclawCliService.checkInstalled();
-    if (status.installed && status.source === 'managed' && status.path) {
-      cliPath = status.path;
-    }
-  }
+  // Always use Sudoclaw path — no system openclaw detection
+  const cliPath = getSudoclawCliPathAlways();
+  const stateDir = SUDOCLAW_DIR;
 
   return {
     type: 'openclaw-gateway',
@@ -175,12 +170,13 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       customWorkspace,
       gateway: {
         cliPath,
+        stateDir,
       },
       runtimeValidation: {
         expectedWorkspace: workspace,
         expectedBackend: extra.backend,
         expectedAgentName: extra.agentName,
-        expectedCliPath: extra.cliPath,
+        expectedCliPath: cliPath,
         // Note: model is not used by openclaw-gateway, so skip expectedModel to avoid
         // validation mismatch (conversation object doesn't store model for this type)
         expectedIdentityHash,

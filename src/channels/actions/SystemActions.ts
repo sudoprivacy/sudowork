@@ -516,7 +516,7 @@ function getAgentDisplayName(agentType: ChannelAgentType): string {
     gemini: '🤖 Gemini',
     acp: '🧠 Claude',
     codex: '⚡ Codex',
-    'openclaw-gateway': '🦞 OpenClaw',
+    'openclaw-gateway': '🦞 Sudoclaw',
   };
   return names[agentType] || agentType;
 }

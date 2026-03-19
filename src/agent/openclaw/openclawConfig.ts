@@ -103,6 +103,25 @@ function findConfigPath(): string | null {
 }
 
 /**
+ * Read OpenClaw config from a specific state directory (e.g. ~/.sudoclaw)
+ */
+export function readOpenClawConfigFromDir(stateDir: string): OpenClawConfig | null {
+  const configPath = path.join(path.resolve(stateDir.replace(/^~/, os.homedir())), CONFIG_FILENAME);
+  if (!fs.existsSync(configPath)) return null;
+  try {
+    const content = fs.readFileSync(configPath, 'utf8');
+    try {
+      return JSON.parse(content) as OpenClawConfig;
+    } catch {
+      const cleanContent = content.replace(/"(?:[^"\\]|\\.)*"|\/\/.*$|\/\*[\s\S]*?\*\//gm, (match) => (match.startsWith('"') ? match : match.startsWith('/*') ? '' : ''));
+      return JSON.parse(cleanContent) as OpenClawConfig;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read OpenClaw config from file
  */
 export function readOpenClawConfig(): OpenClawConfig | null {
@@ -157,14 +176,21 @@ export function getGatewayAuthPassword(): string | null {
   return null;
 }
 
+/** Default port for system OpenClaw (~/.openclaw) */
+const SYSTEM_OPENCLAW_DEFAULT_PORT = 18789;
+
+/** Default port for Sudoclaw (~/.sudoclaw) — avoids conflict with system OpenClaw (18789) */
+export const SUDOCLAW_DEFAULT_PORT = 18799;
+
 /**
- * Get gateway port from config
+ * Get gateway port from config (optionally from a specific state dir)
+ * When stateDir is provided (Sudoclaw), defaults to 18799 to avoid conflict with system OpenClaw (18789).
  */
-export function getGatewayPort(): number {
-  const config = readOpenClawConfig();
+export function getGatewayPort(stateDir?: string): number {
+  const config = stateDir ? readOpenClawConfigFromDir(stateDir) : readOpenClawConfig();
   const port = config?.gateway?.port;
   if (typeof port === 'number' && Number.isFinite(port) && port > 0) {
     return port;
   }
-  return 18789; // Default port
+  return stateDir ? SUDOCLAW_DEFAULT_PORT : SYSTEM_OPENCLAW_DEFAULT_PORT;
 }

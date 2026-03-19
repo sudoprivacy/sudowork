@@ -15,7 +15,7 @@ import { AcpErrorType, createAcpError } from '@/types/acpTypes';
 import net from 'node:net';
 import { OpenClawGatewayConnection } from './OpenClawGatewayConnection';
 import { OpenClawGatewayManager } from './OpenClawGatewayManager';
-import { getGatewayAuthPassword, getGatewayAuthToken, getGatewayPort } from './openclawConfig';
+import { getGatewayAuthFromConfig, getGatewayAuthPassword, getGatewayAuthToken, getGatewayPort, readOpenClawConfigFromDir, SUDOCLAW_DEFAULT_PORT } from './openclawConfig';
 import type { ChatEvent, EventFrame, HelloOk, OpenClawGatewayConfig } from './types';
 
 async function isTcpPortOpen(host: string, port: number, timeoutMs = 300): Promise<boolean> {
@@ -106,27 +106,33 @@ export class OpenClawAgent {
     try {
       this.emitStatusMessage('connecting');
 
-      const gatewayConfig: OpenClawGatewayConfig = this.config.gateway || { port: 18789 };
+      const gatewayConfig: OpenClawGatewayConfig = this.config.gateway || { port: SUDOCLAW_DEFAULT_PORT };
       const useExternal = gatewayConfig.useExternalGateway ?? false;
-      const port = gatewayConfig.port || getGatewayPort();
+      const stateDir = gatewayConfig.stateDir;
+      const port = gatewayConfig.port || getGatewayPort(stateDir);
       const host = gatewayConfig.host || 'localhost';
 
       // Auto-load token/password from OpenClaw config if not explicitly provided
-      const token = gatewayConfig.token ?? getGatewayAuthToken() ?? undefined;
-      const password = gatewayConfig.password ?? getGatewayAuthPassword() ?? undefined;
+      const authFromConfig = stateDir ? readOpenClawConfigFromDir(stateDir)?.gateway?.auth : getGatewayAuthFromConfig();
+      const token = gatewayConfig.token ?? (authFromConfig?.mode === 'token' ? authFromConfig.token : null) ?? getGatewayAuthToken() ?? undefined;
+      const password = gatewayConfig.password ?? (authFromConfig?.mode === 'password' ? authFromConfig.password : null) ?? getGatewayAuthPassword() ?? undefined;
 
       // Start gateway process if not using external
       if (!useExternal) {
-        // If a gateway is already listening on the target port, don't try to spawn another one.
-        // This avoids failures like "port already in use" when the user runs the Gateway service via launchd/systemd.
         const probeHost = host === 'localhost' ? '127.0.0.1' : host;
         const alreadyListening = await isTcpPortOpen(probeHost, port);
-        if (alreadyListening) {
-          // Gateway already running, skip spawning
-        } else {
+        if (alreadyListening && stateDir) {
+          // Port in use → connecting would use wrong gateway (e.g. system OpenClaw) or stale process.
+          throw new Error(`Port ${port} is already in use. Stop the conflicting gateway: run \`pkill -f "openclaw gateway"\` in terminal.`);
+        }
+        if (!alreadyListening) {
+          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({
             cliPath: gatewayConfig.cliPath || 'openclaw',
             port,
+            customEnv,
+            stateDir,
+            forceSubprocessGateway: gatewayConfig.forceSubprocessGateway ?? true,
           });
 
           try {
@@ -136,17 +142,21 @@ export class OpenClawAgent {
             throw new Error(`Failed to start OpenClaw Gateway: ${errorMsg}`);
           }
         }
+        // If alreadyListening and no stateDir (useExternal-like): we'd connect to existing gateway.
+        // That path is rare; typically we have stateDir (Sudoclaw) and would have thrown above.
       }
 
-      // Create and configure connection
+      // Create and configure connection (stateDir must match gateway for device auth)
       this.connection = new OpenClawGatewayConnection({
         url: `ws://${host}:${port}`,
+        stateDir: stateDir ?? undefined,
         token,
         password,
         onEvent: (evt) => this.handleEvent(evt),
         onHelloOk: (hello) => this.handleHelloOk(hello),
         onConnectError: (err) => this.handleConnectError(err),
         onClose: (code, reason) => this.handleClose(code, reason),
+        onTokenMismatch: this.gatewayManager ? () => this.restartGatewayForTokenMismatch() : undefined,
       });
 
       // Start connection
@@ -268,6 +278,21 @@ export class OpenClawAgent {
   }
 
   // ========== Private Methods ==========
+
+  /**
+   * Restart gateway to clear in-memory device store (for device token mismatch recovery).
+   * Only works when we spawned the gateway (subprocess mode).
+   */
+  private async restartGatewayForTokenMismatch(): Promise<void> {
+    if (!this.gatewayManager) return;
+    try {
+      await this.gatewayManager.stop();
+      await this.gatewayManager.start();
+    } catch (e) {
+      console.error('[OpenClawAgent] Failed to restart gateway:', e);
+      throw e;
+    }
+  }
 
   private async waitForConnection(timeoutMs = 30000): Promise<void> {
     const startTime = Date.now();

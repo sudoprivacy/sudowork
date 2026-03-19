@@ -8,16 +8,21 @@ import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 interface GatewayManagerConfig {
   /** Path to openclaw CLI (default: 'openclaw') */
   cliPath?: string;
-  /** Gateway port (default: 18789) */
+  /** Gateway port (default: 18799 for Sudoclaw) */
   port?: number;
   /** Custom environment variables */
   customEnv?: Record<string, string>;
+  /** OpenClaw state dir (e.g. ~/.sudoclaw) — set cwd to package/ for reliable module resolution */
+  stateDir?: string;
+  /** Force subprocess (disables in-process); needed to restart gateway on device token mismatch */
+  forceSubprocessGateway?: boolean;
 }
 
 interface GatewayManagerEvents {
@@ -39,21 +44,47 @@ interface GatewayManagerEvents {
  * - Health detection
  * - Graceful shutdown
  */
+/** Poll until TCP port is open (for in-process gateway readiness) */
+async function waitForPort(host: string, port: number, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const ok = await new Promise<boolean>((resolve) => {
+      const socket = net.createConnection({ host, port });
+      socket.setTimeout(500);
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once('timeout', () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.once('error', () => resolve(false));
+    });
+    if (ok) return true;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
+}
+
 export class OpenClawGatewayManager extends EventEmitter {
   private process: ChildProcess | null = null;
+  private inProcess = false;
   private readonly cliPath: string;
   private readonly port: number;
   private readonly customEnv?: Record<string, string>;
+  private readonly stateDir?: string;
+  private readonly forceSubprocessGateway: boolean;
   private isStarting = false;
   private startPromise: Promise<number> | null = null;
-
-  private static readonly MIN_NODE = { major: 22, minor: 12, patch: 0 } as const;
 
   constructor(config: GatewayManagerConfig = {}) {
     super();
     this.cliPath = config.cliPath || 'openclaw';
-    this.port = config.port || 18789;
+    this.port = config.port || 18799;
     this.customEnv = config.customEnv;
+    this.stateDir = config.stateDir;
+    this.forceSubprocessGateway = config.forceSubprocessGateway ?? false;
   }
 
   private resolveCommandPath(cmd: string, envPath?: string): string {
@@ -72,61 +103,6 @@ export class OpenClawGatewayManager extends EventEmitter {
       }
     }
     return cmd;
-  }
-
-  private parseNodeVersion(raw: string): { major: number; minor: number; patch: number } | null {
-    const m = raw.trim().match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!m) return null;
-    return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
-  }
-
-  private isNodeVersionAtLeast(a: { major: number; minor: number; patch: number } | null, b: { major: number; minor: number; patch: number }): boolean {
-    if (!a) return false;
-    if (a.major !== b.major) return a.major > b.major;
-    if (a.minor !== b.minor) return a.minor > b.minor;
-    return a.patch >= b.patch;
-  }
-
-  private findBestNodeBinary(env: Record<string, string>): string | null {
-    const envPath = env.PATH || '';
-    const sep = process.platform === 'win32' ? ';' : ':';
-    const nodeName = process.platform === 'win32' ? 'node.exe' : 'node';
-
-    let best: { file: string; ver: { major: number; minor: number; patch: number } } | null = null;
-    for (const dir of envPath.split(sep)) {
-      if (!dir) continue;
-      const candidate = path.join(dir, nodeName);
-      try {
-        fs.accessSync(candidate, fs.constants.X_OK);
-      } catch {
-        continue;
-      }
-      try {
-        const versionRaw = execFileSync(candidate, ['-v'], { encoding: 'utf8', env });
-        const ver = this.parseNodeVersion(versionRaw);
-        if (!this.isNodeVersionAtLeast(ver, OpenClawGatewayManager.MIN_NODE)) continue;
-        if (!best || this.isNodeVersionAtLeast(ver, best.ver)) {
-          best = { file: candidate, ver: ver! };
-        }
-      } catch {
-        // Ignore broken node binaries.
-      }
-    }
-    return best?.file ?? null;
-  }
-
-  private shouldRunCliViaNode(resolvedCliPath: string): boolean {
-    if (/\.(mjs|cjs|js)$/i.test(resolvedCliPath)) return true;
-    try {
-      const fd = fs.openSync(resolvedCliPath, 'r');
-      const buf = Buffer.alloc(128);
-      const n = fs.readSync(fd, buf, 0, buf.length, 0);
-      fs.closeSync(fd);
-      const head = buf.slice(0, n).toString('utf8');
-      return head.startsWith('#!') && head.includes('node');
-    } catch {
-      return false;
-    }
   }
 
   /**
@@ -170,9 +146,58 @@ export class OpenClawGatewayManager extends EventEmitter {
     }
   }
 
+  private canUseInProcess(): boolean {
+    if (this.forceSubprocessGateway) return false;
+    if (!this.stateDir) return false;
+    const pkgRoot = path.join(this.stateDir, 'cli', 'package');
+    const entryPath = path.join(pkgRoot, 'openclaw.mjs');
+    const hasEntry = fs.existsSync(entryPath);
+    const hasDist = fs.existsSync(path.join(pkgRoot, 'dist', 'entry.mjs')) || fs.existsSync(path.join(pkgRoot, 'dist', 'entry.js'));
+    const resolvedCli = this.resolveCommandPath(this.cliPath, process.env.PATH || '');
+    const isSudoclaw = resolvedCli.includes('.sudoclaw') && (resolvedCli.includes('bin/openclaw') || resolvedCli.includes('bin\\openclaw'));
+    return isSudoclaw && hasEntry && hasDist;
+  }
+
+  private async doStartInProcess(): Promise<number> {
+    const pkgRoot = path.join(this.stateDir!, 'cli', 'package');
+    const entryPath = path.join(pkgRoot, 'openclaw.mjs');
+    const origArgv = [...process.argv];
+    const origCwd = process.cwd();
+    const origStateDir = process.env.OPENCLAW_STATE_DIR;
+
+    process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured'];
+    process.env.OPENCLAW_STATE_DIR = this.stateDir!;
+    process.chdir(pkgRoot);
+
+    try {
+      console.log('[OpenClawGatewayManager] Starting gateway in-process (no extra Dock icon)');
+      await import(pathToFileURL(entryPath).href);
+      const ready = await waitForPort('127.0.0.1', this.port, 10000);
+      if (ready) {
+        this.inProcess = true;
+        console.log(`[OpenClawGatewayManager] Gateway ready on port ${this.port}`);
+        this.emit('ready', this.port);
+        return this.port;
+      }
+      throw new Error('Gateway did not become ready within timeout');
+    } catch (err) {
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    } finally {
+      process.argv = origArgv;
+      process.chdir(origCwd);
+      if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
+      else delete process.env.OPENCLAW_STATE_DIR;
+    }
+  }
+
   private async doStart(): Promise<number> {
+    if (this.canUseInProcess()) {
+      return this.doStartInProcess();
+    }
+
     return new Promise((resolve, reject) => {
-      const args = ['gateway', '--port', String(this.port)];
+      const args = ['gateway', '--port', String(this.port), '--allow-unconfigured'];
 
       // Use enhanced env with shell variables
       const env = getEnhancedEnv(this.customEnv);
@@ -180,18 +205,21 @@ export class OpenClawGatewayManager extends EventEmitter {
       const isWindows = process.platform === 'win32';
 
       const resolvedCli = this.resolveCommandPath(this.cliPath, env.PATH);
-      const bestNode = this.findBestNodeBinary(env);
-      const runViaNode = bestNode && this.shouldRunCliViaNode(resolvedCli);
+      // Always use Sudoclaw path — no system openclaw (runViaNode removed)
+      const spawnCommand = resolvedCli;
+      const spawnArgs = args;
 
-      const spawnCommand = runViaNode ? bestNode! : resolvedCli;
-      const spawnArgs = runViaNode ? [resolvedCli, ...args] : args;
-
+      const spawnCwd = this.stateDir ? path.join(this.stateDir, 'cli', 'package') : undefined;
+      if (spawnCwd && fs.existsSync(spawnCwd)) {
+        console.log('[OpenClawGatewayManager] Using cwd:', spawnCwd);
+      }
       console.log(`[OpenClawGatewayManager] Starting: ${spawnCommand} ${spawnArgs.join(' ')}`);
 
       this.process = spawn(spawnCommand, spawnArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
         shell: isWindows,
+        cwd: spawnCwd && fs.existsSync(spawnCwd) ? spawnCwd : undefined,
       });
 
       let hasResolved = false;
@@ -264,6 +292,12 @@ export class OpenClawGatewayManager extends EventEmitter {
    * Stop the gateway process
    */
   async stop(): Promise<void> {
+    if (this.inProcess) {
+      // In-process gateway runs in main process — cannot stop without quitting app.
+      // Gateway stays running until app quit; next session will reuse if port in use.
+      this.inProcess = false;
+      return;
+    }
     if (!this.process) {
       return;
     }
@@ -302,7 +336,7 @@ export class OpenClawGatewayManager extends EventEmitter {
    * Check if gateway is running
    */
   get isRunning(): boolean {
-    return this.process !== null && !this.process.killed;
+    return this.inProcess || (this.process !== null && !this.process.killed);
   }
 
   /**

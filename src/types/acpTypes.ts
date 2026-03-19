@@ -440,7 +440,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
   },
   'openclaw-gateway': {
     id: 'openclaw-gateway',
-    name: 'OpenClaw',
+    name: 'Sudoclaw',
     cliCommand: 'openclaw',
     authRequired: false,
     enabled: true, // ✅ OpenClaw Gateway WebSocket mode

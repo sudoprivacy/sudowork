@@ -5,7 +5,7 @@
   "description": "Transform your command-line AI agent into a modern, efficient AI Chat interface.",
   "main": "./out/main/index.js",
   "engines": {
-    "node": ">=22 <25"
+    "node": ">=22 <26"
   },
   "scripts": {
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
@@ -87,7 +87,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.1",
-    "electron": "37.10.3",
+    "electron": "40.8.3",
     "electron-builder": "^26.6.0",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.25.11",
@@ -214,7 +214,7 @@
     "electron-winstaller": "^5.4.0"
   },
   "electronRebuild": {
-    "electronVersion": "^37.3.1"
+    "electronVersion": "^40.8.3"
   },
   "resolutions": {
     "tmp": "^0.2.5",
