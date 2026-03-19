@@ -175,7 +175,7 @@ function repairOpenClawConfig(): void {
     if (providers?.providers) {
       for (const [key, prov] of Object.entries(providers.providers)) {
         if (prov && typeof prov === 'object' && !Array.isArray(prov.models)) {
-          (prov as { models: string[] }).models = prov.models ?? [];
+          (prov as { models: string[] }).models = [];
           changed = true;
         }
       }

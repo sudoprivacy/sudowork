@@ -32,6 +32,12 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 // Set the app name early to ensure proper tray tooltip on macOS
 app.setName('Sudowork');
 
+// Hide Dock icon when running as Node.js CLI (ELECTRON_RUN_AS_NODE)
+// This prevents the Dock bounce when using the claude CLI wrapper
+if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' && app.dock) {
+  app.dock.hide();
+}
+
 // ============ Deep Link Protocol ============
 // Register aionui:// protocol scheme for external app integration (e.g., New API token quick-add)
 const PROTOCOL_SCHEME = 'aionui';
