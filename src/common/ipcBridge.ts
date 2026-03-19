@@ -398,6 +398,15 @@ export const geminiCli = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
 };
 
+// OpenClaw CLI installer / 安装 openclaw 命令行工具
+export const openclawCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('openclaw-cli.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('openclaw-cli.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('openclaw-cli.uninstall'),
+  /** Emitted by main process when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('openclaw-cli.install-result'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export interface ILibreOfficeStatus {
   installed: boolean;

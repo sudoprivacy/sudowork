@@ -10,6 +10,7 @@ import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
+import { openclawCliService } from './services/claudeCli/CliInstallService';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 
 /**
@@ -155,6 +156,16 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
   const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
+
+  // Use managed OpenClaw path when user has not explicitly set cliPath
+  let cliPath = extra.cliPath;
+  if (cliPath === undefined) {
+    const status = await openclawCliService.checkInstalled();
+    if (status.installed && status.source === 'managed' && status.path) {
+      cliPath = status.path;
+    }
+  }
+
   return {
     type: 'openclaw-gateway',
     extra: {
@@ -163,7 +174,7 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       agentName: extra.agentName,
       customWorkspace,
       gateway: {
-        cliPath: extra.cliPath,
+        cliPath,
       },
       runtimeValidation: {
         expectedWorkspace: workspace,

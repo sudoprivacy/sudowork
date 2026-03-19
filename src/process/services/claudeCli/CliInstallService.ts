@@ -164,6 +164,12 @@ export class CliInstallService {
     return this.cfg.name;
   }
 
+  /** Returns true if the tgz bundle exists (packaged app or dev with cli:download run) */
+  hasTgzResource(): boolean {
+    const p = app.isPackaged ? path.join(process.resourcesPath, this.cfg.tgzResource) : path.join(app.getAppPath(), 'resources', this.cfg.tgzResource);
+    return fs.existsSync(p);
+  }
+
   // ── private helpers ──────────────────────────────────────────────────────
 
   private resolveTgzPath(): string {
@@ -331,6 +337,14 @@ export const geminiCliService = new CliInstallService({
   label: 'Gemini CLI',
 });
 
+export const openclawCliService = new CliInstallService({
+  name: 'openclaw',
+  npmPackage: 'openclaw',
+  tgzResource: 'openclaw.tgz',
+  declinedKey: 'openclawCli.installDeclined',
+  label: 'OpenClaw',
+});
+
 /**
  * Called once after the main window is ready.
  * For each CLI tool not yet installed and not previously declined,
@@ -338,10 +352,11 @@ export const geminiCliService = new CliInstallService({
  * the refusal on decline so the prompt never appears again.
  */
 export async function promptCliInstallsIfNeeded(): Promise<void> {
-  const tools = [claudeCliService, geminiCliService];
+  const tools = [claudeCliService, geminiCliService, openclawCliService];
   const toPrompt: CliInstallService[] = [];
 
   for (const svc of tools) {
+    if (!svc.hasTgzResource()) continue; // Skip if bundle not available (e.g. dev without cli:download)
     const [status, declined] = await Promise.all([svc.checkInstalled(), svc.isDeclined()]);
     if (!status.installed && !declined) {
       toPrompt.push(svc);
@@ -372,7 +387,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         silent: true,
       }).show();
 
-      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : ipcBridge.geminiCli.installResult;
+      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : svc.commandName === 'gemini' ? ipcBridge.geminiCli.installResult : ipcBridge.openclawCli.installResult;
 
       try {
         await svc.install();

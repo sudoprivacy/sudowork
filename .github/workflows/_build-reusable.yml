@@ -102,11 +102,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Download CLI bundles (claude-code & gemini-cli)
+      - name: Download CLI bundles (claude-code, gemini-cli, openclaw)
         shell: bash
         run: |
           node scripts/download-claude-code.js
           node scripts/download-gemini-cli.js
+          node scripts/download-openclaw.js
 
 
 

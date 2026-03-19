@@ -122,6 +122,8 @@ extraResources:
     to: claude-code.tgz
   - from: resources/gemini-cli.tgz
     to: gemini-cli.tgz
+  - from: resources/openclaw.tgz
+    to: openclaw.tgz
 
 win:
   target:
