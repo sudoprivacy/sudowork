@@ -1043,3 +1043,13 @@ export const channel = {
     message?: string;
   }>('channel.wechat-qr-login'),
 };
+
+export interface ISudoworkServerConfig {
+  baseUrl: string;
+  enterpriseCode?: string;
+}
+
+export const sudoworkServer = {
+  getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
+  updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
+};

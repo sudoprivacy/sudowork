@@ -84,6 +84,11 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
+  // Sudowork Server (Enterprise Control Center) configuration
+  'sudowork.server': {
+    baseUrl: string;
+    enterpriseCode?: string;
+  };
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;

@@ -1,3 +1,4 @@
+import { ipcBridge } from '@/common';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 
@@ -5,12 +6,17 @@ type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
 export interface AuthUser {
   id: string;
-  username: string;
+  nickname: string;
+  role: 'ADMIN' | 'USER';
+  status: number;
+  enterprise_code?: string;
+  token?: string;
 }
 
 interface LoginParams {
-  username: string;
-  password: string;
+  phone: string;
+  code: string;
+  enterprise_code: string;
   remember?: boolean;
 }
 
@@ -70,8 +76,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const abortRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
+    const stored = localStorage.getItem('sudowork_auth_v1');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setUser(parsed);
+        setStatus('authenticated');
+        setReady(true);
+        return;
+      } catch (e) {
+        localStorage.removeItem('sudowork_auth_v1');
+      }
+    }
+
     if (isDesktopRuntime) {
-      setStatus('authenticated');
+      // 桌面端默认未登录，除非有本地存储的 Token
+      setStatus('unauthenticated');
       setUser(null);
       setReady(true);
       return;
@@ -100,70 +120,55 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [refresh]);
 
-  const login = useCallback(async ({ username, password, remember }: LoginParams): Promise<LoginResult> => {
+  const login = useCallback(async ({ phone, code, enterprise_code, remember }: LoginParams): Promise<LoginResult> => {
     try {
-      if (isDesktopRuntime) {
-        setReady(true);
-        return { success: true };
-      }
+      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+      const baseUrl = serverConfig.baseUrl || 'http://localhost:3000';
 
-      // P1 安全修复：登录请求需要 CSRF Token / P1 Security fix: Login needs CSRF token
-      const response = await fetch('/login', {
+      const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
-        body: JSON.stringify(withCsrfToken({ username, password, remember })),
+        body: JSON.stringify({ phone, code, enterprise_code }),
       });
 
       const data = (await response.json()) as {
         success: boolean;
         message?: string;
-        user?: AuthUser;
+        data?: { token: string; user: AuthUser };
       };
 
-      if (!response.ok || !data.success || !data.user) {
-        let code: LoginErrorCode = 'unknown';
-        if (response.status === 401) {
-          code = 'invalidCredentials';
-        } else if (response.status === 429) {
-          code = 'tooManyAttempts';
-        } else if (response.status >= 500) {
-          code = 'serverError';
-        }
-
+      if (!response.ok || !data.success || !data.data) {
         return {
           success: false,
-          message: data?.message ?? 'Login failed',
-          code,
+          message: data?.message ?? '登录失败',
+          code: 'invalidCredentials',
         };
       }
 
-      setUser(data.user);
+      const authData = { ...data.data.user, token: data.data.token };
+      setUser(authData);
       setStatus('authenticated');
+      localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
       setReady(true);
-
-      // Re-enable WebSocket reconnection after successful login (WebUI mode only)
-      if (typeof window !== 'undefined' && (window as any).__websocketReconnect) {
-        (window as any).__websocketReconnect();
-      }
 
       return { success: true };
     } catch (error) {
       console.error('Login request failed:', error);
       return {
         success: false,
-        message: 'Network error. Please try again.',
+        message: '连接到中控服务器失败',
         code: 'networkError',
       };
     }
   }, []);
 
   const logout = useCallback(async () => {
+    localStorage.removeItem('sudowork_auth_v1');
     if (isDesktopRuntime) {
       setUser(null);
-      setStatus('authenticated');
+      setStatus('unauthenticated');
       setReady(true);
       return;
     }

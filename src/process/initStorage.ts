@@ -649,7 +649,20 @@ const initStorage = async () => {
   ChatMessageStorage.interceptor(chatMessageFile);
   EnvStorage.interceptor(envFile);
 
-  // 4. 初始化 MCP 配置（为所有用户提供默认配置）
+  // 4. 初始化 Sudowork Server 配置
+  try {
+    const existingServerConfig = await configFile.get('sudowork.server').catch(() => undefined);
+    if (!existingServerConfig) {
+      await configFile.set('sudowork.server', {
+        baseUrl: 'http://localhost:3000',
+      });
+      console.log('[Sudowork] Sudowork Server config initialized');
+    }
+  } catch (error) {
+    console.error('[Sudowork] Failed to initialize Sudowork Server config:', error);
+  }
+
+  // 5. 初始化 MCP 配置（为所有用户提供默认配置）
   try {
     const existingMcpConfig = await configFile.get('mcp.config').catch((): undefined => undefined);
 

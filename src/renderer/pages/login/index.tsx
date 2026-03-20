@@ -1,89 +1,32 @@
 import loginLogo from '@renderer/assets/logos/app.png';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { changeLanguage } from '@/renderer/i18n';
 import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
+import { Button, Input, Message, Space } from '@arco-design/web-react';
+import { Phone, Protect, Key } from '@icon-park/react';
 import './LoginPage.css';
 
-type MessageState = {
-  type: 'error' | 'success';
-  text: string;
-};
-
-const REMEMBER_ME_KEY = 'rememberMe';
-const REMEMBERED_USERNAME_KEY = 'rememberedUsername';
-const REMEMBERED_PASSWORD_KEY = 'rememberedPassword';
-
-// Simple obfuscation for stored credentials (not cryptographically secure, but prevents plain text storage)
-const obfuscate = (text: string): string => {
-  const encoded = btoa(encodeURIComponent(text));
-  return encoded.split('').reverse().join('');
-};
-
-const deobfuscate = (text: string): string => {
-  try {
-    const reversed = text.split('').reverse().join('');
-    return decodeURIComponent(atob(reversed));
-  } catch {
-    return '';
-  }
-};
+const AionLogoMark: React.FC = () => (
+  <svg className='w-64px h-64px text-primary' viewBox='0 0 80 80' fill='none' aria-hidden='true' focusable='false'>
+    <path
+      d='M78.7034,21.9581 C78.5522,21.6152 78.4472,21.3188 78.3117,21.1156 L58.7503,10.7582 L58.7382,10.747 L58.7261,10.747 L38.873,0.3896 C38.3184,0.0809 37.6506,0 37.1135,0.2905 L0.8647,21.1119 C0.3391,21.4024 0.0234,22.0059 0.0234,22.6552 L0.0234,43.2112 C0.0234,43.2112 0.0234,43.2227 0.0234,43.2341 C0.0234,43.2456 0.0234,43.2456 0.0234,43.2456 L0.0234,63.8016 C0.0234,63.8016 0.0234,63.8131 0.0234,63.8131 C0.0234,63.9814 0.3391,64.5849 0.8647,64.8754 L37.1135,85.6968 C37.6499,85.9873 38.3184,85.9873 38.8548,85.6968 C38.8886,85.6763 38.9342,85.6558 38.968,85.6433 L58.6985,75.3513 L58.7094,75.3401 L58.7202,75.3289 L78.5733,65.0798 L78.5842,65.0686 C79.11,64.7781 79.4257,64.1746 79.4257,63.8131 L79.4257,22.6664 C79.4257,22.4383 79.3801,22.2214 78.7034,21.9581 Z M60.144,52.9255 L60.144,33.8351 L75.1888,25.435 L75.1888,60.9985 L60.144,52.9255 Z M56.6792,15.1383 L56.6792,32.5851 L38.9092,41.3644 L24.1504,32.5851 L56.6792,15.1383 Z M16.8562,32.5851 L3.8832,40.4709 L3.8832,25.435 L16.8562,32.5851 Z M20.2354,34.8183 L37.0192,44.4757 L37.0192,60.9985 L20.2354,43.5517 L20.2354,34.8183 Z M37.0306,64.8883 L37.0306,80.5657 L3.9948,63.8131 L20.2466,54.8857 L37.0306,64.8883 Z M40.4098,44.4757 L54.801,36.6857 L54.801,71.8957 L40.4098,63.6933 L40.4098,44.4757 Z M58.7261,29.8976 L58.7261,15.1383 L71.6879,22.6552 L58.7261,29.8976 Z M40.4098,19.6164 L40.4098,4.7239 L53.3541,12.2407 L40.4098,19.6164 Z M37.0306,21.6239 L21.0034,30.8407 L7.5234,22.6476 L37.0306,4.7351 L37.0306,21.6239 Z M3.8944,46.3992 L16.8562,53.8807 L3.8944,61.3622 L3.8944,46.3992 Z M40.4098,67.2492 L53.3653,74.7307 L40.4098,82.2122 L40.4098,67.2492 Z M58.7149,56.8792 L71.6879,64.8883 L58.7149,72.8974 L58.7149,56.8792 Z'
+      fill='currentColor'
+    ></path>
+  </svg>
+);
 
 const LoginPage: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { status, login } = useAuth();
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [message, setMessage] = useState<MessageState | null>(null);
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [enterpriseCode, setEnterpriseCode] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const usernameRef = useRef<HTMLInputElement | null>(null);
-  const passwordRef = useRef<HTMLInputElement | null>(null);
-  const messageTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    document.body.classList.add('login-page-active');
-    return () => {
-      document.body.classList.remove('login-page-active');
-      if (messageTimer.current) {
-        window.clearTimeout(messageTimer.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    document.title = t('login.pageTitle');
-  }, [t]);
-
-  useEffect(() => {
-    document.documentElement.lang = i18n.language;
-  }, [i18n.language]);
-
-  useEffect(() => {
-    const isRememberMe = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
-    if (isRememberMe) {
-      const storedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY);
-      const storedPassword = localStorage.getItem(REMEMBERED_PASSWORD_KEY);
-      if (storedUsername) setUsername(deobfuscate(storedUsername));
-      if (storedPassword) setPassword(deobfuscate(storedPassword));
-      setRememberMe(true);
-    }
-    window.setTimeout(() => {
-      usernameRef.current?.focus();
-    }, 0);
-
-    return () => {
-      if (messageTimer.current) {
-        window.clearTimeout(messageTimer.current);
-      }
-    };
-  }, []);
+  const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -91,199 +34,91 @@ const LoginPage: React.FC = () => {
     }
   }, [navigate, status]);
 
-  const clearMessageLater = useCallback(() => {
-    if (messageTimer.current) {
-      window.clearTimeout(messageTimer.current);
+  const handleSendCode = () => {
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      Message.error('请输入正确的 11 位手机号');
+      return;
     }
-    messageTimer.current = window.setTimeout(() => {
-      setMessage((prev) => (prev?.type === 'success' ? prev : null));
-    }, 5000);
-  }, []);
-
-  const showMessage = useCallback(
-    (next: MessageState) => {
-      setMessage(next);
-      if (next.type === 'error') {
-        clearMessageLater();
-      }
-    },
-    [clearMessageLater]
-  );
-
-  const supportedLanguages = useMemo<{ code: string; label: string }[]>(
-    () => [
-      { code: 'zh-CN', label: '简体中文' },
-      { code: 'zh-TW', label: '繁體中文' },
-      { code: 'ja-JP', label: '日本語' },
-      { code: 'ko-KR', label: '한국어' },
-      { code: 'tr-TR', label: 'Türkçe' },
-      { code: 'en-US', label: 'English' },
-    ],
-    []
-  );
-
-  const handleLanguageChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextLanguage = event.target.value;
-    changeLanguage(nextLanguage).catch((error: Error) => {
-      console.error('Failed to change language:', error);
-    });
-  }, []);
-
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent) => {
-      event.preventDefault();
-      const trimmedUsername = username.trim();
-
-      if (!trimmedUsername || !password) {
-        showMessage({ type: 'error', text: t('login.errors.empty') });
-        return;
-      }
-
-      setLoading(true);
-      setMessage(null);
-
-      const result = await login({ username: trimmedUsername, password, remember: rememberMe });
-
-      if (result.success) {
-        if (rememberMe) {
-          localStorage.setItem(REMEMBER_ME_KEY, 'true');
-          localStorage.setItem(REMEMBERED_USERNAME_KEY, obfuscate(trimmedUsername));
-          localStorage.setItem(REMEMBERED_PASSWORD_KEY, obfuscate(password));
-        } else {
-          localStorage.removeItem(REMEMBER_ME_KEY);
-          localStorage.removeItem(REMEMBERED_USERNAME_KEY);
-          localStorage.removeItem(REMEMBERED_PASSWORD_KEY);
+    setCountdown(60);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
         }
+        return prev - 1;
+      });
+    }, 1000);
+    Message.success('验证码已发送 (Mock: 123456)');
+  };
 
-        const successText = t('login.success');
-        showMessage({ type: 'success', text: successText });
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!phone || !code || !enterpriseCode) {
+      Message.warning('请填写所有必填项');
+      return;
+    }
 
-        window.setTimeout(() => {
-          void navigate('/guid', { replace: true });
-        }, 600);
-      } else {
-        const errorText = (() => {
-          switch (result.code) {
-            case 'invalidCredentials':
-              return t('login.errors.invalidCredentials');
-            case 'tooManyAttempts':
-              return t('login.errors.tooManyAttempts');
-            case 'networkError':
-              return t('login.errors.networkError');
-            case 'serverError':
-              return t('login.errors.serverError');
-            case 'unknown':
-            default:
-              return result.message ?? t('login.errors.unknown');
-          }
-        })();
+    setLoading(true);
+    const result = await login({ phone, code, enterprise_code: enterpriseCode });
 
-        showMessage({ type: 'error', text: errorText });
-      }
+    if (result.success) {
+      Message.success('登录成功');
+      setTimeout(() => navigate('/guid', { replace: true }), 600);
+    } else {
+      Message.error(result.message || '登录失败');
+    }
+    setLoading(false);
+  };
 
-      setLoading(false);
-    },
-    [login, navigate, password, rememberMe, showMessage, t, username]
-  );
-
-  if (status === 'checking') {
-    return <AppLoader />;
-  }
+  if (status === 'checking') return <AppLoader />;
 
   return (
     <div className='login-page'>
-      {/* <div className='login-page__background' aria-hidden='true'>
+      {/* 装饰性背景 */}
+      <div className='login-page__background'>
         <div className='login-page__background-circle login-page__background-circle--lg' />
         <div className='login-page__background-circle login-page__background-circle--md' />
         <div className='login-page__background-circle login-page__background-circle--sm' />
-      </div> */}
+      </div>
 
-      <div className='login-page__card'>
-        <label className='login-page__lang-select-wrapper' htmlFor='lang-select'>
-          <select id='lang-select' className='login-page__lang-select' value={i18n.language} onChange={handleLanguageChange}>
-            {supportedLanguages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
+      <div className='login-page__card !bg-white/90 !backdrop-blur-xl border border-white/20 shadow-2xl'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <img src={loginLogo} alt={t('login.brand')} />
+            <AionLogoMark />
           </div>
-          <h1 className='login-page__title'>{t('login.brand')}</h1>
-          <p className='login-page__subtitle'>{t('login.subtitle')}</p>
+          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>Sudowork Enterprise</h1>
+          <p className='text-13px text-t-dim'>企业级 Agent 协同指挥中心</p>
         </div>
 
-        <form className='login-page__form' onSubmit={handleSubmit}>
-          <div className='login-page__form-item'>
-            <label className='login-page__label' htmlFor='username'>
-              {t('login.username')}
-            </label>
-            <div className='login-page__input-wrapper'>
-              <svg className='login-page__input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' aria-hidden='true'>
-                <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
-                <circle cx='12' cy='7' r='4' />
-              </svg>
-              <input ref={usernameRef} id='username' name='username' className='login-page__input' placeholder={t('login.usernamePlaceholder')} autoComplete='username' value={username} onChange={(event) => setUsername(event.target.value)} aria-required='true' />
-            </div>
+        <div className='flex flex-col gap-20px mt-32px'>
+          <div className='flex flex-col gap-8px'>
+            <div className='text-12px font-600 text-t-secondary ml-4px'>企业邀请码</div>
+            <Input size='large' prefix={<Protect className='text-t-dim' />} placeholder='请输入企业代码' value={enterpriseCode} onChange={setEnterpriseCode} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
           </div>
 
-          <div className='login-page__form-item'>
-            <label className='login-page__label' htmlFor='password'>
-              {t('login.password')}
-            </label>
-            <div className='login-page__input-wrapper'>
-              <svg className='login-page__input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' aria-hidden='true'>
-                <rect x='3' y='11' width='18' height='11' rx='2' ry='2' />
-                <path d='M7 11V7a5 5 0 0 1 10 0v4' />
-              </svg>
-              <input ref={passwordRef} id='password' name='password' type={passwordVisible ? 'text' : 'password'} className='login-page__input' placeholder={t('login.passwordPlaceholder')} autoComplete='current-password' value={password} onChange={(event) => setPassword(event.target.value)} aria-required='true' />
-              <button type='button' className='login-page__toggle-password' onClick={() => setPasswordVisible((prev) => !prev)} aria-label={passwordVisible ? t('login.hidePassword') : t('login.showPassword')}>
-                <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
-                  {passwordVisible ? (
-                    <>
-                      <path d='M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24' />
-                      <line x1='1' y1='1' x2='23' y2='23' />
-                    </>
-                  ) : (
-                    <>
-                      <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' />
-                      <circle cx='12' cy='12' r='3' />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
+          <div className='flex flex-col gap-8px'>
+            <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
+            <Input size='large' prefix={<Phone className='text-t-dim' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
           </div>
 
-          <div className='login-page__checkbox'>
-            <input type='checkbox' id='remember-me' checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} />
-            <label htmlFor='remember-me'>{t('login.rememberMe')}</label>
+          <div className='flex flex-col gap-8px'>
+            <div className='text-12px font-600 text-t-secondary ml-4px'>身份验证</div>
+            <Space size='small' className='w-full'>
+              <Input size='large' prefix={<Key className='text-t-dim' />} placeholder='6 位验证码' value={code} onChange={setCode} className='!rd-12px !bg-fill-2/50 border-none h-48px flex-1' />
+              <Button size='large' disabled={countdown > 0} onClick={handleSendCode} className='!rd-12px !bg-fill-2 h-48px border-none font-600 min-w-100px'>
+                {countdown > 0 ? `${countdown}s` : '发送'}
+              </Button>
+            </Space>
           </div>
 
-          <button type='submit' className='login-page__submit' disabled={loading}>
-            {loading && (
-              <svg className='login-page__spinner' viewBox='0 0 24 24' width='18' height='18'>
-                <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='3' fill='none' strokeDasharray='50' strokeDashoffset='25' strokeLinecap='round' />
-              </svg>
-            )}
-            <span>{loading ? t('login.submitting') : t('login.submit')}</span>
-          </button>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='!rd-12px h-52px mt-12px font-800 text-16px tracking-wide shadow-lg shadow-primary/30'>
+            登录
+          </Button>
+        </div>
 
-          <div role='alert' aria-live='polite' className={`login-page__message ${message ? 'login-page__message--visible' : ''} ${message ? (message.type === 'success' ? 'login-page__message--success' : 'login-page__message--error') : ''}`} hidden={!message}>
-            {message?.text}
-          </div>
-        </form>
-
-        <div className='login-page__footer'>
-          <div className='login-page__footer-content'>
-            <span>{t('login.footerPrimary')}</span>
-            <span className='login-page__footer-divider'>•</span>
-            <span>{t('login.footerSecondary')}</span>
-          </div>
+        <div className='mt-32px pt-20px border-t border-border-1 text-center'>
+          <p className='text-11px text-t-dim uppercase tracking-widest mono'>Sudowork Protocol v4.0.2</p>
         </div>
       </div>
     </div>

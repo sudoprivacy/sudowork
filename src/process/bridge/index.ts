@@ -35,6 +35,7 @@ import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
+import { initSudoworkServerBridge } from './sudoworkServerBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -72,6 +73,7 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initSudoclawBridge();
+  initSudoworkServerBridge();
 }
 
 /**

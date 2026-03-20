@@ -1,21 +1,34 @@
-import React, { useState } from 'react';
-import { Button, Select, Message, Tooltip, Divider } from '@arco-design/web-react';
-import { Cloudy, CheckOne, Attention, SettingOne, Lightning, Robot } from '@icon-park/react';
+import { ipcBridge } from '@/common';
+import React, { useState, useEffect } from 'react';
+import { Button, Select, Message, Divider } from '@arco-design/web-react';
+import { CheckOne, Lightning, Robot } from '@icon-park/react';
 
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 
 const SudorouterSettings: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedModel, setSelectedModels] = useState('claude-3-5-sonnet');
+  const [selectedModel, setSelectedModels] = useState('');
+  const [models, setModels] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
 
-  const MOCK_MODELS = [
-    { label: 'Claude 3.5 Sonnet (Sudorouter)', value: 'claude-3-5-sonnet' },
-    { label: 'GPT-4o (Sudorouter)', value: 'gpt-4o' },
-    { label: 'DeepSeek V3 (Sudorouter)', value: 'deepseek-v3' },
-  ];
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+        const res = await fetch(`${serverConfig.baseUrl}/api/v1/router/models`);
+        const data = await res.json();
+        if (data.success) {
+          setModels(data.data);
+          if (data.data.length > 0) setSelectedModels(data.data[0].value);
+        }
+      } catch (e) {
+        console.error('Failed to load models:', e);
+      }
+    };
+    loadModels();
+  }, []);
 
   const MOCK_AGENTS = [
     { id: 'claude', name: 'Claude Code', path: '~/.claude/settings.json', status: 'detected' },
@@ -50,8 +63,8 @@ const SudorouterSettings: React.FC = () => {
               <Lightning theme='filled' size='16' className='text-primary' />
               {t('settings.sudorouter.modelSelection')}
             </div>
-            <Select value={selectedModel} onChange={setSelectedModels} className='w-full' size='large'>
-              {MOCK_MODELS.map((m) => (
+            <Select value={selectedModel} onChange={setSelectedModels} className='w-full' size='large' loading={models.length === 0}>
+              {models.map((m) => (
                 <Select.Option key={m.value} value={m.value}>
                   {m.label}
                 </Select.Option>
