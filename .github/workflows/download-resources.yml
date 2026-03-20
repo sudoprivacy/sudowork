@@ -1,0 +1,93 @@
+name: Download Resources
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a release with the resources'
+        type: boolean
+        default: false
+      tag_name:
+        description: 'Tag name for release (e.g., resources-v1.0.0)'
+        type: string
+        required: false
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  download-resources:
+    name: Download CLI & Node Resources
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Download CLI bundles
+        run: |
+          echo "Downloading claude-code..."
+          node scripts/download-claude-code.js --force
+          echo "Downloading gemini-cli..."
+          node scripts/download-gemini-cli.js --force
+          echo "Downloading openclaw..."
+          node scripts/download-openclaw.js --force
+
+      - name: Download Node.js runtimes (all platforms)
+        run: |
+          node scripts/download-node.js --all --force
+
+      - name: List downloaded resources
+        run: |
+          echo "=========================================="
+          echo "DOWNLOADED RESOURCES"
+          echo "=========================================="
+          ls -lh resources/ || true
+          echo "=========================================="
+
+      - name: Upload resources artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: cli-resources
+          path: resources/
+          retention-days: 7
+
+  create-release:
+    name: Create Resources Release
+    runs-on: ubuntu-latest
+    needs: download-resources
+    if: inputs.create_release && inputs.tag_name != ''
+
+    steps:
+      - name: Download resources artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: cli-resources
+          path: resources/
+
+      - name: List files to release
+        run: ls -lh resources/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: CLI Resources ${{ inputs.tag_name }}
+          files: resources/*
+          draft: false
+          prerelease: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
