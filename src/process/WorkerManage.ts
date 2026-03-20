@@ -195,6 +195,18 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
+/** Send SIGUSR1 to Sudoclaw gateway for hot-reload (skills) — no full restart */
+const reloadOpenClawSkills = (): void => {
+  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
+  for (const { task } of openclawTasks) {
+    const mgr = task as OpenClawAgentManager;
+    if (typeof mgr.reloadGatewaySkills === 'function') {
+      mgr.reloadGatewaySkills();
+      return; // Only one gateway; first task that owns it will send signal
+    }
+  }
+};
+
 /** Restart all Sudoclaw gateways to pick up config changes (~/.sudoclaw/openclaw.json) */
 const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
@@ -222,6 +234,7 @@ const WorkerManage = {
   listTasks,
   kill,
   clear,
+  reloadOpenClawSkills,
   restartOpenClawGateways,
 };
 

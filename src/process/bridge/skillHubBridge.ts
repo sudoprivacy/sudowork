@@ -13,6 +13,9 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { getSkillsDir } from '@/process/initStorage';
+import WorkerManage from '@process/WorkerManage';
+import { restartSudoclawGatewayByPort } from '@/agent/openclaw/OpenClawGatewayManager';
+import { SUDOCLAW_DEFAULT_PORT } from '@process/services/sudoclaw/SudoclawInstallService';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -230,6 +233,19 @@ export function initSkillHubBridge(): void {
       await fs.writeFile(versionFilePath, version, 'utf-8');
 
       console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
+
+      // Restart Sudoclaw gateway so new skill loads immediately.
+      // 1. Registry restart: works even when no Sudoclaw chat is open
+      // 2. Task restart: reconnects agents when chat is open
+      void (async () => {
+        const restarted = await restartSudoclawGatewayByPort(SUDOCLAW_DEFAULT_PORT);
+        if (restarted) {
+          console.log('[SkillHub] Sudoclaw gateway restarted for skill reload');
+          await WorkerManage.restartOpenClawGateways(); // Reconnect agent connections
+        } else {
+          await WorkerManage.restartOpenClawGateways(); // Fallback: restart via tasks
+        }
+      })();
 
       return {
         success: true,

@@ -14,6 +14,7 @@
 
 import { app } from 'electron';
 import * as fs from 'fs';
+import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
@@ -29,20 +30,58 @@ export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', '.sudoclaw');
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
-const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
+export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
-const CONFIG_FILENAME = 'openclaw.json';
-const TGZ_RESOURCE = 'openclaw.tgz';
 
-function resolveTgzPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, TGZ_RESOURCE);
-  }
-  return path.join(app.getAppPath(), 'resources', TGZ_RESOURCE);
+/** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
+const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
+const CONFIG_FILENAME = 'openclaw.json';
+
+/** OSS download URL for OpenClaw */
+const OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
+
+function getOpenclawOssUrl(): string {
+  const platform = process.platform === 'win32' ? 'windows' : 'macos';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  return `${OSS_BASE_URL}/openclaw-${platform}-${arch}.tgz`;
 }
 
-function hasTgzResource(): boolean {
-  return fs.existsSync(resolveTgzPath());
+/** Download file from URL to destination path */
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    https
+      .get(url, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          // Follow redirect
+          const redirectUrl = response.headers.location;
+          if (!redirectUrl) {
+            reject(new Error(`Redirect without location header from ${url}`));
+            return;
+          }
+          file.close();
+          fs.unlinkSync(dest);
+          downloadFile(redirectUrl, dest).then(resolve).catch(reject);
+          return;
+        }
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
+          return;
+        }
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      })
+      .on('error', (err) => {
+        file.close();
+        fs.unlinkSync(dest);
+        reject(err);
+      });
+  });
 }
 
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
@@ -168,6 +207,18 @@ function repairOpenClawConfig(): void {
       gw.port = SUDOCLAW_DEFAULT_PORT;
       changed = true;
     }
+    // Ensure ~/.nexus/config/skills is in skills.load.extraDirs for default skill loading
+    const skills = config.skills as { load?: { extraDirs?: string[] } } | undefined;
+    const extraDirs = skills?.load?.extraDirs;
+    if (!Array.isArray(extraDirs) || !extraDirs.includes(NEXUS_SKILLS_DIR)) {
+      if (!config.skills) (config as Record<string, unknown>).skills = {};
+      const s = config.skills as { load?: { extraDirs?: string[] } };
+      if (!s.load) s.load = {};
+      const dirs = Array.isArray(s.load.extraDirs) ? [...s.load.extraDirs] : [];
+      if (!dirs.includes(NEXUS_SKILLS_DIR)) dirs.push(NEXUS_SKILLS_DIR);
+      s.load.extraDirs = dirs;
+      changed = true;
+    }
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
       console.log('[Sudoclaw] Repaired openclaw.json schema');
@@ -201,6 +252,9 @@ function ensureDefaultConfig(): void {
       },
     },
     gateway: { port: SUDOCLAW_DEFAULT_PORT, mode: 'local' as const, auth: { mode: 'none' as const } },
+    skills: {
+      load: { extraDirs: [NEXUS_SKILLS_DIR] },
+    },
   };
 
   fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
@@ -267,11 +321,6 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     return { installed: true, cliPath: managedBin };
   }
 
-  if (!hasTgzResource()) {
-    console.log('[Sudoclaw] openclaw.tgz not found, skipping built-in install');
-    return { installed: false, cliPath: null };
-  }
-
   try {
     fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     fs.mkdirSync(SUDOCLAW_BIN_DIR, { recursive: true });
@@ -284,15 +333,35 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
 
-    const tgzPath = resolveTgzPath();
-    await tar.x({ file: tgzPath, cwd: SUDOCLAW_CLI_DIR });
+    // Download from OSS
+    const ossUrl = getOpenclawOssUrl();
+    const tmpTgzPath = path.join(os.tmpdir(), `openclaw-${Date.now()}.tgz`);
+
+    console.log(`[Sudoclaw] Downloading OpenClaw from ${ossUrl}...`);
+    try {
+      await downloadFile(ossUrl, tmpTgzPath);
+    } catch (err) {
+      console.error('[Sudoclaw] Download failed:', err);
+      return { installed: false, cliPath: null };
+    }
+
+    try {
+      await tar.x({ file: tmpTgzPath, cwd: SUDOCLAW_CLI_DIR });
+    } finally {
+      // Clean up downloaded temp file
+      try {
+        fs.unlinkSync(tmpTgzPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
 
     const pkgRoot = resolvePackageRoot();
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
-      throw new Error('openclaw.tgz missing dist/. Run: bun run openclaw:download:force');
+      throw new Error('Downloaded package missing dist/');
     }
     if (!hasNodeModules(pkgRoot)) {
-      throw new Error('openclaw.tgz missing node_modules. Run: bun run openclaw:download:force');
+      throw new Error('Downloaded package missing node_modules');
     }
 
     const resolvedEntry = resolveEntryFile();

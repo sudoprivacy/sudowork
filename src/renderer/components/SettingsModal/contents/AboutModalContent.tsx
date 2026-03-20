@@ -50,11 +50,11 @@ const AboutModalContent: React.FC = () => {
 
   const [claudeStatus, setClaudeStatus] = useState<ICliStatus | null>(null);
   const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
-  const [claudePhase, setClaudePhase] = useState<'extracting' | 'configuring' | undefined>(undefined);
+  const [claudePhase, setClaudePhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
 
   const [geminiStatus, setGeminiStatus] = useState<ICliStatus | null>(null);
   const [geminiLoad, setGeminiLoad] = useState<LoadState>('idle');
-  const [geminiPhase, setGeminiPhase] = useState<'extracting' | 'configuring' | undefined>(undefined);
+  const [geminiPhase, setGeminiPhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);

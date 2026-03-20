@@ -5,11 +5,21 @@
  */
 
 import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
 import { POTENTIAL_ACP_CLIS } from '@/types/acpTypes';
 import { ProcessConfig } from '@/process/initStorage';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getSudoclawCliPath, SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
+
+/** Nexus bin directory for Claude/Gemini CLI symlinks */
+const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
+
+/** Priority bin directories for CLI detection */
+const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
 
 interface DetectedAgent {
   backend: AcpBackendAll;
@@ -130,7 +140,47 @@ class AcpDetector {
 
     // Get enhanced environment with user's shell PATH (includes ~/.local/bin, etc.)
     // 获取增强的环境变量，包含用户 shell 的 PATH（如 ~/.local/bin 等）
-    const enhancedEnv = getEnhancedEnv();
+    let enhancedEnv = getEnhancedEnv();
+
+    // Add Nexus bin directories to PATH for detection
+    // 将 Nexus bin 目录添加到 PATH 以便检测 Claude/Gemini CLI 等
+    const currentPath = enhancedEnv.PATH || process.env.PATH || '';
+    const pathSeparator = isWindows ? ';' : ':';
+    const dirsToAdd = PRIORITY_BIN_DIRS.filter((dir) => dir && !currentPath.includes(dir));
+    if (dirsToAdd.length > 0) {
+      enhancedEnv = {
+        ...enhancedEnv,
+        PATH: `${dirsToAdd.join(pathSeparator)}${pathSeparator}${currentPath}`,
+      };
+      console.log(`[ACP] Added bin directories to PATH: ${dirsToAdd.join(', ')}`);
+    }
+
+    /**
+     * Check if CLI exists in priority bin directories first
+     * 优先检查 ~/.nexus/bin 等目录下是否存在 CLI（解决 macOS 环境变量问题）
+     */
+    const findCliInPriorityDirs = (cliCommand: string): string | null => {
+      for (const binDir of PRIORITY_BIN_DIRS) {
+        if (!binDir) continue;
+        // Check both with and without .cmd/.exe extension on Windows
+        const candidates = isWindows ? [path.join(binDir, `${cliCommand}.cmd`), path.join(binDir, `${cliCommand}.exe`), path.join(binDir, cliCommand)] : [path.join(binDir, cliCommand)];
+
+        for (const cliPath of candidates) {
+          try {
+            if (fs.existsSync(cliPath)) {
+              // Check if executable (not a directory)
+              const stat = fs.statSync(cliPath);
+              if (stat.isFile()) {
+                return cliPath;
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return null;
+    };
 
     const isCliAvailable = (cliCommand: string): boolean => {
       // Keep original behavior: prefer where/which, then fallback on Windows to Get-Command.
@@ -171,6 +221,21 @@ class AcpDetector {
     // 并行检测所有潜在的 ACP CLI
     const detectionPromises = POTENTIAL_ACP_CLIS.map((cli) => {
       return Promise.resolve().then(() => {
+        // 优先检查 ~/.nexus/bin 等目录
+        // Check priority bin directories first
+        const priorityCliPath = findCliInPriorityDirs(cli.cmd);
+        if (priorityCliPath) {
+          console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
+          return {
+            backend: cli.backendId,
+            name: cli.name,
+            cliPath: priorityCliPath,
+            acpArgs: cli.args,
+          };
+        }
+
+        // 回退到 which/where 检测
+        // Fallback to which/where detection
         if (!isCliAvailable(cli.cmd)) {
           return null;
         }
@@ -190,6 +255,22 @@ class AcpDetector {
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
         detected.push(result.value);
+      }
+    }
+
+    // 确保 Sudoclaw 被检测到（特殊处理内置安装路径）
+    // Ensure Sudoclaw is detected (special handling for built-in install path)
+    const sudoclawDetected = detected.some((agent) => agent.backend === 'openclaw-gateway');
+    if (!sudoclawDetected) {
+      const sudoclawCliPath = getSudoclawCliPath();
+      if (sudoclawCliPath) {
+        detected.unshift({
+          backend: 'openclaw-gateway',
+          name: 'Sudoclaw',
+          cliPath: sudoclawCliPath,
+          acpArgs: ['gateway'],
+        });
+        console.log(`[ACP] Detected built-in Sudoclaw at: ${sudoclawCliPath}`);
       }
     }
 

@@ -278,6 +278,14 @@ export class OpenClawAgent {
   // ========== Private Methods ==========
 
   /**
+   * Send SIGUSR1 to the gateway for hot-reload (skills/config).
+   * Only works when we spawned the gateway; no-op if connecting to external/shared gateway.
+   */
+  reloadGatewaySkills(): void {
+    this.gatewayManager?.sendReloadSignal();
+  }
+
+  /**
    * Restart gateway to clear in-memory device store (for device token mismatch recovery).
    * Only works when we spawned the gateway (subprocess mode).
    */

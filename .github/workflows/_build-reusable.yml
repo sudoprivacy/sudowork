@@ -132,13 +132,6 @@ jobs:
       - name: Run postinstall
         run: bun run postinstall || true
 
-      - name: Download CLI bundles (claude-code, gemini-cli, openclaw)
-        shell: bash
-        run: |
-          node scripts/download-claude-code.js
-          node scripts/download-gemini-cli.js
-          node scripts/download-openclaw.js
-
       - name: Download Node.js runtime for bundled CLI execution
         shell: bash
         run: |

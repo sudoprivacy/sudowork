@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { ipcBridge } from '@/common';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
+import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
@@ -12,6 +13,56 @@ import { getNodeBinaryPath } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
+
+/**
+ * OSS download URLs for CLI bundles
+ * Format: sudoclaw/{cli-name}-{os}-{arch}.tgz
+ */
+const OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
+
+function getOssDownloadUrl(cliName: string): string {
+  const platform = process.platform === 'win32' ? 'windows' : 'macos';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  return `${OSS_BASE_URL}/${cliName}-${platform}-${arch}.tgz`;
+}
+
+/** Download file from URL to destination path */
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    https
+      .get(url, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          // Follow redirect
+          const redirectUrl = response.headers.location;
+          if (!redirectUrl) {
+            reject(new Error(`Redirect without location header from ${url}`));
+            return;
+          }
+          file.close();
+          fs.unlinkSync(dest);
+          downloadFile(redirectUrl, dest).then(resolve).catch(reject);
+          return;
+        }
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
+          return;
+        }
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      })
+      .on('error', (err) => {
+        file.close();
+        fs.unlinkSync(dest);
+        reject(err);
+      });
+  });
+}
 
 export interface CliStatus {
   installed: boolean;
@@ -25,8 +76,8 @@ interface CliConfig {
   name: string;
   /** npm package name used as fallback in dev mode, e.g. '@anthropic-ai/claude-code' */
   npmPackage: string;
-  /** Filename of the tgz in extraResources, e.g. 'claude-code.tgz' */
-  tgzResource: string;
+  /** OSS name for download URL (e.g., 'claude-code', 'gemini-cli') */
+  ossName: string;
   /** ProcessConfig key to store "user declined install" flag */
   declinedKey: string;
   /** Human-readable display label for dialogs */
@@ -34,7 +85,7 @@ interface CliConfig {
   /** Use bundled Node.js instead of ELECTRON_RUN_AS_NODE (avoids Dock bounce on macOS) */
   useBundledNode?: boolean;
   /** Progress callback during installation */
-  onProgress?: (phase: 'extracting' | 'configuring', percent?: number) => void;
+  onProgress?: (phase: 'downloading' | 'extracting' | 'configuring', percent?: number) => void;
 }
 
 // Use getDataPath() to get ~/.nexus (CLI-safe symlink on macOS)
@@ -120,26 +171,43 @@ export class CliInstallService {
   }
 
   async install(): Promise<void> {
-    const tgzPath = this.resolveTgzPath();
-
-    if (!fs.existsSync(tgzPath)) {
-      throw new Error(`Package not found at: ${tgzPath}`);
-    }
-
     fs.mkdirSync(this.installDir, { recursive: true });
     fs.mkdirSync(getBinDir(), { recursive: true });
 
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
 
+    // Download from OSS to temp file
+    const ossUrl = getOssDownloadUrl(this.cfg.ossName);
+    const tmpTgzPath = path.join(os.tmpdir(), `${this.cfg.ossName}-${Date.now()}.tgz`);
+
+    // Report progress: downloading
+    this.cfg.onProgress?.('downloading', 0);
+
+    console.log(`[CLI] Downloading ${this.cfg.label} from ${ossUrl}...`);
+    try {
+      await downloadFile(ossUrl, tmpTgzPath);
+    } catch (err) {
+      throw new Error(`Failed to download ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     // Report progress: extracting
     this.cfg.onProgress?.('extracting', 0);
 
-    // Use node-tar for cross-platform reliability (no dependency on system 'tar')
-    await tar.x({
-      file: tgzPath,
-      cwd: this.installDir,
-    });
+    try {
+      // Use node-tar for cross-platform reliability (no dependency on system 'tar')
+      await tar.x({
+        file: tmpTgzPath,
+        cwd: this.installDir,
+      });
+    } finally {
+      // Clean up downloaded temp file
+      try {
+        fs.unlinkSync(tmpTgzPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
 
     // Report progress: configuring
     this.cfg.onProgress?.('configuring', 50);
@@ -182,20 +250,12 @@ export class CliInstallService {
     return this.cfg.name;
   }
 
-  /** Returns true if the tgz bundle exists (packaged app or dev with cli:download run) */
+  /** Returns true - CLI bundles are always available from OSS */
   hasTgzResource(): boolean {
-    const p = app.isPackaged ? path.join(process.resourcesPath, this.cfg.tgzResource) : path.join(app.getAppPath(), 'resources', this.cfg.tgzResource);
-    return fs.existsSync(p);
+    return true;
   }
 
   // ── private helpers ──────────────────────────────────────────────────────
-
-  private resolveTgzPath(): string {
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, this.cfg.tgzResource);
-    }
-    return path.join(app.getAppPath(), 'resources', this.cfg.tgzResource);
-  }
 
   /** Read bin entry from extracted package.json to find the CLI entry file */
   private resolveEntryFile(): string | null {
@@ -364,7 +424,7 @@ export class CliInstallService {
 export const claudeCliService = new CliInstallService({
   name: 'claude',
   npmPackage: '@anthropic-ai/claude-code',
-  tgzResource: 'claude-code.tgz',
+  ossName: 'claude-code',
   declinedKey: 'claudeCli.installDeclined',
   label: 'Claude Code CLI',
   useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
@@ -376,7 +436,7 @@ export const claudeCliService = new CliInstallService({
 export const geminiCliService = new CliInstallService({
   name: 'gemini',
   npmPackage: '@google/gemini-cli',
-  tgzResource: 'gemini-cli.tgz',
+  ossName: 'gemini-cli',
   declinedKey: 'geminiCli.installDeclined',
   label: 'Gemini CLI',
   useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
