@@ -600,10 +600,13 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           let output: string;
           if (modelInfo) {
             const current = modelInfo.currentModelLabel || modelInfo.currentModelId || 'unknown';
-            const available = modelInfo.availableModels?.map((m) => {
-              const marker = m.id === modelInfo.currentModelId ? ' (current)' : '';
-              return `- \`${m.id}\` ${m.label ? `— ${m.label}` : ''}${marker}`;
-            }).join('\n') || '(none)';
+            const available =
+              modelInfo.availableModels
+                ?.map((m) => {
+                  const marker = m.id === modelInfo.currentModelId ? ' (current)' : '';
+                  return `- \`${m.id}\` ${m.label ? `— ${m.label}` : ''}${marker}`;
+                })
+                .join('\n') || '(none)';
             output = `**Current model:** ${current}\n\n**Available models:**\n${available}\n\nTo switch, type \`/model <model-id>\` or use the model selector in the toolbar.`;
           } else {
             output = 'Model info not available. The session may not be fully initialized.';

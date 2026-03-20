@@ -277,8 +277,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
       // Keep only 4 builtin assistants: UI 专业设计师，文件规划助手，Beautiful Mermaid, moltbook
       let allowedPresetIds = ['ui-ux-pro-max', 'planning-with-files', 'beautiful-mermaid', 'moltbook', 'copilot'];
       const filteredAgents = mergedAgents.filter((agent) => {
-        let builtinAgents = mergedAgents.filter(_=> !_.id.startsWith('builtin-'))
-        allowedPresetIds = allowedPresetIds.concat(builtinAgents.map(_=>_.id))
+        const builtinAgents = mergedAgents.filter((_) => !_.id.startsWith('builtin-'));
+        allowedPresetIds = allowedPresetIds.concat(builtinAgents.map((_) => _.id));
         return allowedPresetIds.includes(agent.id);
       });
 

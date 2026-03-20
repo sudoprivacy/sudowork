@@ -21,7 +21,7 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any> extends ForkT
   type: AgentType;
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];
-  status: 'pending' | 'running' | 'finished' | undefined;
+  status: 'pending' | 'running' | 'finished' | 'idle' | undefined;
 
   /**
    * Whether this agent is in yolo mode (auto-approve)

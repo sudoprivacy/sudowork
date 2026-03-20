@@ -499,7 +499,9 @@ export function initConversationBridge(): void {
         // Found in database, update status and return
         const conversation = result.data;
         const task = WorkerManage.getTaskById(id);
-        conversation.status = task?.status || 'finished';
+        // Map 'idle' to 'finished' for conversation status
+        const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
+        conversation.status = taskStatus || 'finished';
         return conversation;
       }
 
@@ -509,7 +511,9 @@ export function initConversationBridge(): void {
       if (conversation) {
         // Update status from running task
         const task = WorkerManage.getTaskById(id);
-        conversation.status = task?.status || 'finished';
+        // Map 'idle' to 'finished' for conversation status
+        const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
+        conversation.status = taskStatus || 'finished';
 
         // Lazy migrate this conversation to database in background
         void migrateConversationToDatabase(conversation);

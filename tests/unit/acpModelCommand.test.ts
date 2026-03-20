@@ -86,10 +86,12 @@ describe('/model command interception', () => {
         source: 'configOption' as const,
       };
 
-      const available = modelInfo.availableModels.map((m) => {
-        const marker = m.id === modelInfo.currentModelId ? ' (current)' : '';
-        return `- \`${m.id}\` ${m.label ? `— ${m.label}` : ''}${marker}`;
-      }).join('\n');
+      const available = modelInfo.availableModels
+        .map((m) => {
+          const marker = m.id === modelInfo.currentModelId ? ' (current)' : '';
+          return `- \`${m.id}\` ${m.label ? `— ${m.label}` : ''}${marker}`;
+        })
+        .join('\n');
 
       expect(available).toContain('claude-opus-4-6');
       expect(available).toContain('(current)');
@@ -99,9 +101,7 @@ describe('/model command interception', () => {
 
     it('handles missing model info gracefully', () => {
       const modelInfo = null;
-      const output = modelInfo
-        ? 'has info'
-        : 'Model info not available. The session may not be fully initialized.';
+      const output = modelInfo ? 'has info' : 'Model info not available. The session may not be fully initialized.';
       expect(output).toBe('Model info not available. The session may not be fully initialized.');
     });
   });
