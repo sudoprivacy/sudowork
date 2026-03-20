@@ -392,7 +392,7 @@ export const geminiCliService = new CliInstallService({
  * the refusal on decline so the prompt never appears again.
  */
 export async function promptCliInstallsIfNeeded(): Promise<void> {
-  // OpenClaw is auto-installed via Sudoclaw (~/.sudoclaw), no prompt needed
+  // OpenClaw is auto-installed via Sudoclaw (~/.nexus/.sudoclaw), no prompt needed
   const tools = [claudeCliService, geminiCliService];
   const toPrompt: CliInstallService[] = [];
 

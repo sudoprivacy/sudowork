@@ -265,7 +265,7 @@ export type GatewayClientName = GatewayClientId;
 export interface OpenClawGatewayConfig {
   /** Gateway host (default: localhost) */
   host?: string;
-  /** Gateway port (default: 18799 for Sudoclaw) */
+  /** Gateway port (default: 17863 for Sudoclaw) */
   port: number;
   /** Authentication token */
   token?: string;

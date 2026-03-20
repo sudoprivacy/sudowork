@@ -140,7 +140,7 @@ export function initSudoclawBridge(): void {
   });
 
   ipcBridge.sudoclaw.testGateway.provider(async () => {
-    const testPort = 18799;
+    const testPort = 17863;
     const manager = new OpenClawGatewayManager({
       port: testPort,
       stateDir: SUDOCLAW_DIR,

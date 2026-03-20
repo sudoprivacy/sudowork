@@ -180,11 +180,11 @@ export function getGatewayAuthPassword(): string | null {
 const SYSTEM_OPENCLAW_DEFAULT_PORT = 18789;
 
 /** Default port for Sudoclaw (~/.sudoclaw) — avoids conflict with system OpenClaw (18789) */
-export const SUDOCLAW_DEFAULT_PORT = 18799;
+export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 /**
  * Get gateway port from config (optionally from a specific state dir)
- * When stateDir is provided (Sudoclaw), defaults to 18799 to avoid conflict with system OpenClaw (18789).
+ * When stateDir is provided (Sudoclaw), defaults to 17863 to avoid conflict with system OpenClaw (18789).
  * Sudoclaw must never use 18789 — that would connect to user's system OpenClaw.
  */
 export function getGatewayPort(stateDir?: string): number {

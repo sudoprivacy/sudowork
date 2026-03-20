@@ -90,7 +90,7 @@ export function initConversationBridge(): void {
           const extra = convAny.extra;
 
           const gatewayHost = diagnostics.gatewayHost || extra?.gateway?.host || 'localhost';
-          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 18799;
+          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 17863;
 
           return {
             success: true,

@@ -88,7 +88,7 @@ export class OpenClawGatewayConnection {
       return;
     }
 
-    const url = this.opts.url ?? 'ws://127.0.0.1:18799';
+    const url = this.opts.url ?? 'ws://127.0.0.1:17863';
     this.ws = new WebSocket(url, {
       maxPayload: 25 * 1024 * 1024, // Allow large responses
     });

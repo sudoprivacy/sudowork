@@ -122,7 +122,7 @@ export class OpenClawAgent {
         const probeHost = host === 'localhost' ? '127.0.0.1' : host;
         const alreadyListening = await isTcpPortOpen(probeHost, port);
         // When port is already in use: another Sudoclaw session started the built-in gateway.
-        // Connect to it (always port 18799, never system OpenClaw 18789) — all sessions share one gateway.
+        // Connect to it (always port 17863, never system OpenClaw 18789) — all sessions share one gateway.
         if (!alreadyListening) {
           const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({

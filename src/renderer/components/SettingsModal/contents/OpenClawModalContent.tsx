@@ -355,7 +355,7 @@ const OpenClawModalContent: React.FC = () => {
           )}
 
           <div className='mt-16px text-12px text-t-tertiary'>
-            {t('settings.openclaw_configPath')}: {status?.configPath || '~/.sudoclaw/openclaw.json'}
+            {t('settings.openclaw_configPath')}: {status?.configPath || '~/.nexus/.sudoclaw/openclaw.json'}
           </div>
 
           <div className='mt-20px flex justify-end'>

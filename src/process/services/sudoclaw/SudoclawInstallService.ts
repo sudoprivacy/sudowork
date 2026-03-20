@@ -7,7 +7,7 @@
 /**
  * Sudoclaw Install Service
  *
- * Built-in OpenClaw installation for Sudowork. Installs to ~/.sudoclaw (separate
+ * Built-in OpenClaw installation for Sudowork. Installs to ~/.nexus/.sudoclaw (separate
  * from official ~/.openclaw) so users get a one-click experience without system
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
@@ -19,11 +19,14 @@ import * as path from 'path';
 import * as tar from 'tar';
 import { getNodeBinaryPath } from '../claudeCli/NodeRuntimeService';
 
-/** Sudoclaw root: ~/.sudoclaw (macOS/Linux) or %USERPROFILE%\.sudoclaw (Windows) */
-export const SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
+/** Legacy path for migration from ~/.sudoclaw */
+const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
 
-/** Default gateway port for Sudoclaw (18799) — avoids conflict with system OpenClaw (18789) */
-export const SUDOCLAW_DEFAULT_PORT = 18799;
+/** Sudoclaw root: ~/.nexus/.sudoclaw (macOS/Linux) or %USERPROFILE%\.nexus\.sudoclaw (Windows) */
+export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', '.sudoclaw');
+
+/** Default gateway port for Sudoclaw (17863) — avoids conflict with system OpenClaw (18789) */
+export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
 const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
@@ -125,7 +128,7 @@ function createWindowsWrapper(launcherFile: string): void {
   fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
 }
 
-/** Repair openclaw.json schema — add models array to providers, remove unrecognized keys */
+/** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path after migration */
 function repairOpenClawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
@@ -133,6 +136,16 @@ function repairOpenClawConfig(): void {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(raw) as Record<string, unknown>;
     let changed = false;
+
+    // Update workspace path if it still references legacy ~/.sudoclaw (after migration)
+    const agents = config.agents as { defaults?: { workspace?: string } } | undefined;
+    const workspace = agents?.defaults?.workspace;
+    if (typeof workspace === 'string' && workspace.includes(LEGACY_SUDOCLAW_DIR)) {
+      const newWorkspace = workspace.replace(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR);
+      if (agents.defaults) agents.defaults.workspace = newWorkspace;
+      changed = true;
+    }
+
     const providers = config.models as { providers?: Record<string, { models?: unknown }> } | undefined;
     if (providers?.providers) {
       for (const [key, prov] of Object.entries(providers.providers)) {
@@ -151,7 +164,7 @@ function repairOpenClawConfig(): void {
       (gw as { mode: string }).mode = 'local';
       changed = true;
     }
-    if (gw && typeof gw === 'object' && gw.port === 18789) {
+    if (gw && typeof gw === 'object' && (gw.port === 18789 || gw.port === 18799)) {
       gw.port = SUDOCLAW_DEFAULT_PORT;
       changed = true;
     }
@@ -201,12 +214,42 @@ function ensureDefaultConfig(): void {
   }
 }
 
+/** Migrate from legacy ~/.sudoclaw to ~/.nexus/.sudoclaw */
+function migrateLegacySudoclaw(): void {
+  if (!fs.existsSync(LEGACY_SUDOCLAW_DIR)) return;
+  if (fs.existsSync(SUDOCLAW_DIR)) {
+    // New already exists, remove legacy to avoid confusion
+    try {
+      fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
+      console.log('[Sudoclaw] Removed legacy ~/.sudoclaw (already migrated)');
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  try {
+    fs.mkdirSync(path.dirname(SUDOCLAW_DIR), { recursive: true });
+    fs.renameSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR);
+    console.log('[Sudoclaw] Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw');
+  } catch (err) {
+    console.error('[Sudoclaw] Migration failed, falling back to copy:', err);
+    try {
+      fs.cpSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR, { recursive: true });
+      fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
+      console.log('[Sudoclaw] Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw (copy)');
+    } catch (copyErr) {
+      console.error('[Sudoclaw] Migration failed:', copyErr);
+    }
+  }
+}
+
 /**
- * Ensure OpenClaw is installed in ~/.sudoclaw.
+ * Ensure OpenClaw is installed in ~/.nexus/.sudoclaw.
  * Called on app startup — runs silently, no user prompt.
  * Note: ensureNodeInstalled() is called before this in process/index.ts
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
+  migrateLegacySudoclaw();
   repairOpenClawConfig();
 
   const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';

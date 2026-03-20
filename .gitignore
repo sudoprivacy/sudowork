@@ -194,3 +194,4 @@ vx.toml
 resources/nexus.tar.gz
 resources/claude-code.tgz
 resources/gemini-cli.tgz
+resources/node-darwin-arm64.tar.gz

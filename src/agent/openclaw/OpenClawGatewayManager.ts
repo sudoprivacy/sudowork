@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 
 interface GatewayManagerConfig {
-  /** Gateway port (default: 18799 for Sudoclaw) */
+  /** Gateway port (default: 17863 for Sudoclaw) */
   port?: number;
   /** Custom environment variables */
   customEnv?: Record<string, string>;
@@ -78,7 +78,7 @@ export class OpenClawGatewayManager extends EventEmitter {
 
   constructor(config: GatewayManagerConfig = {}) {
     super();
-    this.port = config.port || 18799;
+    this.port = config.port || 17863;
     this.customEnv = config.customEnv;
     this.stateDir = config.stateDir;
     this.forceSubprocessGateway = config.forceSubprocessGateway ?? false;
