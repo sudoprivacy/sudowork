@@ -275,11 +275,11 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
 
       // 仅保留指定的 4 个内置助手：UI 专业设计师、文件规划助手、Beautiful Mermaid、moltbook
       // Keep only 4 builtin assistants: UI 专业设计师，文件规划助手，Beautiful Mermaid, moltbook
-      const allowedPresetIds = ['ui-ux-pro-max', 'planning-with-files', 'beautiful-mermaid', 'moltbook', 'copilot'];
+      let allowedPresetIds = ['ui-ux-pro-max', 'planning-with-files', 'beautiful-mermaid', 'moltbook', 'copilot'];
       const filteredAgents = mergedAgents.filter((agent) => {
-        if (!agent.isPreset) return true; // Keep non-preset (custom/extension) assistants
-        const presetId = agent.id.replace('builtin-', '');
-        return allowedPresetIds.includes(presetId);
+        let builtinAgents = mergedAgents.filter(_=> !_.id.startsWith('builtin-'))
+        allowedPresetIds = allowedPresetIds.concat(builtinAgents.map(_=>_.id))
+        return allowedPresetIds.includes(agent.id);
       });
 
       const sortedAssistants = sortAssistants(filteredAgents);

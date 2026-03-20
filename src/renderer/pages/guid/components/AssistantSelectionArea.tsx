@@ -30,7 +30,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
 
   // Only render if there are preset agents
   if (!customAgents || !customAgents.some((a) => a.isPreset)) return null;
-
+  customAgents = customAgents.filter((a) => a.isPreset).filter(_=>!_.id.startsWith('builtin-'));
   if (isPresetAgent && selectedAgentInfo) {
     // Selected Assistant View
     return (
