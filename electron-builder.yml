@@ -117,13 +117,6 @@ files:
 extraResources:
   - from: public
     to: .
-  # CLI tgz bundles — extracted at runtime by CliInstallService
-  - from: resources/claude-code.tgz
-    to: claude-code.tgz
-  - from: resources/gemini-cli.tgz
-    to: gemini-cli.tgz
-  - from: resources/openclaw.tgz
-    to: openclaw.tgz
 
 win:
   target:

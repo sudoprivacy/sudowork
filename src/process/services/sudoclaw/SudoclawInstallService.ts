@@ -14,6 +14,7 @@
 
 import { app } from 'electron';
 import * as fs from 'fs';
+import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
@@ -35,17 +36,52 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
 const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
 const CONFIG_FILENAME = 'openclaw.json';
-const TGZ_RESOURCE = 'openclaw.tgz';
 
-function resolveTgzPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, TGZ_RESOURCE);
-  }
-  return path.join(app.getAppPath(), 'resources', TGZ_RESOURCE);
+/** OSS download URL for OpenClaw */
+const OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
+
+function getOpenclawOssUrl(): string {
+  const platform = process.platform === 'win32' ? 'windows' : 'macos';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  return `${OSS_BASE_URL}/openclaw-${platform}-${arch}.tgz`;
 }
 
-function hasTgzResource(): boolean {
-  return fs.existsSync(resolveTgzPath());
+/** Download file from URL to destination path */
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    https
+      .get(url, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          // Follow redirect
+          const redirectUrl = response.headers.location;
+          if (!redirectUrl) {
+            reject(new Error(`Redirect without location header from ${url}`));
+            return;
+          }
+          file.close();
+          fs.unlinkSync(dest);
+          downloadFile(redirectUrl, dest).then(resolve).catch(reject);
+          return;
+        }
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
+          return;
+        }
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      })
+      .on('error', (err) => {
+        file.close();
+        fs.unlinkSync(dest);
+        reject(err);
+      });
+  });
 }
 
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
@@ -285,11 +321,6 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     return { installed: true, cliPath: managedBin };
   }
 
-  if (!hasTgzResource()) {
-    console.log('[Sudoclaw] openclaw.tgz not found, skipping built-in install');
-    return { installed: false, cliPath: null };
-  }
-
   try {
     fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     fs.mkdirSync(SUDOCLAW_BIN_DIR, { recursive: true });
@@ -302,15 +333,35 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
 
-    const tgzPath = resolveTgzPath();
-    await tar.x({ file: tgzPath, cwd: SUDOCLAW_CLI_DIR });
+    // Download from OSS
+    const ossUrl = getOpenclawOssUrl();
+    const tmpTgzPath = path.join(os.tmpdir(), `openclaw-${Date.now()}.tgz`);
+
+    console.log(`[Sudoclaw] Downloading OpenClaw from ${ossUrl}...`);
+    try {
+      await downloadFile(ossUrl, tmpTgzPath);
+    } catch (err) {
+      console.error('[Sudoclaw] Download failed:', err);
+      return { installed: false, cliPath: null };
+    }
+
+    try {
+      await tar.x({ file: tmpTgzPath, cwd: SUDOCLAW_CLI_DIR });
+    } finally {
+      // Clean up downloaded temp file
+      try {
+        fs.unlinkSync(tmpTgzPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
 
     const pkgRoot = resolvePackageRoot();
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
-      throw new Error('openclaw.tgz missing dist/. Run: bun run openclaw:download:force');
+      throw new Error('Downloaded package missing dist/');
     }
     if (!hasNodeModules(pkgRoot)) {
-      throw new Error('openclaw.tgz missing node_modules. Run: bun run openclaw:download:force');
+      throw new Error('Downloaded package missing node_modules');
     }
 
     const resolvedEntry = resolveEntryFile();
