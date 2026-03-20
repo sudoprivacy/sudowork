@@ -133,18 +133,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         body: JSON.stringify({ phone, code, enterprise_code }),
       });
 
-      const data = (await response.json()) as {
-        success: boolean;
-        message?: string;
-        data?: { token: string; user: AuthUser };
-      };
+      const data = (await response.json()) as any;
 
       if (!response.ok || !data.success || !data.data) {
         return {
           success: false,
-          message: data?.message ?? '登录失败',
+          message: data?.msg || data?.message || '登录失败',
           code: 'invalidCredentials',
-        };
+          status: data?.status,
+        } as any;
       }
 
       const authData = { ...data.data.user, token: data.data.token };

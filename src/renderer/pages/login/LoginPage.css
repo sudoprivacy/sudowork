@@ -1,4 +1,5 @@
 .login-page {
+  -webkit-app-region: drag;
   position: relative;
   display: flex;
   align-items: center;
@@ -71,6 +72,7 @@ body.login-page-active {
 }
 
 .login-page__card {
+  -webkit-app-region: no-drag;
   position: relative;
   z-index: 1;
   width: 100%;

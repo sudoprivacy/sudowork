@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
+import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
 const BUILTIN_TAB_IDS = ['profile', 'members', 'sudorouter', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'system', 'about'] as const;
@@ -21,6 +22,7 @@ type SiderItem = {
   isImageIcon?: boolean;
   /** Route path segment — for builtins: `/settings/{path}`, for extensions: `/settings/ext/{id}` */
   path: string;
+  hidden?: boolean;
 };
 
 const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }> = ({ collapsed = false, tooltipEnabled = false }) => {
@@ -28,6 +30,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const isDesktop = isElectronDesktop();
+  const { user: currentUser } = useAuth();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
   const { resolveExtTabName } = useExtI18n();
@@ -91,7 +94,13 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
       profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User />, path: 'profile' },
-      members: { id: 'members', label: t('settings.memberManagement', { defaultValue: '成员管理' }), icon: <Peoples />, path: 'members' },
+      members: {
+        id: 'members',
+        label: t('settings.memberManagement', { defaultValue: '成员管理' }),
+        icon: <Peoples />,
+        path: 'members',
+        hidden: currentUser?.role !== 'ADMIN',
+      },
       sudorouter: { id: 'sudorouter', label: t('settings.sudorouter', { defaultValue: 'Sudorouter' }), icon: <Cloudy />, path: 'sudorouter' },
       // model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
       agent: { id: 'agent', label: '数字助手', icon: <Robot />, path: 'agent' },
@@ -106,7 +115,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     };
 
     // Start with ordered builtin IDs
-    const result: SiderItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]);
+    const result: SiderItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Extension tabs with position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();

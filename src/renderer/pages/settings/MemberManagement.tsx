@@ -1,7 +1,7 @@
 import { ipcBridge } from '@/common';
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
-import { User, CheckOne, CloseOne, DeleteFour, Peoples, Time } from '@icon-park/react';
+import { User, DeleteFour, Peoples } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -12,8 +12,8 @@ const MemberManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState('pending');
   const [loading, setLoading] = useState(false);
 
-  const [pendingUsers, setPendingUsers] = useState([]);
-  const [approvedUsers, setApprovedUsers] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<any[]>([]);
 
   const fetchMembers = async () => {
     setLoading(true);
@@ -23,9 +23,10 @@ const MemberManagement: React.FC = () => {
         headers: { Authorization: `Bearer ${currentUser?.token}` },
       });
       const data = await res.json();
-      if (data.success) {
-        setPendingUsers(data.data.filter((u: any) => u.status === 0));
-        setApprovedUsers(data.data.filter((u: any) => u.status === 1));
+      console.log('[Admin] Members raw data:', data);
+      if (data.success && Array.isArray(data.data)) {
+        setPendingUsers(data.data.filter((u: any) => Number(u.status) === 0));
+        setApprovedUsers(data.data.filter((u: any) => Number(u.status) === 1));
       }
     } catch (e) {
       console.error('Failed to fetch members:', e);
@@ -64,6 +65,59 @@ const MemberManagement: React.FC = () => {
     });
   };
 
+  const pendingColumns = [
+    {
+      title: '申请人',
+      dataIndex: 'nickname',
+      render: (val: string) => (
+        <Space>
+          <User theme='outline' size='14' />
+          <span className='font-500'>{val}</span>
+        </Space>
+      ),
+    },
+    {
+      title: '联系方式',
+      dataIndex: 'phone',
+    },
+    {
+      title: '操作',
+      align: 'right' as const,
+      render: (_: any, record: any) => (
+        <Space>
+          <Button type='primary' size='small' onClick={() => handleApprove(record)}>
+            同意
+          </Button>
+          <Button type='secondary' size='small' status='danger'>
+            拒绝
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const approvedColumns = [
+    {
+      title: '成员',
+      dataIndex: 'nickname',
+    },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      render: (r: string) => <Tag color={r === 'ADMIN' ? 'gold' : 'blue'}>{r}</Tag>,
+    },
+    {
+      title: 'API Key',
+      dataIndex: 'api_key',
+      render: (k: string) => <code className='text-11px'>{k || '未下发'}</code>,
+    },
+    {
+      title: '管理',
+      align: 'right' as const,
+      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} />,
+    },
+  ];
+
   return (
     <SettingsPageWrapper contentClassName='max-w-900px'>
       <div className='flex flex-col gap-24px py-8px'>
@@ -82,35 +136,13 @@ const MemberManagement: React.FC = () => {
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={`待审批 (${pendingUsers.length})`}>
             <div className='mt-16px bg-2 rd-16px border border-border-2 overflow-hidden min-h-200px'>
-              <Table loading={loading} dataSource={pendingUsers} pagination={false} className='[&_.arco-table-th]:bg-transparent'>
-                <Table.Column title='申请人' dataIndex='nickname' />
-                <Table.Column title='联系方式' dataIndex='phone' />
-                <Table.Column
-                  title='操作'
-                  align='right'
-                  render={(_, record) => (
-                    <Space>
-                      <Button type='primary' size='small' onClick={() => handleApprove(record)}>
-                        同意
-                      </Button>
-                      <Button type='secondary' size='small' status='danger'>
-                        拒绝
-                      </Button>
-                    </Space>
-                  )}
-                />
-              </Table>
+              <Table loading={loading} data={pendingUsers} columns={pendingColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>
 
           <Tabs.TabPane key='approved' title='正式成员'>
             <div className='mt-16px bg-2 rd-16px border border-border-2 overflow-hidden min-h-200px'>
-              <Table loading={loading} dataSource={approvedUsers} pagination={false} className='[&_.arco-table-th]:bg-transparent'>
-                <Table.Column title='成员' dataIndex='nickname' />
-                <Table.Column title='角色' dataIndex='role' render={(r) => <Tag color={r === 'ADMIN' ? 'gold' : 'blue'}>{r}</Tag>} />
-                <Table.Column title='API Key' dataIndex='api_key' render={(k) => <code className='text-11px'>{k || '未下发'}</code>} />
-                <Table.Column title='管理' align='right' render={(_, record) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} />} />
-              </Table>
+              <Table loading={loading} data={approvedUsers} columns={approvedColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>
         </Tabs>

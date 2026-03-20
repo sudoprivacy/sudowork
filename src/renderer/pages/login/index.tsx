@@ -28,6 +28,8 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string } | null>(null);
+
   useEffect(() => {
     if (status === 'authenticated') {
       void navigate('/guid', { replace: true });
@@ -66,12 +68,39 @@ const LoginPage: React.FC = () => {
       Message.success('登录成功');
       setTimeout(() => navigate('/guid', { replace: true }), 600);
     } else {
-      Message.error(result.message || '登录失败');
+      // 处理审核中状态
+      if ((result as any).status === 0) {
+        setStatusMsg({
+          text: '账号申请已提交',
+          sub: result.message || '请联系企业管理员审批通过后重新登录',
+        });
+      } else {
+        Message.error(result.message || '登录失败');
+      }
     }
     setLoading(false);
   };
 
   if (status === 'checking') return <AppLoader />;
+
+  if (statusMsg) {
+    return (
+      <div className='login-page'>
+        <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
+          <div className='w-64px h-64px bg-orange-100 text-orange-500 rd-full flex items-center justify-center'>
+            <Protect theme='filled' size={32} />
+          </div>
+          <div>
+            <h2 className='text-20px font-700 text-t-primary'>{statusMsg.text}</h2>
+            <p className='text-14px text-t-secondary mt-8px px-20px'>{statusMsg.sub}</p>
+          </div>
+          <Button long className='!rd-12px h-48px mt-12px' onClick={() => setStatusMsg(null)}>
+            返回登录
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='login-page'>
