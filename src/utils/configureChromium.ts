@@ -239,7 +239,7 @@ function shouldEnableCdp(config: CdpConfig): boolean {
   if (envVal === '0' || envVal === 'false') return false;
   if (envVal) return true;
 
-  if (app.isPackaged) {
+  if (app && app.isPackaged) {
     return false;
   }
 
@@ -348,7 +348,7 @@ export function getCdpStatus(): CdpStatus {
     port: cdpPort,
     startupEnabled: cdpStartupEnabled,
     instances: getActiveCdpInstances(),
-    isDevMode: !app.isPackaged,
+    isDevMode: app ? !app.isPackaged : true,
   };
 }
 
