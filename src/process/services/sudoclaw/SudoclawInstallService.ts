@@ -12,6 +12,7 @@
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
 
+import { execFileSync } from 'child_process';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as https from 'https';
@@ -97,6 +98,41 @@ function hasNodeModules(pkgRoot: string): boolean {
   if (!fs.existsSync(nm) || !fs.statSync(nm).isDirectory()) return false;
   const chalk = path.join(nm, 'chalk');
   return fs.existsSync(chalk);
+}
+
+/** @snazzah/davey platform binding name for current platform */
+function getDaveyBindingName(): string {
+  const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const suffix = platform === 'win32' ? 'msvc' : platform === 'linux' ? 'gnu' : '';
+  return `@snazzah/davey-${platform}-${arch}${suffix ? `-${suffix}` : ''}`;
+}
+
+/**
+ * Run npm install in package dir to fix platform-specific optional deps (e.g. @snazzah/davey).
+ * Pre-built tgz may have been built on a different arch; npm install installs the correct optional binding.
+ * Skips if the correct binding already exists (avoids slow npm install on every startup).
+ * Uses bundled Node only — never invokes local/system Node.
+ */
+function runNpmInstallForOptionalDeps(pkgRoot: string): void {
+  const daveyBinding = getDaveyBindingName();
+  const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
+  if (fs.existsSync(daveyPath)) return; // Already have correct binding
+
+  const nodePath = getNodeBinaryPath();
+  if (!fs.existsSync(nodePath)) return;
+  // npm-cli.js path: bundled Node includes npm at lib/node_modules/npm/bin/npm-cli.js
+  const nodeRoot = process.platform === 'win32' ? path.dirname(nodePath) : path.dirname(path.dirname(nodePath));
+  const npmCliJs = path.join(nodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (!fs.existsSync(npmCliJs)) return;
+  try {
+    console.log('[Sudoclaw] Running npm install to fix optional dependencies (@snazzah/davey)...');
+    execFileSync(nodePath, [npmCliJs, 'install'], { cwd: pkgRoot, stdio: 'pipe' });
+    console.log('[Sudoclaw] npm install completed');
+  } catch (err) {
+    console.warn('[Sudoclaw] npm install failed (optional deps may be missing):', err);
+    // Don't throw — continue; the package might still work without @snazzah/davey
+  }
 }
 
 /** Resolve OpenClaw package root after npm pack extract (package/ at top level) */
@@ -312,6 +348,8 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const pkgRoot = resolvePackageRoot();
 
   if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
+    // Repair optional deps (e.g. @snazzah/davey) — pre-built tgz may have wrong arch binding
+    runNpmInstallForOptionalDeps(pkgRoot);
     const launcherPath = writeLauncher(pkgRoot);
     if (process.platform === 'win32') {
       createWindowsWrapper(launcherPath);
@@ -357,6 +395,9 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     }
 
     const pkgRoot = resolvePackageRoot();
+    if (pkgRoot) {
+      runNpmInstallForOptionalDeps(pkgRoot);
+    }
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
       throw new Error('Downloaded package missing dist/');
     }
