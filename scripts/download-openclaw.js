@@ -42,6 +42,7 @@ if (VERSION_PIN === 'latest') {
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
 try {
+  // Download with npm pack
   execSync(`npm pack openclaw@${version} --registry=https://registry.npmjs.org`, { cwd: tmpDir, stdio: 'inherit' });
   const files = fs.readdirSync(tmpDir);
   const tgz = files.find((f) => f.endsWith('.tgz'));
@@ -50,20 +51,12 @@ try {
   const extractDir = path.join(tmpDir, 'extract');
   fs.mkdirSync(extractDir, { recursive: true });
 
-  const tgzPath = path.join(tmpDir, tgz);
+  // Extract - run tar from extractDir with relative path to avoid Windows path issues
+  console.log(`[openclaw] Extracting ${tgz}...`);
   if (process.platform === 'win32') {
-    // GNU tar interprets "C:/" as remote host. Use MSYS2 format "/c/..." (Git Bash on CI).
-    const toTarPath = (p) =>
-      path
-        .resolve(p)
-        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
-        .replace(/\\/g, '/');
-    execSync(`tar -xzf "${toTarPath(tgzPath)}" -C "${toTarPath(extractDir)}"`, {
-      stdio: 'inherit',
-      shell: true,
-    });
+    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit', shell: true });
   } else {
-    execSync(`tar -xzf "${tgzPath}" -C "${extractDir}"`, { stdio: 'inherit' });
+    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit' });
   }
 
   const pkgDir = path.join(extractDir, 'package');
@@ -71,9 +64,7 @@ try {
   const distEntryJs = path.join(pkgDir, 'dist', 'entry.js');
   const hasDist = fs.existsSync(distEntry) || fs.existsSync(distEntryJs);
 
-  // Always run npm install — dist/ imports chalk etc., npm pack excludes node_modules.
-  // Use npm only (not pnpm) for flat node_modules — pnpm symlinks can cause extraction/runtime issues.
-  // Windows CI needs longer timeout due to slower I/O and antivirus scanning.
+  // Install dependencies
   const npmTimeout = process.platform === 'win32' ? 600_000 : 120_000;
   console.log(`[openclaw] Installing dependencies (npm, flat structure, timeout: ${npmTimeout / 1000}s)...`);
   try {
@@ -87,6 +78,7 @@ try {
     throw new Error('npm install failed. Ensure npm is available and network is stable.');
   }
 
+  // Build if dist/ missing
   if (!hasDist) {
     console.log('[openclaw] dist/ missing, building at pack time...');
     const tryBuild = (installCmd, buildCmd) => {
@@ -104,19 +96,20 @@ try {
     console.log('[openclaw] Build completed');
   }
 
+  // Create final tarball - run from extractDir to avoid path issues
+  console.log('[openclaw] Creating final tarball...');
   if (process.platform === 'win32') {
-    const toTarPath = (p) =>
-      path
-        .resolve(p)
-        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
-        .replace(/\\/g, '/');
-    execSync(`tar -czf "${toTarPath(OUTPUT)}" -C "${toTarPath(extractDir)}" package`, {
-      stdio: 'inherit',
-      shell: true,
-    });
+    const tmpOutput = path.join(extractDir, 'openclaw.tgz');
+    try {
+      execSync(`tar -czf openclaw.tgz package`, { cwd: extractDir, stdio: 'inherit', shell: true });
+    } catch (e) {
+      if (!fs.existsSync(tmpOutput)) throw e;
+    }
+    fs.copyFileSync(tmpOutput, OUTPUT);
   } else {
     execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
   }
+
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
