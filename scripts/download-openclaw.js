@@ -12,6 +12,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const tar = require('tar');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
@@ -51,20 +52,12 @@ try {
   fs.mkdirSync(extractDir, { recursive: true });
 
   const tgzPath = path.join(tmpDir, tgz);
-  if (process.platform === 'win32') {
-    // GNU tar interprets "C:/" as remote host. Use MSYS2 format "/c/..." (Git Bash on CI).
-    const toTarPath = (p) =>
-      path
-        .resolve(p)
-        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
-        .replace(/\\/g, '/');
-    execSync(`tar -xzf "${toTarPath(tgzPath)}" -C "${toTarPath(extractDir)}"`, {
-      stdio: 'inherit',
-      shell: true,
-    });
-  } else {
-    execSync(`tar -xzf "${tgzPath}" -C "${extractDir}"`, { stdio: 'inherit' });
-  }
+  console.log('[openclaw] Extracting...');
+  tar.x({
+    file: tgzPath,
+    cwd: extractDir,
+    sync: true,
+  });
 
   const pkgDir = path.join(extractDir, 'package');
   const distEntry = path.join(pkgDir, 'dist', 'entry.mjs');
@@ -75,7 +68,7 @@ try {
   // Use npm only (not pnpm) for flat node_modules — pnpm symlinks can cause extraction/runtime issues.
   console.log('[openclaw] Installing dependencies (npm, flat structure)...');
   try {
-    execSync('npm install --omit=dev --registry=https://registry.npmjs.org', {
+    execSync('npm install --omit=dev --ignore-scripts --registry=https://registry.npmjs.org', {
       cwd: pkgDir,
       stdio: 'inherit',
       timeout: 120_000,
@@ -83,7 +76,7 @@ try {
   } catch (err) {
     console.error('[openclaw] npm install failed, trying pnpm...', err?.message);
     try {
-      execSync('pnpm install --prod --registry=https://registry.npmjs.org', {
+      execSync('pnpm install --prod --ignore-scripts --registry=https://registry.npmjs.org', {
         cwd: pkgDir,
         stdio: 'inherit',
         timeout: 120_000,
@@ -110,19 +103,16 @@ try {
     console.log('[openclaw] Build completed');
   }
 
-  if (process.platform === 'win32') {
-    const toTarPath = (p) =>
-      path
-        .resolve(p)
-        .replace(/^([a-zA-Z]):[\\/]/, '/$1/')
-        .replace(/\\/g, '/');
-    execSync(`tar -czf "${toTarPath(OUTPUT)}" -C "${toTarPath(extractDir)}" package`, {
-      stdio: 'inherit',
-      shell: true,
-    });
-  } else {
-    execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
-  }
+  console.log('[openclaw] Creating output tgz...');
+  tar.c(
+    {
+      gzip: true,
+      file: OUTPUT,
+      cwd: extractDir,
+      sync: true,
+    },
+    ['package'],
+  );
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
