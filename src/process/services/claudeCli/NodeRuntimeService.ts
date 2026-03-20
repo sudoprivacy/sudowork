@@ -33,8 +33,12 @@ export function getNodeBinaryPath(): string {
   const platform = process.platform;
   const arch = process.arch;
 
-  // Extracted directory structure: node/node-v24.9.0-darwin-x64/bin/node
-  const dirName = `node-v${NODE_VERSION}-${platform}-${arch}`;
+  // Node.js official download naming:
+  // - macOS: node-v24.9.0-darwin-x64/bin/node
+  // - Windows: node-v24.9.0-win-x64/node.exe (note: "win" not "win32")
+  // - Linux: node-v24.9.0-linux-x64/bin/node
+  const nodePlatform = platform === 'win32' ? 'win' : platform;
+  const dirName = `node-v${NODE_VERSION}-${nodePlatform}-${arch}`;
 
   if (platform === 'win32') {
     return path.join(nodeDir, dirName, 'node.exe');
