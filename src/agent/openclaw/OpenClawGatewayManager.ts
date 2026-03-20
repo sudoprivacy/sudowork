@@ -32,6 +32,27 @@ interface GatewayManagerEvents {
   stderr: (data: string) => void;
 }
 
+/** Registry of running Sudoclaw gateway managers (port -> manager) for external restart (e.g. after skill install) */
+const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
+
+/**
+ * Restart the Sudoclaw gateway on the given port. Used after Skill Hub install so new skills load immediately.
+ * Returns true if a gateway was found and restarted; false if no gateway was running.
+ */
+export async function restartSudoclawGatewayByPort(port: number): Promise<boolean> {
+  const manager = gatewayRegistry.get(port);
+  if (!manager || !manager.isRunning) return false;
+  try {
+    await manager.stop();
+    await manager.start();
+    console.log(`[OpenClawGatewayManager] Restarted gateway on port ${port} for skill reload`);
+    return true;
+  } catch (err) {
+    console.error('[OpenClawGatewayManager] Failed to restart gateway:', err);
+    return false;
+  }
+}
+
 /**
  * OpenClaw Gateway Process Manager
  *
@@ -203,6 +224,7 @@ export class OpenClawGatewayManager extends EventEmitter {
         shell: isWindows,
         cwd: spawnCwd && fs.existsSync(spawnCwd) ? spawnCwd : undefined,
       });
+      gatewayRegistry.set(this.port, this);
 
       let hasResolved = false;
       let stdoutBuffer = '';
@@ -247,6 +269,7 @@ export class OpenClawGatewayManager extends EventEmitter {
       });
 
       this.process.on('exit', (code, signal) => {
+        gatewayRegistry.delete(this.port);
         console.log(`[OpenClawGatewayManager] Process exited: code=${code}, signal=${signal}`);
         this.emit('exit', { code, signal });
         this.process = null;
@@ -284,6 +307,7 @@ export class OpenClawGatewayManager extends EventEmitter {
       return;
     }
 
+    gatewayRegistry.delete(this.port);
     console.log('[OpenClawGatewayManager] Stopping gateway...');
 
     // Send SIGTERM first
@@ -333,5 +357,30 @@ export class OpenClawGatewayManager extends EventEmitter {
    */
   get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.port}`;
+  }
+
+  /**
+   * Send SIGUSR1 to the gateway process for hot-reload (skills/config).
+   * On Unix, OpenClaw handles SIGUSR1 to reload config and skills without full restart.
+   * On Windows, SIGUSR1 is not supported — no-op.
+   */
+  sendReloadSignal(): void {
+    if (this.inProcess) {
+      // In-process gateway: cannot send signal to self
+      return;
+    }
+    if (!this.process || this.process.killed) {
+      return;
+    }
+    if (process.platform === 'win32') {
+      // Windows does not support SIGUSR1
+      return;
+    }
+    try {
+      this.process.kill('SIGUSR1');
+      console.log('[OpenClawGatewayManager] Sent SIGUSR1 for skill/config reload');
+    } catch (err) {
+      console.warn('[OpenClawGatewayManager] Failed to send SIGUSR1:', err);
+    }
   }
 }

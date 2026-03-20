@@ -275,6 +275,11 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     await this.agent.start();
   }
 
+  /** Send SIGUSR1 to gateway for hot-reload (skills) — no full restart needed */
+  reloadGatewaySkills(): void {
+    this.agent?.reloadGatewaySkills();
+  }
+
   kill() {
     const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
     const shouldStopGateway = others.length === 0;

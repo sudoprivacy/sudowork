@@ -31,6 +31,9 @@ export const SUDOCLAW_DEFAULT_PORT = 17863;
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
 const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
+
+/** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
+const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
 const CONFIG_FILENAME = 'openclaw.json';
 const TGZ_RESOURCE = 'openclaw.tgz';
 
@@ -168,6 +171,18 @@ function repairOpenClawConfig(): void {
       gw.port = SUDOCLAW_DEFAULT_PORT;
       changed = true;
     }
+    // Ensure ~/.nexus/config/skills is in skills.load.extraDirs for default skill loading
+    const skills = config.skills as { load?: { extraDirs?: string[] } } | undefined;
+    const extraDirs = skills?.load?.extraDirs;
+    if (!Array.isArray(extraDirs) || !extraDirs.includes(NEXUS_SKILLS_DIR)) {
+      if (!config.skills) (config as Record<string, unknown>).skills = {};
+      const s = config.skills as { load?: { extraDirs?: string[] } };
+      if (!s.load) s.load = {};
+      const dirs = Array.isArray(s.load.extraDirs) ? [...s.load.extraDirs] : [];
+      if (!dirs.includes(NEXUS_SKILLS_DIR)) dirs.push(NEXUS_SKILLS_DIR);
+      s.load.extraDirs = dirs;
+      changed = true;
+    }
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
       console.log('[Sudoclaw] Repaired openclaw.json schema');
@@ -201,6 +216,9 @@ function ensureDefaultConfig(): void {
       },
     },
     gateway: { port: SUDOCLAW_DEFAULT_PORT, mode: 'local' as const, auth: { mode: 'none' as const } },
+    skills: {
+      load: { extraDirs: [NEXUS_SKILLS_DIR] },
+    },
   };
 
   fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
