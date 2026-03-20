@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudorouter x Sudowork Integration Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@arco-design/web-react/dist/css/arco.css">
+    <style>
+        body { background-color: #f4f7f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .btn-primary { background: #165dff; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 500; }
+        .agent-tag { background: #e8f3ff; color: #165dff; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <h1 class="text-2xl font-bold text-gray-800">Sudorouter 智能配置中心</h1>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-500">剩余积分: <b class="text-blue-600">100</b></span>
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">U</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Left: Account & Token -->
+            <div class="md:col-span-1 space-y-6">
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-4">账号绑定</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Sudorouter Token</label>
+                            <input type="password" value="sk-router-xxxxxxxxxxxx" class="w-full border rounded p-2 text-sm bg-gray-50" readonly>
+                        </div>
+                        <button class="w-full py-2 border border-gray-200 rounded text-sm hover:bg-gray-50 transition">重新绑定</button>
+                    </div>
+                </div>
+                <div class="card p-6 bg-blue-50 border border-blue-100">
+                    <h2 class="text-lg font-semibold mb-2 text-blue-800">注册礼包</h2>
+                    <p class="text-sm text-blue-600 mb-4">检测到新用户，已发放 100 初始积分，可用于 100w+ Tokens 推理。</p>
+                    <div class="h-2 bg-blue-200 rounded-full overflow-hidden">
+                        <div class="w-full h-full bg-blue-500"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Right: Sync Config -->
+            <div class="md:col-span-2 space-y-6">
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-6">一键 Agent 同步</h2>
+                    
+                    <!-- Step 1: Model Selection -->
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">1. 选择全球加速模型</label>
+                        <select class="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option>Claude 3.5 Sonnet (Sudorouter Global)</option>
+                            <option>GPT-4o (Sudorouter Global)</option>
+                            <option>DeepSeek V3 (Sudorouter Low-Latency)</option>
+                            <option>Qwen-Max (Sudorouter optimized)</option>
+                        </select>
+                        <p class="mt-2 text-xs text-gray-400">所有模型通过 Sudorouter 统一网关分发，无需担心网络问题。</p>
+                    </div>
+                    <!-- Step 2: Target Agents -->
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">2. 选择要同步的本地 Agent</label>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-3 border rounded-lg hover:border-blue-300 transition cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox" checked class="w-4 h-4 text-blue-600">
+                                    <div>
+                                        <div class="font-medium">Claude Code</div>
+                                        <div class="text-xs text-gray-400">~/.claude/settings.json</div>
+                                    </div>
+                                </div>
+                                <span class="agent-tag">已检测</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 border rounded-lg hover:border-blue-300 transition cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox" checked class="w-4 h-4 text-blue-600">
+                                    <div>
+                                        <div class="font-medium">OpenCode</div>
+                                        <div class="text-xs text-gray-400">Environment Variables</div>
+                                    </div>
+                                </div>
+                                <span class="agent-tag">已检测</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 border rounded-lg hover:border-blue-300 transition cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox" checked class="w-4 h-4 text-blue-600">
+                                    <div>
+                                        <div class="font-medium">OpenClaw</div>
+                                        <div class="text-xs text-gray-400">Config: config.yaml</div>
+                                    </div>
+                                </div>
+                                <span class="agent-tag">已检测</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Step 3: Action -->
+                    <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
+                        <span class="text-sm text-gray-500 italic">点击同步后，Sudowork 将自动重写相关配置文件并注入环境变量</span>
+                        <button class="btn-primary" onclick="alert('同步成功！已下发配置到 3 个本地 Agent。')">立即同步配置</button>
+                    </div>
+                </div>
+                <!-- Footer Log -->
+                <div class="card p-4 bg-gray-900 text-green-400 font-mono text-xs">
+                    <div>[INFO] Sudorouter verified token... OK</div>
+                    <div>[INFO] Fetching global model list... 12 models found.</div>
+                    <div>[INFO] Detected 3 local agents needing configuration.</div>
+                    <div>[READY] Waiting for user sync...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
