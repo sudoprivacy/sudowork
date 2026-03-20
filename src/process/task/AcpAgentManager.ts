@@ -274,6 +274,16 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
               source: 'acp',
             });
           }
+          // Ensure /model is always available (handled locally, not by ACP bridge)
+          if (!seen.has('model')) {
+            nextCommands.push({
+              name: 'model',
+              description: 'Show or switch the current model',
+              hint: '[model-id]',
+              kind: 'template',
+              source: 'acp',
+            });
+          }
           this.acpAvailableSlashCommands = nextCommands;
           const waiters = this.acpAvailableSlashWaiters.splice(0, this.acpAvailableSlashWaiters.length);
           for (const resolve of waiters) {
@@ -560,6 +570,108 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           data: data.cronMeta ? { content: userMessage.content.content, cronMeta: data.cronMeta } : userMessage.content.content,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+      }
+
+      // Intercept /model slash command before initAgent/skill injection.
+      // ACP bridge doesn't support interactive CLI commands like /model.
+      // Handle locally via existing setModel API.
+      const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
+      if (modelMatch !== null) {
+        const modelArg = (modelMatch[1] || '').trim();
+        const responseMsgId = uuid();
+
+        // Ensure agent is initialized to access model info
+        await this.initAgent(this.options);
+        if (!this.agent) {
+          return { success: false, msg: 'Agent not initialized' };
+        }
+
+        // Emit start event
+        ipcBridge.acpConversation.responseStream.emit({
+          type: 'start',
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: null,
+        });
+
+        if (!modelArg) {
+          // /model with no args → show current model + available models
+          const modelInfo = this.agent.getModelInfo();
+          let output: string;
+          if (modelInfo) {
+            const current = modelInfo.currentModelLabel || modelInfo.currentModelId || 'unknown';
+            const available = modelInfo.availableModels?.map((m) => {
+              const marker = m.id === modelInfo.currentModelId ? ' (current)' : '';
+              return `- \`${m.id}\` ${m.label ? `— ${m.label}` : ''}${marker}`;
+            }).join('\n') || '(none)';
+            output = `**Current model:** ${current}\n\n**Available models:**\n${available}\n\nTo switch, type \`/model <model-id>\` or use the model selector in the toolbar.`;
+          } else {
+            output = 'Model info not available. The session may not be fully initialized.';
+          }
+          ipcBridge.acpConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: output,
+          });
+        } else {
+          // /model <name> → validate and switch model
+          const modelInfo = this.agent.getModelInfo();
+          const availableIds = modelInfo?.availableModels?.map((m) => m.id) || [];
+
+          // Check if the provided model ID is valid
+          if (availableIds.length > 0 && !availableIds.includes(modelArg)) {
+            const suggestions = availableIds.map((id) => `\`${id}\``).join(', ');
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: `Unknown model: \`${modelArg}\`\n\nAvailable models: ${suggestions}`,
+            });
+          } else {
+            try {
+              const result = await this.agent.setModelByConfigOption(modelArg);
+              const newModel = result?.currentModelLabel || result?.currentModelId || modelArg;
+              const newId = result?.currentModelId || modelArg;
+              ipcBridge.acpConversation.responseStream.emit({
+                type: 'content',
+                conversation_id: this.conversation_id,
+                msg_id: responseMsgId,
+                data: `Model switched to **${newModel}** (\`${newId}\`).`,
+              });
+              // Persist and update UI model info
+              if (result?.currentModelId) {
+                this.persistedModelId = result.currentModelId;
+                this.saveModelId(result.currentModelId);
+              }
+              ipcBridge.acpConversation.responseStream.emit({
+                type: 'acp_model_info',
+                conversation_id: this.conversation_id,
+                msg_id: uuid(),
+                data: result,
+              });
+            } catch (err) {
+              const errorMsg = err instanceof Error ? err.message : String(err);
+              ipcBridge.acpConversation.responseStream.emit({
+                type: 'content',
+                conversation_id: this.conversation_id,
+                msg_id: responseMsgId,
+                data: `Failed to switch model: ${errorMsg}`,
+              });
+            }
+          }
+        }
+
+        // Emit finish to reset UI loading state
+        ipcBridge.acpConversation.responseStream.emit({
+          type: 'finish',
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: null,
+        });
+        this.status = 'idle';
+        cronBusyGuard.setProcessing(this.conversation_id, false);
+        return { success: true };
       }
 
       const initStart = Date.now();
