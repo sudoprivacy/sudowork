@@ -30,7 +30,7 @@ export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', '.sudoclaw');
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
-const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
+export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
