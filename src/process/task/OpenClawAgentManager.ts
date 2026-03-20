@@ -24,6 +24,7 @@ export interface OpenClawAgentManagerData {
   workspace?: string;
   backend?: AcpBackendAll;
   agentName?: string;
+  model?: string;
   /** Gateway configuration */
   gateway?: {
     host?: string;
@@ -286,6 +287,7 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
       workspace: this.workspace,
       backend: this.options.backend,
       agentName: this.options.agentName,
+      model: this.options.model ?? null,
       gatewayHost: this.options.gateway?.host ?? null,
       gatewayPort: this.options.gateway?.port ?? SUDOCLAW_DEFAULT_PORT,
       conversation_id: this.conversation_id,

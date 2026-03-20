@@ -493,9 +493,30 @@ export const sudoclaw = {
   /** Save Sudoclaw config */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
   /** Get Sudoclaw install status */
-  getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; configPath: string }>, void>('sudoclaw.get-status'),
+  getStatus: bridge.buildProvider<
+    IBridgeResponse<{
+      installed: boolean;
+      configPath: string;
+      gatewayRunning?: boolean;
+      gatewayPort?: number;
+      gatewayHost?: string;
+      gatewayUrl?: string;
+      isConnected?: boolean;
+      hasActiveSession?: boolean;
+      sessionKey?: string | null;
+      workspace?: string;
+      agentName?: string;
+      model?: string;
+      cliPath?: string;
+      version?: string;
+      error?: string;
+    }>,
+    void
+  >('sudoclaw.get-status'),
   /** Test OpenClaw gateway connection (start gateway, verify ready, then stop) */
   testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
+  /** Restart Sudoclaw gateway */
+  restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
 };
 
 // Initialization status for runtime dependencies

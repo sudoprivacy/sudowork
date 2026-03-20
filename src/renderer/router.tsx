@@ -11,7 +11,6 @@ const DisplaySettings = React.lazy(() => import('./pages/settings/DisplaySetting
 const GeminiSettings = React.lazy(() => import('./pages/settings/GeminiSettings'));
 const ModeSettings = React.lazy(() => import('./pages/settings/ModeSettings'));
 const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
-const OpenClawSettings = React.lazy(() => import('./pages/settings/OpenClawSettings'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSettings'));
 const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
@@ -56,7 +55,6 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />
           <Route path='/settings/display' element={withRouteFallback(DisplaySettings)} />
           <Route path='/settings/webui' element={withRouteFallback(WebuiSettings)} />
-          <Route path='/settings/openclaw' element={withRouteFallback(OpenClawSettings)} />
           <Route path='/settings/copilot' element={withRouteFallback(CopilotSettings)} />
           <Route path='/settings/system' element={withRouteFallback(SystemSettings)} />
           <Route path='/settings/about' element={withRouteFallback(About)} />

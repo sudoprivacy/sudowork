@@ -10,8 +10,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } from '../services/sudoclaw/SudoclawInstallService';
 import { OpenClawGatewayManager } from '@/agent/openclaw';
+import * as net from 'node:net';
 
 const CONFIG_FILENAME = 'openclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
@@ -106,12 +107,10 @@ export function initSudoclawBridge(): void {
     }
   });
 
-  ipcBridge.sudoclaw.saveConfig.provider(async ({ config: patch }) => {
+  ipcBridge.sudoclaw.saveConfig.provider(async ({ config }) => {
     try {
       fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
-      const existing = readConfig();
-      const merged = mergeConfig(existing, patch);
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf8');
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
       if (process.platform !== 'win32') {
         try {
           fs.chmodSync(CONFIG_PATH, 0o600);
@@ -121,9 +120,8 @@ export function initSudoclawBridge(): void {
       }
 
       // Sync to ~/.claude/settings.json for Claude CLI
-      syncToClaudeSettings(merged);
+      syncToClaudeSettings(config);
 
-      await WorkerManage.restartOpenClawGateways();
       return { success: true };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
@@ -133,30 +131,93 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.getStatus.provider(async () => {
     try {
       const installed = getSudoclawCliPath() !== null;
-      return { success: true, data: { installed, configPath: CONFIG_PATH } };
+      const config = readConfig();
+      
+      // First, check if gateway port is listening
+      const port = SUDOCLAW_DEFAULT_PORT;
+      const host = '127.0.0.1';
+      const isGatewayRunning = await new Promise<boolean>((resolve) => {
+        const socket = net.createConnection({ host, port });
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.on('error', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.setTimeout(500);
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve(false);
+        });
+      });
+
+      const data: any = {
+        installed,
+        configPath: CONFIG_PATH,
+        gatewayRunning: isGatewayRunning,
+        gatewayPort: port,
+        gatewayHost: host,
+        gatewayUrl: `ws://${host}:${port}`,
+        isConnected: isGatewayRunning,
+        hasActiveSession: false,
+        sessionKey: null,
+        workspace: config?.agents?.defaults?.workspace || (SUDOCLAW_DIR + '/workspace'),
+        agentName: (config?.agents as any)?.defaults?.agentName || '小宇',
+        model: config?.agents?.defaults?.model?.primary || null,
+      };
+
+      // Try to enhance with runtime status from active tasks
+      try {
+        const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
+        
+        if (openclawTasks.length > 0) {
+          const task = WorkerManage.getTaskById(openclawTasks[0].id) as any;
+          if (task && typeof task.getDiagnostics === 'function') {
+            const diagnostics = task.getDiagnostics();
+            
+            data.gatewayRunning = true;
+            data.gatewayPort = diagnostics.gatewayPort || port;
+            data.gatewayHost = diagnostics.gatewayHost || host;
+            data.gatewayUrl = `ws://${data.gatewayHost}:${data.gatewayPort}`;
+            data.isConnected = diagnostics.isConnected ?? isGatewayRunning;
+            data.hasActiveSession = diagnostics.hasActiveSession ?? false;
+            data.sessionKey = diagnostics.sessionKey || null;
+            // Use runtime diagnostics if available (more accurate than config)
+            data.workspace = diagnostics.workspace || data.workspace;
+            data.agentName = diagnostics.agentName || data.agentName;
+            data.model = diagnostics.model || data.model;
+          }
+        }
+      } catch (innerErr) {
+        console.warn('[SudoclawBridge] getStatus inner failed:', innerErr);
+      }
+
+      return { success: true, data };
     } catch (err) {
+      console.error('[SudoclawBridge] getStatus failed:', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
 
   ipcBridge.sudoclaw.testGateway.provider(async () => {
-    const testPort = 17863;
+    const testPort = SUDOCLAW_DEFAULT_PORT;
     const manager = new OpenClawGatewayManager({
       port: testPort,
       stateDir: SUDOCLAW_DIR,
       customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
-      forceSubprocessGateway: true, // Avoid in-process — prevents main process crash when testing
+      forceSubprocessGateway: true,
     });
+
     let stdout = '';
     let stderr = '';
-    manager.on('stdout', (d) => {
-      stdout += d;
-    });
-    manager.on('stderr', (d) => {
-      stderr += d;
-    });
+    manager.on('stdout', (d) => { stdout += d; });
+    manager.on('stderr', (d) => { stderr += d; });
+
     try {
       const port = await manager.start();
+      // Test successful - shut down immediately as requested
       await manager.stop();
       return { success: true, data: { success: true, port, stdout, stderr } };
     } catch (err) {
@@ -166,6 +227,16 @@ export function initSudoclawBridge(): void {
         success: true,
         data: { success: false, error: msg, stdout, stderr },
       };
+    }
+  });
+
+  ipcBridge.sudoclaw.restartGateway.provider(async () => {
+    try {
+      await WorkerManage.restartOpenClawGateways();
+      return { success: true };
+    } catch (err) {
+      console.error('[SudoclawBridge] Restart gateway failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
 }

@@ -97,9 +97,15 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       return task;
     }
     case 'openclaw-gateway': {
+      // Try to get model from multiple sources
+      const modelFromRuntimeValidation = conversation.extra.runtimeValidation?.expectedModel;
+      const modelFromConfig = conversation.extra.model;
+      
       const task = new OpenClawAgentManager({
         ...conversation.extra,
         conversation_id: conversation.id,
+        // Extract model from runtimeValidation or extra.model
+        model: modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,
       });
@@ -192,15 +198,18 @@ const listTasks = () => {
 /** Restart all Sudoclaw gateways to pick up config changes (~/.sudoclaw/openclaw.json) */
 const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
+  
   for (const { id, task } of openclawTasks) {
     const mgr = task as OpenClawAgentManager;
     if (typeof mgr.restartGateway === 'function') {
-      try {
-        await mgr.restartGateway();
-        console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
-      } catch (err) {
-        console.error('[WorkerManage] Failed to restart OpenClaw gateway:', err);
-      }
+      // Restart asynchronously without blocking
+      mgr.restartGateway()
+        .then(() => {
+          console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
+        })
+        .catch((err) => {
+          console.error('[WorkerManage] Failed to restart OpenClaw gateway for', id, ':', err);
+        });
     }
   }
 };

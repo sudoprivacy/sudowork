@@ -109,7 +109,7 @@
   "model": "模型",
   "system": "系统",
   "about": "关于",
-  "openclaw": "Sudoclaw",
+  "openclaw": "Copilot",
   "openclaw_notInstalled": "Sudoclaw 正在安装中，请稍后重启应用或等待片刻后重试。",
   "openclaw_primaryModel": "主模型",
   "openclaw_modelHint": "示例：anthropic/claude-sonnet-4-5, openai/gpt-4o",
