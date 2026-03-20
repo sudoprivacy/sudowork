@@ -79,13 +79,13 @@ async function extractTarGz(archivePath: string, targetDir: string): Promise<voi
 async function extractZip(archivePath: string, targetDir: string): Promise<void> {
   const execFileAsync = promisify(execFile);
 
-  const psCommand = `
-    $archive = "${archivePath}"
-    $target = "${targetDir}"
-    Expand-Archive -Path $archive -DestinationPath $target -Force
-  `
-    .replace(/\n/g, ' ')
-    .trim();
+  // Escape paths for PowerShell (single quotes handle most special characters)
+  const escapedArchive = archivePath.replace(/'/g, "''");
+  const escapedTarget = targetDir.replace(/'/g, "''");
+
+  const psCommand = `Expand-Archive -Path '${escapedArchive}' -DestinationPath '${escapedTarget}' -Force`;
+
+  console.log('[NodeRuntime] Extracting with PowerShell:', psCommand);
 
   await execFileAsync('powershell', ['-NoProfile', '-Command', psCommand]);
 }
@@ -114,20 +114,41 @@ export async function installNode(): Promise<boolean> {
   console.log('[NodeRuntime] Installing Node.js', NODE_VERSION);
   console.log('[NodeRuntime] Resource:', resourcePath);
   console.log('[NodeRuntime] Target:', nodeDir);
+  console.log('[NodeRuntime] Expected binary:', nodePath);
 
   fs.mkdirSync(nodeDir, { recursive: true });
 
   try {
     // Extract
     if (process.platform === 'win32') {
+      console.log('[NodeRuntime] Using Windows zip extraction');
       await extractZip(resourcePath, nodeDir);
     } else {
+      console.log('[NodeRuntime] Using tar.gz extraction');
       await extractTarGz(resourcePath, nodeDir);
     }
 
+    // List extracted contents for debugging
+    console.log('[NodeRuntime] Extracted contents:', fs.readdirSync(nodeDir));
+
     // Verify
     if (!fs.existsSync(nodePath)) {
-      throw new Error(`Node binary not found at ${nodePath}`);
+      // Try to find what was actually extracted
+      const findNode = (dir: string): string | null => {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const fullPath = path.join(dir, item);
+          if (fs.statSync(fullPath).isDirectory()) {
+            const found = findNode(fullPath);
+            if (found) return found;
+          } else if (item === 'node.exe' || item === 'node') {
+            return fullPath;
+          }
+        }
+        return null;
+      };
+      const actualNode = findNode(nodeDir);
+      throw new Error(`Node binary not found at ${nodePath}. Actual node found at: ${actualNode || 'none'}`);
     }
 
     // Make executable on Unix

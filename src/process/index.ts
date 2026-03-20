@@ -63,28 +63,59 @@ export const initializeProcess = async () => {
 };
 
 /**
- * Install runtime dependencies (Node.js, Sudoclaw) asynchronously
+ * Install runtime dependencies (Node.js, Sudoclaw, CLI tools) asynchronously
  * Updates initStatusManager so renderer can display progress
  */
 async function installRuntimes(): Promise<void> {
-  // Install bundled Node.js
+  // Install bundled Node.js (progress: 10-20%)
   try {
-    initStatusManager.setStatus('installing-node', '正在安装 Node.js 运行时...');
+    initStatusManager.setStatus('installing', '组件安装中', 10);
     await ensureNodeInstalled();
   } catch (err) {
     console.error('[Process] Node.js runtime install failed:', err);
-    initStatusManager.setStatus('error', 'Node.js 安装失败', err instanceof Error ? err.message : String(err));
+    initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
     return;
   }
 
-  // Install Sudoclaw (built-in OpenClaw)
+  // Install Sudoclaw (built-in OpenClaw) (progress: 30-50%)
   try {
-    initStatusManager.setStatus('installing-sudoclaw', '正在安装 SudoClaw...');
+    initStatusManager.setStatus('installing', '组件安装中', 30);
     const { ensureSudoclawInstalled } = await import('./services/sudoclaw/SudoclawInstallService');
     await ensureSudoclawInstalled();
-    initStatusManager.setStatus('ready', '初始化完成');
   } catch (err) {
     console.error('[Process] Sudoclaw install failed:', err);
-    initStatusManager.setStatus('error', 'OpenClaw 安装失败', err instanceof Error ? err.message : String(err));
+    initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  // Install CLI tools (Claude Code, Gemini) (progress: 60-90%)
+  try {
+    initStatusManager.setStatus('installing', '组件安装中', 60);
+    const { claudeCliService, geminiCliService } = await import('./services/claudeCli/CliInstallService');
+
+    // Install Claude CLI if bundle exists
+    if (claudeCliService.hasTgzResource()) {
+      const status = await claudeCliService.checkInstalled();
+      if (!status.installed) {
+        console.log('[Process] Installing Claude CLI...');
+        await claudeCliService.install();
+      }
+    }
+    initStatusManager.setStatus('installing', '组件安装中', 75);
+
+    // Install Gemini CLI if bundle exists
+    if (geminiCliService.hasTgzResource()) {
+      const status = await geminiCliService.checkInstalled();
+      if (!status.installed) {
+        console.log('[Process] Installing Gemini CLI...');
+        await geminiCliService.install();
+      }
+    }
+
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+  } catch (err) {
+    console.error('[Process] CLI tools install failed:', err);
+    // CLI install failure is not critical, continue to ready
+    initStatusManager.setStatus('ready', '初始化完成', 100);
   }
 }

@@ -9,6 +9,7 @@ import { useInit } from '../context/InitContext';
 
 const InitLoading: React.FC = () => {
   const { status } = useInit();
+  const progress = status.progress ?? 0;
 
   return (
     <div
@@ -18,29 +19,39 @@ const InitLoading: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
-        backgroundColor: 'var(--bg-1, #1a1a1a)',
-        color: 'var(--text-1, #ffffff)',
+        backgroundColor: '#1a1a1a',
+        color: '#ffffff',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          border: '3px solid var(--color-border-2, #333)',
-          borderTopColor: 'var(--primary, #4a9eff)',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-          marginBottom: 16,
-        }}
-      />
-      <div style={{ fontSize: 16, opacity: 0.9 }}>{status.message}</div>
-      {status.error && <div style={{ fontSize: 14, color: 'var(--color-error, #ff6b6b)', marginTop: 8 }}>{status.error}</div>}
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <div style={{ fontSize: 18, marginBottom: 24, opacity: 0.9 }}>{status.message}</div>
+
+      {/* Progress bar container */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 200,
+            height: 4,
+            backgroundColor: '#333',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Progress bar fill */}
+          <div
+            style={{
+              width: `${progress}%`,
+              height: '100%',
+              backgroundColor: '#4a9eff',
+              borderRadius: 2,
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+        <span style={{ fontSize: 14, color: '#888', minWidth: 40 }}>{progress}%</span>
+      </div>
+
+      {status.error && <div style={{ fontSize: 14, color: '#ff6b6b', marginTop: 16 }}>{status.error}</div>}
     </div>
   );
 };

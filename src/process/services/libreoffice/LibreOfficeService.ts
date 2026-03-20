@@ -83,15 +83,15 @@ export class LibreOfficeService {
   getDownloadUrl(): string {
     const { dir, file } = getArchNames();
     const v = LIBREOFFICE_VERSION;
-    const base = 'https://download.documentfoundation.org/libreoffice/stable';
+    const base = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
 
     if (process.platform === 'darwin') {
-      return `${base}/${v}/mac/${dir}/LibreOffice_${v}_MacOS_${file}.dmg`;
+      return `${base}/LibreOffice_${v}_MacOS_${file}.dmg`;
     } else if (process.platform === 'win32') {
-      return `${base}/${v}/win/${dir}/LibreOffice_${v}_Win_${file}.msi`;
+      return `${base}/LibreOffice_${v}_Win_${file}.msi`;
     } else {
       // Linux: deb packages bundled as tar.gz
-      return `${base}/${v}/deb/${dir}/LibreOffice_${v}_Linux_${file}_deb.tar.gz`;
+      return `${base}/LibreOffice_${v}_Linux_${file}_deb.tar.gz`;
     }
   }
 

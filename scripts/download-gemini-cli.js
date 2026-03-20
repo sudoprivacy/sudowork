@@ -31,10 +31,22 @@ try {
   
   // 2. Install the package with all its production dependencies
   console.log('[gemini-cli] Installing dependencies (this may take a minute)...');
-  execSync(`npm install @google/gemini-cli@${version} --production --no-save`, { 
-    cwd: tmpDir, 
+
+  // Support cross-platform builds via npm_config_platform/npm_config_arch env vars
+  const installEnv = {
+    ...process.env,
+    NODE_ENV: 'production',
+  };
+
+  // Log platform being installed for
+  const platform = process.env.npm_config_platform || process.platform;
+  const arch = process.env.npm_config_arch || process.arch;
+  console.log(`[gemini-cli] Target platform: ${platform}-${arch}`);
+
+  execSync(`npm install @google/gemini-cli@${version} --production --no-save`, {
+    cwd: tmpDir,
     stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: 'production' }
+    env: installEnv
   });
 
   // 3. Create a tarball of the entire directory (including node_modules)

@@ -16,7 +16,7 @@ interface InitContextValue {
 const InitContext = createContext<InitContextValue | undefined>(undefined);
 
 export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [status, setStatus] = useState<InitStatus>({ phase: 'pending', message: '准备初始化...' });
+  const [status, setStatus] = useState<InitStatus>({ phase: 'pending', message: '准备初始化...', progress: 0 });
 
   const refetch = useCallback(async () => {
     try {

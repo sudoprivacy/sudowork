@@ -499,11 +499,12 @@ export const sudoclaw = {
 };
 
 // Initialization status for runtime dependencies
-export type InitPhase = 'pending' | 'installing-node' | 'installing-sudoclaw' | 'ready' | 'error';
+export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
 
 export interface InitStatus {
   phase: InitPhase;
   message: string;
+  progress: number;
   error?: string;
 }
 
