@@ -120,8 +120,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
 
   // 使用 Electron webview 加载本地 PDF 文件
   // Use Electron webview to load local PDF files
-  const pdfSrc = filePath ? `file://${filePath}` : content || '';
-
+  const pdfSrc = filePath ? `file://${filePath}#navpanes=0` : content ? `${content}#navpanes=0` : '';
   // 设置 webview 的 webPreferences 以允许加载本地文件
   // Set webview webPreferences to allow loading local files
   const webPreferences = {
