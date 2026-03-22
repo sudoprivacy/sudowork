@@ -367,13 +367,16 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const entryFile = resolveEntryFile();
   const pkgRoot = resolvePackageRoot();
 
-  // Check if already installed with correct platform bindings
-  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
+  // Check if already installed with correct platform bindings and launcher
+  const launcherPath = pkgRoot ? path.join(pkgRoot, 'launcher.mjs') : null;
+  const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
+
+  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
     // Repair optional deps (e.g. @snazzah/davey) — pre-built tgz may have wrong arch binding
     // This runs npm install which is fast if dependencies are already correct
     const npmInstallSuccess = runNpmInstallForOptionalDeps(pkgRoot);
     if (npmInstallSuccess) {
-      const launcherPath = writeLauncher(pkgRoot);
+      writeLauncher(pkgRoot); // Re-write launcher to ensure it's up-to-date
       if (process.platform === 'win32') {
         createWindowsWrapper(launcherPath);
       } else {
@@ -455,13 +458,16 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   }
 }
 
-/** Get the Sudoclaw CLI path if installed (dist/ and node_modules exist) */
+/** Get the Sudoclaw CLI path if installed (dist/ and node_modules and launcher.mjs exist) */
 export function getSudoclawCliPath(): string | null {
   const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
   const managedBin = path.join(SUDOCLAW_BIN_DIR, binName);
   const entryFile = resolveEntryFile();
   const pkgRoot = resolvePackageRoot();
-  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
+  const launcherPath = pkgRoot ? path.join(pkgRoot, 'launcher.mjs') : null;
+  const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
+
+  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
     return managedBin;
   }
   return null;
