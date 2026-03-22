@@ -188,7 +188,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         )}
       </div>
       {/* Footer - User info area */}
-      <div className={classNames('shrink-0 sider-footer mt-auto pt-8px px-0px', isSettings ? '':'pr-16px')}>
+      <div className={classNames('shrink-0 sider-footer mt-auto pt-8px px-0px', isSettings ? '' : 'pr-16px')}>
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown
