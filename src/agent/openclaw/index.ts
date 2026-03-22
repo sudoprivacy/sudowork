@@ -112,10 +112,11 @@ export class OpenClawAgent {
       const port = gatewayConfig.port || getGatewayPort(stateDir);
       const host = gatewayConfig.host || 'localhost';
 
-      // Auto-load token/password from OpenClaw config if not explicitly provided
-      const authFromConfig = stateDir ? readOpenClawConfigFromDir(stateDir)?.gateway?.auth : getGatewayAuthFromConfig();
-      const token = gatewayConfig.token ?? (authFromConfig?.mode === 'token' ? authFromConfig.token : null) ?? getGatewayAuthToken() ?? undefined;
-      const password = gatewayConfig.password ?? (authFromConfig?.mode === 'password' ? authFromConfig.password : null) ?? getGatewayAuthPassword() ?? undefined;
+      // Auto-load token/password from Sudoclaw config (~/.nexus/.sudoclaw/openclaw.json)
+      // stateDir is always provided in Sudoclaw mode — no fallback to system OpenClaw
+      const authFromConfig = stateDir ? readOpenClawConfigFromDir(stateDir)?.gateway?.auth : null;
+      const token = gatewayConfig.token ?? (authFromConfig?.mode === 'token' ? authFromConfig.token : null) ?? (stateDir ? getGatewayAuthToken(stateDir) : null) ?? undefined;
+      const password = gatewayConfig.password ?? (authFromConfig?.mode === 'password' ? authFromConfig.password : null) ?? (stateDir ? getGatewayAuthPassword(stateDir) : null) ?? undefined;
 
       // Start gateway process if not using external
       if (!useExternal) {
