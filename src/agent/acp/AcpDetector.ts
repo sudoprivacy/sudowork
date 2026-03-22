@@ -258,20 +258,16 @@ class AcpDetector {
       }
     }
 
-    // 确保 Sudoclaw 被检测到（特殊处理内置安装路径）
-    // Ensure Sudoclaw is detected (special handling for built-in install path)
+    // 始终展示 Sudoclaw（不依赖探测，避免安装完成后需重启才显示的问题）
+    // Always show Sudoclaw (no detection; avoids icon missing until restart after install)
     const sudoclawDetected = detected.some((agent) => agent.backend === 'openclaw-gateway');
     if (!sudoclawDetected) {
-      const sudoclawCliPath = getSudoclawCliPath();
-      if (sudoclawCliPath) {
-        detected.unshift({
-          backend: 'openclaw-gateway',
-          name: 'Sudoclaw',
-          cliPath: sudoclawCliPath,
-          acpArgs: ['gateway'],
-        });
-        console.log(`[ACP] Detected built-in Sudoclaw at: ${sudoclawCliPath}`);
-      }
+      detected.unshift({
+        backend: 'openclaw-gateway',
+        name: 'Sudoclaw',
+        cliPath: getSudoclawCliPath() ?? undefined,
+        acpArgs: ['gateway'],
+      });
     }
 
     // 始终添加内置 Gemini 作为默认选项（无需检测其他 CLI）
