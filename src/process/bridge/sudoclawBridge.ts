@@ -184,8 +184,7 @@ export function initSudoclawBridge(): void {
             data.isConnected = diagnostics.isConnected ?? isGatewayRunning;
             data.hasActiveSession = diagnostics.hasActiveSession ?? false;
             data.sessionKey = diagnostics.sessionKey || null;
-            // Use runtime diagnostics if available (more accurate than config)
-            data.workspace = diagnostics.workspace || data.workspace;
+            // Only update runtime info, keep configured workspace (don't overwrite with temp paths)
             data.agentName = diagnostics.agentName || data.agentName;
             data.model = diagnostics.model || data.model;
           }
