@@ -169,6 +169,8 @@ ${env.ELECTRON_CACHE}/
 .agent
 .codebuddy/
 wiki/
+
+# Keep CLAUDE.md for project documentation
 CLAUDE.md
 
 # Local design docs and screenshots
