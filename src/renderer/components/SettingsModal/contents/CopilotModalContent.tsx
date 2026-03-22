@@ -344,7 +344,7 @@ const CopilotModalContent: React.FC = () => {
       const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
       const configFilePath = `${homeDir}/.nexus/.sudoclaw/openclaw.json`;
       setConfigPath(configFilePath);
-      
+
       const res = await ipcBridge.sudoclaw.getConfig.invoke();
       if (res?.success && res.data) {
         setConfigContent(JSON.stringify(res.data, null, 2));
@@ -397,22 +397,36 @@ const CopilotModalContent: React.FC = () => {
       <div className='px-16px md:px-24px py-16px'>
         <div className='flex items-center justify-between mb-24px'>
           <div>
-            <Title heading={5} className='m-0 text-18px'>Copilot</Title>
-            <Text type='secondary' className='text-13px'>配置 SudoClaw</Text>
+            <Title heading={5} className='m-0 text-18px'>
+              Copilot
+            </Title>
+            <Text type='secondary' className='text-13px'>
+              配置 SudoClaw
+            </Text>
           </div>
           <Space>
-            {isConnected && <Tag color='green' size='large'>已连接</Tag>}
-            <Button type='primary' icon={<Refresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>刷新</Button>
+            {isConnected && (
+              <Tag color='green' size='large'>
+                已连接
+              </Tag>
+            )}
+            <Button type='primary' icon={<Refresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>
+              刷新
+            </Button>
           </Space>
         </div>
 
         {!isConnected && (
-          <Alert type='warning' className='mb-24px' content={
-            <div>
-              <div className='font-500 mb-4px'>Sudoclaw 未连接</div>
-              <div className='text-13px'>请确保 Sudoclaw 已安装并运行。</div>
-            </div>
-          } />
+          <Alert
+            type='warning'
+            className='mb-24px'
+            content={
+              <div>
+                <div className='font-500 mb-4px'>Sudoclaw 未连接</div>
+                <div className='text-13px'>请确保 Sudoclaw 已安装并运行。</div>
+              </div>
+            }
+          />
         )}
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16px mb-24px'>
@@ -458,7 +472,7 @@ const CopilotModalContent: React.FC = () => {
             <Form.Item label={t('settings.openclaw_primaryModel')} field='primaryModel'>
               <Input placeholder='sudorouter/gemini-3-flash-preview' allowClear />
             </Form.Item>
-            
+
             <div className='flex items-center justify-between mb-8px'>
               <span className='text-14px font-600 text-t-primary'>{t('settings.openclaw_providers')}</span>
               <Button type='text' size='small' icon={<Plus size={14} />} onClick={handleAddProvider}>
@@ -540,8 +554,12 @@ const CopilotModalContent: React.FC = () => {
               <div className='text-12px text-t-tertiary mt-2px'>直接编辑 ~/.nexus/.sudoclaw/openclaw.json</div>
             </div>
             <Space>
-              <Button icon={<Edit />} onClick={openConfigEditor} loading={configLoading}>编辑配置</Button>
-              <Button icon={<Refresh />} onClick={restartGateway}>重启 Gateway</Button>
+              <Button icon={<Edit />} onClick={openConfigEditor} loading={configLoading}>
+                编辑配置
+              </Button>
+              <Button icon={<Refresh />} onClick={restartGateway}>
+                重启 Gateway
+              </Button>
             </Space>
           </div>
         </Card>
@@ -550,7 +568,9 @@ const CopilotModalContent: React.FC = () => {
       {editConfigVisible && (
         <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} width={800} confirmLoading={configLoading}>
           <div className='flex flex-col gap-8px'>
-            <Text type='secondary' className='text-12px'>路径：{configPath}</Text>
+            <Text type='secondary' className='text-12px'>
+              路径：{configPath}
+            </Text>
             <Input.TextArea value={configContent} onChange={(value) => setConfigContent(value)} style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }} />
           </div>
         </Modal>

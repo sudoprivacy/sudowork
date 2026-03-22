@@ -119,10 +119,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               ) : (
                 <div
-                  className={classNames(
-                    'h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid',
-                    'border-[var(--color-border-2)] bg-1 hover:bg-hover hover:border-[var(--color-border-3)] active:bg-fill-2'
-                  )}
+                  className={classNames('h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid', 'border-[var(--color-border-2)] bg-1 hover:bg-hover hover:border-[var(--color-border-3)] active:bg-fill-2')}
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -149,10 +146,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               {functionMenus.map((menu) => (
                 <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
                   <div
-                    className={classNames(
-                      'flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2',
-                      collapsed && 'justify-center px-0'
-                    )}
+                    className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0')}
                     onClick={() => {
                       cleanupSiderTooltips();
                       blurActiveElement();
@@ -167,9 +161,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     <div className='w-20px h-20px flex items-center justify-center text-t-secondary shrink-0'>
                       <menu.icon theme='outline' size='20' className='block leading-none' />
                     </div>
-                    {!collapsed && (
-                      <span className='flex-1 text-14px text-t-primary leading-24px whitespace-nowrap overflow-hidden text-ellipsis'>{menu.label}</span>
-                    )}
+                    {!collapsed && <span className='flex-1 text-14px text-t-primary leading-24px whitespace-nowrap overflow-hidden text-ellipsis'>{menu.label}</span>}
                   </div>
                 </Tooltip>
               ))}
@@ -177,19 +169,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
             {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-              {!collapsed && (
-                <span className='text-13px font-medium text-t-secondary'>{t('conversation.history.allRecords', { defaultValue: '所有对话' })}</span>
-              )}
+              {!collapsed && <span className='text-13px font-medium text-t-secondary'>{t('conversation.history.allRecords', { defaultValue: '所有对话' })}</span>}
               <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                <div
-                  className={classNames(
-                    'w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0',
-                    isBatchMode
-                      ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6'
-                      : 'hover:bg-hover active:bg-fill-2 text-t-secondary'
-                  )}
-                  onClick={handleToggleBatchMode}
-                >
+                <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Tooltip>

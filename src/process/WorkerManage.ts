@@ -100,7 +100,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       // Try to get model from multiple sources
       const modelFromRuntimeValidation = conversation.extra.runtimeValidation?.expectedModel;
       const modelFromConfig = conversation.extra.model;
-      
+
       const task = new OpenClawAgentManager({
         ...conversation.extra,
         conversation_id: conversation.id,
@@ -210,12 +210,13 @@ const reloadOpenClawSkills = (): void => {
 /** Restart all Sudoclaw gateways to pick up config changes (~/.sudoclaw/openclaw.json) */
 const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  
+
   for (const { id, task } of openclawTasks) {
     const mgr = task as OpenClawAgentManager;
     if (typeof mgr.restartGateway === 'function') {
       // Restart asynchronously without blocking
-      mgr.restartGateway()
+      mgr
+        .restartGateway()
         .then(() => {
           console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
         })

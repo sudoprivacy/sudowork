@@ -132,7 +132,7 @@ export function initSudoclawBridge(): void {
     try {
       const installed = getSudoclawCliPath() !== null;
       const config = readConfig();
-      
+
       // First, check if gateway port is listening
       const port = SUDOCLAW_DEFAULT_PORT;
       const host = '127.0.0.1';
@@ -163,7 +163,7 @@ export function initSudoclawBridge(): void {
         isConnected: isGatewayRunning,
         hasActiveSession: false,
         sessionKey: null,
-        workspace: config?.agents?.defaults?.workspace || (SUDOCLAW_DIR + '/workspace'),
+        workspace: config?.agents?.defaults?.workspace || SUDOCLAW_DIR + '/workspace',
         agentName: (config?.agents as any)?.defaults?.agentName || '小宇',
         model: config?.agents?.defaults?.model?.primary || null,
       };
@@ -171,12 +171,12 @@ export function initSudoclawBridge(): void {
       // Try to enhance with runtime status from active tasks
       try {
         const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
-        
+
         if (openclawTasks.length > 0) {
           const task = WorkerManage.getTaskById(openclawTasks[0].id) as any;
           if (task && typeof task.getDiagnostics === 'function') {
             const diagnostics = task.getDiagnostics();
-            
+
             data.gatewayRunning = true;
             data.gatewayPort = diagnostics.gatewayPort || port;
             data.gatewayHost = diagnostics.gatewayHost || host;
@@ -212,8 +212,12 @@ export function initSudoclawBridge(): void {
 
     let stdout = '';
     let stderr = '';
-    manager.on('stdout', (d) => { stdout += d; });
-    manager.on('stderr', (d) => { stderr += d; });
+    manager.on('stdout', (d) => {
+      stdout += d;
+    });
+    manager.on('stderr', (d) => {
+      stderr += d;
+    });
 
     try {
       const port = await manager.start();
