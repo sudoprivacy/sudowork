@@ -91,8 +91,23 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     }
   }
 
+  /** Replace openclaw with sudoclaw in user-facing message content (error messages, agent suggestions) */
+  private sanitizeDisplayText(msg: IResponseMessage): void {
+    if (msg.type === 'error' && typeof msg.data === 'string') {
+      (msg as { data: string }).data = msg.data.replace(/\bopenclaw\b/g, 'sudoclaw');
+    } else if ((msg.type === 'content' || msg.type === 'user_content') && msg.data) {
+      const d = msg.data as string | { content?: string };
+      if (typeof d === 'string') {
+        (msg as { data: string }).data = d.replace(/\bopenclaw\b/g, 'sudoclaw');
+      } else if (d && typeof (d as { content?: string }).content === 'string') {
+        (d as { content: string }).content = (d as { content: string }).content.replace(/\bopenclaw\b/g, 'sudoclaw');
+      }
+    }
+  }
+
   private handleStreamEvent(message: IResponseMessage): void {
     const msg = { ...message, conversation_id: this.conversation_id };
+    this.sanitizeDisplayText(msg);
 
     // Mark as finished when content is output (visible to user)
     // OpenClaw uses: content, agent_status, acp_tool_call, plan

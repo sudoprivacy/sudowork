@@ -169,6 +169,7 @@ ${env.ELECTRON_CACHE}/
 .agent
 .codebuddy/
 wiki/
+CLAUDE.md
 
 # Local design docs and screenshots
 desdoc/
