@@ -117,6 +117,8 @@ files:
 extraResources:
   - from: public
     to: .
+  - from: THIRD_PARTY_LICENSES.txt
+    to: THIRD_PARTY_LICENSES.txt
 
 win:
   target:
