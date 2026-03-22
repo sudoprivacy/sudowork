@@ -33,7 +33,7 @@ interface GatewayManagerEvents {
 }
 
 /** Registry of running Sudoclaw gateway managers (port -> manager) for external restart (e.g. after skill install) */
-const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
+export const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
 
 /**
  * Restart the Sudoclaw gateway on the given port. Used after Skill Hub install so new skills load immediately.

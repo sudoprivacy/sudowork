@@ -14,7 +14,7 @@ import { app } from 'electron';
 import JSZip from 'jszip';
 import { getSkillsDir } from '@/process/initStorage';
 import WorkerManage from '@process/WorkerManage';
-import { restartSudoclawGatewayByPort } from '@/agent/openclaw/OpenClawGatewayManager';
+import { gatewayRegistry } from '@/agent/openclaw/OpenClawGatewayManager';
 import { SUDOCLAW_DEFAULT_PORT } from '@process/services/sudoclaw/SudoclawInstallService';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
@@ -234,16 +234,26 @@ export function initSkillHubBridge(): void {
 
       console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
-      // Restart Sudoclaw gateway so new skill loads immediately.
-      // 1. Registry restart: works even when no Sudoclaw chat is open
-      // 2. Task restart: reconnects agents when chat is open
+      // Hot-reload Sudoclaw gateway using SIGUSR1 signal (no full restart needed).
+      // This is more stable and faster than restart, as gateway keeps sessions alive.
+      // Fallback to restart if signal fails or gateway doesn't support it.
       void (async () => {
-        const restarted = await restartSudoclawGatewayByPort(SUDOCLAW_DEFAULT_PORT);
-        if (restarted) {
-          console.log('[SkillHub] Sudoclaw gateway restarted for skill reload');
-          await WorkerManage.restartOpenClawGateways(); // Reconnect agent connections
-        } else {
-          await WorkerManage.restartOpenClawGateways(); // Fallback: restart via tasks
+        try {
+          const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
+
+          if (gateway) {
+            gateway.sendReloadSignal();
+            console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
+            // Wait a bit for gateway to reload, then reconnect agent connections
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            WorkerManage.reloadOpenClawSkills();
+          } else {
+            console.log('[SkillHub] Gateway not running, skipping hot-reload');
+          }
+        } catch (err) {
+          console.warn('[SkillHub] SIGUSR1 failed, falling back to restart:', err);
+          // Fallback: full restart
+          await WorkerManage.restartOpenClawGateways();
         }
       })();
 
