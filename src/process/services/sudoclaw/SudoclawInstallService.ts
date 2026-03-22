@@ -92,10 +92,21 @@ function hasDistEntry(pkgRoot: string): boolean {
   return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
 }
 
-/** Check if node_modules exists (dist/ imports chalk etc.). Old tgz lacked node_modules. */
+/**
+ * Check if node_modules exists with correct platform-specific bindings.
+ * Checks for the @snazzah/davey binding for the current platform/arch.
+ * Returns false if the correct binding is missing (triggers npm install).
+ */
 function hasNodeModules(pkgRoot: string): boolean {
   const nm = path.join(pkgRoot, 'node_modules');
   if (!fs.existsSync(nm) || !fs.statSync(nm).isDirectory()) return false;
+
+  // Check for correct platform-specific @snazzah/davey binding
+  const daveyBinding = getDaveyBindingName();
+  const daveyPath = path.join(nm, daveyBinding);
+  if (!fs.existsSync(daveyPath)) return false;
+
+  // Also check for chalk (dependency used by OpenClaw)
   const chalk = path.join(nm, 'chalk');
   return fs.existsSync(chalk);
 }
@@ -111,27 +122,32 @@ function getDaveyBindingName(): string {
 /**
  * Run npm install in package dir to fix platform-specific optional deps (e.g. @snazzah/davey).
  * Pre-built tgz may have been built on a different arch; npm install installs the correct optional binding.
- * Skips if the correct binding already exists (avoids slow npm install on every startup).
  * Uses bundled Node only — never invokes local/system Node.
+ * @returns true if npm install succeeded, false if it failed or couldn't run
  */
-function runNpmInstallForOptionalDeps(pkgRoot: string): void {
-  const daveyBinding = getDaveyBindingName();
-  const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
-  if (fs.existsSync(daveyPath)) return; // Already have correct binding
-
+function runNpmInstallForOptionalDeps(pkgRoot: string): boolean {
   const nodePath = getNodeBinaryPath();
-  if (!fs.existsSync(nodePath)) return;
+  if (!fs.existsSync(nodePath)) {
+    console.warn('[Sudoclaw] Bundled Node.js not found, skipping npm install');
+    return false;
+  }
   // npm-cli.js path: bundled Node includes npm at lib/node_modules/npm/bin/npm-cli.js
   const nodeRoot = process.platform === 'win32' ? path.dirname(nodePath) : path.dirname(path.dirname(nodePath));
   const npmCliJs = path.join(nodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  if (!fs.existsSync(npmCliJs)) return;
+  if (!fs.existsSync(npmCliJs)) {
+    console.warn('[Sudoclaw] npm-cli.js not found, skipping npm install');
+    return false;
+  }
   try {
     console.log('[Sudoclaw] Running npm install to fix optional dependencies (@snazzah/davey)...');
-    execFileSync(nodePath, [npmCliJs, 'install'], { cwd: pkgRoot, stdio: 'pipe' });
+    // Use 'inherit' to show output for debugging; npm install must succeed for correct bindings
+    execFileSync(nodePath, [npmCliJs, 'install', '--legacy-peer-deps'], { cwd: pkgRoot, stdio: 'inherit' });
     console.log('[Sudoclaw] npm install completed');
+    return true;
   } catch (err) {
-    console.warn('[Sudoclaw] npm install failed (optional deps may be missing):', err);
-    // Don't throw — continue; the package might still work without @snazzah/davey
+    console.error('[Sudoclaw] npm install failed:', err);
+    // Return false to trigger re-extract; don't throw to avoid crashing the app
+    return false;
   }
 }
 
@@ -347,16 +363,22 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const entryFile = resolveEntryFile();
   const pkgRoot = resolvePackageRoot();
 
+  // Check if already installed with correct platform bindings
   if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
     // Repair optional deps (e.g. @snazzah/davey) — pre-built tgz may have wrong arch binding
-    runNpmInstallForOptionalDeps(pkgRoot);
-    const launcherPath = writeLauncher(pkgRoot);
-    if (process.platform === 'win32') {
-      createWindowsWrapper(launcherPath);
-    } else {
-      createUnixWrapper(launcherPath);
+    // This runs npm install which is fast if dependencies are already correct
+    const npmInstallSuccess = runNpmInstallForOptionalDeps(pkgRoot);
+    if (npmInstallSuccess) {
+      const launcherPath = writeLauncher(pkgRoot);
+      if (process.platform === 'win32') {
+        createWindowsWrapper(launcherPath);
+      } else {
+        createUnixWrapper(launcherPath);
+      }
+      return { installed: true, cliPath: managedBin };
     }
-    return { installed: true, cliPath: managedBin };
+    // npm install failed, fall through to re-extract
+    console.log('[Sudoclaw] npm install failed, will re-extract...');
   }
 
   try {
@@ -396,13 +418,14 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
 
     const pkgRoot = resolvePackageRoot();
     if (pkgRoot) {
-      runNpmInstallForOptionalDeps(pkgRoot);
+      const npmSuccess = runNpmInstallForOptionalDeps(pkgRoot);
+      if (!npmSuccess) {
+        console.error('[Sudoclaw] Initial npm install failed, installation incomplete');
+        return { installed: false, cliPath: null };
+      }
     }
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
       throw new Error('Downloaded package missing dist/');
-    }
-    if (!hasNodeModules(pkgRoot)) {
-      throw new Error('Downloaded package missing node_modules');
     }
 
     const resolvedEntry = resolveEntryFile();
