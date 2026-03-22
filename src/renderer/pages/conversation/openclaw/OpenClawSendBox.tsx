@@ -607,25 +607,25 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
                   {hasVisibleFolders && (
                     <div className='flex flex-wrap items-center gap-8px mb-8px'>
                       {visibleAtPath.map((item) => {
-                  if (typeof item === 'string') return null;
-                  if (!item.isFile) {
-                    return (
-                      <Tag
-                        key={item.path}
-                        color='blue'
-                        closable
-                        onClose={() => {
-                          const newAtPath = atPath.filter((v) => (typeof v === 'string' ? true : v.path !== item.path));
-                          emitter.emit('openclaw-gateway.selected.file', conversation_id, newAtPath);
-                          setAtPath(newAtPath);
-                        }}
-                      >
-                        {item.name}
-                      </Tag>
-                    );
-                  }
-                  return null;
-                })}
+                        if (typeof item === 'string') return null;
+                        if (!item.isFile) {
+                          return (
+                            <Tag
+                              key={item.path}
+                              color='blue'
+                              closable
+                              onClose={() => {
+                                const newAtPath = atPath.filter((v) => (typeof v === 'string' ? true : v.path !== item.path));
+                                emitter.emit('openclaw-gateway.selected.file', conversation_id, newAtPath);
+                                setAtPath(newAtPath);
+                              }}
+                            >
+                              {item.name}
+                            </Tag>
+                          );
+                        }
+                        return null;
+                      })}
                     </div>
                   )}
                 </>

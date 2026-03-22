@@ -8,8 +8,7 @@ export const collectSelectedFiles = (uploadFile: string[], atPath: Array<string 
 };
 
 /** Filter out internal temp workspace paths that should not be shown to users */
-export const filterUserVisibleFiles = (paths: string[]): string[] =>
-  paths.filter((p) => !isTemporaryWorkspace(p));
+export const filterUserVisibleFiles = (paths: string[]): string[] => paths.filter((p) => !isTemporaryWorkspace(p));
 
 /** Filter atPath items whose path is a temp workspace (for SendBox display) */
 export const filterUserVisibleAtPath = <T extends Array<string | FileOrFolderItem>>(items: T): T =>
