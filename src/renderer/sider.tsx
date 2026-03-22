@@ -44,8 +44,23 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 处理功能菜单点击
   const handleFunctionMenuClick = (menuId: string) => {
-    // 发送事件通知 GuidPage 显示对应内容
-    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
+    console.log('[Sider] Menu clicked:', menuId);
+    // 如果当前不在 /guid 路由，先导航到 /guid，然后延迟发送事件
+    if (!pathname.startsWith('/guid')) {
+      Promise.resolve(navigate('/guid'))
+        .then(() => {
+          // 导航完成后延迟发送事件，确保路由变化先处理
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
+          }, 50);
+        })
+        .catch((error) => {
+          console.error('Navigation failed:', error);
+        });
+    } else {
+      // 发送事件通知 GuidPage 显示对应内容
+      window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
+    }
   };
 
   useEffect(() => {
@@ -83,7 +98,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
     onSessionClick: () => {
-      // 发送事件通知关闭菜单面板
+      // 只发送关闭面板事件，不改变路由（由 WorkspaceGroupedHistory 自己处理）
       window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
       if (onSessionClick) {
         onSessionClick();
@@ -124,11 +139,15 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    // 发送事件通知关闭菜单面板
-                    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
-                    Promise.resolve(navigate('/guid')).catch((error) => {
-                      console.error('Navigation failed:', error);
-                    });
+                    Promise.resolve(navigate('/guid'))
+                      .then(() => {
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
+                        }, 50);
+                      })
+                      .catch((error) => {
+                        console.error('Navigation failed:', error);
+                      });
                     if (onSessionClick) {
                       onSessionClick();
                     }
@@ -145,11 +164,15 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    // 发送事件通知关闭菜单面板
-                    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
-                    Promise.resolve(navigate('/guid')).catch((error) => {
-                      console.error('Navigation failed:', error);
-                    });
+                    Promise.resolve(navigate('/guid'))
+                      .then(() => {
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
+                        }, 50);
+                      })
+                      .catch((error) => {
+                        console.error('Navigation failed:', error);
+                      });
                     if (onSessionClick) {
                       onSessionClick();
                     }

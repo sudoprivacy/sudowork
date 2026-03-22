@@ -47,6 +47,7 @@ const GuidPage: React.FC = () => {
   useEffect(() => {
     const handleMenuClick = (event: CustomEvent) => {
       const menuId = event.detail.menuId;
+      console.log('[GuidPage] Menu click event received:', menuId);
       // 如果 menuId 为 null，则关闭面板；否则切换到对应菜单
       if (menuId === null) {
         setSelectedMenu(null);
@@ -56,10 +57,18 @@ const GuidPage: React.FC = () => {
     };
 
     window.addEventListener('function-menu-click', handleMenuClick as EventListener);
+    console.log('[GuidPage] function-menu-click listener registered');
     return () => {
       window.removeEventListener('function-menu-click', handleMenuClick as EventListener);
+      console.log('[GuidPage] function-menu-click listener removed');
     };
   }, []);
+
+  // 路由变化时关闭面板（确保从历史会话返回时面板是关闭的）
+  useEffect(() => {
+    console.log('[GuidPage] Route changed, closing menu panel');
+    setSelectedMenu(null);
+  }, [location.pathname]);
 
   // 点击新会话或历史会话时关闭菜单面板
   const handleBackToChat = useCallback(() => {
