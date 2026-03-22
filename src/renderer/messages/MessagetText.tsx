@@ -13,6 +13,7 @@ import classNames from 'classnames';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { copyText } from '@/renderer/utils/clipboard';
+import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import CollapsibleContent from '../components/CollapsibleContent';
 import FilePreview from '../components/FilePreview';
 import HorizontalFileList from '../components/HorizontalFileList';
@@ -63,6 +64,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   }, [message.content.content]);
 
   const { text, files } = parseFileMarker(contentToRender);
+  const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
@@ -75,7 +77,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
 
   const handleCopy = () => {
     const baseText = json ? JSON.stringify(data, null, 2) : text;
-    const fileList = files.length ? `Files:\n${files.map((path) => `- ${path}`).join('\n')}\n\n` : '';
+    const fileList = visibleFiles.length ? `Files:\n${visibleFiles.map((path) => `- ${path}`).join('\n')}\n\n` : '';
     const textToCopy = fileList + baseText;
     copyText(textToCopy)
       .then(() => {
@@ -101,15 +103,15 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     <>
       <div className={classNames('min-w-0 flex flex-col group', isUserMessage ? 'items-end' : 'items-start')}>
         {cronMeta && <MessageCronBadge meta={cronMeta} />}
-        {files.length > 0 && (
+        {visibleFiles.length > 0 && (
           <div className={classNames('mt-6px', { 'self-end': isUserMessage })}>
-            {files.length === 1 ? (
+            {visibleFiles.length === 1 ? (
               <div className='flex items-center'>
-                <FilePreview path={files[0]} onRemove={() => undefined} readonly />
+                <FilePreview path={visibleFiles[0]} onRemove={() => undefined} readonly />
               </div>
             ) : (
               <HorizontalFileList>
-                {files.map((path) => (
+                {visibleFiles.map((path) => (
                   <FilePreview key={path} path={path} onRemove={() => undefined} readonly />
                 ))}
               </HorizontalFileList>

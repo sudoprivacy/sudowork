@@ -27,6 +27,7 @@ import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
+import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -648,57 +649,66 @@ const AcpSendBox: React.FC<{
         }
         prefix={
           <>
-            {/* Files on top */}
-            {(uploadFile.length > 0 || atPath.some((item) => (typeof item === 'string' ? true : item.isFile))) && (
-              <HorizontalFileList>
-                {uploadFile.map((path) => (
-                  <FilePreview key={path} path={path} onRemove={() => setUploadFile(uploadFile.filter((v) => v !== path))} />
-                ))}
-                {atPath.map((item) => {
-                  const isFile = typeof item === 'string' ? true : item.isFile;
-                  const path = typeof item === 'string' ? item : item.path;
-                  if (isFile) {
-                    return (
-                      <FilePreview
-                        key={path}
-                        path={path}
-                        onRemove={() => {
-                          const newAtPath = atPath.filter((v) => (typeof v === 'string' ? v !== path : v.path !== path));
-                          emitter.emit('acp.selected.file', newAtPath);
-                          setAtPath(newAtPath);
-                        }}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </HorizontalFileList>
-            )}
-            {/* Folder tags below */}
-            {atPath.some((item) => (typeof item === 'string' ? false : !item.isFile)) && (
-              <div className='flex flex-wrap items-center gap-8px mb-8px'>
-                {atPath.map((item) => {
-                  if (typeof item === 'string') return null;
-                  if (!item.isFile) {
-                    return (
-                      <Tag
-                        key={item.path}
-                        color='blue'
-                        closable
-                        onClose={() => {
-                          const newAtPath = atPath.filter((v) => (typeof v === 'string' ? true : v.path !== item.path));
-                          emitter.emit('acp.selected.file', newAtPath);
-                          setAtPath(newAtPath);
-                        }}
-                      >
-                        {item.name}
-                      </Tag>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            )}
+            {/* Files on top - hide internal temp workspace paths from user */}
+            {(() => {
+              const visibleUploadFile = filterUserVisibleFiles(uploadFile);
+              const visibleAtPath = filterUserVisibleAtPath(atPath);
+              const hasVisibleFiles = visibleUploadFile.length > 0 || visibleAtPath.some((item) => (typeof item === 'string' ? true : item.isFile));
+              const hasVisibleFolders = visibleAtPath.some((item) => (typeof item === 'string' ? false : !item.isFile));
+              return (
+                <>
+                  {hasVisibleFiles && (
+                    <HorizontalFileList>
+                      {visibleUploadFile.map((path) => (
+                        <FilePreview key={path} path={path} onRemove={() => setUploadFile(uploadFile.filter((v) => v !== path))} />
+                      ))}
+                      {visibleAtPath.map((item) => {
+                        const isFile = typeof item === 'string' ? true : item.isFile;
+                        const path = typeof item === 'string' ? item : item.path;
+                        if (isFile) {
+                          return (
+                            <FilePreview
+                              key={path}
+                              path={path}
+                              onRemove={() => {
+                                const newAtPath = atPath.filter((v) => (typeof v === 'string' ? v !== path : v.path !== path));
+                                emitter.emit('acp.selected.file', newAtPath);
+                                setAtPath(newAtPath);
+                              }}
+                            />
+                          );
+                        }
+                        return null;
+                      })}
+                    </HorizontalFileList>
+                  )}
+                  {hasVisibleFolders && (
+                    <div className='flex flex-wrap items-center gap-8px mb-8px'>
+                      {visibleAtPath.map((item) => {
+                        if (typeof item === 'string') return null;
+                        if (!item.isFile) {
+                          return (
+                            <Tag
+                              key={item.path}
+                              color='blue'
+                              closable
+                              onClose={() => {
+                                const newAtPath = atPath.filter((v) => (typeof v === 'string' ? true : v.path !== item.path));
+                                emitter.emit('acp.selected.file', newAtPath);
+                                setAtPath(newAtPath);
+                              }}
+                            >
+                              {item.name}
+                            </Tag>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </>
         }
         onSend={onSendHandler}
