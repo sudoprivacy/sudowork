@@ -298,7 +298,7 @@ const Layout: React.FC<{
               })}
             >
               <div
-                className={classNames('bg-black shrink-0 size-40px relative rd-0.5rem flex items-center justify-center', {
+                className={classNames('shrink-0 size-40px relative rd-0.5rem flex items-center justify-center', {
                   '!size-24px': collapsed,
                 })}
                 onClick={onClick}
