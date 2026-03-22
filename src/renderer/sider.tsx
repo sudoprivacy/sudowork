@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, ListCheckbox, Plus, SettingTwo } from '@icon-park/react';
+import { ArrowCircleLeft, Communication, Computer, Config, Lightning, ListCheckbox, Plus, SettingTwo, System, Toolkit } from '@icon-park/react';
 import { IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -11,6 +11,7 @@ import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { useThemeContext } from './context/ThemeContext';
+import { isElectronDesktop } from './utils/platform';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -70,9 +71,19 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     onSessionClick,
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
+    showTitle: false, // 我们已经在上面渲染了标题
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
+  const isDesktop = isElectronDesktop();
+
+  // 功能菜单项定义 / Function menu items definition
+  const functionMenus = [
+    { id: 'skill', label: t('settings.skill'), icon: Lightning, path: '/settings/skill' },
+    { id: 'tools', label: t('settings.tools'), icon: Toolkit, path: '/settings/tools' },
+    { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: Config, path: '/settings/copilot' },
+    { id: 'system', label: t('settings.system'), icon: System, path: '/settings/system' },
+  ];
 
   return (
     <div className='size-full flex flex-col'>
@@ -83,11 +94,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
           </Suspense>
         ) : (
-          <div className='size-full flex flex-col'>
-            <div className='mb-8px shrink-0 flex items-center gap-8px'>
-              <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newConversation')} position='right'>
+          <div className='size-full flex flex-col pl-0px pr-12px py-8px overflow-hidden'>
+            {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
+            <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newConversation')} position='right'>
+              {collapsed ? (
                 <div
-                  className={classNames('h-40px flex-1 flex items-center justify-start gap-10px px-12px hover:bg-hover rd-0.5rem cursor-pointer group', isMobile && 'sider-action-btn-mobile')}
+                  className='w-full h-40px flex items-center justify-center mb-12px rd-10px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2'
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -96,28 +108,93 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     Promise.resolve(navigate('/guid')).catch((error) => {
                       console.error('Navigation failed:', error);
                     });
-                    // 点击new chat后自动隐藏sidebar / Hide sidebar after starting new chat on mobile
                     if (onSessionClick) {
                       onSessionClick();
                     }
                   }}
                 >
-                  <Plus theme='outline' size='24' fill={iconColors.primary} className='block leading-none shrink-0' style={{ lineHeight: 0 }} />
-                  <span className='collapsed-hidden font-bold text-t-primary leading-24px'>{t('conversation.welcome.newConversation')}</span>
+                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
+                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
+                  </div>
                 </div>
-              </Tooltip>
+              ) : (
+                <div
+                  className={classNames(
+                    'h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid',
+                    'border-[var(--color-border-2)] bg-1 hover:bg-hover hover:border-[var(--color-border-3)] active:bg-fill-2'
+                  )}
+                  onClick={() => {
+                    cleanupSiderTooltips();
+                    blurActiveElement();
+                    closePreview();
+                    setIsBatchMode(false);
+                    Promise.resolve(navigate('/guid')).catch((error) => {
+                      console.error('Navigation failed:', error);
+                    });
+                    if (onSessionClick) {
+                      onSessionClick();
+                    }
+                  }}
+                >
+                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
+                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
+                  </div>
+                  <span className='flex-1 text-15px font-medium text-t-primary text-center truncate'>{t('conversation.welcome.newConversation')}</span>
+                </div>
+              )}
+            </Tooltip>
+
+            {/* 功能菜单区域 / Function menu area */}
+            <div className='mb-16px flex flex-col gap-1px'>
+              {functionMenus.map((menu) => (
+                <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
+                  <div
+                    className={classNames(
+                      'flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2',
+                      collapsed && 'justify-center px-0'
+                    )}
+                    onClick={() => {
+                      cleanupSiderTooltips();
+                      blurActiveElement();
+                      Promise.resolve(navigate(menu.path)).catch((error) => {
+                        console.error('Navigation failed:', error);
+                      });
+                      if (onSessionClick) {
+                        onSessionClick();
+                      }
+                    }}
+                  >
+                    <div className='w-20px h-20px flex items-center justify-center text-t-secondary shrink-0'>
+                      <menu.icon theme='outline' size='20' className='block leading-none' />
+                    </div>
+                    {!collapsed && (
+                      <span className='flex-1 text-14px text-t-primary leading-24px whitespace-nowrap overflow-hidden text-ellipsis'>{menu.label}</span>
+                    )}
+                  </div>
+                </Tooltip>
+              ))}
+            </div>
+
+            {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
+            <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
+              {!collapsed && (
+                <span className='text-13px font-medium text-t-secondary'>{t('conversation.history.allRecords', { defaultValue: '所有对话' })}</span>
+              )}
               <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
                 <div
-                  className={classNames('h-40px w-40px rd-0.5rem flex items-center justify-center cursor-pointer shrink-0 transition-all border border-solid border-transparent', isMobile && 'sider-action-icon-btn-mobile', {
-                    'hover:bg-fill-2 hover:border-[var(--color-border-2)]': !isBatchMode,
-                    'bg-[rgba(var(--primary-6),0.12)] border-[rgba(var(--primary-6),0.24)] text-primary': isBatchMode,
-                  })}
+                  className={classNames(
+                    'w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0',
+                    isBatchMode
+                      ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6'
+                      : 'hover:bg-hover active:bg-fill-2 text-t-secondary'
+                  )}
                   onClick={handleToggleBatchMode}
                 >
-                  <ListCheckbox theme='outline' size='20' className='block leading-none shrink-0' style={{ lineHeight: 0 }} />
+                  <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Tooltip>
             </div>
+
             <Suspense fallback={<div className='flex-1 min-h-0' />}>
               <WorkspaceGroupedHistory {...workspaceHistoryProps}></WorkspaceGroupedHistory>
             </Suspense>

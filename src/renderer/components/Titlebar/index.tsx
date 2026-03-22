@@ -10,7 +10,7 @@ import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/u
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon.svg';
+import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;

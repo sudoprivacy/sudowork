@@ -21,7 +21,7 @@ import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
 import { isElectronDesktop } from './utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from './utils/themeCssSync';
-import SudoworkIcon from './assets/sudowork-icon.svg';
+import SudoworkIcon from './assets/sudowork-icon-dark.svg';
 const useDebug = () => {
   const [count, setCount] = useState(0);
   const timer = useRef<any>(null);
