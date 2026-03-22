@@ -566,7 +566,7 @@ const CopilotModalContent: React.FC = () => {
       </div>
 
       {editConfigVisible && (
-        <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} width={800} confirmLoading={configLoading}>
+        <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
           <div className='flex flex-col gap-8px'>
             <Text type='secondary' className='text-12px'>
               路径：{configPath}

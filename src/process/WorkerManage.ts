@@ -98,8 +98,8 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
     }
     case 'openclaw-gateway': {
       // Try to get model from multiple sources
-      const modelFromRuntimeValidation = conversation.extra.runtimeValidation?.expectedModel;
-      const modelFromConfig = conversation.extra.model;
+      const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
+      const modelFromConfig = (conversation.extra as any).model;
 
       const task = new OpenClawAgentManager({
         ...conversation.extra,

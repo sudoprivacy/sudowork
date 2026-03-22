@@ -163,9 +163,9 @@ export function initSudoclawBridge(): void {
         isConnected: isGatewayRunning,
         hasActiveSession: false,
         sessionKey: null,
-        workspace: config?.agents?.defaults?.workspace || SUDOCLAW_DIR + '/workspace',
+        workspace: (config?.agents as any)?.defaults?.workspace || SUDOCLAW_DIR + '/workspace',
         agentName: (config?.agents as any)?.defaults?.agentName || '小宇',
-        model: config?.agents?.defaults?.model?.primary || null,
+        model: (config?.agents as any)?.defaults?.model?.primary || null,
       };
 
       // Try to enhance with runtime status from active tasks
