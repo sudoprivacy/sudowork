@@ -265,12 +265,12 @@ const ChatConversation: React.FC<{
     <div className='flex items-center gap-8px'>
       {conversation?.type === 'openclaw-gateway' && (
         <div className='shrink-0'>
-          <StarOfficeMonitorCard
+          {/* <StarOfficeMonitorCard
             conversationId={conversation.id}
             onOpenUrl={(url, metadata) => {
               openPreview(url, 'url', metadata);
             }}
-          />
+          /> */}
         </div>
       )}
       {conversation ? (
