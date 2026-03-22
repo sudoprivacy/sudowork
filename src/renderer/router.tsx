@@ -15,6 +15,7 @@ const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSetting
 const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
+const SecuritySettings = React.lazy(() => import('./pages/settings/SecuritySettings'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
@@ -60,8 +61,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/about' element={withRouteFallback(About)} />
           <Route path='/settings/tools' element={withRouteFallback(ToolsSettings)} />
           <Route path='/settings/skill' element={withRouteFallback(SkillSettings)} />
+          <Route path='/settings/security' element={withRouteFallback(SecuritySettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
-          <Route path='/settings' element={<Navigate to='/settings/model' replace />} />
+          <Route path='/settings' element={<Navigate to='/settings/agent' replace />} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />

@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, Config, Down, Lightning, ListCheckbox, Logout, Plus, SettingTwo, System, Toolkit } from '@icon-park/react';
+import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome, IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -31,6 +31,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { theme, setTheme } = useThemeContext();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
@@ -39,6 +40,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     email: 'user@example.com',
     name: 'User',
     avatar: null as string | null,
+  };
+
+  // 处理功能菜单点击
+  const handleFunctionMenuClick = (menuId: string) => {
+    // 发送事件通知 GuidPage 显示对应内容
+    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
   };
 
   useEffect(() => {
@@ -75,7 +82,13 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
-    onSessionClick,
+    onSessionClick: () => {
+      // 发送事件通知关闭菜单面板
+      window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
+      if (onSessionClick) {
+        onSessionClick();
+      }
+    },
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
     showTitle: false, // 我们已经在上面渲染了标题
@@ -86,9 +99,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 功能菜单项定义 / Function menu items definition
   const functionMenus = [
-    { id: 'skill', label: t('settings.skill'), icon: Lightning, path: '/settings/skill' },
-    { id: 'tools', label: t('settings.tools'), icon: Toolkit, path: '/settings/tools' },
-    { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: Config, path: '/settings/copilot' },
+    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
+    { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
+    { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
+    { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
   ];
 
   return (
@@ -110,6 +124,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 发送事件通知关闭菜单面板
+                    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
                     Promise.resolve(navigate('/guid')).catch((error) => {
                       console.error('Navigation failed:', error);
                     });
@@ -129,6 +145,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 发送事件通知关闭菜单面板
+                    window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
                     Promise.resolve(navigate('/guid')).catch((error) => {
                       console.error('Navigation failed:', error);
                     });
@@ -154,9 +172,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     onClick={() => {
                       cleanupSiderTooltips();
                       blurActiveElement();
-                      Promise.resolve(navigate(menu.path)).catch((error) => {
-                        console.error('Navigation failed:', error);
-                      });
+                      handleFunctionMenuClick(menu.id);
                       if (onSessionClick) {
                         onSessionClick();
                       }
