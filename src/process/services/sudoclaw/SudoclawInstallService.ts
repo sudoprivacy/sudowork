@@ -219,7 +219,7 @@ function createWindowsWrapper(launcherFile: string): void {
   fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
 }
 
-/** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path after migration */
+/** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
 function repairOpenClawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
@@ -228,13 +228,17 @@ function repairOpenClawConfig(): void {
     const config = JSON.parse(raw) as Record<string, unknown>;
     let changed = false;
 
-    // Update workspace path if it still references legacy ~/.sudoclaw (after migration)
+    // CRITICAL: Force workspace to Sudoclaw directory to ensure complete isolation from system OpenClaw
+    // This prevents Sudoclaw from accidentally using ~/.sudoclaw or ~/.openclaw workspace
     const agents = config.agents as { defaults?: { workspace?: string } } | undefined;
-    const workspace = agents?.defaults?.workspace;
-    if (typeof workspace === 'string' && workspace.includes(LEGACY_SUDOCLAW_DIR)) {
-      const newWorkspace = workspace.replace(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR);
-      if (agents.defaults) agents.defaults.workspace = newWorkspace;
-      changed = true;
+    if (agents?.defaults) {
+      const currentWorkspace = agents.defaults.workspace;
+      if (typeof currentWorkspace !== 'string' || (!currentWorkspace.includes(SUDOCLAW_DIR) && !currentWorkspace.includes('.nexus'))) {
+        // Workspace points outside ~/.nexus/.sudoclaw - force reset to isolated directory
+        agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
+        changed = true;
+        console.log('[Sudoclaw] Fixed workspace path to isolated directory:', SUDOCLAW_WORKSPACE_DIR);
+      }
     }
 
     const providers = config.models as { providers?: Record<string, { models?: unknown }> } | undefined;
