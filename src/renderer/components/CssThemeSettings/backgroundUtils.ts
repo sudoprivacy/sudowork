@@ -57,15 +57,22 @@ ${BACKGROUND_BLOCK_END}`;
 };
 
 /**
+ * Remove standard background CSS block from the provided CSS string.
+ */
+export const stripBackgroundCssBlock = (css: string): string => {
+  if (!css) return '';
+  BACKGROUND_BLOCK_PATTERN.lastIndex = 0;
+  return css.replace(BACKGROUND_BLOCK_PATTERN, '').trim();
+};
+
+/**
  * Inject (or replace) the standard background CSS block using the provided image.
  */
 export const injectBackgroundCssBlock = (css: string, imageDataUrl: string): string => {
-  if (!css) {
-    return buildBackgroundCss(imageDataUrl);
+  const cleanedCss = stripBackgroundCssBlock(css);
+  if (!imageDataUrl) {
+    return cleanedCss;
   }
-  // Reset lastIndex for global regex reuse / 重置 lastIndex 以重用全局正则
-  BACKGROUND_BLOCK_PATTERN.lastIndex = 0;
-  const cleanedCss = css.replace(BACKGROUND_BLOCK_PATTERN, '').trim();
   const block = buildBackgroundCss(imageDataUrl);
   return [cleanedCss, block].filter(Boolean).join('\n\n');
 };

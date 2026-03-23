@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal';
 import { PRESET_THEMES, DEFAULT_THEME_ID } from './presets';
-import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils';
+import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock, stripBackgroundCssBlock } from './backgroundUtils';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 interface ThemePreviewPalette {
@@ -114,11 +114,12 @@ const readFromVarMap = (vars: Record<string, string>, keys: string[]) => {
 
 const extractThemePreviewPalette = (css: string, mode: 'light' | 'dark'): ThemePreviewPalette => {
   const modeFallback = fallbackThemePreviewPaletteByMode[mode];
-  const rootVars = parseCssVarsFromBlocks(css, ':root');
+  const cleanCss = stripBackgroundCssBlock(css || '');
+  const rootVars = parseCssVarsFromBlocks(cleanCss, ':root');
   const darkVars = {
-    ...parseCssVarsFromBlocks(css, "[data-theme='dark']"),
-    ...parseCssVarsFromBlocks(css, '[data-theme="dark"]'),
-    ...parseCssVarsFromBlocks(css, '[data-theme=dark]'),
+    ...parseCssVarsFromBlocks(cleanCss, "[data-theme='dark']"),
+    ...parseCssVarsFromBlocks(cleanCss, '[data-theme="dark"]'),
+    ...parseCssVarsFromBlocks(cleanCss, '[data-theme=dark]'),
   };
   const activeVars = mode === 'dark' ? { ...rootVars, ...darkVars } : rootVars;
 

@@ -11,27 +11,31 @@ import { iconColors } from '@/renderer/theme/colors';
 import { Button, Input } from '@arco-design/web-react';
 import AionModal from '@/renderer/components/base/AionModal';
 import { Plus, Delete } from '@icon-park/react';
-import CodeMirror from '@uiw/react-codemirror';
-import { css as cssLang } from '@codemirror/lang-css';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CSSProperties } from 'react';
-import { injectBackgroundCssBlock } from './backgroundUtils';
+import { stripBackgroundCssBlock } from './backgroundUtils';
 
-/** CodeMirror 编辑器样式 / CodeMirror editor styles */
-const CODE_MIRROR_STYLE: CSSProperties = {
-  fontSize: '13px',
-  border: '1px solid var(--color-border-2)',
-  borderRadius: '6px',
-  overflow: 'hidden',
-} as const;
+// 使用 Monaco Editor 替代 CodeMirror，避免实例冲突
+// Use Monaco Editor instead of CodeMirror to avoid instance conflicts
+import Editor from '@monaco-editor/react';
 
-/** CodeMirror 基础配置 / CodeMirror basic setup */
-const CODE_MIRROR_BASIC_SETUP = {
-  lineNumbers: true,
-  foldGutter: true,
-  dropCursor: false,
-  allowMultipleSelections: false,
+/** Monaco Editor 配置 / Monaco Editor options */
+const MONACO_OPTIONS = {
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontSize: 13,
+  lineNumbers: 'on',
+  folding: true,
+  lineDecorationsWidth: 0,
+  lineNumbersMinChars: 3,
+  automaticLayout: true,
+  tabSize: 2,
+  wordWrap: 'on',
+  renderWhitespace: 'none',
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  overviewRulerBorder: false,
 } as const;
 
 interface CssThemeModalProps {
@@ -53,17 +57,13 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
   const [cover, setCover] = useState<string>('');
   const [css, setCss] = useState('');
 
-  const applyBackgroundImageToCss = useCallback((imageDataUrl: string) => {
-    if (!imageDataUrl) return;
-    setCss((prevCss) => injectBackgroundCssBlock(prevCss, imageDataUrl));
-  }, []);
-
   // 编辑模式时加载主题数据 / Load theme data in edit mode
   useEffect(() => {
     if (theme) {
       setName(theme.name);
       setCover(theme.cover || '');
-      setCss(theme.css);
+      // 编辑器中剥离背景图相关的冗长 CSS / Strip verbose background-related CSS in the editor
+      setCss(stripBackgroundCssBlock(theme.css || ''));
     } else {
       setName('');
       setCover('');
@@ -87,13 +87,14 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
         const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: filePath });
         if (base64) {
           setCover(base64);
-          applyBackgroundImageToCss(base64);
+          // 这里不再自动将背景图注入到 CSS 编辑器中，以避免大文件导致卡顿
+          // Stop injecting background CSS into the editor to avoid lag with large files
         }
       }
     } catch (error) {
       console.error('Failed to upload cover:', error);
     }
-  }, [applyBackgroundImageToCss]);
+  }, []);
 
   /**
    * 处理保存 / Handle save
@@ -144,7 +145,7 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
         {/* CSS 代码编辑器 / CSS code editor */}
         <div>
           <div className='text-13px text-t-secondary mb-8px'>{t('settings.cssTheme.cssCode')}</div>
-          <CodeMirror value={css} theme={colorTheme} extensions={[cssLang()]} onChange={setCss} placeholder={`/* ${t('settings.customCssDesc') || '在这里输入自定义 CSS 样式'} */`} basicSetup={CODE_MIRROR_BASIC_SETUP} style={{ ...CODE_MIRROR_STYLE, minHeight: '200px' }} className='[&_.cm-editor]:rounded-[6px]' height='200px' />
+          <Editor height='200px' defaultLanguage='css' value={css} onChange={(value) => setCss(value || '')} theme={colorTheme === 'dark' ? 'vs-dark' : 'light'} options={MONACO_OPTIONS} />
         </div>
 
         {/* 底部操作按钮 / Footer action buttons */}
