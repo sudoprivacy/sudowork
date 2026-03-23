@@ -88,10 +88,10 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
-  // Install CLI tools (Claude Code, Gemini) (progress: 60-90%)
+  // Install CLI tools (Claude Code) (progress: 60-90%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 60);
-    const { claudeCliService, geminiCliService } = await import('./services/claudeCli/CliInstallService');
+    const { claudeCliService } = await import('./services/claudeCli/CliInstallService');
 
     // Install Claude CLI if bundle exists
     if (claudeCliService.hasTgzResource()) {
@@ -99,16 +99,6 @@ async function installRuntimes(): Promise<void> {
       if (!status.installed) {
         console.log('[Process] Installing Claude CLI...');
         await claudeCliService.install();
-      }
-    }
-    initStatusManager.setStatus('installing', '组件安装中', 75);
-
-    // Install Gemini CLI if bundle exists
-    if (geminiCliService.hasTgzResource()) {
-      const status = await geminiCliService.checkInstalled();
-      if (!status.installed) {
-        console.log('[Process] Installing Gemini CLI...');
-        await geminiCliService.install();
       }
     }
 

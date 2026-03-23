@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Message, Typography, Modal, Table } from '@arco-design/web-react';
+import { Button, Message, Typography, Table } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, geminiCli as geminiCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 
 // ── types ────────────────────────────────────────────────────────────────────
@@ -32,7 +32,6 @@ interface ToolRow {
   installPercent?: number;
   onRefresh: () => Promise<void>;
   onInstall?: () => Promise<void>;
-  onInstallFromLocal?: () => Promise<void>;
 }
 
 // ── sub-components ───────────────────────────────────────────────────────────
@@ -51,10 +50,6 @@ const AboutModalContent: React.FC = () => {
   const [claudeStatus, setClaudeStatus] = useState<ICliStatus | null>(null);
   const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
   const [claudePhase, setClaudePhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
-
-  const [geminiStatus, setGeminiStatus] = useState<ICliStatus | null>(null);
-  const [geminiLoad, setGeminiLoad] = useState<LoadState>('idle');
-  const [geminiPhase, setGeminiPhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
@@ -83,34 +78,19 @@ const AboutModalContent: React.FC = () => {
     setClaudePhase(undefined);
     try {
       const res = await claudeCliIpc.install.invoke();
-      if (res?.success) await refreshClaude();
+      if (res?.success) {
+        Message.success('Claude Code 安装成功');
+        await refreshClaude();
+      } else {
+        Message.error(res?.msg || 'Claude Code 安装失败');
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : 'Claude Code 安装失败');
     } finally {
       setClaudeLoad('idle');
       setClaudePhase(undefined);
     }
   }, [refreshClaude]);
-
-  const refreshGemini = useCallback(async () => {
-    setGeminiLoad('loading');
-    try {
-      const res = await geminiCliIpc.checkInstalled.invoke();
-      if (res?.success && res.data) setGeminiStatus(res.data);
-    } finally {
-      setGeminiLoad('idle');
-    }
-  }, []);
-
-  const installGemini = useCallback(async () => {
-    setGeminiLoad('installing');
-    setGeminiPhase(undefined);
-    try {
-      const res = await geminiCliIpc.install.invoke();
-      if (res?.success) await refreshGemini();
-    } finally {
-      setGeminiLoad('idle');
-      setGeminiPhase(undefined);
-    }
-  }, [refreshGemini]);
 
   const refreshLibreOffice = useCallback(async () => {
     setLibreOfficeLoad('loading');
@@ -175,104 +155,9 @@ const AboutModalContent: React.FC = () => {
     }
   }, [refreshNexus]);
 
-  const installClaudeFromLocal = useCallback(async () => {
-    setClaudeLoad('installing');
-    setClaudePhase(undefined);
-    try {
-      // 调用主进程IPC来从预打包资源安装claude
-      const installRes = await claudeCliIpc.install.invoke();
-      if (installRes?.success) {
-        Message.success('Claude Code 安装成功');
-        await refreshClaude();
-      } else {
-        Message.error(installRes?.msg || 'Claude Code 安装失败');
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : 'Claude Code 安装失败');
-    } finally {
-      setClaudeLoad('idle');
-      setClaudePhase(undefined);
-    }
-  }, [refreshClaude]);
-
-  const installGeminiFromLocal = useCallback(async () => {
-    setGeminiLoad('installing');
-    setGeminiPhase(undefined);
-    try {
-      // 调用主进程IPC来从预打包资源安装gemini
-      const installRes = await geminiCliIpc.install.invoke();
-      if (installRes?.success) {
-        Message.success('Gemini CLI 安装成功');
-        await refreshGemini();
-      } else {
-        Message.error(installRes?.msg || 'Gemini CLI 安装失败');
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : 'Gemini CLI 安装失败');
-    } finally {
-      setGeminiLoad('idle');
-      setGeminiPhase(undefined);
-    }
-  }, [refreshGemini]);
-
-  const installNexusFromLocal = useCallback(async () => {
-    try {
-      // 使用现有的 dialog IPC 桥接打开文件选择对话框
-      const res = await import('@/common/ipcBridge').then((m) =>
-        m.dialog.showOpen.invoke({
-          filters: [{ name: 'Nexus Archive', extensions: ['tar.gz', 'tgz'] }],
-          properties: ['openFile'],
-        })
-      );
-
-      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-        const filePath = res.data.filePaths[0];
-
-        // 调用IPC方法从本地文件安装
-        const installRes = await nexusIpc.installFromLocalFile.invoke({ filePath });
-        if (installRes?.success) {
-          Message.success('Nexus 从本地文件安装成功');
-          await refreshNexus();
-        } else {
-          Message.error(installRes?.msg || 'Nexus 从本地文件安装失败');
-        }
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : 'Nexus 从本地文件安装失败');
-    }
-  }, [refreshNexus]);
-
-  const installLibreOfficeFromLocal = useCallback(async () => {
-    try {
-      // 使用现有的 dialog IPC 桥接打开文件选择对话框
-      const res = await import('@/common/ipcBridge').then((m) =>
-        m.dialog.showOpen.invoke({
-          filters: [{ name: 'LibreOffice Installer', extensions: process.platform === 'win32' ? ['msi'] : process.platform === 'darwin' ? ['dmg'] : ['tar.gz'] }],
-          properties: ['openFile'],
-        })
-      );
-
-      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-        const filePath = res.data.filePaths[0];
-
-        // 调用IPC方法从本地文件安装
-        const installRes = await libreOfficeIpc.installFromLocalFile.invoke({ filePath });
-        if (installRes?.success) {
-          Message.success('LibreOffice 从本地文件安装成功');
-          await refreshLibreOffice();
-        } else {
-          Message.error(installRes?.msg || 'LibreOffice 从本地文件安装失败');
-        }
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : 'LibreOffice 从本地文件安装失败');
-    }
-  }, [refreshLibreOffice]);
-
   // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
     void refreshClaude();
-    void refreshGemini();
     void refreshNexus();
     void refreshLibreOffice();
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
@@ -293,16 +178,9 @@ const AboutModalContent: React.FC = () => {
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
     });
-    const unsubGemini = geminiCliIpc.installResult.on(() => {
-      setGeminiPhase(undefined);
-      void refreshGemini();
-    });
-    const unsubGeminiProgress = geminiCliIpc.installProgress.on(({ phase }) => {
-      setGeminiPhase(phase);
-    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
-      if (percent != null) setNexusPercent(percent); // 直接更新，retry 时允许从 0% 重新开始
+      if (percent != null) setNexusPercent(percent);
     });
     const unsubNexusResult = nexusIpc.installResult.on(() => void refreshNexus());
     const unsubLoProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
@@ -313,14 +191,12 @@ const AboutModalContent: React.FC = () => {
     return () => {
       unsubClaude();
       unsubClaudeProgress();
-      unsubGemini();
-      unsubGeminiProgress();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshClaude, refreshGemini, refreshNexus]);
+  }, [refreshClaude, refreshNexus]);
 
   const columns = [
     {
@@ -400,12 +276,8 @@ const AboutModalContent: React.FC = () => {
 
         return (
           <div className='flex items-center justify-center gap-6px'>
-            {/* 对 claude、gemini 禁用在线安装按钮，只保留本地安装功能（从应用内预打包资源安装） */}
-            <Button type='text' size='mini' disabled={record.key === 'claude' || record.key === 'gemini' || isLoading} onClick={record.onInstall} style={{ fontSize: 11, color: record.key === 'claude' || record.key === 'gemini' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}>
-              在线安装
-            </Button>
-            <Button type='text' size='mini' disabled={isLoading} onClick={record.onInstallFromLocal} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-              本地安装
+            <Button type='text' size='mini' disabled={isLoading} onClick={record.onInstall} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
+              安装
             </Button>
             <Button type='text' size='mini' disabled={isLoading} onClick={record.onRefresh} style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
               刷新
@@ -413,7 +285,7 @@ const AboutModalContent: React.FC = () => {
           </div>
         );
       },
-      width: 180,
+      width: 120,
       align: 'center' as const,
     },
   ];
@@ -429,19 +301,6 @@ const AboutModalContent: React.FC = () => {
       installPhase: claudePhase,
       onRefresh: refreshClaude,
       onInstall: installClaude,
-      onInstallFromLocal: installClaudeFromLocal,
-    },
-    {
-      key: 'gemini',
-      displayName: 'Gemini CLI',
-      command: 'gemini',
-      badge: 'GC',
-      status: geminiStatus,
-      loadState: geminiLoad,
-      installPhase: geminiPhase,
-      onRefresh: refreshGemini,
-      onInstall: installGemini,
-      onInstallFromLocal: installGeminiFromLocal,
     },
     {
       key: 'libreoffice',
@@ -454,7 +313,6 @@ const AboutModalContent: React.FC = () => {
       installPercent: libreOfficePercent,
       onRefresh: refreshLibreOffice,
       onInstall: installLibreOffice,
-      onInstallFromLocal: installLibreOfficeFromLocal,
     },
     {
       key: 'nexus',
@@ -471,7 +329,6 @@ const AboutModalContent: React.FC = () => {
       installPercent: nexusPercent,
       onRefresh: refreshNexus,
       onInstall: installNexus,
-      onInstallFromLocal: installNexusFromLocal,
     },
   ];
 

@@ -15,7 +15,6 @@
 import { execFileSync } from 'child_process';
 import { app } from 'electron';
 import * as fs from 'fs';
-import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
@@ -37,53 +36,6 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
 const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
 const CONFIG_FILENAME = 'openclaw.json';
-
-/** OSS download URL for OpenClaw */
-const OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
-
-function getOpenclawOssUrl(): string {
-  const platform = process.platform === 'win32' ? 'windows' : 'macos';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  return `${OSS_BASE_URL}/openclaw-${platform}-${arch}.tgz`;
-}
-
-/** Download file from URL to destination path */
-function downloadFile(url: string, dest: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https
-      .get(url, (response) => {
-        if (response.statusCode === 301 || response.statusCode === 302) {
-          // Follow redirect
-          const redirectUrl = response.headers.location;
-          if (!redirectUrl) {
-            reject(new Error(`Redirect without location header from ${url}`));
-            return;
-          }
-          file.close();
-          fs.unlinkSync(dest);
-          downloadFile(redirectUrl, dest).then(resolve).catch(reject);
-          return;
-        }
-        if (response.statusCode !== 200) {
-          file.close();
-          fs.unlinkSync(dest);
-          reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
-          return;
-        }
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve();
-        });
-      })
-      .on('error', (err) => {
-        file.close();
-        fs.unlinkSync(dest);
-        reject(err);
-      });
-  });
-}
 
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
 function hasDistEntry(pkgRoot: string): boolean {
@@ -353,6 +305,20 @@ function migrateLegacySudoclaw(): void {
   }
 }
 
+/** Get the bundled OpenClaw resource path (from packaged app or development) */
+function getBundledOpenclawPath(): string | null {
+  if (app.isPackaged) {
+    const packagedPath = path.join(process.resourcesPath, 'openclaw.tgz');
+    if (fs.existsSync(packagedPath)) return packagedPath;
+  }
+
+  // Development mode
+  const devPath = path.join(app.getAppPath(), 'resources', 'openclaw.tgz');
+  if (fs.existsSync(devPath)) return devPath;
+
+  return null;
+}
+
 /**
  * Ensure OpenClaw is installed in ~/.nexus/.sudoclaw.
  * Called on app startup — runs silently, no user prompt.
@@ -400,27 +366,20 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
 
-    // Download from OSS
-    const ossUrl = getOpenclawOssUrl();
-    const tmpTgzPath = path.join(os.tmpdir(), `openclaw-${Date.now()}.tgz`);
-
-    console.log(`[Sudoclaw] Downloading OpenClaw from ${ossUrl}...`);
-    try {
-      await downloadFile(ossUrl, tmpTgzPath);
-    } catch (err) {
-      console.error('[Sudoclaw] Download failed:', err);
+    // Use bundled resource only (no OSS fallback)
+    const bundledPath = getBundledOpenclawPath();
+    if (!bundledPath) {
+      console.error('[Sudoclaw] Bundled OpenClaw resource not found');
       return { installed: false, cliPath: null };
     }
 
+    console.log(`[Sudoclaw] Using bundled OpenClaw from ${bundledPath}...`);
+
     try {
-      await tar.x({ file: tmpTgzPath, cwd: SUDOCLAW_CLI_DIR });
-    } finally {
-      // Clean up downloaded temp file
-      try {
-        fs.unlinkSync(tmpTgzPath);
-      } catch {
-        // ignore cleanup errors
-      }
+      await tar.x({ file: bundledPath, cwd: SUDOCLAW_CLI_DIR });
+    } catch (err) {
+      console.error('[Sudoclaw] Failed to extract:', err);
+      return { installed: false, cliPath: null };
     }
 
     const pkgRoot = resolvePackageRoot();
@@ -432,12 +391,14 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       }
     }
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
-      throw new Error('Downloaded package missing dist/');
+      console.error('[Sudoclaw] Downloaded package missing dist/');
+      return { installed: false, cliPath: null };
     }
 
     const resolvedEntry = resolveEntryFile();
     if (!resolvedEntry) {
-      throw new Error('Cannot determine OpenClaw CLI entry file');
+      console.error('[Sudoclaw] Cannot determine OpenClaw CLI entry file');
+      return { installed: false, cliPath: null };
     }
 
     const launcherPath = writeLauncher(pkgRoot);

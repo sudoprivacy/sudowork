@@ -2,7 +2,6 @@ import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { ipcBridge } from '@/common';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
-import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
@@ -13,56 +12,6 @@ import { getNodeBinaryPath } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
-
-/**
- * OSS download URLs for CLI bundles
- * Format: sudoclaw/{cli-name}-{os}-{arch}.tgz
- */
-const OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
-
-function getOssDownloadUrl(cliName: string): string {
-  const platform = process.platform === 'win32' ? 'windows' : 'macos';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  return `${OSS_BASE_URL}/${cliName}-${platform}-${arch}.tgz`;
-}
-
-/** Download file from URL to destination path */
-function downloadFile(url: string, dest: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https
-      .get(url, (response) => {
-        if (response.statusCode === 301 || response.statusCode === 302) {
-          // Follow redirect
-          const redirectUrl = response.headers.location;
-          if (!redirectUrl) {
-            reject(new Error(`Redirect without location header from ${url}`));
-            return;
-          }
-          file.close();
-          fs.unlinkSync(dest);
-          downloadFile(redirectUrl, dest).then(resolve).catch(reject);
-          return;
-        }
-        if (response.statusCode !== 200) {
-          file.close();
-          fs.unlinkSync(dest);
-          reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
-          return;
-        }
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve();
-        });
-      })
-      .on('error', (err) => {
-        file.close();
-        fs.unlinkSync(dest);
-        reject(err);
-      });
-  });
-}
 
 export interface CliStatus {
   installed: boolean;
@@ -122,6 +71,21 @@ export class CliInstallService {
     return path.join(getManagedRoot(), this.cfg.name);
   }
 
+  /** Get the bundled CLI resource path (from packaged app or development) */
+  private getBundledResourcePath(): string | null {
+    const resourceName = `${this.cfg.ossName}.tgz`;
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, resourceName);
+      if (fs.existsSync(packagedPath)) return packagedPath;
+    }
+
+    // Development mode
+    const devPath = path.join(app.getAppPath(), 'resources', resourceName);
+    if (fs.existsSync(devPath)) return devPath;
+
+    return null;
+  }
+
   async checkInstalled(): Promise<CliStatus> {
     const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
     const managedBin = path.join(getBinDir(), binName);
@@ -177,19 +141,13 @@ export class CliInstallService {
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
 
-    // Download from OSS to temp file
-    const ossUrl = getOssDownloadUrl(this.cfg.ossName);
-    const tmpTgzPath = path.join(os.tmpdir(), `${this.cfg.ossName}-${Date.now()}.tgz`);
-
-    // Report progress: downloading
-    this.cfg.onProgress?.('downloading', 0);
-
-    console.log(`[CLI] Downloading ${this.cfg.label} from ${ossUrl}...`);
-    try {
-      await downloadFile(ossUrl, tmpTgzPath);
-    } catch (err) {
-      throw new Error(`Failed to download ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
+    // Use bundled resource only (no OSS fallback)
+    const bundledPath = this.getBundledResourcePath();
+    if (!bundledPath) {
+      throw new Error(`${this.cfg.label} bundled resource not found. Please reinstall the application.`);
     }
+
+    console.log(`[CLI] Using bundled ${this.cfg.label} from ${bundledPath}...`);
 
     // Report progress: extracting
     this.cfg.onProgress?.('extracting', 0);
@@ -197,16 +155,11 @@ export class CliInstallService {
     try {
       // Use node-tar for cross-platform reliability (no dependency on system 'tar')
       await tar.x({
-        file: tmpTgzPath,
+        file: bundledPath,
         cwd: this.installDir,
       });
-    } finally {
-      // Clean up downloaded temp file
-      try {
-        fs.unlinkSync(tmpTgzPath);
-      } catch {
-        // ignore cleanup errors
-      }
+    } catch (err) {
+      throw new Error(`Failed to extract ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Report progress: configuring
@@ -250,9 +203,9 @@ export class CliInstallService {
     return this.cfg.name;
   }
 
-  /** Returns true - CLI bundles are always available from OSS */
+  /** Returns true if bundled resource exists or OSS is available */
   hasTgzResource(): boolean {
-    return true;
+    return this.getBundledResourcePath() !== null;
   }
 
   // ── private helpers ──────────────────────────────────────────────────────
@@ -433,18 +386,6 @@ export const claudeCliService = new CliInstallService({
   },
 });
 
-export const geminiCliService = new CliInstallService({
-  name: 'gemini',
-  npmPackage: '@google/gemini-cli',
-  ossName: 'gemini-cli',
-  declinedKey: 'geminiCli.installDeclined',
-  label: 'Gemini CLI',
-  useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
-  onProgress: (phase, percent) => {
-    ipcBridge.geminiCli.installProgress.emit({ phase, percent });
-  },
-});
-
 /**
  * Called once after the main window is ready.
  * For each CLI tool not yet installed and not previously declined,
@@ -453,7 +394,8 @@ export const geminiCliService = new CliInstallService({
  */
 export async function promptCliInstallsIfNeeded(): Promise<void> {
   // OpenClaw is auto-installed via Sudoclaw (~/.nexus/.sudoclaw), no prompt needed
-  const tools = [claudeCliService, geminiCliService];
+  // Gemini CLI is not installed via prompt (user installs manually if needed)
+  const tools = [claudeCliService];
   const toPrompt: CliInstallService[] = [];
 
   for (const svc of tools) {
@@ -488,8 +430,6 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         silent: true,
       }).show();
 
-      const emitter = svc.commandName === 'claude' ? ipcBridge.claudeCli.installResult : ipcBridge.geminiCli.installResult;
-
       try {
         await svc.install();
         console.log(`[CLI] ${svc.label} installed successfully`);
@@ -497,7 +437,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
           title: `${svc.label} 安装成功`,
           body: `重新开一个终端，执行 ${svc.commandName} 即可使用`,
         }).show();
-        emitter.emit({ success: true });
+        ipcBridge.claudeCli.installResult.emit({ success: true });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[CLI] Failed to install ${svc.label}:`, err);
@@ -505,7 +445,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
           title: `${svc.label} 安装失败`,
           body: msg,
         }).show();
-        emitter.emit({ success: false, msg });
+        ipcBridge.claudeCli.installResult.emit({ success: false, msg });
       }
     }
   } else {

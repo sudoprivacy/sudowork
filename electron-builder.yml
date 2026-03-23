@@ -119,6 +119,11 @@ extraResources:
     to: .
   - from: THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
+  # CLI tools (bundled at build time via scripts/download-*.js)
+  - from: resources/claude-code.tgz
+    to: claude-code.tgz
+  - from: resources/openclaw.tgz
+    to: openclaw.tgz
 
 win:
   target:
