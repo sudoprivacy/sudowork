@@ -44,7 +44,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 处理功能菜单点击
   const handleFunctionMenuClick = (menuId: string) => {
-    console.log('[Sider] Menu clicked:', menuId);
     // 如果当前不在 /guid 路由，先导航到 /guid，然后延迟发送事件
     if (!pathname.startsWith('/guid')) {
       Promise.resolve(navigate('/guid'))

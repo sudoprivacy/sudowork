@@ -25,18 +25,21 @@ export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
 
-  // Start async installation of runtime dependencies (non-blocking)
-  void installRuntimes();
-
+  // 1. Initialize storage first (required for bridges)
   await initStorage();
 
-  // Initialize bridge after storage is ready (dynamic import for correct order)
+  // 2. Initialize bridge as soon as storage is ready
+  // This ensures the renderer can communicate with the backend even while runtimes are installing
   try {
     await import('./initBridge');
     console.log('[Process] Bridge initialized successfully');
   } catch (error) {
     console.error('[Process] Bridge initialization failed:', error);
   }
+
+  // 3. Start async installation of runtime dependencies (non-blocking)
+  // Now that bridges are ready, the renderer will receive status updates
+  void installRuntimes();
 
   // Initialize Extension Registry (scan and resolve all extensions)
   try {

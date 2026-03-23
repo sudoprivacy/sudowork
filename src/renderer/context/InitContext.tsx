@@ -16,20 +16,47 @@ interface InitContextValue {
 const InitContext = createContext<InitContextValue | undefined>(undefined);
 
 export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [status, setStatus] = useState<InitStatus>({ phase: 'pending', message: '准备初始化...', progress: 0 });
+  // Check if running in Electron environment
+  // In Electron, navigator.userAgent typically contains "Electron"
+  const isElectron = typeof window !== 'undefined' && (!!(window as any).electronAPI || /Electron/i.test(navigator.userAgent));
+
+  const [status, setStatus] = useState<InitStatus>(isElectron ? { phase: 'pending', message: '准备初始化...', progress: 0 } : { phase: 'ready', message: '初始化完成', progress: 100 });
 
   const refetch = useCallback(async () => {
-    try {
-      const result = await init.getStatus.invoke();
-      if (result.success) {
-        setStatus(result.data);
+    let retries = 0;
+    const maxRetries = 10;
+    const baseDelay = 500;
+
+    const attempt = async () => {
+      try {
+        const result = await init.getStatus.invoke();
+        if (result.success) {
+          setStatus(result.data);
+          return true;
+        }
+      } catch (err) {
+        if (retries < maxRetries) {
+          const delay = baseDelay * Math.pow(1.2, retries);
+          retries++;
+          // console.warn(`[InitContext] Bridge not ready, retrying in ${Math.round(delay)}ms... (${retries}/${maxRetries})`);
+          setTimeout(() => {
+            void attempt();
+          }, delay);
+          return false;
+        }
+        console.error('[InitContext] Failed to fetch status after retries:', err);
       }
-    } catch (err) {
-      console.error('[InitContext] Failed to fetch status:', err);
-    }
-  }, []);
+      return false;
+    };
+
+    void attempt();
+  }, [isElectron]);
 
   useEffect(() => {
+    // For Web environment, we don't need to poll or subscribe to backend init status
+    // because the backend is already running on the server.
+    if (!isElectron) return;
+
     // Fetch initial status
     void refetch();
 
@@ -39,7 +66,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     });
 
     return unsubscribe;
-  }, [refetch]);
+  }, [refetch, isElectron]);
 
   const isReady = status.phase === 'ready';
 

@@ -12,8 +12,11 @@
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
 
-import { execFileSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { app } from 'electron';
+
+const execFileAsync = promisify(execFile);
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -77,7 +80,7 @@ function getDaveyBindingName(): string {
  * Uses bundled Node only — never invokes local/system Node.
  * @returns true if npm install succeeded, false if it failed or couldn't run
  */
-function runNpmInstallForOptionalDeps(pkgRoot: string): boolean {
+async function runNpmInstallForOptionalDeps(pkgRoot: string): Promise<boolean> {
   const nodePath = getNodeBinaryPath();
   if (!fs.existsSync(nodePath)) {
     console.warn('[Sudoclaw] Bundled Node.js not found, skipping npm install');
@@ -93,7 +96,7 @@ function runNpmInstallForOptionalDeps(pkgRoot: string): boolean {
   try {
     console.log('[Sudoclaw] Running npm install to fix optional dependencies (@snazzah/davey)...');
     // Use 'inherit' to show output for debugging; npm install must succeed for correct bindings
-    execFileSync(nodePath, [npmCliJs, 'install', '--legacy-peer-deps'], { cwd: pkgRoot, stdio: 'inherit' });
+    await execFileAsync(nodePath, [npmCliJs, 'install', '--legacy-peer-deps'], { cwd: pkgRoot });
     console.log('[Sudoclaw] npm install completed');
     return true;
   } catch (err) {
@@ -340,7 +343,7 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
     // Repair optional deps (e.g. @snazzah/davey) — pre-built tgz may have wrong arch binding
     // This runs npm install which is fast if dependencies are already correct
-    const npmInstallSuccess = runNpmInstallForOptionalDeps(pkgRoot);
+    const npmInstallSuccess = await runNpmInstallForOptionalDeps(pkgRoot);
     if (npmInstallSuccess) {
       writeLauncher(pkgRoot); // Re-write launcher to ensure it's up-to-date
       if (process.platform === 'win32') {
@@ -384,7 +387,7 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
 
     const pkgRoot = resolvePackageRoot();
     if (pkgRoot) {
-      const npmSuccess = runNpmInstallForOptionalDeps(pkgRoot);
+      const npmSuccess = await runNpmInstallForOptionalDeps(pkgRoot);
       if (!npmSuccess) {
         console.error('[Sudoclaw] Initial npm install failed, installation incomplete');
         return { installed: false, cliPath: null };

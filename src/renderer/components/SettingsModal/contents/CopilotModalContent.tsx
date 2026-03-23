@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User, Config } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -81,9 +81,9 @@ const StatusCard: React.FC<{
             {value}
           </div>
           {description && (
-            <div className='text-12px text-t-tertiary mt-4px truncate' title={description}>
-              {description}
-            </div>
+            <Tooltip content={description}>
+              <div className='text-12px text-t-tertiary mt-4px truncate'>{description}</div>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -551,7 +551,9 @@ const CopilotModalContent: React.FC = () => {
           <div className='flex items-center justify-between'>
             <div className='flex-1'>
               <div className='text-14px text-t-primary font-500'>Sudoclaw 配置文件</div>
-              <div className='text-12px text-t-tertiary mt-2px'>直接编辑 ~/.nexus/.sudoclaw/openclaw.json</div>
+              <Tooltip content='~/.nexus/.sudoclaw/openclaw.json'>
+                <div className='text-12px text-t-tertiary mt-2px'>直接编辑配置文件</div>
+              </Tooltip>
             </div>
             <Space>
               <Button icon={<Edit />} onClick={openConfigEditor} loading={configLoading}>
@@ -568,9 +570,11 @@ const CopilotModalContent: React.FC = () => {
       {editConfigVisible && (
         <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
           <div className='flex flex-col gap-8px'>
-            <Text type='secondary' className='text-12px'>
-              路径：{configPath}
-            </Text>
+            <Tooltip content={configPath}>
+              <Text type='secondary' className='text-12px'>
+                路径：{configPath}
+              </Text>
+            </Tooltip>
             <Input.TextArea value={configContent} onChange={(value) => setConfigContent(value)} style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }} />
           </div>
         </Modal>
