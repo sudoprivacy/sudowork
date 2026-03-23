@@ -334,8 +334,29 @@ const SkillModalContent: React.FC = () => {
           } else {
             setSkills(newSkills);
           }
-          setNextCursor(skillsRes.data.next_cursor || null);
-          setHasMore(skillsRes.data.has_more || false);
+          // Log full response to debug pagination
+          console.log('[SkillHub] Full response data:', skillsRes.data);
+          console.log('[SkillHub] next_cursor field:', skillsRes.data.next_cursor);
+          console.log('[SkillHub] has_more field:', skillsRes.data.has_more);
+          // Handle both snake_case and camelCase field names from API
+          const rawData = skillsRes.data as unknown as Record<string, unknown>;
+          console.log('[SkillHub] rawData.nextCursor:', rawData.nextCursor);
+          console.log('[SkillHub] rawData.hasMore:', rawData.hasMore);
+
+          // Get next_cursor - handle empty string, null, undefined
+          let nextCursorValue: string | null = null;
+          if (typeof skillsRes.data.next_cursor === 'string' && skillsRes.data.next_cursor.length > 0) {
+            nextCursorValue = skillsRes.data.next_cursor;
+          } else if (typeof rawData.nextCursor === 'string' && (rawData.nextCursor as string).length > 0) {
+            nextCursorValue = rawData.nextCursor as string;
+          }
+          console.log('[SkillHub] Final nextCursor value:', nextCursorValue);
+
+          const hasMoreValue = skillsRes.data.has_more === true || rawData.hasMore === true;
+          console.log('[SkillHub] Final hasMore value:', hasMoreValue);
+
+          setNextCursor(nextCursorValue);
+          setHasMore(hasMoreValue);
           // Fetch latest versions for new skills
           void fetchLatestVersions(newSkills, append ? latestVersions : undefined);
         }
@@ -352,12 +373,15 @@ const SkillModalContent: React.FC = () => {
 
   // Load more skills
   const loadMore = useCallback(() => {
+    console.log('[SkillHub] loadMore triggered:', { loadingMore, hasMore, nextCursor });
     if (!loadingMore && hasMore && nextCursor) {
       void fetchSkills(nextCursor, true);
+    } else if (!loadingMore && hasMore && !nextCursor) {
+      console.warn('[SkillHub] hasMore is true but nextCursor is missing - cannot load more');
     }
   }, [loadingMore, hasMore, nextCursor, fetchSkills]);
 
-  // Handle scroll for infinite scroll
+  // Handle scroll for infinite scroll (works for both scroll area and page mode)
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const target = e.currentTarget;
@@ -369,6 +393,34 @@ const SkillModalContent: React.FC = () => {
     },
     [loadMore]
   );
+
+  // In page mode, we need to find the scrollable parent and listen to its scroll
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isPageMode && containerRef.current) {
+      // Find the scrollable parent (could be settings-page-wrapper or functionMenuContainer)
+      let scrollParent: HTMLElement | null = containerRef.current;
+      while (scrollParent) {
+        const style = window.getComputedStyle(scrollParent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          break;
+        }
+        scrollParent = scrollParent.parentElement;
+      }
+
+      if (scrollParent) {
+        const onScroll = () => {
+          const { scrollTop, scrollHeight, clientHeight } = scrollParent!;
+          if (scrollHeight - scrollTop - clientHeight < 100) {
+            loadMore();
+          }
+        };
+        scrollParent.addEventListener('scroll', onScroll);
+        return () => scrollParent.removeEventListener('scroll', onScroll);
+      }
+    }
+  }, [isPageMode, loadMore]);
 
   // Initial load and when filters change
   useEffect(() => {
@@ -457,7 +509,7 @@ const SkillModalContent: React.FC = () => {
   }, [categories, t]);
 
   return (
-    <div className='flex flex-col h-full w-full'>
+    <div ref={containerRef} className='flex flex-col h-full w-full'>
       {/* Header */}
       <div className='text-center mb-16px'>
         <h2 className='text-20px font-bold text-t-primary'>Skill Hub</h2>
