@@ -278,12 +278,13 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   }
 
   stop() {
-    // Only stop the gateway when no other Sudoclaw sessions exist — all sessions share one gateway
-    const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
-    const shouldStopGateway = others.length === 0;
-    return this.agent?.stop?.({ shouldStopGateway }) ?? Promise.resolve();
+    // Standard stop (e.g. from UI stop button) should interrupt without killing connection
+    return this.agent?.interrupt() ?? Promise.resolve();
   }
 
+  /**
+   * Full cleanup (e.g. on conversation delete or app quit)
+   */
   /** Restart gateway to pick up config changes (~/.sudoclaw/openclaw.json) */
   async restartGateway(): Promise<void> {
     if (!this.agent) return;

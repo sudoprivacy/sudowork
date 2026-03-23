@@ -173,7 +173,7 @@ export class OpenClawAgent {
   }
 
   /**
-   * Stop the agent
+   * Stop the agent (full disconnect)
    * @param options.shouldStopGateway - If false, keep gateway running (other sessions may use it)
    */
   async stop(options?: { shouldStopGateway?: boolean }): Promise<void> {
@@ -204,6 +204,19 @@ export class OpenClawAgent {
       msg_id: uuid(),
       data: null,
     });
+  }
+
+  /**
+   * Interrupt current chat without disconnecting
+   */
+  async interrupt(): Promise<void> {
+    if (this.connection?.isConnected && this.connection?.sessionKey) {
+      try {
+        await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
+      } catch (err) {
+        console.warn('[OpenClawAgent] chatAbort failed:', err);
+      }
+    }
   }
 
   /**
