@@ -10,7 +10,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 
 // ── types ────────────────────────────────────────────────────────────────────
@@ -62,6 +62,10 @@ const AboutModalContent: React.FC = () => {
   const [libreOfficeLoad, setLibreOfficeLoad] = useState<LoadState>('idle');
   const [libreOfficePhase, setLibreOfficePhase] = useState<ILibreOfficeInstallPhase | undefined>(undefined);
   const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
+
+  const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
+  const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
+  const [sudoclawPhase, setSudoclawPhase] = useState<'extracting' | 'installing' | 'configuring' | undefined>(undefined);
 
   const refreshClaude = useCallback(async () => {
     setClaudeLoad('loading');
@@ -121,6 +125,34 @@ const AboutModalContent: React.FC = () => {
     }
   }, [refreshLibreOffice]);
 
+  const refreshSudoclaw = useCallback(async () => {
+    const res = await sudoclawIpc.getStatus.invoke();
+    if (res?.success && res.data) {
+      setSudoclawInstalled(res.data.installed);
+    } else {
+      setSudoclawInstalled(false);
+    }
+  }, []);
+
+  const installSudoclaw = useCallback(async () => {
+    setSudoclawLoad('installing');
+    setSudoclawPhase(undefined);
+    try {
+      const res = await sudoclawIpc.install.invoke();
+      if (res?.success) {
+        await refreshSudoclaw();
+        Message.success('Sudoclaw 安装成功');
+      } else {
+        Message.error(res?.msg || 'Sudoclaw 安装失败');
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : 'Sudoclaw 安装失败');
+    } finally {
+      setSudoclawLoad('idle');
+      setSudoclawPhase(undefined);
+    }
+  }, [refreshSudoclaw]);
+
   const refreshNexus = useCallback(async () => {
     const res = await nexusIpc.getStatus.invoke();
     if (res?.success && res.data) {
@@ -158,6 +190,7 @@ const AboutModalContent: React.FC = () => {
   // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
     void refreshClaude();
+    void refreshSudoclaw();
     void refreshNexus();
     void refreshLibreOffice();
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
@@ -178,6 +211,13 @@ const AboutModalContent: React.FC = () => {
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
     });
+    const unsubSudoclawProgress = sudoclawIpc.installProgress.on(({ phase }) => {
+      setSudoclawPhase(phase);
+    });
+    const unsubSudoclawResult = sudoclawIpc.installResult.on(() => {
+      setSudoclawPhase(undefined);
+      void refreshSudoclaw();
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent);
@@ -190,6 +230,10 @@ const AboutModalContent: React.FC = () => {
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
     return () => {
       unsubClaude();
+      unsubClaudeProgress();
+      unsubSudoclawProgress();
+      unsubSudoclawResult();
+      unsubNexusProgress();
       unsubClaudeProgress();
       unsubNexusProgress();
       unsubNexusResult();
@@ -251,7 +295,16 @@ const AboutModalContent: React.FC = () => {
 
         const version = record.key === 'nexus' ? `v${record.appVersion}` : record.status?.version;
 
-        const badgeColor = record.key === 'nexus' ? 'bg-orange-1 color-orange-6' : record.key === 'claude' ? 'bg-orange-1 color-orange-6' : record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : 'bg-blue-1 color-blue-6';
+        const badgeColor =
+          record.key === 'nexus'
+            ? 'bg-orange-1 color-orange-6'
+            : record.key === 'claude'
+              ? 'bg-orange-1 color-orange-6'
+              : record.key === 'libreoffice'
+                ? 'bg-green-1 color-green-6'
+                : record.key === 'sudoclaw'
+                  ? 'bg-purple-1 color-purple-6'
+                  : 'bg-blue-1 color-blue-6';
 
         return (
           <div className='flex items-center gap-12px'>
@@ -313,6 +366,17 @@ const AboutModalContent: React.FC = () => {
       installPercent: libreOfficePercent,
       onRefresh: refreshLibreOffice,
       onInstall: installLibreOffice,
+    },
+    {
+      key: 'sudoclaw',
+      displayName: 'Sudoclaw (OpenClaw)',
+      command: 'openclaw',
+      badge: 'OC',
+      status: sudoclawInstalled ? { installed: true, source: 'managed', version: packageJson.version } : null,
+      loadState: sudoclawLoad,
+      installPhase: sudoclawPhase,
+      onRefresh: refreshSudoclaw,
+      onInstall: installSudoclaw,
     },
     {
       key: 'nexus',

@@ -8,7 +8,7 @@ import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
-import { getNodeBinaryPath } from './NodeRuntimeService';
+import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -135,6 +135,15 @@ export class CliInstallService {
   }
 
   async install(): Promise<void> {
+    // Ensure Node.js is installed first (required for CLI wrappers)
+    if (this.cfg.useBundledNode) {
+      console.log(`[CLI] Ensuring Node.js is installed for ${this.cfg.label}...`);
+      const nodeInstalled = await ensureNodeInstalled();
+      if (!nodeInstalled) {
+        throw new Error('Failed to install Node.js runtime. Please restart the application.');
+      }
+    }
+
     fs.mkdirSync(this.installDir, { recursive: true });
     fs.mkdirSync(getBinDir(), { recursive: true });
 

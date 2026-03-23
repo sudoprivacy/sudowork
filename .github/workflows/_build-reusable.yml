@@ -132,21 +132,27 @@ jobs:
       - name: Run postinstall
         run: bun run postinstall || true
 
-      - name: Download Node.js runtime for bundled CLI execution
+      - name: Download CLI resources (Node.js, Nexus, Claude Code, OpenClaw)
         shell: bash
         run: |
-          # Map CI platform to download-node.js platform format
+          # Map CI platform to script platform format
           case "${{ matrix.platform }}" in
-            macos-arm64) NODE_PLATFORM="darwin-arm64" ;;
-            macos-x64)   NODE_PLATFORM="darwin-x64" ;;
-            windows-x64) NODE_PLATFORM="win32-x64" ;;
-            windows-arm64) NODE_PLATFORM="win32-arm64" ;;
-            linux-x64)   NODE_PLATFORM="linux-x64" ;;
-            linux-arm64) NODE_PLATFORM="linux-arm64" ;;
-            *)           NODE_PLATFORM="${{ matrix.platform }}" ;;
+            macos-arm64) PLATFORM="darwin-arm64" ;;
+            macos-x64)   PLATFORM="darwin-x64" ;;
+            windows-x64) PLATFORM="win32-x64" ;;
+            windows-arm64) PLATFORM="win32-arm64" ;;
+            linux-x64)   PLATFORM="linux-x64" ;;
+            linux-arm64) PLATFORM="linux-arm64" ;;
+            *)           PLATFORM="${{ matrix.platform }}" ;;
           esac
-          echo "Downloading Node.js for platform: $NODE_PLATFORM"
-          node scripts/download-node.js "$NODE_PLATFORM"
+          echo "Downloading resources for target platform: $PLATFORM"
+          node scripts/download-node.js "$PLATFORM"
+          node scripts/download-nexus.js "$PLATFORM"
+          node scripts/download-claude-code.js
+          node scripts/download-openclaw.js
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_platform: ${{ matrix.platform == 'windows-x64' && 'win32' || matrix.platform == 'windows-arm64' && 'win32' || 'darwin' }}
 
       - name: Setup Windows native dependencies (for Windows only)
         if: startsWith(matrix.platform, 'windows')

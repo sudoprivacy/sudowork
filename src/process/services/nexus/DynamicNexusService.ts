@@ -8,14 +8,6 @@ import * as net from 'net';
 
 const execAsync = promisify(exec);
 
-// URL map for different platforms
-const NEXUS_DOWNLOAD_URLS = {
-  'darwin-arm64': 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/nexus-macos-arm64.tar.gz',
-  'darwin-x64': 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/nexus-macos-x86_64.tar.gz',
-  'linux-x64': '', // Placeholder - needs real URL
-  'win32-x64': 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/nexus-windows-x86_64.tar.gz',
-};
-
 // Marker filename written inside the extracted env to record the app version it was unpacked for.
 const CONDA_READY_MARKER = '.nexus-conda-ready';
 
@@ -83,7 +75,35 @@ class DynamicNexusService {
   }
 
   /**
-   * Downloads and installs nexus for the current platform
+   * Get the bundled Nexus resource path.
+   * Returns null if not found.
+   */
+  private getBundledNexusPath(): string | null {
+    // Packaged app: check resourcesPath
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, 'nexus.tar.gz');
+      if (fs.existsSync(packagedPath)) {
+        const stats = fs.statSync(packagedPath);
+        if (stats.size >= 1024 * 1024) {
+          return packagedPath;
+        }
+      }
+    }
+
+    // Development mode: check resources directory
+    const devPath = path.join(app.getAppPath(), 'resources', 'nexus.tar.gz');
+    if (fs.existsSync(devPath)) {
+      const stats = fs.statSync(devPath);
+      if (stats.size >= 1024 * 1024) {
+        return devPath;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Installs nexus for the current platform from bundled resources.
    */
   async install(): Promise<void> {
     if (this._running) {
@@ -91,99 +111,67 @@ class DynamicNexusService {
     }
 
     const platformKey = `${os.platform()}-${os.arch()}`;
-    const downloadUrl = NEXUS_DOWNLOAD_URLS[platformKey as keyof typeof NEXUS_DOWNLOAD_URLS];
+    const envDir = this.getCondaEnvDir();
 
-    if (!downloadUrl) {
-      throw new Error(`Nexus is not available for platform ${platformKey}`);
+    // Use bundled resource only (no OSS fallback)
+    const bundledPath = this.getBundledNexusPath();
+    if (!bundledPath) {
+      throw new Error(`Nexus bundled resource not found for platform ${platformKey}. Please rebuild the app with nexus resources.`);
     }
 
-    const envDir = this.getCondaEnvDir();
-    let tempTarGzPath = path.join(os.tmpdir(), `nexus-${Date.now()}.tar.gz`);
-    // 声明在 try 外，finally 块也能访问
-    let useLocalResource = false;
-    let resourcePath = '';
+    console.log(`[DynamicNexus] Using bundled Nexus from ${bundledPath}...`);
 
     try {
-      // 尝试几种可能的本地资源路径
-      const possibleResourcePaths = [
-        path.join(process.resourcesPath || path.join(__dirname, '../../../..'), 'resources', 'nexus.tar.gz'),
-        path.join(__dirname, '../../../../resources', 'nexus.tar.gz'), // Development path
-        path.join(process.cwd(), 'resources', 'nexus.tar.gz'), // Fallback path
-      ];
-
-      for (const possiblePath of possibleResourcePaths) {
-        if (fs.existsSync(possiblePath)) {
-          const stats = fs.statSync(possiblePath);
-          // 检查是否是真实文件而非占位符（大于1MB）
-          if (stats.size >= 1024 * 1024) {
-            resourcePath = possiblePath;
-            useLocalResource = true;
-            break;
-          }
-        }
-      }
-
-      if (useLocalResource && resourcePath) {
-        // 在开发环境或有本地资源的情况下，使用本地资源文件
-        this.emitSetup('extracting', 'Using local Nexus resource file...');
-        tempTarGzPath = resourcePath;
-      } else {
-        // 如果没有本地资源文件，则从远端下载
-        this.emitSetup('downloading', `Downloading Nexus for ${platformKey}...`, 0);
-
-        // Download the tar.gz file with progress reporting
-        await this.downloadFileWithRetry(downloadUrl, tempTarGzPath, 3, (percent) => {
-          this.emitSetup('downloading', `Downloading Nexus for ${platformKey}... ${percent}%`, percent);
-        });
-      }
-
       // Remove old environment if exists
       if (fs.existsSync(envDir)) {
         fs.rmSync(envDir, { recursive: true, force: true });
       }
 
-      // Extract - if tempTarGzPath is the resource path, we need to copy it to temp first
-      if (useLocalResource && tempTarGzPath === resourcePath) {
-        // Create a temp copy to avoid potential permission issues with the original resource
-        const tempCopyPath = path.join(os.tmpdir(), `nexus-resource-${Date.now()}.tar.gz`);
-        fs.copyFileSync(tempTarGzPath, tempCopyPath);
-        tempTarGzPath = tempCopyPath;
-      }
+      // Copy to temp to avoid permission issues with original resource
+      const tempTarGzPath = path.join(os.tmpdir(), `nexus-${Date.now()}.tar.gz`);
+      fs.copyFileSync(bundledPath, tempTarGzPath);
 
-      // Extract
-      fs.mkdirSync(envDir, { recursive: true });
-      this.emitSetup('extracting', 'Extracting Nexus environment...');
-      await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
+      try {
+        // Extract
+        fs.mkdirSync(envDir, { recursive: true });
+        this.emitSetup('extracting', 'Extracting Nexus environment...');
+        await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
 
-      // Run conda-unpack to fix hardcoded paths
-      const condaUnpack = path.join(envDir, 'bin', 'conda-unpack');
-      fs.chmodSync(condaUnpack, 0o755);
-      this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
-      await execAsync(`"${condaUnpack}"`);
+        // Run conda-unpack to fix hardcoded paths
+        const condaUnpack = path.join(envDir, 'bin', 'conda-unpack');
+        if (fs.existsSync(condaUnpack)) {
+          fs.chmodSync(condaUnpack, 0o755);
+          this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
+          await execAsync(`"${condaUnpack}"`);
+        }
 
-      // Ensure nexusd is executable
-      const nexusdBin = path.join(envDir, 'bin', 'nexusd');
-      if (!fs.existsSync(nexusdBin)) {
-        throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
-      }
-      fs.chmodSync(nexusdBin, 0o755);
+        // Ensure nexusd is executable
+        const nexusdBin = path.join(envDir, 'bin', 'nexusd');
+        if (!fs.existsSync(nexusdBin)) {
+          throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
+        }
+        fs.chmodSync(nexusdBin, 0o755);
 
-      // Write version marker
-      const markerFile = path.join(envDir, CONDA_READY_MARKER);
-      fs.writeFileSync(markerFile, app.getVersion());
+        // Write version marker
+        const markerFile = path.join(envDir, CONDA_READY_MARKER);
+        fs.writeFileSync(markerFile, app.getVersion());
 
-      this.emitSetup('idle', 'Nexus installation completed successfully');
-      console.log('[DynamicNexus] Installation completed');
-    } finally {
-      // Clean up temp file (only if it's a downloaded file, not the original resource)
-      if (!useLocalResource && fs.existsSync(tempTarGzPath)) {
-        try {
-          fs.unlinkSync(tempTarGzPath);
-        } catch (e) {
-          // Ignore errors during cleanup
-          console.warn('[DynamicNexus] Could not cleanup temp file:', e);
+        this.emitSetup('idle', 'Nexus installation completed successfully');
+        console.log('[DynamicNexus] Installation completed');
+      } finally {
+        // Clean up temp file
+        if (fs.existsSync(tempTarGzPath)) {
+          try {
+            fs.unlinkSync(tempTarGzPath);
+          } catch {
+            // Ignore errors during cleanup
+          }
         }
       }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.emitSetup('error', `Installation failed: ${errorMsg}`);
+      throw err;
     }
   }
 
@@ -363,98 +351,6 @@ class DynamicNexusService {
 
       attempt();
     });
-  }
-
-  private async downloadFileWithRetry(url: string, dest: string, maxRetries = 3, onPercent?: (percent: number) => void): Promise<void> {
-    const https = await import('https');
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[DynamicNexus] Attempting download ${attempt}/${maxRetries}: ${url}`);
-
-        await new Promise<void>((resolve, reject) => {
-          const file = fs.createWriteStream(dest);
-
-          const request = https.get(url, (response: import('http').IncomingMessage) => {
-            if (response.statusCode === 301 || response.statusCode === 302) {
-              // Handle redirects
-              const redirectUrl = response.headers.location;
-              if (redirectUrl) {
-                console.log(`[DynamicNexus] Following redirect to: ${redirectUrl}`);
-                file.close(() => {
-                  try {
-                    fs.unlinkSync(dest);
-                  } catch (_) {
-                    // Ignore error when unlinking destination during redirect
-                  }
-                  // resolve/reject is delegated to the recursive call; skip outer success log
-                  this.downloadFileWithRetry(redirectUrl, dest, 1, onPercent).then(resolve).catch(reject);
-                });
-                return;
-              }
-            }
-
-            if (response.statusCode !== 200) {
-              reject(new Error(`Download failed with status ${response.statusCode}: ${response.statusMessage}`));
-              return;
-            }
-
-            const total = parseInt(response.headers['content-length'] ?? '0', 10);
-            let received = 0;
-            let lastPercent = -1;
-
-            response.on('data', (chunk: Buffer) => {
-              received += chunk.length;
-              if (total > 0 && onPercent) {
-                const pct = Math.round((received / total) * 100);
-                if (pct !== lastPercent) {
-                  lastPercent = pct;
-                  onPercent(pct);
-                }
-              }
-            });
-
-            response.pipe(file);
-            file.on('finish', () => {
-              file.close(() => resolve());
-            });
-            file.on('error', (err) => {
-              fs.unlink(dest, () => {}); // Clean up on error
-              reject(err);
-            });
-          });
-
-          request.on('error', (err: Error) => {
-            fs.unlink(dest, () => {}); // Clean up on error
-            reject(err);
-          });
-
-          // Add timeout
-          request.setTimeout(30000, () => {
-            request.abort();
-            fs.unlink(dest, () => {});
-            reject(new Error('Download timed out after 30 seconds'));
-          });
-        });
-
-        console.log(`[DynamicNexus] Successfully downloaded to ${dest}`);
-        return;
-      } catch (error) {
-        console.error(`[DynamicNexus] Download attempt ${attempt} failed:`, error.message);
-
-        // 磁盘空间不足，重试没有意义，立即抛出友好提示
-        if ((error as NodeJS.ErrnoException).code === 'ENOSPC') {
-          throw new Error('磁盘空间不足，无法下载 Nexus，请清理磁盘空间后重试。');
-        }
-
-        if (attempt === maxRetries) {
-          throw error;
-        }
-
-        // Wait before retry
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
-      }
-    }
   }
 }
 

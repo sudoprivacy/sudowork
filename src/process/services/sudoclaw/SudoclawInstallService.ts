@@ -12,11 +12,7 @@
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { app } from 'electron';
-
-const execFileAsync = promisify(execFile);
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -75,35 +71,22 @@ function getDaveyBindingName(): string {
 }
 
 /**
- * Run npm install in package dir to fix platform-specific optional deps (e.g. @snazzah/davey).
- * Pre-built tgz may have been built on a different arch; npm install installs the correct optional binding.
- * Uses bundled Node only — never invokes local/system Node.
- * @returns true if npm install succeeded, false if it failed or couldn't run
+ * Check if platform-specific dependencies are installed.
+ * The bundled tgz is built for the target platform at pack time, so no runtime npm install needed.
+ * @returns true if dependencies look correct
  */
-async function runNpmInstallForOptionalDeps(pkgRoot: string): Promise<boolean> {
-  const nodePath = getNodeBinaryPath();
-  if (!fs.existsSync(nodePath)) {
-    console.warn('[Sudoclaw] Bundled Node.js not found, skipping npm install');
-    return false;
-  }
-  // npm-cli.js path: bundled Node includes npm at lib/node_modules/npm/bin/npm-cli.js
-  const nodeRoot = process.platform === 'win32' ? path.dirname(nodePath) : path.dirname(path.dirname(nodePath));
-  const npmCliJs = path.join(nodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  if (!fs.existsSync(npmCliJs)) {
-    console.warn('[Sudoclaw] npm-cli.js not found, skipping npm install');
-    return false;
-  }
-  try {
-    console.log('[Sudoclaw] Running npm install to fix optional dependencies (@snazzah/davey)...');
-    // Use 'inherit' to show output for debugging; npm install must succeed for correct bindings
-    await execFileAsync(nodePath, [npmCliJs, 'install', '--legacy-peer-deps'], { cwd: pkgRoot });
-    console.log('[Sudoclaw] npm install completed');
+function checkPlatformDependencies(pkgRoot: string): boolean {
+  const daveyBinding = getDaveyBindingName();
+  const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
+  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
+
+  if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
+    console.log('[Sudoclaw] Platform dependencies OK');
     return true;
-  } catch (err) {
-    console.error('[Sudoclaw] npm install failed:', err);
-    // Return false to trigger re-extract; don't throw to avoid crashing the app
-    return false;
   }
+
+  console.warn('[Sudoclaw] Platform dependencies missing:', { daveyPath, chalk });
+  return false;
 }
 
 /** Resolve OpenClaw package root after npm pack extract (package/ at top level) */
@@ -341,10 +324,8 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
 
   if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
-    // Repair optional deps (e.g. @snazzah/davey) — pre-built tgz may have wrong arch binding
-    // This runs npm install which is fast if dependencies are already correct
-    const npmInstallSuccess = await runNpmInstallForOptionalDeps(pkgRoot);
-    if (npmInstallSuccess) {
+    // Verify platform dependencies
+    if (checkPlatformDependencies(pkgRoot)) {
       writeLauncher(pkgRoot); // Re-write launcher to ensure it's up-to-date
       if (process.platform === 'win32') {
         createWindowsWrapper(launcherPath);
@@ -353,8 +334,8 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       }
       return { installed: true, cliPath: managedBin };
     }
-    // npm install failed, fall through to re-extract
-    console.log('[Sudoclaw] npm install failed, will re-extract...');
+    // Platform deps missing, fall through to re-extract
+    console.log('[Sudoclaw] Platform dependencies missing, will re-extract...');
   }
 
   try {
@@ -386,12 +367,9 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     }
 
     const pkgRoot = resolvePackageRoot();
-    if (pkgRoot) {
-      const npmSuccess = await runNpmInstallForOptionalDeps(pkgRoot);
-      if (!npmSuccess) {
-        console.error('[Sudoclaw] Initial npm install failed, installation incomplete');
-        return { installed: false, cliPath: null };
-      }
+    if (pkgRoot && !checkPlatformDependencies(pkgRoot)) {
+      console.error('[Sudoclaw] Platform dependencies check failed after extraction');
+      return { installed: false, cliPath: null };
     }
     if (!pkgRoot || !hasDistEntry(pkgRoot)) {
       console.error('[Sudoclaw] Downloaded package missing dist/');
@@ -435,4 +413,43 @@ export function getSudoclawCliPath(): string | null {
     return managedBin;
   }
   return null;
+}
+
+/**
+ * Install Sudoclaw manually (from About page).
+ * Ensures Node.js is installed first, then installs Sudoclaw.
+ * Returns true on success, throws on failure.
+ */
+export async function installSudoclawManually(
+  onProgress?: (phase: 'extracting' | 'installing' | 'configuring', percent?: number) => void
+): Promise<boolean> {
+  // Import ensureNodeInstalled dynamically to avoid circular dependency
+  const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+
+  // Ensure Node.js is installed first
+  onProgress?.('installing', 0);
+  console.log('[Sudoclaw] Ensuring Node.js is installed...');
+  const nodeInstalled = await ensureNodeInstalled();
+  if (!nodeInstalled) {
+    throw new Error('Failed to install Node.js runtime. Please restart the application.');
+  }
+
+  // Check if already installed
+  const existingResult = await ensureSudoclawInstalled();
+  if (existingResult.installed) {
+    console.log('[Sudoclaw] Already installed');
+    onProgress?.('configuring', 100);
+    return true;
+  }
+
+  // Perform installation
+  onProgress?.('extracting', 10);
+  const result = await ensureSudoclawInstalled();
+
+  if (result.installed) {
+    onProgress?.('configuring', 100);
+    return true;
+  }
+
+  throw new Error('Failed to install Sudoclaw. Please check the logs for details.');
 }

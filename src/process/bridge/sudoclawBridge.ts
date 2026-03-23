@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
 import { OpenClawGatewayManager } from '@/agent/openclaw';
 import * as net from 'node:net';
 
@@ -241,5 +241,35 @@ export function initSudoclawBridge(): void {
       console.error('[SudoclawBridge] Restart gateway failed:', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
+  });
+
+  ipcBridge.sudoclaw.install.provider(async () => {
+    return new Promise((resolve) => {
+      void (async () => {
+        try {
+          console.log('[SudoclawBridge] Starting Sudoclaw installation...');
+
+          // Run installation with progress callback
+          await installSudoclawManually((phase, percent) => {
+            ipcBridge.sudoclaw.installProgress.emit({ phase, percent });
+          });
+
+          console.log('[SudoclawBridge] Sudoclaw installation completed');
+          resolve({ success: true });
+
+          setTimeout(() => {
+            ipcBridge.sudoclaw.installResult.emit({ success: true });
+          }, 100);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error('[SudoclawBridge] Sudoclaw installation failed:', err);
+          resolve({ success: false, msg: errorMsg });
+
+          setTimeout(() => {
+            ipcBridge.sudoclaw.installResult.emit({ success: false, msg: errorMsg });
+          }, 100);
+        }
+      })();
+    });
   });
 }

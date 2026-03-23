@@ -66,11 +66,19 @@ export const initializeProcess = async () => {
 };
 
 /**
- * Install runtime dependencies (Node.js, Sudoclaw, CLI tools) asynchronously
+ * Install runtime dependencies (Node.js, Sudoclaw, Nexus) asynchronously
+ * Only runs on macOS - Windows installs via NSIS installer
  * Updates initStatusManager so renderer can display progress
  */
 async function installRuntimes(): Promise<void> {
-  // Install bundled Node.js (progress: 10-20%)
+  // Skip on Windows - installed by NSIS installer
+  if (process.platform === 'win32') {
+    console.log('[Process] Skipping runtime installation on Windows (installed by NSIS)');
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+    return;
+  }
+
+  // Install bundled Node.js (progress: 10-25%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 10);
     await ensureNodeInstalled();
@@ -91,24 +99,21 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
-  // Install CLI tools (Claude Code) (progress: 60-90%)
+  // Install Nexus (progress: 60-90%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 60);
-    const { claudeCliService } = await import('./services/claudeCli/CliInstallService');
+    const { dynamicNexusService } = await import('./services/nexus/DynamicNexusService');
 
-    // Install Claude CLI if bundle exists
-    if (claudeCliService.hasTgzResource()) {
-      const status = await claudeCliService.checkInstalled();
-      if (!status.installed) {
-        console.log('[Process] Installing Claude CLI...');
-        await claudeCliService.install();
-      }
+    // Only install if bundled resource exists
+    const isInstalled = await dynamicNexusService.checkInstalled();
+    if (!isInstalled) {
+      console.log('[Process] Installing Nexus...');
+      await dynamicNexusService.install();
     }
-
-    initStatusManager.setStatus('ready', '初始化完成', 100);
   } catch (err) {
-    console.error('[Process] CLI tools install failed:', err);
-    // CLI install failure is not critical, continue to ready
-    initStatusManager.setStatus('ready', '初始化完成', 100);
+    console.error('[Process] Nexus install failed:', err);
+    // Nexus install failure is not critical, continue
   }
+
+  initStatusManager.setStatus('ready', '初始化完成', 100);
 }

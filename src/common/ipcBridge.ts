@@ -517,6 +517,12 @@ export const sudoclaw = {
   testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
   /** Restart Sudoclaw gateway */
   restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
+  /** Install Sudoclaw manually from About page */
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
+  /** Emitted during installation to report progress */
+  installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'installing' | 'configuring'; percent?: number }>('sudoclaw.install-progress'),
 };
 
 // Initialization status for runtime dependencies
