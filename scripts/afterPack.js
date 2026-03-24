@@ -35,13 +35,15 @@ function signBinariesInDir(dir, identity) {
           // Check if it's an executable binary (Mach-O)
           try {
             const header = fs.readFileSync(fullPath, { start: 0, end: 3 });
-            // Mach-O magic numbers: 0xFEEDFACE (32-bit), 0xFEEDFACF (64-bit), 0xCAFEBABE (fat)
-            if (
-              header[0] === 0xfe ||
-              header[0] === 0xca ||
-              header[1] === 0xed ||
-              (header[0] === 0xcf && header[1] === 0xfa)
-            ) {
+            // Mach-O magic numbers (little-endian for 32/64-bit, big-endian for fat):
+            // 64-bit: CF FA ED FE
+            // 32-bit: CE FA ED FE
+            // Fat/Universal: CA FE BA BE
+            const isMachO =
+              (header[0] === 0xcf && header[1] === 0xfa && header[2] === 0xed && header[3] === 0xfe) ||
+              (header[0] === 0xce && header[1] === 0xfa && header[2] === 0xed && header[3] === 0xfe) ||
+              (header[0] === 0xca && header[1] === 0xfe && header[2] === 0xba && header[3] === 0xbe);
+            if (isMachO) {
               binaries.push(fullPath);
             }
           } catch {
@@ -57,6 +59,8 @@ function signBinariesInDir(dir, identity) {
   if (binaries.length === 0) {
     return 0;
   }
+
+  console.log(`   Found ${binaries.length} binaries to sign in ${path.basename(dir)}`);
 
   let signedCount = 0;
   for (const binary of binaries) {

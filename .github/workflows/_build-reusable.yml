@@ -230,8 +230,20 @@ jobs:
             security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-            # Clean up certificate file
-            rm certificate.p12
+            # Download and install Apple intermediate certificates for code signing chain
+            echo "Downloading Apple intermediate certificates..."
+            curl -sL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer -o DeveloperIDG2CA.cer
+            curl -sL https://www.apple.com/certificateauthority/DeveloperIDG3CA.cer -o DeveloperIDG3CA.cer
+
+            # Import intermediate certificates to build.keychain
+            security import DeveloperIDG2CA.cer -k build.keychain -T /usr/bin/codesign || true
+            security import DeveloperIDG3CA.cer -k build.keychain -T /usr/bin/codesign || true
+
+            # Set keychain search list to include build.keychain
+            security list-keychains -s build.keychain
+
+            # Clean up certificate files
+            rm certificate.p12 DeveloperIDG2CA.cer DeveloperIDG3CA.cer
 
             echo "Certificate imported successfully"
           else
