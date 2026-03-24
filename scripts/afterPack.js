@@ -11,87 +11,174 @@ const { normalizeArch, rebuildSingleModule, verifyModuleBinary, getModulesToRebu
  */
 
 /**
- * Sign all binary files inside a .tgz archive (for macOS notarization)
- * @param {string} tgzPath - Path to the .tgz file
+ * Sign all binary files recursively in a directory
+ * @param {string} dir - Directory to search for binaries
  * @param {string} identity - Code signing identity
+ * @returns {number} Number of binaries signed
  */
-async function signBinariesInTgz(tgzPath, identity) {
-  if (!fs.existsSync(tgzPath)) {
-    console.log(`   ⚠️  ${tgzPath} not found, skipping signing`);
+function signBinariesInDir(dir, identity) {
+  const binaryExtensions = ['.node', '.dylib', '.so'];
+  const binaries = [];
+
+  function findBinaries(currentDir) {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        findBinaries(fullPath);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name);
+        // Check extension or if it's an executable without extension
+        if (binaryExtensions.includes(ext)) {
+          binaries.push(fullPath);
+        } else if (!ext) {
+          // Check if it's an executable binary (Mach-O)
+          try {
+            const header = fs.readFileSync(fullPath, { start: 0, end: 3 });
+            // Mach-O magic numbers: 0xFEEDFACE (32-bit), 0xFEEDFACF (64-bit), 0xCAFEBABE (fat)
+            if (
+              header[0] === 0xfe ||
+              header[0] === 0xca ||
+              header[1] === 0xed ||
+              (header[0] === 0xcf && header[1] === 0xfa)
+            ) {
+              binaries.push(fullPath);
+            }
+          } catch {
+            // Not a readable binary
+          }
+        }
+      }
+    }
+  }
+
+  findBinaries(dir);
+
+  if (binaries.length === 0) {
+    return 0;
+  }
+
+  let signedCount = 0;
+  for (const binary of binaries) {
+    try {
+      execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${binary}"`, {
+        stdio: 'pipe',
+      });
+      console.log(`   ✓ Signed: ${path.basename(binary)}`);
+      signedCount++;
+    } catch (err) {
+      console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${err.message}`);
+    }
+  }
+
+  return signedCount;
+}
+
+/**
+ * Sign all binary files inside a .tgz archive (for macOS notarization)
+ * Handles nested .tar files (e.g., openclaw.tgz contains openclaw.tar)
+ * @param {string} archivePath - Path to the archive file
+ * @param {string} identity - Code signing identity
+ * @param {boolean} isNested - Whether this is a nested archive call
+ */
+async function signBinariesInArchive(archivePath, identity, isNested = false) {
+  if (!fs.existsSync(archivePath)) {
+    console.log(`   ⚠️  ${archivePath} not found, skipping signing`);
     return;
   }
 
-  console.log(`\n🔐 Signing binaries in ${path.basename(tgzPath)}...`);
+  const archiveName = path.basename(archivePath);
+  const archiveType = archivePath.endsWith('.tgz') || archivePath.endsWith('.tar.gz') ? 'tgz' : 'tar';
+  const extractFlag = archiveType === 'tgz' ? '-xzf' : '-xf';
+
+  console.log(`\n🔐 Processing ${archiveName}...`);
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sudowork-sign-'));
   const extractedDir = path.join(tmpDir, 'extracted');
 
   try {
-    // Extract the tgz
+    // Extract the archive
     fs.mkdirSync(extractedDir, { recursive: true });
-    execSync(`tar -xzf "${tgzPath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+    execSync(`tar ${extractFlag} "${archivePath}" -C "${extractedDir}"`, { stdio: 'inherit' });
 
-    // Find all binary files (.node, .dylib, .so, executables without extension)
-    const binaryExtensions = ['.node', '.dylib', '.so'];
-    const binaries = [];
-
-    function findBinaries(dir) {
+    // Find and process nested .tar files first
+    const nestedTarFiles = [];
+    function findNestedTarFiles(dir) {
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          findBinaries(fullPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name);
-          if (binaryExtensions.includes(ext)) {
-            binaries.push(fullPath);
-          }
+          findNestedTarFiles(fullPath);
+        } else if (entry.isFile() && (entry.name.endsWith('.tar') || entry.name.endsWith('.tgz'))) {
+          nestedTarFiles.push(fullPath);
         }
       }
     }
+    findNestedTarFiles(extractedDir);
 
-    findBinaries(extractedDir);
+    // Process nested tar files
+    for (const nestedTar of nestedTarFiles) {
+      console.log(`   📦 Found nested archive: ${path.basename(nestedTar)}`);
+      const nestedTmpDir = path.dirname(nestedTar);
+      const nestedExtractedDir = path.join(nestedTmpDir, 'nested_extracted');
 
-    if (binaries.length === 0) {
-      console.log(`   ℹ️  No binaries found in ${path.basename(tgzPath)}`);
-      return;
-    }
-
-    console.log(`   Found ${binaries.length} binaries to sign`);
-
-    // Sign each binary
-    for (const binary of binaries) {
       try {
-        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${binary}"`, {
-          stdio: 'pipe',
-        });
-        console.log(`   ✓ Signed: ${path.basename(binary)}`);
+        fs.mkdirSync(nestedExtractedDir, { recursive: true });
+        const nestedFlag = nestedTar.endsWith('.tgz') ? '-xzf' : '-xf';
+        execSync(`tar ${nestedFlag} "${nestedTar}" -C "${nestedExtractedDir}"`, { stdio: 'inherit' });
+
+        // Sign binaries in nested content
+        const nestedSigned = signBinariesInDir(nestedExtractedDir, identity);
+        console.log(`   Signed ${nestedSigned} binaries in nested archive`);
+
+        // Re-pack the nested tar
+        const nestedContents = fs.readdirSync(nestedExtractedDir);
+        const newNestedTar = nestedTar + '.new';
+        if (nestedContents.length === 1) {
+          const singleItem = nestedContents[0];
+          execSync(`tar -cf "${newNestedTar}" -C "${nestedExtractedDir}" "${singleItem}"`, {
+            stdio: 'inherit',
+          });
+        } else {
+          execSync(`tar -cf "${newNestedTar}" -C "${nestedExtractedDir}" .`, {
+            stdio: 'inherit',
+          });
+        }
+
+        // Replace original nested tar
+        fs.unlinkSync(nestedTar);
+        fs.renameSync(newNestedTar, nestedTar);
+        fs.rmSync(nestedExtractedDir, { recursive: true, force: true });
+        console.log(`   ✅ Re-packed nested archive: ${path.basename(nestedTar)}`);
       } catch (err) {
-        console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${err.message}`);
+        console.error(`   ❌ Error processing nested archive: ${err.message}`);
       }
     }
 
-    // Re-pack the tgz
-    // Find the root directory inside extracted (usually the package name)
+    // Sign binaries in the main extracted content
+    const signedCount = signBinariesInDir(extractedDir, identity);
+    console.log(`   Signed ${signedCount} binaries total`);
+
+    // Re-pack the main archive
     const extractedContents = fs.readdirSync(extractedDir);
     let packRoot = extractedDir;
     if (extractedContents.length === 1 && fs.statSync(path.join(extractedDir, extractedContents[0])).isDirectory()) {
       packRoot = path.join(extractedDir, extractedContents[0]);
     }
 
-    // Create new tgz
-    const newTgzPath = tgzPath + '.new';
-    execSync(`tar -czf "${newTgzPath}" -C "${path.dirname(packRoot)}" "${path.basename(packRoot)}"`, {
+    const packFlag = archiveType === 'tgz' ? '-czf' : '-cf';
+    const newArchivePath = archivePath + '.new';
+    execSync(`tar ${packFlag} "${newArchivePath}" -C "${path.dirname(packRoot)}" "${path.basename(packRoot)}"`, {
       stdio: 'inherit',
     });
 
     // Replace original
-    fs.unlinkSync(tgzPath);
-    fs.renameSync(newTgzPath, tgzPath);
+    fs.unlinkSync(archivePath);
+    fs.renameSync(newArchivePath, archivePath);
 
-    console.log(`   ✅ Re-packed ${path.basename(tgzPath)} with signed binaries`);
+    console.log(`   ✅ Re-packed ${archiveName} with signed binaries`);
   } catch (err) {
-    console.error(`   ❌ Error processing ${path.basename(tgzPath)}: ${err.message}`);
+    console.error(`   ❌ Error processing ${archiveName}: ${err.message}`);
     throw err;
   } finally {
     // Cleanup
@@ -106,6 +193,34 @@ module.exports = async function afterPack(context) {
 
   console.log(`\n🔧 afterPack hook started`);
   console.log(`   Platform: ${electronPlatformName}, Build arch: ${buildArch}, Target arch: ${targetArch}`);
+
+  // Determine resources directory based on platform (needed for signing even if rebuild is skipped)
+  // macOS: appOutDir/Sudowork.app/Contents/Resources
+  // Windows/Linux: appOutDir/resources
+  let resourcesDir;
+  if (electronPlatformName === 'darwin') {
+    const appName = packager?.appInfo?.productFilename || 'Sudowork';
+    resourcesDir = path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources');
+  } else {
+    resourcesDir = path.join(appOutDir, 'resources');
+  }
+
+  // Sign binaries inside bundled .tgz files (for macOS notarization)
+  // This must run BEFORE the early return, as signing is always needed on macOS
+  if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
+    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz'];
+    const identity = process.env.CSC_NAME;
+
+    for (const tgzFile of tgzFiles) {
+      const tgzPath = path.join(resourcesDir, tgzFile);
+      try {
+        await signBinariesInArchive(tgzPath, identity);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to sign binaries in ${tgzFile}: ${err.message}`);
+        // Don't throw - allow build to continue
+      }
+    }
+  }
 
   const isCrossCompile = buildArch !== targetArch;
   const forceRebuild = process.env.FORCE_NATIVE_REBUILD === 'true';
@@ -138,17 +253,6 @@ module.exports = async function afterPack(context) {
     packager?.info?.electronVersion ??
     packager?.config?.electronVersion ??
     require('../package.json').devDependencies?.electron?.replace(/^\D*/, '');
-
-  // Determine resources directory based on platform
-  // macOS: appOutDir/Sudowork.app/Contents/Resources
-  // Windows/Linux: appOutDir/resources
-  let resourcesDir;
-  if (electronPlatformName === 'darwin') {
-    const appName = packager?.appInfo?.productFilename || 'Sudowork';
-    resourcesDir = path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources');
-  } else {
-    resourcesDir = path.join(appOutDir, 'resources');
-  }
 
   // Debug: check what's in resources directory
   console.log(`   Checking resources directory: ${resourcesDir}`);
@@ -294,21 +398,4 @@ module.exports = async function afterPack(context) {
   }
 
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
-
-  // Sign binaries inside bundled .tgz files (for macOS notarization)
-  // These are CLI tools bundled as compressed archives
-  if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
-    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz'];
-    const identity = process.env.CSC_NAME;
-
-    for (const tgzFile of tgzFiles) {
-      const tgzPath = path.join(resourcesDir, tgzFile);
-      try {
-        await signBinariesInTgz(tgzPath, identity);
-      } catch (err) {
-        console.warn(`   ⚠️  Failed to sign binaries in ${tgzFile}: ${err.message}`);
-        // Don't throw - allow build to continue
-      }
-    }
-  }
 };
