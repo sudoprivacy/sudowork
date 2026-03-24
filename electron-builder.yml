@@ -127,7 +127,6 @@ extraResources:
   # Nexus is optional - may not be available for all platforms
   - from: resources/nexus.tar.gz
     to: nexus.tar.gz
-    optional: true
 
 win:
   target:
