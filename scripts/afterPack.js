@@ -208,7 +208,7 @@ module.exports = async function afterPack(context) {
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
   if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
-    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz'];
+    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
     const identity = process.env.CSC_NAME;
 
     for (const tgzFile of tgzFiles) {
