@@ -123,8 +123,10 @@ async function downloadNexus(platform, force = false) {
 
     if (err.message === 'NOT_FOUND') {
       console.warn(`\n⚠️  Nexus binary not available for platform ${platform}`);
-      console.warn('   Build will proceed without Nexus bundle.');
+      console.warn('   Creating empty placeholder file.');
       console.warn('   Users can install Nexus manually from the About page.');
+      // Create empty placeholder file so electron-builder doesn't fail
+      fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
       return false;
     }
 
@@ -153,7 +155,10 @@ async function main() {
       platform = currentPlatform;
     } else {
       console.warn(`⚠️  Unsupported platform: ${currentPlatform}`);
-      console.warn('   Skipping Nexus download. Build will proceed without Nexus bundle.');
+      console.warn('   Creating empty placeholder file.');
+      // Create empty placeholder file so electron-builder doesn't fail
+      fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+      fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
       process.exit(0);
     }
   }
@@ -170,7 +175,10 @@ async function main() {
     }
   } catch (err) {
     console.error(`\n❌ Failed to download:`, err.message);
-    console.warn('   Build will proceed without Nexus bundle.');
+    console.warn('   Creating empty placeholder file.');
+    // Create empty placeholder file so electron-builder doesn't fail
+    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+    fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
     // Exit 0 to allow build to continue
   }
 
@@ -179,7 +187,12 @@ async function main() {
 
 main().catch((err) => {
   console.error('Error:', err.message);
-  console.warn('Build will proceed without Nexus bundle.');
+  console.warn('Creating empty placeholder file.');
+  // Create empty placeholder file so electron-builder doesn't fail
+  try {
+    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+    fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+  } catch {}
   // Exit 0 to allow build to continue
   process.exit(0);
 });
