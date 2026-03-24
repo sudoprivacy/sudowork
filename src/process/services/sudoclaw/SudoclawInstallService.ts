@@ -420,9 +420,7 @@ export function getSudoclawCliPath(): string | null {
  * Ensures Node.js is installed first, then installs Sudoclaw.
  * Returns true on success, throws on failure.
  */
-export async function installSudoclawManually(
-  onProgress?: (phase: 'extracting' | 'installing' | 'configuring', percent?: number) => void
-): Promise<boolean> {
+export async function installSudoclawManually(onProgress?: (phase: 'extracting' | 'installing' | 'configuring', percent?: number) => void): Promise<boolean> {
   // Import ensureNodeInstalled dynamically to avoid circular dependency
   const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
 

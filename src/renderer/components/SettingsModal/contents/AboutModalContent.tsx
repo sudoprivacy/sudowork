@@ -295,16 +295,7 @@ const AboutModalContent: React.FC = () => {
 
         const version = record.key === 'nexus' ? `v${record.appVersion}` : record.status?.version;
 
-        const badgeColor =
-          record.key === 'nexus'
-            ? 'bg-orange-1 color-orange-6'
-            : record.key === 'claude'
-              ? 'bg-orange-1 color-orange-6'
-              : record.key === 'libreoffice'
-                ? 'bg-green-1 color-green-6'
-                : record.key === 'sudoclaw'
-                  ? 'bg-purple-1 color-purple-6'
-                  : 'bg-blue-1 color-blue-6';
+        const badgeColor = record.key === 'nexus' ? 'bg-orange-1 color-orange-6' : record.key === 'claude' ? 'bg-orange-1 color-orange-6' : record.key === 'libreoffice' ? 'bg-green-1 color-green-6' : record.key === 'sudoclaw' ? 'bg-purple-1 color-purple-6' : 'bg-blue-1 color-blue-6';
 
         return (
           <div className='flex items-center gap-12px'>
