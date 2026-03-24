@@ -103,7 +103,48 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
   try {
     // Extract the archive
     fs.mkdirSync(extractedDir, { recursive: true });
-    execSync(`tar ${extractFlag} "${archivePath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+    console.log(`   📂 Extracting to: ${extractedDir}`);
+
+    // On macOS, tar -xzf for .tar.gz files might create a .tar intermediate file
+    // Use gunzip + tar to ensure proper extraction
+    if (archiveType === 'tgz' && archivePath.endsWith('.tar.gz')) {
+      // For .tar.gz files, use pipe to avoid creating intermediate .tar file
+      // macOS BSD tar can behave differently than GNU tar
+      try {
+        execSync(`gunzip -c "${archivePath}" | tar -xf - -C "${extractedDir}"`, { stdio: 'inherit', shell: '/bin/bash' });
+      } catch (pipeErr) {
+        // Fallback to standard tar -xzf if pipe fails
+        console.log(`   ⚠️  Pipe extraction failed, trying standard tar...`);
+        execSync(`tar -xzf "${archivePath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+      }
+    } else {
+      execSync(`tar ${extractFlag} "${archivePath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+    }
+
+    // Debug: show what was extracted
+    const extractedItems = fs.readdirSync(extractedDir);
+    console.log(`   📁 Extracted ${extractedItems.length} items at root: ${extractedItems.slice(0, 10).join(', ')}${extractedItems.length > 10 ? '...' : ''}`);
+
+    // Check if a .tar file was created at root (macOS tar quirk)
+    const tarAtRoot = extractedItems.filter(f => f.endsWith('.tar'));
+    if (tarAtRoot.length > 0) {
+      console.log(`   ⚠️  Found .tar file(s) at root, extracting them: ${tarAtRoot.join(', ')}`);
+      for (const tarFile of tarAtRoot) {
+        const tarPath = path.join(extractedDir, tarFile);
+        try {
+          // Extract the .tar file into the same directory
+          execSync(`tar -xf "${tarPath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+          // Remove the .tar file after extraction
+          fs.unlinkSync(tarPath);
+          console.log(`   ✓ Extracted and removed: ${tarFile}`);
+        } catch (extractErr) {
+          console.error(`   ⚠️  Failed to extract ${tarFile}: ${extractErr.message}`);
+        }
+      }
+      // Refresh the list
+      const newItems = fs.readdirSync(extractedDir);
+      console.log(`   📁 After .tar extraction: ${newItems.length} items`);
+    }
 
     // Find and process nested .tar files first
     const nestedTarFiles = [];
@@ -119,6 +160,7 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
       }
     }
     findNestedTarFiles(extractedDir);
+    console.log(`   📦 Found ${nestedTarFiles.length} nested archive(s) to process`);
 
     // Process nested tar files
     for (const nestedTar of nestedTarFiles) {
@@ -171,6 +213,13 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
     // - If original tar had a single root directory, preserve it
     // - If original tar had multiple items at root (bin/, lib/, VERSION, etc.), pack them directly
     const extractedContents = fs.readdirSync(extractedDir);
+    console.log(`   📁 Root contents (${extractedContents.length} items): ${extractedContents.slice(0, 10).join(', ')}${extractedContents.length > 10 ? '...' : ''}`);
+
+    // Check for unexpected .tar files at root
+    const unexpectedTarFiles = extractedContents.filter(f => f.endsWith('.tar'));
+    if (unexpectedTarFiles.length > 0) {
+      console.error(`   ⚠️  WARNING: Found unexpected .tar files at root: ${unexpectedTarFiles.join(', ')}`);
+    }
 
     const packFlag = archiveType === 'tgz' ? '-czf' : '-cf';
     const newArchivePath = archivePath + '.new';
@@ -193,6 +242,22 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
     fs.renameSync(newArchivePath, archivePath);
 
     console.log(`   ✅ Re-packed ${archiveName} with signed binaries`);
+
+    // Verify no unexpected .tar files were created
+    const verifyDir = path.join(tmpDir, 'verify');
+    try {
+      fs.mkdirSync(verifyDir, { recursive: true });
+      execSync(`tar -xzf "${archivePath}" -C "${verifyDir}"`, { stdio: 'pipe' });
+      const verifyContents = fs.readdirSync(verifyDir);
+      const tarAtRoot = verifyContents.filter(f => f.endsWith('.tar'));
+      if (tarAtRoot.length > 0) {
+        console.error(`   ❌ ERROR: Unexpected .tar file(s) created at root: ${tarAtRoot.join(', ')}`);
+      } else {
+        console.log(`   ✓ Verified: No unexpected .tar files at root`);
+      }
+    } catch (verifyErr) {
+      console.warn(`   ⚠️  Could not verify archive: ${verifyErr.message}`);
+    }
   } catch (err) {
     console.error(`   ❌ Error processing ${archiveName}: ${err.message}`);
     throw err;
