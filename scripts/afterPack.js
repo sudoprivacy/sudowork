@@ -208,15 +208,21 @@ module.exports = async function afterPack(context) {
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
   if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
-    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
+    // Fixed name archives
+    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
+
+    // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
+    const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
+
+    const archivesToSign = [...fixedArchives, nodeArchive];
     const identity = process.env.CSC_NAME;
 
-    for (const tgzFile of tgzFiles) {
-      const tgzPath = path.join(resourcesDir, tgzFile);
+    for (const archiveFile of archivesToSign) {
+      const archivePath = path.join(resourcesDir, archiveFile);
       try {
-        await signBinariesInArchive(tgzPath, identity);
+        await signBinariesInArchive(archivePath, identity);
       } catch (err) {
-        console.warn(`   ⚠️  Failed to sign binaries in ${tgzFile}: ${err.message}`);
+        console.warn(`   ⚠️  Failed to sign binaries in ${archiveFile}: ${err.message}`);
         // Don't throw - allow build to continue
       }
     }
