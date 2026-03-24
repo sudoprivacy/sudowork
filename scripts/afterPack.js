@@ -113,7 +113,7 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           findNestedTarFiles(fullPath);
-        } else if (entry.isFile() && (entry.name.endsWith('.tar') || entry.name.endsWith('.tgz'))) {
+        } else if (entry.isFile() && (entry.name.endsWith('.tar') || entry.name.endsWith('.tgz') || entry.name.endsWith('.tar.gz'))) {
           nestedTarFiles.push(fullPath);
         }
       }
@@ -128,23 +128,26 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
 
       try {
         fs.mkdirSync(nestedExtractedDir, { recursive: true });
-        const nestedFlag = nestedTar.endsWith('.tgz') ? '-xzf' : '-xf';
+        // .tgz and .tar.gz need -xzf (gzip), .tar needs -xf
+        const nestedFlag = (nestedTar.endsWith('.tgz') || nestedTar.endsWith('.tar.gz')) ? '-xzf' : '-xf';
         execSync(`tar ${nestedFlag} "${nestedTar}" -C "${nestedExtractedDir}"`, { stdio: 'inherit' });
 
         // Sign binaries in nested content
         const nestedSigned = signBinariesInDir(nestedExtractedDir, identity);
         console.log(`   Signed ${nestedSigned} binaries in nested archive`);
 
-        // Re-pack the nested tar
+        // Re-pack the nested tar (preserve compression format)
         const nestedContents = fs.readdirSync(nestedExtractedDir);
         const newNestedTar = nestedTar + '.new';
-        if (nestedContents.length === 1) {
+        // Use -czf for .tgz and .tar.gz, -cf for .tar
+        const nestedPackFlag = (nestedTar.endsWith('.tgz') || nestedTar.endsWith('.tar.gz')) ? '-czf' : '-cf';
+        if (nestedContents.length === 1 && fs.statSync(path.join(nestedExtractedDir, nestedContents[0])).isDirectory()) {
           const singleItem = nestedContents[0];
-          execSync(`tar -cf "${newNestedTar}" -C "${nestedExtractedDir}" "${singleItem}"`, {
+          execSync(`tar ${nestedPackFlag} "${newNestedTar}" -C "${nestedExtractedDir}" "${singleItem}"`, {
             stdio: 'inherit',
           });
         } else {
-          execSync(`tar -cf "${newNestedTar}" -C "${nestedExtractedDir}" .`, {
+          execSync(`tar ${nestedPackFlag} "${newNestedTar}" -C "${nestedExtractedDir}" .`, {
             stdio: 'inherit',
           });
         }
@@ -164,17 +167,26 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
     console.log(`   Signed ${signedCount} binaries total`);
 
     // Re-pack the main archive
+    // Original structure preservation:
+    // - If original tar had a single root directory, preserve it
+    // - If original tar had multiple items at root (bin/, lib/, VERSION, etc.), pack them directly
     const extractedContents = fs.readdirSync(extractedDir);
-    let packRoot = extractedDir;
-    if (extractedContents.length === 1 && fs.statSync(path.join(extractedDir, extractedContents[0])).isDirectory()) {
-      packRoot = path.join(extractedDir, extractedContents[0]);
-    }
 
     const packFlag = archiveType === 'tgz' ? '-czf' : '-cf';
     const newArchivePath = archivePath + '.new';
-    execSync(`tar ${packFlag} "${newArchivePath}" -C "${path.dirname(packRoot)}" "${path.basename(packRoot)}"`, {
-      stdio: 'inherit',
-    });
+
+    if (extractedContents.length === 1 && fs.statSync(path.join(extractedDir, extractedContents[0])).isDirectory()) {
+      // Single root directory case: pack that directory's name as root
+      const singleDir = extractedContents[0];
+      execSync(`tar ${packFlag} "${newArchivePath}" -C "${extractedDir}" "${singleDir}"`, {
+        stdio: 'inherit',
+      });
+    } else {
+      // Multiple items at root: pack contents directly (not the "extracted" directory itself)
+      execSync(`tar ${packFlag} "${newArchivePath}" -C "${extractedDir}" .`, {
+        stdio: 'inherit',
+      });
+    }
 
     // Replace original
     fs.unlinkSync(archivePath);
