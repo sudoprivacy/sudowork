@@ -17,7 +17,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
-import { getNodeBinaryPath } from '../claudeCli/NodeRuntimeService';
 
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -29,7 +28,8 @@ export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', '.sudoclaw');
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
-export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
+/** CLI bin path: ~/.nexus/.sudoclaw/cli/package/bin/ (included in tgz) */
+export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
@@ -100,61 +100,18 @@ function resolvePackageRoot(): string | null {
   return null;
 }
 
-function resolveEntryFile(): string | null {
-  const pkgRoot = resolvePackageRoot();
-  if (!pkgRoot) return null;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf-8'));
-    const bin = pkg.bin;
-    if (!bin) return null;
-    const entry = typeof bin === 'string' ? bin : (Object.values(bin)[0] as string);
-    return path.join(pkgRoot, entry);
-  } catch {
-    return null;
+/** Check if launcher.mjs exists in package (created at pack time) */
+function hasLauncher(pkgRoot: string): boolean {
+  return fs.existsSync(path.join(pkgRoot, 'launcher.mjs'));
+}
+
+/** Check if bin wrapper exists in package (created at pack time) */
+function hasBinWrapper(pkgRoot: string): boolean {
+  const binDir = path.join(pkgRoot, 'bin');
+  if (process.platform === 'win32') {
+    return fs.existsSync(path.join(binDir, 'openclaw.cmd'));
   }
-}
-
-/** Launcher script: fixes argv for Commander when run via bundled Node.js */
-const LAUNCHER_CONTENT = `#!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const openclawPath = path.join(__dirname, 'openclaw.mjs');
-let userArgs = process.argv.slice(2);
-// Strip leading executable paths so Commander receives correct subcommand
-const isExecutablePath = (s) => typeof s === 'string' && (
-  /node(\\.exe)?$/i.test(path.basename(s)) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
-);
-while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs.slice(1);
-process.argv = ['node', openclawPath, ...userArgs];
-await import('./openclaw.mjs');
-`;
-
-function writeLauncher(pkgRoot: string): string {
-  const launcherPath = path.join(pkgRoot, 'launcher.mjs');
-  fs.writeFileSync(launcherPath, LAUNCHER_CONTENT, 'utf-8');
-  return launcherPath;
-}
-
-function createUnixWrapper(launcherFile: string): void {
-  const wrapperPath = path.join(SUDOCLAW_BIN_DIR, 'openclaw');
-  const nodePath = getNodeBinaryPath();
-
-  // Simple wrapper: use bundled Node.js only (no Electron, no system Node fallback)
-  const lines = ['#!/bin/sh', '# openclaw wrapper — managed by Sudowork (Sudoclaw)', `CLI="${launcherFile}"`, `STATE_DIR="${SUDOCLAW_DIR}"`, `BUNDLED_NODE="${nodePath}"`, '', 'if [ ! -x "$BUNDLED_NODE" ]; then', '  echo "Error: Bundled Node.js not found at $BUNDLED_NODE" >&2', '  echo "Please restart Sudowork to install it." >&2', '  exit 1', 'fi', '', 'exec env OPENCLAW_STATE_DIR="$STATE_DIR" "$BUNDLED_NODE" "$CLI" "$@"'];
-
-  fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
-}
-
-function createWindowsWrapper(launcherFile: string): void {
-  const wrapperPath = path.join(SUDOCLAW_BIN_DIR, 'openclaw.cmd');
-  const nodePath = getNodeBinaryPath();
-
-  // Simple wrapper: use bundled Node.js only (no Electron, no system Node fallback)
-  const lines = ['@echo off', `set "CLI=${launcherFile}"`, `set "OPENCLAW_STATE_DIR=${SUDOCLAW_DIR}"`, `set "BUNDLED_NODE=${nodePath}"`, '', 'if not exist "%BUNDLED_NODE%" (', '  echo Error: Bundled Node.js not found at %BUNDLED_NODE%', '  echo Please restart Sudowork to install it.', '  exit /b 1', ')', '', '"%BUNDLED_NODE%" "%CLI%" %*'];
-
-  fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
+  return fs.existsSync(path.join(binDir, 'openclaw'));
 }
 
 /** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
@@ -312,70 +269,30 @@ function getBundledOpenclawPath(): string | null {
  *
  * On Windows, NSIS installer may have already extracted files to:
  * - ~/.nexus/.sudoclaw/cli/package/... (extracted from openclaw.tgz)
- * This function detects that and creates the launcher/wrapper if missing.
+ * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
   migrateLegacySudoclaw();
   repairOpenClawConfig();
 
-  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-  const managedBin = path.join(SUDOCLAW_BIN_DIR, binName);
   const pkgRoot = resolvePackageRoot();
 
-  // Check if package was extracted by NSIS (has dist/ and node_modules but no launcher)
-  if (pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
-    console.log('[Sudoclaw] Package already extracted, checking launcher/wrapper...');
-
-    const launcherPath = path.join(pkgRoot, 'launcher.mjs');
-    const hasLauncher = fs.existsSync(launcherPath);
-    const hasBinWrapper = fs.existsSync(managedBin);
-
-    if (!hasLauncher || !hasBinWrapper) {
-      console.log('[Sudoclaw] Creating missing launcher/wrapper...');
-      writeLauncher(pkgRoot);
-      if (process.platform === 'win32') {
-        createWindowsWrapper(launcherPath);
-      } else {
-        createUnixWrapper(launcherPath);
-      }
-      ensureDefaultConfig();
-      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
-    }
-
+  // Check if already fully installed with all required files (tgz includes launcher and bin)
+  if (pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
     if (checkPlatformDependencies(pkgRoot)) {
-      console.log('[Sudoclaw] Sudoclaw ready');
-      return { installed: true, cliPath: managedBin };
+      console.log('[Sudoclaw] Already installed');
+      const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
+      return { installed: true, cliPath: path.join(pkgRoot, 'bin', binName) };
     }
-  }
-
-  // Check if already fully installed with correct platform bindings and launcher
-  const entryFile = resolveEntryFile();
-  const launcherPath = pkgRoot ? path.join(pkgRoot, 'launcher.mjs') : null;
-  const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
-
-  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
-    // Verify platform dependencies
-    if (checkPlatformDependencies(pkgRoot)) {
-      writeLauncher(pkgRoot); // Re-write launcher to ensure it's up-to-date
-      if (process.platform === 'win32') {
-        createWindowsWrapper(launcherPath!);
-      } else {
-        createUnixWrapper(launcherPath!);
-      }
-      return { installed: true, cliPath: managedBin };
-    }
-    // Platform deps missing, fall through to re-extract
     console.log('[Sudoclaw] Platform dependencies missing, will re-extract...');
   }
 
   try {
     fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
-    fs.mkdirSync(SUDOCLAW_BIN_DIR, { recursive: true });
 
-    // Re-extract if existing install lacks node_modules (old tgz format)
-    const existingPkg = resolvePackageRoot();
-    if (existingPkg && hasDistEntry(existingPkg) && !hasNodeModules(existingPkg)) {
-      console.log('[Sudoclaw] Re-extracting (missing node_modules)...');
+    // Re-extract if existing install is incomplete
+    if (pkgRoot) {
+      console.log('[Sudoclaw] Re-extracting (incomplete install)...');
       fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
@@ -397,52 +314,36 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     }
 
     const newPkgRoot = resolvePackageRoot();
-    if (newPkgRoot && !checkPlatformDependencies(newPkgRoot)) {
+    if (!newPkgRoot || !hasDistEntry(newPkgRoot) || !hasLauncher(newPkgRoot) || !hasBinWrapper(newPkgRoot)) {
+      console.error('[Sudoclaw] Extracted package missing required files');
+      return { installed: false, cliPath: null };
+    }
+
+    if (!checkPlatformDependencies(newPkgRoot)) {
       console.error('[Sudoclaw] Platform dependencies check failed after extraction');
       return { installed: false, cliPath: null };
-    }
-    if (!newPkgRoot || !hasDistEntry(newPkgRoot)) {
-      console.error('[Sudoclaw] Downloaded package missing dist/');
-      return { installed: false, cliPath: null };
-    }
-
-    const resolvedEntry = resolveEntryFile();
-    if (!resolvedEntry) {
-      console.error('[Sudoclaw] Cannot determine OpenClaw CLI entry file');
-      return { installed: false, cliPath: null };
-    }
-
-    const newLauncherPath = writeLauncher(newPkgRoot);
-    if (process.platform === 'win32') {
-      createWindowsWrapper(newLauncherPath);
-    } else {
-      createUnixWrapper(newLauncherPath);
     }
 
     ensureDefaultConfig();
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
 
     console.log('[Sudoclaw] OpenClaw installed to', SUDOCLAW_DIR);
-    return { installed: true, cliPath: managedBin };
+    const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
+    return { installed: true, cliPath: path.join(newPkgRoot, 'bin', binName) };
   } catch (err) {
     console.error('[Sudoclaw] Install failed:', err);
     return { installed: false, cliPath: null };
   }
 }
 
-/** Get the Sudoclaw CLI path if installed (dist/ and node_modules and launcher.mjs exist) */
+/** Get the Sudoclaw CLI path if installed */
 export function getSudoclawCliPath(): string | null {
-  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-  const managedBin = path.join(SUDOCLAW_BIN_DIR, binName);
-  const entryFile = resolveEntryFile();
   const pkgRoot = resolvePackageRoot();
-  const launcherPath = pkgRoot ? path.join(pkgRoot, 'launcher.mjs') : null;
-  const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
-
-  if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile) && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher) {
-    return managedBin;
+  if (!pkgRoot || !hasDistEntry(pkgRoot) || !hasNodeModules(pkgRoot) || !hasLauncher(pkgRoot) || !hasBinWrapper(pkgRoot)) {
+    return null;
   }
-  return null;
+  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
+  return path.join(pkgRoot, 'bin', binName);
 }
 
 /**
