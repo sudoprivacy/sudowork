@@ -1,0 +1,3 @@
+[submodule "vendor/ai-dev-browser"]
+	path = vendor/ai-dev-browser
+	url = https://github.com/sudoprivacy/ai-dev-browser.git
