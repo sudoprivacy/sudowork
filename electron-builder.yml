@@ -112,7 +112,6 @@ files:
   - '!scripts/**/*'
   - '!vitest.config.ts'
   - '!uno.config.ts'
-  - '!playwright.config.ts'
 
 extraResources:
   - from: public
