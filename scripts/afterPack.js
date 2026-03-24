@@ -2,12 +2,102 @@ const { Arch } = require('builder-util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 const { normalizeArch, rebuildSingleModule, verifyModuleBinary, getModulesToRebuild } = require('./rebuildNativeModules');
 
 /**
  * afterPack hook for electron-builder
  * Rebuilds native modules for cross-architecture builds
  */
+
+/**
+ * Sign all binary files inside a .tgz archive (for macOS notarization)
+ * @param {string} tgzPath - Path to the .tgz file
+ * @param {string} identity - Code signing identity
+ */
+async function signBinariesInTgz(tgzPath, identity) {
+  if (!fs.existsSync(tgzPath)) {
+    console.log(`   ⚠️  ${tgzPath} not found, skipping signing`);
+    return;
+  }
+
+  console.log(`\n🔐 Signing binaries in ${path.basename(tgzPath)}...`);
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sudowork-sign-'));
+  const extractedDir = path.join(tmpDir, 'extracted');
+
+  try {
+    // Extract the tgz
+    fs.mkdirSync(extractedDir, { recursive: true });
+    execSync(`tar -xzf "${tgzPath}" -C "${extractedDir}"`, { stdio: 'inherit' });
+
+    // Find all binary files (.node, .dylib, .so, executables without extension)
+    const binaryExtensions = ['.node', '.dylib', '.so'];
+    const binaries = [];
+
+    function findBinaries(dir) {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          findBinaries(fullPath);
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name);
+          if (binaryExtensions.includes(ext)) {
+            binaries.push(fullPath);
+          }
+        }
+      }
+    }
+
+    findBinaries(extractedDir);
+
+    if (binaries.length === 0) {
+      console.log(`   ℹ️  No binaries found in ${path.basename(tgzPath)}`);
+      return;
+    }
+
+    console.log(`   Found ${binaries.length} binaries to sign`);
+
+    // Sign each binary
+    for (const binary of binaries) {
+      try {
+        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${binary}"`, {
+          stdio: 'pipe',
+        });
+        console.log(`   ✓ Signed: ${path.basename(binary)}`);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${err.message}`);
+      }
+    }
+
+    // Re-pack the tgz
+    // Find the root directory inside extracted (usually the package name)
+    const extractedContents = fs.readdirSync(extractedDir);
+    let packRoot = extractedDir;
+    if (extractedContents.length === 1 && fs.statSync(path.join(extractedDir, extractedContents[0])).isDirectory()) {
+      packRoot = path.join(extractedDir, extractedContents[0]);
+    }
+
+    // Create new tgz
+    const newTgzPath = tgzPath + '.new';
+    execSync(`tar -czf "${newTgzPath}" -C "${path.dirname(packRoot)}" "${path.basename(packRoot)}"`, {
+      stdio: 'inherit',
+    });
+
+    // Replace original
+    fs.unlinkSync(tgzPath);
+    fs.renameSync(newTgzPath, tgzPath);
+
+    console.log(`   ✅ Re-packed ${path.basename(tgzPath)} with signed binaries`);
+  } catch (err) {
+    console.error(`   ❌ Error processing ${path.basename(tgzPath)}: ${err.message}`);
+    throw err;
+  } finally {
+    // Cleanup
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
 
 module.exports = async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
@@ -204,4 +294,21 @@ module.exports = async function afterPack(context) {
   }
 
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
+
+  // Sign binaries inside bundled .tgz files (for macOS notarization)
+  // These are CLI tools bundled as compressed archives
+  if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
+    const tgzFiles = ['openclaw.tgz', 'claude-code.tgz'];
+    const identity = process.env.CSC_NAME;
+
+    for (const tgzFile of tgzFiles) {
+      const tgzPath = path.join(resourcesDir, tgzFile);
+      try {
+        await signBinariesInTgz(tgzPath, identity);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to sign binaries in ${tgzFile}: ${err.message}`);
+        // Don't throw - allow build to continue
+      }
+    }
+  }
 };
