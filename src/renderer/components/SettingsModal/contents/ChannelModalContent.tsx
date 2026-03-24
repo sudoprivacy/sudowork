@@ -6,7 +6,7 @@
 
 import type { IChannelPluginStatus } from '@/channels/types';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
+import { channel, sudoclaw, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
@@ -22,8 +22,9 @@ import type { ChannelConfig } from './channels/types';
 import DingTalkConfigForm from './DingTalkConfigForm';
 import LarkConfigForm from './LarkConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
+import WeChatConfigForm from './WeChatConfigForm';
 
-type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel';
+type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel';
 
 type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
 
@@ -38,7 +39,7 @@ type ExtensionFieldSchema = {
 
 type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
 
-const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk']);
+const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat']);
 
 /**
  * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence
@@ -106,7 +107,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
         await ConfigStorage.set(configKey, modelRef);
 
         // Derive platform from configKey and sync to channel system
-        const platform = configKey.replace('assistant.', '').replace('.defaultModel', '') as 'telegram' | 'lark' | 'dingtalk';
+        const platform = configKey.replace('assistant.', '').replace('.defaultModel', '') as 'telegram' | 'lark' | 'dingtalk' | 'wechat';
         const agentKey = `assistant.${platform}.agent` as const;
         const currentAgent = await ConfigStorage.get(agentKey);
         await channel.syncChannelSettings
@@ -151,6 +152,10 @@ const ChannelModalContent: React.FC = () => {
   const [extensionFieldValues, setExtensionFieldValues] = useState<ExtensionFieldValues>({});
   const [webuiStatus, setWebuiStatus] = useState<IWebUIStatus | null>(null);
 
+  // WeChat plugin state
+  const [wechatInstalled, setWechatInstalled] = useState(false);
+  const [wechatLoading, setWechatLoading] = useState(false);
+
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
 
@@ -159,12 +164,14 @@ const ChannelModalContent: React.FC = () => {
     telegram: true, // Default to collapsed
     lark: true,
     dingtalk: true,
+    wechat: true,
   });
 
   // Model selection state — uses unified hook with ConfigStorage persistence
   const telegramModelSelection = useChannelModelSelection('assistant.telegram.defaultModel');
   const larkModelSelection = useChannelModelSelection('assistant.lark.defaultModel');
   const dingtalkModelSelection = useChannelModelSelection('assistant.dingtalk.defaultModel');
+  const wechatModelSelection = useChannelModelSelection('assistant.wechat.defaultModel');
 
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
@@ -205,6 +212,16 @@ const ChannelModalContent: React.FC = () => {
       }
     } catch (error) {
       console.error('[ChannelSettings] Failed to load plugin status:', error);
+    }
+
+    // Load WeChat plugin status
+    try {
+      const wechatResult = await sudoclaw.getWechatStatus.invoke();
+      if (wechatResult.success && wechatResult.data) {
+        setWechatInstalled(wechatResult.data.installed);
+      }
+    } catch (error) {
+      console.error('[ChannelSettings] Failed to load WeChat status:', error);
     }
   }, []);
 
@@ -377,6 +394,19 @@ const ChannelModalContent: React.FC = () => {
       setDingtalkEnableLoading(false);
     }
   };
+
+  // WeChat toggle handler — expands channel so user can click Install in the form
+  const handleToggleWechatPlugin = async (enabled: boolean) => {
+    if (!enabled) return;
+    if (wechatInstalled) return;
+
+    // Expand the channel so the config form (with install button) is visible
+    setCollapseKeys((prev) => ({ ...prev, wechat: false }));
+  };
+
+  const handleWechatInstalled = useCallback(() => {
+    setWechatInstalled(true);
+  }, []);
 
   const updateExtensionFieldValue = useCallback((pluginType: string, key: string, value: string | number | boolean) => {
     setExtensionFieldValues((prev) => ({
@@ -564,6 +594,17 @@ const ChannelModalContent: React.FC = () => {
       content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} modelSelection={dingtalkModelSelection} onStatusChange={setDingtalkPluginStatus} />,
     };
 
+    const wechatChannel: ChannelConfig = {
+      id: 'wechat',
+      title: t('settings.channels.wechatTitle', 'Personal WeChat'),
+      status: 'active',
+      enabled: wechatInstalled,
+      disabled: wechatLoading,
+      isConnected: wechatInstalled,
+      defaultModel: wechatModelSelection.currentModel?.useModel,
+      content: <WeChatConfigForm installed={wechatInstalled} onInstalled={handleWechatInstalled} />,
+    };
+
     const extensionChannels: ChannelConfig[] = Object.values(extensionStatuses)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((status) => ({
@@ -581,14 +622,15 @@ const ChannelModalContent: React.FC = () => {
 
     const extensionTypeSet = new Set(extensionChannels.map((channel) => String(channel.id).toLowerCase()));
 
-    return [telegramChannel, larkChannel, dingtalkChannel, ...extensionChannels];
-  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
+    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, ...extensionChannels];
+  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wechatInstalled, wechatLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {
     if (channelId === 'telegram') return handleTogglePlugin;
     if (channelId === 'lark') return handleToggleLarkPlugin;
     if (channelId === 'dingtalk') return handleToggleDingtalkPlugin;
+    if (channelId === 'wechat') return handleToggleWechatPlugin;
     if (extensionStatuses[channelId]) {
       return (enabled: boolean) => {
         void handleToggleExtensionPlugin(channelId, enabled);
@@ -596,7 +638,7 @@ const ChannelModalContent: React.FC = () => {
     }
     return undefined;
   };
-  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, and DingTalk to interact with Sudowork from IM apps.' });
+  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, DingTalk, and WeChat to interact with Sudowork from IM apps.' });
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 
   return (

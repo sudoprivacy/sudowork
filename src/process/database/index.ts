@@ -481,7 +481,7 @@ export class AionUIDatabase {
    * Batch-update the model field on channel conversations matching source + type.
    * Used when channel settings change to propagate new model to existing conversations.
    */
-  updateChannelConversationModel(source: 'telegram' | 'lark' | 'dingtalk', type: string, model: TProviderWithModel, userId?: string): IQueryResult<number> {
+  updateChannelConversationModel(source: 'telegram' | 'lark' | 'dingtalk' | 'wechat', type: string, model: TProviderWithModel, userId?: string): IQueryResult<number> {
     try {
       const finalUserId = userId || this.defaultUserId;
       const modelJson = JSON.stringify(model);

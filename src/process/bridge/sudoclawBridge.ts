@@ -9,8 +9,10 @@ import type { SudoclawConfig } from '@/common/ipcBridge';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
+import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { OpenClawGatewayManager } from '@/agent/openclaw';
 import * as net from 'node:net';
 
@@ -270,6 +272,141 @@ export function initSudoclawBridge(): void {
           }, 100);
         }
       })();
+    });
+  });
+
+  // ==================== WeChat Plugin ====================
+
+  const SUDOCLAW_WECHAT_PLUGIN_DIR = path.join(SUDOCLAW_DIR, 'extensions', 'openclaw-weixin');
+
+  ipcBridge.sudoclaw.getWechatStatus.provider(async () => {
+    try {
+      const installed = fs.existsSync(path.join(SUDOCLAW_WECHAT_PLUGIN_DIR, 'openclaw.plugin.json'));
+      return { success: true, data: { installed } };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.installWechatPlugin.provider(async () => {
+    return new Promise((resolve) => {
+      // Check if already installed
+      if (fs.existsSync(path.join(SUDOCLAW_WECHAT_PLUGIN_DIR, 'openclaw.plugin.json'))) {
+        ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'success', message: '微信插件已安装' });
+        resolve({ success: true, data: { output: 'Already installed' } });
+        return;
+      }
+
+      const nodePath = getNodeBinaryPath();
+      if (!fs.existsSync(nodePath)) {
+        const msg = 'Bundled Node.js not found. Please restart Sudowork to install it.';
+        ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: msg });
+        resolve({ success: false, msg });
+        return;
+      }
+
+      console.log('[SudoclawBridge] Starting WeChat plugin installation...');
+      ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'installing', message: '正在安装微信插件...' });
+
+      // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/.sudoclaw/
+      const sudoclawBinDir = path.join(SUDOCLAW_DIR, 'bin');
+      const env: Record<string, string> = {
+        ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined) as [string, string][]),
+        PATH: `${sudoclawBinDir}:${path.dirname(nodePath)}:${process.env.PATH || ''}`,
+      };
+
+      const npxPath = path.join(path.dirname(nodePath), 'npx');
+      const child = spawn(nodePath, [npxPath, '-y', '@tencent-weixin/openclaw-weixin-cli@latest', 'install'], {
+        env,
+        cwd: SUDOCLAW_DIR,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let allOutput = '';
+      let qrDetected = false;
+      let qrDataLastEmitted = 0;
+      let qrUrl = '';
+
+      const processOutput = (data: Buffer) => {
+        const text = data.toString();
+        allOutput += text;
+        console.log('[SudoclawBridge] CLI output chunk:', text.substring(0, 100).replace(/\n/g, '\\n'));
+
+        // Detect QR code URL from CLI output — look for multiple markers
+        if (!qrUrl) {
+          // Try to extract URL directly
+          const urlMatch = allOutput.match(/(https:\/\/liteapp\.weixin\.qq\.com\/q\/[^\s\n]+)/);
+          if (urlMatch) {
+            qrUrl = urlMatch[1];
+            qrDetected = true;
+            console.log('[SudoclawBridge] QR URL extracted:', qrUrl);
+            // Immediately emit once we have the URL
+            ipcBridge.sudoclaw.wechatInstallProgress.emit({
+              phase: 'qrcode',
+              message: '请使用微信扫描二维码',
+              qrUrl,
+            });
+          }
+        }
+
+        // Re-emit periodically while waiting for scan (keep UI updated)
+        if (qrDetected && qrUrl && Date.now() - qrDataLastEmitted > 1000) {
+          qrDataLastEmitted = Date.now();
+          ipcBridge.sudoclaw.wechatInstallProgress.emit({
+            phase: 'qrcode',
+            message: '请使用微信扫描二维码',
+            qrUrl,
+          });
+        }
+
+        // Detect success
+        if (text.includes('✅') || text.includes('连接成功') || text.includes('与微信连接成功')) {
+          ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'scanning', message: '扫码成功' });
+        }
+      };
+
+      child.stdout.on('data', processOutput);
+      child.stderr.on('data', processOutput);
+
+      child.on('close', async (code) => {
+        if (code === 0) {
+          ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'success', message: '微信插件安装成功' });
+          resolve({ success: true, data: { output: allOutput } });
+
+          try {
+            await WorkerManage.restartOpenClawGateways();
+            console.log('[SudoclawBridge] Gateway restarted after WeChat plugin install');
+          } catch (restartErr) {
+            console.warn('[SudoclawBridge] Gateway restart after WeChat install failed:', restartErr);
+          }
+        } else {
+          const errMsg = `WeChat plugin install failed (exit code ${code})`;
+          ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: errMsg });
+          resolve({ success: false, msg: errMsg });
+        }
+      });
+
+      child.on('error', (err) => {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('[SudoclawBridge] WeChat plugin install error:', err);
+        ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: errMsg });
+        resolve({ success: false, msg: errMsg });
+      });
+
+      // Timeout after 5 minutes
+      const timeout = setTimeout(
+        () => {
+          if (!child.killed) {
+            child.kill('SIGTERM');
+            const msg = 'WeChat plugin installation timed out (5 min)';
+            ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: msg });
+            resolve({ success: false, msg });
+          }
+        },
+        5 * 60 * 1000
+      );
+
+      child.on('close', () => clearTimeout(timeout));
     });
   });
 }

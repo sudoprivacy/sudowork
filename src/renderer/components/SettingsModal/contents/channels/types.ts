@@ -11,7 +11,7 @@ export type ChannelStatus = 'active' | 'coming_soon';
 export interface ChannelConfig {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   status: ChannelStatus;
   enabled: boolean;
   disabled?: boolean;

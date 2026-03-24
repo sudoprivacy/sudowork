@@ -523,6 +523,12 @@ export const sudoclaw = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
   /** Emitted during installation to report progress */
   installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'installing' | 'configuring'; percent?: number }>('sudoclaw.install-progress'),
+  /** Install WeChat plugin to Sudoclaw via npx CLI */
+  installWechatPlugin: bridge.buildProvider<IBridgeResponse<{ output: string }>, void>('sudoclaw.install-wechat-plugin'),
+  /** Get WeChat plugin installation status */
+  getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
+  /** Emitted during WeChat plugin install — delivers QR code data and progress */
+  wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
 };
 
 // Initialization status for runtime dependencies

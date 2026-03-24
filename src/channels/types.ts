@@ -9,7 +9,7 @@
 /**
  * Built-in platform types for channel plugins.
  */
-export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk';
+export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk' | 'wechat';
 
 /**
  * Supported platform types for plugins.
@@ -501,14 +501,14 @@ export function pairingRequestToRow(request: IChannelPairingRequest): IChannelPa
  * Channel platform type for model configuration.
  * Includes built-in platforms and extension-contributed platforms (string).
  */
-export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | (string & {});
+export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & {});
 
 /**
  * Type guard to check if a string is a known built-in ChannelPlatform.
  * Extension platform types are valid but not matched here.
  */
-export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' {
-  return value === 'telegram' || value === 'lark' || value === 'dingtalk';
+export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' | 'wechat' {
+  return value === 'telegram' || value === 'lark' || value === 'dingtalk' || value === 'wechat';
 }
 
 /**
@@ -539,7 +539,7 @@ export function resolveChannelConvType(backend: string): { convType: string; con
  * - empty segments are omitted
  */
 export function getChannelConversationName(platform: ChannelPlatform | PluginType, type?: string, backend?: string, chatId?: string): string {
-  const shortPlatform: Record<string, string> = { telegram: 'tg', dingtalk: 'ding' };
+  const shortPlatform: Record<string, string> = { telegram: 'tg', dingtalk: 'ding', wechat: 'wx' };
   const parts: string[] = [shortPlatform[platform] ?? platform];
   if (type) parts.push(type);
   if (type === 'acp' && backend) parts.push(backend);

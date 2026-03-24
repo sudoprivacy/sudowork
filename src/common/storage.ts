@@ -115,6 +115,17 @@ export interface IConfigStorageRefer {
     customAgentId?: string;
     name?: string;
   };
+  // WeChat assistant default model / 微信助手默认模型
+  'assistant.wechat.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // WeChat assistant agent selection / 微信助手所使用的 Agent
+  'assistant.wechat.agent'?: {
+    backend: AcpBackendAll;
+    customAgentId?: string;
+    name?: string;
+  };
 }
 
 export interface IEnvStorageRefer {
@@ -128,7 +139,7 @@ export interface IEnvStorageRefer {
  * Conversation source type - identifies where the conversation was created
  * 会话来源类型 - 标识会话创建的来源
  */
-export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | (string & {});
+export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & {});
 
 interface IChatConversation<T, Extra> {
   createTime: number;

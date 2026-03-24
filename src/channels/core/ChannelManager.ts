@@ -493,7 +493,7 @@ export class ChannelManager {
       // For gemini + model info: update existing conversations' model field
       if (newType === 'gemini' && model?.id && model?.useModel) {
         if (isBuiltinChannelPlatform(platform)) {
-          const builtinPlatform: 'telegram' | 'lark' | 'dingtalk' = platform;
+          const builtinPlatform: 'telegram' | 'lark' | 'dingtalk' | 'wechat' = platform;
           const fullModel = await getChannelDefaultModel(builtinPlatform);
           const db = getDatabase();
           const result = db.updateChannelConversationModel(builtinPlatform, 'gemini', fullModel);
