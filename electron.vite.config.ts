@@ -100,16 +100,15 @@ export default defineConfig(({ mode }) => {
     renderer: {
       base: './',
       server: {
-        // Keep renderer HTTP port deterministic for Electron runtime URL injection.
-        // If 5173 is unavailable, fail fast instead of auto-switching to 5174+,
-        // which causes renderer resource requests to target the wrong origin.
-        port: 5173,
-        strictPort: true,
+        // Port for Vite dev server. On Windows, WinNAT/Hyper-V can reserve ports
+        // causing EACCES. launch-dev.js probes for a free port and passes it via
+        // VITE_DEV_SERVER_PORT. electron-vite sets ELECTRON_RENDERER_URL to the
+        // actual URL, so Electron main process loads the correct origin.
+        port: parseInt(process.env.VITE_DEV_SERVER_PORT || '5173', 10),
         // Explicit HMR config so Vite client connects directly to the Vite dev server,
         // not to the WebUI proxy server (which would reject the WebSocket and cause infinite reload)
         hmr: {
           host: 'localhost',
-          port: 5173,
         },
       },
       resolve: {
