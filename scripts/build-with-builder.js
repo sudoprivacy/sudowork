@@ -460,32 +460,8 @@ try {
     console.log(`🚀 Creating distributables for ${targetArch}...`);
   }
 
-  // 为 Windows 构建添加架构检测脚本
-  // Add architecture detection scripts for Windows builds
-  // 使用 .onVerifyInstDir 避免与 electron-builder 冲突
-  // Use .onVerifyInstDir to avoid conflicts with electron-builder
-  let nsisInclude = '';
-  if (builderArgs.includes('--win') || builderArgs.includes('--all')) {
-    if (!multiArch) {
-      // 单架构构建：添加对应架构的检测脚本
-      // Single-arch build: Add architecture-specific detection script
-      if (targetArch === 'arm64') {
-        const arm64Script = 'resources/windows-installer-arm64.nsh';
-        if (fs.existsSync(path.resolve(__dirname, '..', arm64Script))) {
-          nsisInclude += ` --config.nsis.include="${arm64Script}"`;
-          console.log(`📋 Including Windows ARM64 architecture check script`);
-        }
-      } else if (targetArch === 'x64') {
-        const x64Script = 'resources/windows-installer-x64.nsh';
-        if (fs.existsSync(path.resolve(__dirname, '..', x64Script))) {
-          nsisInclude += ` --config.nsis.include="${x64Script}"`;
-          console.log(`📋 Including Windows x64 architecture check script`);
-        }
-      }
-    }
-    // 多架构构建：暂不支持架构检测脚本
-    // Multi-arch builds: Architecture detection not supported yet
-  }
+  // Runtime components are installed by scripts/installer.nsh
+  // No need for architecture-specific scripts
 
   if (process.platform === 'win32' && builderArgs.includes('--win')) {
     const winUnpackedDir = path.join(outDir, 'win-unpacked');
@@ -509,7 +485,7 @@ try {
     cleanupWindowsPackOutput();
   }
 
-  const builderCommand = `npx electron-builder ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg}`;
+  const builderCommand = `npx electron-builder ${builderArgs} ${archFlag} ${publishArg}`;
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {

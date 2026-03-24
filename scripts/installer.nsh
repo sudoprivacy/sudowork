@@ -1,25 +1,87 @@
 ; Sudowork Custom NSIS Script
-; Installs runtime components (Node.js, Sudoclaw, Nexus) after main installation
+; Installs runtime components (Node.js, Sudoclaw, Nexus) during setup
 
+!include "x64.nsh"
+
+; ========================================
+; Custom Installation - Runtime Components
+; ========================================
 !macro customInstall
-  ; Run PowerShell script to install runtime components
-  ; Use ASCII output encoding for proper log display
-  DetailPrint "Installing runtime components..."
+  ; Get user's home directory
+  ReadEnvStr $R0 "USERPROFILE"
+  StrCpy $R1 "$R0\.nexus"
 
-  ; Get architecture
-  StrCpy $0 "x64"
-  ${If} ${RunningX64}
-    StrCpy $0 "x64"
-  ${Else}
-    StrCpy $0 "ia32"
-  ${EndIf}
+  ; Create directory structure
+  CreateDirectory "$R1"
+  CreateDirectory "$R1\node"
+  CreateDirectory "$R1\.sudoclaw\cli"
+  CreateDirectory "$R1\.sudoclaw\bin"
+  CreateDirectory "$R1\nexus_env"
 
-  ; Run the install script
-  ExecWait `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\resources\install-runtime-components.ps1" -Arch "$0"` $1
+  ; Show installation progress header
+  DetailPrint "=========================================="
+  DetailPrint "Installing Runtime Components"
+  DetailPrint "Target: $R1"
+  DetailPrint "=========================================="
 
-  ${If} $1 == 0
-    DetailPrint "Runtime components installed successfully"
-  ${Else}
-    DetailPrint "Warning: Some runtime components may not have installed correctly"
-  ${EndIf}
+  ; ========== [1/3] Node.js Runtime ==========
+  DetailPrint "[1/3] Extracting Node.js runtime..."
+  nsExec::ExecToStack 'powershell -NoProfile -Command "Expand-Archive -Path \"$INSTDIR\resources\node-win32-x64.zip\" -DestinationPath \"$R1\node\" -Force"'
+  Pop $R2
+  Pop $R3
+  StrCmp $R2 "0" node_ok node_fail
+  node_fail:
+    DetailPrint "ERROR: Node.js extraction failed (exit code: $R2)"
+    MessageBox MB_OK "Node.js extraction failed. The application may not work correctly."
+    Goto node_done
+  node_ok:
+    DetailPrint "Node.js extracted successfully"
+  node_done:
+
+  ; ========== [2/3] Sudoclaw (OpenClaw) ==========
+  ; tgz contains: package/... with package/bin/openclaw.cmd inside
+  ; Extract to cli directory, then move bin to parent
+  DetailPrint "[2/3] Extracting Sudoclaw..."
+  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\openclaw.tgz" -C "$R1\.sudoclaw\cli"'
+  Pop $R2
+  Pop $R3
+  StrCmp $R2 "0" sudoclaw_ok sudoclaw_fail
+  sudoclaw_fail:
+    DetailPrint "ERROR: Sudoclaw extraction failed (exit code: $R2)"
+    MessageBox MB_OK "Sudoclaw extraction failed. The application may not work correctly."
+    Goto sudoclaw_done
+  sudoclaw_ok:
+    DetailPrint "Sudoclaw extracted successfully"
+    ; Move bin from package/bin to ~/.nexus/.sudoclaw/bin
+    IfFileExists "$R1\.sudoclaw\cli\package\bin\openclaw.cmd" 0 sudoclaw_done
+    DetailPrint "Setting up Sudoclaw CLI wrappers..."
+    nsExec::ExecToStack 'powershell -NoProfile -Command "Copy-Item -Path \"$R1\.sudoclaw\cli\package\bin\*\" -Destination \"$R1\.sudoclaw\bin\" -Force"'
+    Pop $R4
+    Pop $R5
+  sudoclaw_done:
+
+  ; ========== [3/3] Nexus ==========
+  DetailPrint "[3/3] Extracting Nexus..."
+  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\nexus.tar.gz" -C "$R1\nexus_env"'
+  Pop $R2
+  Pop $R3
+  StrCmp $R2 "0" nexus_ok nexus_fail
+  nexus_fail:
+    DetailPrint "WARNING: Nexus extraction failed (exit code: $R2)"
+    DetailPrint "Some features may not work."
+    Goto nexus_done
+  nexus_ok:
+    DetailPrint "Nexus extracted successfully"
+  nexus_done:
+
+  DetailPrint "=========================================="
+  DetailPrint "Runtime components installation complete!"
+  DetailPrint "=========================================="
 !macroend
+
+; ========================================
+; Auto-launch after installation
+; ========================================
+Function .onInstSuccess
+  Exec '"$INSTDIR\Sudowork.exe"'
+FunctionEnd

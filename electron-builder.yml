@@ -139,9 +139,6 @@ win:
     # Node.js runtime for Windows (zip format)
     - from: resources/node-win32-${arch}.zip
       to: node-win32-${arch}.zip
-    # PowerShell script for runtime installation (called by NSIS)
-    - from: scripts/install-runtime-components.ps1
-      to: install-runtime-components.ps1
 
 nsis:
   oneClick: false
@@ -151,7 +148,6 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-  differentialPackage: true
   include: scripts/installer.nsh
 
 mac:

@@ -5,6 +5,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
+import { getDataPath } from '@process/utils';
 
 const execAsync = promisify(exec);
 
@@ -324,11 +325,11 @@ class DynamicNexusService {
   }
 
   /**
-   * Returns the path to the conda env directory inside userData.
-   * e.g. ~/Library/Application Support/Sudowork/nexus_env
+   * Returns the path to the conda env directory.
+   * Uses ~/.nexus/nexus_env for consistency with other runtime components.
    */
   private getCondaEnvDir(): string {
-    return path.join(app.getPath('userData'), 'nexus_env');
+    return path.join(getDataPath(), 'nexus_env');
   }
 
   private waitForPort(port: number, timeoutMs = 10000): Promise<void> {

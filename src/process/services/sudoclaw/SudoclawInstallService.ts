@@ -309,6 +309,10 @@ function getBundledOpenclawPath(): string | null {
  * Ensure OpenClaw is installed in ~/.nexus/.sudoclaw.
  * Called on app startup — runs silently, no user prompt.
  * Note: ensureNodeInstalled() is called before this in process/index.ts
+ *
+ * On Windows, NSIS installer may have already extracted files to:
+ * - ~/.nexus/.sudoclaw/cli/package/... (extracted from openclaw.tgz)
+ * This function detects that and creates the launcher/wrapper if missing.
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
   migrateLegacySudoclaw();
@@ -316,10 +320,36 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
 
   const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
   const managedBin = path.join(SUDOCLAW_BIN_DIR, binName);
-  const entryFile = resolveEntryFile();
   const pkgRoot = resolvePackageRoot();
 
-  // Check if already installed with correct platform bindings and launcher
+  // Check if package was extracted by NSIS (has dist/ and node_modules but no launcher)
+  if (pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot)) {
+    console.log('[Sudoclaw] Package already extracted, checking launcher/wrapper...');
+
+    const launcherPath = path.join(pkgRoot, 'launcher.mjs');
+    const hasLauncher = fs.existsSync(launcherPath);
+    const hasBinWrapper = fs.existsSync(managedBin);
+
+    if (!hasLauncher || !hasBinWrapper) {
+      console.log('[Sudoclaw] Creating missing launcher/wrapper...');
+      writeLauncher(pkgRoot);
+      if (process.platform === 'win32') {
+        createWindowsWrapper(launcherPath);
+      } else {
+        createUnixWrapper(launcherPath);
+      }
+      ensureDefaultConfig();
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (checkPlatformDependencies(pkgRoot)) {
+      console.log('[Sudoclaw] Sudoclaw ready');
+      return { installed: true, cliPath: managedBin };
+    }
+  }
+
+  // Check if already fully installed with correct platform bindings and launcher
+  const entryFile = resolveEntryFile();
   const launcherPath = pkgRoot ? path.join(pkgRoot, 'launcher.mjs') : null;
   const hasLauncher = launcherPath ? fs.existsSync(launcherPath) : false;
 
@@ -328,9 +358,9 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     if (checkPlatformDependencies(pkgRoot)) {
       writeLauncher(pkgRoot); // Re-write launcher to ensure it's up-to-date
       if (process.platform === 'win32') {
-        createWindowsWrapper(launcherPath);
+        createWindowsWrapper(launcherPath!);
       } else {
-        createUnixWrapper(launcherPath);
+        createUnixWrapper(launcherPath!);
       }
       return { installed: true, cliPath: managedBin };
     }
@@ -366,12 +396,12 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       return { installed: false, cliPath: null };
     }
 
-    const pkgRoot = resolvePackageRoot();
-    if (pkgRoot && !checkPlatformDependencies(pkgRoot)) {
+    const newPkgRoot = resolvePackageRoot();
+    if (newPkgRoot && !checkPlatformDependencies(newPkgRoot)) {
       console.error('[Sudoclaw] Platform dependencies check failed after extraction');
       return { installed: false, cliPath: null };
     }
-    if (!pkgRoot || !hasDistEntry(pkgRoot)) {
+    if (!newPkgRoot || !hasDistEntry(newPkgRoot)) {
       console.error('[Sudoclaw] Downloaded package missing dist/');
       return { installed: false, cliPath: null };
     }
@@ -382,11 +412,11 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
       return { installed: false, cliPath: null };
     }
 
-    const launcherPath = writeLauncher(pkgRoot);
+    const newLauncherPath = writeLauncher(newPkgRoot);
     if (process.platform === 'win32') {
-      createWindowsWrapper(launcherPath);
+      createWindowsWrapper(newLauncherPath);
     } else {
-      createUnixWrapper(launcherPath);
+      createUnixWrapper(newLauncherPath);
     }
 
     ensureDefaultConfig();

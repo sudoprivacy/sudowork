@@ -96,6 +96,63 @@ try {
     console.log('[openclaw] Build completed');
   }
 
+  // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
+  console.log('[openclaw] Creating launcher.mjs...');
+  const launcherContent = `#!/usr/bin/env node
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const openclawPath = path.join(__dirname, 'openclaw.mjs');
+let userArgs = process.argv.slice(2);
+// Strip leading executable paths so Commander receives correct subcommand
+const isExecutablePath = (s) => typeof s === 'string' && (
+  /node(\\.exe)?$/i.test(path.basename(s)) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
+);
+while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs.slice(1);
+process.argv = ['node', openclawPath, ...userArgs];
+await import('./openclaw.mjs');
+`;
+  fs.writeFileSync(path.join(pkgDir, 'launcher.mjs'), launcherContent, 'utf-8');
+
+  // Create bin directory with wrappers
+  console.log('[openclaw] Creating bin wrappers...');
+  const binDir = path.join(pkgDir, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+
+  // Unix wrapper (shell script)
+  const unixWrapper = `#!/bin/sh
+# openclaw wrapper — managed by Sudowork (Sudoclaw)
+CLI="\$(dirname "\$0")/../launcher.mjs"
+STATE_DIR="\${HOME}/.nexus/.sudoclaw"
+BUNDLED_NODE="\${HOME}/.nexus/node/bin/node"
+
+if [ ! -x "\$BUNDLED_NODE" ]; then
+  echo "Error: Bundled Node.js not found at \$BUNDLED_NODE" >&2
+  echo "Please restart Sudowork to install it." >&2
+  exit 1
+fi
+
+exec env OPENCLAW_STATE_DIR="\$STATE_DIR" "\$BUNDLED_NODE" "\$CLI" "\$@"
+`;
+  fs.writeFileSync(path.join(binDir, 'openclaw'), unixWrapper, { mode: 0o755 });
+
+  // Windows wrapper (batch file)
+  const windowsWrapper = `@echo off
+set "CLI=%~dp0..\\launcher.mjs"
+set "OPENCLAW_STATE_DIR=%USERPROFILE%\\.nexus\\.sudoclaw"
+set "BUNDLED_NODE=%USERPROFILE%\\.nexus\\node\\node.exe"
+
+if not exist "%BUNDLED_NODE%" (
+  echo Error: Bundled Node.js not found at %BUNDLED_NODE%
+  echo Please restart Sudowork to install it.
+  exit /b 1
+)
+
+"%BUNDLED_NODE%" "%CLI%" %*
+`;
+  fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
+
   // Create final tarball - run from extractDir to avoid path issues
   console.log('[openclaw] Creating final tarball...');
   if (process.platform === 'win32') {
