@@ -5,11 +5,12 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
+import { useAuth } from './context/AuthContext';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -22,20 +23,20 @@ interface SiderProps {
 const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
-  const location = useLocation();
-  const { pathname, search, hash } = location;
+  const { pathname, search, hash } = useLocation();
 
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { logout, user: currentUser } = useAuth();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
-  // 模拟用户信息（实际应从配置或存储中获取）
+  // 从 AuthContext 获取实际用户信息
   const userInfo = {
-    email: 'user@example.com',
-    name: 'User',
+    email: currentUser?.enterprise_code ? `企业码：${currentUser.enterprise_code}` : 'user@sudowork.com',
+    name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };
 
@@ -210,7 +211,14 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   </div>
                 </Menu.Item>
                 <Menu.Item key='logout'>
-                  <div className='flex items-center gap-8px text-[rgb(var(--danger-6))]'>
+                  <div
+                    className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
+                    onClick={async () => {
+                      await logout();
+                      Message.success('已退出登录');
+                      navigate('/login', { replace: true });
+                    }}
+                  >
                     <Logout theme='outline' size='18' />
                     <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
                   </div>

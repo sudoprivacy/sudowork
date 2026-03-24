@@ -692,14 +692,5 @@
   "openclaw.workspaceOpened": "工作区已打开",
   "openclaw.failedToOpenWorkspace": "打开工作区失败",
   "profile": "用户中心",
-  "sudorouter": "Sudorouter 配置",
-  "sudorouter.sync": "执行同步",
-  "sudorouter.syncing": "同步中...",
-  "sudorouter.syncSuccess": "配置同步成功",
-  "sudorouter.modelSelection": "选择云端模型",
-  "sudorouter.agentDetection": "本地 Agent 检测",
-  "sudorouter.points": "可用积分",
-  "sudorouter.totalQuota": "总额度",
-  "sudorouter.usageLedger": "使用流水",
-  "sudorouter.syncNote": "点击同步后将自动备份并更新本地配置文件"
+  "memberManagement": "成员管理"
 }

@@ -13,7 +13,7 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'members', 'sudorouter', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'system', 'about'] as const;
+const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;

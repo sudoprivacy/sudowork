@@ -65,6 +65,66 @@ const MemberManagement: React.FC = () => {
     });
   };
 
+  const handleReject = (user: any) => {
+    Modal.confirm({
+      title: '确认拒绝申请',
+      content: `确定要拒绝 "${user.nickname}" 的加入申请吗？拒绝后用户将无法登录。`,
+      okText: '拒绝',
+      okButtonProps: { status: 'danger' },
+      onOk: async () => {
+        try {
+          const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+          const res = await fetch(`${serverConfig.baseUrl}/api/v1/admin/reject`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${currentUser?.token}`,
+            },
+            body: JSON.stringify({ userId: user.id }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            Message.success(`已拒绝 ${user.nickname} 的申请。`);
+            fetchMembers();
+          }
+        } catch (e) {
+          Message.error('拒绝失败');
+        }
+      },
+    });
+  };
+
+  const handleDelete = (user: any) => {
+    Modal.confirm({
+      title: '确认删除用户',
+      content: `确定要删除 "${user.nickname}" 吗？删除后用户将无法登录，相关数据将被清空。`,
+      okText: '删除',
+      okButtonProps: { status: 'danger' },
+      onOk: async () => {
+        try {
+          const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+          const res = await fetch(`${serverConfig.baseUrl}/api/v1/admin/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${currentUser?.token}`,
+            },
+            body: JSON.stringify({ userId: user.id }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            Message.success(`已删除用户 ${user.nickname}。`);
+            fetchMembers();
+          } else {
+            Message.error(data.msg || '删除失败');
+          }
+        } catch (e) {
+          Message.error('删除失败');
+        }
+      },
+    });
+  };
+
   const pendingColumns = [
     {
       title: '申请人',
@@ -88,7 +148,7 @@ const MemberManagement: React.FC = () => {
           <Button type='primary' size='small' onClick={() => handleApprove(record)}>
             同意
           </Button>
-          <Button type='secondary' size='small' status='danger'>
+          <Button type='secondary' size='small' status='danger' onClick={() => handleReject(record)}>
             拒绝
           </Button>
         </Space>
@@ -114,7 +174,7 @@ const MemberManagement: React.FC = () => {
     {
       title: '管理',
       align: 'right' as const,
-      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} />,
+      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} onClick={() => handleDelete(record)} />,
     },
   ];
 
