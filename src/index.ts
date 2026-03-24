@@ -321,13 +321,33 @@ let closeToTrayEnabled = false;
  * macOS uses Template image to adapt to dark/light menu bar
  */
 const getTrayIcon = (): Electron.NativeImage => {
-  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources');
-  const icon = nativeImage.createFromPath(path.join(resourcesPath, 'app.png'));
+  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, '../../resources');
+
+  // Windows: 优先使用 .ico 格式，Linux/macOS 使用 .png
+  const iconFile = process.platform === 'win32' ? 'app.ico' : 'app.png';
+  const iconPath = path.join(resourcesPath, iconFile);
+
+  let icon: Electron.NativeImage;
+
+  if (fs.existsSync(iconPath)) {
+    icon = nativeImage.createFromPath(iconPath);
+  } else {
+    // Fallback: try alternative paths
+    const fallbackPath = app.isPackaged ? path.join(process.resourcesPath, 'app.png') : path.join(process.cwd(), 'resources', 'app.png');
+    icon = nativeImage.createFromPath(fallbackPath);
+  }
+
+  if (icon.isEmpty()) {
+    console.warn('[Tray] Icon file is empty, creating default icon');
+    // Create a default 32x32 icon programmatically
+    icon = nativeImage.createEmpty();
+  }
+
   if (process.platform === 'darwin') {
     // macOS: 使用 16x16 的彩色应用图标 / Use 16x16 colored app icon
     return icon.resize({ width: 16, height: 16 });
   }
-  // Windows/Linux: 使用 32x32 PNG 图标确保清晰可见 / Use 32x32 PNG icon for clear visibility
+  // Windows/Linux: 使用 32x32 图标确保清晰可见 / Use 32x32 icon for clear visibility
   return icon.resize({ width: 32, height: 32 });
 };
 
@@ -335,9 +355,14 @@ const getTrayIcon = (): Electron.NativeImage => {
  * 构建托盘右键菜单 / Build tray context menu
  */
 const buildTrayContextMenu = (): Electron.Menu => {
+  // Ensure i18n is initialized before building menu
+  // 确保 i18n 在构建菜单前已初始化
+  const showWindowLabel = i18n.t('tray.showWindow');
+  const quitLabel = i18n.t('tray.quit');
+
   return Menu.buildFromTemplate([
     {
-      label: i18n.t('tray.showWindow'),
+      label: showWindowLabel,
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -347,7 +372,7 @@ const buildTrayContextMenu = (): Electron.Menu => {
     },
     { type: 'separator' },
     {
-      label: i18n.t('tray.quit'),
+      label: quitLabel,
       click: () => {
         isQuitting = true;
         app.quit();
@@ -375,7 +400,17 @@ const createOrUpdateTray = (): void => {
     }
 
     tray.setToolTip('Sudowork');
-    tray.setContextMenu(buildTrayContextMenu());
+
+    // 确保 i18n 已初始化后再设置菜单
+    // Ensure i18n is initialized before setting menu
+    const contextMenu = buildTrayContextMenu();
+    tray.setContextMenu(contextMenu);
+
+    console.log('[Tray] Created with menu labels:', {
+      showWindow: i18n.t('tray.showWindow'),
+      quit: i18n.t('tray.quit'),
+      language: i18n.language,
+    });
   } catch (err) {
     console.error('[Tray] Failed to create or update tray:', err);
   }
@@ -698,6 +733,10 @@ const handleAppReady = async (): Promise<void> => {
         const savedCloseToTray = await ProcessConfig.get('system.closeToTray');
         closeToTrayEnabled = savedCloseToTray ?? false;
         if (closeToTrayEnabled) {
+          // 等待 i18n 初始化完成后再创建托盘（短暂延迟确保语言加载）
+          // Wait for i18n to initialize before creating tray (short delay to ensure language is loaded)
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
           createOrUpdateTray();
         }
       } catch {
