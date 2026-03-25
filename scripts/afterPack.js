@@ -11,6 +11,66 @@ const { normalizeArch, rebuildSingleModule, verifyModuleBinary, getModulesToRebu
  */
 
 /**
+ * Files to remove from extracted archives before repacking.
+ * These cannot be notarized because they:
+ *  - were compiled against a pre-10.9 SDK (Apple hard-rejects them), OR
+ *  - are foreign-architecture binaries that have no use in the bundle.
+ *
+ * Each entry is a substring that must appear in the file's path relative to
+ * the extraction root. Matching is case-insensitive on all platforms.
+ */
+const ARCHIVE_CLEANUP_SUBSTRINGS = [
+  // SpeechRecognition Python package: pre-built macOS FLAC encoder.
+  // Compiled with old SDK, x86_64-only — fails notarization on arm64 builds.
+  // The binary is a helper for microphone recording; not required by Nexus server.
+  'speech_recognition/flac-mac',
+  'speech_recognition\\flac-mac', // Windows path separator variant
+];
+
+/**
+ * Remove known-problematic files from a directory tree before repacking.
+ * Returns the number of files deleted.
+ * @param {string} dir - Root of the extracted archive
+ * @returns {number}
+ */
+function removeUnnotarizableFiles(dir) {
+  let removed = 0;
+
+  function walk(currentDir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        // Build a forward-slash relative path for consistent matching
+        const rel = fullPath.replace(dir, '').replace(/\\/g, '/').toLowerCase();
+        for (const needle of ARCHIVE_CLEANUP_SUBSTRINGS) {
+          if (rel.includes(needle.replace(/\\/g, '/').toLowerCase())) {
+            try {
+              fs.unlinkSync(fullPath);
+              console.log(`   🗑  Removed un-notarizable file: ${rel}`);
+              removed++;
+            } catch (err) {
+              console.warn(`   ⚠️  Could not remove ${rel}: ${err.message}`);
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  walk(dir);
+  return removed;
+}
+
+/**
  * Sign all binary files recursively in a directory
  * @param {string} dir - Directory to search for binaries
  * @param {string} identity - Code signing identity
@@ -237,6 +297,13 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
       } catch (err) {
         console.error(`   ❌ Error processing nested archive: ${err.message}`);
       }
+    }
+
+    // Remove files that cannot pass notarization (old SDK, wrong arch, etc.)
+    // This must happen BEFORE signing so we don't waste time signing doomed files.
+    const removedCount = removeUnnotarizableFiles(extractedDir);
+    if (removedCount > 0) {
+      console.log(`   🗑  Removed ${removedCount} un-notarizable file(s) from ${archiveName}`);
     }
 
     // Sign binaries in the main extracted content
