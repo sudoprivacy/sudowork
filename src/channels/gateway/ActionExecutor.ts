@@ -5,6 +5,7 @@
  */
 
 import type { TMessage } from '@/common/chatLib';
+import { channel as channelBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
@@ -89,7 +90,30 @@ function formatTextForPlatform(text: string, platform: PluginType): string {
   if (platform === 'dingtalk') {
     return convertHtmlToDingTalkMarkdown(text);
   }
+  if (platform === 'wechat') {
+    // WeChat: plain text only, strip all markup
+    return text
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/?(b|strong|i|em|u|s|code|pre|a|p|div|span|blockquote|h[1-6])[^>]*>/gi, '')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
   return escapeHtml(text);
+}
+
+/**
+ * Check if a platform requires block-streaming (no message editing support).
+ * For these platforms, we buffer the full response and send once instead of
+ * streaming edits.
+ */
+function isBlockStreamingPlatform(platform: PluginType): boolean {
+  return platform === 'wechat';
 }
 
 /**
@@ -314,13 +338,34 @@ export class ActionExecutor {
         return;
       }
 
-      // If not authorized, show pairing flow
+      // If not authorized, auto-authorize for WeChat (personal channel, already authenticated via QR login)
+      // For other platforms, show pairing flow
       if (!isAuthorized) {
-        const result = await handlePairingShow(context);
-        if (result.message) {
-          await context.sendMessage(result.message);
+        if (platform === 'wechat') {
+          // Auto-authorize WeChat users — QR login already authenticates the bot owner
+          const db = getDatabase();
+          const newUser = {
+            id: `wechat_${user.id}_${Date.now()}`,
+            platformUserId: user.id,
+            platformType: platform as PluginType,
+            displayName: user.displayName || user.id,
+            authorizedAt: Date.now(),
+          };
+          const createResult = db.createChannelUser(newUser);
+          if (!createResult.success) {
+            console.error(`[ActionExecutor] Failed to auto-authorize WeChat user ${user.id}:`, createResult.error);
+            await context.sendMessage({ type: 'text', text: 'Authorization failed. Please try again.' });
+            return;
+          }
+          console.log(`[ActionExecutor] Auto-authorized WeChat user: ${user.id}`);
+          // Continue to process the message (don't return)
+        } else {
+          const result = await handlePairingShow(context);
+          if (result.message) {
+            await context.sendMessage(result.message);
+          }
+          return;
         }
-        return;
       }
 
       // User is authorized - look up the assistant user
@@ -344,12 +389,12 @@ export class ActionExecutor {
       // Get or create session (scoped by chatId for per-chat isolation)
       let session = this.sessionManager.getSession(channelUser.id, chatId);
       if (!session || !session.conversationId) {
-        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : 'telegram';
+        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : 'telegram';
 
         // Read selected agent for this platform (defaults to Gemini)
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : ProcessConfig.get('assistant.telegram.agent'));
         } catch {
           // ignore
         }
@@ -412,6 +457,10 @@ export class ActionExecutor {
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
           session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, undefined, chatId);
+          // Notify renderer to refresh conversation list
+          if (!existing) {
+            channelBridge.conversationCreated.emit({ conversationId: result.conversation.id, source });
+          }
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
@@ -496,12 +545,25 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
-    // Send "thinking" indicator
-    const thinkingMsgId = await context.sendMessage({
-      type: 'text',
-      text: '⏳ Thinking...',
-      parseMode: 'HTML',
-    });
+    const blockStreaming = isBlockStreamingPlatform(context.platform as PluginType);
+
+    // For block-streaming platforms (WeChat): send typing indicator instead of "Thinking..."
+    // For normal platforms: send editable "Thinking..." message
+    let thinkingMsgId = '';
+    if (blockStreaming) {
+      // Send typing indicator (best-effort) via plugin
+      const plugin = this.getPluginForMessage(context.originalMessage);
+      if (plugin && 'sendTyping' in plugin && typeof (plugin as any).sendTyping === 'function') {
+        const userId = context.chatId.startsWith('user:') ? context.chatId.slice(5) : context.chatId;
+        void (plugin as any).sendTyping(userId);
+      }
+    } else {
+      thinkingMsgId = await context.sendMessage({
+        type: 'text',
+        text: '⏳ Thinking...',
+        parseMode: 'HTML',
+      });
+    }
 
     try {
       const sessionId = context.sessionId;
@@ -513,162 +575,169 @@ export class ActionExecutor {
 
       const messageService = getChannelMessageService();
 
-      // 节流控制：使用定时器机制确保最后一条消息能被发送
-      // Throttle control: use timer mechanism to ensure last message is sent
-      let lastUpdateTime = 0;
-      const UPDATE_THROTTLE_MS = 500; // Update at most every 500ms
-      let pendingUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-      let pendingMessage: IUnifiedOutgoingMessage | null = null;
-
-      // 跟踪已发送的消息 ID，用于新插入消息的管理
-      // Track sent message IDs for new inserted messages
-      const sentMessageIds: string[] = [thinkingMsgId];
-
-      // 跟踪最后一条消息内容，用于流结束后添加操作按钮
       // Track last message content for adding action buttons after stream ends
       let lastMessageContent: IUnifiedOutgoingMessage | null = null;
 
-      // 执行消息编辑的函数
-      // Function to perform message edit
-      const doEditMessage = async (msg: IUnifiedOutgoingMessage) => {
-        lastUpdateTime = Date.now();
-        const targetMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
-        try {
-          await context.editMessage(targetMsgId, msg);
-        } catch {
-          // Ignore edit errors (message not modified, etc.)
-        }
-      };
+      if (blockStreaming) {
+        // ==================== Block-Streaming Mode (WeChat) ====================
+        // Buffer all streaming chunks and send the full response as a single message
+        // when the stream completes. No intermediate edits.
 
-      // 发送消息
-      // Send message
-      await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, isInsert: boolean) => {
-        const now = Date.now();
+        await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, _isInsert: boolean) => {
+          const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
+          const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
+          // Just buffer — don't send anything during streaming
+          lastMessageContent = streamOutgoing;
+        });
 
-        // 转换消息格式（根据平台）
-        // Convert message format (based on platform)
-        const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
-
-        // Strip replyMarkup during streaming to prevent premature card finalization.
-        // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
-        // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
-        // Channel conversations use yoloMode (auto-approve), so confirmation buttons are unnecessary.
-        const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
-
-        // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
-        // Save last message content (without replyMarkup, final message adds it separately)
-        lastMessageContent = streamOutgoing;
-
-        // IMPORTANT: Always treat first streaming message as update to thinking message
-        // This prevents async race condition where first insert's sendMessage takes time
-        // while subsequent messages arrive and get processed as updates
-        // 重要：始终将第一个流式消息视为更新thinking消息
-        // 这可以防止异步竞态条件：第一个insert的sendMessage耗时时，后续消息已到达并被当作update处理
-        if (isInsert && sentMessageIds.length === 1) {
-          // First streaming message: update thinking message instead of inserting
-          // 第一个流式消息：更新thinking消息而不是插入新消息
-          pendingMessage = streamOutgoing;
-
-          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-              pendingUpdateTimer = null;
-            }
-            await doEditMessage(streamOutgoing);
-          } else {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-            }
-            const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
-            pendingUpdateTimer = setTimeout(() => {
-              if (pendingMessage) {
-                void doEditMessage(pendingMessage);
-                pendingMessage = null;
-              }
-              pendingUpdateTimer = null;
-            }, delay);
-          }
-        } else if (isInsert) {
-          // 新消息：发送新消息
-          // New message: send new message
+        // Stream complete: send full response as a single new message
+        if (lastMessageContent) {
           try {
-            const newMsgId = await context.sendMessage(streamOutgoing);
-            sentMessageIds.push(newMsgId);
-          } catch {
-            // Ignore send errors
-          }
-        } else {
-          // 更新消息：使用定时器节流，确保最后一条消息能被发送
-          // Update message: throttle with timer to ensure last message is sent
-          pendingMessage = streamOutgoing;
-
-          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-            // 距离上次发送超过节流时间，立即发送
-            // Enough time has passed since last send, send immediately
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-              pendingUpdateTimer = null;
-            }
-            await doEditMessage(streamOutgoing);
-          } else {
-            // 在节流时间内，设置定时器延迟发送
-            // Within throttle window, set timer to send later
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-            }
-            const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
-            pendingUpdateTimer = setTimeout(() => {
-              if (pendingMessage) {
-                void doEditMessage(pendingMessage);
-                pendingMessage = null;
-              }
-              pendingUpdateTimer = null;
-            }, delay);
+            await context.sendMessage(lastMessageContent);
+          } catch (sendError) {
+            console.error(`[ActionExecutor] Failed to send block-streamed response:`, sendError);
           }
         }
-      });
+      } else {
+        // ==================== Normal Streaming Mode (Telegram/Lark/DingTalk) ====================
+        // Send "Thinking..." then edit with streaming chunks
 
-      // 清除待处理的定时器，确保最后一条消息被处理
-      // Clear pending timer and ensure last message is processed
-      if (pendingUpdateTimer) {
-        clearTimeout(pendingUpdateTimer);
-        pendingUpdateTimer = null;
-      }
-      // 如果有待发送的消息，立即发送
-      // If there's a pending message, send it immediately
-      if (pendingMessage) {
+        // Throttle control: use timer mechanism to ensure last message is sent
+        let lastUpdateTime = 0;
+        const UPDATE_THROTTLE_MS = 500;
+        let pendingUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+        let pendingMessage: IUnifiedOutgoingMessage | null = null;
+
+        // Track sent message IDs for new inserted messages
+        const sentMessageIds: string[] = [thinkingMsgId];
+
+        // Function to perform message edit
+        const doEditMessage = async (msg: IUnifiedOutgoingMessage) => {
+          lastUpdateTime = Date.now();
+          const targetMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
+          try {
+            await context.editMessage(targetMsgId, msg);
+          } catch {
+            // Ignore edit errors (message not modified, etc.)
+          }
+        };
+
+        // Send message
+        await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, isInsert: boolean) => {
+          const now = Date.now();
+
+          // Convert message format (based on platform)
+          const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
+
+          // Strip replyMarkup during streaming to prevent premature card finalization.
+          const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
+
+          // Save last message content
+          lastMessageContent = streamOutgoing;
+
+          // IMPORTANT: Always treat first streaming message as update to thinking message
+          if (isInsert && sentMessageIds.length === 1) {
+            pendingMessage = streamOutgoing;
+
+            if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+                pendingUpdateTimer = null;
+              }
+              await doEditMessage(streamOutgoing);
+            } else {
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+              }
+              const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
+              pendingUpdateTimer = setTimeout(() => {
+                if (pendingMessage) {
+                  void doEditMessage(pendingMessage);
+                  pendingMessage = null;
+                }
+                pendingUpdateTimer = null;
+              }, delay);
+            }
+          } else if (isInsert) {
+            // New message: send new message
+            try {
+              const newMsgId = await context.sendMessage(streamOutgoing);
+              sentMessageIds.push(newMsgId);
+            } catch {
+              // Ignore send errors
+            }
+          } else {
+            // Update message: throttle with timer
+            pendingMessage = streamOutgoing;
+
+            if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+                pendingUpdateTimer = null;
+              }
+              await doEditMessage(streamOutgoing);
+            } else {
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+              }
+              const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
+              pendingUpdateTimer = setTimeout(() => {
+                if (pendingMessage) {
+                  void doEditMessage(pendingMessage);
+                  pendingMessage = null;
+                }
+                pendingUpdateTimer = null;
+              }, delay);
+            }
+          }
+        });
+
+        // Clear pending timer and ensure last message is processed
+        if (pendingUpdateTimer) {
+          clearTimeout(pendingUpdateTimer);
+          pendingUpdateTimer = null;
+        }
+        if (pendingMessage) {
+          try {
+            await doEditMessage(pendingMessage);
+          } catch {
+            // Ignore final edit error
+          }
+          pendingMessage = null;
+        }
+
+        // After stream ends, update last message with action buttons
+        const lastMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
         try {
-          await doEditMessage(pendingMessage);
+          const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent?.text);
+          const finalMessage: IUnifiedOutgoingMessage = lastMessageContent ? { ...lastMessageContent, replyMarkup: responseMarkup } : { type: 'text', text: '✅ Done', parseMode: 'HTML', replyMarkup: responseMarkup };
+          await context.editMessage(lastMsgId, finalMessage);
         } catch {
           // Ignore final edit error
         }
-        pendingMessage = null;
-      }
-
-      // 流结束后，更新最后一条消息添加操作按钮（保留原内容）
-      // After stream ends, update last message with action buttons (keep original content)
-      const lastMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
-      try {
-        // 使用最后一条消息的实际内容，添加操作按钮（根据平台）
-        // Use actual content of last message, add action buttons (based on platform)
-        const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent?.text);
-        const finalMessage: IUnifiedOutgoingMessage = lastMessageContent ? { ...lastMessageContent, replyMarkup: responseMarkup } : { type: 'text', text: '✅ Done', parseMode: 'HTML', replyMarkup: responseMarkup };
-        await context.editMessage(lastMsgId, finalMessage);
-      } catch {
-        // 忽略最终编辑错误
-        // Ignore final edit error
       }
     } catch (error: any) {
       console.error(`[ActionExecutor] Chat processing failed:`, error);
 
-      // Update message with error
-      const errorResponse = buildChatErrorResponse(error.message);
-      await context.editMessage(thinkingMsgId, {
-        type: 'text',
-        text: errorResponse.text,
-        parseMode: errorResponse.parseMode,
-        replyMarkup: errorResponse.replyMarkup,
-      });
+      if (blockStreaming) {
+        // For block-streaming: send error as new message
+        const errorResponse = buildChatErrorResponse(error.message);
+        await context.sendMessage({
+          type: 'text',
+          text: errorResponse.text,
+          parseMode: errorResponse.parseMode,
+          replyMarkup: errorResponse.replyMarkup,
+        });
+      } else {
+        // For normal platforms: edit the thinking message with error
+        const errorResponse = buildChatErrorResponse(error.message);
+        await context.editMessage(thinkingMsgId, {
+          type: 'text',
+          text: errorResponse.text,
+          parseMode: errorResponse.parseMode,
+          replyMarkup: errorResponse.replyMarkup,
+        });
+      }
     }
   }
 

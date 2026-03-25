@@ -28,7 +28,7 @@ export function initChannelBridge(): void {
    */
   channel.getPluginStatus.provider(async () => {
     try {
-      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk']);
+      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat']);
 
       let dbPlugins: import('@/channels/types').IChannelPluginConfig[] = [];
       try {
@@ -133,6 +133,7 @@ export function initChannelBridge(): void {
         telegram: 'Telegram',
         lark: 'Lark',
         dingtalk: 'DingTalk',
+        wechat: 'WeChat',
       };
       for (const builtinType of BUILTIN_TYPES) {
         if (statusMap.has(builtinType)) continue;
@@ -352,6 +353,118 @@ export function initChannelBridge(): void {
       console.error('[ChannelBridge] syncChannelSettings error:', error);
       return { success: false, msg: error.message };
     }
+  });
+
+  // ==================== WeChat QR Login ====================
+
+  let wechatQrLoginAbort: AbortController | null = null;
+
+  /**
+   * Start WeChat QR login flow
+   * Creates a temporary API client, requests QR code, polls for status
+   */
+  channel.wechatStartQrLogin.provider(async () => {
+    try {
+      // Cancel any previous login attempt
+      if (wechatQrLoginAbort) {
+        wechatQrLoginAbort.abort();
+      }
+      wechatQrLoginAbort = new AbortController();
+      const signal = wechatQrLoginAbort.signal;
+
+      // Use a temporary API client with empty token for QR login
+      const { WeChatApiClient } = await import('@/channels/plugins/wechat/WeChatApiClient');
+      const client = new WeChatApiClient('');
+
+      // Request QR code (flat response: { qrcode, qrcode_img_content })
+      const qrResponse = await client.startQrLogin();
+      if (!qrResponse.qrcode || !qrResponse.qrcode_img_content) {
+        channel.wechatQrLogin.emit({
+          phase: 'error',
+          message: qrResponse.errmsg || 'Failed to get QR code',
+        });
+        return { success: false, msg: qrResponse.errmsg || 'Failed to get QR code' };
+      }
+
+      const qrcodeToken = qrResponse.qrcode;
+      const qrUrl = qrResponse.qrcode_img_content;
+
+      // Emit QR code URL to renderer
+      channel.wechatQrLogin.emit({
+        phase: 'qrcode',
+        qrUrl,
+      });
+
+      // Poll for scan status every 3 seconds
+      const pollInterval = 3000;
+      const maxPolls = 100; // ~5 min timeout
+
+      for (let i = 0; i < maxPolls; i++) {
+        if (signal.aborted) return { success: true };
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+        if (signal.aborted) return { success: true };
+
+        try {
+          const statusResponse = await client.pollQrStatus(qrcodeToken);
+
+          if (statusResponse.status === 'scaned') {
+            channel.wechatQrLogin.emit({ phase: 'scanned' });
+          } else if (statusResponse.status === 'confirmed') {
+            const botToken = statusResponse.bot_token || '';
+            const accountId = statusResponse.ilink_bot_id || '';
+
+            channel.wechatQrLogin.emit({
+              phase: 'confirmed',
+              botToken,
+              accountId,
+            });
+
+            wechatQrLoginAbort = null;
+            return { success: true };
+          } else if (statusResponse.status === 'expired') {
+            channel.wechatQrLogin.emit({
+              phase: 'timeout',
+              message: 'QR code expired. Please try again.',
+            });
+            wechatQrLoginAbort = null;
+            return { success: true };
+          }
+        } catch (pollError: any) {
+          if (signal.aborted) return { success: true };
+          console.warn('[ChannelBridge] WeChat QR poll error:', pollError);
+          // Continue polling on transient errors
+        }
+      }
+
+      // Timeout after max polls
+      channel.wechatQrLogin.emit({
+        phase: 'timeout',
+        message: 'Login timed out. Please try again.',
+      });
+      wechatQrLoginAbort = null;
+      return { success: true };
+    } catch (error: any) {
+      console.error('[ChannelBridge] wechatStartQrLogin error:', error);
+      channel.wechatQrLogin.emit({
+        phase: 'error',
+        message: error.message || 'Failed to start QR login',
+      });
+      wechatQrLoginAbort = null;
+      return { success: false, msg: error.message };
+    }
+  });
+
+  /**
+   * Cancel WeChat QR login flow
+   */
+  channel.wechatCancelQrLogin.provider(async () => {
+    if (wechatQrLoginAbort) {
+      wechatQrLoginAbort.abort();
+      wechatQrLoginAbort = null;
+    }
+    return { success: true };
   });
 
   console.log('[ChannelBridge] Initialized');

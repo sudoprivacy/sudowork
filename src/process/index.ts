@@ -63,6 +63,9 @@ export const initializeProcess = async () => {
     .catch((error) => {
       console.error('[Process] Failed to start Nexus server:', error);
     });
+
+  // Signal that initialization is complete
+  initStatusManager.setStatus('ready', '初始化完成', 100);
 };
 
 /**

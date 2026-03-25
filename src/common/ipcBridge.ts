@@ -1034,4 +1034,16 @@ export const channel = {
   pairingRequested: bridge.buildEmitter<IChannelPairingRequest>('channel.pairing-requested'),
   pluginStatusChanged: bridge.buildEmitter<{ pluginId: string; status: IChannelPluginStatus }>('channel.plugin-status-changed'),
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
+  conversationCreated: bridge.buildEmitter<{ conversationId: string; source: string }>('channel.conversation-created'),
+
+  // WeChat QR Login
+  wechatStartQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>('channel.wechat-start-qr-login'),
+  wechatCancelQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>('channel.wechat-cancel-qr-login'),
+  wechatQrLogin: bridge.buildEmitter<{
+    phase: 'qrcode' | 'scanned' | 'confirmed' | 'error' | 'timeout';
+    qrUrl?: string;
+    botToken?: string;
+    accountId?: string;
+    message?: string;
+  }>('channel.wechat-qr-login'),
 };

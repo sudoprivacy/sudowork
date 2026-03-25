@@ -5,8 +5,9 @@
  */
 
 import { ipcBridge } from '@/common';
+import { channel } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
-import { addEventListener } from '@/renderer/utils/emitter';
+import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -57,7 +58,15 @@ export const useConversations = () => {
     };
 
     refresh();
-    return addEventListener('chat.history.refresh', refresh);
+    const unsubLocal = addEventListener('chat.history.refresh', refresh);
+    // Also refresh when a channel (WeChat/Telegram/etc.) creates a conversation from the main process
+    const unsubChannel = channel.conversationCreated.on(() => {
+      emitter.emit('chat.history.refresh');
+    });
+    return () => {
+      unsubLocal();
+      unsubChannel();
+    };
   }, []);
 
   // Scroll active conversation into view

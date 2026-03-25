@@ -38,6 +38,9 @@ export interface IPluginCredentials {
   // DingTalk
   clientId?: string;
   clientSecret?: string;
+  // WeChat (iLink Bot)
+  accountId?: string;
+  botApiBaseUrl?: string;
   // Extension plugins: arbitrary credential fields
   [key: string]: string | number | boolean | undefined;
 }
@@ -52,6 +55,7 @@ export function hasPluginCredentials(type: PluginType, credentials?: IPluginCred
   if (type === 'lark') return !!(credentials.appId && credentials.appSecret);
   if (type === 'dingtalk') return !!(credentials.clientId && credentials.clientSecret);
   if (type === 'telegram') return !!credentials.token;
+  if (type === 'wechat') return !!(credentials.token && credentials.accountId);
   // Extension or unknown plugins: check if any credential value is non-empty
   return Object.values(credentials).some((v) => v !== undefined && v !== null && v !== '');
 }
