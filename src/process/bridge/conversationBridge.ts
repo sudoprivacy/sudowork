@@ -493,13 +493,22 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Abort controller for workspace reads: each new request aborts the previous one
+  // to avoid stale results when the user navigates quickly.
+  let lastGetWorkspaceAbortController: AbortController | undefined;
+
   ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path }) => {
+    // Abort any in-flight workspace read
+    lastGetWorkspaceAbortController?.abort();
+    lastGetWorkspaceAbortController = new AbortController();
+
     // Simple file filter that skips common non-essential directories
     const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') };
     try {
       return await readDirectoryRecursive(path, {
         root: workspace,
         fileService,
+        abortController: lastGetWorkspaceAbortController,
         maxDepth: 10,
         search: {
           text: search,
@@ -510,7 +519,6 @@ export function initConversationBridge(): void {
       }).then((res) => (res ? [res] : []));
     } catch (error) {
       if (error instanceof Error && error.message.includes('aborted')) {
-        console.log('[Workspace] Read directory aborted:', error.message);
         return [];
       }
       throw error;
