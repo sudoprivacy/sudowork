@@ -309,13 +309,8 @@ export function initSkillHubBridge(): void {
         return { success: true, data: [] };
       }
 
-      const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-
-        const skillDir = path.join(userSkillsDir, entry.name);
-
+      // Helper to read a single skill directory
+      const readSkill = async (skillName: string, skillDir: string, forceBuiltin = false) => {
         // Read version
         let version = 'unknown';
         try {
@@ -332,13 +327,15 @@ export function initSkillHubBridge(): void {
         // Try to read hub metadata file
         let meta: import('@/common/ipcBridge').ISkillHubMeta | undefined;
         let isHubInstalled = false;
-        let isBuiltin = false;
+        let isBuiltin = forceBuiltin;
         try {
           const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
           meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
           isHubInstalled = true;
-          // Use meta.is_builtin to determine if built-in (default false for hub-installed)
-          isBuiltin = meta.is_builtin === true;
+          // Use meta.is_builtin if set, otherwise use forceBuiltin
+          if (meta.is_builtin !== undefined) {
+            isBuiltin = meta.is_builtin === true;
+          }
           // Use stored version as source of truth
           if (meta.installed_version) version = meta.installed_version;
           // Resolve local icon path if icon is a relative path (e.g., "icon.svg")
@@ -350,7 +347,33 @@ export function initSkillHubBridge(): void {
           // No meta file → locally created skill (not builtin, not hub-installed)
         }
 
-        skills.push({ name: entry.name, version, isBuiltin, isHubInstalled, meta });
+        return { name: skillName, version, isBuiltin, isHubInstalled, meta };
+      };
+
+      // 1. First, read skills from _builtin directory (all are builtin)
+      const builtinDir = path.join(userSkillsDir, '_builtin');
+      try {
+        await fs.access(builtinDir);
+        const builtinEntries = await fs.readdir(builtinDir, { withFileTypes: true });
+        for (const entry of builtinEntries) {
+          if (!entry.isDirectory()) continue;
+          const skillDir = path.join(builtinDir, entry.name);
+          const skill = await readSkill(entry.name, skillDir, true); // force builtin
+          skills.push(skill);
+        }
+      } catch {
+        // _builtin directory doesn't exist
+      }
+
+      // 2. Then, read skills from the outer directory (exclude _builtin)
+      const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name === '_builtin') continue; // already processed
+
+        const skillDir = path.join(userSkillsDir, entry.name);
+        const skill = await readSkill(entry.name, skillDir, false);
+        skills.push(skill);
       }
 
       return { success: true, data: skills };
