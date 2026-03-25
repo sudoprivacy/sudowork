@@ -54,16 +54,12 @@ export async function getDefaultGeminiModel(): Promise<TProviderWithModel> {
  */
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
   switch (backend) {
-    case 'gemini':
-      return 'gemini';
     case 'openclaw-gateway':
     case 'openclaw':
       return 'openclaw-gateway';
-    case 'nanobot':
-      return 'nanobot';
     default:
-      // claude, qwen, codex, iflow, goose, auggie, kimi, opencode, copilot, qoder, codebuddy, droid, vibe, etc.
-      // Note: codex now uses ACP path; legacy 'codex' type is not used for new conversations.
+      // claude, gemini, qwen, codex, iflow, goose, auggie, kimi, opencode, copilot, qoder, codebuddy, droid, vibe, etc.
+      // All backends use ACP protocol.
       return 'acp';
   }
 }
@@ -73,12 +69,8 @@ export function getConversationTypeForBackend(backend: string): ICreateConversat
  * ACP-routed types include claude, codebuddy, opencode, qwen, codex.
  */
 export function getConversationTypeForPreset(presetAgentType: string): ICreateConversationParams['type'] {
-  const ACP_ROUTED_TYPES = ['claude', 'codebuddy', 'opencode', 'qwen', 'codex'];
-  if (ACP_ROUTED_TYPES.includes(presetAgentType)) {
-    return 'acp';
-  }
-  // Default: gemini
-  return 'gemini';
+  // All preset agent types route through ACP
+  return 'acp';
 }
 
 /**
@@ -102,20 +94,8 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
     if (cliPath) extra.cliPath = cliPath;
   }
 
-  // Gemini type uses a placeholder model (matching Guid page behavior in useGuidSend).
-  // The Guid page uses currentModel || placeholderModel, so Gemini does NOT require
-  // a configured model provider - it works with Google auth instead.
-  const model: TProviderWithModel =
-    type === 'gemini'
-      ? {
-          id: 'gemini-placeholder',
-          name: 'Gemini',
-          useModel: 'default',
-          platform: 'gemini-with-google-auth' as TProviderWithModel['platform'],
-          baseUrl: '',
-          apiKey: '',
-        }
-      : ({} as TProviderWithModel);
+  // ACP/OpenClaw agents don't use the model field at the conversation level
+  const model = {} as TProviderWithModel;
 
   return { type, model, name: agentName, extra };
 }
@@ -127,7 +107,7 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
  * [BUG-3 fix]: callers must invoke this inside a try block because getDefaultGeminiModel may throw.
  */
 export async function buildPresetAssistantParams(agent: AvailableAgent, workspace: string, language: string): Promise<ICreateConversationParams> {
-  const { customAgentId, presetAgentType = 'gemini' } = agent;
+  const { customAgentId, presetAgentType = 'claude' } = agent;
 
   // [BUG-2] Map raw i18n.language to standard locale key
   const localeKey = resolveLocaleKey(language);
@@ -144,20 +124,11 @@ export async function buildPresetAssistantParams(agent: AvailableAgent, workspac
     customWorkspace: true,
     enabledSkills,
     presetAssistantId: customAgentId,
+    presetContext,
+    backend: presetAgentType as AcpBackend,
   };
 
-  if (type === 'gemini') {
-    // gemini uses presetRules field
-    extra.presetRules = presetContext;
-  } else {
-    // acp uses presetContext field
-    extra.presetContext = presetContext;
-    if (type === 'acp') {
-      extra.backend = presetAgentType as AcpBackend;
-    }
-  }
-
-  const model = type === 'gemini' ? await getDefaultGeminiModel() : ({} as TProviderWithModel);
+  const model = {} as TProviderWithModel;
 
   return { type, model, name: agent.name, extra };
 }

@@ -51,7 +51,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'gemini', messageApi: externalMessageApi }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -972,7 +972,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   if (eventPrefix === 'openclaw-gateway') {
                     emitter.emit('openclaw-gateway.selected.file', conversation_id, items);
                   } else {
-                    emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', items);
+                    emitter.emit('acp.selected.file', items);
                   }
                 }}
                 onExpand={(keys) => {

@@ -165,31 +165,6 @@ export interface TokenUsageData {
 }
 
 export type TChatConversation =
-  | IChatConversation<
-      'gemini',
-      {
-        workspace: string;
-        customWorkspace?: boolean; // true 用户指定工作目录 false 系统默认工作目录
-        webSearchEngine?: 'google' | 'default'; // 搜索引擎配置
-        lastTokenUsage?: TokenUsageData; // 上次的 token 使用统计
-        contextFileName?: string;
-        contextContent?: string;
-        // 系统规则支持 / System rules support
-        presetRules?: string; // 系统规则，在初始化时注入 / System rules, injected at initialization
-        /** 启用的 skills 列表，用于过滤 SkillManager 加载的 skills / Enabled skills list for filtering SkillManager skills */
-        enabledSkills?: string[];
-        /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
-        presetAssistantId?: string;
-        /** 是否置顶会话 / Whether this conversation is pinned */
-        pinned?: boolean;
-        /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
-        pinnedAt?: number;
-        /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
-        sessionMode?: string;
-        /** Explicit marker for temporary health-check conversations */
-        isHealthCheck?: boolean;
-      }
-    >
   | Omit<
       IChatConversation<
         'acp',
@@ -221,33 +196,6 @@ export type TChatConversation =
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
           currentModelId?: string;
-          /** Explicit marker for temporary health-check conversations */
-          isHealthCheck?: boolean;
-        }
-      >,
-      'model'
-    >
-  | Omit<
-      IChatConversation<
-        'codex',
-        {
-          workspace?: string;
-          cliPath?: string;
-          customWorkspace?: boolean;
-          sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'; // Codex sandbox permission mode
-          presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
-          /** 启用的 skills 列表，用于过滤 SkillManager 加载的 skills / Enabled skills list for filtering SkillManager skills */
-          enabledSkills?: string[];
-          /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
-          presetAssistantId?: string;
-          /** 是否置顶会话 / Whether this conversation is pinned */
-          pinned?: boolean;
-          /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
-          pinnedAt?: number;
-          /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
-          sessionMode?: string;
-          /** User-selected Codex model from Guid page / 用户在引导页选择的 Codex 模型 */
-          codexModel?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
         }
@@ -297,26 +245,6 @@ export type TChatConversation =
           isHealthCheck?: boolean;
           /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
           openclawModelId?: string;
-        }
-      >,
-      'model'
-    >
-  | Omit<
-      IChatConversation<
-        'nanobot',
-        {
-          workspace?: string;
-          customWorkspace?: boolean;
-          /** 启用的 skills 列表 / Enabled skills list */
-          enabledSkills?: string[];
-          /** 预设助手 ID / Preset assistant ID */
-          presetAssistantId?: string;
-          /** 是否置顶会话 / Whether this conversation is pinned */
-          pinned?: boolean;
-          /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
-          pinnedAt?: number;
-          /** Explicit marker for temporary health-check conversations */
-          isHealthCheck?: boolean;
         }
       >,
       'model'

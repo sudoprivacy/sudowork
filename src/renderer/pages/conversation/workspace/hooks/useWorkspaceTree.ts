@@ -15,7 +15,7 @@ import { getFirstLevelKeys } from '../utils/treeHelpers';
 interface UseWorkspaceTreeOptions {
   workspace: string;
   conversation_id: string;
-  eventPrefix: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
+  eventPrefix: 'acp' | 'openclaw-gateway';
 }
 
 /**
@@ -163,13 +163,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
           } else {
-            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+            emitter.emit('acp.selected.file', payload);
           }
         } else if (shouldEmit) {
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
           } else {
-            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+            emitter.emit('acp.selected.file', []);
           }
         }
         return;
@@ -196,7 +196,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
           } else {
-            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+            emitter.emit('acp.selected.file', payload);
           }
         }
       } else if (nodeData.fullPath) {
@@ -214,7 +214,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
           } else {
-            emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', payload);
+            emitter.emit('acp.selected.file', payload);
           }
         }
       }

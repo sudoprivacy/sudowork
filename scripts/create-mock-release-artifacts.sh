@@ -68,7 +68,6 @@ echo "debug: mac-arm64" > "$ARTIFACTS_DIR/macos-build-arm64/builder-debug.yml"
 # Linux
 touch "$ARTIFACTS_DIR/linux-build/Sudowork-1.0.0.AppImage"
 touch "$ARTIFACTS_DIR/linux-build/Sudowork-1.0.0-arm64.AppImage"
-touch "$ARTIFACTS_DIR/linux-build/Sudowork-1.0.0.deb"
 cat > "$ARTIFACTS_DIR/linux-build/latest-linux.yml" <<'EOF'
 version: 1.0.0
 files:

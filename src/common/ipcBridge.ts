@@ -69,13 +69,6 @@ export const conversation = {
   },
 };
 
-// Gemini对话相关接口 - 复用统一的conversation接口
-export const geminiConversation = {
-  sendMessage: conversation.sendMessage,
-  confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('input.confirm.message'),
-  responseStream: conversation.responseStream,
-};
-
 // CDP status interface
 export interface ICdpStatus {
   /** Whether CDP is currently enabled */
@@ -320,12 +313,6 @@ export const mcpService = {
   loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
   logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
-};
-
-// Codex 对话相关接口 - 复用统一的conversation接口
-export const codexConversation = {
-  sendMessage: conversation.sendMessage,
-  responseStream: conversation.responseStream,
 };
 
 // OpenClaw 对话相关接口 - 复用统一的conversation接口
@@ -709,7 +696,7 @@ interface ISendMessageParams {
   injectSkills?: string[];
 }
 
-// Unified confirm message params for all agents (Gemini, ACP, Codex)
+// Unified confirm message params for all agents
 export interface IConfirmMessageParams {
   confirmKey: string;
   msg_id: string;
@@ -718,7 +705,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
+  type: 'acp' | 'openclaw-gateway';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -732,7 +719,7 @@ export interface ICreateConversationParams {
     agentName?: string;
     customAgentId?: string;
     context?: string;
-    contextFileName?: string; // For gemini preset agents
+    contextFileName?: string; // For preset agents
     // System rules for smart assistants
     presetRules?: string; // system rules injected at initialization
     /** Enabled skills list for filtering SkillManager skills */
@@ -740,16 +727,13 @@ export interface ICreateConversationParams {
     /**
      * Preset context/rules to inject into the first message.
      * Used by smart assistants to provide custom prompts/rules.
-     * For Gemini: injected via contextContent
-     * For ACP/Codex: injected via <system_instruction> tag in first message
+     * Injected via contextContent or <system_instruction> tag in first message
      */
     presetContext?: string;
     /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
     presetAssistantId?: string;
     /** Initial session mode selected on Guid page (from AgentModeSelector) */
     sessionMode?: string;
-    /** User-selected Codex model from Guid page */
-    codexModel?: string;
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */

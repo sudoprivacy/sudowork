@@ -392,12 +392,8 @@ class CronService {
       };
 
       // Call sendMessage directly on the task
-      // Different agents use different parameter names: Gemini uses 'input', ACP/Codex use 'content'
-      if (task.type === 'codex' || task.type === 'acp') {
-        await task.sendMessage({ content: messageText, msg_id: msgId, files: workspaceFiles, cronMeta });
-      } else {
-        await task.sendMessage({ input: messageText, msg_id: msgId, files: workspaceFiles, cronMeta });
-      }
+      // Both ACP and OpenClaw use 'content' parameter
+      await task.sendMessage({ content: messageText, msg_id: msgId, files: workspaceFiles, cronMeta });
 
       // Success
       job.state.lastStatus = 'ok';

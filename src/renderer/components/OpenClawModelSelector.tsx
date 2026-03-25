@@ -7,7 +7,7 @@
 import { ipcBridge, type IOpenClawModelsResponse } from '@/common';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { Button, Dropdown, Menu, Spin, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Menu } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -110,28 +110,9 @@ const OpenClawModelSelector: React.FC<{
   const selectedModel = models?.find((m) => m.model_id === selectedModelId);
   const displayLabel = selectedModel ? formatModelLabel(selectedModel) : selectedModelId || t('conversation.welcome.selectModel');
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small'>
-        <span className='flex items-center gap-6px min-w-0'>
-          <Spin size={14} />
-        </span>
-      </Button>
-    );
-  }
-
-  // Error state - show disabled button
-  if (error || !models?.length) {
-    return (
-      <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-6px min-w-0'>
-            <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
-          </span>
-        </Button>
-      </Tooltip>
-    );
+  // Hide selector when models are unavailable (loading, error, or empty)
+  if (isLoading || error || !models?.length) {
+    return null;
   }
 
   return (

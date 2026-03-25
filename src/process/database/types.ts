@@ -70,7 +70,7 @@ export interface IConversationRow {
   id: string;
   user_id: string;
   name: string;
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
+  type: 'acp' | 'openclaw-gateway';
   extra: string; // JSON string of extra data
   model?: string; // JSON string of TProviderWithModel (gemini type has this)
   status?: 'pending' | 'running' | 'finished';
@@ -143,16 +143,6 @@ export function rowToConversation(row: IConversationRow): TChatConversation {
     channelChatId: row.channel_chat_id,
   };
 
-  // Gemini type has model field
-  if (row.type === 'gemini' && row.model) {
-    return {
-      ...base,
-      type: 'gemini' as const,
-      extra: JSON.parse(row.extra),
-      model: JSON.parse(row.model),
-    } as TChatConversation;
-  }
-
   // ACP type
   if (row.type === 'acp') {
     return {
@@ -162,29 +152,11 @@ export function rowToConversation(row: IConversationRow): TChatConversation {
     } as TChatConversation;
   }
 
-  // Codex type
-  if (row.type === 'codex') {
-    return {
-      ...base,
-      type: 'codex' as const,
-      extra: JSON.parse(row.extra),
-    } as TChatConversation;
-  }
-
   // OpenClaw Gateway type
   if (row.type === 'openclaw-gateway') {
     return {
       ...base,
       type: 'openclaw-gateway' as const,
-      extra: JSON.parse(row.extra),
-    } as TChatConversation;
-  }
-
-  // Nanobot type
-  if (row.type === 'nanobot') {
-    return {
-      ...base,
-      type: 'nanobot' as const,
       extra: JSON.parse(row.extra),
     } as TChatConversation;
   }

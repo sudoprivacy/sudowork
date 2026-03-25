@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexAgentManager } from '@/agent/codex';
-import { GeminiAgent, GeminiApprovalStore } from '@/agent/gemini';
 import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -13,10 +11,8 @@ import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
-import type AcpAgentManager from '../task/AcpAgentManager';
-import type { GeminiAgentManager } from '../task/GeminiAgentManager';
-import type NanoBotAgentManager from '../task/NanoBotAgentManager';
-import type OpenClawAgentManager from '../task/OpenClawAgentManager';
+import type AcpAgent from '../task/AcpAgent';
+import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage } from '../task/agentUtils';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
@@ -32,7 +28,7 @@ export function initConversationBridge(): void {
         return { success: false, msg: 'Sudoclaw conversation not found' };
       }
       const conversation = convResult.data;
-      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgentManager | undefined;
+      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgent | undefined;
       if (!task || task.type !== 'openclaw-gateway') {
         return { success: false, msg: 'Sudoclaw runtime not available' };
       }
@@ -79,7 +75,7 @@ export function initConversationBridge(): void {
       for (const conv of openclawConvs) {
         const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { gateway?: { host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
 
-        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgentManager | undefined;
+        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgent | undefined;
         if (task && task.type === 'openclaw-gateway') {
           await task.bootstrap.catch(() => {});
           const diagnostics = task.getDiagnostics();
@@ -250,18 +246,9 @@ export function initConversationBridge(): void {
     return result.conversation;
   });
 
-  // Manually reload conversation context (Gemini): inject recent history into memory
-  ipcBridge.conversation.reloadContext.provider(async ({ conversation_id }) => {
-    try {
-      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as GeminiAgentManager | AcpAgentManager | CodexAgentManager | undefined;
-      if (!task) return { success: false, msg: 'conversation not found' };
-      if (task.type !== 'gemini') return { success: false, msg: 'only supported for gemini' };
-
-      await (task as GeminiAgentManager).reloadContext();
-      return { success: true };
-    } catch (e: unknown) {
-      return { success: false, msg: e instanceof Error ? e.message : String(e) };
-    }
+  // Reload context is not supported for ACP or OpenClaw agents
+  ipcBridge.conversation.reloadContext.provider(async () => {
+    return { success: false, msg: 'reload context not supported' };
   });
 
   ipcBridge.conversation.getAssociateConversation.provider(async ({ conversation_id }) => {
@@ -328,8 +315,6 @@ export function initConversationBridge(): void {
       if (sourceConversationId && result.success) {
         try {
           // Fetch all messages from source conversation / 获取源会话的所有消息
-          // Using a large pageSize to get all messages, or loop if needed. / 使用较大的 pageSize 获取所有消息，必要时循环获取
-          // For now, 10000 should cover most cases. / 目前 10000 条应该能覆盖大多数情况
           const pageSize = 10000;
           let page = 0;
           let hasMore = true;
@@ -339,10 +324,9 @@ export function initConversationBridge(): void {
             const messages = messagesResult.data;
 
             for (const msg of messages) {
-              // Create a copy of the message with new ID and new conversation ID / 创建消息副本，使用新 ID 和新会话 ID
               const newMessage = {
                 ...msg,
-                id: uuid(), // Generate new ID / 生成新 ID
+                id: uuid(),
                 conversation_id: conversation.id,
                 createdAt: msg.createdAt || Date.now(),
               };
@@ -353,13 +337,11 @@ export function initConversationBridge(): void {
             page++;
           }
 
-          // Verify integrity and remove source conversation / 校验完整性并移除源会话
+          // Verify integrity and remove source conversation
           const sourceMessages = db.getConversationMessages(sourceConversationId, 0, 1);
           const newMessages = db.getConversationMessages(conversation.id, 0, 1);
 
           if (sourceMessages.total === newMessages.total) {
-            // Verification passed, delete source conversation / 校验通过，删除源会话
-            // ON DELETE CASCADE will handle message deletion / 级联删除会自动处理消息删除
             const deleteResult = db.deleteConversation(sourceConversationId);
             if (deleteResult.success) {
               console.log(`[conversationBridge] Successfully migrated and deleted source conversation ${sourceConversationId}`);
@@ -371,7 +353,6 @@ export function initConversationBridge(): void {
               source: sourceMessages.total,
               new: newMessages.total,
             });
-            // Do not delete source if verification fails / 如果校验失败，不删除源会话
           }
         } catch (msgError) {
           console.error('[conversationBridge] Failed to copy messages during migration:', msgError);
@@ -406,14 +387,11 @@ export function initConversationBridge(): void {
         }
       } catch (cronError) {
         console.warn('[conversationBridge] Failed to cleanup cron jobs:', cronError);
-        // Continue with deletion even if cron cleanup fails
       }
 
       // If source is not 'aionui' (e.g., telegram), cleanup channel resources
-      // 如果来源不是 aionui（如 telegram），需要清理 channel 相关资源
       if (source && source !== 'aionui') {
         try {
-          // Dynamic import to avoid circular dependency
           const { getChannelManager } = await import('@/channels/core/ChannelManager');
           const channelManager = getChannelManager();
           if (channelManager.isInitialized()) {
@@ -422,7 +400,6 @@ export function initConversationBridge(): void {
           }
         } catch (cleanupError) {
           console.warn('[conversationBridge] Failed to cleanup channel resources:', cleanupError);
-          // Continue with deletion even if cleanup fails
         }
       }
 
@@ -444,13 +421,10 @@ export function initConversationBridge(): void {
     try {
       const db = getDatabase();
       const existing = db.getConversation(id);
-      // Only gemini type has model, use 'in' check to safely access
       const prevModel = existing.success && existing.data && 'model' in existing.data ? existing.data.model : undefined;
       const nextModel = 'model' in updates ? updates.model : undefined;
       const modelChanged = !!nextModel && JSON.stringify(prevModel) !== JSON.stringify(nextModel);
-      // model change detection for task rebuild
 
-      // 如果 mergeExtra 为 true，合并 extra 字段而不是覆盖
       let finalUpdates = updates;
       if (mergeExtra && updates.extra && existing.success && existing.data) {
         finalUpdates = {
@@ -493,31 +467,22 @@ export function initConversationBridge(): void {
     try {
       const db = getDatabase();
 
-      // Try to get conversation from database first
       const result = db.getConversation(id);
       if (result.success && result.data) {
-        // Found in database, update status and return
         const conversation = result.data;
         const task = WorkerManage.getTaskById(id);
-        // Map 'idle' to 'finished' for conversation status
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
         return conversation;
       }
 
-      // Not in database, try to load from file storage and migrate
       const history = await ProcessChat.get('chat.history');
       const conversation = (history || []).find((item) => item.id === id);
       if (conversation) {
-        // Update status from running task
         const task = WorkerManage.getTaskById(id);
-        // Map 'idle' to 'finished' for conversation status
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
-
-        // Lazy migrate this conversation to database in background
         void migrateConversationToDatabase(conversation);
-
         return conversation;
       }
 
@@ -528,22 +493,23 @@ export function initConversationBridge(): void {
     }
   });
 
-  const buildLastAbortController = (() => {
-    let lastGetWorkspaceAbortController = new AbortController();
-    return () => {
-      lastGetWorkspaceAbortController.abort();
-      return (lastGetWorkspaceAbortController = new AbortController());
-    };
-  })();
+  // Abort controller for workspace reads: each new request aborts the previous one
+  // to avoid stale results when the user navigates quickly.
+  let lastGetWorkspaceAbortController: AbortController | undefined;
 
   ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path }) => {
-    const fileService = GeminiAgent.buildFileServer(workspace);
+    // Abort any in-flight workspace read
+    lastGetWorkspaceAbortController?.abort();
+    lastGetWorkspaceAbortController = new AbortController();
+
+    // Simple file filter that skips common non-essential directories
+    const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') };
     try {
       return await readDirectoryRecursive(path, {
         root: workspace,
         fileService,
-        abortController: buildLastAbortController(),
-        maxDepth: 10, // 支持更深的目录结构 / Support deeper directory structures
+        abortController: lastGetWorkspaceAbortController,
+        maxDepth: 10,
         search: {
           text: search,
           onProcess(result) {
@@ -552,10 +518,7 @@ export function initConversationBridge(): void {
         },
       }).then((res) => (res ? [res] : []));
     } catch (error) {
-      // 捕获 abort 错误，避免 unhandled rejection
-      // Catch abort errors to avoid unhandled rejection
       if (error instanceof Error && error.message.includes('aborted')) {
-        console.log('[Workspace] Read directory aborted:', error.message);
         return [];
       }
       throw error;
@@ -565,7 +528,7 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.stop.provider(async ({ conversation_id }) => {
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: true, msg: 'conversation not found' };
-    if (task.type !== 'gemini' && task.type !== 'acp' && task.type !== 'codex' && task.type !== 'openclaw-gateway' && task.type !== 'nanobot') {
+    if (task.type !== 'acp' && task.type !== 'openclaw-gateway') {
       return { success: false, msg: 'not support' };
     }
     await task.stop();
@@ -585,8 +548,7 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
-      // Use getTaskById (cache-only) to avoid spawning a worker process on read-only queries
-      const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
         return { success: true, data: { commands: [] } };
       }
@@ -602,9 +564,9 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     console.log(`[conversationBridge] sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
-    let task: GeminiAgentManager | AcpAgentManager | CodexAgentManager | OpenClawAgentManager | NanoBotAgentManager | undefined;
+    let task: AcpAgent | OpenClawAgent | undefined;
     try {
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as GeminiAgentManager | AcpAgentManager | CodexAgentManager | OpenClawAgentManager | NanoBotAgentManager | undefined;
+      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
     } catch (err) {
       console.log(`[conversationBridge] sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
@@ -617,10 +579,8 @@ export function initConversationBridge(): void {
     console.log(`[conversationBridge] sendMessage: found task type=${task.type}, status=${task.status}`);
 
     // 复制文件到工作空间（所有 agents 统一处理）
-    // Copy files to workspace (unified for all agents)
-    // OpenClaw: when no files from frontend, fallback to task.workspace so "open in directory" always has context
     let filesToProcess = files ?? [];
-    const openclawTask = task as OpenClawAgentManager;
+    const openclawTask = task as OpenClawAgent;
     if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
       filesToProcess = [openclawTask.workspace];
       console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
@@ -628,50 +588,36 @@ export function initConversationBridge(): void {
     const workspaceFiles = await copyFilesToDirectory(task.workspace ?? '', filesToProcess, false);
 
     try {
-      // 根据 task 类型调用对应的 sendMessage 方法
-      if (task.type === 'gemini') {
-        await (task as GeminiAgentManager).sendMessage({ ...other, files: workspaceFiles });
-        return { success: true };
-      } else if (task.type === 'acp') {
-        await (task as AcpAgentManager).sendMessage({ content: other.input, files: workspaceFiles, msg_id: other.msg_id });
-        return { success: true };
-      } else if (task.type === 'codex') {
-        await (task as CodexAgentManager).sendMessage({ content: other.input, files: workspaceFiles, msg_id: other.msg_id });
-        return { success: true };
-      } else if (task.type === 'openclaw-gateway') {
-        // Inject full skill content when requested (e.g. star-office-helper install flow).
-        // OpenClaw uses full-content mode (not index mode) because it may not proactively
-        // read SKILL.md files from paths like ACP agents (Claude Code CLI) do.
+      // Build the unified payload for both ACP and OpenClaw agents
+      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string } = {
+        content: other.input,
+        files: workspaceFiles,
+        msg_id: other.msg_id,
+      };
+
+      // OpenClaw-specific: inject skill content and workspace hints into agentContent
+      if (task.type === 'openclaw-gateway') {
         let agentContent = other.input;
         if (other.injectSkills?.length) {
           agentContent = await prepareFirstMessage(other.input, { enabledSkills: other.injectSkills });
-          // Provide absolute skills directory so agent can resolve relative script paths
-          // e.g. "skills/star-office-helper/scripts/..." → "${skillsDir}/star-office-helper/scripts/..."
           const skillsDir = getSkillsDir();
           agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
         }
-        // OpenClaw Gateway runs in its own workspace (~/.openclaw/workspace). When user asks about
-        // "this folder" or "files here", inject context so the AI uses the attached files, not its own workspace.
-        const manager = task as OpenClawAgentManager;
-        if (workspaceFiles.length > 0 && manager.workspace) {
-          const hint = `[Context: 用户工作区为 ${manager.workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
+        if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
+          const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
           agentContent = hint + agentContent;
         }
-        await manager.sendMessage({ content: other.input, agentContent, files: workspaceFiles, msg_id: other.msg_id });
-        return { success: true };
-      } else if (task.type === 'nanobot') {
-        await (task as NanoBotAgentManager).sendMessage({ content: other.input, files: workspaceFiles, msg_id: other.msg_id });
-        return { success: true };
-      } else {
-        return { success: false, msg: `Unsupported task type: ${task.type}` };
+        payload.agentContent = agentContent;
       }
+
+      await task.sendMessage(payload);
+      return { success: true };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
 
-  // 通用 confirmMessage 实现 - 自动根据 conversation 类型分发
-
+  // 通用 confirmMessage 实现
   ipcBridge.conversation.confirmation.confirm.provider(async ({ conversation_id, msg_id, data, callId }) => {
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: false, msg: 'conversation not found' };
@@ -684,17 +630,9 @@ export function initConversationBridge(): void {
     return task.getConfirmations();
   });
 
-  // Session-level approval memory for "always allow" decisions
-  // 会话级别的权限记忆，用于 "always allow" 决策
-  // Keys are parsed from raw action+commandType here (single source of truth)
-  // Keys 在此处从原始 action+commandType 解析（单一数据源）
+  // Session-level approval memory — now only relevant for ACP agents
   ipcBridge.conversation.approval.check.provider(async ({ conversation_id, action, commandType }) => {
-    const task = WorkerManage.getTaskById(conversation_id) as GeminiAgentManager | undefined;
-    if (!task || task.type !== 'gemini' || !task.approvalStore) {
-      return false;
-    }
-    const keys = GeminiApprovalStore.createKeysFromConfirmation(action, commandType);
-    if (keys.length === 0) return false;
-    return task.approvalStore.allApproved(keys);
+    // Approval checking is handled by ACP agents internally now
+    return false;
   });
 }

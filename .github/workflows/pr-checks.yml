@@ -56,12 +56,13 @@ jobs:
             target: '--win'
             build_args: '--win --arm64'
             unpacked_dir: 'win-arm64-unpacked'
-          - platform: 'linux'
-            os: 'ubuntu-latest'
-            arch: 'x64'
-            target: '--linux'
-            build_args: '--linux --x64'
-            unpacked_dir: 'linux-unpacked'
+          # Linux build disabled — no .deb target configured, snap requires snapcraft login
+          # - platform: 'linux'
+          #   os: 'ubuntu-latest'
+          #   arch: 'x64'
+          #   target: '--linux'
+          #   build_args: '--linux --x64'
+          #   unpacked_dir: 'linux-unpacked'
 
     steps:
       - name: Checkout code
@@ -208,7 +209,7 @@ jobs:
               ls out/*.dmg out/*.zip out/*latest*.yml >/dev/null
               ;;
             linux)
-              ls out/*.AppImage out/*.deb out/*latest*.yml >/dev/null
+              ls out/*.AppImage out/*latest*.yml >/dev/null
               ;;
           esac
 
@@ -293,20 +294,6 @@ jobs:
           APPIMAGE_FILE=$(ls out/*.AppImage | head -n 1)
           chmod +x "$APPIMAGE_FILE"
           "$APPIMAGE_FILE" --appimage-extract-and-run --version || true
-
-          DEB_FILE=$(ls out/*.deb | head -n 1)
-          PKG_NAME=$(dpkg-deb -f "$DEB_FILE" Package)
-          sudo dpkg -i "$DEB_FILE" || sudo apt-get install -f -y
-
-          INSTALLED_BIN=$(dpkg -L "$PKG_NAME" | grep -Ei '/(bin|opt)/.*(sudowork)$' | head -n 1 || true)
-          if [ -z "$INSTALLED_BIN" ]; then
-            echo "Package files:"
-            dpkg -L "$PKG_NAME" | head -n 50
-            echo "No installed executable path matched expected pattern"
-            exit 1
-          fi
-
-          test -x "$INSTALLED_BIN"
 
   # Job 4: Test release scripts (fast, no build required)
   release-script-test:

@@ -120,7 +120,7 @@ export class CodexMessageProcessor {
       void processCronInMessage(this.conversation_id, 'codex', transformedMessage, (sysMsg) => {
         collectedResponses.push(sysMsg);
         // Also emit to frontend for display
-        ipcBridge.codexConversation.responseStream.emit({
+        ipcBridge.acpConversation.responseStream.emit({
           type: 'system',
           conversation_id: this.conversation_id,
           msg_id: uuid(),

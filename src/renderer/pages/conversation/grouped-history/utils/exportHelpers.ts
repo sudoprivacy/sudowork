@@ -65,7 +65,7 @@ export const getBackendKeyFromConversation = (conversation: TChatConversation): 
   if (conversation.type === 'openclaw-gateway') {
     return conversation.extra?.backend || 'openclaw-gateway';
   }
-  return conversation.type;
+  return undefined;
 };
 
 export const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {

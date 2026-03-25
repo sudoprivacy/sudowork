@@ -6,7 +6,7 @@
 
 /**
  * Common approval key interface for permission memory
- * Used by Gemini, ACP, and Codex agents
+ * Used by all agent types
  */
 export type IApprovalKey = {
   /** Operation type: exec, edit, read, info, etc. */

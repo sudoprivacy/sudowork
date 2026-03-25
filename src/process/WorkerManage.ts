@@ -5,14 +5,10 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
-import AcpAgentManager from './task/AcpAgentManager';
-import { CodexAgentManager } from '@/agent/codex';
-import NanoBotAgentManager from './task/NanoBotAgentManager';
-import OpenClawAgentManager from './task/OpenClawAgentManager';
-// import type { AcpAgentTask } from './task/AcpAgentTask';
+import AcpAgent from './task/AcpAgent';
+import OpenClawAgent from './task/OpenClawAgent';
 import { ProcessChat } from './initStorage';
-import type AgentBaseTask from './task/BaseAgentManager';
-import { GeminiAgentManager } from './task/GeminiAgentManager';
+import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
 
 const taskList: {
@@ -45,51 +41,12 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
   }
 
   switch (conversation.type) {
-    case 'gemini': {
-      const task = new GeminiAgentManager(
-        {
-          workspace: conversation.extra.workspace,
-          conversation_id: conversation.id,
-          webSearchEngine: conversation.extra.webSearchEngine,
-          // 系统规则 / System rules
-          presetRules: conversation.extra.presetRules,
-          // 向后兼容 / Backward compatible
-          contextContent: conversation.extra.contextContent,
-          // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-          enabledSkills: conversation.extra.enabledSkills,
-          // Runtime options / 运行时选项
-          yoloMode: options?.yoloMode,
-          // Persisted session mode for resume / 持久化的会话模式用于恢复
-          sessionMode: conversation.extra.sessionMode,
-        },
-        conversation.model
-      );
-      // Only cache if not skipping cache
-      if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
-      }
-      return task;
-    }
     case 'acp': {
-      const task = new AcpAgentManager({
+      const task = new AcpAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,
-      });
-      if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
-      }
-      return task;
-    }
-    case 'codex': {
-      const task = new CodexAgentManager({
-        ...conversation.extra,
-        conversation_id: conversation.id,
-        // Runtime options / 运行时选项
-        yoloMode: options?.yoloMode,
-        // Persisted session mode for resume / 持久化的会话模式用于恢复
-        sessionMode: conversation.extra.sessionMode,
       });
       if (!options?.skipCache) {
         taskList.push({ id: conversation.id, task });
@@ -101,23 +58,12 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
       const modelFromConfig = (conversation.extra as any).model;
 
-      const task = new OpenClawAgentManager({
+      const task = new OpenClawAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
         // Extract model from runtimeValidation or extra.model
         model: modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
-        yoloMode: options?.yoloMode,
-      });
-      if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
-      }
-      return task;
-    }
-    case 'nanobot': {
-      const task = new NanoBotAgentManager({
-        ...conversation.extra,
-        conversation_id: conversation.id,
         yoloMode: options?.yoloMode,
       });
       if (!options?.skipCache) {
@@ -199,7 +145,7 @@ const listTasks = () => {
 const reloadOpenClawSkills = (): void => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
   for (const { task } of openclawTasks) {
-    const mgr = task as OpenClawAgentManager;
+    const mgr = task as OpenClawAgent;
     if (typeof mgr.reloadGatewaySkills === 'function') {
       mgr.reloadGatewaySkills();
       return; // Only one gateway; first task that owns it will send signal
@@ -212,7 +158,7 @@ const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
 
   for (const { id, task } of openclawTasks) {
-    const mgr = task as OpenClawAgentManager;
+    const mgr = task as OpenClawAgent;
     if (typeof mgr.restartGateway === 'function') {
       // Restart asynchronously without blocking
       mgr

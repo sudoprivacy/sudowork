@@ -42,17 +42,6 @@ describe('createConversationParams', () => {
       skills: '',
       enabledSkills: ['moltbook'],
     });
-    configGet.mockResolvedValue([
-      {
-        id: 'provider-1',
-        platform: 'openai',
-        name: 'Provider',
-        baseUrl: 'https://example.com',
-        apiKey: 'token',
-        model: ['gpt-4.1'],
-        enabled: true,
-      },
-    ]);
 
     const params = await buildPresetAssistantParams(
       {
@@ -60,7 +49,7 @@ describe('createConversationParams', () => {
         name: 'Preset Assistant',
         customAgentId: 'builtin-cowork',
         isPreset: true,
-        presetAgentType: 'gemini',
+        presetAgentType: 'claude',
       },
       '/tmp/workspace',
       'tr'
@@ -71,9 +60,11 @@ describe('createConversationParams', () => {
       customAgentId: 'builtin-cowork',
       localeKey: 'tr-TR',
     });
-    expect(params.extra.presetRules).toBe('preset rules');
+    expect(params.type).toBe('acp');
+    expect(params.extra.presetContext).toBe('preset rules');
     expect(params.extra.enabledSkills).toEqual(['moltbook']);
-    expect(params.model.useModel).toBe('gpt-4.1');
+    // ACP conversations don't resolve a model at creation time — the backend determines it
+    expect(params.extra.backend).toBe('claude');
   });
 
   it('maps acp preset assistants to presetContext and backend', async () => {

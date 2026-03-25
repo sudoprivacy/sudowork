@@ -38,8 +38,8 @@ export type AgentReadinessState = {
 type UseAgentReadinessCheckOptions = {
   // The backend type to check (for ACP conversations)
   backend?: AcpBackendAll;
-  // Conversation type ('gemini' or 'acp')
-  conversationType: 'gemini' | 'acp' | 'codex';
+  // Conversation type
+  conversationType: 'acp' | 'openclaw-gateway';
   // Whether to auto-check on mount
   autoCheck?: boolean;
   // Callback when a ready agent is found
@@ -74,12 +74,12 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
     availableAgents: [],
     bestAgent: null,
     progress: 0,
-    currentAgent: conversationType === 'gemini' ? 'gemini' : (backend as AcpBackendAll) || null,
+    currentAgent: (backend as AcpBackendAll) || null,
   });
 
   // Check the current agent's readiness
   const checkCurrentAgent = useCallback(async (): Promise<boolean> => {
-    const agentToCheck = conversationType === 'gemini' ? 'gemini' : backend;
+    const agentToCheck = backend;
     if (!agentToCheck) return true;
 
     setState((prev) => ({
@@ -123,7 +123,7 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
 
   // Find available alternative agents
   const findAlternatives = useCallback(async () => {
-    const currentAgentBackend = conversationType === 'gemini' ? 'gemini' : backend;
+    const currentAgentBackend = backend;
 
     setState((prev) => ({
       ...prev,
@@ -265,7 +265,7 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
       availableAgents: [],
       bestAgent: null,
       progress: 0,
-      currentAgent: conversationType === 'gemini' ? 'gemini' : (backend as AcpBackendAll) || null,
+      currentAgent: (backend as AcpBackendAll) || null,
     });
   }, [backend, conversationType]);
 

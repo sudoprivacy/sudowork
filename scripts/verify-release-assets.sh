@@ -5,7 +5,7 @@ set -euo pipefail
 OUTPUT_DIR="${1:-release-assets}"
 ERRORS=0
 
-for f in latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml; do
+for f in latest.yml latest-mac.yml latest-linux.yml; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing canonical metadata: $f"
     ERRORS=$((ERRORS + 1))
@@ -51,12 +51,16 @@ assert_metadata_points_to_existing_file() {
   echo "PASS: $metadata_name -> $ref_file"
 }
 
+# Canonical metadata: x64 defaults used by electron-updater
 assert_metadata_points_to_existing_file "latest.yml" "(win-x64|win32-x64|x64)"
 assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-x64|darwin-x64|x64)"
-assert_metadata_points_to_existing_file "latest-linux.yml" "(linux|AppImage|deb)"
-assert_metadata_points_to_existing_file "latest-linux-arm64.yml" "(arm64|aarch64)"
+assert_metadata_points_to_existing_file "latest-linux.yml" "(linux|AppImage)"
 
-for f in latest-win-x64.yml latest-win-arm64.yml latest-mac-x64.yml latest-mac-arm64.yml; do
+# Architecture-scoped metadata: electron-updater constructs filenames from
+# channel names set in autoUpdaterService.ts:
+#   arm64     → arm64-mac.yml / arm64-linux.yml
+#   win-arm64 → win-arm64.yml
+for f in arm64-mac.yml win-arm64.yml arm64-linux.yml; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing arch-scoped metadata: $f"
     ERRORS=$((ERRORS + 1))
@@ -74,7 +78,7 @@ for f in builder-debug-win-x64.yml builder-debug-win-arm64.yml builder-debug-mac
   fi
 done
 
-for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-mac-x64.dmg Sudowork-1.0.0-mac-arm64.dmg Sudowork-1.0.0.AppImage Sudowork-1.0.0-arm64.AppImage Sudowork-1.0.0.deb; do
+for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-mac-x64.dmg Sudowork-1.0.0-mac-arm64.dmg Sudowork-1.0.0.AppImage Sudowork-1.0.0-arm64.AppImage; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing distributable: $f"
     ERRORS=$((ERRORS + 1))

@@ -6,7 +6,7 @@
 
 import WorkerManage from '@/process/WorkerManage';
 import { getDatabase } from '@/process/database';
-import type BaseAgentManager from '@/process/task/BaseAgentManager';
+import type BaseAgent from '@/process/task/BaseAgent';
 import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
 import { uuid } from '../../common/utils';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
@@ -15,6 +15,9 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
  * Streaming callback for progress updates
  */
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
+
+/** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
+const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * 消息流状态
@@ -30,6 +33,8 @@ interface IStreamState {
   turnCount: number;
   /** Number of 'finish' events received */
   finishCount: number;
+  /** Timer that auto-cleans this stream if no finish event arrives */
+  timeoutTimer: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -95,8 +100,7 @@ export class ChannelMessageService {
     }
 
     // Track 'start' events to count multi-turn continuations (e.g., tool call → model response).
-    // The Gemini agent emits a new 'start' for each submitQuery turn, including continuations
-    // triggered by onAllToolCallsComplete. We must wait for all turns to finish.
+    // ACP agents may emit multiple 'start' events per request. We must wait for all turns to finish.
     if (event.type === 'start') {
       stream.turnCount++;
       return;
@@ -107,6 +111,7 @@ export class ChannelMessageService {
     if (event.type === 'finish') {
       stream.finishCount++;
       if (stream.turnCount === 0 || stream.finishCount >= stream.turnCount) {
+        clearTimeout(stream.timeoutTimer);
         this.activeStreams.delete(conversationId);
         stream.resolve(stream.msgId);
       }
@@ -157,13 +162,13 @@ export class ChannelMessageService {
 
     // 获取任务
     // Get task
-    let task: BaseAgentManager<unknown>;
+    let task: BaseAgent<unknown>;
     try {
       // 检查会话来源，如果来自 Channel 则开启 yoloMode (自动同意)
       // Check conversation source, enable yoloMode if it's from a Channel
       const db = getDatabase();
       const dbResult = db.getConversation(conversationId);
-      const isFromChannel = dbResult.success && (dbResult.data?.source === 'lark' || dbResult.data?.source === 'telegram' || dbResult.data?.source === 'dingtalk');
+      const isFromChannel = dbResult.success && (dbResult.data?.source === 'lark' || dbResult.data?.source === 'telegram' || dbResult.data?.source === 'dingtalk' || dbResult.data?.source === 'wechat');
 
       task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
         yoloMode: isFromChannel,
@@ -187,6 +192,22 @@ export class ChannelMessageService {
     }
 
     return new Promise((resolve, reject) => {
+      // Auto-clean stream if no finish event arrives within the timeout.
+      // This prevents hung promises when an agent crashes mid-stream.
+      const timeoutTimer = setTimeout(() => {
+        const staleStream = this.activeStreams.get(conversationId);
+        if (staleStream) {
+          console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
+          this.activeStreams.delete(conversationId);
+          this.messageListMap.delete(conversationId);
+          staleStream.callback(
+            { type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } },
+            true
+          );
+          staleStream.resolve(staleStream.msgId);
+        }
+      }, STREAM_TIMEOUT_MS);
+
       // 注册流状态
       // Register stream state
       this.activeStreams.set(conversationId, {
@@ -197,16 +218,17 @@ export class ChannelMessageService {
         reject,
         turnCount: 0,
         finishCount: 0,
+        timeoutTimer,
       });
 
-      // Build payload based on agent type.
-      // Gemini expects { input }, ACP/Codex expect { content }.
-      const payload: { input?: string; content?: string; msg_id: string } = task.type === 'gemini' ? { input: message, msg_id: msgId } : task.type === 'acp' || task.type === 'codex' ? { content: message, msg_id: msgId } : { content: message, msg_id: msgId };
+      // Build payload — both ACP and OpenClaw use { content }.
+      const payload = { content: message, msg_id: msgId };
 
       task.sendMessage(payload).catch((error: Error) => {
         const errorMessage = `Error: ${error.message || 'Failed to send message'}`;
         console.error(`[ChannelMessageService] Send error:`, error);
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
+        clearTimeout(timeoutTimer);
         this.activeStreams.delete(conversationId);
         reject(error);
       });
@@ -230,6 +252,7 @@ export class ChannelMessageService {
   clearStreamByConversationId(conversationId: string): void {
     const stream = this.activeStreams.get(conversationId);
     if (!stream) return;
+    clearTimeout(stream.timeoutTimer);
     this.activeStreams.delete(conversationId);
     // Resolve (not reject) so the caller's post-stream cleanup runs normally
     // (e.g., ActionExecutor finalizing the card with action buttons).
@@ -308,6 +331,3 @@ export function getChannelMessageService(): ChannelMessageService {
   return serviceInstance;
 }
 
-// Backward compatibility export
-// 向后兼容的导出
-export { ChannelMessageService as ChannelGeminiService, getChannelMessageService as getChannelGeminiService };

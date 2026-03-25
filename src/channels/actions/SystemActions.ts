@@ -138,18 +138,18 @@ export const handleSessionNew: ActionHandler = async (context) => {
   const platform = context.platform;
   const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : 'telegram';
 
-  // Selected agent (defaults to Gemini)
+  // Selected agent (defaults to claude)
   let savedAgent: unknown = undefined;
   try {
     savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : ProcessConfig.get('assistant.telegram.agent'));
   } catch {
     // ignore
   }
-  const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'gemini') as string;
+  const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'claude') as string;
   const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
   const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
-  // Provider model is required by typing; ACP/Codex will ignore it.
+  // Provider model is required by typing; ACP will ignore it.
   const model = await getChannelDefaultModel(platform);
 
   // Always create a NEW conversation for "session.new" (scoped by chatId)
@@ -157,43 +157,27 @@ export const handleSessionNew: ActionHandler = async (context) => {
   const { convType, convBackend } = resolveChannelConvType(backend);
   const name = getChannelConversationName(platform, convType, convBackend, channelChatId);
   const result =
-    backend === 'codex'
+    backend === 'openclaw-gateway'
       ? await ConversationService.createConversation({
-          type: 'codex',
+          type: 'openclaw-gateway',
           model,
           source,
           name,
           channelChatId,
           extra: {},
         })
-      : backend === 'gemini'
-        ? await ConversationService.createGeminiConversation({
-            model,
-            source,
-            name,
-            channelChatId,
-          })
-        : backend === 'openclaw-gateway'
-          ? await ConversationService.createConversation({
-              type: 'openclaw-gateway',
-              model,
-              source,
-              name,
-              channelChatId,
-              extra: {},
-            })
-          : await ConversationService.createConversation({
-              type: 'acp',
-              model,
-              source,
-              name,
-              channelChatId,
-              extra: {
-                backend: backend as AcpBackend,
-                customAgentId,
-                agentName,
-              },
-            });
+      : await ConversationService.createConversation({
+          type: 'acp',
+          model,
+          source,
+          name,
+          channelChatId,
+          extra: {
+            backend: backend as AcpBackend,
+            customAgentId,
+            agentName,
+          },
+        });
 
   if (!result.success || !result.conversation) {
     return createErrorResponse(`Failed to create session: ${result.error || 'Unknown error'}`);
@@ -409,7 +393,7 @@ export const handleAgentShow: ActionHandler = async (context) => {
   // Get current agent type from session (scoped by chatId)
   const userId = context.channelUser?.id;
   const session = userId ? sessionManager.getSession(userId, context.chatId) : null;
-  const currentAgent = session?.agentType || 'gemini';
+  const currentAgent = session?.agentType || 'acp';
 
   // Get available agents dynamically
   const availableAgents = getAvailableChannelAgents();
@@ -513,9 +497,7 @@ export const handleAgentSelect: ActionHandler = async (context, params) => {
  */
 function getAgentDisplayName(agentType: ChannelAgentType): string {
   const names: Record<ChannelAgentType, string> = {
-    gemini: '🤖 Gemini',
     acp: '🧠 Claude',
-    codex: '⚡ Codex',
     'openclaw-gateway': '🦞 Sudoclaw',
   };
   return names[agentType] || agentType;
@@ -526,13 +508,9 @@ function getAgentDisplayName(agentType: ChannelAgentType): string {
  * Only returns types that are supported by channels
  */
 function backendToChannelAgentType(backend: string): ChannelAgentType | null {
-  const mapping: Record<string, ChannelAgentType> = {
-    gemini: 'gemini',
-    claude: 'acp',
-    codex: 'codex',
-    'openclaw-gateway': 'openclaw-gateway',
-  };
-  return mapping[backend] || null;
+  if (backend === 'openclaw-gateway') return 'openclaw-gateway';
+  // All other detected backends (claude, gemini, codex, qwen, etc.) use ACP
+  return 'acp';
 }
 
 /**
@@ -540,9 +518,10 @@ function backendToChannelAgentType(backend: string): ChannelAgentType | null {
  */
 function getAgentEmoji(backend: string): string {
   const emojis: Record<string, string> = {
-    gemini: '🤖',
     claude: '🧠',
+    gemini: '🤖',
     codex: '⚡',
+    qwen: '🔮',
     'openclaw-gateway': '🦞',
   };
   return emojis[backend] || '🤖';
@@ -557,11 +536,7 @@ function getAvailableChannelAgents(): AgentDisplayInfo[] {
   const availableAgents: AgentDisplayInfo[] = [];
   const seenTypes = new Set<ChannelAgentType>();
 
-  // Always include Gemini as it's built-in
-  availableAgents.push({ type: 'gemini', emoji: '🤖', name: 'Gemini' });
-  seenTypes.add('gemini');
-
-  // Add detected ACP agents (claude, codex, etc.)
+  // Add detected agents (claude, gemini, codex, etc.)
   for (const agent of detectedAgents) {
     const channelType = backendToChannelAgentType(agent.backend);
     if (channelType && !seenTypes.has(channelType)) {

@@ -54,7 +54,7 @@ async function checkLibreOfficeAvailable(): Promise<boolean> {
 
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
-  eventPrefix: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
+  eventPrefix: 'acp' | 'openclaw-gateway';
   /** Required when eventPrefix is 'openclaw-gateway' for scoped events */
   conversation_id?: string;
   messageApi: MessageApi;
@@ -160,7 +160,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       if (eventPrefix === 'openclaw-gateway' && conversation_id) {
         emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
       } else {
-        emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+        emitter.emit('acp.selected.file', []);
       }
       closeDeleteModal();
       setTimeout(() => refreshWorkspace(), 200);
@@ -252,7 +252,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         if (eventPrefix === 'openclaw-gateway' && conversation_id) {
           emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
         } else {
-          emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+          emitter.emit('acp.selected.file', []);
         }
       } else {
         selectedNodeRef.current = null;
@@ -290,7 +290,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       if (eventPrefix === 'openclaw-gateway' && conversation_id) {
         emitter.emit('openclaw-gateway.selected.file.append', conversation_id, [payload]);
       } else {
-        emitter.emit(`${eventPrefix}.selected.file.append` as 'gemini.selected.file.append' | 'acp.selected.file.append' | 'codex.selected.file.append' | 'nanobot.selected.file.append', [payload]);
+        emitter.emit('acp.selected.file.append', [payload]);
       }
       messageApi.success(t('conversation.workspace.contextMenu.addedToChat'));
     },

@@ -225,12 +225,24 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       .then((res) => {
         if (res?.success && res.data?.runtime?.hasActiveSession) {
           setOpenClawStatus('session_active');
+          // Inject the status message into the message list so it renders visually.
+          // The original agent_status IPC event may have been emitted before the
+          // responseStream listener was set up (race condition).
+          const statusMessage = transformMessage({
+            type: 'agent_status',
+            data: { backend: 'openclaw-gateway', status: 'session_active' },
+            conversation_id,
+            msg_id: `recovery_status_${conversation_id}`,
+          });
+          if (statusMessage) {
+            addOrUpdateMessage(statusMessage);
+          }
         }
       })
       .catch(() => {
         // Agent not ready or conversation not found – ignore
       });
-  }, [conversation_id]);
+  }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
     const handler = (text: string) => {
@@ -404,19 +416,12 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       setAtPath([]);
       setUploadFile([]);
 
-      // When no files selected, auto-include workspace root so "open in directory" associates context
-      // 未选择任何文件时，自动包含工作区根目录，使「在指定目录打开会话」自动关联上下文
+      // Collect explicitly selected files/folders from workspace tree and uploads
       const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
-      const explicitFiles = [...currentUploadFile, ...atPathStrings];
-      let effectiveWorkspace = workspacePath;
-      if (explicitFiles.length === 0 && !effectiveWorkspace) {
-        const conv = await ipcBridge.conversation.get.invoke({ id: conversation_id });
-        effectiveWorkspace = (conv?.extra as { workspace?: string })?.workspace ?? '';
-      }
-      const filesToSend = explicitFiles.length > 0 ? explicitFiles : effectiveWorkspace ? [effectiveWorkspace] : [];
+      const filesToSend = [...currentUploadFile, ...atPathStrings];
 
-      const filePaths = filesToSend;
-      const displayMessage = buildDisplayMessage(message, filePaths, effectiveWorkspace || workspacePath);
+      // Display message only shows user-selected files (workspace context is injected by the backend)
+      const displayMessage = buildDisplayMessage(message, filesToSend, workspacePath);
 
       const userMessage: TMessage = {
         id: msg_id,
