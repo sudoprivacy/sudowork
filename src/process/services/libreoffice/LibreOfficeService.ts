@@ -5,6 +5,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
+import type { IInstallableService, ILocalFileInstallable, InstallProgress } from '../IInstallableService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -32,7 +33,22 @@ export type InstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting'
 
 export type ProgressCallback = (phase: InstallPhase, percent?: number) => void;
 
-export class LibreOfficeService {
+export class LibreOfficeService implements IInstallableService<LibreOfficeStatus, InstallPhase>, ILocalFileInstallable {
+  readonly label = 'LibreOffice';
+  private _progressCallbacks: Array<(progress: InstallProgress<InstallPhase>) => void> = [];
+
+  onProgress(callback: (progress: InstallProgress<InstallPhase>) => void): () => void {
+    this._progressCallbacks.push(callback);
+    return () => {
+      const idx = this._progressCallbacks.indexOf(callback);
+      if (idx >= 0) this._progressCallbacks.splice(idx, 1);
+    };
+  }
+
+  private emitProgress(phase: InstallPhase, percent?: number): void {
+    for (const cb of this._progressCallbacks) cb({ phase, percent });
+  }
+
   async checkInstalled(): Promise<LibreOfficeStatus> {
     if (process.platform === 'darwin') {
       return this.checkInstalledMac();
@@ -109,39 +125,47 @@ export class LibreOfficeService {
     return path.join(cacheDir, `LibreOffice_${LIBREOFFICE_VERSION}.${ext}`);
   }
 
-  async install(onProgress: ProgressCallback): Promise<void> {
+  async install(onProgress?: ProgressCallback): Promise<void> {
+    const progress: ProgressCallback = (phase, percent) => {
+      onProgress?.(phase, percent);
+      this.emitProgress(phase, percent);
+    };
     // 检查是否有有效的缓存文件，如果有则直接使用
     const cachedFilePath = this.getCachedFilePath();
 
     if (fs.existsSync(cachedFilePath) && fs.statSync(cachedFilePath).size > 0) {
-      onProgress('downloading', 100);
+      progress('downloading', 100);
 
       if (process.platform === 'darwin') {
-        return this.installMacFromCachedFile(cachedFilePath, onProgress);
+        return this.installMacFromCachedFile(cachedFilePath, progress);
       } else if (process.platform === 'win32') {
-        return this.installWindowsFromCachedFile(cachedFilePath, onProgress);
+        return this.installWindowsFromCachedFile(cachedFilePath, progress);
       } else {
-        return this.installLinuxFromCachedFile(cachedFilePath, onProgress);
+        return this.installLinuxFromCachedFile(cachedFilePath, progress);
       }
     } else {
       // 如果没有有效缓存，则从网络下载
       if (process.platform === 'darwin') {
-        return this.installMac(onProgress);
+        return this.installMac(progress);
       } else if (process.platform === 'win32') {
-        return this.installWindows(onProgress);
+        return this.installWindows(progress);
       } else {
-        return this.installLinux(onProgress);
+        return this.installLinux(progress);
       }
     }
   }
 
-  async installFromLocalFile(filePath: string, onProgress: ProgressCallback): Promise<void> {
+  async installFromLocalFile(filePath: string, onProgress?: ProgressCallback): Promise<void> {
+    const progress: ProgressCallback = (phase, percent) => {
+      onProgress?.(phase, percent);
+      this.emitProgress(phase, percent);
+    };
     if (process.platform === 'darwin') {
-      return this.installMacFromLocalFile(filePath, onProgress);
+      return this.installMacFromLocalFile(filePath, progress);
     } else if (process.platform === 'win32') {
-      return this.installWindowsFromLocalFile(filePath, onProgress);
+      return this.installWindowsFromLocalFile(filePath, progress);
     } else {
-      return this.installLinuxFromLocalFile(filePath, onProgress);
+      return this.installLinuxFromLocalFile(filePath, progress);
     }
   }
 

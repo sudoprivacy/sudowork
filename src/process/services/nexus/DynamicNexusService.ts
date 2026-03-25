@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import type { IInstallableService, ILocalFileInstallable, IRunnableService, InstallProgress } from '../IInstallableService';
 
 const execAsync = promisify(exec);
 
@@ -35,13 +36,16 @@ export interface NexusSetupStatus {
 
 export type NexusSetupCallback = (status: NexusSetupStatus) => void;
 
-class DynamicNexusService {
+class DynamicNexusService implements IInstallableService<{ installed: boolean }, NexusSetupStage>, ILocalFileInstallable, IRunnableService {
   private process: import('child_process').ChildProcess | null = null;
   private _running = false;
   private _port = 0;
   private _setupStage: NexusSetupStage = 'idle';
   private _setupCallbacks: NexusSetupCallback[] = [];
+  private _progressCallbacks: Array<(progress: InstallProgress<NexusSetupStage>) => void> = [];
   private readonly isWindows = process.platform === 'win32';
+
+  readonly label = 'Nexus Server';
 
   /**
    * Get the bin/Scripts directory name for the current platform.
@@ -106,17 +110,26 @@ class DynamicNexusService {
     this._setupStage = stage;
     mainLog('Nexus', message);
     for (const cb of this._setupCallbacks) cb({ stage, message, percent });
+    for (const cb of this._progressCallbacks) cb({ phase: stage, message, percent });
+  }
+
+  onProgress(callback: (progress: InstallProgress<NexusSetupStage>) => void): () => void {
+    this._progressCallbacks.push(callback);
+    return () => {
+      const idx = this._progressCallbacks.indexOf(callback);
+      if (idx >= 0) this._progressCallbacks.splice(idx, 1);
+    };
   }
 
   /**
    * Checks if nexus is already installed locally
    */
-  async checkInstalled(): Promise<boolean> {
+  async checkInstalled(): Promise<{ installed: boolean }> {
     const envDir = this.getCondaEnvDir();
     const markerFile = path.join(envDir, CONDA_READY_MARKER);
     const nexusdBin = this.getNexusdPath(envDir);
 
-    return fs.existsSync(markerFile) && fs.existsSync(nexusdBin);
+    return { installed: fs.existsSync(markerFile) && fs.existsSync(nexusdBin) };
   }
 
   /**
@@ -307,7 +320,7 @@ class DynamicNexusService {
    * nexusd that may still be holding the port (e.g. if the child exited but
    * nexusd itself was spawned as a sub-process and detached).
    */
-  stop(): void {
+  async stop(): Promise<void> {
     if (this.process) {
       this.process.kill('SIGTERM');
       this.process = null;
@@ -317,6 +330,43 @@ class DynamicNexusService {
     if (this._port > 0) {
       this.killProcessOnPort(this._port).catch(() => {});
     }
+  }
+
+  async installFromLocalFile(filePath: string): Promise<void> {
+    const envDir = this.getCondaEnvDir();
+
+    // Remove old environment
+    if (fs.existsSync(envDir)) {
+      fs.rmSync(envDir, { recursive: true, force: true });
+    }
+
+    // Extract
+    fs.mkdirSync(envDir, { recursive: true });
+    this.emitSetup('extracting', 'Extracting Nexus environment from local file...');
+    await execAsync(`tar -xzf "${filePath}" -C "${envDir}"`);
+
+    // Run conda-unpack
+    const condaUnpack = this.getCondaUnpackPath(envDir);
+    if (fs.existsSync(condaUnpack)) {
+      if (!this.isWindows) fs.chmodSync(condaUnpack, 0o755);
+      this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
+      const pythonBin = this.getPythonPath(envDir);
+      await execAsync(`"${pythonBin}" "${condaUnpack}"`);
+    }
+
+    // Ensure nexusd is executable
+    const nexusdBin = this.getNexusdPath(envDir);
+    if (!fs.existsSync(nexusdBin)) {
+      throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
+    }
+    if (!this.isWindows) fs.chmodSync(nexusdBin, 0o755);
+
+    // Write version marker
+    const markerFile = path.join(envDir, CONDA_READY_MARKER);
+    fs.writeFileSync(markerFile, app.getVersion());
+
+    this.emitSetup('idle', 'Nexus installation from local file completed');
+    mainLog('Nexus', 'Local file installation completed');
   }
 
   /**
@@ -428,11 +478,12 @@ export const installNexusService = async (): Promise<void> => {
 };
 
 export const checkNexusInstalled = async (): Promise<boolean> => {
-  return await dynamicNexusService.checkInstalled();
+  const { installed } = await dynamicNexusService.checkInstalled();
+  return installed;
 };
 
 export const startNexusIfInstalled = async (): Promise<boolean> => {
-  const isInstalled = await dynamicNexusService.checkInstalled();
+  const { installed: isInstalled } = await dynamicNexusService.checkInstalled();
   if (isInstalled) {
     await dynamicNexusService.start();
     return true;

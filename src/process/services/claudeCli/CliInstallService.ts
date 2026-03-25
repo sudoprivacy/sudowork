@@ -9,6 +9,7 @@ import { ProcessConfig } from '@/process/initStorage';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
+import type { IInstallableService, IUninstallable, InstallProgress } from '../IInstallableService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -60,11 +61,31 @@ export function syncElectronPath(): void {
   }
 }
 
-export class CliInstallService {
+export type CliInstallPhase = 'downloading' | 'extracting' | 'configuring';
+
+export class CliInstallService implements IInstallableService<CliStatus, CliInstallPhase>, IUninstallable {
   private readonly cfg: CliConfig;
+  private _progressCallbacks: Array<(progress: InstallProgress<CliInstallPhase>) => void> = [];
 
   constructor(cfg: CliConfig) {
     this.cfg = cfg;
+  }
+
+  get label(): string {
+    return this.cfg.label;
+  }
+
+  onProgress(callback: (progress: InstallProgress<CliInstallPhase>) => void): () => void {
+    this._progressCallbacks.push(callback);
+    return () => {
+      const idx = this._progressCallbacks.indexOf(callback);
+      if (idx >= 0) this._progressCallbacks.splice(idx, 1);
+    };
+  }
+
+  private emitProgress(phase: CliInstallPhase, percent?: number): void {
+    this.cfg.onProgress?.(phase, percent);
+    for (const cb of this._progressCallbacks) cb({ phase, percent });
   }
 
   private get installDir(): string {
@@ -159,7 +180,7 @@ export class CliInstallService {
     console.log(`[CLI] Using bundled ${this.cfg.label} from ${bundledPath}...`);
 
     // Report progress: extracting
-    this.cfg.onProgress?.('extracting', 0);
+    this.emitProgress('extracting', 0);
 
     try {
       // Use node-tar for cross-platform reliability (no dependency on system 'tar')
@@ -172,7 +193,7 @@ export class CliInstallService {
     }
 
     // Report progress: configuring
-    this.cfg.onProgress?.('configuring', 50);
+    this.emitProgress('configuring', 50);
 
     const entryFile = this.resolveEntryFile();
     if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
@@ -186,7 +207,7 @@ export class CliInstallService {
     await this.updateShellConfig();
 
     // Report progress: done
-    this.cfg.onProgress?.('configuring', 100);
+    this.emitProgress('configuring', 100);
   }
 
   async uninstall(): Promise<void> {
@@ -202,10 +223,6 @@ export class CliInstallService {
 
   async setDeclined(value: boolean): Promise<void> {
     await ProcessConfig.set(this.cfg.declinedKey as Parameters<typeof ProcessConfig.set>[0], value);
-  }
-
-  get label(): string {
-    return this.cfg.label;
   }
 
   get commandName(): string {

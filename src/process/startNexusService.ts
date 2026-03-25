@@ -7,7 +7,7 @@ import { mainLog, mainError } from './utils/mainLogger';
 export const startNexusService = async (): Promise<void> => {
   try {
     // 检查是否已安装
-    const isInstalled = await dynamicNexusService.checkInstalled();
+    const { installed: isInstalled } = await dynamicNexusService.checkInstalled();
 
     if (isInstalled) {
       // 如果已安装，则启动服务

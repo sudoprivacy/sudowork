@@ -17,7 +17,7 @@ export function initNexusBridge(): void {
   });
 
   ipcBridge.nexus.getStatus.provider(async () => {
-    const installed = await dynamicNexusService.checkInstalled();
+    const { installed } = await dynamicNexusService.checkInstalled();
     // Use actual process check (by PID/child process object) so the "About" page
     // always reflects reality, even when the internal _running flag is stale
     // (e.g. child process exited but nexusd is still serving, or vice-versa).
@@ -35,7 +35,7 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.checkInstalled.provider(async () => {
     try {
-      const installed = await dynamicNexusService.checkInstalled();
+      const { installed } = await dynamicNexusService.checkInstalled();
       return { success: true, data: { installed } };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

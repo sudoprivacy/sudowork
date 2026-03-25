@@ -100,7 +100,7 @@ async function installRuntimes(): Promise<void> {
 
   const nodeInstalled = await checkNodeInstalled();
   const sudoclawInstalled = await checkSudoclawInstalled();
-  const nexusInstalled = await dynamicNexusService.checkInstalled();
+  const { installed: nexusInstalled } = await dynamicNexusService.checkInstalled();
 
   mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
 
@@ -151,8 +151,8 @@ async function installRuntimes(): Promise<void> {
     initStatusManager.setStatus('installing', '组件安装中', 60);
 
     // Only install if bundled resource exists
-    const isInstalled = await dynamicNexusService.checkInstalled();
-    if (!isInstalled) {
+    const { installed: isNexusInstalled } = await dynamicNexusService.checkInstalled();
+    if (!isNexusInstalled) {
       mainLog('Runtime', 'Installing Nexus...');
       await dynamicNexusService.install();
       mainLog('Runtime', 'Nexus installed successfully, starting...');

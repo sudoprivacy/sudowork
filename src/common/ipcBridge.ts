@@ -15,6 +15,21 @@ import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview'
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
 
+// ── Shared installable service IPC types ────────────────────────────
+
+/** Common shape for installResult emitters across all installable services. */
+export interface IInstallResult {
+  success: boolean;
+  msg?: string;
+}
+
+/** Common shape for installProgress emitters. TPhase varies per service. */
+export interface IInstallProgress<TPhase extends string = string> {
+  phase: TPhase;
+  percent?: number;
+  message?: string;
+}
+
 // OpenClaw model pricing API response type
 export interface IOpenClawModelsResponse {
   data: Array<{
@@ -425,9 +440,9 @@ export const claudeCli = {
   install: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.install'),
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('claude-cli.install-result'),
+  installResult: bridge.buildEmitter<IInstallResult>('claude-cli.install-result'),
   /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('claude-cli.install-progress'),
+  installProgress: bridge.buildEmitter<IInstallProgress<'downloading' | 'extracting' | 'configuring'>>('claude-cli.install-progress'),
 };
 
 // Gemini CLI installer / 安装 gemini 命令行工具
@@ -436,9 +451,9 @@ export const geminiCli = {
   install: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.install'),
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
+  installResult: bridge.buildEmitter<IInstallResult>('gemini-cli.install-result'),
   /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('gemini-cli.install-progress'),
+  installProgress: bridge.buildEmitter<IInstallProgress<'downloading' | 'extracting' | 'configuring'>>('gemini-cli.install-progress'),
 };
 
 // LibreOffice installer / LibreOffice 在线安装
@@ -457,9 +472,9 @@ export const libreOffice = {
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ILibreOfficeInstallPhase; percent?: number }>, void>('libreoffice.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
-  installProgress: bridge.buildEmitter<{ phase: ILibreOfficeInstallPhase; percent?: number }>('libreoffice.install-progress'),
+  installProgress: bridge.buildEmitter<IInstallProgress<ILibreOfficeInstallPhase>>('libreoffice.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
+  installResult: bridge.buildEmitter<IInstallResult>('libreoffice.install-result'),
 };
 
 // Sudoclaw config (~/.nexus/.sudoclaw) / OpenClaw 配置
@@ -522,9 +537,9 @@ export const sudoclaw = {
   /** Install Sudoclaw manually from About page */
   install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
+  installResult: bridge.buildEmitter<IInstallResult>('sudoclaw.install-result'),
   /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'installing' | 'configuring'; percent?: number }>('sudoclaw.install-progress'),
+  installProgress: bridge.buildEmitter<IInstallProgress<'extracting' | 'installing' | 'configuring'>>('sudoclaw.install-progress'),
   /** Install WeChat plugin to Sudoclaw via npx CLI */
   installWechatPlugin: bridge.buildProvider<IBridgeResponse<{ output: string }>, void>('sudoclaw.install-wechat-plugin'),
   /** Get WeChat plugin installation status */
@@ -563,9 +578,9 @@ export const nexus = {
   /** Install Nexus server */
   install: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.install'),
   /** Emitted periodically during installation with current phase and optional download percent */
-  installProgress: bridge.buildEmitter<{ phase: NexusInstallPhase; message: string; percent?: number }>('nexus.install-progress'),
+  installProgress: bridge.buildEmitter<IInstallProgress<NexusInstallPhase>>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
+  installResult: bridge.buildEmitter<IInstallResult>('nexus.install-result'),
   /** Install Nexus server from local file */
   installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
 };
