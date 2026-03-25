@@ -12,7 +12,7 @@ import type { ContextMenuState } from '../types';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
-  eventPrefix: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway';
+  eventPrefix: 'acp' | 'openclaw-gateway';
 
   // Dependencies from useWorkspaceTree
   refreshWorkspace: () => void;
@@ -56,7 +56,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     if (eventPrefix === 'openclaw-gateway') {
       emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
     } else {
-      emitter.emit(`${eventPrefix}.selected.file` as 'gemini.selected.file' | 'acp.selected.file' | 'codex.selected.file' | 'nanobot.selected.file', []);
+      emitter.emit('acp.selected.file', []);
     }
   }, [conversation_id, eventPrefix]); // Only depend on conversation_id to avoid infinite loop
 
@@ -66,35 +66,16 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    * OpenClaw uses ACP protocol, emits acp_tool_call on tool calls
    */
   useEffect(() => {
-    const handleGeminiResponse = (data: { type: string }) => {
-      if (data.type === 'tool_group' || data.type === 'tool_call') {
-        refreshWorkspace();
-      }
-    };
     const handleAcpResponse = (data: { type: string }) => {
-      if (data.type === 'acp_tool_call') {
+      if (data.type === 'acp_tool_call' || data.type === 'codex_tool_call') {
         refreshWorkspace();
       }
     };
-    const handleCodexResponse = (data: { type: string }) => {
-      if (data.type === 'codex_tool_call') {
-        refreshWorkspace();
-      }
-    };
-    const handleOpenClawResponse = (data: { type: string }) => {
-      if (data.type === 'acp_tool_call') {
-        refreshWorkspace();
-      }
-    };
-    const unsubscribeGemini = ipcBridge.geminiConversation.responseStream.on(handleGeminiResponse);
     const unsubscribeAcp = ipcBridge.acpConversation.responseStream.on(handleAcpResponse);
-    const unsubscribeCodex = ipcBridge.codexConversation.responseStream.on(handleCodexResponse);
-    const unsubscribeOpenClaw = ipcBridge.openclawConversation.responseStream.on(handleOpenClawResponse);
+    const unsubscribeOpenClaw = ipcBridge.openclawConversation.responseStream.on(handleAcpResponse);
 
     return () => {
-      unsubscribeGemini();
       unsubscribeAcp();
-      unsubscribeCodex();
       unsubscribeOpenClaw();
     };
   }, []); // Empty dependency - event listeners are stable, refreshWorkspace is captured from closure

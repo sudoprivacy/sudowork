@@ -11,17 +11,12 @@ import { emitter } from '../../src/renderer/utils/emitter';
 // Mock ipcBridge
 vi.mock('../../src/common/ipcBridge', () => ({
   ipcBridge: {
-    geminiConversation: {
-      responseStream: {
-        on: vi.fn(() => vi.fn()),
-      },
-    },
     acpConversation: {
       responseStream: {
         on: vi.fn(() => vi.fn()),
       },
     },
-    codexConversation: {
+    openclawConversation: {
       responseStream: {
         on: vi.fn(() => vi.fn()),
       },
@@ -41,12 +36,10 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
 
   afterEach(() => {
     // Clean up any event listeners
-    emitter.off('gemini.selected.file');
     emitter.off('acp.selected.file');
-    emitter.off('codex.selected.file');
   });
 
-  describe('gemini.selected.file event handling', () => {
+  describe('acp.selected.file event handling', () => {
     it('should sync selected state when folder tags are removed via event', () => {
       const setSelected = vi.fn();
       const selectedKeysRef = { current: ['folder1', 'folder2'] };
@@ -68,11 +61,11 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
       };
 
       // Register handler
-      emitter.on('gemini.selected.file', handleSelectedFile);
+      emitter.on('acp.selected.file', handleSelectedFile);
 
       // Simulate removing a folder tag (emitting with remaining items)
       act(() => {
-        emitter.emit('gemini.selected.file', [
+        emitter.emit('acp.selected.file', [
           { path: '/path/folder1', name: 'folder1', isFile: false, relativePath: 'folder1' },
           // folder2 removed
         ]);
@@ -105,11 +98,11 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
         }
       };
 
-      emitter.on('gemini.selected.file', handleSelectedFile);
+      emitter.on('acp.selected.file', handleSelectedFile);
 
       // Remove all folders
       act(() => {
-        emitter.emit('gemini.selected.file', []);
+        emitter.emit('acp.selected.file', []);
       });
 
       expect(setSelected).toHaveBeenCalledWith([]);
@@ -136,11 +129,11 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
         }
       };
 
-      emitter.on('gemini.selected.file', handleSelectedFile);
+      emitter.on('acp.selected.file', handleSelectedFile);
 
       // Mix of files and folders
       act(() => {
-        emitter.emit('gemini.selected.file', [
+        emitter.emit('acp.selected.file', [
           { path: '/path/file1.txt', name: 'file1.txt', isFile: true, relativePath: 'file1.txt' },
           { path: '/path/folder1', name: 'folder1', isFile: false, relativePath: 'folder1' },
           { path: '/path/file2.txt', name: 'file2.txt', isFile: true },
@@ -171,11 +164,11 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
         }
       };
 
-      emitter.on('gemini.selected.file', handleSelectedFile);
+      emitter.on('acp.selected.file', handleSelectedFile);
 
       // Folder without relativePath
       act(() => {
-        emitter.emit('gemini.selected.file', [
+        emitter.emit('acp.selected.file', [
           { path: '/path/folder1', name: 'folder1', isFile: false }, // no relativePath
         ]);
       });
@@ -184,48 +177,6 @@ describe('useWorkspaceEvents - folder tag sync (#1083)', () => {
       expect(setSelected).toHaveBeenCalledWith([]);
       // But selectedNodeRef should be null since no relativePath
       expect(selectedNodeRef.current).toBeNull();
-    });
-  });
-
-  describe('acp.selected.file event handling', () => {
-    it('should work with acp event prefix', () => {
-      const setSelected = vi.fn();
-      const selectedKeysRef = { current: [] as string[] };
-
-      const handleSelectedFile = (items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) => {
-        const newKeys = items.filter((item) => !item.isFile && item.relativePath).map((item) => item.relativePath!);
-        setSelected(newKeys);
-        selectedKeysRef.current = newKeys;
-      };
-
-      emitter.on('acp.selected.file', handleSelectedFile);
-
-      act(() => {
-        emitter.emit('acp.selected.file', [{ path: '/path/folder1', name: 'folder1', isFile: false, relativePath: 'folder1' }]);
-      });
-
-      expect(setSelected).toHaveBeenCalledWith(['folder1']);
-    });
-  });
-
-  describe('codex.selected.file event handling', () => {
-    it('should work with codex event prefix', () => {
-      const setSelected = vi.fn();
-      const selectedKeysRef = { current: [] as string[] };
-
-      const handleSelectedFile = (items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) => {
-        const newKeys = items.filter((item) => !item.isFile && item.relativePath).map((item) => item.relativePath!);
-        setSelected(newKeys);
-        selectedKeysRef.current = newKeys;
-      };
-
-      emitter.on('codex.selected.file', handleSelectedFile);
-
-      act(() => {
-        emitter.emit('codex.selected.file', [{ path: '/path/folder1', name: 'folder1', isFile: false, relativePath: 'folder1' }]);
-      });
-
-      expect(setSelected).toHaveBeenCalledWith(['folder1']);
     });
   });
 });

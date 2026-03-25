@@ -36,15 +36,14 @@ function setCachedCommands(conversationId: string, commands: SlashCommandItem[])
 
 interface UseSlashCommandsOptions {
   conversationType?: string;
-  codexStatus?: string | null;
   /** When provided, changes to this value trigger a re-fetch. Used by ACP to
    *  re-fetch commands after the agent becomes active. */
   agentStatus?: string | null;
 }
 
 export function useSlashCommands(conversationId: string, options: UseSlashCommandsOptions = {}) {
-  const { conversationType, codexStatus, agentStatus } = options;
-  const canUseCachedCommands = isSlashCommandListEnabled({ conversationType, codexStatus });
+  const { agentStatus } = options;
+  const canUseCachedCommands = isSlashCommandListEnabled();
   const requestIdRef = useRef(0);
   const [commands, setCommands] = useState<SlashCommandItem[]>(() => {
     if (!canUseCachedCommands) {
@@ -96,7 +95,7 @@ export function useSlashCommands(conversationId: string, options: UseSlashComman
     return () => {
       isCancelled = true;
     };
-  }, [conversationId, canUseCachedCommands, codexStatus, conversationType, agentStatus]);
+  }, [conversationId, canUseCachedCommands, agentStatus]);
 
   return commands;
 }

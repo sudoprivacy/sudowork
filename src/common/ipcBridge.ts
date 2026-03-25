@@ -69,13 +69,6 @@ export const conversation = {
   },
 };
 
-// Gemini对话相关接口 - 复用统一的conversation接口
-export const geminiConversation = {
-  sendMessage: conversation.sendMessage,
-  confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('input.confirm.message'),
-  responseStream: conversation.responseStream,
-};
-
 // CDP status interface
 export interface ICdpStatus {
   /** Whether CDP is currently enabled */
@@ -320,12 +313,6 @@ export const mcpService = {
   loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
   logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
-};
-
-// Codex 对话相关接口 - 复用统一的conversation接口
-export const codexConversation = {
-  sendMessage: conversation.sendMessage,
-  responseStream: conversation.responseStream,
 };
 
 // OpenClaw 对话相关接口 - 复用统一的conversation接口
@@ -747,8 +734,6 @@ export interface ICreateConversationParams {
     presetAssistantId?: string;
     /** Initial session mode selected on Guid page (from AgentModeSelector) */
     sessionMode?: string;
-    /** User-selected Codex model from Guid page */
-    codexModel?: string;
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
