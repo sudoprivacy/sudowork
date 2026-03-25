@@ -49,7 +49,20 @@ cleanEnv.VITE_DEV_SERVER_PORT = String(actualPort);
 // on Windows where IPv6 ::1 port reservations can block binding
 cleanEnv.NODE_OPTIONS = (cleanEnv.NODE_OPTIONS || '') + ' --dns-result-order=ipv4first';
 
-console.log(`Launching electron-vite dev (renderer port: ${actualPort})...`);
+// Also auto-detect CDP port (same issue: orphan sockets from killed Electron)
+const preferredCdp = parseInt(cleanEnv.NEXUS_CDP_PORT || '9230', 10);
+let cdpPort;
+try {
+  cdpPort = findAvailablePort(preferredCdp, 20);
+} catch {
+  cdpPort = findAvailablePort(9250, 20);
+}
+if (cdpPort !== preferredCdp) {
+  console.log(`CDP port ${preferredCdp} unavailable, using ${cdpPort}`);
+}
+cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
+
+console.log(`Launching electron-vite dev (renderer: ${actualPort}, CDP: ${cdpPort})...`);
 
 try {
   execSync('npx electron-vite dev', {

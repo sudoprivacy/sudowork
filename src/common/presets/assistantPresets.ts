@@ -350,4 +350,27 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': ['开始一个勇敢战士的史诗奇幻冒险', '创建一个有背景故事和个性的详细角色', '在科幻设定中开始一个互动故事'],
     },
   },
+  {
+    id: 'qa-tester',
+    avatar: '🧪',
+    presetAgentType: 'gemini',
+    resourceDir: 'assistant/qa-tester',
+    ruleFiles: {
+      'en-US': 'qa-tester.md',
+      'zh-CN': 'qa-tester.md',
+    },
+    defaultEnabledSkills: ['browser'],
+    nameI18n: {
+      'en-US': 'QA Tester',
+      'zh-CN': 'QA 测试员',
+    },
+    descriptionI18n: {
+      'en-US': 'Self-test this app by operating its own UI via browser automation. Takes screenshots, verifies behavior, reports issues.',
+      'zh-CN': '通过浏览器自动化操作自身 UI 进行自测。截图验证行为，报告问题。',
+    },
+    promptsI18n: {
+      'en-US': ['Test the /model command — list models, switch, verify', 'Explore the app UI and look for any bugs', 'Test creating a new conversation and sending a message'],
+      'zh-CN': ['测试 /model 命令 — 列出模型、切换、验证', '探索应用 UI，寻找 bug', '测试新建会话并发送消息'],
+    },
+  },
 ];
