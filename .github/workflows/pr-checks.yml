@@ -56,12 +56,13 @@ jobs:
             target: '--win'
             build_args: '--win --arm64'
             unpacked_dir: 'win-arm64-unpacked'
-          - platform: 'linux'
-            os: 'ubuntu-latest'
-            arch: 'x64'
-            target: '--linux'
-            build_args: '--linux --x64'
-            unpacked_dir: 'linux-unpacked'
+          # Linux build disabled — no .deb target configured, snap requires snapcraft login
+          # - platform: 'linux'
+          #   os: 'ubuntu-latest'
+          #   arch: 'x64'
+          #   target: '--linux'
+          #   build_args: '--linux --x64'
+          #   unpacked_dir: 'linux-unpacked'
 
     steps:
       - name: Checkout code
