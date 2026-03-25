@@ -357,8 +357,8 @@ const getTrayIcon = (): Electron.NativeImage => {
 const buildTrayContextMenu = (): Electron.Menu => {
   // Ensure i18n is initialized before building menu
   // 确保 i18n 在构建菜单前已初始化
-  const showWindowLabel = i18n.t('tray.showWindow');
-  const quitLabel = i18n.t('tray.quit');
+  const showWindowLabel = i18n.t('common.tray.showWindow');
+  const quitLabel = i18n.t('common.tray.quit');
 
   return Menu.buildFromTemplate([
     {
@@ -407,8 +407,8 @@ const createOrUpdateTray = (): void => {
     tray.setContextMenu(contextMenu);
 
     console.log('[Tray] Created with menu labels:', {
-      showWindow: i18n.t('tray.showWindow'),
-      quit: i18n.t('tray.quit'),
+      showWindow: i18n.t('common.tray.showWindow'),
+      quit: i18n.t('common.tray.quit'),
       language: i18n.language,
     });
   } catch (err) {
