@@ -129,7 +129,7 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.fetchCategories.provider(async () => {
     try {
       console.log('[SkillHub] Fetching categories');
-      const response = await fetch(`${SKILL_HUB_BASE_URL}/categories`, {
+      const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();

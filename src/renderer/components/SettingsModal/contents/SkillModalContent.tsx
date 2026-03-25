@@ -7,8 +7,8 @@
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Spin, Message, Input, Select, Progress } from '@arco-design/web-react';
-import { Down, Install, Search, Star, Check } from '@icon-park/react';
+import { Button, Spin, Message, Input, Progress } from '@arco-design/web-react';
+import { Download, Search, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
@@ -54,8 +54,35 @@ async function fetchSkillsHttp(params: { cursor?: string; limit?: number; query?
 }
 
 async function fetchCategoriesHttp() {
-  const response = await fetch('/api/skill-hub/categories');
+  const response = await fetch('/api/categories');
   return response.json();
+}
+
+// ==================== Parse JSON Fields ====================
+
+function parseJsonArray(jsonStr: string | null): string[] {
+  if (!jsonStr) return [];
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+interface CoreFeature {
+  title: string;
+  desc: string;
+}
+
+function parseCoreFeatures(jsonStr: string | null): CoreFeature[] {
+  if (!jsonStr) return [];
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 // ==================== Components ====================
@@ -101,116 +128,189 @@ const SkillItem: React.FC<{
     }
   }, [isExpanded, detail, skill.id]);
 
+  const applicableScenarios = parseJsonArray(skill.applicable_scenarios);
+  const coreFeatures = parseCoreFeatures(skill.core_features);
+
   return (
-    <div className='bg-fill-1 rd-16px p-16px cursor-pointer hover:bg-fill-2 transition border border-line'>
-      <div className='flex justify-between items-start' onClick={onToggle}>
+    <div className='bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition border border-line overflow-hidden'>
+      {/* Card Header */}
+      <div className='flex items-center p-12px gap-12px' onClick={onToggle}>
+        {/* Icon */}
+        <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
+          {skill.icon ? (
+            <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' />
+          ) : (
+            <div className='w-full h-full flex items-center justify-center text-24px'>{skill.emoji || '📦'}</div>
+          )}
+        </div>
+
+        {/* Title & Description */}
         <div className='flex-1 min-w-0'>
           <div className='flex items-center gap-8px flex-wrap'>
-            <span className='font-medium text-16px text-t-primary'>
-              {skill.display_name} {skill.emoji || ''}
-            </span>
+            <span className='font-medium text-15px text-t-primary truncate'>{skill.display_name}</span>
             {isInstalled && (
-              <span className='flex items-center gap-4px px-8px py-2px bg-primary-light text-primary text-12px rd-4px'>
+              <span className='flex items-center gap-4px px-6px py-1px bg-primary-light text-primary text-11px rd-4px'>
                 <Check size='12' />
-                {t('settings.skill.installed', { defaultValue: 'Installed' })}
-                {installedVersion !== 'unknown' && ` ${installedVersion}`}
+                {t('settings.skill.installed', { defaultValue: '已安装' })}
               </span>
             )}
           </div>
-          <div className='text-14px text-t-secondary mt-4px line-clamp-2'>{skill.description}</div>
-          <div className='text-13px text-t-secondary mt-4px'>{skill.category || '-'}</div>
+          <div className='text-13px text-t-secondary mt-2px line-clamp-1'>{skill.description}</div>
         </div>
-        <div className='flex items-center gap-8px ml-8px flex-shrink-0'>
-          {/* Install/Update button */}
-          {latestVersionInfo &&
-            !isInstalled &&
-            (installing ? (
-              <div className='w-100px'>
+
+        {/* Install/Download Button */}
+        <div className='flex-shrink-0'>
+          {latestVersionInfo && !isInstalled && (
+            installing ? (
+              <div className='w-80px'>
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
               <Button
                 type='primary'
                 size='small'
-                icon={<Install size='14' />}
+                icon={<Download size='14' />}
                 onClick={(e) => {
                   e.stopPropagation();
                   onInstall();
                 }}
               >
-                {t('settings.skill.install', { defaultValue: 'Install' })}
+                {t('settings.skill.install', { defaultValue: '安装' })}
               </Button>
-            ))}
-          {hasUpdate &&
-            (installing ? (
-              <div className='w-100px'>
+            )
+          )}
+          {hasUpdate && (
+            installing ? (
+              <div className='w-80px'>
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
               <Button
                 size='small'
-                icon={<Install size='14' />}
+                icon={<Download size='14' />}
                 onClick={(e) => {
                   e.stopPropagation();
                   onInstall();
                 }}
               >
-                {t('settings.skill.update', { defaultValue: 'Update' })}
+                {t('settings.skill.update', { defaultValue: '更新' })}
               </Button>
-            ))}
-          <div className='flex items-center gap-4px text-t-secondary text-14px'>
-            <Star theme='filled' size='16' fill='#f59e0b' />
-            <span>{skill.star_count}</span>
-          </div>
-          <span className={classNames('transition-transform text-t-secondary text-20px', isExpanded && 'rotate-180')}>
-            <Down size='20' />
-          </span>
+            )
+          )}
         </div>
       </div>
 
+      {/* Expanded Detail */}
       {isExpanded && (
-        <div className='mt-12px pt-12px border-t border-line'>
+        <div className='border-t border-line bg-fill-2'>
           {loading ? (
-            <div className='flex justify-center py-16px'>
+            <div className='flex justify-center py-32px'>
               <Spin />
             </div>
           ) : detail ? (
-            <div className='space-y-8px text-14px'>
-              <div>
-                <span className='font-semibold text-t-secondary'>{t('settings.skill.homepage', { defaultValue: 'Homepage' })}: </span>
-                {detail.skill.homepage ? (
-                  <a href={detail.skill.homepage} target='_blank' rel='noopener noreferrer' className='text-primary hover:underline'>
-                    {detail.skill.homepage}
-                  </a>
-                ) : (
-                  <span className='text-t-tertiary'>-</span>
-                )}
+            <div className='p-16px space-y-16px'>
+              {/* Header with Icon and Title */}
+              <div className='flex items-center gap-12px'>
+                <div className='w-56px h-56px flex-shrink-0 rd-10px overflow-hidden bg-fill-1'>
+                  {skill.icon ? (
+                    <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' />
+                  ) : (
+                    <div className='w-full h-full flex items-center justify-center text-28px'>{skill.emoji || '📦'}</div>
+                  )}
+                </div>
+                <div>
+                  <div className='font-semibold text-18px text-t-primary'>{skill.display_name}</div>
+                  {skill.categories && skill.categories.length > 0 && (
+                    <div className='flex gap-4px mt-4px flex-wrap'>
+                      {skill.categories.map((cat, idx) => (
+                        <span key={idx} className='px-6px py-1px bg-fill-1 text-t-secondary text-11px rd-4px'>{cat}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {detail.versions.length > 0 && (
-                <div className='flex items-start gap-8px flex-wrap'>
-                  <span className='font-semibold text-t-secondary flex-shrink-0'>{t('settings.skill.versions', { defaultValue: 'Versions' })}:</span>
-                  <div className='flex flex-wrap gap-8px'>
-                    {detail.versions.map((v) => (
-                      <Button
-                        key={v.id}
-                        size='small'
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                        icon={isInstalled && v.version === installedVersion ? <Check size='14' /> : <Install size='14' />}
-                        className='bg-fill-1 border-border-2'
-                      >
-                        {v.version}
-                        {isInstalled && v.version === installedVersion && ` (${t('settings.skill.current', { defaultValue: 'current' })})`}
-                      </Button>
+              {/* 技能介绍 */}
+              <div>
+                <div className='font-medium text-14px text-t-primary mb-8px'>{t('settings.skill.introduction', { defaultValue: '技能介绍' })}</div>
+                <div className='text-13px text-t-secondary leading-relaxed'>{skill.description}</div>
+              </div>
+
+              {/* 怎么使用 */}
+              {coreFeatures.length > 0 && (
+                <div>
+                  <div className='font-medium text-14px text-t-primary mb-8px'>{t('settings.skill.howToUse', { defaultValue: '怎么使用' })}</div>
+                  <div className='space-y-6px'>
+                    {coreFeatures.map((feature, idx) => (
+                      <div key={idx} className='bg-fill-1 rd-6px p-10px'>
+                        <div className='font-medium text-13px text-t-primary'>{feature.title}</div>
+                        <div className='text-12px text-t-secondary mt-2px'>{feature.desc}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* 使用场景 */}
+              {applicableScenarios.length > 0 && (
+                <div>
+                  <div className='font-medium text-14px text-t-primary mb-8px'>{t('settings.skill.scenarios', { defaultValue: '使用场景' })}</div>
+                  <div className='space-y-4px'>
+                    {applicableScenarios.map((scenario, idx) => (
+                      <div key={idx} className='flex items-start gap-6px text-13px text-t-secondary'>
+                        <span className='text-primary mt-1px'>•</span>
+                        <span>{scenario}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 去使用按钮 */}
+              {latestVersionInfo && !isInstalled && (
+                <div className='pt-8px'>
+                  {installing ? (
+                    <div className='w-full'>
+                      <Progress percent={installProgress} size='small' />
+                    </div>
+                  ) : (
+                    <Button
+                      type='primary'
+                      long
+                      icon={<Download size='16' />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInstall();
+                      }}
+                    >
+                      {t('settings.skill.goUse', { defaultValue: '去使用' })}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {hasUpdate && (
+                <div className='pt-8px'>
+                  {installing ? (
+                    <div className='w-full'>
+                      <Progress percent={installProgress} size='small' />
+                    </div>
+                  ) : (
+                    <Button
+                      long
+                      icon={<Download size='16' />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInstall();
+                      }}
+                    >
+                      {t('settings.skill.update', { defaultValue: '更新' })}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <div className='text-center text-t-tertiary py-16px'>{t('settings.skill.loadFailed', { defaultValue: 'Failed to load details' })}</div>
+            <div className='text-center text-t-tertiary py-32px'>{t('settings.skill.loadFailed', { defaultValue: '加载失败' })}</div>
           )}
         </div>
       )}
@@ -254,18 +354,15 @@ const SkillModalContent: React.FC = () => {
     }
   }, []);
 
-  // Fetch latest version for each skill (append to existing map)
+  // Fetch latest version for each skill
   const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
     const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
-
-    // Only fetch for skills that don't have version info yet
     const skillsToFetch = skillList.filter((s) => !versionMap.has(s.id));
     if (skillsToFetch.length === 0) {
       setLatestVersions(versionMap);
       return;
     }
 
-    // Fetch details in parallel with a limit of 5 concurrent requests
     const batchSize = 5;
     for (let i = 0; i < skillsToFetch.length; i += batchSize) {
       const batch = skillsToFetch.slice(i, i + batchSize);
@@ -306,7 +403,7 @@ const SkillModalContent: React.FC = () => {
     setLatestVersions(versionMap);
   }, []);
 
-  // Fetch skills (initial or load more)
+  // Fetch skills
   const fetchSkills = useCallback(
     async (cursor?: string, append = false) => {
       try {
@@ -334,35 +431,23 @@ const SkillModalContent: React.FC = () => {
           } else {
             setSkills(newSkills);
           }
-          // Log full response to debug pagination
-          console.log('[SkillHub] Full response data:', skillsRes.data);
-          console.log('[SkillHub] next_cursor field:', skillsRes.data.next_cursor);
-          console.log('[SkillHub] has_more field:', skillsRes.data.has_more);
-          // Handle both snake_case and camelCase field names from API
-          const rawData = skillsRes.data as unknown as Record<string, unknown>;
-          console.log('[SkillHub] rawData.nextCursor:', rawData.nextCursor);
-          console.log('[SkillHub] rawData.hasMore:', rawData.hasMore);
 
-          // Get next_cursor - handle empty string, null, undefined
+          const rawData = skillsRes.data as unknown as Record<string, unknown>;
           let nextCursorValue: string | null = null;
           if (typeof skillsRes.data.next_cursor === 'string' && skillsRes.data.next_cursor.length > 0) {
             nextCursorValue = skillsRes.data.next_cursor;
           } else if (typeof rawData.nextCursor === 'string' && (rawData.nextCursor as string).length > 0) {
             nextCursorValue = rawData.nextCursor as string;
           }
-          console.log('[SkillHub] Final nextCursor value:', nextCursorValue);
 
           const hasMoreValue = skillsRes.data.has_more === true || rawData.hasMore === true;
-          console.log('[SkillHub] Final hasMore value:', hasMoreValue);
-
           setNextCursor(nextCursorValue);
           setHasMore(hasMoreValue);
-          // Fetch latest versions for new skills
           void fetchLatestVersions(newSkills, append ? latestVersions : undefined);
         }
       } catch (err) {
         console.error('Failed to fetch skills:', err);
-        Message.error(t('settings.skill.fetchFailed', { defaultValue: 'Failed to fetch skills' }));
+        Message.error(t('settings.skill.fetchFailed', { defaultValue: '获取技能失败' }));
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -373,20 +458,16 @@ const SkillModalContent: React.FC = () => {
 
   // Load more skills
   const loadMore = useCallback(() => {
-    console.log('[SkillHub] loadMore triggered:', { loadingMore, hasMore, nextCursor });
     if (!loadingMore && hasMore && nextCursor) {
       void fetchSkills(nextCursor, true);
-    } else if (!loadingMore && hasMore && !nextCursor) {
-      console.warn('[SkillHub] hasMore is true but nextCursor is missing - cannot load more');
     }
   }, [loadingMore, hasMore, nextCursor, fetchSkills]);
 
-  // Handle scroll for infinite scroll (works for both scroll area and page mode)
+  // Handle scroll
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const target = e.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = target;
-      // Load more when user scrolls to within 100px of the bottom
       if (scrollHeight - scrollTop - clientHeight < 100) {
         loadMore();
       }
@@ -394,12 +475,10 @@ const SkillModalContent: React.FC = () => {
     [loadMore]
   );
 
-  // In page mode, we need to find the scrollable parent and listen to its scroll
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isPageMode && containerRef.current) {
-      // Find the scrollable parent (could be settings-page-wrapper or functionMenuContainer)
       let scrollParent: HTMLElement | null = containerRef.current;
       while (scrollParent) {
         const style = window.getComputedStyle(scrollParent);
@@ -422,14 +501,14 @@ const SkillModalContent: React.FC = () => {
     }
   }, [isPageMode, loadMore]);
 
-  // Initial load and when filters change
+  // Initial load
   useEffect(() => {
     setSkills([]);
     setNextCursor(null);
     setHasMore(false);
     void fetchSkills();
     void fetchInstalledSkills();
-  }, [selectedCategory]); // Re-fetch when category changes
+  }, [selectedCategory]);
 
   // Debounced search
   useEffect(() => {
@@ -440,7 +519,7 @@ const SkillModalContent: React.FC = () => {
       void fetchSkills();
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]); // Re-fetch when search query changes
+  }, [searchQuery]);
 
   // Fetch categories on mount
   useEffect(() => {
@@ -465,7 +544,7 @@ const SkillModalContent: React.FC = () => {
   const handleInstall = useCallback(
     async (skillId: string) => {
       if (!isElectronDesktop()) {
-        Message.warning(t('settings.skill.desktopOnly', { defaultValue: 'Skill installation is only available in desktop app' }));
+        Message.warning(t('settings.skill.desktopOnly', { defaultValue: '技能安装仅在桌面端可用' }));
         return;
       }
 
@@ -487,15 +566,14 @@ const SkillModalContent: React.FC = () => {
         });
 
         if (res.success && res.data) {
-          Message.success(t('settings.skill.installSuccess', { name: skill.display_name, version: versionInfo.version, defaultValue: `Successfully installed ${skill.display_name} ${versionInfo.version}` }));
-          // Refresh installed skills
+          Message.success(t('settings.skill.installSuccess', { name: skill.display_name, version: versionInfo.version, defaultValue: `成功安装 ${skill.display_name} ${versionInfo.version}` }));
           await fetchInstalledSkills();
         } else {
-          Message.error(t('settings.skill.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `Installation failed: ${res.msg || 'Unknown error'}` }));
+          Message.error(t('settings.skill.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `安装失败: ${res.msg || '未知错误'}` }));
         }
       } catch (err) {
         console.error('Failed to install skill:', err);
-        Message.error(t('settings.skill.installFailed', { msg: String(err), defaultValue: `Installation failed: ${err}` }));
+        Message.error(t('settings.skill.installFailed', { msg: String(err), defaultValue: `安装失败: ${err}` }));
       } finally {
         setInstallingSkillId(null);
         setInstallProgress(0);
@@ -504,27 +582,51 @@ const SkillModalContent: React.FC = () => {
     [skills, latestVersions, fetchInstalledSkills, t]
   );
 
-  const categoryOptions = useMemo(() => {
-    return [{ label: t('settings.skill.allCategories', { defaultValue: 'All Categories' }), value: 'all' }, ...categories.map((cat) => ({ label: cat || t('settings.skill.uncategorized', { defaultValue: 'Uncategorized' }), value: cat || '' }))];
-  }, [categories, t]);
-
   return (
     <div ref={containerRef} className='flex flex-col h-full w-full'>
       {/* Header */}
-      <div className='text-center mb-16px'>
-        <h2 className='text-20px font-bold text-t-primary'>Skill Hub</h2>
+      <div className='text-center mb-12px'>
+        <h2 className='text-18px font-bold text-t-primary'>{t('settings.skill.title', { defaultValue: '技能商店' })}</h2>
       </div>
 
-      {/* Search & Filter */}
-      <div className='flex gap-8px mb-16px items-center'>
-        <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: 'Search...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='16' className='text-t-secondary' />} className='flex-1 skill-hub-input' />
-        <Select value={selectedCategory} onChange={setSelectedCategory} className='w-140px flex-shrink-0 skill-hub-select'>
-          {categoryOptions.map((opt) => (
-            <Select.Option key={opt.value} value={opt.value}>
-              {opt.label}
-            </Select.Option>
-          ))}
-        </Select>
+      {/* Search */}
+      <div className='mb-12px'>
+        <Input
+          placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能...' })}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          prefix={<Search size='16' className='text-t-secondary' />}
+          className='skill-hub-input'
+        />
+      </div>
+
+      {/* Category Tags */}
+      <div className='flex gap-6px mb-16px flex-wrap'>
+        <span
+          className={classNames(
+            'px-12px py-6px rd-16px text-13px cursor-pointer transition',
+            selectedCategory === 'all'
+              ? 'bg-primary text-white'
+              : 'bg-fill-2 text-t-secondary hover:bg-fill-3'
+          )}
+          onClick={() => setSelectedCategory('all')}
+        >
+          {t('settings.skill.allCategories', { defaultValue: '全部' })}
+        </span>
+        {categories.map((cat) => (
+          <span
+            key={cat}
+            className={classNames(
+              'px-12px py-6px rd-16px text-13px cursor-pointer transition',
+              selectedCategory === cat
+                ? 'bg-primary text-white'
+                : 'bg-fill-2 text-t-secondary hover:bg-fill-3'
+            )}
+            onClick={() => setSelectedCategory(cat)}
+          >
+            {cat}
+          </span>
+        ))}
       </div>
 
       {/* List */}
@@ -534,11 +636,21 @@ const SkillModalContent: React.FC = () => {
             <Spin size={32} />
           </div>
         ) : skills.length === 0 ? (
-          <div className='p-16px text-center text-t-secondary'>{t('settings.skill.noResults', { defaultValue: 'No skills found' })}</div>
+          <div className='p-16px text-center text-t-secondary'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</div>
         ) : (
           <div className='space-y-8px pb-16px'>
             {skills.map((skill) => (
-              <SkillItem key={skill.id} skill={skill} isExpanded={expandedId === skill.id} installedVersion={installedSkills.get(skill.name)} latestVersionInfo={latestVersions.get(skill.id)} onToggle={() => setExpandedId(expandedId === skill.id ? null : skill.id)} onInstall={() => handleInstall(skill.id)} installing={installingSkillId === skill.id} installProgress={installProgress} />
+              <SkillItem
+                key={skill.id}
+                skill={skill}
+                isExpanded={expandedId === skill.id}
+                installedVersion={installedSkills.get(skill.name)}
+                latestVersionInfo={latestVersions.get(skill.id)}
+                onToggle={() => setExpandedId(expandedId === skill.id ? null : skill.id)}
+                onInstall={() => handleInstall(skill.id)}
+                installing={installingSkillId === skill.id}
+                installProgress={installProgress}
+              />
             ))}
             {loadingMore && (
               <div className='flex justify-center py-16px'>
@@ -547,7 +659,7 @@ const SkillModalContent: React.FC = () => {
             )}
             {!loadingMore && hasMore && (
               <div className='flex justify-center py-8px'>
-                <span className='text-12px text-t-tertiary'>{t('settings.skill.scrollForMore', { defaultValue: 'Scroll for more' })}</span>
+                <span className='text-12px text-t-tertiary'>{t('settings.skill.scrollForMore', { defaultValue: '下拉加载更多' })}</span>
               </div>
             )}
           </div>

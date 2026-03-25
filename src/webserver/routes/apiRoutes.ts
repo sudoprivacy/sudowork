@@ -288,15 +288,15 @@ export function registerApiRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/skill-hub/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
+  app.get('/api/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
     try {
-      const response = await fetch(`${SKILL_HUB_BASE_URL}/categories`, {
+      const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },
       });
       const data = await response.json();
       res.json({ success: true, data: data.data || [] });
     } catch (error) {
-      console.error('[SkillHub API] Failed to fetch categories:', error);
+      console.error('[API] Failed to fetch categories:', error);
       res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
     }
   });

@@ -912,10 +912,14 @@ export interface ISkillHubSkill {
   display_name: string;
   description: string;
   category: string;
+  categories: string[];
   emoji: string | null;
+  icon: string;
   star_count: number;
   homepage: string | null;
   author_id: string;
+  applicable_scenarios: string | null;
+  core_features: string | null;
   created_at: string;
   updated_at: string;
 }
