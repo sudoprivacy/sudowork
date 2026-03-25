@@ -1,0 +1,53 @@
+name: "/model command"
+description: "Test /model slash command: list models, autocomplete, switch, verify"
+
+steps:
+  # Start fresh — wait for ACP to initialize
+  - op: new_conversation
+    wait: 5
+    wait_ready: 45
+
+  # 1. Warmup — first message may be dropped due to ACP init delay
+  - op: send_message
+    text: "/model"
+    wait: 15
+
+  # 2. Test autocomplete (ACP is now warm)
+  - op: type_text
+    text: "/mo"
+    wait: 2
+  - op: judge
+    expect: "/model commands"
+
+  # 3. Clear autocomplete by sending the command
+  - op: send_message
+    text: "/model"
+    wait: 8
+
+  # 4. Test invalid model
+  - op: send_message
+    text: "/model nonexistent-xyz"
+    wait: 5
+  - op: judge
+    expect: "unknown model available default sonnet haiku"
+
+  # 5. Switch to sonnet
+  - op: send_message
+    text: "/model sonnet"
+    wait: 5
+  - op: judge
+    expect: "switched sonnet"
+
+  # 6. Verify switch
+  - op: send_message
+    text: "/model"
+    wait: 8
+  - op: judge
+    expect: "sonnet current"
+
+  # 7. Switch back to default
+  - op: send_message
+    text: "/model default"
+    wait: 5
+  - op: judge
+    expect: "switched default"
