@@ -108,17 +108,25 @@ elif [ -n "$LINUX_DEBUG" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5) Hard validation for required updater metadata
+# 5) Validate updater metadata
+#    - Tag release: only mac-arm64 + windows-x64 (arm64-mac.yml + latest.yml)
+#    - Dev release: all platforms (latest-mac.yml + latest.yml + arch-specific)
 # ---------------------------------------------------------------------------
-echo "==> Validating required metadata ..."
+echo "==> Validating updater metadata ..."
 
 MISSING=0
-for required in latest.yml latest-mac.yml; do
-  if [ ! -f "$OUTPUT_DIR/$required" ]; then
-    echo "::error::Missing required updater metadata: $required"
-    MISSING=1
-  fi
-done
+
+# Windows: must have at least one Windows metadata
+if [ ! -f "$OUTPUT_DIR/latest.yml" ] && [ ! -f "$OUTPUT_DIR/win-arm64.yml" ]; then
+  echo "::error::Missing Windows updater metadata (need latest.yml or win-arm64.yml)"
+  MISSING=1
+fi
+
+# macOS: must have at least one macOS metadata
+if [ ! -f "$OUTPUT_DIR/latest-mac.yml" ] && [ ! -f "$OUTPUT_DIR/arm64-mac.yml" ]; then
+  echo "::error::Missing macOS updater metadata (need latest-mac.yml or arm64-mac.yml)"
+  MISSING=1
+fi
 
 if [ "$MISSING" -ne 0 ]; then
   exit 1
