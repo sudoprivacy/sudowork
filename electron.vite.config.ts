@@ -122,7 +122,7 @@ export default defineConfig(({ mode }) => {
           streamdown: resolve('node_modules/streamdown/dist/index.js'),
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],
-        dedupe: ['react', 'react-dom', 'react-router-dom'],
+        dedupe: ['react', 'react-dom', 'react-router-dom', '@codemirror/state', '@codemirror/view', '@codemirror/language'],
       },
       plugins: [UnoCSS(unoConfig), iconParkPlugin()],
       build: {
