@@ -23,7 +23,10 @@ mkdir -p "$OUTPUT_DIR"
 # 1) Copy all distributables and blockmaps (unique file names)
 # ---------------------------------------------------------------------------
 echo "==> Copying distributables from $ARTIFACTS_DIR ..."
-mapfile -t DISTRIBUTABLES < <(find "$ARTIFACTS_DIR" -type f \( \
+DISTRIBUTABLES=()
+while IFS= read -r line; do
+  DISTRIBUTABLES+=("$line")
+done < <(find "$ARTIFACTS_DIR" -type f \( \
   -name "*.exe" -o \
   -name "*.msi" -o \
   -name "*.dmg" -o \
