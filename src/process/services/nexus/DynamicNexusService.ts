@@ -40,6 +40,49 @@ class DynamicNexusService {
   private _port = 0;
   private _setupStage: NexusSetupStage = 'idle';
   private _setupCallbacks: NexusSetupCallback[] = [];
+  private readonly isWindows = process.platform === 'win32';
+
+  /**
+   * Get the bin/Scripts directory name for the current platform.
+   * Windows uses 'Scripts', macOS/Linux uses 'bin'.
+   */
+  private getBinDir(): string {
+    return this.isWindows ? 'Scripts' : 'bin';
+  }
+
+  /**
+   * Get the nexusd executable path for the current platform.
+   */
+  private getNexusdPath(envDir: string): string {
+    const binDir = this.getBinDir();
+    if (this.isWindows) {
+      return path.join(envDir, binDir, 'nexusd.exe');
+    }
+    return path.join(envDir, binDir, 'nexusd');
+  }
+
+  /**
+   * Get the conda-unpack executable path for the current platform.
+   */
+  private getCondaUnpackPath(envDir: string): string {
+    const binDir = this.getBinDir();
+    if (this.isWindows) {
+      return path.join(envDir, binDir, 'conda-unpack.exe');
+    }
+    return path.join(envDir, binDir, 'conda-unpack');
+  }
+
+  /**
+   * Get the python executable path for the current platform.
+   * On Windows, python.exe is in the root directory of the conda env.
+   * On macOS/Linux, it's in bin/python.
+   */
+  private getPythonPath(envDir: string): string {
+    if (this.isWindows) {
+      return path.join(envDir, 'python.exe');
+    }
+    return path.join(envDir, 'bin', 'python');
+  }
 
   get isRunning(): boolean {
     return this._running;
@@ -70,7 +113,7 @@ class DynamicNexusService {
   async checkInstalled(): Promise<boolean> {
     const envDir = this.getCondaEnvDir();
     const markerFile = path.join(envDir, CONDA_READY_MARKER);
-    const nexusdBin = path.join(envDir, 'bin', 'nexusd');
+    const nexusdBin = this.getNexusdPath(envDir);
 
     return fs.existsSync(markerFile) && fs.existsSync(nexusdBin);
   }
@@ -139,19 +182,19 @@ class DynamicNexusService {
         await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
 
         // Run conda-unpack to fix hardcoded paths
-        const condaUnpack = path.join(envDir, 'bin', 'conda-unpack');
+        const condaUnpack = this.getCondaUnpackPath(envDir);
         if (fs.existsSync(condaUnpack)) {
-          fs.chmodSync(condaUnpack, 0o755);
+          if (!this.isWindows) fs.chmodSync(condaUnpack, 0o755);
           this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
           await execAsync(`"${condaUnpack}"`);
         }
 
         // Ensure nexusd is executable
-        const nexusdBin = path.join(envDir, 'bin', 'nexusd');
+        const nexusdBin = this.getNexusdPath(envDir);
         if (!fs.existsSync(nexusdBin)) {
           throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
         }
-        fs.chmodSync(nexusdBin, 0o755);
+        if (!this.isWindows) fs.chmodSync(nexusdBin, 0o755);
 
         // Write version marker
         const markerFile = path.join(envDir, CONDA_READY_MARKER);
@@ -188,7 +231,7 @@ class DynamicNexusService {
     this._port = 12012;
 
     const envDir = this.getCondaEnvDir();
-    const nexusdBin = path.join(envDir, 'bin', 'nexusd');
+    const nexusdBin = this.getNexusdPath(envDir);
 
     if (!fs.existsSync(nexusdBin)) {
       throw new Error('Nexus not installed. Please install it first.');
@@ -206,8 +249,21 @@ class DynamicNexusService {
       await new Promise<void>((resolve) => setTimeout(resolve, 300));
     }
 
+    // Remove stale PID file if exists (nexusd checks this on startup)
+    // On Windows, os.kill(pid, 0) in nexus's _is_nexusd_process() fails with WinError 87,
+    // so we need to clean up the PID file before starting a new instance.
+    const pidFile = path.join(getDataPath(), 'nexusd.pid');
+    if (fs.existsSync(pidFile)) {
+      try {
+        fs.unlinkSync(pidFile);
+        console.log(`[DynamicNexus] Removed stale PID file: ${pidFile}`);
+      } catch (err) {
+        console.warn(`[DynamicNexus] Failed to remove PID file: ${err}`);
+      }
+    }
+
     // Use the python interpreter from the conda env to run nexusd
-    const pythonPath = path.join(envDir, 'bin', 'python');
+    const pythonPath = this.getPythonPath(envDir);
     const executablePath = pythonPath; // Use python from conda env
 
     // 使用固定参数，包括固定端口
