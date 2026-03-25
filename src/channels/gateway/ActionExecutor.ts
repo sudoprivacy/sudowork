@@ -299,14 +299,15 @@ export class ActionExecutor {
       originalMessageId: message.id,
       sendMessage: async (msg) => plugin.sendMessage(chatId, msg),
       editMessage: async (msgId, msg) => plugin.editMessage(chatId, msgId, msg),
+      sendTyping: async (cId, stop) => plugin.sendTyping?.(cId, stop),
     };
 
     try {
       // Check if user is authorized
       const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
 
-      // Handle /start command - always show pairing
-      if (content.type === 'command' && content.text === '/start') {
+      // Handle /start command - always show pairing (except for WeChat which auto-authorizes)
+      if (content.type === 'command' && content.text === '/start' && platform !== 'wechat') {
         const result = await handlePairingShow(context);
         if (result.message) {
           await context.sendMessage(result.message);
@@ -314,13 +315,38 @@ export class ActionExecutor {
         return;
       }
 
-      // If not authorized, show pairing flow
+      // If not authorized, handle based on platform
       if (!isAuthorized) {
-        const result = await handlePairingShow(context);
-        if (result.message) {
-          await context.sendMessage(result.message);
+        // WeChat: auto-authorize user without pairing flow
+        if (platform === 'wechat') {
+          const db = getDatabase();
+          const now = Date.now();
+          const newUserId = `wechat_${user.id}_${now}`;
+          const createResult = db.createChannelUser({
+            id: newUserId,
+            platformUserId: user.id,
+            platformType: 'wechat',
+            displayName: user.displayName || user.id,
+            authorizedAt: now,
+          });
+          if (!createResult.success) {
+            console.error(`[ActionExecutor] Failed to create WeChat user: ${createResult.error}`);
+            await context.sendMessage({
+              type: 'text',
+              text: '❌ Failed to authorize. Please try again.',
+              parseMode: 'HTML',
+            });
+            return;
+          }
+          console.log(`[ActionExecutor] Auto-authorized WeChat user: ${user.id}`);
+        } else {
+          // Other platforms: show pairing flow
+          const result = await handlePairingShow(context);
+          if (result.message) {
+            await context.sendMessage(result.message);
+          }
+          return;
         }
-        return;
       }
 
       // User is authorized - look up the assistant user
@@ -344,16 +370,16 @@ export class ActionExecutor {
       // Get or create session (scoped by chatId for per-chat isolation)
       let session = this.sessionManager.getSession(channelUser.id, chatId);
       if (!session || !session.conversationId) {
-        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : 'telegram';
+        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : 'telegram';
 
         // Read selected agent for this platform (defaults to Gemini)
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : ProcessConfig.get('assistant.telegram.agent'));
         } catch {
           // ignore
         }
-        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'gemini') as string;
+        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'openclaw-gateway') as string;
         const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
@@ -496,12 +522,19 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
-    // Send "thinking" indicator
-    const thinkingMsgId = await context.sendMessage({
-      type: 'text',
-      text: '⏳ Thinking...',
-      parseMode: 'HTML',
-    });
+    // Send "thinking" indicator (skip for platforms that don't support editing)
+    const supportsEdit = context.platform !== 'wechat';
+    let thinkingMsgId = '';
+    if (supportsEdit) {
+      thinkingMsgId = await context.sendMessage({
+        type: 'text',
+        text: '⏳ Thinking...',
+        parseMode: 'HTML',
+      });
+    }
+
+    // Start typing indicator
+    void context.sendTyping?.(context.chatId);
 
     try {
       const sessionId = context.sessionId;
@@ -522,7 +555,7 @@ export class ActionExecutor {
 
       // 跟踪已发送的消息 ID，用于新插入消息的管理
       // Track sent message IDs for new inserted messages
-      const sentMessageIds: string[] = [thinkingMsgId];
+      const sentMessageIds: string[] = thinkingMsgId ? [thinkingMsgId] : [];
 
       // 跟踪最后一条消息内容，用于流结束后添加操作按钮
       // Track last message content for adding action buttons after stream ends
@@ -531,6 +564,8 @@ export class ActionExecutor {
       // 执行消息编辑的函数
       // Function to perform message edit
       const doEditMessage = async (msg: IUnifiedOutgoingMessage) => {
+        if (!supportsEdit) return; // WeChat doesn't support edit
+
         lastUpdateTime = Date.now();
         const targetMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
         try {
@@ -564,7 +599,7 @@ export class ActionExecutor {
         // while subsequent messages arrive and get processed as updates
         // 重要：始终将第一个流式消息视为更新thinking消息
         // 这可以防止异步竞态条件：第一个insert的sendMessage耗时时，后续消息已到达并被当作update处理
-        if (isInsert && sentMessageIds.length === 1) {
+        if (isInsert && sentMessageIds.length === 1 && thinkingMsgId && supportsEdit) {
           // First streaming message: update thinking message instead of inserting
           // 第一个流式消息：更新thinking消息而不是插入新消息
           pendingMessage = streamOutgoing;
@@ -591,39 +626,52 @@ export class ActionExecutor {
         } else if (isInsert) {
           // 新消息：发送新消息
           // New message: send new message
-          try {
-            const newMsgId = await context.sendMessage(streamOutgoing);
-            sentMessageIds.push(newMsgId);
-          } catch {
-            // Ignore send errors
+          if (supportsEdit) {
+            try {
+              const newMsgId = await context.sendMessage(streamOutgoing);
+              sentMessageIds.push(newMsgId);
+            } catch {
+              // Ignore send errors
+            }
+          } else {
+            // For non-edit platforms (WeChat), we accumulate text and send at isInsert or end.
+            // But if it's a NEW block, we might want to send the PREVIOUS one if we accumulated it.
+            // However, WeChat is better served by sending the full interaction result at the end
+            // to avoid multiple messages for one response.
+            // So we just track that we HAVE content.
+            if (sentMessageIds.length === 0) {
+              sentMessageIds.push('wechat_placeholder');
+            }
           }
         } else {
           // 更新消息：使用定时器节流，确保最后一条消息能被发送
           // Update message: throttle with timer to ensure last message is sent
-          pendingMessage = streamOutgoing;
+          if (supportsEdit) {
+            pendingMessage = streamOutgoing;
 
-          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-            // 距离上次发送超过节流时间，立即发送
-            // Enough time has passed since last send, send immediately
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-              pendingUpdateTimer = null;
-            }
-            await doEditMessage(streamOutgoing);
-          } else {
-            // 在节流时间内，设置定时器延迟发送
-            // Within throttle window, set timer to send later
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-            }
-            const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
-            pendingUpdateTimer = setTimeout(() => {
-              if (pendingMessage) {
-                void doEditMessage(pendingMessage);
-                pendingMessage = null;
+            if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+              // 距离上次发送超过节流时间，立即发送
+              // Enough time has passed since last send, send immediately
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+                pendingUpdateTimer = null;
               }
-              pendingUpdateTimer = null;
-            }, delay);
+              await doEditMessage(streamOutgoing);
+            } else {
+              // 在节流时间内，设置定时器延迟发送
+              // Within throttle window, set timer to send later
+              if (pendingUpdateTimer) {
+                clearTimeout(pendingUpdateTimer);
+              }
+              const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
+              pendingUpdateTimer = setTimeout(() => {
+                if (pendingMessage) {
+                  void doEditMessage(pendingMessage);
+                  pendingMessage = null;
+                }
+                pendingUpdateTimer = null;
+              }, delay);
+            }
           }
         }
       });
@@ -636,7 +684,7 @@ export class ActionExecutor {
       }
       // 如果有待发送的消息，立即发送
       // If there's a pending message, send it immediately
-      if (pendingMessage) {
+      if (pendingMessage && supportsEdit) {
         try {
           await doEditMessage(pendingMessage);
         } catch {
@@ -647,28 +695,31 @@ export class ActionExecutor {
 
       // 流结束后，更新最后一条消息添加操作按钮（保留原内容）
       // After stream ends, update last message with action buttons (keep original content)
-      const lastMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
-      try {
-        // 使用最后一条消息的实际内容，添加操作按钮（根据平台）
-        // Use actual content of last message, add action buttons (based on platform)
-        const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent?.text);
-        const finalMessage: IUnifiedOutgoingMessage = lastMessageContent ? { ...lastMessageContent, replyMarkup: responseMarkup } : { type: 'text', text: '✅ Done', parseMode: 'HTML', replyMarkup: responseMarkup };
-        await context.editMessage(lastMsgId, finalMessage);
-      } catch {
-        // 忽略最终编辑错误
-        // Ignore final edit error
+      if (lastMessageContent) {
+        const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
+        const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
+
+        if (supportsEdit && sentMessageIds.length > 0) {
+          const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
+          await context.editMessage(lastMsgId, finalMessage);
+        } else {
+          // For WeChat or if no message was sent yet, send the final content as a new message
+          await context.sendMessage(finalMessage);
+        }
       }
     } catch (error: any) {
       console.error(`[ActionExecutor] Chat processing failed:`, error);
 
       // Update message with error
       const errorResponse = buildChatErrorResponse(error.message);
-      await context.editMessage(thinkingMsgId, {
-        type: 'text',
-        text: errorResponse.text,
-        parseMode: errorResponse.parseMode,
-        replyMarkup: errorResponse.replyMarkup,
-      });
+      if (supportsEdit && thinkingMsgId) {
+        await context.editMessage(thinkingMsgId, errorResponse);
+      } else {
+        await context.sendMessage(errorResponse);
+      }
+    } finally {
+      // Stop typing indicator
+      void context.sendTyping?.(context.chatId, true);
     }
   }
 

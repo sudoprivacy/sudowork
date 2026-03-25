@@ -222,6 +222,13 @@ export abstract class BasePlugin {
   abstract editMessage(chatId: string, messageId: string, message: IUnifiedOutgoingMessage): Promise<void>;
 
   /**
+   * Send typing indicator
+   * @param chatId Chat ID
+   * @param stop Whether to stop typing indicator (if implemented as a loop)
+   */
+  async sendTyping(_chatId: string, _stop?: boolean): Promise<void> {}
+
+  /**
    * Get the number of active users connected through this plugin
    */
   abstract getActiveUserCount(): number;

@@ -6,7 +6,7 @@
 
 import type { IChannelPluginStatus } from '@/channels/types';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { channel, sudoclaw, webui, type IWebUIStatus } from '@/common/ipcBridge';
+import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
@@ -153,8 +153,8 @@ const ChannelModalContent: React.FC = () => {
   const [webuiStatus, setWebuiStatus] = useState<IWebUIStatus | null>(null);
 
   // WeChat plugin state
-  const [wechatInstalled, setWechatInstalled] = useState(false);
-  const [wechatLoading, setWechatLoading] = useState(false);
+  const [wechatPluginStatus, setWechatPluginStatus] = useState<IChannelPluginStatus | null>(null);
+  const [wechatEnableLoading, setWechatEnableLoading] = useState(false);
 
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
@@ -181,11 +181,13 @@ const ChannelModalContent: React.FC = () => {
         const telegramPlugin = result.data.find((p) => p.type === 'telegram');
         const larkPlugin = result.data.find((p) => p.type === 'lark');
         const dingtalkPlugin = result.data.find((p) => p.type === 'dingtalk');
+        const wechatPlugin = result.data.find((p) => p.type === 'wechat');
         const extensionPlugins = result.data.filter((p) => !BUILTIN_CHANNEL_TYPES.has(p.type));
 
         setPluginStatus(telegramPlugin || null);
         setLarkPluginStatus(larkPlugin || null);
         setDingtalkPluginStatus(dingtalkPlugin || null);
+        setWechatPluginStatus(wechatPlugin || null);
         setExtensionStatuses(() => {
           const next: Record<string, IChannelPluginStatus> = {};
           for (const plugin of extensionPlugins) {
@@ -212,16 +214,6 @@ const ChannelModalContent: React.FC = () => {
       }
     } catch (error) {
       console.error('[ChannelSettings] Failed to load plugin status:', error);
-    }
-
-    // Load WeChat plugin status
-    try {
-      const wechatResult = await sudoclaw.getWechatStatus.invoke();
-      if (wechatResult.success && wechatResult.data) {
-        setWechatInstalled(wechatResult.data.installed);
-      }
-    } catch (error) {
-      console.error('[ChannelSettings] Failed to load WeChat status:', error);
     }
   }, []);
 
@@ -253,6 +245,8 @@ const ChannelModalContent: React.FC = () => {
         setLarkPluginStatus(status);
       } else if (status.type === 'dingtalk') {
         setDingtalkPluginStatus(status);
+      } else if (status.type === 'wechat') {
+        setWechatPluginStatus(status);
       } else if (!BUILTIN_CHANNEL_TYPES.has(status.type)) {
         setExtensionStatuses((prev) => ({
           ...prev,
@@ -395,18 +389,61 @@ const ChannelModalContent: React.FC = () => {
     }
   };
 
-  // WeChat toggle handler — expands channel so user can click Install in the form
+  // WeChat toggle handler — uses standard channel enable/disable flow
   const handleToggleWechatPlugin = async (enabled: boolean) => {
-    if (!enabled) return;
-    if (wechatInstalled) return;
+    if (enabled) {
+      // If not yet configured, expand to show config form
+      if (!wechatPluginStatus?.hasToken) {
+        setCollapseKeys((prev) => ({ ...prev, wechat: false }));
+        return;
+      }
 
-    // Expand the channel so the config form (with install button) is visible
-    setCollapseKeys((prev) => ({ ...prev, wechat: false }));
+      // Re-enable with existing credentials
+      setWechatEnableLoading(true);
+      try {
+        const result = await channel.enablePlugin.invoke({
+          pluginId: 'wechat_default',
+          config: {},
+        });
+        if (result.success) {
+          Message.success(t('settings.channels.wechat.installSuccess', 'WeChat enabled'));
+          // Force immediate status re-fetch to ensure UI sync
+          const statusResult = await channel.getPluginStatus.invoke();
+          if (statusResult.success && statusResult.data) {
+            const wechatStatus = statusResult.data.find((p) => p.type === 'wechat');
+            setWechatPluginStatus(wechatStatus || null);
+          }
+        } else {
+          Message.error(result.msg || 'Failed to enable WeChat');
+        }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setWechatEnableLoading(false);
+      }
+    } else {
+      // Disable
+      setWechatEnableLoading(true);
+      try {
+        const result = await channel.disablePlugin.invoke({ pluginId: 'wechat_default' });
+        if (result.success) {
+          Message.success(t('settings.channels.wechat.disabled', 'WeChat disabled'));
+          // Force immediate status re-fetch to ensure UI sync
+          const statusResult = await channel.getPluginStatus.invoke();
+          if (statusResult.success && statusResult.data) {
+            const wechatStatus = statusResult.data.find((p) => p.type === 'wechat');
+            setWechatPluginStatus(wechatStatus || null);
+          }
+        } else {
+          Message.error(result.msg || 'Failed to disable WeChat');
+        }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setWechatEnableLoading(false);
+      }
+    }
   };
-
-  const handleWechatInstalled = useCallback(() => {
-    setWechatInstalled(true);
-  }, []);
 
   const updateExtensionFieldValue = useCallback((pluginType: string, key: string, value: string | number | boolean) => {
     setExtensionFieldValues((prev) => ({
@@ -598,11 +635,11 @@ const ChannelModalContent: React.FC = () => {
       id: 'wechat',
       title: t('settings.channels.wechatTitle', 'Personal WeChat'),
       status: 'active',
-      enabled: wechatInstalled,
-      disabled: wechatLoading,
-      isConnected: wechatInstalled,
+      enabled: wechatPluginStatus?.enabled || false,
+      disabled: wechatEnableLoading,
+      isConnected: wechatPluginStatus?.connected || false,
       defaultModel: wechatModelSelection.currentModel?.useModel,
-      content: <WeChatConfigForm installed={wechatInstalled} onInstalled={handleWechatInstalled} />,
+      content: <WeChatConfigForm pluginStatus={wechatPluginStatus} modelSelection={wechatModelSelection} onStatusChange={setWechatPluginStatus} />,
     };
 
     const extensionChannels: ChannelConfig[] = Object.values(extensionStatuses)
@@ -623,7 +660,7 @@ const ChannelModalContent: React.FC = () => {
     const extensionTypeSet = new Set(extensionChannels.map((channel) => String(channel.id).toLowerCase()));
 
     return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, ...extensionChannels];
-  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wechatInstalled, wechatLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
+  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wechatEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {

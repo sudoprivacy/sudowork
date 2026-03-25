@@ -14,6 +14,7 @@ import { PairingService } from '../pairing/PairingService';
 import { DingTalkPlugin } from '../plugins/dingtalk/DingTalkPlugin';
 import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
+import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
@@ -50,6 +51,7 @@ export class ChannelManager {
     registerPlugin('telegram', TelegramPlugin);
     registerPlugin('lark', LarkPlugin);
     registerPlugin('dingtalk', DingTalkPlugin);
+    registerPlugin('wechat', WeChatPlugin);
   }
 
   /**
@@ -180,7 +182,7 @@ export class ChannelManager {
     }
 
     const enabledPlugins = result.data.filter((p) => p.enabled);
-    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk']);
+    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat']);
     const extensionRegistry = ExtensionRegistry.getInstance();
 
     for (const plugin of enabledPlugins) {
@@ -262,6 +264,13 @@ export class ChannelManager {
       const clientSecret = config.clientSecret as string | undefined;
       if (clientId && clientSecret) {
         credentials = { clientId, clientSecret };
+      }
+    } else if (pluginType === 'wechat') {
+      const token = config.token as string | undefined;
+      const accountId = config.accountId as string | undefined;
+      const botApiBaseUrl = config.botApiBaseUrl as string | undefined;
+      if (token && accountId) {
+        credentials = { token, accountId, botApiBaseUrl };
       }
     } else {
       // Extension or unknown plugin type:
@@ -428,6 +437,7 @@ export class ChannelManager {
     if (pluginId.startsWith('telegram')) return 'telegram';
     if (pluginId.startsWith('lark')) return 'lark';
     if (pluginId.startsWith('dingtalk')) return 'dingtalk';
+    if (pluginId.startsWith('wechat')) return 'wechat';
     // Extension plugins: use pluginId as type (e.g., 'ext-feishu')
     return pluginId;
   }

@@ -4,72 +4,168 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { sudoclaw } from '@/common/ipcBridge';
-import { Button, Message, Spin } from '@arco-design/web-react';
-import { Refresh } from '@icon-park/react';
+import type { IChannelPluginStatus } from '@/channels/types';
+import { acpConversation, channel } from '@/common/ipcBridge';
+import { ConfigStorage } from '@/common/storage';
+import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
+import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
+import type { AcpBackendAll } from '@/types/acpTypes';
+import { Button, Dropdown, Menu, Message, Spin } from '@arco-design/web-react';
+import { Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
+/**
+ * Preference row component (matches DingTalk pattern)
+ */
+const PreferenceRow: React.FC<{
+  label: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ label, description, children }) => (
+  <div className='flex items-center justify-between gap-24px py-12px'>
+    <div className='flex-1'>
+      <span className='text-14px text-t-primary'>{label}</span>
+      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+    </div>
+    <div className='flex items-center'>{children}</div>
+  </div>
+);
+
 interface WeChatConfigFormProps {
-  installed: boolean;
-  onInstalled: () => void;
+  pluginStatus: IChannelPluginStatus | null;
+  modelSelection: GeminiModelSelection;
+  onStatusChange?: (status: IChannelPluginStatus | null) => void;
 }
 
-type InstallPhase = 'idle' | 'installing' | 'qrcode' | 'success' | 'error';
+type LoginPhase = 'idle' | 'loading' | 'qrcode' | 'scanned' | 'success' | 'error';
 
-const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstalled }) => {
+const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
   const { t } = useTranslation();
 
-  const [phase, setPhase] = useState<InstallPhase>(installed ? 'success' : 'idle');
+  const isConnected = pluginStatus?.connected || false;
+  const [phase, setPhase] = useState<LoginPhase>(isConnected ? 'success' : 'idle');
   const [qrUrl, setQrUrl] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Sync installed prop to phase
-  useEffect(() => {
-    if (installed && phase === 'idle') {
-      setPhase('success');
-    }
-  }, [installed, phase]);
+  // Agent selection
+  const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
+  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'openclaw-gateway' });
 
-  // Listen for install progress events
+  // Sync connected status to phase
   useEffect(() => {
-    const unsubscribe = sudoclaw.wechatInstallProgress.on(({ phase: p, message, qrUrl: url }) => {
-      console.log('[WeChatConfig] Received event:', p, url ? 'has URL' : 'no URL');
-      if (p === 'installing') {
-        setPhase('installing');
-        setErrorMessage('');
-      } else if (p === 'qrcode') {
-        setPhase('qrcode');
-        if (url) {
-          console.log('[WeChatConfig] Setting QR URL:', url);
-          setQrUrl(url);
+    if (isConnected) {
+      setPhase('success');
+    } else if (phase === 'success') {
+      setPhase('idle');
+    }
+  }, [isConnected]);
+
+  // Load available agents + saved selection
+  useEffect(() => {
+    const loadAgentsAndSelection = async () => {
+      try {
+        const [agentsResp, saved] = await Promise.all([acpConversation.getAvailableAgents.invoke(), ConfigStorage.get('assistant.wechat.agent')]);
+
+        if (agentsResp.success && agentsResp.data) {
+          const list = agentsResp.data.filter((a) => !a.isPreset).map((a) => ({ backend: a.backend, name: a.name, customAgentId: a.customAgentId, isPreset: a.isPreset, isExtension: a.isExtension }));
+          setAvailableAgents(list);
         }
-      } else if (p === 'scanning') {
-        setPhase('success');
-      } else if (p === 'success') {
-        setPhase('success');
-        onInstalled();
-        Message.success(t('settings.channels.wechat.installSuccess', '微信插件安装成功'));
-      } else if (p === 'error') {
+
+        if (saved && typeof saved === 'object' && 'backend' in saved && typeof (saved as any).backend === 'string') {
+          setSelectedAgent({
+            backend: (saved as any).backend as AcpBackendAll,
+            customAgentId: (saved as any).customAgentId,
+            name: (saved as any).name,
+          });
+        } else if (typeof saved === 'string') {
+          setSelectedAgent({ backend: saved as AcpBackendAll });
+        }
+      } catch (error) {
+        console.error('[WeChatConfig] Failed to load agents:', error);
+      }
+    };
+
+    void loadAgentsAndSelection();
+  }, []);
+
+  const persistSelectedAgent = async (agent: { backend: AcpBackendAll; customAgentId?: string; name?: string }) => {
+    try {
+      await ConfigStorage.set('assistant.wechat.agent', agent);
+      await channel.syncChannelSettings.invoke({ platform: 'wechat', agent }).catch((err) => console.warn('[WeChatConfig] syncChannelSettings failed:', err));
+      Message.success(t('settings.assistant.agentSwitched', 'Agent switched successfully'));
+    } catch (error) {
+      console.error('[WeChatConfig] Failed to save agent:', error);
+      Message.error(t('common.saveFailed', 'Failed to save'));
+    }
+  };
+
+  // Listen for QR login events
+  useEffect(() => {
+    const unsubscribe = channel.wechatQrLogin.on((event) => {
+      console.log('[WeChatConfig] QR login event:', event.phase);
+
+      if (event.phase === 'qrcode') {
+        setPhase('qrcode');
+        if (event.qrUrl) {
+          setQrUrl(event.qrUrl);
+        }
+      } else if (event.phase === 'scanned') {
+        setPhase('scanned');
+      } else if (event.phase === 'confirmed') {
+        void handleConfirmed(event.botToken || '', event.accountId || '');
+      } else if (event.phase === 'error') {
         setPhase('error');
-        setErrorMessage(message || t('settings.channels.wechat.installFailed', '安装失败'));
+        setErrorMessage(event.message || t('settings.channels.wechat.installFailed', 'Login failed'));
+      } else if (event.phase === 'timeout') {
+        setPhase('error');
+        setErrorMessage(event.message || t('settings.channels.wechat.qrExpired', 'QR code expired'));
       }
     });
     return () => unsubscribe();
-  }, [onInstalled, t]);
+  }, [t]);
 
-  // Handle install click
-  const handleInstall = useCallback(async () => {
-    setPhase('installing');
+  // Handle QR login confirmed: enable WeChat plugin with credentials
+  const handleConfirmed = useCallback(
+    async (botToken: string, accountId: string) => {
+      try {
+        const result = await channel.enablePlugin.invoke({
+          pluginId: 'wechat_default',
+          config: { token: botToken, accountId },
+        });
+
+        if (result.success) {
+          setPhase('success');
+          Message.success(t('settings.channels.wechat.installSuccess', 'WeChat connected successfully'));
+          const statusResult = await channel.getPluginStatus.invoke();
+          if (statusResult.success && statusResult.data) {
+            const wechatStatus = statusResult.data.find((p) => p.type === 'wechat');
+            onStatusChange?.(wechatStatus || null);
+          }
+        } else {
+          setPhase('error');
+          setErrorMessage(result.msg || 'Failed to enable WeChat plugin');
+        }
+      } catch (error: any) {
+        setPhase('error');
+        setErrorMessage(error.message || 'Failed to enable WeChat plugin');
+      }
+    },
+    [t, onStatusChange]
+  );
+
+  // Start QR login
+  const handleStartLogin = useCallback(async () => {
+    setPhase('loading');
     setErrorMessage('');
     setQrUrl('');
 
     try {
-      const result = await sudoclaw.installWechatPlugin.invoke();
+      const result = await channel.wechatStartQrLogin.invoke();
       if (!result.success) {
         setPhase('error');
-        setErrorMessage(result.msg || t('settings.channels.wechat.installFailed', '安装失败'));
+        setErrorMessage(result.msg || t('settings.channels.wechat.installFailed', 'Login failed'));
       }
     } catch (error: any) {
       setPhase('error');
@@ -77,12 +173,22 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstal
     }
   }, [t]);
 
+  // Cancel QR login on unmount
+  useEffect(() => {
+    return () => {
+      void channel.wechatCancelQrLogin.invoke().catch(() => {});
+    };
+  }, []);
+
+  const isGeminiAgent = selectedAgent.backend === 'gemini';
+  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
+
   const renderQRCodeSection = () => {
-    if (phase !== 'qrcode') return null;
+    if (phase !== 'qrcode' && phase !== 'scanned') return null;
 
     return (
       <div className='flex flex-col items-center gap-12px p-16px rd-8px bg-fill-1 border border-fill-3'>
-        <div className='text-14px font-500 text-t-primary'>{t('settings.channels.wechat.scanQR', 'Scan with WeChat')}</div>
+        <div className='text-14px font-500 text-t-primary'>{phase === 'scanned' ? t('settings.channels.wechat.scanned', 'Scanned! Confirm on your phone...') : t('settings.channels.wechat.scanQR', 'Scan with WeChat')}</div>
         <div className='bg-white rd-8px p-12px'>
           {qrUrl ? (
             <QRCodeSVG value={qrUrl} size={200} level='H' />
@@ -98,21 +204,21 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstal
     );
   };
 
-  const renderInstallSection = () => {
-    if (phase === 'success' || installed) {
+  const renderConnectionSection = () => {
+    if (phase === 'success' || isConnected) {
       return (
         <div className='flex items-center gap-8px p-12px rd-8px bg-[rgba(var(--green-6),0.08)] border border-[rgba(var(--green-6),0.3)]'>
           <div className='w-8px h-8px rd-50% bg-green-500' />
-          <span className='text-13px text-t-primary'>{t('settings.channels.wechat.connected', '微信插件已安装并启用')}</span>
+          <span className='text-13px text-t-primary'>{t('settings.channels.wechat.connected', 'WeChat is connected')}</span>
         </div>
       );
     }
 
-    if (phase === 'installing') {
+    if (phase === 'loading') {
       return (
         <div className='flex flex-col items-center gap-12px p-24px'>
           <Spin size={32} />
-          <span className='text-14px text-t-secondary'>{t('settings.channels.wechat.installing', '正在安装微信插件...')}</span>
+          <span className='text-14px text-t-secondary'>{t('settings.channels.wechat.installing', 'Preparing QR code...')}</span>
         </div>
       );
     }
@@ -121,7 +227,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstal
       return (
         <div className='flex flex-col gap-12px p-12px rd-8px bg-[rgba(var(--red-6),0.08)] border border-[rgba(var(--red-6),0.3)]'>
           <div className='text-13px text-red-500'>{errorMessage}</div>
-          <Button type='outline' status='warning' onClick={handleInstall} className='self-start'>
+          <Button type='outline' status='warning' onClick={handleStartLogin} className='self-start'>
             <Refresh size={14} className='mr-4px' />
             {t('common.retry', 'Retry')}
           </Button>
@@ -131,9 +237,9 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstal
 
     return (
       <div className='flex flex-col gap-12px'>
-        <div className='text-13px text-t-secondary leading-relaxed'>{t('settings.channels.wechat.installDesc', '点击下方按钮安装个人微信渠道插件到 Sudoclaw。')}</div>
-        <Button type='primary' onClick={handleInstall} className='self-start'>
-          {t('settings.channels.wechat.install', '安装微信插件')}
+        <div className='text-13px text-t-secondary leading-relaxed'>{t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')}</div>
+        <Button type='primary' onClick={handleStartLogin} className='self-start'>
+          {t('settings.channels.wechat.install', 'Connect WeChat')}
         </Button>
       </div>
     );
@@ -141,8 +247,52 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ installed, onInstal
 
   return (
     <div className='flex flex-col gap-24px'>
-      {renderInstallSection()}
+      {/* Connection / QR Login */}
+      {renderConnectionSection()}
       {renderQRCodeSection()}
+
+      {/* Agent Selection */}
+      <div className='flex flex-col gap-8px'>
+        <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
+          <Dropdown
+            trigger='click'
+            position='br'
+            droplist={
+              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                {agentOptions.map((a) => {
+                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                  return (
+                    <Menu.Item
+                      key={key}
+                      onClick={() => {
+                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                        if (key === currentKey) {
+                          return;
+                        }
+                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                        setSelectedAgent(next);
+                        void persistSelectedAgent(next);
+                      }}
+                    >
+                      {a.name}
+                    </Menu.Item>
+                  );
+                })}
+              </Menu>
+            }
+          >
+            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <span className='truncate'>{selectedAgent.name || availableAgents.find((a) => (a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend) === (selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend))?.name || selectedAgent.backend}</span>
+              <Down theme='outline' size={14} />
+            </Button>
+          </Dropdown>
+        </PreferenceRow>
+      </div>
+
+      {/* Default Model Selection */}
+      <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
+        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
+      </PreferenceRow>
     </div>
   );
 };

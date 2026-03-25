@@ -33,6 +33,13 @@ export interface IActionContext {
   // Helper functions
   sendMessage: (message: IUnifiedOutgoingMessage) => Promise<string>;
   editMessage: (messageId: string, message: IUnifiedOutgoingMessage) => Promise<void>;
+
+  /**
+   * Send typing indicator
+   * @param chatId Chat ID
+   * @param stop Whether to stop typing indicator
+   */
+  sendTyping?: (chatId: string, stop?: boolean) => Promise<void>;
 }
 
 /**
