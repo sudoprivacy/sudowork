@@ -204,12 +204,9 @@ const InstalledSkillCard: React.FC<{
       <div className='flex-1 min-w-0 pr-28px'>
         <div className='flex items-center gap-6px flex-wrap'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-          <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
-            v{skill.version}
-          </span>
-          {skill.isBuiltin && (
-            <span className='px-5px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
-              内置
+          {!skill.isBuiltin && (
+            <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
+              v{skill.version}
             </span>
           )}
         </div>
@@ -220,9 +217,13 @@ const InstalledSkillCard: React.FC<{
         )}
       </div>
 
-      {/* Uninstall / locked indicator — stop propagation so card click doesn't fire */}
+      {/* Uninstall / builtin indicator — stop propagation so card click doesn't fire */}
       <div className='absolute top-10px right-10px' onClick={(e) => e.stopPropagation()}>
-        {!canUninstall ? (
+        {skill.isBuiltin ? (
+          <div className='w-22px h-22px flex items-center justify-center text-primary' title='内置技能'>
+            <Shield size='15' />
+          </div>
+        ) : !canUninstall ? (
           <div className='w-22px h-22px flex items-center justify-center text-t-tertiary opacity-30' title='内置技能无法卸载'>
             <Shield size='14' />
           </div>
