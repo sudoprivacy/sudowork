@@ -9,7 +9,7 @@ import type { IMessageToolGroup } from '@/common/chatLib';
 import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Download, LoadingOne } from '@icon-park/react';
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
@@ -369,7 +369,8 @@ const ImageDisplay: React.FC<{
 
 const ToolResultDisplay: React.FC<{
   content: IMessageToolGroupProps['message']['content'][number];
-}> = ({ content }) => {
+  collapsed?: boolean;
+}> = ({ content, collapsed }) => {
   const { resultDisplay, name } = content;
 
   // 图片生成特殊处理 Special handling for image generation
@@ -388,7 +389,7 @@ const ToolResultDisplay: React.FC<{
   // 使用 CollapsibleContent 包装长内容
   // Wrap long content with CollapsibleContent
   return (
-    <CollapsibleContent maxHeight={RESULT_MAX_HEIGHT} defaultCollapsed={true} useMask={false}>
+    <CollapsibleContent maxHeight={RESULT_MAX_HEIGHT} defaultCollapsed={collapsed ?? true} useMask={false}>
       <pre className='text-t-primary whitespace-pre-wrap break-words m-0' style={{ fontSize: `${TEXT_CONFIG.FONT_SIZE}px`, lineHeight: TEXT_CONFIG.LINE_HEIGHT }}>
         {display}
       </pre>
@@ -398,6 +399,20 @@ const ToolResultDisplay: React.FC<{
 
 const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
   const { t } = useTranslation();
+  const [collapsedStates, setCollapsedStates] = useState<Record<string, boolean>>({});
+
+  // Auto-collapse all tool calls when task completes
+  // 任务完成后自动折叠所有工具调用
+  useEffect(() => {
+    const allCompleted = message.content.every((item) => item.status === 'Success' || item.status === 'Error' || item.status === 'Canceled');
+    if (allCompleted) {
+      const newCollapsedStates: Record<string, boolean> = {};
+      message.content.forEach((item) => {
+        newCollapsedStates[item.callId] = true;
+      });
+      setCollapsedStates(newCollapsedStates);
+    }
+  }, [message.content]);
 
   // 收集所有 WriteFile 结果用于汇总显示 / Collect all WriteFile results for summary display
   const writeFileResults = useMemo(() => {
@@ -489,7 +504,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
                     {/* 在 Alert 外展示完整结果 Display full result outside Alert */}
                     {/* ToolResultDisplay 内部已包含 CollapsibleContent，避免嵌套 */}
                     {/* ToolResultDisplay already contains CollapsibleContent internally, avoid nesting */}
-                    <ToolResultDisplay content={content} />
+                    <ToolResultDisplay content={content} collapsed={collapsedStates[content.callId]} />
                   </div>
                 )}
               </div>

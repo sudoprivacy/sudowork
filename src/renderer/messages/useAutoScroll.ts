@@ -8,6 +8,10 @@
  * useAutoScroll - Auto-scroll hook with user scroll detection
  * Uses Virtuoso's native followOutput for streaming auto-scroll,
  * only calls scrollToIndex for user-initiated actions (send message, click button).
+ * 
+ * Tool Call Optimization:
+ * - Scrolls to top when user sends a message to show tool execution steps
+ * - Auto-scrolls to bottom when task completes
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
@@ -38,6 +42,8 @@ interface UseAutoScrollReturn {
   scrollToBottom: (behavior?: 'smooth' | 'auto') => void;
   /** Hide the scroll button */
   hideScrollButton: () => void;
+  /** Manually scroll to top (e.g., when user sends message) */
+  scrollToTop: (behavior?: 'smooth' | 'auto') => void;
 }
 
 export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): UseAutoScrollReturn {
@@ -63,6 +69,21 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
       });
     },
     [itemCount]
+  );
+
+  // Scroll to top helper - for when user sends a message
+  const scrollToTop = useCallback(
+    (behavior: 'smooth' | 'auto' = 'smooth') => {
+      if (!virtuosoRef.current) return;
+
+      lastProgrammaticScrollTimeRef.current = Date.now();
+      virtuosoRef.current.scrollToIndex({
+        index: 0,
+        behavior,
+        align: 'start',
+      });
+    },
+    []
   );
 
   // Virtuoso native followOutput - handles streaming auto-scroll internally
@@ -101,7 +122,7 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     lastScrollTopRef.current = currentScrollTop;
   }, []);
 
-  // Force scroll when user sends a message
+  // Force scroll when user sends a message or task completes
   useEffect(() => {
     const currentListLength = messages.length;
     const prevLength = previousListLengthRef.current;
@@ -113,27 +134,39 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
 
     const lastMessage = messages[messages.length - 1];
 
-    // User sent a message - force scroll regardless of userScrolled state
+    // User sent a message - scroll to show the message at top of viewport
+    // 用户发送消息后滚动到合适位置，保持能看到用户输入，同时展示更多工具执行步骤空间
     if (lastMessage?.position === 'right') {
       userScrolledRef.current = false;
-      // Use double RAF to ensure DOM is updated before scrolling (#977)
-      // 使用双 RAF 确保 DOM 更新后再滚动
+      // Use double RAF to ensure DOM is updated before scrolling
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (virtuosoRef.current) {
             lastProgrammaticScrollTimeRef.current = Date.now();
-            // Use scrollTo with bottom alignment for reliable scroll to end
-            // 使用 scrollTo 并设置 bottom 对齐以确保可靠滚动到底部
+            // Scroll to show user message at top, keeping it visible
+            // 滚动到用户消息位置，使其位于视口顶部但仍可见
             virtuosoRef.current.scrollToIndex({
-              index: 'LAST',
-              behavior: 'auto',
-              align: 'end',
+              index: itemCount - 1,
+              align: 'start',
+              behavior: 'smooth',
             });
           }
         });
       });
+    } else if (lastMessage?.position === 'left' && lastMessage.type !== 'tool_group' && lastMessage.type !== 'acp_tool_call' && lastMessage.type !== 'codex_tool_call') {
+      // Assistant final response - scroll to bottom to show completion
+      // 助手完成回复后滚动到底部，展示完成状态
+      userScrolledRef.current = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (virtuosoRef.current) {
+            lastProgrammaticScrollTimeRef.current = Date.now();
+            scrollToBottom('auto');
+          }
+        });
+      });
     }
-  }, [messages]);
+  }, [messages, itemCount]);
 
   // Hide scroll button handler
   const hideScrollButton = useCallback(() => {
@@ -149,5 +182,6 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     showScrollButton,
     scrollToBottom,
     hideScrollButton,
+    scrollToTop,
   };
 }
