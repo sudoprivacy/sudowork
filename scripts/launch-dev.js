@@ -1,24 +1,31 @@
 #!/usr/bin/env node
 /**
- * Launch or stop Sudowork in dev mode.
+ * Launch or stop Sudowork dev instance.
  *
  * Usage:
- *   node scripts/launch-dev.js          # start
- *   node scripts/launch-dev.js --stop   # graceful shutdown via CDP
+ *   node scripts/launch-dev.js start   # start dev server + Electron
+ *   node scripts/launch-dev.js stop    # graceful shutdown via CDP
  */
 
 const { execSync } = require('child_process');
 const http = require('http');
 const net = require('net');
 
-// ── Shared: port detection ──
+// ── CLI ──
 
-/**
- * Find a port that Node.js can actually bind on this system.
- * Windows WinNAT/Hyper-V can reserve ports at the OS level, causing
- * EACCES even when the port appears free. This probes by actually
- * attempting to listen.
- */
+const command = process.argv[2];
+
+if (!command || !['start', 'stop'].includes(command)) {
+  console.error(`Usage: node scripts/launch-dev.js <command>
+
+Commands:
+  start   Start Sudowork in dev mode (auto-detects available ports)
+  stop    Gracefully stop running Sudowork instance via CDP`);
+  process.exit(1);
+}
+
+// ── Shared ──
+
 function findAvailablePort(preferred, maxAttempts = 20) {
   for (let i = 0; i < maxAttempts; i++) {
     const port = preferred + i;
@@ -47,13 +54,12 @@ function httpGet(url, timeout = 2000) {
   });
 }
 
-// ── Stop ──
+// ── stop ──
 
 async function stop() {
   const startPort = parseInt(process.env.NEXUS_CDP_PORT || '9230', 10);
   console.log(`Looking for Sudowork CDP starting from port ${startPort}...`);
 
-  // Scan for active CDP port
   let cdpPort = null;
   for (let p = startPort; p < startPort + 20; p++) {
     try {
@@ -77,10 +83,8 @@ async function stop() {
     const wsUrl = versionData.webSocketDebuggerUrl;
     if (!wsUrl) throw new Error('No WebSocket URL');
 
-    // Send Browser.close() via WebSocket
     let WebSocket;
     try { WebSocket = require('ws'); } catch {
-      // ws not installed, try closing via page navigation
       console.log('ws module not available. Close the window manually.');
       return;
     }
@@ -102,7 +106,7 @@ async function stop() {
   }
 }
 
-// ── Start ──
+// ── start ──
 
 function start() {
   const cleanEnv = { ...process.env };
@@ -134,7 +138,6 @@ function start() {
   }
   cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
 
-  // Force IPv4 first
   cleanEnv.NODE_OPTIONS = (cleanEnv.NODE_OPTIONS || '') + ' --dns-result-order=ipv4first';
 
   console.log(`Launching electron-vite dev (renderer: ${vitePort}, CDP: ${cdpPort})...`);
@@ -152,7 +155,7 @@ function start() {
 
 // ── Main ──
 
-if (process.argv.includes('--stop')) {
+if (command === 'stop') {
   stop().catch(console.error);
 } else {
   start();
