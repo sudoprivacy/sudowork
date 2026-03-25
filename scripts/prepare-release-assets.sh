@@ -30,7 +30,6 @@ done < <(find "$ARTIFACTS_DIR" -type f \( \
   -name "*.exe" -o \
   -name "*.msi" -o \
   -name "*.dmg" -o \
-  -name "*.deb" -o \
   -name "*.AppImage" -o \
   -name "*.zip" -o \
   -name "*.blockmap" \

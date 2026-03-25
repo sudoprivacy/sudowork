@@ -273,7 +273,6 @@ jobs:
             release-assets/**/*.exe
             release-assets/**/*.msi
             release-assets/**/*.dmg
-            release-assets/**/*.deb
             release-assets/**/*.AppImage
             release-assets/**/*.zip
             release-assets/**/*.yml
