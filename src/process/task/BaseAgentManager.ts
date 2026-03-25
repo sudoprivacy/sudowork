@@ -4,20 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ForkTask } from '@/worker/fork/ForkTask';
-import path from 'path';
 import { ipcBridge } from '../../common';
 import type { IConfirmation } from '../../common/chatLib';
 
-type AgentType = 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
+type AgentType = 'acp' | 'openclaw-gateway';
 
 /**
  * @description agent任务基础类
+ * No longer extends ForkTask — ACP and OpenClaw both run in-process.
  * */
-class BaseAgentManager<Data, ConfirmationOption extends any = any> extends ForkTask<{
-  type: AgentType;
-  data: Data;
-}> {
+class BaseAgentManager<Data, ConfirmationOption extends any = any> {
   type: AgentType;
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];
@@ -29,10 +25,6 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any> extends ForkT
   protected yoloMode: boolean = false;
 
   constructor(type: AgentType, data: Data) {
-    super(path.resolve(__dirname, type + '.js'), {
-      type: type,
-      data: data,
-    });
     this.type = type;
 
     // Set yoloMode from data if present
@@ -40,9 +32,7 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any> extends ForkT
       this.yoloMode = !!(data as any).yoloMode;
     }
   }
-  protected init(): void {
-    super.init();
-  }
+
   protected addConfirmation(data: IConfirmation<ConfirmationOption>) {
     // If yoloMode is active, attempt to auto-confirm instead of adding
     if (this.yoloMode && data.options && data.options.length > 0) {
@@ -87,22 +77,26 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any> extends ForkT
   getConfirmations() {
     return this.confirmations;
   }
-  start(data?: Data) {
-    if (data) {
-      this.data = {
-        ...this.data,
-        data,
-      };
-    }
-    return super.start();
+
+  /**
+   * Send a message to the agent. Subclasses must implement.
+   */
+  sendMessage(_data: any): Promise<any> {
+    return Promise.reject(new Error('sendMessage not implemented'));
   }
 
-  stop() {
-    return this.postMessagePromise('stop.stream', {});
+  /**
+   * Stop the current streaming response. Subclasses must implement.
+   */
+  stop(): Promise<void> {
+    return Promise.resolve();
   }
 
-  sendMessage(data: any) {
-    return this.postMessagePromise('send.message', data);
+  /**
+   * Kill the agent and clean up resources. Subclasses should override.
+   */
+  kill(): void {
+    // Base implementation is a no-op; subclasses handle cleanup.
   }
 
   /**

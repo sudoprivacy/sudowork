@@ -5,7 +5,6 @@
  */
 
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
-import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import type { TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
@@ -14,8 +13,6 @@ import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpModelInfo, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { spawn } from 'child_process';
-import { promises as fs } from 'fs';
-import * as path from 'path';
 import { AcpConnection } from './AcpConnection';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { AcpApprovalStore, createAcpApprovalKey } from './ApprovalStore';
@@ -481,34 +478,6 @@ export class AcpAgent {
       this.adapter.resetMessageTracking();
       let processedContent = data.content;
 
-      // Add @ prefix to ALL uploaded files (including images) with FULL PATH
-      // Claude CLI needs full path to read files
-      // 为所有上传的文件添加 @ 前缀（包括图片），使用完整路径让 Claude CLI 读取
-      if (data.files && data.files.length > 0) {
-        const fileRefs = data.files
-          .map((filePath) => {
-            // Use full path instead of just filename
-            // Escape paths with spaces using quotes for Claude CLI
-            // 对含空格的路径使用引号包裹，确保 Claude CLI 正确解析
-            if (filePath.includes(' ')) {
-              return `@"${filePath}"`;
-            }
-            return '@' + filePath;
-          })
-          .join(' ');
-        // Prepend file references to the content
-        processedContent = fileRefs + ' ' + processedContent;
-      }
-
-      // Process @ file references in the message
-      // 处理消息中的 @ 文件引用
-      const atFileStart = Date.now();
-      processedContent = await this.processAtFileReferences(processedContent, data.files);
-      const atFileDuration = Date.now() - atFileStart;
-      if (atFileDuration > 10) {
-        if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: @file references processed ${atFileDuration}ms`);
-      }
-
       // Re-assert model override before sending prompt.
       // This ensures the CLI subprocess uses the correct model even if it
       // lost the override state (e.g., after internal compaction or restart).
@@ -576,168 +545,6 @@ export class AcpAgent {
         error: createAcpError(errorType, errorMsg, retryable),
       };
     }
-  }
-
-  /**
-   * Process @ file references in the message content
-   * 处理消息内容中的 @ 文件引用
-   *
-   * This method resolves @ references to actual files in the workspace,
-   * reads their content, and appends it to the message.
-   * 此方法解析工作区中的 @ 引用，读取文件内容并附加到消息中。
-   */
-  private async processAtFileReferences(content: string, uploadedFiles?: string[]): Promise<string> {
-    const workspace = this.extra.workspace;
-    if (!workspace) {
-      return content;
-    }
-
-    // Parse all @ references in the content
-    // Note: @ prefix is already added to content by sendMessage for uploaded files
-    // 解析 content 中的所有 @ 引用
-    // 注意：sendMessage 已为上传的文件添加了 @ 前缀
-    const parts = parseAllAtCommands(content);
-    const atPaths = extractAtPaths(content);
-
-    // If no @ references found, return original content
-    if (atPaths.length === 0) {
-      return content;
-    }
-
-    // Track which @ references are resolved to files
-    const resolvedFiles: Map<string, string> = new Map(); // atPath -> file content
-    // Track @ references that should be removed (duplicate file references by filename)
-    const referencesToRemove: Set<string> = new Set();
-
-    for (const atPath of atPaths) {
-      // Check if this @ reference is an uploaded file (full path or filename)
-      // If yes, skip it - let Claude CLI handle it natively
-      // 检查此 @ 引用是否是上传的文件（完整路径或文件名），如果是则跳过，让 Claude CLI 原生处理
-      const matchedUploadFile = uploadedFiles?.find((filePath) => {
-        // Match by full path
-        if (atPath === filePath) return true;
-        // Match by filename (for cases where message contains just filename)
-        const fileName = filePath.split(/[\\/]/).pop() || filePath;
-        return atPath === fileName;
-      });
-
-      if (matchedUploadFile) {
-        // If this is a filename reference (not full path), mark for removal
-        // The full path reference will be kept
-        // 如果这是文件名引用（不是完整路径），标记为移除，因为已经有完整路径引用了
-        if (atPath !== matchedUploadFile) {
-          referencesToRemove.add(atPath);
-        }
-        // Skip uploaded files - they are already in @ format with full path
-        // Claude CLI will handle them natively
-        continue;
-      }
-
-      // For workspace file references (filename only), try to resolve and read
-      // 对于工作区文件引用（只有文件名），尝试解析和读取
-      const resolvedPath = await this.resolveAtPath(atPath, workspace);
-
-      if (resolvedPath) {
-        try {
-          // Try to read as text file
-          const fileContent = await fs.readFile(resolvedPath, 'utf-8');
-          resolvedFiles.set(atPath, fileContent);
-        } catch (error) {
-          // Binary files (images, etc.) cannot be read as text
-          // Keep the @ reference as-is, let CLI handle it
-          // 二进制文件（图片等）无法作为文本读取，保持 @ 引用，让 CLI 处理
-          console.warn(`[ACP] Skipping binary file ${atPath} (will be handled by CLI)`);
-        }
-      }
-    }
-
-    // If no files were resolved and no references to remove, return original content
-    if (resolvedFiles.size === 0 && referencesToRemove.size === 0) {
-      return content;
-    }
-
-    // Reconstruct the message: replace @ references with plain text and append file contents
-    const reconstructedQuery = reconstructQuery(parts, (atPath) => {
-      // Remove duplicate filename references (when full path already exists)
-      if (referencesToRemove.has(atPath)) {
-        return '';
-      }
-      if (resolvedFiles.has(atPath)) {
-        // Replace with just the filename (without @) as the reference
-        return atPath;
-      }
-      // Keep unresolved @ references as-is
-      return '@' + atPath;
-    });
-
-    // Append file contents at the end of the message
-    let result = reconstructedQuery;
-    if (resolvedFiles.size > 0) {
-      result += '\n\n--- Referenced file contents ---';
-      for (const [atPath, fileContent] of resolvedFiles) {
-        result += `\n\n[Content of ${atPath}]:\n${fileContent}`;
-      }
-      result += '\n--- End of file contents ---';
-    }
-
-    return result;
-  }
-
-  /**
-   * Resolve an @ path to an actual file path in the workspace
-   * 将 @ 路径解析为工作区中的实际文件路径
-   */
-  private async resolveAtPath(atPath: string, workspace: string): Promise<string | null> {
-    // Try direct path first
-    const directPath = path.resolve(workspace, atPath);
-    try {
-      const stats = await fs.stat(directPath);
-      if (stats.isFile()) {
-        return directPath;
-      }
-      // If it's a directory, we don't read it (for now)
-      return null;
-    } catch {
-      // Direct path doesn't exist, try searching for the file
-    }
-
-    // Try to find file by name in workspace (simple search)
-    try {
-      const fileName = path.basename(atPath);
-      const foundPath = await this.findFileInWorkspace(workspace, fileName);
-      return foundPath;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Simple file search in workspace (non-recursive for performance)
-   * 在工作区中简单搜索文件（非递归以保证性能）
-   */
-  private async findFileInWorkspace(workspace: string, fileName: string, maxDepth: number = 3): Promise<string | null> {
-    const searchDir = async (dir: string, depth: number): Promise<string | null> => {
-      if (depth > maxDepth) return null;
-
-      try {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isFile() && entry.name === fileName) {
-            return fullPath;
-          }
-          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-            const found = await searchDir(fullPath, depth + 1);
-            if (found) return found;
-          }
-        }
-      } catch {
-        // Ignore permission errors
-      }
-      return null;
-    };
-
-    return await searchDir(workspace, 0);
   }
 
   confirmMessage(data: { confirmKey: string; callId: string }): Promise<AcpResult> {
@@ -1161,7 +968,7 @@ export class AcpAgent {
   }
 
   private emitMessage(message: TMessage): void {
-    // Create response message based on the message type, following GeminiAgentTask pattern
+    // Create response message based on the message type
     const responseMessage: IResponseMessage = {
       type: '', // Will be set in switch statement
       data: null, // Will be set in switch statement

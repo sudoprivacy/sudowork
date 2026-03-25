@@ -119,9 +119,12 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
     // Persist messages to database
     const tMessage = transformMessage(msg);
     if (tMessage) {
-      // Use addOrUpdateMessage for types that reuse the same msg_id (content streaming, agent_status updates)
+      // Use addOrUpdateMessage for types that merge by msg_id or internal ID:
+      // - content/agent_status: merge by msg_id (streaming chunks)
+      // - acp_tool_call: merge by toolCallId (multiple updates per tool call)
+      // - plan: merge by sessionId (plan updates)
       // Use addMessage for non-streaming messages that should be inserted as-is
-      if ((msg.type === 'content' || msg.type === 'agent_status') && msg.msg_id) {
+      if (((msg.type === 'content' || msg.type === 'agent_status') && msg.msg_id) || msg.type === 'acp_tool_call' || msg.type === 'plan') {
         addOrUpdateMessage(this.conversation_id, tMessage);
       } else {
         addMessage(this.conversation_id, tMessage);
@@ -300,7 +303,7 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
   kill() {
     const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
     const shouldStopGateway = others.length === 0;
-    void (this.agent?.stop?.({ shouldStopGateway }) ?? Promise.resolve()).catch((err) => console.error('[OpenClawAgentManager] agent.stop failed during kill:', err)).finally(() => super.kill());
+    void (this.agent?.stop?.({ shouldStopGateway }) ?? Promise.resolve()).catch((err) => console.error('[OpenClawAgentManager] agent.stop failed during kill:', err));
   }
 
   getDiagnostics() {

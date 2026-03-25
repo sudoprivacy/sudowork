@@ -489,10 +489,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
 
   const resolvePresetAgentType = useCallback(
     (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined): string => {
-      if (!agentInfo) return 'gemini';
+      if (!agentInfo) return 'claude';
       if (agentInfo.backend !== 'custom') return agentInfo.backend as string;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.presetAgentType || 'gemini';
+      return customAgent?.presetAgentType || 'claude';
     },
     [customAgents]
   );
@@ -510,16 +510,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   // --- Availability checks ---
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      if (agentType === 'gemini') {
-        return isGoogleAuth || (modelList != null && modelList.length > 0);
-      }
       return availableAgents?.some((agent) => agent.backend === agentType) ?? false;
     },
-    [modelList, availableAgents, isGoogleAuth]
+    [availableAgents]
   );
 
   const getAvailableFallbackAgent = useCallback((): string | null => {
-    const fallbackOrder: PresetAgentType[] = ['gemini', 'claude', 'qwen', 'codex', 'codebuddy', 'opencode'];
+    const fallbackOrder: PresetAgentType[] = ['claude', 'qwen', 'codebuddy', 'opencode'];
     for (const agentType of fallbackOrder) {
       if (isMainAgentAvailable(agentType)) {
         return agentType;

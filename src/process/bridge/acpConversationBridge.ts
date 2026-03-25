@@ -10,8 +10,6 @@ import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo'
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgentManager from '@/process/task/AcpAgentManager';
-import CodexAgentManager from '@/process/task/CodexAgentManager';
-import { GeminiAgentManager } from '@/process/task/GeminiAgentManager';
 import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { ipcBridge } from '../../common';
@@ -197,7 +195,7 @@ export function initAcpConversationBridge(): void {
   // Use getTaskById (cache-only) to avoid spawning a worker process on read-only queries
   ipcBridge.acpConversation.getMode.provider(({ conversationId }) => {
     const task = WorkerManage.getTaskById(conversationId);
-    if (!task || !(task instanceof AcpAgentManager || task instanceof GeminiAgentManager || task instanceof CodexAgentManager)) {
+    if (!task || !(task instanceof AcpAgentManager)) {
       return Promise.resolve({ success: true, data: { mode: 'default', initialized: false } });
     }
     return Promise.resolve({ success: true, data: task.getMode() });
@@ -208,7 +206,7 @@ export function initAcpConversationBridge(): void {
   // Use getTaskById (cache-only) to avoid spawning a worker process on read-only queries
   ipcBridge.acpConversation.getModelInfo.provider(({ conversationId }) => {
     const task = WorkerManage.getTaskById(conversationId);
-    if (!task || !(task instanceof AcpAgentManager || task instanceof CodexAgentManager)) {
+    if (!task || !(task instanceof AcpAgentManager)) {
       return Promise.resolve({ success: true, data: { modelInfo: null } });
     }
     return Promise.resolve({ success: true, data: { modelInfo: task.getModelInfo() } });
@@ -280,7 +278,7 @@ export function initAcpConversationBridge(): void {
       if (!task) {
         return { success: false, msg: 'Conversation not found' };
       }
-      if (!(task instanceof AcpAgentManager || task instanceof GeminiAgentManager || task instanceof CodexAgentManager)) {
+      if (!(task instanceof AcpAgentManager)) {
         return { success: false, msg: 'Mode switching not supported for this agent type' };
       }
       return await task.setMode(mode);

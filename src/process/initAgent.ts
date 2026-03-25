@@ -5,7 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
-import type { TChatConversation, TProviderWithModel } from '@/common/storage';
+import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -37,39 +37,6 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
   }
 
   return { workspace, customWorkspace };
-};
-
-export const createGeminiAgent = async (model: TProviderWithModel, workspace?: string, defaultFiles?: string[], webSearchEngine?: 'google' | 'default', customWorkspace?: boolean, contextFileName?: string, presetRules?: string, enabledSkills?: string[], presetAssistantId?: string, sessionMode?: string, isHealthCheck?: boolean): Promise<TChatConversation> => {
-  const { workspace: newWorkspace, customWorkspace: finalCustomWorkspace } = await buildWorkspaceWidthFiles(`gemini-temp-${Date.now()}`, workspace, defaultFiles, customWorkspace);
-
-  return {
-    type: 'gemini',
-    model,
-    extra: {
-      workspace: newWorkspace,
-      customWorkspace: finalCustomWorkspace,
-      webSearchEngine,
-      contextFileName,
-      // 系统规则 / System rules
-      presetRules,
-      // 向后兼容：contextContent 保存 rules / Backward compatible: contextContent stores rules
-      contextContent: presetRules,
-      // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像
-      // Preset assistant ID for displaying name and avatar in conversation panel
-      presetAssistantId,
-      // Initial session mode from Guid page mode selector
-      sessionMode,
-      // Explicit marker for temporary health-check conversations
-      isHealthCheck,
-    },
-    desc: finalCustomWorkspace ? newWorkspace : '',
-    createTime: Date.now(),
-    modifyTime: Date.now(),
-    name: newWorkspace,
-    id: uuid(),
-  };
 };
 
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
@@ -104,55 +71,6 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   };
 };
 
-/** @deprecated Legacy Codex creation. New Codex conversations use ACP protocol via createAcpAgent. */
-export const createCodexAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
-  const { extra } = options;
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`codex-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
-  return {
-    type: 'codex',
-    extra: {
-      workspace: workspace,
-      customWorkspace,
-      cliPath: extra.cliPath,
-      sandboxMode: 'workspace-write', // 默认为读写权限 / Default to read-write permission
-      presetContext: extra.presetContext, // 智能助手的预设规则/提示词
-      // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
-      // 预设助手 ID，用于在会话面板显示助手名称和头像
-      // Preset assistant ID for displaying name and avatar in conversation panel
-      presetAssistantId: extra.presetAssistantId,
-      // Initial session mode selected on Guid page (from AgentModeSelector)
-      sessionMode: extra.sessionMode,
-      // User-selected Codex model from Guid page
-      codexModel: extra.codexModel,
-      // Explicit marker for temporary health-check conversations
-      isHealthCheck: extra.isHealthCheck,
-    },
-    createTime: Date.now(),
-    modifyTime: Date.now(),
-    name: workspace,
-    id: uuid(),
-  };
-};
-
-export const createNanobotAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
-  const { extra } = options;
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`nanobot-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
-  return {
-    type: 'nanobot',
-    extra: {
-      workspace: workspace,
-      customWorkspace,
-      enabledSkills: extra.enabledSkills,
-      presetAssistantId: extra.presetAssistantId,
-    },
-    createTime: Date.now(),
-    modifyTime: Date.now(),
-    name: workspace,
-    id: uuid(),
-  };
-};
-
 function getSudoclawWorkspaceRoot(): string {
   try {
     const configPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
@@ -167,6 +85,7 @@ function getSudoclawWorkspaceRoot(): string {
   }
   return getSystemDir().workDir;
 }
+
 
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;

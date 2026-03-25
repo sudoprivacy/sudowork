@@ -709,7 +709,7 @@ interface ISendMessageParams {
   injectSkills?: string[];
 }
 
-// Unified confirm message params for all agents (Gemini, ACP, Codex)
+// Unified confirm message params for all agents
 export interface IConfirmMessageParams {
   confirmKey: string;
   msg_id: string;
@@ -718,7 +718,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot';
+  type: 'acp' | 'openclaw-gateway';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -732,7 +732,7 @@ export interface ICreateConversationParams {
     agentName?: string;
     customAgentId?: string;
     context?: string;
-    contextFileName?: string; // For gemini preset agents
+    contextFileName?: string; // For preset agents
     // System rules for smart assistants
     presetRules?: string; // system rules injected at initialization
     /** Enabled skills list for filtering SkillManager skills */
@@ -740,8 +740,7 @@ export interface ICreateConversationParams {
     /**
      * Preset context/rules to inject into the first message.
      * Used by smart assistants to provide custom prompts/rules.
-     * For Gemini: injected via contextContent
-     * For ACP/Codex: injected via <system_instruction> tag in first message
+     * Injected via contextContent or <system_instruction> tag in first message
      */
     presetContext?: string;
     /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */

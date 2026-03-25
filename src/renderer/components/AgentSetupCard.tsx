@@ -88,17 +88,13 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
         }
 
         // Determine conversation type based on agent
-        // Codex uses 'codex' type, Gemini uses 'gemini' type, others use 'acp' type
-        const isGemini = agent.backend === 'gemini';
-        const isCodex = agent.backend === 'codex';
-        const conversationType = isGemini ? 'gemini' : isCodex ? 'codex' : 'acp';
+        // All agents use 'acp' type now
+        const conversationType = 'acp' as const;
         const defaultConversationName = t('conversation.welcome.newConversation');
 
-        // Get current conversation's model info (if gemini type)
-        const currentModel = conversation.type === 'gemini' ? conversation.model : undefined;
         const createParams: ICreateConversationParams = {
           type: conversationType,
-          model: currentModel || {
+          model: {
             id: 'default',
             name: 'Default',
             useModel: 'default',
@@ -109,19 +105,11 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
           extra: {
             workspace: conversation.extra?.workspace || '',
             customWorkspace: conversation.extra?.customWorkspace || false,
-            ...(isGemini
-              ? {
-                  presetRules: ((conversation.extra as Record<string, unknown>)?.presetRules || (conversation.extra as Record<string, unknown>)?.presetContext) as string,
-                  enabledSkills: conversation.extra?.enabledSkills,
-                  presetAssistantId: conversation.extra?.presetAssistantId,
-                }
-              : {
-                  backend: agent.backend,
-                  cliPath: agent.cliPath,
-                  presetContext: ((conversation.extra as Record<string, unknown>)?.presetRules || (conversation.extra as Record<string, unknown>)?.presetContext) as string,
-                  enabledSkills: conversation.extra?.enabledSkills,
-                  presetAssistantId: conversation.extra?.presetAssistantId,
-                }),
+            backend: agent.backend,
+            cliPath: agent.cliPath,
+            presetContext: ((conversation.extra as Record<string, unknown>)?.presetRules || (conversation.extra as Record<string, unknown>)?.presetContext) as string,
+            enabledSkills: conversation.extra?.enabledSkills,
+            presetAssistantId: conversation.extra?.presetAssistantId,
           },
         };
 
@@ -139,13 +127,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
         // 存储初始消息，让新会话自动发送
         if (initialMessage) {
           const messageData = { input: initialMessage, files: [] as string[] };
-          if (isGemini) {
-            sessionStorage.setItem(`gemini_initial_message_${newConversation.id}`, JSON.stringify(messageData));
-          } else if (isCodex) {
-            sessionStorage.setItem(`codex_initial_message_${newConversation.id}`, JSON.stringify(messageData));
-          } else {
-            sessionStorage.setItem(`acp_initial_message_${newConversation.id}`, JSON.stringify(messageData));
-          }
+          sessionStorage.setItem(`acp_initial_message_${newConversation.id}`, JSON.stringify(messageData));
         }
 
         // Show success notification and navigate

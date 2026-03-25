@@ -18,7 +18,7 @@
  * 预设助手的主 Agent 类型，用于决定创建哪种类型的对话
  * The primary agent type for preset assistants, used to determine which conversation type to create.
  */
-export type PresetAgentType = 'gemini' | 'claude' | 'codex' | 'codebuddy' | 'opencode' | 'qwen';
+export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen';
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -27,7 +27,7 @@ export type PresetAgentType = 'gemini' | 'claude' | 'codex' | 'codebuddy' | 'ope
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'codex', 'qwen'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen'] as const;
 
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;
@@ -48,10 +48,10 @@ export function isAcpRoutedPresetType(type: PresetAgentType | undefined): boolea
 // 全部后端类型定义 - 包括暂时不支持的 / All backend types - including temporarily unsupported ones
 export type AcpBackendAll =
   | 'claude' // Claude ACP
-  | 'gemini' // Google Gemini ACP
+  | 'gemini' // Google Gemini ACP (backend, not agent type)
   | 'qwen' // Qwen Code ACP
   | 'iflow' // iFlow CLI ACP
-  | 'codex' // OpenAI Codex ACP (via codex-acp bridge)
+  | 'codex' // OpenAI Codex ACP (via codex-acp bridge, not agent type)
   | 'codebuddy' // Tencent CodeBuddy Code CLI
   | 'droid' // Factory Droid CLI (ACP via `droid exec --output-format acp`)
   | 'goose' // Block's Goose CLI
@@ -62,7 +62,7 @@ export type AcpBackendAll =
   | 'qoder' // Qoder CLI
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'vibe' // Mistral Vibe CLI
-  | 'nanobot' // nanobot CLI
+  | 'nanobot' // nanobot CLI (via ACP)
   | 'custom'; // User-configured custom ACP agent
 
 /**

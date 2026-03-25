@@ -66,14 +66,6 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           input: {
             index: resolve('src/index.ts'),
-            // Worker entry files are output alongside index.js in out/main/.
-            // BaseAgentManager.resolveWorkerDir() handles the case where code
-            // splitting places it in a chunks/ subdirectory.
-            gemini: resolve('src/worker/gemini.ts'),
-            acp: resolve('src/worker/acp.ts'),
-            codex: resolve('src/worker/codex.ts'),
-            'openclaw-gateway': resolve('src/worker/openclaw-gateway.ts'),
-            nanobot: resolve('src/worker/nanobot.ts'),
           },
           onwarn(warning, warn) {
             if (warning.code === 'EVAL') return;

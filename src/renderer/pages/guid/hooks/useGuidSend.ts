@@ -7,7 +7,6 @@
 import { ipcBridge } from '@/common';
 import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
-import { buildDisplayMessage } from '@/renderer/utils/messageFiles';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { Message } from '@arco-design/web-react';
@@ -65,7 +64,7 @@ export type GuidSendResult = {
 };
 
 /**
- * Hook that manages the send logic for all conversation types (gemini/openclaw/nanobot/acp).
+ * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, navigate, closeAllTabs, openTab, t } = deps;
@@ -95,63 +94,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           })
         );
       }
-    }
-
-    // Gemini path
-    if (!selectedAgent || selectedAgent === 'gemini' || (isPreset && finalEffectiveAgentType === 'gemini')) {
-      const placeholderModel = currentModel || {
-        id: 'gemini-placeholder',
-        name: 'Gemini',
-        useModel: 'default',
-        platform: 'gemini-with-google-auth' as const,
-        baseUrl: '',
-        apiKey: '',
-      };
-      try {
-        const presetAssistantIdToPass = isPreset ? agentInfo?.customAgentId : undefined;
-
-        const conversation = await ipcBridge.conversation.create.invoke({
-          type: 'gemini',
-          name: input,
-          model: placeholderModel,
-          extra: {
-            defaultFiles: files,
-            workspace: finalWorkspace,
-            customWorkspace: isCustomWorkspace,
-            webSearchEngine: placeholderModel.platform === 'gemini-with-google-auth' || placeholderModel.platform === 'gemini-vertex-ai' ? 'google' : 'default',
-            presetRules: isPreset ? presetRules : undefined,
-            enabledSkills: isPreset ? enabledSkills : undefined,
-            presetAssistantId: presetAssistantIdToPass,
-            sessionMode: selectedMode,
-          },
-        });
-
-        if (!conversation || !conversation.id) {
-          throw new Error('Failed to create conversation - conversation object is null or missing id');
-        }
-
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          openTab(conversation);
-        }
-
-        emitter.emit('chat.history.refresh');
-
-        const workspacePath = conversation.extra?.workspace || '';
-        const displayMessage = buildDisplayMessage(input, files, workspacePath);
-        const initialMessage = {
-          input: displayMessage,
-          files: files.length > 0 ? files : undefined,
-        };
-        sessionStorage.setItem(`gemini_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
-
-        void navigate(`/conversation/${conversation.id}`);
-      } catch (error: unknown) {
-        console.error('Failed to create Gemini conversation:', error);
-        throw error;
-      }
-      return;
     }
 
     // OpenClaw Gateway path
@@ -206,52 +148,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         alert(`Failed to create Sudoclaw conversation: ${errorMessage}`);
-        throw error;
-      }
-      return;
-    }
-
-    // Nanobot path
-    if (selectedAgent === 'nanobot') {
-      const nanobotAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
-
-      try {
-        const conversation = await ipcBridge.conversation.create.invoke({
-          type: 'nanobot',
-          name: input,
-          model: currentModel!,
-          extra: {
-            defaultFiles: files,
-            workspace: finalWorkspace,
-            customWorkspace: isCustomWorkspace,
-            enabledSkills: isPreset ? enabledSkills : undefined,
-            presetAssistantId: isPreset ? nanobotAgentInfo?.customAgentId : undefined,
-          },
-        });
-
-        if (!conversation || !conversation.id) {
-          alert('Failed to create Nanobot conversation. Please ensure nanobot is installed.');
-          return;
-        }
-
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          openTab(conversation);
-        }
-
-        emitter.emit('chat.history.refresh');
-
-        const initialMessage = {
-          input,
-          files: files.length > 0 ? files : undefined,
-        };
-        sessionStorage.setItem(`nanobot_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
-
-        await navigate(`/conversation/${conversation.id}`);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create Nanobot conversation: ${errorMessage}`);
         throw error;
       }
       return;
@@ -341,7 +237,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir]);
 
   // Calculate button disabled state
-  const isButtonDisabled = !input.trim() || ((((!selectedAgent || selectedAgent === 'gemini') && !isPresetAgent) || (isPresetAgent && currentEffectiveAgentInfo.agentType === 'gemini' && currentEffectiveAgentInfo.isAvailable)) && !currentModel && isGoogleAuth);
+  const isButtonDisabled = !input.trim();
 
   return {
     handleSend,

@@ -1,5 +1,6 @@
 import { AcpAgent } from '@/agent/acp';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
+import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
@@ -10,6 +11,8 @@ import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpSessionConfigOption } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -290,194 +293,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             resolve(this.getAcpSlashCommands());
           }
         },
-        onStreamEvent: (message) => {
-          const pipelineStart = Date.now();
-
-          // Reduce status noise: show full lifecycle only for the first turn.
-          // After first turn, only keep failure statuses to avoid reconnect chatter.
-          if (message.type === 'agent_status') {
-            const status = (message.data as { status?: string } | null)?.status;
-            const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
-            if (!shouldDisplayStatus) {
-              return;
-            }
-          }
-
-          // Handle preview_open event (chrome-devtools navigation interception)
-          // 处理 preview_open 事件（chrome-devtools 导航拦截）
-          if (handlePreviewOpenEvent(message)) {
-            return; // Don't process further / 不需要继续处理
-          }
-
-          // Mark as finished when content is output (visible to user)
-          // ACP uses: content, agent_status, acp_tool_call, plan
-          const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
-          if (contentTypes.includes(message.type)) {
-            this.status = 'finished';
-          }
-
-          // Emit request trace on each model generation start
-          if (message.type === 'start') {
-            const modelInfo = this.agent?.getModelInfo();
-            const traceData = {
-              agentType: 'acp' as const,
-              backend: data.backend,
-              modelId: modelInfo?.currentModelId || this.persistedModelId || 'unknown',
-              cliPath: this.options?.cliPath,
-              sessionMode: this.currentMode,
-              timestamp: Date.now(),
-            };
-            ipcBridge.acpConversation.responseStream.emit({
-              type: 'request_trace',
-              conversation_id: this.conversation_id,
-              msg_id: uuid(),
-              data: traceData,
-            });
-          }
-
-          // Persist context usage to conversation extra for restore on page switch
-          if (message.type === 'acp_context_usage') {
-            const usageData = message.data as { used: number; size: number };
-            this.saveContextUsage(usageData);
-          }
-
-          if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
-            const transformStart = Date.now();
-            const tMessage = transformMessage(message as IResponseMessage);
-            const transformDuration = Date.now() - transformStart;
-
-            if (tMessage) {
-              const dbStart = Date.now();
-              const isStreamTextChunk = tMessage.type === 'text' && message.type === 'content';
-              if (isStreamTextChunk) {
-                this.queueBufferedStreamTextMessage(tMessage, data.backend);
-              } else {
-                this.flushBufferedStreamTextMessages();
-                addOrUpdateMessage(message.conversation_id, tMessage, data.backend);
-              }
-              const dbDuration = Date.now() - dbStart;
-
-              if (transformDuration > 5 || dbDuration > 5) {
-                if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: transform ${transformDuration}ms, db ${dbDuration}ms type=${message.type}`);
-              }
-
-              // Track streaming content for cron detection when turn ends
-              // ACP sends content in chunks, we accumulate here for later detection
-              if (isStreamTextChunk) {
-                const textContent = extractTextFromMessage(tMessage);
-                if (tMessage.msg_id !== this.currentMsgId) {
-                  // New message, reset accumulator
-                  this.currentMsgId = tMessage.msg_id || null;
-                  this.currentMsgContent = textContent;
-                } else {
-                  // Same message, accumulate content
-                  this.currentMsgContent += textContent;
-                }
-              }
-            }
-          }
-
-          // Filter think tags from streaming content before emitting to UI
-          // 在发送到 UI 之前过滤流式内容中的 think 标签
-          const filterStart = Date.now();
-          const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
-          const filterDuration = Date.now() - filterStart;
-
-          const emitStart = Date.now();
-          ipcBridge.acpConversation.responseStream.emit(filteredMessage);
-          const emitDuration = Date.now() - emitStart;
-
-          // Also emit to Channel global event bus (Telegram/Lark streaming)
-          // 同时发送到 Channel 全局事件总线（用于 Telegram/Lark 等外部平台）
-          channelEventBus.emitAgentMessage(this.conversation_id, {
-            ...filteredMessage,
-            conversation_id: this.conversation_id,
-          });
-
-          const totalDuration = Date.now() - pipelineStart;
-          if (totalDuration > 10) {
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: onStreamEvent pipeline ${totalDuration}ms (filter=${filterDuration}ms, emit=${emitDuration}ms) type=${message.type}`);
-          }
-        },
-        onSignalEvent: async (v) => {
-          // Flush buffered text chunks before handling turn-level signals
-          this.flushBufferedStreamTextMessages();
-
-          // 仅发送信号到前端，不更新消息列表
-          if (v.type === 'acp_permission') {
-            const { toolCall, options } = v.data as AcpPermissionRequest;
-            this.addConfirmation({
-              title: toolCall.title || 'messages.permissionRequest',
-              action: 'messages.command',
-              id: v.msg_id,
-              description: toolCall.rawInput?.description || 'messages.agentRequestingPermission',
-              callId: toolCall.toolCallId || v.msg_id,
-              options: options.map((option) => ({
-                label: option.name,
-                value: option,
-              })),
-            });
-
-            // Channels (Telegram/Lark) currently don't have interactive permission UX.
-            // Emit a readable error to avoid "silent hang" in external platforms.
-            channelEventBus.emitAgentMessage(this.conversation_id, {
-              type: 'error',
-              conversation_id: this.conversation_id,
-              msg_id: v.msg_id,
-              data: 'Permission required. Please open Sudowork and confirm the pending request in the conversation panel.',
-            });
-            return;
-          }
-
-          // Clear busy guard when turn ends
-          if (v.type === 'finish') {
-            cronBusyGuard.setProcessing(this.conversation_id, false);
-          }
-
-          // Process cron commands when turn ends (finish signal)
-          // ACP streams content in chunks, so we check the accumulated content here
-          if (v.type === 'finish' && this.currentMsgContent && hasCronCommands(this.currentMsgContent)) {
-            const message: TMessage = {
-              id: this.currentMsgId || uuid(),
-              msg_id: this.currentMsgId || uuid(),
-              type: 'text',
-              position: 'left',
-              conversation_id: this.conversation_id,
-              content: { content: this.currentMsgContent },
-              status: 'finish',
-              createdAt: Date.now(),
-            };
-            // Process cron commands and send results back to AI
-            const collectedResponses: string[] = [];
-            await processCronInMessage(this.conversation_id, data.backend as any, message, (sysMsg) => {
-              collectedResponses.push(sysMsg);
-              // Also emit to frontend for display
-              const systemMessage: IResponseMessage = {
-                type: 'system',
-                conversation_id: this.conversation_id,
-                msg_id: uuid(),
-                data: sysMsg,
-              };
-              ipcBridge.acpConversation.responseStream.emit(systemMessage);
-            });
-            // Send collected responses back to AI agent so it can continue
-            if (collectedResponses.length > 0 && this.agent) {
-              const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
-              await this.agent.sendMessage({ content: feedbackMessage });
-            }
-            // Reset after processing
-            this.currentMsgId = null;
-            this.currentMsgContent = '';
-          }
-
-          ipcBridge.acpConversation.responseStream.emit(v);
-
-          // Forward signals (finish/error/etc.) to Channel global event bus
-          channelEventBus.emitAgentMessage(this.conversation_id, {
-            ...(v as any),
-            conversation_id: this.conversation_id,
-          });
-        },
+        onStreamEvent: (message) => this.handleAcpStreamEvent(message),
+        onSignalEvent: (v) => { void this.handleAcpSignalEvent(v); },
       });
       return this.agent.start().then(async () => {
         // Re-apply persisted mode after session start/resume
@@ -528,6 +345,201 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       });
     })();
     return this.bootstrap;
+  }
+
+  private handleAcpStreamEvent(message: IResponseMessage): void {
+    const pipelineStart = Date.now();
+
+    // Reduce status noise: show full lifecycle only for the first turn.
+    // After first turn, only keep failure statuses to avoid reconnect chatter.
+    if (message.type === 'agent_status') {
+      const status = (message.data as { status?: string } | null)?.status;
+      // Clear cached bootstrap when CLI disconnects so the next
+      // sendMessage re-initializes instead of reusing a dead agent.
+      if (status === 'disconnected') {
+        this.bootstrap = undefined;
+      }
+      const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
+      if (!shouldDisplayStatus) {
+        return;
+      }
+    }
+
+    // Handle preview_open event (chrome-devtools navigation interception)
+    // 处理 preview_open 事件（chrome-devtools 导航拦截）
+    if (handlePreviewOpenEvent(message)) {
+      return; // Don't process further / 不需要继续处理
+    }
+
+    // Mark as finished when content is output (visible to user)
+    // ACP uses: content, agent_status, acp_tool_call, plan
+    const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
+    if (contentTypes.includes(message.type)) {
+      this.status = 'finished';
+    }
+
+    // Emit request trace on each model generation start
+    if (message.type === 'start') {
+      const modelInfo = this.agent?.getModelInfo();
+      const traceData = {
+        agentType: 'acp' as const,
+        backend: this.options.backend,
+        modelId: modelInfo?.currentModelId || this.persistedModelId || 'unknown',
+        cliPath: this.options?.cliPath,
+        sessionMode: this.currentMode,
+        timestamp: Date.now(),
+      };
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'request_trace',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: traceData,
+      });
+    }
+
+    // Persist context usage to conversation extra for restore on page switch
+    if (message.type === 'acp_context_usage') {
+      const usageData = message.data as { used: number; size: number };
+      this.saveContextUsage(usageData);
+    }
+
+    if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
+      const transformStart = Date.now();
+      const tMessage = transformMessage(message as IResponseMessage);
+      const transformDuration = Date.now() - transformStart;
+
+      if (tMessage) {
+        const dbStart = Date.now();
+        const isStreamTextChunk = tMessage.type === 'text' && message.type === 'content';
+        if (isStreamTextChunk) {
+          this.queueBufferedStreamTextMessage(tMessage, this.options.backend);
+        } else {
+          this.flushBufferedStreamTextMessages();
+          addOrUpdateMessage(message.conversation_id, tMessage, this.options.backend);
+        }
+        const dbDuration = Date.now() - dbStart;
+
+        if (transformDuration > 5 || dbDuration > 5) {
+          if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: transform ${transformDuration}ms, db ${dbDuration}ms type=${message.type}`);
+        }
+
+        // Track streaming content for cron detection when turn ends
+        // ACP sends content in chunks, we accumulate here for later detection
+        if (isStreamTextChunk) {
+          const textContent = extractTextFromMessage(tMessage);
+          if (tMessage.msg_id !== this.currentMsgId) {
+            // New message, reset accumulator
+            this.currentMsgId = tMessage.msg_id || null;
+            this.currentMsgContent = textContent;
+          } else {
+            // Same message, accumulate content
+            this.currentMsgContent += textContent;
+          }
+        }
+      }
+    }
+
+    // Filter think tags from streaming content before emitting to UI
+    // 在发送到 UI 之前过滤流式内容中的 think 标签
+    const filterStart = Date.now();
+    const filteredMessage = this.filterThinkTagsFromMessage(message as IResponseMessage);
+    const filterDuration = Date.now() - filterStart;
+
+    const emitStart = Date.now();
+    ipcBridge.acpConversation.responseStream.emit(filteredMessage);
+    const emitDuration = Date.now() - emitStart;
+
+    // Also emit to Channel global event bus (Telegram/Lark streaming)
+    // 同时发送到 Channel 全局事件总线（用于 Telegram/Lark 等外部平台）
+    channelEventBus.emitAgentMessage(this.conversation_id, {
+      ...filteredMessage,
+      conversation_id: this.conversation_id,
+    });
+
+    const totalDuration = Date.now() - pipelineStart;
+    if (totalDuration > 10) {
+      if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: onStreamEvent pipeline ${totalDuration}ms (filter=${filterDuration}ms, emit=${emitDuration}ms) type=${message.type}`);
+    }
+  }
+
+  private async handleAcpSignalEvent(v: IResponseMessage): Promise<void> {
+    // Flush buffered text chunks before handling turn-level signals
+    this.flushBufferedStreamTextMessages();
+
+    // 仅发送信号到前端，不更新消息列表
+    if (v.type === 'acp_permission') {
+      const { toolCall, options } = v.data as AcpPermissionRequest;
+      this.addConfirmation({
+        title: toolCall.title || 'messages.permissionRequest',
+        action: 'messages.command',
+        id: v.msg_id,
+        description: toolCall.rawInput?.description || 'messages.agentRequestingPermission',
+        callId: toolCall.toolCallId || v.msg_id,
+        options: options.map((option) => ({
+          label: option.name,
+          value: option,
+        })),
+      });
+
+      // Channels (Telegram/Lark) currently don't have interactive permission UX.
+      // Emit a readable error to avoid "silent hang" in external platforms.
+      channelEventBus.emitAgentMessage(this.conversation_id, {
+        type: 'error',
+        conversation_id: this.conversation_id,
+        msg_id: v.msg_id,
+        data: 'Permission required. Please open Sudowork and confirm the pending request in the conversation panel.',
+      });
+      return;
+    }
+
+    // Clear busy guard when turn ends
+    if (v.type === 'finish') {
+      cronBusyGuard.setProcessing(this.conversation_id, false);
+    }
+
+    // Process cron commands when turn ends (finish signal)
+    // ACP streams content in chunks, so we check the accumulated content here
+    if (v.type === 'finish' && this.currentMsgContent && hasCronCommands(this.currentMsgContent)) {
+      const message: TMessage = {
+        id: this.currentMsgId || uuid(),
+        msg_id: this.currentMsgId || uuid(),
+        type: 'text',
+        position: 'left',
+        conversation_id: this.conversation_id,
+        content: { content: this.currentMsgContent },
+        status: 'finish',
+        createdAt: Date.now(),
+      };
+      // Process cron commands and send results back to AI
+      const collectedResponses: string[] = [];
+      await processCronInMessage(this.conversation_id, this.options.backend as any, message, (sysMsg) => {
+        collectedResponses.push(sysMsg);
+        // Also emit to frontend for display
+        const systemMessage: IResponseMessage = {
+          type: 'system',
+          conversation_id: this.conversation_id,
+          msg_id: uuid(),
+          data: sysMsg,
+        };
+        ipcBridge.acpConversation.responseStream.emit(systemMessage);
+      });
+      // Send collected responses back to AI agent so it can continue
+      if (collectedResponses.length > 0 && this.agent) {
+        const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
+        await this.agent.sendMessage({ content: feedbackMessage });
+      }
+      // Reset after processing
+      this.currentMsgId = null;
+      this.currentMsgContent = '';
+    }
+
+    ipcBridge.acpConversation.responseStream.emit(v);
+
+    // Forward signals (finish/error/etc.) to Channel global event bus
+    channelEventBus.emitAgentMessage(this.conversation_id, {
+      ...(v as any),
+      conversation_id: this.conversation_id,
+    });
   }
 
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta }): Promise<{
@@ -681,6 +693,14 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       await this.initAgent(this.options);
       if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: initAgent completed ${Date.now() - initStart}ms`);
 
+      // Guard against stale agent after CLI crash: if the connection is dead,
+      // discard the cached bootstrap and re-initialize once.
+      if (this.agent && !this.agent.isConnected) {
+        mainWarn('[AcpAgentManager]', 'Agent not connected after initAgent, re-initializing');
+        this.bootstrap = undefined;
+        await this.initAgent(this.options);
+      }
+
       if (data.msg_id && data.content) {
         let contentToSend = data.content;
         if (contentToSend.includes(NEXUS_FILES_MARKER)) {
@@ -696,8 +716,24 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           });
         }
 
+        // Add @ prefix to uploaded files with full path (moved from AcpAgent)
+        if (data.files && data.files.length > 0) {
+          const fileRefs = data.files
+            .map((filePath) => {
+              if (filePath.includes(' ')) {
+                return `@"${filePath}"`;
+              }
+              return '@' + filePath;
+            })
+            .join(' ');
+          contentToSend = fileRefs + ' ' + contentToSend;
+        }
+
+        // Process @ file references in the message
+        contentToSend = await this.processAtFileReferences(contentToSend, data.files);
+
         const agentSendStart = Date.now();
-        const result = await this.agent.sendMessage({ ...data, content: contentToSend });
+        const result = await this.agent.sendMessage({ content: contentToSend, msg_id: data.msg_id });
         if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${Date.now() - managerSendStart}ms)`);
         // 首条消息发送后标记，无论是否有 presetContext
         if (this.isFirstMessage) {
@@ -709,7 +745,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.agent.sendMessage(data);
+      const result = await this.agent.sendMessage({ content: data.content, msg_id: data.msg_id });
       if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${Date.now() - managerSendStart}ms)`);
       return result;
     } catch (e) {
@@ -731,6 +767,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
       // Emit to frontend for UI display only
       ipcBridge.acpConversation.responseStream.emit(message);
+      // Also emit to channelEventBus so Channel streams (Telegram/Lark/etc.) don't hang
+      channelEventBus.emitAgentMessage(this.conversation_id, message);
 
       // Emit finish signal so the frontend resets loading state
       // (mirrors AcpAgent.handleDisconnect pattern)
@@ -741,6 +779,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         data: null,
       };
       ipcBridge.acpConversation.responseStream.emit(finishMessage);
+      channelEventBus.emitAgentMessage(this.conversation_id, finishMessage);
 
       return new Promise((_, reject) => {
         nextTickToLocalFinish(() => {
@@ -807,6 +846,168 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   }
 
   /**
+   * Process @ file references in the message content
+   * 处理消息内容中的 @ 文件引用
+   *
+   * This method resolves @ references to actual files in the workspace,
+   * reads their content, and appends it to the message.
+   * 此方法解析工作区中的 @ 引用，读取文件内容并附加到消息中。
+   */
+  private async processAtFileReferences(content: string, uploadedFiles?: string[]): Promise<string> {
+    const workspace = this.workspace;
+    if (!workspace) {
+      return content;
+    }
+
+    // Parse all @ references in the content
+    // Note: @ prefix is already added to content by sendMessage for uploaded files
+    // 解析 content 中的所有 @ 引用
+    // 注意：sendMessage 已为上传的文件添加了 @ 前缀
+    const parts = parseAllAtCommands(content);
+    const atPaths = extractAtPaths(content);
+
+    // If no @ references found, return original content
+    if (atPaths.length === 0) {
+      return content;
+    }
+
+    // Track which @ references are resolved to files
+    const resolvedFiles: Map<string, string> = new Map(); // atPath -> file content
+    // Track @ references that should be removed (duplicate file references by filename)
+    const referencesToRemove: Set<string> = new Set();
+
+    for (const atPath of atPaths) {
+      // Check if this @ reference is an uploaded file (full path or filename)
+      // If yes, skip it - let Claude CLI handle it natively
+      // 检查此 @ 引用是否是上传的文件（完整路径或文件名），如果是则跳过，让 Claude CLI 原生处理
+      const matchedUploadFile = uploadedFiles?.find((filePath) => {
+        // Match by full path
+        if (atPath === filePath) return true;
+        // Match by filename (for cases where message contains just filename)
+        const fileName = filePath.split(/[\\/]/).pop() || filePath;
+        return atPath === fileName;
+      });
+
+      if (matchedUploadFile) {
+        // If this is a filename reference (not full path), mark for removal
+        // The full path reference will be kept
+        // 如果这是文件名引用（不是完整路径），标记为移除，因为已经有完整路径引用了
+        if (atPath !== matchedUploadFile) {
+          referencesToRemove.add(atPath);
+        }
+        // Skip uploaded files - they are already in @ format with full path
+        // Claude CLI will handle them natively
+        continue;
+      }
+
+      // For workspace file references (filename only), try to resolve and read
+      // 对于工作区文件引用（只有文件名），尝试解析和读取
+      const resolvedPath = await this.resolveAtPath(atPath, workspace);
+
+      if (resolvedPath) {
+        try {
+          // Try to read as text file
+          const fileContent = await fs.readFile(resolvedPath, 'utf-8');
+          resolvedFiles.set(atPath, fileContent);
+        } catch (error) {
+          // Binary files (images, etc.) cannot be read as text
+          // Keep the @ reference as-is, let CLI handle it
+          // 二进制文件（图片等）无法作为文本读取，保持 @ 引用，让 CLI 处理
+          console.warn(`[AcpAgentManager] Skipping binary file ${atPath} (will be handled by CLI)`);
+        }
+      }
+    }
+
+    // If no files were resolved and no references to remove, return original content
+    if (resolvedFiles.size === 0 && referencesToRemove.size === 0) {
+      return content;
+    }
+
+    // Reconstruct the message: replace @ references with plain text and append file contents
+    const reconstructedQuery = reconstructQuery(parts, (atPath) => {
+      // Remove duplicate filename references (when full path already exists)
+      if (referencesToRemove.has(atPath)) {
+        return '';
+      }
+      if (resolvedFiles.has(atPath)) {
+        // Replace with just the filename (without @) as the reference
+        return atPath;
+      }
+      // Keep unresolved @ references as-is
+      return '@' + atPath;
+    });
+
+    // Append file contents at the end of the message
+    let result = reconstructedQuery;
+    if (resolvedFiles.size > 0) {
+      result += '\n\n--- Referenced file contents ---';
+      for (const [atPath, fileContent] of resolvedFiles) {
+        result += `\n\n[Content of ${atPath}]:\n${fileContent}`;
+      }
+      result += '\n--- End of file contents ---';
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve an @ path to an actual file path in the workspace
+   * 将 @ 路径解析为工作区中的实际文件路径
+   */
+  private async resolveAtPath(atPath: string, workspace: string): Promise<string | null> {
+    // Try direct path first
+    const directPath = path.resolve(workspace, atPath);
+    try {
+      const stats = await fs.stat(directPath);
+      if (stats.isFile()) {
+        return directPath;
+      }
+      // If it's a directory, we don't read it (for now)
+      return null;
+    } catch {
+      // Direct path doesn't exist, try searching for the file
+    }
+
+    // Try to find file by name in workspace (simple search)
+    try {
+      const fileName = path.basename(atPath);
+      const foundPath = await this.findFileInWorkspace(workspace, fileName);
+      return foundPath;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Simple file search in workspace (non-recursive for performance)
+   * 在工作区中简单搜索文件（非递归以保证性能）
+   */
+  private async findFileInWorkspace(workspace: string, fileName: string, maxDepth: number = 3): Promise<string | null> {
+    const searchDir = async (dir: string, depth: number): Promise<string | null> => {
+      if (depth > maxDepth) return null;
+
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isFile() && entry.name === fileName) {
+            return fullPath;
+          }
+          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+            const found = await searchDir(fullPath, depth + 1);
+            if (found) return found;
+          }
+        }
+      } catch {
+        // Ignore permission errors
+      }
+      return null;
+    };
+
+    return await searchDir(workspace, 0);
+  }
+
+  /**
    * Filter think tags from message content during streaming
    * This ensures users don't see internal reasoning tags in real-time
    *
@@ -860,8 +1061,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   }
 
   /**
-   * Override stop() because AcpAgentManager doesn't use ForkTask's subprocess architecture.
-   * It directly creates AcpAgent in the main process, so we need to call agent.stop() directly.
+   * Stop the agent by calling agent.stop() directly.
    */
   async stop() {
     if (this.agent) {
@@ -1132,7 +1332,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       if (killed) return;
       killed = true;
       clearTimeout(hardTimer);
-      super.kill();
+      // Agent cleanup is handled above.
     };
 
     // Hard fallback: force kill after timeout regardless

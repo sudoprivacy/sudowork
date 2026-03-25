@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IProvider, TChatConversation, TProviderWithModel } from '@/common/storage';
+import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { CronJobManager } from '@/renderer/pages/cron';
@@ -13,7 +13,7 @@ import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo'
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
-import React, { useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
@@ -21,14 +21,9 @@ import { emitter } from '../../utils/emitter';
 import AcpChat from './acp/AcpChat';
 import ChatLayout from './ChatLayout';
 import ChatSider from './ChatSider';
-import CodexChat from './codex/CodexChat';
-import NanobotChat from './nanobot/NanobotChat';
 import OpenClawChat from './openclaw/OpenClawChat';
-import GeminiChat from './gemini/GeminiChat';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
-import GeminiModelSelector from './gemini/GeminiModelSelector';
 import OpenClawModelSelector from '@/renderer/components/OpenClawModelSelector';
-import { useGeminiModelSelection } from './gemini/useGeminiModelSelection';
 import { usePreviewContext } from './preview';
 import StarOfficeMonitorCard from './openclaw/StarOfficeMonitorCard.tsx';
 import { TaskPanelHeaderProvider, useTaskPanelHeader } from './workspace/TaskPanelHeaderContext';
@@ -147,108 +142,42 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
   );
 };
 
-// 仅抽取 Gemini 会话，确保包含模型信息
-// Narrow to Gemini conversations so model field is always available
-type GeminiConversation = Extract<TChatConversation, { type: 'gemini' }>;
-
-const GeminiConversationPanel: React.FC<{ conversation: GeminiConversation; sliderTitle: React.ReactNode }> = ({ conversation, sliderTitle }) => {
-  // Save model selection to conversation via IPC
-  const onSelectModel = useCallback(
-    async (_provider: IProvider, modelName: string) => {
-      const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
-      return Boolean(ok);
-    },
-    [conversation.id]
-  );
-
-  // Share model selection state between header and send box
-  const modelSelection = useGeminiModelSelection({ initialModel: conversation.model, onSelectModel });
-  const workspaceEnabled = Boolean(conversation.extra?.workspace);
-
-  // 使用统一的 Hook 获取预设助手信息 / Use unified hook for preset assistant info
-  const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
-
-  const chatLayoutProps = {
-    title: conversation.name,
-    siderTitle: sliderTitle,
-    sider: <ChatSider conversation={conversation} />,
-    headerLeft: <GeminiModelSelector selection={modelSelection} />,
-    headerExtra: <CronJobManager conversationId={conversation.id} />,
-    workspaceEnabled,
-    backend: 'gemini' as const,
-    // 传递预设助手信息 / Pass preset assistant info
-    agentName: presetAssistantInfo?.name,
-    agentLogo: presetAssistantInfo?.logo,
-    agentLogoIsEmoji: presetAssistantInfo?.isEmoji,
-  };
-
-  return (
-    <ChatLayout {...chatLayoutProps} conversationId={conversation.id}>
-      <GeminiChat conversation_id={conversation.id} workspace={conversation.extra.workspace} modelSelection={modelSelection} />
-    </ChatLayout>
-  );
-};
-
 const ChatConversation: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
-  // Workspace panel is enabled if the conversation supports workspaces (for gemini, always true; for others, depends on workspace existence)
-  const workspaceEnabled = conversation?.type === 'gemini' || Boolean(conversation?.extra?.workspace);
-
-  const isGeminiConversation = conversation?.type === 'gemini';
+  const workspaceEnabled = Boolean(conversation?.extra?.workspace);
 
   const conversationNode = useMemo(() => {
-    if (!conversation || isGeminiConversation) return null;
+    if (!conversation) return null;
     switch (conversation.type) {
       case 'acp':
         return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={(conversation.extra as { agentName?: string })?.agentName}></AcpChat>;
-      case 'codex': // Legacy: new Codex conversations use ACP protocol. Kept for existing sessions.
-        return <CodexChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
       case 'openclaw-gateway':
         return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
-      case 'nanobot':
-        return <NanobotChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
       default:
         return null;
     }
-  }, [conversation, isGeminiConversation]);
+  }, [conversation]);
 
-  // 使用统一的 Hook 获取预设助手信息（ACP/Codex 会话）
-  // Use unified hook for preset assistant info (ACP/Codex conversations)
-  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(isGeminiConversation ? undefined : conversation);
+  // 使用统一的 Hook 获取预设助手信息（ACP 会话）
+  // Use unified hook for preset assistant info (ACP conversations)
+  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
 
   const sliderTitle = <SiderTitle />;
 
-  // For ACP/Codex conversations, use AcpModelSelector that can show/switch models.
-  // For other non-Gemini conversations, show disabled GeminiModelSelector.
-  // NOTE: This must be placed before the Gemini early return to maintain consistent hook order.
   const modelSelector = useMemo(() => {
-    if (!conversation || isGeminiConversation) return undefined;
+    if (!conversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; currentModelId?: string };
       return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
     }
-    if (conversation.type === 'codex') {
-      return <AcpModelSelector conversationId={conversation.id} />;
-    }
     if (conversation.type === 'openclaw-gateway') {
       return <OpenClawModelSelector conversationId={conversation.id} />;
     }
-    return <GeminiModelSelector disabled={true} />;
-  }, [conversation, isGeminiConversation]);
-
-  if (conversation && conversation.type === 'gemini') {
-    // Gemini 会话独立渲染，带右上角模型选择
-    // Render Gemini layout with dedicated top-right model selector
-    return (
-      <TaskPanelHeaderProvider>
-        <GeminiConversationPanel key={conversation.id} conversation={conversation} sliderTitle={sliderTitle} />
-      </TaskPanelHeaderProvider>
-    );
-  }
+    return undefined;
+  }, [conversation]);
 
   // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
   // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
@@ -261,7 +190,7 @@ const ChatConversation: React.FC<{
     : isLoadingPreset
       ? {} // Still loading custom agents — avoid showing backend logo prematurely
       : {
-          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'codex' ? 'codex' : conversation?.type === 'openclaw-gateway' ? 'openclaw-gateway' : conversation?.type === 'nanobot' ? 'nanobot' : undefined,
+          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'openclaw-gateway' ? 'openclaw-gateway' : undefined,
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 

@@ -137,12 +137,19 @@ const MessageToolGroupSummary: React.FC<{ messages: Array<IMessageToolGroup | IM
     return messages.some((m) => (m.type === 'tool_group' && m.content.some((t) => t.status !== 'Success' && t.status !== 'Error' && t.status !== 'Canceled')) || (m.type === 'acp_tool_call' && m.content.update.status !== 'completed'));
   });
   const tools = useMemo(() => {
-    return messages
+    const items = messages
       .map((m) => {
         if (m.type === 'tool_group') return ToolGroupMapper(m);
         return ToolAcpMapper(m);
       })
-      .flat();
+      .flat()
+      .filter((item): item is ToolItem => !!item);
+    // Deduplicate by key (keep last = most recent update) to avoid duplicate React keys
+    const map = new Map<string, ToolItem>();
+    for (const item of items) {
+      map.set(item.key, item);
+    }
+    return Array.from(map.values());
   }, [messages]);
 
   return (

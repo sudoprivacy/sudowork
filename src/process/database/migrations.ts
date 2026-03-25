@@ -900,13 +900,138 @@ const migration_v15: IMigration = {
 };
 
 /**
+ * Migration v15 -> v16: Remove gemini/codex/nanobot conversation types
+ * Migrate existing conversations to 'acp' type.
+ */
+const migration_v16: IMigration = {
+  version: 16,
+  name: 'Remove gemini/codex/nanobot conversation types',
+  up: (db) => {
+    // 1. Convert existing gemini/codex/nanobot conversations to 'acp' type.
+    //    Update the extra JSON to include the original backend info.
+    const legacyRows = db.prepare(
+      `SELECT id, type, extra FROM conversations WHERE type IN ('gemini', 'codex', 'nanobot')`
+    ).all() as Array<{ id: string; type: string; extra: string }>;
+
+    const updateStmt = db.prepare(
+      `UPDATE conversations SET type = 'acp', extra = ? WHERE id = ?`
+    );
+
+    for (const row of legacyRows) {
+      let extra: Record<string, unknown>;
+      try {
+        extra = JSON.parse(row.extra);
+      } catch {
+        extra = {};
+      }
+      // Set backend to the original type so the ACP agent manager knows which CLI to use
+      if (!extra.backend) {
+        if (row.type === 'gemini') {
+          extra.backend = 'gemini';
+        } else if (row.type === 'codex') {
+          extra.backend = 'codex';
+        } else if (row.type === 'nanobot') {
+          extra.backend = 'claude'; // Nanobot has no meaningful backend; map to claude
+        }
+      }
+      updateStmt.run(JSON.stringify(extra), row.id);
+    }
+
+    if (legacyRows.length > 0) {
+      console.log(`[Migration v16] Converted ${legacyRows.length} legacy conversations to 'acp' type`);
+    }
+
+    // 2. Recreate conversations table with narrowed CHECK constraint
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('acp', 'openclaw-gateway')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT,
+        channel_chat_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO conversations_new (id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at FROM conversations;
+
+      DROP TABLE conversations;
+      ALTER TABLE conversations_new RENAME TO conversations;
+
+      -- Recreate indexes
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
+    `);
+
+    // 3. Update channel_sessions agent_type if table exists
+    const tables = db.prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='assistant_sessions'`
+    ).all() as Array<{ name: string }>;
+
+    if (tables.length > 0) {
+      db.exec(`
+        UPDATE assistant_sessions SET agent_type = 'acp' WHERE agent_type IN ('gemini', 'codex', 'nanobot');
+      `);
+    }
+
+    console.log('[Migration v16] Removed gemini/codex/nanobot conversation types');
+  },
+  down: (db) => {
+    // Rollback: widen the CHECK constraint back to 5 types
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway', 'nanobot')),
+        extra TEXT NOT NULL,
+        model TEXT,
+        status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+        source TEXT,
+        channel_chat_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO conversations_rollback (id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at)
+      SELECT id, user_id, name, type, extra, model, status, source, channel_chat_id, created_at, updated_at FROM conversations;
+
+      DROP TABLE conversations;
+      ALTER TABLE conversations_rollback RENAME TO conversations;
+
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+      CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
+    `);
+
+    console.log('[Migration v16] Rolled back: Restored gemini/codex/nanobot conversation types');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15,
+  migration_v13, migration_v14, migration_v15, migration_v16,
 ];
 
 /**

@@ -44,18 +44,12 @@ const resolveAgentIdentity = (conversation: TChatConversation): { backend: strin
     const agentName = String(conversation.extra?.agentName || backend);
     return { backend, agentName };
   }
-  if (conversation.type === 'codex') {
-    return { backend: 'codex', agentName: 'Codex' };
-  }
-  if (conversation.type === 'gemini') {
-    return { backend: 'gemini', agentName: 'Gemini' };
-  }
   if (conversation.type === 'openclaw-gateway') {
     const backend = String(conversation.extra?.backend || 'openclaw');
     const agentName = String(conversation.extra?.agentName || 'Sudoclaw');
     return { backend, agentName };
   }
-  return { backend: 'nanobot', agentName: 'NanoBot' };
+  return { backend: 'unknown', agentName: 'Unknown' };
 };
 
 const toEventText = (message: TMessage): { kind: 'status' | 'tool' | 'message'; text: string; at: number } | null => {

@@ -52,11 +52,11 @@ function resolvePresetId(conversation: TChatConversation): string | null {
     return resolved;
   }
 
-  // 3. 向后兼容：enabledSkills 存在说明是 Cowork 会话（Gemini 旧会话）
-  // Backward compatible: enabledSkills means Cowork conversation (Gemini old conversations)
+  // 3. 向后兼容：enabledSkills 存在说明是 Cowork 会话（旧会话）
+  // Backward compatible: enabledSkills means Cowork conversation (old conversations)
   // 只有在既没有 presetAssistantId 也没有 customAgentId 时才使用此逻辑
   // Only use this logic when both presetAssistantId and customAgentId are absent (including empty strings)
-  if (conversation.type === 'gemini' && !presetAssistantId && !customAgentId && enabledSkills.length > 0) {
+  if (!presetAssistantId && !customAgentId && enabledSkills.length > 0) {
     return 'cowork';
   }
 

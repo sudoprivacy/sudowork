@@ -8,7 +8,7 @@
  * Channel Module
  *
  * Provides remote interaction with Sudowork through messaging platforms.
- * MVP: Telegram integration with Gemini Agent.
+ * Supports Telegram, DingTalk, and other messaging platform integrations.
  */
 
 // Export types
