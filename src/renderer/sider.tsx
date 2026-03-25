@@ -31,7 +31,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { theme, setTheme } = useThemeContext();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
@@ -42,24 +41,17 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     avatar: null as string | null,
   };
 
-  // 处理功能菜单点击
+  // 功能菜单项定义 / Function menu items definition
+  const functionMenus = [
+    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
+    { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
+    { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
+    { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
+  ];
+
+  // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
-    // 如果当前不在 /guid 路由，先导航到 /guid，然后延迟发送事件
-    if (!pathname.startsWith('/guid')) {
-      Promise.resolve(navigate('/guid'))
-        .then(() => {
-          // 导航完成后延迟发送事件，确保路由变化先处理
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
-          }, 50);
-        })
-        .catch((error) => {
-          console.error('Navigation failed:', error);
-        });
-    } else {
-      // 发送事件通知 GuidPage 显示对应内容
-      window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId } }));
-    }
+    navigate(`/guid?menu=${menuId}`);
   };
 
   useEffect(() => {
@@ -97,8 +89,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
     onSessionClick: () => {
-      // 只发送关闭面板事件，不改变路由（由 WorkspaceGroupedHistory 自己处理）
-      window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
       if (onSessionClick) {
         onSessionClick();
       }
@@ -110,14 +100,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const isDesktop = isElectronDesktop();
-
-  // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [
-    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
-    { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
-    { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
-    { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
-  ];
 
   return (
     <div className='size-full flex flex-col'>
@@ -138,15 +120,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    Promise.resolve(navigate('/guid'))
-                      .then(() => {
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
-                        }, 50);
-                      })
-                      .catch((error) => {
-                        console.error('Navigation failed:', error);
-                      });
+                    navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
                     }
@@ -163,15 +137,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    Promise.resolve(navigate('/guid'))
-                      .then(() => {
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('function-menu-click', { detail: { menuId: null } }));
-                        }, 50);
-                      })
-                      .catch((error) => {
-                        console.error('Navigation failed:', error);
-                      });
+                    navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
                     }

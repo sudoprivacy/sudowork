@@ -11,7 +11,7 @@ const MODEL_API_URL = 'http://10.0.1.31:3000/api/specific_pricing';
 export function initOpenClawBridge(): void {
   ipcBridge.openclaw.getModels.provider(async () => {
     try {
-      const response = await fetch(MODEL_API_URL);
+      const response = await fetch(MODEL_API_URL, { signal: AbortSignal.timeout(5000) });
       const json: IOpenClawModelsResponse = await response.json();
       if (!json.success) {
         throw new Error('API returned success=false');

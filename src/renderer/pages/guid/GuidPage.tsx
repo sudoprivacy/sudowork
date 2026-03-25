@@ -28,7 +28,7 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { ConfigProvider } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
@@ -41,35 +41,14 @@ const GuidPage: React.FC = () => {
   const { closeAllTabs, openTab } = useConversationTabs();
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
-  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
+  // 从 URL query param 读取当前功能菜单
+  const searchParams = new URLSearchParams(location.search);
+  const selectedMenu = searchParams.get('menu');
 
-  // 监听功能菜单点击事件
-  useEffect(() => {
-    const handleMenuClick = (event: CustomEvent) => {
-      const menuId = event.detail.menuId;
-      // 如果 menuId 为 null，则关闭面板；否则切换到对应菜单
-      if (menuId === null) {
-        setSelectedMenu(null);
-      } else {
-        setSelectedMenu(menuId);
-      }
-    };
-
-    window.addEventListener('function-menu-click', handleMenuClick as EventListener);
-    return () => {
-      window.removeEventListener('function-menu-click', handleMenuClick as EventListener);
-    };
-  }, []);
-
-  // 路由变化时关闭面板（确保从历史会话返回时面板是关闭的）
-  useEffect(() => {
-    setSelectedMenu(null);
-  }, [location.pathname]);
-
-  // 点击新会话或历史会话时关闭菜单面板
+  // 关闭功能菜单面板，回到普通 GuidPage
   const handleBackToChat = useCallback(() => {
-    setSelectedMenu(null);
-  }, []);
+    navigate('/guid', { replace: true });
+  }, [navigate]);
 
   // Open external link
   const openLink = useCallback(async (url: string) => {

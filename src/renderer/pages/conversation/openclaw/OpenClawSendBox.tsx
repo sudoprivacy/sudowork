@@ -225,12 +225,24 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       .then((res) => {
         if (res?.success && res.data?.runtime?.hasActiveSession) {
           setOpenClawStatus('session_active');
+          // Inject the status message into the message list so it renders visually.
+          // The original agent_status IPC event may have been emitted before the
+          // responseStream listener was set up (race condition).
+          const statusMessage = transformMessage({
+            type: 'agent_status',
+            data: { backend: 'openclaw-gateway', status: 'session_active' },
+            conversation_id,
+            msg_id: `recovery_status_${conversation_id}`,
+          });
+          if (statusMessage) {
+            addOrUpdateMessage(statusMessage);
+          }
         }
       })
       .catch(() => {
         // Agent not ready or conversation not found – ignore
       });
-  }, [conversation_id]);
+  }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
     const handler = (text: string) => {
