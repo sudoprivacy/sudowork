@@ -89,6 +89,8 @@ async function installRuntimes(): Promise<void> {
   if (process.platform === 'win32') {
     mainLog('Runtime', 'Skipping runtime installation on Windows (installed by NSIS)');
     initStatusManager.setStatus('ready', '初始化完成', 100);
+    // Start Sudoclaw gateway in background (non-blocking)
+    void startSudoclawGatewayInBackground();
     return;
   }
 
@@ -111,7 +113,12 @@ async function installRuntimes(): Promise<void> {
     } catch {
       // ignore
     }
+
+    // Set ready first so user can enter main UI
     initStatusManager.setStatus('ready', '初始化完成', 100);
+
+    // Start Sudoclaw gateway in background (non-blocking)
+    void startSudoclawGatewayInBackground();
     return;
   }
 
@@ -157,8 +164,12 @@ async function installRuntimes(): Promise<void> {
     // Nexus install failure is not critical, continue
   }
 
+  // Set ready first so user can enter main UI
   initStatusManager.setStatus('ready', '初始化完成', 100);
   mainLog('Runtime', 'Runtime installation complete');
+
+  // Start Sudoclaw gateway in background (non-blocking)
+  void startSudoclawGatewayInBackground();
 }
 
 /** Check if Node.js runtime is already installed */
@@ -178,5 +189,25 @@ async function checkSudoclawInstalled(): Promise<boolean> {
     return getSudoclawCliPath() !== null;
   } catch {
     return false;
+  }
+}
+
+/** Start Sudoclaw gateway in background (non-blocking, won't delay UI ready) */
+async function startSudoclawGatewayInBackground(): Promise<void> {
+  try {
+    mainLog('Runtime', 'Starting Sudoclaw gateway in background...');
+    const { OpenClawGatewayManager } = await import('@/agent/openclaw');
+    const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT } = await import('./services/sudoclaw/SudoclawInstallService');
+    const gatewayManager = new OpenClawGatewayManager({
+      port: SUDOCLAW_DEFAULT_PORT,
+      stateDir: SUDOCLAW_DIR,
+      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
+      forceSubprocessGateway: true, // Use subprocess mode for stability
+    });
+    await gatewayManager.start();
+    mainLog('Runtime', 'Sudoclaw gateway started successfully');
+  } catch (err) {
+    mainError('Runtime', 'Sudoclaw gateway start failed', err);
+    // Gateway start failure is not critical - user can restart manually from settings
   }
 }

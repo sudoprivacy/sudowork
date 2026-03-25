@@ -187,7 +187,9 @@ class DynamicNexusService {
         if (fs.existsSync(condaUnpack)) {
           if (!this.isWindows) fs.chmodSync(condaUnpack, 0o755);
           this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
-          await execAsync(`"${condaUnpack}"`);
+          // Use python from conda env to run conda-unpack (shebang may point to wrong path)
+          const pythonBin = this.getPythonPath(envDir);
+          await execAsync(`"${pythonBin}" "${condaUnpack}"`);
         }
 
         // Ensure nexusd is executable
