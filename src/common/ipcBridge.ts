@@ -1056,3 +1056,20 @@ export const sudoworkServer = {
   getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
   updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
 };
+
+// ==================== Safety Hook API ====================
+
+import type { SafetyStatus } from '@/common/safetyTypes';
+
+export const safety = {
+  /** Get current safety status */
+  getStatus: bridge.buildProvider<IBridgeResponse<SafetyStatus>, void>('safety.get-status'),
+  /** Get service enabled status */
+  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('safety.get-enabled'),
+  /** User confirmation action (allow/deny) */
+  confirm: bridge.buildProvider<IBridgeResponse, { allow: boolean; reason?: string }>('safety.confirm'),
+  /** Enable/disable safety hook service */
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
+  /** Safety status change event (Main -> Renderer) */
+  onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
+};

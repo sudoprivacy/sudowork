@@ -36,6 +36,7 @@ import { initSkillHubBridge } from './skillHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
+import { initSafetyBridge } from './safetyBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -74,6 +75,7 @@ export function initAllBridges(): void {
   initSkillHubBridge();
   initSudoclawBridge();
   initSudoworkServerBridge();
+  initSafetyBridge();
 }
 
 /**

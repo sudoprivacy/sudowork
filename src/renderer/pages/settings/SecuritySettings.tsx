@@ -1,7 +1,8 @@
-import { Shield, CheckOne, Lock, Scan } from '@icon-park/react';
-import { Card, Switch, Tag } from '@arco-design/web-react';
-import React, { useState } from 'react';
+import { Shield, CheckOne, Lock, Scan, AllApplication } from '@icon-park/react';
+import { Card, Tag, Switch } from '@arco-design/web-react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
 
 const SecuritySettings: React.FC = () => {
   const { t } = useTranslation();
@@ -10,6 +11,42 @@ const SecuritySettings: React.FC = () => {
   const [envProtection, setEnvProtection] = useState(true);
   const [infoProtection, setInfoProtection] = useState(true);
   const [skillScan, setSkillScan] = useState(true);
+  const [hookEnabled, setHookEnabled] = useState(true);
+  const [isHookLoading, setIsHookLoading] = useState(true);
+
+  // 初始化时获取安全 Hook 实际状态
+  useEffect(() => {
+    const loadHookStatus = async () => {
+      try {
+        const result = await ipcBridge.safety.getEnabled.invoke();
+        if (result.success && result.data) {
+          setHookEnabled(result.data.enabled);
+        }
+      } catch (err) {
+        console.error('[SecuritySettings] Failed to load safety hook status:', err);
+      } finally {
+        setIsHookLoading(false);
+      }
+    };
+    void loadHookStatus();
+  }, []);
+
+  // 处理安全 Hook 开关切换
+  const handleToggleHook = async (checked: boolean) => {
+    setHookEnabled(checked);
+    try {
+      const result = await ipcBridge.safety.setEnabled.invoke({ enabled: checked });
+      if (!result.success) {
+        console.error('[SecuritySettings] Failed to set safety hook enabled:', result.msg);
+        //  revert state if failed
+        setHookEnabled(!checked);
+      }
+    } catch (err) {
+      console.error('[SecuritySettings] Failed to toggle safety hook:', err);
+      // Revert state if failed
+      setHookEnabled(!checked);
+    }
+  };
 
   return (
     <div className='p-24px flex flex-col gap-24px'>
@@ -92,6 +129,32 @@ const SecuritySettings: React.FC = () => {
                 {skillScan ? '保护中' : '已关闭'}
               </Tag>
               <Switch checked={skillScan} onChange={setSkillScan} />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* 安全 Hook 防护 */}
+      <Card className='rd-12px hover:shadow-md transition-shadow'>
+        <div className='flex items-start gap-16px'>
+          <div className='w-56px h-56px rounded-12px bg-[#722ed115] flex items-center justify-center flex-shrink-0'>
+            <AllApplication theme='outline' size='32' fill='#722ed1' />
+          </div>
+          <div className='flex-1'>
+            <div className='flex items-center gap-8px mb-8px'>
+              <h3 className='text-18px font-600 text-t-primary'>安全 Hook 防护</h3>
+              <Tag color='purple' size='small' className='rd-4px'>
+                <CheckOne theme='filled' size='12' className='mr-4px' />
+                实时拦截
+              </Tag>
+            </div>
+            <p className='text-14px text-t-secondary mb-16px leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，发现可疑操作时弹出确认框，经您授权后才允许执行，防止未授权的系统访问。</p>
+            <div className='flex items-center justify-end gap-12px'>
+              <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-12px'>
+                <span className='w-6px h-6px rd-50% bg-[#52c41a] inline-block mr-6px' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
+                {hookEnabled ? '保护中' : '已关闭'}
+              </Tag>
+              <Switch checked={hookEnabled} onChange={handleToggleHook} />
             </div>
           </div>
         </div>
