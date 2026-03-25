@@ -10,10 +10,10 @@ import type { IConfirmation } from '../../common/chatLib';
 type AgentType = 'acp' | 'openclaw-gateway';
 
 /**
- * @description agent任务基础类
- * No longer extends ForkTask — ACP and OpenClaw both run in-process.
- * */
-class BaseAgentManager<Data, ConfirmationOption extends any = any> {
+ * Base class for agent runtime instances (ACP and OpenClaw).
+ * Each conversation has one agent that owns its transport connection.
+ */
+class BaseAgent<Data, ConfirmationOption extends any = any> {
   type: AgentType;
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];
@@ -110,4 +110,4 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any> {
   }
 }
 
-export default BaseAgentManager;
+export default BaseAgent;

@@ -6,7 +6,7 @@
 
 import WorkerManage from '@/process/WorkerManage';
 import { getDatabase } from '@/process/database';
-import type BaseAgentManager from '@/process/task/BaseAgentManager';
+import type BaseAgent from '@/process/task/BaseAgent';
 import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
 import { uuid } from '../../common/utils';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
@@ -162,7 +162,7 @@ export class ChannelMessageService {
 
     // 获取任务
     // Get task
-    let task: BaseAgentManager<unknown>;
+    let task: BaseAgent<unknown>;
     try {
       // 检查会话来源，如果来自 Channel 则开启 yoloMode (自动同意)
       // Check conversation source, enable yoloMode if it's from a Channel

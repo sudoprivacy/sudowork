@@ -11,8 +11,8 @@ import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
-import type AcpAgentManager from '../task/AcpAgentManager';
-import type OpenClawAgentManager from '../task/OpenClawAgentManager';
+import type AcpAgent from '../task/AcpAgent';
+import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage } from '../task/agentUtils';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
@@ -28,7 +28,7 @@ export function initConversationBridge(): void {
         return { success: false, msg: 'Sudoclaw conversation not found' };
       }
       const conversation = convResult.data;
-      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgentManager | undefined;
+      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgent | undefined;
       if (!task || task.type !== 'openclaw-gateway') {
         return { success: false, msg: 'Sudoclaw runtime not available' };
       }
@@ -75,7 +75,7 @@ export function initConversationBridge(): void {
       for (const conv of openclawConvs) {
         const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { gateway?: { host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
 
-        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgentManager | undefined;
+        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgent | undefined;
         if (task && task.type === 'openclaw-gateway') {
           await task.bootstrap.catch(() => {});
           const diagnostics = task.getDiagnostics();
@@ -548,7 +548,7 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
-      const task = WorkerManage.getTaskById(conversation_id) as AcpAgentManager | undefined;
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
         return { success: true, data: { commands: [] } };
       }
@@ -564,9 +564,9 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     console.log(`[conversationBridge] sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
-    let task: AcpAgentManager | OpenClawAgentManager | undefined;
+    let task: AcpAgent | OpenClawAgent | undefined;
     try {
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgentManager | OpenClawAgentManager | undefined;
+      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
     } catch (err) {
       console.log(`[conversationBridge] sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
@@ -580,7 +580,7 @@ export function initConversationBridge(): void {
 
     // 复制文件到工作空间（所有 agents 统一处理）
     let filesToProcess = files ?? [];
-    const openclawTask = task as OpenClawAgentManager;
+    const openclawTask = task as OpenClawAgent;
     if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
       filesToProcess = [openclawTask.workspace];
       console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
@@ -603,8 +603,8 @@ export function initConversationBridge(): void {
           const skillsDir = getSkillsDir();
           agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
         }
-        if (workspaceFiles.length > 0 && (task as OpenClawAgentManager).workspace) {
-          const hint = `[Context: 用户工作区为 ${(task as OpenClawAgentManager).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
+        if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
+          const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
           agentContent = hint + agentContent;
         }
         payload.agentContent = agentContent;

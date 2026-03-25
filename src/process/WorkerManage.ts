@@ -5,10 +5,10 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
-import AcpAgentManager from './task/AcpAgentManager';
-import OpenClawAgentManager from './task/OpenClawAgentManager';
+import AcpAgent from './task/AcpAgent';
+import OpenClawAgent from './task/OpenClawAgent';
 import { ProcessChat } from './initStorage';
-import type AgentBaseTask from './task/BaseAgentManager';
+import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
 
 const taskList: {
@@ -42,7 +42,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
 
   switch (conversation.type) {
     case 'acp': {
-      const task = new AcpAgentManager({
+      const task = new AcpAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
         // Runtime options / 运行时选项
@@ -58,7 +58,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
       const modelFromConfig = (conversation.extra as any).model;
 
-      const task = new OpenClawAgentManager({
+      const task = new OpenClawAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
         // Extract model from runtimeValidation or extra.model
@@ -145,7 +145,7 @@ const listTasks = () => {
 const reloadOpenClawSkills = (): void => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
   for (const { task } of openclawTasks) {
-    const mgr = task as OpenClawAgentManager;
+    const mgr = task as OpenClawAgent;
     if (typeof mgr.reloadGatewaySkills === 'function') {
       mgr.reloadGatewaySkills();
       return; // Only one gateway; first task that owns it will send signal
@@ -158,7 +158,7 @@ const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
 
   for (const { id, task } of openclawTasks) {
-    const mgr = task as OpenClawAgentManager;
+    const mgr = task as OpenClawAgent;
     if (typeof mgr.restartGateway === 'function') {
       // Restart asynchronously without blocking
       mgr
