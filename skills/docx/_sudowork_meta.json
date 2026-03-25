@@ -1,0 +1,19 @@
+{
+  "id": "b0d28d2e-a5cd-4a9d-a4a4-78d822f3ef65",
+  "name": "docx",
+  "display_name": "Word文档",
+  "description": "全面的Word文档创建、编辑和分析，支持修订跟踪、批注、格式保留和文本提取",
+  "icon": "icon.svg",
+  "emoji": "📝",
+  "category": "",
+  "categories": [
+    "文档处理"
+  ],
+  "applicable_scenarios": "[\"文档创建：生成格式规范的Word文档\",\"修订跟踪：在文档中添加跟踪修订和批注\",\"格式保留：编辑文档时保持原有格式不变\"]",
+  "core_features": "[{\"title\": \"修订追踪\", \"desc\": \"支持添加和管理跟踪修订\"}, {\"title\": \"批注功能\", \"desc\": \"在文档中添加协作批注\"}, {\"title\": \"格式保持\", \"desc\": \"编辑时保留原有文档样式\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}

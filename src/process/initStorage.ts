@@ -398,8 +398,9 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       if (!existsSync(userSkillsDir)) {
         mkdirSync(userSkillsDir);
       }
-      // 复制内置技能到用户目录（不覆盖已存在的文件）
-      await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: false });
+      // 复制内置技能到用户目录（覆盖同名文件）
+      // Copy builtin skills to user directory (overwrite existing files)
+      await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: true });
     } catch (error) {
       console.warn(`[Sudowork] Failed to copy skills directory:`, error);
     }

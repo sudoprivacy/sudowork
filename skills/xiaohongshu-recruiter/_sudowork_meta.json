@@ -1,0 +1,19 @@
+{
+  "id": "64be69b0-59ce-48d3-a3de-7ac187e2511b",
+  "name": "xiaohongshu-recruiter",
+  "display_name": "小红书招聘助手",
+  "description": "在小红书发布高质量AI岗位招聘帖子。自动生成极客风格封面图和详情图",
+  "icon": "icon.svg",
+  "emoji": "📕",
+  "category": "",
+  "categories": [
+    "招聘"
+  ],
+  "applicable_scenarios": "[\"岗位发布：在小红书发布AI领域人才招聘信息\",\"视觉设计：生成极客风格的招聘封面\",\"一键发布：半自动填充并发布到小红书\"]",
+  "core_features": "[{\"title\": \"极客设计\", \"desc\": \"Systemic Flux设计理念\"}, {\"title\": \"文案优化\", \"desc\": \"符合小红书调性的标题和正文\"}, {\"title\": \"自动发布\", \"desc\": \"扫码登录后自动填充发布\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}

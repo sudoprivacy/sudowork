@@ -16,11 +16,14 @@ import { getSkillsDir } from '@/process/initStorage';
 import WorkerManage from '@process/WorkerManage';
 import { gatewayRegistry } from '@/agent/openclaw/OpenClawGatewayManager';
 import { SUDOCLAW_DEFAULT_PORT } from '@process/services/sudoclaw/SudoclawInstallService';
+import { toAssetUrl } from '@/extensions/assetProtocol';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
 const AUTHORIZATION = 'sud0@sudo';
 const VERSION_FILE_NAME = 'sudowork-version';
+/** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
+const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
 /**
  * Get user skills directory path (same as AcpSkillManager)
@@ -111,7 +114,7 @@ export function initSkillHubBridge(): void {
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
       if (query) params.set('query', query);
-      if (category) params.set('category', category);
+      if (category) params.set('categories', category);
       const response = await fetch(`${SKILL_HUB_CURSOR_URL}?${params}`, {
         headers: { Authorization: AUTHORIZATION },
       });
@@ -158,7 +161,7 @@ export function initSkillHubBridge(): void {
   });
 
   // Download and install skill
-  ipcBridge.skillHub.downloadAndInstallSkill.provider(async ({ skillName, displayName, sourceUrl, version, checksum }) => {
+  ipcBridge.skillHub.downloadAndInstallSkill.provider(async ({ skillName, displayName, sourceUrl, version, checksum, skillMeta }) => {
     try {
       console.log('[SkillHub] Downloading skill:', skillName, 'version:', version);
 
@@ -232,6 +235,27 @@ export function initSkillHubBridge(): void {
       const versionFilePath = path.join(skillDir, VERSION_FILE_NAME);
       await fs.writeFile(versionFilePath, version, 'utf-8');
 
+      // Write hub metadata file so installed skills can be displayed with full info
+      const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
+      const meta = {
+        id: skillMeta?.id ?? '',
+        name: skillName,
+        display_name: skillMeta?.display_name ?? displayName,
+        description: skillMeta?.description ?? '',
+        icon: skillMeta?.icon ?? '',
+        emoji: skillMeta?.emoji ?? null,
+        category: skillMeta?.category ?? '',
+        categories: skillMeta?.categories ?? [],
+        applicable_scenarios: skillMeta?.applicable_scenarios ?? null,
+        core_features: skillMeta?.core_features ?? null,
+        homepage: skillMeta?.homepage ?? null,
+        author_id: skillMeta?.author_id ?? '',
+        is_builtin: false,
+        installed_version: version,
+        installed_at: new Date().toISOString(),
+      };
+      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+
       console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
       // Hot-reload Sudoclaw gateway using SIGUSR1 signal (no full restart needed).
@@ -277,12 +301,11 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.getInstalledSkills.provider(async () => {
     try {
       const userSkillsDir = getUserSkillsDir();
-      const skills: Array<{ name: string; version: string }> = [];
+      const skills: import('@/common/ipcBridge').IInstalledSkillInfo[] = [];
 
       try {
         await fs.access(userSkillsDir);
       } catch {
-        // Directory doesn't exist
         return { success: true, data: [] };
       }
 
@@ -290,35 +313,81 @@ export function initSkillHubBridge(): void {
 
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
-        if (entry.name === '_builtin') continue;
 
         const skillDir = path.join(userSkillsDir, entry.name);
-        const versionFilePath = path.join(skillDir, VERSION_FILE_NAME);
 
+        // Read version
         let version = 'unknown';
         try {
-          version = await fs.readFile(versionFilePath, 'utf-8');
-          version = version.trim();
+          version = (await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8')).trim();
         } catch {
-          // Version file doesn't exist, try to read from SKILL.md
+          // fallback: try SKILL.md frontmatter
           try {
-            const skillMdPath = path.join(skillDir, 'SKILL.md');
-            const content = await fs.readFile(skillMdPath, 'utf-8');
-            const versionMatch = content.match(/^version:\s*(.+)$/m);
-            if (versionMatch) {
-              version = versionMatch[1].trim();
-            }
-          } catch {
-            // SKILL.md doesn't exist either
-          }
+            const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+            const m = content.match(/^version:\s*(.+)$/m);
+            if (m) version = m[1].trim();
+          } catch { /* ignore */ }
         }
 
-        skills.push({ name: entry.name, version });
+        // Try to read hub metadata file
+        let meta: import('@/common/ipcBridge').ISkillHubMeta | undefined;
+        let isHubInstalled = false;
+        let isBuiltin = false;
+        try {
+          const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+          meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+          isHubInstalled = true;
+          // Use meta.is_builtin to determine if built-in (default false for hub-installed)
+          isBuiltin = meta.is_builtin === true;
+          // Use stored version as source of truth
+          if (meta.installed_version) version = meta.installed_version;
+          // Resolve local icon path if icon is a relative path (e.g., "icon.svg")
+          if (meta.icon && !meta.icon.startsWith('http') && !meta.icon.startsWith('/')) {
+            const iconAbsPath = path.join(skillDir, meta.icon);
+            meta.icon = toAssetUrl(iconAbsPath);
+          }
+        } catch {
+          // No meta file → locally created skill (not builtin, not hub-installed)
+        }
+
+        skills.push({ name: entry.name, version, isBuiltin, isHubInstalled, meta });
       }
 
       return { success: true, data: skills };
     } catch (error) {
       console.error('[SkillHub] Failed to get installed skills:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Uninstall a hub-installed skill (built-in skills are rejected)
+  ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      const skillDir = path.join(userSkillsDir, skillName);
+
+      // Safety check: must be within user skills dir
+      const resolvedSkillDir = path.resolve(skillDir);
+      const resolvedSkillsDir = path.resolve(userSkillsDir);
+      if (!resolvedSkillDir.startsWith(resolvedSkillsDir + path.sep)) {
+        return { success: false, msg: 'Invalid skill path' };
+      }
+
+      // Check if skill is built-in via meta file
+      try {
+        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+        const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+        if (meta.is_builtin === true) {
+          return { success: false, msg: '该技能为内置技能，无法卸载' };
+        }
+      } catch {
+        // No meta file → locally created skill, allow uninstall
+      }
+
+      await fs.rm(skillDir, { recursive: true, force: true });
+      return { success: true };
+    } catch (error) {
+      console.error('[SkillHub] Failed to uninstall skill:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

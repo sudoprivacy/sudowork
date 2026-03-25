@@ -1,0 +1,19 @@
+{
+  "id": "f6b3c7cb-a8e4-450e-b795-a930db5592ab",
+  "name": "x-recruiter",
+  "display_name": "X招聘助手",
+  "description": "在X(x.com)发布招聘帖子。包含文案规范、图片生成和自动化发布脚本",
+  "icon": "icon.svg",
+  "emoji": "🐦",
+  "category": "",
+  "categories": [
+    "招聘"
+  ],
+  "applicable_scenarios": "[\"岗位发布：快速在X发布AI或设计类岗位招聘\",\"视觉生成：自动生成招聘封面和详情图\",\"自动化发布：半自动填充内容并发布\"]",
+  "core_features": "[{\"title\": \"文案生成\", \"desc\": \"符合X调性的招聘文案\"}, {\"title\": \"图片生成\", \"desc\": \"自动生成封面和详情图\"}, {\"title\": \"一键发布\", \"desc\": \"自动化发布工作流\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}

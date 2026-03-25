@@ -1,0 +1,19 @@
+{
+  "id": "ca467326-6be5-48c9-b2fe-c0de574bfee1",
+  "name": "pdf",
+  "display_name": "PDF工具箱",
+  "description": "全面的PDF处理工具包，支持文本和表格提取、创建新PDF、合并/拆分文档、表单填写等",
+  "icon": "icon.svg",
+  "emoji": "📄",
+  "category": "",
+  "categories": [
+    "文档处理"
+  ],
+  "applicable_scenarios": "[\"PDF提取：从PDF中提取文本、表格或图片内容\",\"文档合并拆分：将多个PDF合并或将单个PDF拆分为多页\",\"表单填写：自动填写PDF表单字段\"]",
+  "core_features": "[{\"title\": \"多格式支持\", \"desc\": \"支持文本提取、表格识别、图片导出\"}, {\"title\": \"批量操作\", \"desc\": \"合并、拆分、旋转等批量处理能力\"}, {\"title\": \"表单处理\", \"desc\": \"智能识别并填写PDF表单\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}

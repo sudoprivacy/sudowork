@@ -951,6 +951,41 @@ export interface ISkillHubListResponse {
   has_more: boolean;
 }
 
+/**
+ * Metadata saved to `_sudowork_meta.json` inside an installed skill directory.
+ * Prefixed with `_sudowork_` to avoid conflicts with skill content files.
+ */
+export interface ISkillHubMeta {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  icon: string;
+  emoji: string | null;
+  category: string;
+  categories: string[];
+  applicable_scenarios: string | null;
+  core_features: string | null;
+  homepage: string | null;
+  author_id: string;
+  is_builtin?: boolean;
+  installed_version: string;
+  installed_at: string;
+}
+
+/** Info returned for each locally installed skill */
+export interface IInstalledSkillInfo {
+  /** Directory name (skill identifier) */
+  name: string;
+  version: string;
+  /** Whether this skill was installed from the Skill Hub (has _sudowork_meta.json) */
+  isHubInstalled: boolean;
+  /** Whether this is a built-in skill that cannot be uninstalled */
+  isBuiltin: boolean;
+  /** Rich metadata from _sudowork_meta.json (hub-installed only) */
+  meta?: ISkillHubMeta;
+}
+
 export const skillHub = {
   /** Fetch skills list from Skill Hub API with cursor-based pagination */
   fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string }>('skill-hub.fetch-skills'),
@@ -958,10 +993,15 @@ export const skillHub = {
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */
   fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
-  /** Download and install skill from URL */
-  downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string }>('skill-hub.download-and-install-skill'),
-  /** Get installed skills with versions */
-  getInstalledSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; version: string }>>, void>('skill-hub.get-installed-skills'),
+  /** Download and install skill from URL, saving full metadata */
+  downloadAndInstallSkill: bridge.buildProvider<
+    IBridgeResponse<ISkillInstallResult>,
+    { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }
+  >('skill-hub.download-and-install-skill'),
+  /** Get installed skills with rich metadata */
+  getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
+  /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
+  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
 };
 
 // ==================== Channel API ====================

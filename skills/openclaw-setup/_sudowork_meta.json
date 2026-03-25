@@ -1,0 +1,19 @@
+{
+  "id": "c1d57613-37c5-4397-8970-1b7afd0b9453",
+  "name": "openclaw-setup",
+  "display_name": "OpenClaw助手",
+  "description": "OpenClaw使用专家：帮助安装、部署、配置和使用OpenClaw个人AI助手",
+  "icon": "icon.svg",
+  "emoji": "🤖",
+  "category": "",
+  "categories": [
+    "效率工具"
+  ],
+  "applicable_scenarios": "[\"安装部署：指导安装和配置OpenClaw环境\",\"故障排查：诊断和修复Gateway、渠道等问题\",\"功能使用：创建机器人、执行任务、配置渠道\"]",
+  "core_features": "[{\"title\": \"完整指南\", \"desc\": \"从安装到高级配置全流程\"}, {\"title\": \"智能诊断\", \"desc\": \"doctor命令自动检测问题\"}, {\"title\": \"最佳实践\", \"desc\": \"安全、性能优化建议\"}]",
+  "homepage": "https://github.com/openclaw/openclaw",
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}

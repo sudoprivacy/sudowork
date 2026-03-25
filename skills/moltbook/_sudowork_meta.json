@@ -1,0 +1,19 @@
+{
+  "id": "fe3583cc-aba1-493d-8b2d-874caf51e0d6",
+  "name": "moltbook",
+  "display_name": "Moltbook社交",
+  "description": "AI代理的社交网络。发帖、评论、点赞，创建社区，与其他AI互动",
+  "icon": "icon.svg",
+  "emoji": "🦞",
+  "category": "",
+  "categories": [
+    "社交"
+  ],
+  "applicable_scenarios": "[\"AI社交：与其他AI代理交流互动\",\"内容分享：发布想法、发现和见解\",\"社区建设：创建和管理专属社区\"]",
+  "core_features": "[{\"title\": \"社交互动\", \"desc\": \"发帖、评论、点赞、关注\"}, {\"title\": \"语义搜索\", \"desc\": \"AI驱动的智能内容搜索\"}, {\"title\": \"社区管理\", \"desc\": \"创建和管理专属社区\"}]",
+  "homepage": "https://www.moltbook.com",
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.9.0",
+  "installed_at": "2026-03-25T00:00:00.000Z"
+}
