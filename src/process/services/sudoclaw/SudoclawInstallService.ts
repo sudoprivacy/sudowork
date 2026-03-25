@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -81,11 +82,11 @@ function checkPlatformDependencies(pkgRoot: string): boolean {
   const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
 
   if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
-    console.log('[Sudoclaw] Platform dependencies OK');
+    mainLog('Sudoclaw', 'Platform dependencies OK');
     return true;
   }
 
-  console.warn('[Sudoclaw] Platform dependencies missing:', { daveyPath, chalk });
+  mainWarn('Sudoclaw', `Platform dependencies missing: ${daveyPath}, ${chalk}`);
   return false;
 }
 
@@ -132,7 +133,7 @@ export function repairOpenClawConfig(): void {
         // Workspace points outside ~/.nexus/.sudoclaw - force reset to isolated directory
         agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
         changed = true;
-        console.log('[Sudoclaw] Fixed workspace path to isolated directory:', SUDOCLAW_WORKSPACE_DIR);
+        mainLog('Sudoclaw', `Fixed workspace path to isolated directory: ${SUDOCLAW_WORKSPACE_DIR}`);
       }
     }
 
@@ -154,7 +155,7 @@ export function repairOpenClawConfig(): void {
     if (!config.gateway || typeof config.gateway !== 'object') {
       (config as Record<string, unknown>).gateway = { port: SUDOCLAW_DEFAULT_PORT, mode: 'local', auth: { mode: 'none' } };
       changed = true;
-      console.log('[Sudoclaw] Added missing gateway config');
+      mainLog('Sudoclaw', 'Added missing gateway config');
     } else {
       const gw = config.gateway as { mode?: string; port?: number; auth?: { mode?: string } };
       if (!gw.mode) {
@@ -173,7 +174,7 @@ export function repairOpenClawConfig(): void {
       if (!gw.auth || typeof gw.auth !== 'object' || gw.auth.mode !== 'none') {
         gw.auth = { mode: 'none' };
         changed = true;
-        console.log('[Sudoclaw] Fixed gateway auth to mode: none');
+        mainLog('Sudoclaw', 'Fixed gateway auth to mode: none');
       }
     }
 
@@ -191,7 +192,7 @@ export function repairOpenClawConfig(): void {
     }
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-      console.log('[Sudoclaw] Repaired openclaw.json schema');
+      mainLog('Sudoclaw', 'Repaired openclaw.json schema');
     }
   } catch {
     // ignore parse errors
@@ -245,7 +246,7 @@ function migrateLegacySudoclaw(): void {
     // New already exists, remove legacy to avoid confusion
     try {
       fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
-      console.log('[Sudoclaw] Removed legacy ~/.sudoclaw (already migrated)');
+      mainLog('Sudoclaw', 'Removed legacy ~/.sudoclaw (already migrated)');
     } catch {
       // ignore
     }
@@ -254,15 +255,15 @@ function migrateLegacySudoclaw(): void {
   try {
     fs.mkdirSync(path.dirname(SUDOCLAW_DIR), { recursive: true });
     fs.renameSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR);
-    console.log('[Sudoclaw] Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw');
+    mainLog('Sudoclaw', 'Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw');
   } catch (err) {
-    console.error('[Sudoclaw] Migration failed, falling back to copy:', err);
+    mainError('Sudoclaw', 'Migration failed, falling back to copy', err);
     try {
       fs.cpSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR, { recursive: true });
       fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
-      console.log('[Sudoclaw] Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw (copy)');
+      mainLog('Sudoclaw', 'Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw (copy)');
     } catch (copyErr) {
-      console.error('[Sudoclaw] Migration failed:', copyErr);
+      mainError('Sudoclaw', 'Migration failed', copyErr);
     }
   }
 }
@@ -299,11 +300,11 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   // Check if already fully installed with all required files (tgz includes launcher and bin)
   if (pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
     if (checkPlatformDependencies(pkgRoot)) {
-      console.log('[Sudoclaw] Already installed');
+      mainLog('Sudoclaw', 'Already installed');
       const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
       return { installed: true, cliPath: path.join(pkgRoot, 'bin', binName) };
     }
-    console.log('[Sudoclaw] Platform dependencies missing, will re-extract...');
+    mainLog('Sudoclaw', 'Platform dependencies missing, will re-extract...');
   }
 
   try {
@@ -311,7 +312,7 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
 
     // Re-extract if existing install is incomplete
     if (pkgRoot) {
-      console.log('[Sudoclaw] Re-extracting (incomplete install)...');
+      mainLog('Sudoclaw', 'Re-extracting (incomplete install)...');
       fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
@@ -319,38 +320,38 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     // Use bundled resource only (no OSS fallback)
     const bundledPath = getBundledOpenclawPath();
     if (!bundledPath) {
-      console.error('[Sudoclaw] Bundled OpenClaw resource not found');
+      mainError('Sudoclaw', 'Bundled OpenClaw resource not found');
       return { installed: false, cliPath: null };
     }
 
-    console.log(`[Sudoclaw] Using bundled OpenClaw from ${bundledPath}...`);
+    mainLog('Sudoclaw', `Using bundled OpenClaw from ${bundledPath}...`);
 
     try {
       await tar.x({ file: bundledPath, cwd: SUDOCLAW_CLI_DIR });
     } catch (err) {
-      console.error('[Sudoclaw] Failed to extract:', err);
+      mainError('Sudoclaw', 'Failed to extract', err);
       return { installed: false, cliPath: null };
     }
 
     const newPkgRoot = resolvePackageRoot();
     if (!newPkgRoot || !hasDistEntry(newPkgRoot) || !hasLauncher(newPkgRoot) || !hasBinWrapper(newPkgRoot)) {
-      console.error('[Sudoclaw] Extracted package missing required files');
+      mainError('Sudoclaw', 'Extracted package missing required files');
       return { installed: false, cliPath: null };
     }
 
     if (!checkPlatformDependencies(newPkgRoot)) {
-      console.error('[Sudoclaw] Platform dependencies check failed after extraction');
+      mainError('Sudoclaw', 'Platform dependencies check failed after extraction');
       return { installed: false, cliPath: null };
     }
 
     ensureDefaultConfig();
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
 
-    console.log('[Sudoclaw] OpenClaw installed to', SUDOCLAW_DIR);
+    mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
     const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
     return { installed: true, cliPath: path.join(newPkgRoot, 'bin', binName) };
   } catch (err) {
-    console.error('[Sudoclaw] Install failed:', err);
+    mainError('Sudoclaw', 'Install failed', err);
     return { installed: false, cliPath: null };
   }
 }
@@ -376,7 +377,7 @@ export async function installSudoclawManually(onProgress?: (phase: 'extracting' 
 
   // Ensure Node.js is installed first
   onProgress?.('installing', 0);
-  console.log('[Sudoclaw] Ensuring Node.js is installed...');
+  mainLog('Sudoclaw', 'Ensuring Node.js is installed...');
   const nodeInstalled = await ensureNodeInstalled();
   if (!nodeInstalled) {
     throw new Error('Failed to install Node.js runtime. Please restart the application.');
@@ -385,7 +386,7 @@ export async function installSudoclawManually(onProgress?: (phase: 'extracting' 
   // Check if already installed
   const existingResult = await ensureSudoclawInstalled();
   if (existingResult.installed) {
-    console.log('[Sudoclaw] Already installed');
+    mainLog('Sudoclaw', 'Already installed');
     onProgress?.('configuring', 100);
     return true;
   }

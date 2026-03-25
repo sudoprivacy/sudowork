@@ -16,6 +16,7 @@ import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../c
 import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
 import { getDatabase } from './database/export';
 import type { AcpBackendConfig } from '@/types/acpTypes';
+import { perfLog } from './utils/mainLogger';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -352,9 +353,35 @@ const getBuiltinSkillsDir = () => {
 /**
  * 初始化内置助手的规则和技能文件到用户目录
  * Initialize builtin assistant rule and skill files to user directory
+ *
+ * 优化：只在版本更新或目录不存在时才复制文件，避免每次启动都做大量文件 I/O
+ * Optimization: Only copy files on version update or missing dirs to avoid heavy I/O
  */
 const initBuiltinAssistantRules = async (): Promise<void> => {
   const assistantsDir = getAssistantsDir();
+  const skillsDir = getSkillsDir();
+
+  // 检查是否需要重新复制资源文件
+  // Check if we need to re-copy resource files
+  const currentVersion = app.getVersion();
+  const lastCopiedVersion = await configFile.get('system.lastBuiltinResourcesVersion').catch(() => '');
+
+  // 需要复制的情况：
+  // 1. 版本更新了
+  // 2. 目标目录不存在（用户手动删除了）
+  // Conditions that require copy:
+  // 1. Version updated
+  // 2. Target directories don't exist (user manually deleted)
+  const skillsDirExists = existsSync(skillsDir);
+  const assistantsDirExists = existsSync(assistantsDir);
+  const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists;
+
+  if (!needsCopy) {
+    console.log(`[Sudowork] Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
+    return;
+  }
+
+  console.log(`[Sudowork] Copying builtin resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
 
   // 开发模式下使用项目根目录，生产模式使用 app.getAppPath()
   // In development, use project root. In production, use app.getAppPath()
@@ -512,6 +539,11 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       }
     }
   }
+
+  // 保存当前版本号，下次启动时跳过复制
+  // Save current version to skip copy on next startup
+  await configFile.set('system.lastBuiltinResourcesVersion', currentVersion);
+  console.log(`[Sudowork] Builtin resources copied successfully (v${currentVersion})`);
 };
 
 /**
@@ -623,9 +655,12 @@ const cleanupOrphanedHealthCheckConversations = () => {
 
 const initStorage = async () => {
   console.log('[Sudowork] Starting storage initialization...');
+  const startTime = Date.now();
 
   // 1. 先执行数据迁移（在任何目录创建之前）
+  const migrateStart = Date.now();
   await migrateLegacyData();
+  perfLog('initStorage.migrateLegacyData', Date.now() - migrateStart);
 
   // 2. 创建必要的目录（迁移后再创建，确保迁移能正常进行）
   // Use ensureDirectory to handle cases where a regular file blocks the path (#841)
@@ -759,12 +794,16 @@ const initStorage = async () => {
   }
 
   // 6. 初始化数据库（better-sqlite3）
+  const dbStart = Date.now();
   try {
     getDatabase();
     cleanupOrphanedHealthCheckConversations();
   } catch (error) {
     console.error('[InitStorage] Database initialization failed, falling back to file-based storage:', error);
   }
+  perfLog('initStorage.database', Date.now() - dbStart);
+
+  perfLog('initStorage.total', Date.now() - startTime);
 
   application.systemInfo.provider(() => {
     return Promise.resolve(getSystemDir());

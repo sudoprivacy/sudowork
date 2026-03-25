@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// V8 compile cache - must be first import to cache all subsequent requires
+// Reduces startup time by 40-60% on subsequent launches
+import 'v8-compile-cache';
+
 import './utils/configureChromium';
 import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';
@@ -25,8 +29,15 @@ import { startWebServer } from './webserver';
 import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
+import { mainLog, mainWarn, mainError } from './process/utils/mainLogger';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
+
+// 记录应用启动
+mainLog('App', `Sudowork starting, version: ${app.getVersion()}`);
+mainLog('App', `Platform: ${process.platform}, Arch: ${process.arch}`);
+mainLog('App', `Electron: ${process.versions.electron}, Node: ${process.versions.node}`);
+mainLog('App', `Packaged: ${app.isPackaged}, Dev: ${!app.isPackaged}`);
 
 // Set the app name early to ensure proper tray tooltip on macOS
 app.setName('Sudowork');

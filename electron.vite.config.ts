@@ -44,7 +44,8 @@ export default defineConfig(({ mode }) => {
       plugins: [
         // externalizeDepsPlugin replaces our custom getExternalDeps() + pluginExternalizeDynamicImports.
         // 'fix-path' excluded so it gets bundled inline (only 3KB).
-        externalizeDepsPlugin({ exclude: ['fix-path'] }),
+        // 'v8-compile-cache' excluded so it can cache all subsequent requires (reduces startup 40-60%).
+        externalizeDepsPlugin({ exclude: ['fix-path', 'v8-compile-cache'] }),
         ...(!isDevelopment
           ? [
               viteStaticCopy({

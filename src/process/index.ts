@@ -20,48 +20,62 @@ import { ensureNodeInstalled } from './services/claudeCli/NodeRuntimeService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
+import { mainLog, mainWarn, mainError, perfLog } from './utils/mainLogger';
 
 export const initializeProcess = async () => {
+  const totalStart = Date.now();
+  mainLog('Process', 'Initializing process...');
+
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
 
   // 1. Initialize storage first (required for bridges)
+  const storageStart = Date.now();
   await initStorage();
+  perfLog('initStorage', Date.now() - storageStart);
 
   // 2. Initialize bridge as soon as storage is ready
   // This ensures the renderer can communicate with the backend even while runtimes are installing
+  const bridgeStart = Date.now();
   try {
     await import('./initBridge');
-    console.log('[Process] Bridge initialized successfully');
+    mainLog('Process', 'Bridge initialized successfully');
   } catch (error) {
-    console.error('[Process] Bridge initialization failed:', error);
+    mainError('Process', 'Bridge initialization failed', error);
   }
+  perfLog('initBridge', Date.now() - bridgeStart);
 
   // 3. Start async installation of runtime dependencies (non-blocking)
   // Now that bridges are ready, the renderer will receive status updates
   void installRuntimes();
 
   // Initialize Extension Registry (scan and resolve all extensions)
+  const extStart = Date.now();
   try {
     await ExtensionRegistry.getInstance().initialize();
   } catch (error) {
-    console.error('[Process] Failed to initialize ExtensionRegistry:', error);
-    // Don't fail app startup if extensions fail to initialize
+    mainError('Process', 'Failed to initialize ExtensionRegistry', error);
   }
+  perfLog('ExtensionRegistry', Date.now() - extStart);
 
   // Initialize Channel subsystem
+  const channelStart = Date.now();
   try {
     await getChannelManager().initialize();
   } catch (error) {
-    console.error('[Process] Failed to initialize ChannelManager:', error);
+    mainError('Process', 'Failed to initialize ChannelManager', error);
   }
+  perfLog('ChannelManager', Date.now() - channelStart);
+
+  perfLog('total_startup', Date.now() - totalStart);
+  mainLog('Process', `Initialization complete in ${Date.now() - totalStart}ms`);
 
   // Start Nexus Python server in the background (non-blocking)
   // The startNexusService function is in a separate file that won't be analyzed during build
   void import('./startNexusService')
     .then(({ startNexusService }) => startNexusService())
     .catch((error) => {
-      console.error('[Process] Failed to start Nexus server:', error);
+      mainError('Process', 'Failed to start Nexus server', error);
     });
 };
 
@@ -73,21 +87,23 @@ export const initializeProcess = async () => {
 async function installRuntimes(): Promise<void> {
   // Skip on Windows - installed by NSIS installer
   if (process.platform === 'win32') {
-    console.log('[Process] Skipping runtime installation on Windows (installed by NSIS)');
+    mainLog('Runtime', 'Skipping runtime installation on Windows (installed by NSIS)');
     initStatusManager.setStatus('ready', '初始化完成', 100);
     return;
   }
 
   // Check if all components are already installed
-  console.log('[Process] Checking runtime dependencies...');
+  mainLog('Runtime', 'Checking runtime dependencies...');
   const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
 
   const nodeInstalled = await checkNodeInstalled();
   const sudoclawInstalled = await checkSudoclawInstalled();
   const nexusInstalled = await dynamicNexusService.checkInstalled();
 
+  mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
+
   if (nodeInstalled && sudoclawInstalled && nexusInstalled) {
-    console.log('[Process] All runtimes already installed, skipping installation');
+    mainLog('Runtime', 'All runtimes already installed, skipping installation');
     // Still need to repair config in case it's outdated
     try {
       const { repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
@@ -101,20 +117,24 @@ async function installRuntimes(): Promise<void> {
 
   // Install bundled Node.js (progress: 10-25%)
   try {
+    mainLog('Runtime', 'Installing Node.js runtime...');
     initStatusManager.setStatus('installing', '组件安装中', 10);
     await ensureNodeInstalled();
+    mainLog('Runtime', 'Node.js runtime installed successfully');
   } catch (err) {
-    console.error('[Process] Node.js runtime install failed:', err);
+    mainError('Runtime', 'Node.js runtime install failed', err);
     initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
     return;
   }
 
   // Install Sudoclaw (built-in OpenClaw) (progress: 30-50%)
   try {
+    mainLog('Runtime', 'Installing Sudoclaw...');
     initStatusManager.setStatus('installing', '组件安装中', 30);
     await ensureSudoclawInstalled();
+    mainLog('Runtime', 'Sudoclaw installed successfully');
   } catch (err) {
-    console.error('[Process] Sudoclaw install failed:', err);
+    mainError('Runtime', 'Sudoclaw install failed', err);
     initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
     return;
   }
@@ -126,18 +146,19 @@ async function installRuntimes(): Promise<void> {
     // Only install if bundled resource exists
     const isInstalled = await dynamicNexusService.checkInstalled();
     if (!isInstalled) {
-      console.log('[Process] Installing Nexus...');
+      mainLog('Runtime', 'Installing Nexus...');
       await dynamicNexusService.install();
-      // Auto-start Nexus after installation
-      console.log('[Process] Starting Nexus after installation...');
+      mainLog('Runtime', 'Nexus installed successfully, starting...');
       await dynamicNexusService.start();
+      mainLog('Runtime', 'Nexus started successfully');
     }
   } catch (err) {
-    console.error('[Process] Nexus install failed:', err);
+    mainError('Runtime', 'Nexus install/start failed', err);
     // Nexus install failure is not critical, continue
   }
 
   initStatusManager.setStatus('ready', '初始化完成', 100);
+  mainLog('Runtime', 'Runtime installation complete');
 }
 
 /** Check if Node.js runtime is already installed */

@@ -6,6 +6,7 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 const execAsync = promisify(exec);
 
@@ -103,7 +104,7 @@ class DynamicNexusService {
 
   private emitSetup(stage: NexusSetupStage, message: string, percent?: number): void {
     this._setupStage = stage;
-    console.log(`[DynamicNexus] ${message}`);
+    mainLog('Nexus', message);
     for (const cb of this._setupCallbacks) cb({ stage, message, percent });
   }
 
@@ -163,7 +164,7 @@ class DynamicNexusService {
       throw new Error(`Nexus bundled resource not found for platform ${platformKey}. Please rebuild the app with nexus resources.`);
     }
 
-    console.log(`[DynamicNexus] Using bundled Nexus from ${bundledPath}...`);
+    mainLog('Nexus', `Using bundled Nexus from ${bundledPath}...`);
 
     try {
       // Remove old environment if exists
@@ -201,7 +202,7 @@ class DynamicNexusService {
         fs.writeFileSync(markerFile, app.getVersion());
 
         this.emitSetup('idle', 'Nexus installation completed successfully');
-        console.log('[DynamicNexus] Installation completed');
+        mainLog('Nexus', 'Installation completed');
       } finally {
         // Clean up temp file
         if (fs.existsSync(tempTarGzPath)) {
@@ -241,7 +242,7 @@ class DynamicNexusService {
     // the kill so we don't block here. waitForPort() below handles the retry loop.
     const portOccupied = await this.isPortInUse(this._port);
     if (portOccupied) {
-      console.log(`[DynamicNexus] Port ${this._port} already in use — killing orphaned process (non-blocking)`);
+      mainLog('Nexus', `Port ${this._port} already in use — killing orphaned process (non-blocking)`);
       this.emitSetup('starting', `Port ${this._port} already in use. Force-restarting...`);
       // Fire-and-forget the kill; give the OS a small moment to begin releasing the port,
       // then proceed to spawn. waitForPort() will retry until the new process is ready.
@@ -256,9 +257,9 @@ class DynamicNexusService {
     if (fs.existsSync(pidFile)) {
       try {
         fs.unlinkSync(pidFile);
-        console.log(`[DynamicNexus] Removed stale PID file: ${pidFile}`);
+        mainLog('Nexus', `Removed stale PID file: ${pidFile}`);
       } catch (err) {
-        console.warn(`[DynamicNexus] Failed to remove PID file: ${err}`);
+        mainWarn('Nexus', `Failed to remove PID file: ${err}`);
       }
     }
 
@@ -271,29 +272,29 @@ class DynamicNexusService {
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
-    console.log(`[DynamicNexus] Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
+    mainLog('Nexus', `Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
     this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe' });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      console.log(`[DynamicNexus:stdout] ${d.toString().trim()}`);
+      mainLog('Nexus:stdout', d.toString().trim());
     });
     this.process.stderr?.on('data', (d: Buffer) => {
-      console.error(`[DynamicNexus:stderr] ${d.toString().trim()}`);
+      mainError('Nexus:stderr', d.toString().trim());
     });
     this.process.on('exit', (code, signal) => {
-      console.log(`[DynamicNexus] Process exited — code=${code} signal=${signal} uptime=${Date.now() - spawnStart}ms`);
+      mainLog('Nexus', `Process exited — code=${code} signal=${signal} uptime=${Date.now() - spawnStart}ms`);
       this._running = false;
     });
     this.process.on('error', (err) => {
-      console.error(`[DynamicNexus] Failed to start process:`, err);
+      mainError('Nexus', `Failed to start process: ${err.message}`);
       this._running = false;
       this.emitSetup('error', `Failed to start process: ${err.message}`);
     });
 
-    console.log(`[DynamicNexus] Waiting for port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
+    mainLog('Nexus', `Waiting for port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
     await this.waitForPort(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
     const elapsed = Date.now() - spawnStart;
-    console.log(`[DynamicNexus] Server ready — port=${this._port} startup=${elapsed}ms`);
+    mainLog('Nexus', `Server ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
     this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
   }
@@ -349,7 +350,7 @@ class DynamicNexusService {
         // macOS / Linux
         await execAsync(`lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`);
       }
-      console.log(`[DynamicNexus] Killed process on port ${port}`);
+      mainLog('Nexus', `Killed process on port ${port}`);
     } catch {
       // Port was already free, nothing to do
     }
