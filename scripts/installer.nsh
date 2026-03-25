@@ -42,7 +42,7 @@
   ; tgz contains: package/... with package/bin/openclaw.cmd inside
   ; Extract to cli directory, then move bin to parent
   DetailPrint "[2/3] Extracting Sudoclaw..."
-  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\openclaw.tgz" -C "$R1\.sudoclaw\cli"'
+  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\openclaw.tgz" -C "$R1\.sudoclaw\cli" --overwrite'
   Pop $R2
   Pop $R3
   StrCmp $R2 "0" sudoclaw_ok sudoclaw_fail
@@ -62,7 +62,7 @@
 
   ; ========== [3/3] Nexus ==========
   DetailPrint "[3/3] Extracting Nexus..."
-  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\nexus.tar.gz" -C "$R1\nexus_env"'
+  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\nexus.tar.gz" -C "$R1\nexus_env" --overwrite'
   Pop $R2
   Pop $R3
   StrCmp $R2 "0" nexus_ok nexus_fail
