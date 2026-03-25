@@ -17,7 +17,8 @@ steps:
     text: "/mo"
     wait: 2
   - op: judge
-    expect: "/model commands"
+    expect: "autocomplete dropdown showing /model command option"
+    use_agent: true
 
   # 3. Clear autocomplete by sending the command
   - op: send_message
