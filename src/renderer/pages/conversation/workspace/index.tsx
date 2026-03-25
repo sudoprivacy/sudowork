@@ -15,7 +15,7 @@ import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Empty, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
+import { Checkbox, Empty, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -218,9 +218,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   }, [workspace, isTemporaryWorkspace, t]);
 
   // Workspace migration handlers
-  const handleOpenMigrationModal = useCallback(() => {
-    setShowMigrationModal(true);
-  }, []);
+  // const handleOpenMigrationModal = useCallback(() => {
+  //   setShowMigrationModal(true);
+  // }, []);
 
   // Handle directory selection from DirectorySelectionModal (webui)
   const handleSelectDirectoryFromModal = useCallback((paths: string[] | undefined) => {
@@ -736,16 +736,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <div className='workspace-toolbar-row flex items-center justify-between gap-8px'>
             <div className='flex items-center gap-8px cursor-pointer flex-1 min-w-0' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
               <Down size={16} fill={iconColors.primary} className={`line-height-0 transition-transform duration-200 flex-shrink-0 ${isWorkspaceCollapsed ? '-rotate-90' : 'rotate-0'}`} />
-              <span className='workspace-title-label font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
+              <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
+                <span className='workspace-title-label font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
+              </Popover>
             </div>
             <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
-              {isTemporaryWorkspace && (
-                <Tooltip content={t('conversation.workspace.changeWorkspace')}>
-                  <span>
-                    <ChangeWorkspaceIcon className='workspace-toolbar-icon-btn line-height-0 cursor-pointer w-24px h-24px flex-shrink-0' onClick={handleOpenMigrationModal} />
-                  </span>
-                </Tooltip>
-              )}
               <Tooltip content={t('conversation.workspace.refresh')}>
                 <span>
                   <Refresh className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
