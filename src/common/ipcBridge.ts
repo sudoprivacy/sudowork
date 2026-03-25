@@ -994,10 +994,7 @@ export const skillHub = {
   /** Fetch skill detail from Skill Hub API */
   fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
   /** Download and install skill from URL, saving full metadata */
-  downloadAndInstallSkill: bridge.buildProvider<
-    IBridgeResponse<ISkillInstallResult>,
-    { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }
-  >('skill-hub.download-and-install-skill'),
+  downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */

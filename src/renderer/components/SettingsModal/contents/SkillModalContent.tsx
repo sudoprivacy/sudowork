@@ -115,28 +115,15 @@ const SkillCard: React.FC<{
   onClick: () => void;
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick }) => {
   return (
-    <div
-      className='bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden'
-      onClick={onClick}
-    >
+    <div className='bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
-      <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
-        {skill.icon ? (
-          <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' />
-        ) : (
-          <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>
-        )}
-      </div>
+      <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
 
       {/* Content */}
       <div className='flex-1 min-w-0 pr-28px'>
         <div className='flex items-center gap-6px flex-wrap'>
           <span className='font-medium text-13px text-t-primary truncate max-w-full'>{skill.display_name}</span>
-          {isInstalled && (
-            <span className='px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
-              已添加
-            </span>
-          )}
+          {isInstalled && <span className='px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>已添加</span>}
         </div>
         <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
@@ -171,8 +158,12 @@ const InstalledSkillCard: React.FC<{
   uninstalling: boolean;
   onClick?: () => void;
 }> = ({ skill, onUninstall, uninstalling, onClick }) => {
-  const displayName = skill.meta?.display_name
-    || skill.name.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const displayName =
+    skill.meta?.display_name ||
+    skill.name
+      .split(/[-_]/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
   const description = skill.meta?.description;
   const icon = resolveExtensionAssetUrl(skill.meta?.icon) || skill.meta?.icon;
   const emoji = skill.meta?.emoji;
@@ -180,13 +171,7 @@ const InstalledSkillCard: React.FC<{
   const hasDetail = !!skill.meta;
 
   return (
-    <div
-      className={classNames(
-        'bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors',
-        hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2'
-      )}
-      onClick={hasDetail ? onClick : undefined}
-    >
+    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
         {icon ? (
@@ -204,17 +189,9 @@ const InstalledSkillCard: React.FC<{
       <div className='flex-1 min-w-0 pr-28px'>
         <div className='flex items-center gap-6px flex-wrap'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-          {!skill.isBuiltin && (
-            <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
-              v{skill.version}
-            </span>
-          )}
+          {!skill.isBuiltin && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}
         </div>
-        {description ? (
-          <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>
-        ) : (
-          <div className='text-11px text-t-tertiary mt-3px italic'>{skill.name}</div>
-        )}
+        {description ? <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div> : <div className='text-11px text-t-tertiary mt-3px italic'>{skill.name}</div>}
       </div>
 
       {/* Uninstall / builtin indicator — stop propagation so card click doesn't fire */}
@@ -230,13 +207,7 @@ const InstalledSkillCard: React.FC<{
         ) : uninstalling ? (
           <Spin size={14} />
         ) : (
-          <Popconfirm
-            title='确认卸载该技能？'
-            onOk={onUninstall}
-            okText='卸载'
-            cancelText='取消'
-            okButtonProps={{ status: 'danger' }}
-          >
+          <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
             <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors'>
               <Delete size='15' />
             </div>
@@ -271,22 +242,7 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({
-  skill,
-  visible,
-  onClose,
-  isInstalled,
-  isHubInstalled,
-  hasVersion,
-  latestVersionInfo,
-  installing,
-  installProgress,
-  onInstall,
-  onUninstall,
-  uninstalling,
-  skipApiFetch = false,
-  hideActions = false,
-}) => {
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, installProgress, onInstall, onUninstall, uninstalling, skipApiFetch = false, hideActions = false }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -332,23 +288,11 @@ const SkillDetailModal: React.FC<{
   const hasUpdate = isInstalled && latestVersionInfo;
 
   return (
-    <Modal
-      visible={visible}
-      onCancel={onClose}
-      footer={null}
-      closable={false}
-      maskClosable
-      style={{ width: 480 }}
-      className='skill-detail-modal'
-      wrapClassName='skill-detail-modal-wrap'
-    >
+    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='skill-detail-modal' wrapClassName='skill-detail-modal-wrap'>
       <div className='flex flex-col max-h-80vh'>
         {/* Close button */}
         <div className='flex justify-end mb-4px'>
-          <div
-            className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary'
-            onClick={onClose}
-          >
+          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
@@ -357,13 +301,7 @@ const SkillDetailModal: React.FC<{
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
-                {skill.icon ? (
-                  <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' />
-                ) : (
-                  <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>
-                )}
-              </div>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-t-primary text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
@@ -386,9 +324,7 @@ const SkillDetailModal: React.FC<{
                 <div className='bg-fill-1 rd-10px p-14px'>
                   <div className='flex items-center gap-6px mb-8px'>
                     <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-t-primary'>
-                      {t('settings.skill.introduction', { defaultValue: '技能介绍' })}
-                    </span>
+                    <span className='font-medium text-13px text-t-primary'>{t('settings.skill.introduction', { defaultValue: '技能介绍' })}</span>
                   </div>
                   <div className='text-12px text-t-secondary leading-relaxed'>{skill.description}</div>
                 </div>
@@ -398,9 +334,7 @@ const SkillDetailModal: React.FC<{
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <span className='text-14px'>📄</span>
-                      <span className='font-medium text-13px text-t-primary'>
-                        {t('settings.skill.howToUse', { defaultValue: '怎么使用？' })}
-                      </span>
+                      <span className='font-medium text-13px text-t-primary'>{t('settings.skill.howToUse', { defaultValue: '怎么使用？' })}</span>
                     </div>
                     <div className='space-y-6px'>
                       {coreFeatures.map((feature, idx) => (
@@ -408,9 +342,7 @@ const SkillDetailModal: React.FC<{
                           <span className='text-t-tertiary text-11px mt-1px flex-shrink-0'>•</span>
                           <div className='text-12px text-t-secondary leading-relaxed'>
                             {feature.title}
-                            {feature.desc && (
-                              <span className='text-t-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>
-                            )}
+                            {feature.desc && <span className='text-t-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
                           </div>
                         </div>
                       ))}
@@ -433,34 +365,21 @@ const SkillDetailModal: React.FC<{
           <div className='flex gap-8px items-center'>
             {isInstalled ? (
               <>
-                <Button
-                  type='primary'
-                  long
-                  size='large'
-                  className='flex-1'
-                  onClick={onClose}
-                >
+                <Button type='primary' long size='large' className='flex-1' onClick={onClose}>
                   {t('settings.skill.goUse', { defaultValue: '去使用' })}
                 </Button>
-                {canUninstall && (
-                  uninstalling ? (
+                {canUninstall &&
+                  (uninstalling ? (
                     <div className='w-36px h-36px flex items-center justify-center'>
                       <Spin size={16} />
                     </div>
                   ) : (
-                    <Popconfirm
-                      title='确认卸载该技能？'
-                      onOk={onUninstall}
-                      okText='卸载'
-                      cancelText='取消'
-                      okButtonProps={{ status: 'danger' }}
-                    >
+                    <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
                       <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
                         <Delete size='16' />
                       </div>
                     </Popconfirm>
-                  )
-                )}
+                  ))}
               </>
             ) : installing ? (
               <div className='flex-1'>
@@ -479,9 +398,7 @@ const SkillDetailModal: React.FC<{
           {/* Security badge */}
           <div className='flex items-center gap-5px mt-10px justify-center'>
             <Shield size='12' className='text-success flex-shrink-0' />
-            <span className='text-10px text-t-tertiary'>
-              已通过安全与合规验证，无恶意代码或数据泄露风险。
-            </span>
+            <span className='text-10px text-t-tertiary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
           </div>
         </div>
       </div>
@@ -572,52 +489,49 @@ const SkillModalContent: React.FC = () => {
   }, []);
 
   // ---- Fetch latest versions ----
-  const fetchLatestVersions = useCallback(
-    async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
-      const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
-      const toFetch = skillList.filter((s) => !versionMap.has(s.id));
-      if (toFetch.length === 0) {
-        setLatestVersions(versionMap);
-        return;
-      }
-
-      const batchSize = 5;
-      for (let i = 0; i < toFetch.length; i += batchSize) {
-        const batch = toFetch.slice(i, i + batchSize);
-        const results = await Promise.all(
-          batch.map(async (skill) => {
-            try {
-              let res: SkillDetailResponse;
-              if (isElectronDesktop()) {
-                res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-              } else {
-                res = await fetchSkillDetailHttp(skill.id);
-              }
-              if (res.success && res.data?.versions?.[0]) {
-                const latest = res.data.versions[0];
-                return {
-                  skillId: skill.id,
-                  versionInfo: {
-                    version: latest.version,
-                    sourceUrl: latest.source_url,
-                    checksum: latest.checksum,
-                  } as SkillLatestVersion,
-                };
-              }
-            } catch {
-              // ignore
-            }
-            return null;
-          })
-        );
-        for (const r of results) {
-          if (r) versionMap.set(r.skillId, r.versionInfo);
-        }
-      }
+  const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
+    const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
+    const toFetch = skillList.filter((s) => !versionMap.has(s.id));
+    if (toFetch.length === 0) {
       setLatestVersions(versionMap);
-    },
-    []
-  );
+      return;
+    }
+
+    const batchSize = 5;
+    for (let i = 0; i < toFetch.length; i += batchSize) {
+      const batch = toFetch.slice(i, i + batchSize);
+      const results = await Promise.all(
+        batch.map(async (skill) => {
+          try {
+            let res: SkillDetailResponse;
+            if (isElectronDesktop()) {
+              res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
+            } else {
+              res = await fetchSkillDetailHttp(skill.id);
+            }
+            if (res.success && res.data?.versions?.[0]) {
+              const latest = res.data.versions[0];
+              return {
+                skillId: skill.id,
+                versionInfo: {
+                  version: latest.version,
+                  sourceUrl: latest.source_url,
+                  checksum: latest.checksum,
+                } as SkillLatestVersion,
+              };
+            }
+          } catch {
+            // ignore
+          }
+          return null;
+        })
+      );
+      for (const r of results) {
+        if (r) versionMap.set(r.skillId, r.versionInfo);
+      }
+    }
+    setLatestVersions(versionMap);
+  }, []);
 
   // ---- Fetch skills list ----
   // Reads selectedCategory / searchQuery / latestVersions from refs so this callback is stable.
@@ -877,58 +791,28 @@ const SkillModalContent: React.FC = () => {
 
   const detailIsInstalled = detailSkill ? installedSkills.has(detailSkill.name) : false;
   // Hub-installed = in installedList and has isHubInstalled flag
-  const detailIsHubInstalled = detailSkill
-    ? (installedList.find((s) => s.name === detailSkill.name)?.isHubInstalled ?? false)
-    : false;
+  const detailIsHubInstalled = detailSkill ? (installedList.find((s) => s.name === detailSkill.name)?.isHubInstalled ?? false) : false;
   const detailLatestVersion = detailSkill ? latestVersions.get(detailSkill.id) : undefined;
   const detailHasVersion = !!detailLatestVersion;
 
   return (
     <div ref={containerRef} className='flex flex-col h-full w-full'>
-
       {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
         <div className='flex items-center bg-fill-2 rd-8px p-2px gap-1px flex-shrink-0'>
-          <button
-            className={classNames(
-              'px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none',
-              activeTab === 'store'
-                ? 'bg-base text-t-primary font-medium shadow-sm'
-                : 'bg-transparent text-t-secondary hover:text-t-primary'
-            )}
-            onClick={() => setActiveTab('store')}
-          >
+          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'store' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('store')}>
             {t('settings.skill.storeTab', { defaultValue: '技能库' })}
           </button>
-          <button
-            className={classNames(
-              'px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none',
-              activeTab === 'installed'
-                ? 'bg-base text-t-primary font-medium shadow-sm'
-                : 'bg-transparent text-t-secondary hover:text-t-primary'
-            )}
-            onClick={() => setActiveTab('installed')}
-          >
+          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-            {installedSkills.size > 0 && (
-              <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>
-                {installedSkills.size}
-              </span>
-            )}
+            {installedSkills.size > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{installedSkills.size}</span>}
           </button>
         </div>
 
         {/* Search - always rendered to preserve layout, hidden on installed tab */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab !== 'store' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input
-            placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })}
-            value={searchQuery}
-            onChange={setSearchQuery}
-            prefix={<Search size='14' className='text-t-tertiary' />}
-            size='small'
-            className='skill-hub-input'
-          />
+          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
       </div>
 
@@ -937,22 +821,11 @@ const SkillModalContent: React.FC = () => {
         <>
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
-            {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(
-              ({ key, label }) => (
-                <span
-                  key={key}
-                  className={classNames(
-                    'px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0',
-                    selectedCategory === key
-                      ? 'bg-primary text-white'
-                      : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary'
-                  )}
-                  onClick={() => setSelectedCategory(key)}
-                >
-                  {label}
-                </span>
-              )
-            )}
+            {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
+              <span key={key} className={classNames('px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0', selectedCategory === key ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary')} onClick={() => setSelectedCategory(key)}>
+                {label}
+              </span>
+            ))}
           </div>
 
           {/* Skill grid */}
@@ -998,9 +871,7 @@ const SkillModalContent: React.FC = () => {
             )}
             {!loadingMore && hasMore && (
               <div className='flex justify-center py-8px'>
-                <span className='text-11px text-t-tertiary'>
-                  {t('settings.skill.scrollForMore', { defaultValue: '继续滚动加载更多' })}
-                </span>
+                <span className='text-11px text-t-tertiary'>{t('settings.skill.scrollForMore', { defaultValue: '继续滚动加载更多' })}</span>
               </div>
             )}
             {/* Sentinel for IntersectionObserver — triggers loadMore when it enters the viewport */}
@@ -1025,17 +896,11 @@ const SkillModalContent: React.FC = () => {
                 }}
               >
                 <Select.Option value='default'>
-                  <span className='text-12px text-t-secondary'>
-                    📁 本地技能目录（默认）
-                  </span>
+                  <span className='text-12px text-t-secondary'>📁 本地技能目录（默认）</span>
                 </Select.Option>
               </Select>
             </div>
-            <Button
-              size='small'
-              onClick={() => void fetchInstalledList()}
-              icon={<span className='text-11px'>↻</span>}
-            >
+            <Button size='small' onClick={() => void fetchInstalledList()} icon={<span className='text-11px'>↻</span>}>
               刷新
             </Button>
           </div>
@@ -1051,12 +916,7 @@ const SkillModalContent: React.FC = () => {
                 <Lightning size='32' className='text-t-tertiary' />
                 <div className='text-13px text-t-secondary'>暂无已安装的技能</div>
                 <div className='text-12px text-t-tertiary'>前往技能库安装你需要的技能</div>
-                <Button
-                  size='small'
-                  type='outline'
-                  className='mt-4px'
-                  onClick={() => setActiveTab('store')}
-                >
+                <Button size='small' type='outline' className='mt-4px' onClick={() => setActiveTab('store')}>
                   浏览技能库
                 </Button>
               </div>
@@ -1068,10 +928,14 @@ const SkillModalContent: React.FC = () => {
                     skill={skill}
                     onUninstall={() => void handleUninstall(skill.name)}
                     uninstalling={uninstallingSkillName === skill.name}
-                    onClick={skill.meta ? () => {
-                      setInstalledDetailInfo(skill);
-                      setInstalledDetailVisible(true);
-                    } : undefined}
+                    onClick={
+                      skill.meta
+                        ? () => {
+                            setInstalledDetailInfo(skill);
+                            setInstalledDetailVisible(true);
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -1081,20 +945,7 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal
-        skill={detailSkill}
-        visible={detailVisible}
-        onClose={() => setDetailVisible(false)}
-        isInstalled={detailIsInstalled}
-        isHubInstalled={detailIsHubInstalled}
-        hasVersion={detailHasVersion}
-        latestVersionInfo={detailLatestVersion}
-        installing={installingSkillId === detailSkill?.id}
-        installProgress={installProgress}
-        onInstall={() => detailSkill && void handleInstall(detailSkill.id)}
-        onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)}
-        uninstalling={uninstallingSkillName === detailSkill?.name}
-      />
+      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json, no action buttons */}
       <SkillDetailModal

@@ -321,7 +321,9 @@ export function initSkillHubBridge(): void {
             const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
             const m = content.match(/^version:\s*(.+)$/m);
             if (m) version = m[1].trim();
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
 
         // Try to read hub metadata file

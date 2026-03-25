@@ -123,9 +123,7 @@ export function initNexusBridge(): void {
 
       // 运行 conda-unpack 修复硬编码路径
       // Windows 下路径为 Scripts\conda-unpack.exe，macOS/Linux 为 bin/conda-unpack
-      const condaUnpack = isWindows
-        ? path.join(envDir, 'Scripts', 'conda-unpack.exe')
-        : path.join(envDir, 'bin', 'conda-unpack');
+      const condaUnpack = isWindows ? path.join(envDir, 'Scripts', 'conda-unpack.exe') : path.join(envDir, 'bin', 'conda-unpack');
 
       if (fs.existsSync(condaUnpack)) {
         if (!isWindows) fs.chmodSync(condaUnpack, 0o755);
@@ -138,11 +136,7 @@ export function initNexusBridge(): void {
 
       // 确保 nexusd 可执行
       // Windows: bin\nexusd.exe or bin\nexusd; macOS/Linux: bin/nexusd
-      const nexusdBin = isWindows
-        ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe'))
-            ? path.join(envDir, 'bin', 'nexusd.exe')
-            : path.join(envDir, 'bin', 'nexusd'))
-        : path.join(envDir, 'bin', 'nexusd');
+      const nexusdBin = isWindows ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe')) ? path.join(envDir, 'bin', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd')) : path.join(envDir, 'bin', 'nexusd');
 
       if (!fs.existsSync(nexusdBin)) {
         throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
@@ -156,7 +150,11 @@ export function initNexusBridge(): void {
       console.log('[NexusBridge] Local file installation complete, starting service...');
 
       // 清理临时文件
-      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
 
       // 安装完成后自动启动服务
       await dynamicNexusService.start();
