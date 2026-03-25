@@ -89,7 +89,6 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.installFromLocalFile.provider(async ({ filePath }) => {
     try {
-      // 将本地文件复制到正确的位置并安装
       const fs = await import('fs');
       const path = await import('path');
       const os = await import('os');
@@ -98,6 +97,7 @@ export function initNexusBridge(): void {
 
       const execAsync = util.promisify(exec);
       const app = await import('electron').then((m) => m.app);
+      const isWindows = process.platform === 'win32';
 
       // 创建临时目录
       const tempDir = path.join(os.tmpdir(), `nexus-${Date.now()}`);
@@ -107,34 +107,56 @@ export function initNexusBridge(): void {
       await fs.promises.mkdir(tempDir, { recursive: true });
       await fs.promises.copyFile(filePath, tempTarGzPath);
 
-      // 获取环境目录
-      const envDir = path.join(app.getPath('userData'), 'nexus_env');
+      // 环境目录：与 DynamicNexusService.getCondaEnvDir() 保持一致
+      // (~/.nexus/nexus_env on macOS/Linux, %USERPROFILE%\.nexus\nexus_env on Windows)
+      const envDir = path.join(app.getPath('home'), '.nexus', 'nexus_env');
 
       // 删除旧环境
       if (fs.existsSync(envDir)) {
         fs.rmSync(envDir, { recursive: true, force: true });
       }
 
-      // 提取
+      // 解压
       await fs.promises.mkdir(envDir, { recursive: true });
+      console.log(`[NexusBridge] Extracting local nexus file to ${envDir}...`);
       await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
 
-      // 运行 conda-unpack
-      const condaUnpack = path.join(envDir, 'bin', 'conda-unpack');
-      fs.chmodSync(condaUnpack, 0o755);
-      await execAsync(`"${condaUnpack}"`);
+      // 运行 conda-unpack 修复硬编码路径
+      // Windows 下路径为 Scripts\conda-unpack.exe，macOS/Linux 为 bin/conda-unpack
+      const condaUnpack = isWindows
+        ? path.join(envDir, 'Scripts', 'conda-unpack.exe')
+        : path.join(envDir, 'bin', 'conda-unpack');
+
+      if (fs.existsSync(condaUnpack)) {
+        if (!isWindows) fs.chmodSync(condaUnpack, 0o755);
+        console.log(`[NexusBridge] Running conda-unpack: ${condaUnpack}`);
+        await execAsync(`"${condaUnpack}"`);
+        console.log('[NexusBridge] conda-unpack completed');
+      } else {
+        console.warn(`[NexusBridge] conda-unpack not found at ${condaUnpack} — skipping`);
+      }
 
       // 确保 nexusd 可执行
-      const nexusdBin = path.join(envDir, 'bin', 'nexusd');
+      // Windows: bin\nexusd.exe or bin\nexusd; macOS/Linux: bin/nexusd
+      const nexusdBin = isWindows
+        ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe'))
+            ? path.join(envDir, 'bin', 'nexusd.exe')
+            : path.join(envDir, 'bin', 'nexusd'))
+        : path.join(envDir, 'bin', 'nexusd');
+
       if (!fs.existsSync(nexusdBin)) {
         throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
       }
-      fs.chmodSync(nexusdBin, 0o755);
+      if (!isWindows) fs.chmodSync(nexusdBin, 0o755);
 
       // 写入版本标记
       const CONDA_READY_MARKER = '.nexus-conda-ready';
       const markerFile = path.join(envDir, CONDA_READY_MARKER);
       await fs.promises.writeFile(markerFile, app.getVersion());
+      console.log('[NexusBridge] Local file installation complete, starting service...');
+
+      // 清理临时文件
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
       // 安装完成后自动启动服务
       await dynamicNexusService.start();
@@ -143,6 +165,7 @@ export function initNexusBridge(): void {
       return { success: true, msg: 'Nexus 安装并启动成功' };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      console.error('[NexusBridge] installFromLocalFile failed:', err);
       return { success: false, msg };
     }
   });

@@ -72,6 +72,24 @@
     Goto nexus_done
   nexus_ok:
     DetailPrint "Nexus extracted successfully"
+    ; Run conda-unpack to fix hardcoded install paths baked into the conda environment.
+    ; On Windows, conda places scripts in Scripts\ (not bin\ like macOS/Linux).
+    DetailPrint "Running conda-unpack to fix install paths..."
+    IfFileExists "$R1\nexus_env\Scripts\conda-unpack.exe" condaunpack_run condaunpack_skip
+    condaunpack_run:
+      nsExec::ExecToStack '"$R1\nexus_env\Scripts\conda-unpack.exe"'
+      Pop $R2
+      Pop $R3
+      StrCmp $R2 "0" condaunpack_ok condaunpack_warn
+      condaunpack_warn:
+        DetailPrint "WARNING: conda-unpack returned exit code $R2 (non-fatal)"
+        Goto condaunpack_done
+      condaunpack_ok:
+        DetailPrint "conda-unpack completed successfully"
+      condaunpack_done:
+      Goto nexus_done
+    condaunpack_skip:
+      DetailPrint "conda-unpack.exe not found at Scripts\conda-unpack.exe — skipping"
   nexus_done:
 
   DetailPrint "=========================================="

@@ -682,12 +682,23 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
-    // Initialize ACP detector BEFORE creating the window to prevent a race
-    // condition where the renderer fetches getAvailableAgents before detection
-    // finishes, caching an empty result via SWR.
-    await initializeAcpDetector();
+    // Start ACP detection immediately but do NOT await it before createWindow().
+    // Detection calls execSync for every potential CLI (claude, gemini, goose …) and
+    // on Windows each call can block the Node.js event loop for up to 1 s.
+    // With 10+ CLIs that adds up to 10+ s of frozen UI before the window appears.
+    //
+    // Sudoclaw is always inserted into the detected list unconditionally (no execSync
+    // needed), so it will show up immediately.  Other agents (claude, gemini, …) may
+    // appear slightly later once detection finishes and the renderer's SWR revalidates
+    // on window focus — this is an acceptable trade-off.
+    const acpDetectionDone = initializeAcpDetector();
 
     createWindow();
+
+    // Keep detection running in background; log when it finishes.
+    void acpDetectionDone.then(() => {
+      console.log('[ACP] Background detection completed');
+    });
 
     // 初始化关闭到托盘设置 / Initialize close-to-tray setting
     if (isE2ETestMode) {

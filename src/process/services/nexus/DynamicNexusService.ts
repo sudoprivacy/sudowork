@@ -194,15 +194,16 @@ class DynamicNexusService {
       throw new Error('Nexus not installed. Please install it first.');
     }
 
-    // If the port is already taken (orphaned from a previous session), force-kill it
-    // before launching a new process so nexusd doesn't exit with "already running".
+    // If the port is already taken (orphaned from a previous session), fire-and-forget
+    // the kill so we don't block here. waitForPort() below handles the retry loop.
     const portOccupied = await this.isPortInUse(this._port);
     if (portOccupied) {
-      console.log(`[DynamicNexus] Port ${this._port} already in use — killing orphaned process and restarting`);
+      console.log(`[DynamicNexus] Port ${this._port} already in use — killing orphaned process (non-blocking)`);
       this.emitSetup('starting', `Port ${this._port} already in use. Force-restarting...`);
-      await this.killProcessOnPort(this._port);
-      // Give the OS a moment to release the port
-      await new Promise<void>((resolve) => setTimeout(resolve, 800));
+      // Fire-and-forget the kill; give the OS a small moment to begin releasing the port,
+      // then proceed to spawn. waitForPort() will retry until the new process is ready.
+      void this.killProcessOnPort(this._port);
+      await new Promise<void>((resolve) => setTimeout(resolve, 300));
     }
 
     // Use the python interpreter from the conda env to run nexusd
@@ -212,17 +213,19 @@ class DynamicNexusService {
     // 使用固定参数，包括固定端口
     const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=embedded', '--auth-type', 'none', '--port', String(this._port)];
 
+    const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
+    console.log(`[DynamicNexus] Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
     this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe' });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      console.log(`[DynamicNexus] ${d.toString().trim()}`);
+      console.log(`[DynamicNexus:stdout] ${d.toString().trim()}`);
     });
     this.process.stderr?.on('data', (d: Buffer) => {
-      console.error(`[DynamicNexus] ${d.toString().trim()}`);
+      console.error(`[DynamicNexus:stderr] ${d.toString().trim()}`);
     });
-    this.process.on('exit', (code) => {
-      console.log(`[DynamicNexus] Process exited with code ${code}`);
+    this.process.on('exit', (code, signal) => {
+      console.log(`[DynamicNexus] Process exited — code=${code} signal=${signal} uptime=${Date.now() - spawnStart}ms`);
       this._running = false;
     });
     this.process.on('error', (err) => {
@@ -231,7 +234,10 @@ class DynamicNexusService {
       this.emitSetup('error', `Failed to start process: ${err.message}`);
     });
 
+    console.log(`[DynamicNexus] Waiting for port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
     await this.waitForPort(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
+    const elapsed = Date.now() - spawnStart;
+    console.log(`[DynamicNexus] Server ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
     this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
   }
