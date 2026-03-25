@@ -8,6 +8,7 @@ import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
@@ -152,9 +153,33 @@ export const createNanobotAgent = async (options: ICreateConversationParams): Pr
   };
 };
 
+function getSudoclawWorkspaceRoot(): string {
+  try {
+    const configPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
+    const raw = fsSync.readFileSync(configPath, 'utf-8');
+    const cfg = JSON.parse(raw);
+    const configured = cfg?.agents?.defaults?.workspace;
+    if (typeof configured === 'string' && configured.trim()) {
+      return configured.trim();
+    }
+  } catch {
+    // fall through to default
+  }
+  return getSystemDir().workDir;
+}
+
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`openclaw-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  // Use workspace root from openclaw.json so the agent's working dir matches the UI workspace panel.
+  // Falls back to getSystemDir().workDir if openclaw.json is missing or has no workspace configured.
+  const tempName = `sudoclaw-temp-${Date.now()}`;
+  let resolvedWorkspace = extra.workspace;
+  if (!resolvedWorkspace) {
+    const root = getSudoclawWorkspaceRoot();
+    resolvedWorkspace = path.join(root, tempName);
+    await fs.mkdir(resolvedWorkspace, { recursive: true });
+  }
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
   const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
 
   const stateDir = SUDOCLAW_DIR;
