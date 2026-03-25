@@ -17,7 +17,50 @@ const { normalizeArch, rebuildSingleModule, verifyModuleBinary, getModulesToRebu
  * @returns {number} Number of binaries signed
  */
 function signBinariesInDir(dir, identity) {
-  const binaryExtensions = ['.node', '.dylib', '.so'];
+  // Extensions that are definitely Mach-O/native binaries — always sign
+  const nativeBinaryExtensions = new Set(['.node', '.dylib', '.so']);
+
+  // Extensions that are definitely NOT binaries — skip Mach-O check for performance.
+  // NOTE: version-suffixed executables like wish8.6, tclsh8.6 have ext '.6' which is
+  // NOT in this list, so they fall through to the Mach-O byte check below.
+  const skipExtensions = new Set([
+    '.js', '.mjs', '.cjs', '.ts', '.json', '.md', '.txt', '.html', '.css',
+    '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.plist',
+    '.py', '.rb', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
+    '.h', '.c', '.cpp', '.cc', '.m', '.swift', '.java', '.go', '.rs',
+    '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.icns', '.webp',
+    '.mp3', '.mp4', '.wav', '.ogg', '.flac',
+    '.zip', '.tar', '.gz', '.bz2', '.xz', '.tgz', '.7z',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+    '.lock', '.log', '.map', '.wasm', '.d', '.a',
+    '.patch', '.diff', '.nsh', '.nsi',
+  ]);
+
+  // Read exactly 4 bytes from a file to check Mach-O magic numbers.
+  // Using openSync/readSync instead of readFileSync to avoid reading the whole file.
+  function isMachOBinary(filePath) {
+    let fd;
+    try {
+      fd = fs.openSync(filePath, 'r');
+      const buf = Buffer.alloc(4);
+      const bytesRead = fs.readSync(fd, buf, 0, 4, 0);
+      if (bytesRead < 4) return false;
+      // Mach-O magic numbers:
+      // 64-bit LE:  CF FA ED FE
+      // 32-bit LE:  CE FA ED FE
+      // Fat/Universal (BE): CA FE BA BE
+      return (
+        (buf[0] === 0xcf && buf[1] === 0xfa && buf[2] === 0xed && buf[3] === 0xfe) ||
+        (buf[0] === 0xce && buf[1] === 0xfa && buf[2] === 0xed && buf[3] === 0xfe) ||
+        (buf[0] === 0xca && buf[1] === 0xfe && buf[2] === 0xba && buf[3] === 0xbe)
+      );
+    } catch {
+      return false;
+    } finally {
+      if (fd !== undefined) try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+  }
+
   const binaries = [];
 
   function findBinaries(currentDir) {
@@ -27,28 +70,20 @@ function signBinariesInDir(dir, identity) {
       if (entry.isDirectory()) {
         findBinaries(fullPath);
       } else if (entry.isFile()) {
-        const ext = path.extname(entry.name);
-        // Check extension or if it's an executable without extension
-        if (binaryExtensions.includes(ext)) {
+        const ext = path.extname(entry.name).toLowerCase();
+        // Always include known native binary extensions
+        if (nativeBinaryExtensions.has(ext)) {
           binaries.push(fullPath);
-        } else if (!ext) {
-          // Check if it's an executable binary (Mach-O)
-          try {
-            const header = fs.readFileSync(fullPath, { start: 0, end: 3 });
-            // Mach-O magic numbers (little-endian for 32/64-bit, big-endian for fat):
-            // 64-bit: CF FA ED FE
-            // 32-bit: CE FA ED FE
-            // Fat/Universal: CA FE BA BE
-            const isMachO =
-              (header[0] === 0xcf && header[1] === 0xfa && header[2] === 0xed && header[3] === 0xfe) ||
-              (header[0] === 0xce && header[1] === 0xfa && header[2] === 0xed && header[3] === 0xfe) ||
-              (header[0] === 0xca && header[1] === 0xfe && header[2] === 0xba && header[3] === 0xbe);
-            if (isMachO) {
-              binaries.push(fullPath);
-            }
-          } catch {
-            // Not a readable binary
-          }
+          continue;
+        }
+        // Skip known non-binary extensions for performance
+        if (skipExtensions.has(ext)) {
+          continue;
+        }
+        // For everything else — including extensionless files AND versioned executables
+        // like wish8.6 (ext='.6'), tclsh8.6, python3.11, etc. — check Mach-O magic bytes.
+        if (isMachOBinary(fullPath)) {
+          binaries.push(fullPath);
         }
       }
     }
