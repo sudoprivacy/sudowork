@@ -548,15 +548,19 @@ const SkillModalContent: React.FC = () => {
 
         let skillsRes: IBridgeResponse<ISkillHubListResponse>;
         if (isElectronDesktop()) {
-          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 20, query, category });
+          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category });
         } else {
-          skillsRes = await fetchSkillsHttp({ cursor, limit: 20, query, category });
+          skillsRes = await fetchSkillsHttp({ cursor, limit: 40, query, category });
         }
 
         if (skillsRes.success && skillsRes.data) {
           const newSkills = skillsRes.data.skills || [];
           if (append) {
-            setSkills((prev) => [...prev, ...newSkills]);
+            setSkills((prev) => {
+              const existingIds = new Set(prev.map((s) => s.id));
+              const unique = newSkills.filter((s) => !existingIds.has(s.id));
+              return [...prev, ...unique];
+            });
           } else {
             setSkills(newSkills);
           }
@@ -608,54 +612,40 @@ const SkillModalContent: React.FC = () => {
     [loadMore]
   );
 
+  // ---- Helper: find the nearest scrollable ancestor ----
+  const findScrollParent = useCallback((el: HTMLElement | null): HTMLElement | null => {
+    let node = el?.parentElement ?? null;
+    while (node) {
+      const { overflowY } = window.getComputedStyle(node);
+      if (overflowY === 'auto' || overflowY === 'scroll') return node;
+      node = node.parentElement;
+    }
+    return null;
+  }, []);
+
   // ---- IntersectionObserver: fires when the sentinel at the bottom of the list enters view ----
-  // Created once on mount. loadMoreRef.current is always up-to-date so no stale closure.
-  // This handles the common case where the user scrolls to the bottom of the skill list
-  // regardless of which element (inner grid or outer panel) is the actual scroll container.
+  // Only set up when a real scrollable ancestor exists. If none is found (e.g. page mode
+  // with overflow-visible), skip — the scroll handler fallback still works.
+  // Re-runs when hasMore changes because the sentinel mounts/unmounts conditionally.
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
-    // Find the nearest scrollable ancestor to use as the IntersectionObserver root.
-    // This ensures the threshold is measured against the actual clipping element,
-    // not the viewport, which is more reliable inside a fixed-height modal.
-    let root: HTMLElement | null = sentinel.parentElement;
-    while (root) {
-      const { overflowY } = window.getComputedStyle(root);
-      if (overflowY === 'auto' || overflowY === 'scroll') break;
-      root = root.parentElement;
-    }
+    const root = findScrollParent(sentinel);
+    // Without a scrollable root the observer would use the viewport, causing
+    // the sentinel to be perpetually "visible" and triggering infinite loads.
+    if (!root) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) loadMoreRef.current();
       },
-      { root: root ?? null, threshold: 0 }
+      { root, threshold: 0 }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, []); // Empty deps: observer created once; loadMoreRef.current stays fresh
+  }, [findScrollParent, hasMore]);
 
-  // ---- Auto-fill: when content doesn't overflow the container, keep loading until it does ----
-  // This fixes the large-window case where more columns fit → fewer rows → 20 items don't
-  // fill the visible area → user can't scroll → IntersectionObserver never triggers.
-  useEffect(() => {
-    if (!hasMore || loadingMore || !nextCursor) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    // Find the scroll container the sentinel lives in
-    let scrollEl: HTMLElement | null = sentinel.parentElement;
-    while (scrollEl) {
-      const { overflowY } = window.getComputedStyle(scrollEl);
-      if (overflowY === 'auto' || overflowY === 'scroll') break;
-      scrollEl = scrollEl.parentElement;
-    }
-    // If there is no overflow (all content visible), load the next page immediately
-    if (scrollEl && scrollEl.scrollHeight <= scrollEl.clientHeight) {
-      loadMore();
-    }
-  }, [skills, hasMore, loadingMore, nextCursor, loadMore]);
 
   // Reload when category changes — fetchSkills is now stable so no infinite loop
   useEffect(() => {
@@ -864,18 +854,23 @@ const SkillModalContent: React.FC = () => {
               </div>
             )}
 
+            {/* Loading skeleton cards — match grid layout for a seamless feel */}
             {loadingMore && (
-              <div className='flex justify-center py-16px'>
-                <Spin size={20} />
+              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
+                    <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />
+                    <div className='flex-1 min-w-0 flex flex-col gap-6px pt-2px'>
+                      <div className='h-14px w-3/5 rd-4px bg-fill-3' />
+                      <div className='h-10px w-full rd-4px bg-fill-3' />
+                      <div className='h-10px w-4/5 rd-4px bg-fill-3' />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-            {!loadingMore && hasMore && (
-              <div className='flex justify-center py-8px'>
-                <span className='text-11px text-t-tertiary'>{t('settings.skill.scrollForMore', { defaultValue: '继续滚动加载更多' })}</span>
-              </div>
-            )}
-            {/* Sentinel for IntersectionObserver — triggers loadMore when it enters the viewport */}
-            <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />
+            {/* Sentinel for IntersectionObserver — triggers loadMore when scrolled into view */}
+            {hasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
           </AionScrollArea>
         </>
       )}
