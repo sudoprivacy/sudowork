@@ -40,6 +40,19 @@ function getLocaleModules(locale: string): Record<string, unknown> {
 }
 
 const initPromise = (async (): Promise<void> => {
+  // Detect system language on first run (Windows: use app.getLocale())
+  // 首次运行时检测系统语言（Windows：使用 app.getLocale()）
+  let detectedLanguage = DEFAULT_LANGUAGE;
+
+  try {
+    const { app } = await import('electron');
+    const systemLocale = app.getLocale();
+    console.log('[Main Process] Detected system locale:', systemLocale);
+    detectedLanguage = normalizeLanguageCode(systemLocale);
+  } catch {
+    // Ignore detection errors, use default
+  }
+
   await i18n.init({
     resources: {
       [DEFAULT_LANGUAGE]: { translation: getLocaleModules(DEFAULT_LANGUAGE) },
@@ -49,9 +62,14 @@ const initPromise = (async (): Promise<void> => {
     interpolation: { escapeValue: false },
   });
 
-  const language = await ConfigStorage.get('language');
-  if (language) {
-    await ensureAndSwitch(i18n, language, getLocaleModules);
+  // Priority: user config > detected system language > default
+  // 优先级：用户配置 > 检测的系统语言 > 默认语言
+  const userLanguage = await ConfigStorage.get('language');
+  const targetLanguage = userLanguage || detectedLanguage;
+
+  if (targetLanguage && targetLanguage !== DEFAULT_LANGUAGE) {
+    await ensureAndSwitch(i18n, targetLanguage, getLocaleModules);
+    console.log('[Main Process] Switched to language:', targetLanguage);
   }
 })().catch((error) => {
   console.error('[Main Process] Failed to initialize i18n:', error);
