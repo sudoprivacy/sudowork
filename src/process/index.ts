@@ -80,10 +80,7 @@ async function installRuntimes(): Promise<void> {
 
   // Check if all components are already installed
   console.log('[Process] Checking runtime dependencies...');
-  const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([
-    import('./services/nexus/DynamicNexusService'),
-    import('./services/sudoclaw/SudoclawInstallService'),
-  ]);
+  const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
 
   const nodeInstalled = await checkNodeInstalled();
   const sudoclawInstalled = await checkSudoclawInstalled();

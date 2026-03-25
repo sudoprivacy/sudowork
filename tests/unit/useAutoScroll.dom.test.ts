@@ -41,7 +41,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     createdAt: Date.now(),
   });
 
-  it('should scroll to bottom when user sends a message (position=right)', async () => {
+  it('should scroll to show user message when user sends a message (position=right)', async () => {
     const initialMessages: TMessage[] = [createMessage('left', '1'), createMessage('right', '2')];
 
     const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 2 } });
@@ -59,24 +59,24 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
       vi.runAllTimers();
     });
 
-    // Should have called scrollToIndex with 'LAST'
+    // Should scroll to show user message at top of viewport
     expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
       expect.objectContaining({
-        index: 'LAST',
-        behavior: 'auto',
-        align: 'end',
+        index: 2, // itemCount - 1
+        behavior: 'smooth',
+        align: 'start',
       })
     );
   });
 
-  it('should NOT scroll when AI responds (position=left)', async () => {
+  it('should scroll to bottom when AI responds with text message (position=left)', async () => {
     const initialMessages: TMessage[] = [createMessage('right', '1')];
 
     const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 1 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
-    // Add AI response (position=left)
+    // Add AI response (position=left, type=text)
     const newMessages: TMessage[] = [...initialMessages, createMessage('left', '2')];
 
     rerender({ messages: newMessages, itemCount: 2 });
@@ -85,8 +85,14 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
       vi.runAllTimers();
     });
 
-    // Should NOT call scrollToIndex for AI messages
-    expect(mockVirtuosoHandle.scrollToIndex).not.toHaveBeenCalled();
+    // Should scroll to bottom for AI text messages
+    expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 1, // itemCount - 1
+        behavior: 'auto',
+        align: 'end',
+      })
+    );
   });
 
   it('should reset userScrolled flag when user sends message', async () => {

@@ -168,11 +168,13 @@ export function buildChatResponse(
  * Build an error response for chat failures
  */
 export function buildChatErrorResponse(error: string): {
+  type: 'text';
   text: string;
   parseMode: 'HTML' | 'MarkdownV2' | 'Markdown';
   replyMarkup?: unknown;
 } {
   return {
+    type: 'text',
     text: `❌ <b>Processing Failed</b>\n\n${error}\n\nPlease retry or start a new conversation.`,
     parseMode: 'HTML',
     replyMarkup: createErrorRecoveryKeyboard(),

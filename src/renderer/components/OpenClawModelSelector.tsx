@@ -30,7 +30,11 @@ const OpenClawModelSelector: React.FC<{
   const isMobileCompact = Boolean(layout?.isMobile);
 
   // Fetch model list via IPC (bypasses CORS restrictions)
-  const { data: response, isLoading, error } = useSWR<IOpenClawModelsResponse>('openclaw-models', () => ipcBridge.openclaw.getModels.invoke(), {
+  const {
+    data: response,
+    isLoading,
+    error,
+  } = useSWR<IOpenClawModelsResponse>('openclaw-models', () => ipcBridge.openclaw.getModels.invoke(), {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 60000, // Cache for 1 minute
@@ -43,14 +47,17 @@ const OpenClawModelSelector: React.FC<{
 
   // Load current model from conversation extra on mount
   useEffect(() => {
-    ipcBridge.conversation.get.invoke({ id: conversationId }).then((conversation) => {
-      if (conversation?.extra) {
-        const extra = conversation.extra as { openclawModelId?: string };
-        setSelectedModelId(extra.openclawModelId || null);
-      }
-    }).catch((err) => {
-      console.error('[OpenClawModelSelector] Failed to load conversation:', err);
-    });
+    ipcBridge.conversation.get
+      .invoke({ id: conversationId })
+      .then((conversation) => {
+        if (conversation?.extra) {
+          const extra = conversation.extra as { openclawModelId?: string };
+          setSelectedModelId(extra.openclawModelId || null);
+        }
+      })
+      .catch((err) => {
+        console.error('[OpenClawModelSelector] Failed to load conversation:', err);
+      });
   }, [conversationId]);
 
   // Handle model selection
@@ -101,9 +108,7 @@ const OpenClawModelSelector: React.FC<{
 
   // Find selected model object
   const selectedModel = models?.find((m) => m.model_id === selectedModelId);
-  const displayLabel = selectedModel
-    ? formatModelLabel(selectedModel)
-    : selectedModelId || t('conversation.welcome.selectModel');
+  const displayLabel = selectedModel ? formatModelLabel(selectedModel) : selectedModelId || t('conversation.welcome.selectModel');
 
   // Loading state
   if (isLoading) {
@@ -135,11 +140,7 @@ const OpenClawModelSelector: React.FC<{
       droplist={
         <Menu>
           {models.map((model) => (
-            <Menu.Item
-              key={model.model_id}
-              className={model.model_id === selectedModelId ? 'bg-2!' : ''}
-              onClick={() => void handleSelectModel(model.model_id, model.model_ratio)}
-            >
+            <Menu.Item key={model.model_id} className={model.model_id === selectedModelId ? 'bg-2!' : ''} onClick={() => void handleSelectModel(model.model_id, model.model_ratio)}>
               {formatModelLabel(model)}
             </Menu.Item>
           ))}

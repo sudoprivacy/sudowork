@@ -8,7 +8,7 @@
  * useAutoScroll - Auto-scroll hook with user scroll detection
  * Uses Virtuoso's native followOutput for streaming auto-scroll,
  * only calls scrollToIndex for user-initiated actions (send message, click button).
- * 
+ *
  * Tool Call Optimization:
  * - Scrolls to top when user sends a message to show tool execution steps
  * - Auto-scrolls to bottom when task completes
@@ -72,19 +72,16 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   );
 
   // Scroll to top helper - for when user sends a message
-  const scrollToTop = useCallback(
-    (behavior: 'smooth' | 'auto' = 'smooth') => {
-      if (!virtuosoRef.current) return;
+  const scrollToTop = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (!virtuosoRef.current) return;
 
-      lastProgrammaticScrollTimeRef.current = Date.now();
-      virtuosoRef.current.scrollToIndex({
-        index: 0,
-        behavior,
-        align: 'start',
-      });
-    },
-    []
-  );
+    lastProgrammaticScrollTimeRef.current = Date.now();
+    virtuosoRef.current.scrollToIndex({
+      index: 0,
+      behavior,
+      align: 'start',
+    });
+  }, []);
 
   // Virtuoso native followOutput - handles streaming auto-scroll internally
   // without external scrollToIndex calls that cause jitter
