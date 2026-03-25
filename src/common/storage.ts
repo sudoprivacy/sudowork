@@ -293,6 +293,8 @@ export type TChatConversation =
           pinnedAt?: number;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
+          /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
+          openclawModelId?: string;
         }
       >,
       'model'

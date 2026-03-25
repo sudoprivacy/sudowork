@@ -27,6 +27,7 @@ import OpenClawChat from './openclaw/OpenClawChat';
 import GeminiChat from './gemini/GeminiChat';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import GeminiModelSelector from './gemini/GeminiModelSelector';
+import OpenClawModelSelector from '@/renderer/components/OpenClawModelSelector';
 import { useGeminiModelSelection } from './gemini/useGeminiModelSelection';
 import { usePreviewContext } from './preview';
 import StarOfficeMonitorCard from './openclaw/StarOfficeMonitorCard.tsx';
@@ -232,6 +233,9 @@ const ChatConversation: React.FC<{
     }
     if (conversation.type === 'codex') {
       return <AcpModelSelector conversationId={conversation.id} />;
+    }
+    if (conversation.type === 'openclaw-gateway') {
+      return <OpenClawModelSelector conversationId={conversation.id} />;
     }
     return <GeminiModelSelector disabled={true} />;
   }, [conversation, isGeminiConversation]);

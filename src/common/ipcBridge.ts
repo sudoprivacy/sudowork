@@ -15,10 +15,25 @@ import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview'
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
 
+// OpenClaw model pricing API response type
+export interface IOpenClawModelsResponse {
+  data: Array<{
+    model_id: string;
+    model_ratio: number;
+  }>;
+  success: boolean;
+}
+
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
   showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
+};
+
+// OpenClaw model selector - fetch models from pricing API (bypasses CORS)
+export const openclaw = {
+  getModels: bridge.buildProvider<IOpenClawModelsResponse, void>('openclaw.get-models'),
+  selectModel: bridge.buildProvider<void, { conversationId: string; modelId: string; modelRatio: number }>('openclaw.select-model'),
 };
 
 //通用会话能力

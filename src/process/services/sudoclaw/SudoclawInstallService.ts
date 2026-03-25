@@ -115,7 +115,7 @@ function hasBinWrapper(pkgRoot: string): boolean {
 }
 
 /** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
-function repairOpenClawConfig(): void {
+export function repairOpenClawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
   try {
@@ -149,15 +149,34 @@ function repairOpenClawConfig(): void {
       delete config.lastRunMode;
       changed = true;
     }
-    const gw = config.gateway as { mode?: string; port?: number } | undefined;
-    if (gw && typeof gw === 'object' && !gw.mode) {
-      (gw as { mode: string }).mode = 'local';
+
+    // Ensure gateway config exists with auth: { mode: 'none' }
+    if (!config.gateway || typeof config.gateway !== 'object') {
+      (config as Record<string, unknown>).gateway = { port: SUDOCLAW_DEFAULT_PORT, mode: 'local', auth: { mode: 'none' } };
       changed = true;
+      console.log('[Sudoclaw] Added missing gateway config');
+    } else {
+      const gw = config.gateway as { mode?: string; port?: number; auth?: { mode?: string } };
+      if (!gw.mode) {
+        gw.mode = 'local';
+        changed = true;
+      }
+      if (gw.port === 18789 || gw.port === 18799) {
+        gw.port = SUDOCLAW_DEFAULT_PORT;
+        changed = true;
+      }
+      if (!gw.port) {
+        gw.port = SUDOCLAW_DEFAULT_PORT;
+        changed = true;
+      }
+      // CRITICAL: Ensure auth.mode is set to 'none' for local development
+      if (!gw.auth || typeof gw.auth !== 'object' || gw.auth.mode !== 'none') {
+        gw.auth = { mode: 'none' };
+        changed = true;
+        console.log('[Sudoclaw] Fixed gateway auth to mode: none');
+      }
     }
-    if (gw && typeof gw === 'object' && (gw.port === 18789 || gw.port === 18799)) {
-      gw.port = SUDOCLAW_DEFAULT_PORT;
-      changed = true;
-    }
+
     // Ensure ~/.nexus/config/skills is in skills.load.extraDirs for default skill loading
     const skills = config.skills as { load?: { extraDirs?: string[] } } | undefined;
     const extraDirs = skills?.load?.extraDirs;

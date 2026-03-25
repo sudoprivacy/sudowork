@@ -78,6 +78,30 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
+  // Check if all components are already installed
+  console.log('[Process] Checking runtime dependencies...');
+  const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([
+    import('./services/nexus/DynamicNexusService'),
+    import('./services/sudoclaw/SudoclawInstallService'),
+  ]);
+
+  const nodeInstalled = await checkNodeInstalled();
+  const sudoclawInstalled = await checkSudoclawInstalled();
+  const nexusInstalled = await dynamicNexusService.checkInstalled();
+
+  if (nodeInstalled && sudoclawInstalled && nexusInstalled) {
+    console.log('[Process] All runtimes already installed, skipping installation');
+    // Still need to repair config in case it's outdated
+    try {
+      const { repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
+      repairOpenClawConfig();
+    } catch {
+      // ignore
+    }
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+    return;
+  }
+
   // Install bundled Node.js (progress: 10-25%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 10);
@@ -91,7 +115,6 @@ async function installRuntimes(): Promise<void> {
   // Install Sudoclaw (built-in OpenClaw) (progress: 30-50%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 30);
-    const { ensureSudoclawInstalled } = await import('./services/sudoclaw/SudoclawInstallService');
     await ensureSudoclawInstalled();
   } catch (err) {
     console.error('[Process] Sudoclaw install failed:', err);
@@ -102,13 +125,15 @@ async function installRuntimes(): Promise<void> {
   // Install Nexus (progress: 60-90%)
   try {
     initStatusManager.setStatus('installing', '组件安装中', 60);
-    const { dynamicNexusService } = await import('./services/nexus/DynamicNexusService');
 
     // Only install if bundled resource exists
     const isInstalled = await dynamicNexusService.checkInstalled();
     if (!isInstalled) {
       console.log('[Process] Installing Nexus...');
       await dynamicNexusService.install();
+      // Auto-start Nexus after installation
+      console.log('[Process] Starting Nexus after installation...');
+      await dynamicNexusService.start();
     }
   } catch (err) {
     console.error('[Process] Nexus install failed:', err);
@@ -116,4 +141,24 @@ async function installRuntimes(): Promise<void> {
   }
 
   initStatusManager.setStatus('ready', '初始化完成', 100);
+}
+
+/** Check if Node.js runtime is already installed */
+async function checkNodeInstalled(): Promise<boolean> {
+  try {
+    const { isNodeInstalled } = await import('./services/claudeCli/NodeRuntimeService');
+    return isNodeInstalled();
+  } catch {
+    return false;
+  }
+}
+
+/** Check if Sudoclaw is already installed */
+async function checkSudoclawInstalled(): Promise<boolean> {
+  try {
+    const { getSudoclawCliPath } = await import('./services/sudoclaw/SudoclawInstallService');
+    return getSudoclawCliPath() !== null;
+  } catch {
+    return false;
+  }
 }

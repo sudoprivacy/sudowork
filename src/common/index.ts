@@ -5,4 +5,4 @@
  */
 
 export * as ipcBridge from './ipcBridge';
-export { conversation, skillHub } from './ipcBridge';
+export { conversation, skillHub, type IOpenClawModelsResponse } from './ipcBridge';

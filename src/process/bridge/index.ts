@@ -24,6 +24,7 @@ import { initModelBridge } from './modelBridge';
 import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
 import { initStarOfficeBridge } from './starOfficeBridge';
+import { initOpenClawBridge } from './openclawBridge';
 import { initUpdateBridge } from './updateBridge';
 import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
@@ -67,6 +68,7 @@ export function initAllBridges(): void {
   initSystemSettingsBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
+  initOpenClawBridge();
   initNexusBridge();
   initClaudeCliBridge();
   initLibreOfficeBridge();
