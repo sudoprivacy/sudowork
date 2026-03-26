@@ -162,9 +162,11 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origArgv = [...process.argv];
     const origCwd = process.cwd();
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
+    const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
 
     process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
+    process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
 
     try {
@@ -186,6 +188,8 @@ export class OpenClawGatewayManager extends EventEmitter {
       process.chdir(origCwd);
       if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
       else delete process.env.OPENCLAW_STATE_DIR;
+      if (origConfigPath !== undefined) process.env.OPENCLAW_CONFIG_PATH = origConfigPath;
+      else delete process.env.OPENCLAW_CONFIG_PATH;
     }
   }
 
@@ -215,7 +219,10 @@ export class OpenClawGatewayManager extends EventEmitter {
         return;
       }
 
-      if (this.stateDir) env.OPENCLAW_STATE_DIR = this.stateDir;
+      if (this.stateDir) {
+        env.OPENCLAW_STATE_DIR = this.stateDir;
+        env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
+      }
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${launcherPath} ${args.join(' ')}`);
 

@@ -38,7 +38,10 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
 const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
-const CONFIG_FILENAME = 'sudoclaw.json';
+export const CONFIG_FILENAME = 'sudoclaw.json';
+
+/** Full path to sudoclaw.json config file */
+export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
 function hasDistEntry(pkgRoot: string): boolean {
@@ -134,7 +137,6 @@ function migrateConfigFilename(): void {
 
 /** Repair sudoclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
 export function repairOpenClawConfig(): void {
-  migrateConfigFilename();
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
   try {
@@ -318,6 +320,7 @@ function getBundledOpenclawPath(): string | null {
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
   migrateLegacySudoclaw();
+  migrateConfigFilename();
   repairOpenClawConfig();
 
   const pkgRoot = resolvePackageRoot();

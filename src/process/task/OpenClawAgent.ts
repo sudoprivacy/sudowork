@@ -119,7 +119,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         const probeHost = host === 'localhost' ? '127.0.0.1' : host;
         const alreadyListening = await isTcpPortOpen(probeHost, port);
         if (!alreadyListening) {
-          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
+          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir, OPENCLAW_CONFIG_PATH: `${stateDir}/sudoclaw.json` } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({
             port,
             customEnv,

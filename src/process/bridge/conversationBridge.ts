@@ -111,9 +111,9 @@ export function initConversationBridge(): void {
         success: true,
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -125,9 +125,9 @@ export function initConversationBridge(): void {
         msg: error instanceof Error ? error.message : String(error),
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
