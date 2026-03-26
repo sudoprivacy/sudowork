@@ -8,6 +8,7 @@ import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
+import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
@@ -263,6 +264,9 @@ const GuidPage: React.FC = () => {
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
+        <div className='absolute top-12px right-16px z-10'>
+          <ThemeSwitcher />
+        </div>
         {selectedMenu ? (
           /* 功能菜单内容区域 - 完全清空展示新内容 */
           <div className={styles.functionMenuContainer}>

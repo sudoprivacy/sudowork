@@ -3,74 +3,85 @@ import { ConfigStorage } from '@/common/storage';
 import { useCallback, useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
+export type ThemePreference = 'light' | 'dark' | 'system';
 
-const DEFAULT_THEME: Theme = 'light';
+const DEFAULT_PREFERENCE: ThemePreference = 'light';
 const THEME_CACHE_KEY = '__aionui_theme';
 
-// Initialize theme immediately when module loads
-const initTheme = async () => {
+const getSystemTheme = (): Theme => {
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+};
+
+const resolveTheme = (preference: ThemePreference): Theme => {
+  if (preference === 'system') return getSystemTheme();
+  return preference;
+};
+
+// Apply theme to document
+const applyTheme = (theme: Theme) => {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.body.setAttribute('arco-theme', theme);
   try {
-    const theme = (await ConfigStorage.get('theme')) as Theme;
-    const initialTheme = theme || DEFAULT_THEME;
-    document.documentElement.setAttribute('data-theme', initialTheme);
-    document.body.setAttribute('arco-theme', initialTheme);
-    try {
-      localStorage.setItem(THEME_CACHE_KEY, initialTheme);
-    } catch (_e) {
-      /* noop */
-    }
-    return initialTheme;
+    localStorage.setItem(THEME_CACHE_KEY, theme);
+  } catch (_e) {
+    /* noop */
+  }
+};
+
+// Initialize theme immediately when module loads
+const initTheme = async (): Promise<ThemePreference> => {
+  try {
+    const preference = ((await ConfigStorage.get('theme')) as ThemePreference) || DEFAULT_PREFERENCE;
+    applyTheme(resolveTheme(preference));
+    return preference;
   } catch (error) {
     console.error('Failed to load initial theme:', error);
-    document.documentElement.setAttribute('data-theme', DEFAULT_THEME);
-    document.body.setAttribute('arco-theme', DEFAULT_THEME);
-    return DEFAULT_THEME;
+    applyTheme(resolveTheme(DEFAULT_PREFERENCE));
+    return DEFAULT_PREFERENCE;
   }
 };
 
 // Run theme initialization immediately
-let initialThemePromise: Promise<Theme> | null = null;
+let initialThemePromise: Promise<ThemePreference> | null = null;
 if (typeof window !== 'undefined') {
   initialThemePromise = initTheme();
 }
 
-const useTheme = (): [Theme, (theme: Theme) => Promise<void>] => {
-  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
+const useTheme = (): [Theme, ThemePreference, (preference: ThemePreference) => Promise<void>] => {
+  const [preference, setPreferenceState] = useState<ThemePreference>(DEFAULT_PREFERENCE);
+  const [theme, setThemeState] = useState<Theme>(resolveTheme(DEFAULT_PREFERENCE));
 
-  // Apply theme to document
-  const applyTheme = useCallback((newTheme: Theme) => {
-    document.documentElement.setAttribute('data-theme', newTheme);
-    document.body.setAttribute('arco-theme', newTheme);
-    try {
-      localStorage.setItem(THEME_CACHE_KEY, newTheme);
-    } catch (_e) {
-      /* noop */
-    }
-  }, []);
-
-  // Set theme with persistence
-  const setTheme = useCallback(
-    async (newTheme: Theme) => {
+  // Set theme preference with persistence
+  const setPreference = useCallback(
+    async (newPreference: ThemePreference) => {
+      const prev = preference;
       try {
-        setThemeState(newTheme);
-        applyTheme(newTheme);
-        await ConfigStorage.set('theme', newTheme);
+        setPreferenceState(newPreference);
+        const resolved = resolveTheme(newPreference);
+        setThemeState(resolved);
+        applyTheme(resolved);
+        await ConfigStorage.set('theme', newPreference);
       } catch (error) {
         console.error('Failed to save theme:', error);
-        // Revert on error
-        setThemeState(theme);
-        applyTheme(theme);
+        setPreferenceState(prev);
+        const resolved = resolveTheme(prev);
+        setThemeState(resolved);
+        applyTheme(resolved);
       }
     },
-    [theme, applyTheme]
+    [preference]
   );
 
   // Initialize theme state from the early initialization
   useEffect(() => {
     if (initialThemePromise) {
       initialThemePromise
-        .then((initialTheme) => {
-          setThemeState(initialTheme);
+        .then((pref) => {
+          setPreferenceState(pref);
+          setThemeState(resolveTheme(pref));
         })
         .catch((error) => {
           console.error('Failed to initialize theme:', error);
@@ -78,7 +89,20 @@ const useTheme = (): [Theme, (theme: Theme) => Promise<void>] => {
     }
   }, []);
 
-  return [theme, setTheme];
+  // Listen for system color scheme changes when preference is 'system'
+  useEffect(() => {
+    if (preference !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      const resolved = resolveTheme('system');
+      setThemeState(resolved);
+      applyTheme(resolved);
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [preference]);
+
+  return [theme, preference, setPreference];
 };
 
 export default useTheme;

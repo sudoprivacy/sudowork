@@ -202,6 +202,7 @@
   "fontSizeReset": "恢复默认缩放",
   "lightMode": "浅色",
   "darkMode": "深色",
+  "systemMode": "系统",
   "agent": "对话Agent",
   "tools": "工具",
   "skill": "技能",

@@ -202,6 +202,7 @@
   "fontSizeReset": "Reset zoom",
   "lightMode": "Light",
   "darkMode": "Dark",
+  "systemMode": "System",
   "agent": "Agent",
   "tools": "Tools",
   "skill": "Skill Hub",
