@@ -203,7 +203,7 @@ async function startSudoclawGatewayInBackground(): Promise<void> {
     const gatewayManager = new OpenClawGatewayManager({
       port: SUDOCLAW_DEFAULT_PORT,
       stateDir: SUDOCLAW_DIR,
-      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
+      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: `${SUDOCLAW_DIR}/sudoclaw.json` },
       forceSubprocessGateway: true, // Use subprocess mode for stability
     });
     await gatewayManager.start();

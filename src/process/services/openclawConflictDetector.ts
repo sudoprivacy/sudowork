@@ -62,7 +62,7 @@ function findOpenClawConfigPath(): string | null {
   // Check state directory
   const stateDir = process.env.OPENCLAW_STATE_DIR?.replace(/^~/, os.homedir()) || path.join(os.homedir(), '.openclaw');
 
-  const candidates = [path.join(stateDir, 'openclaw.json'), path.join(stateDir, 'clawdbot.json'), path.join(os.homedir(), '.clawdbot', 'clawdbot.json')];
+  const candidates = [path.join(stateDir, 'sudoclaw.json'), path.join(stateDir, 'openclaw.json'), path.join(stateDir, 'clawdbot.json'), path.join(os.homedir(), '.clawdbot', 'clawdbot.json')];
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {

@@ -153,7 +153,7 @@ const reloadOpenClawSkills = (): void => {
   }
 };
 
-/** Restart all Sudoclaw gateways to pick up config changes (~/.sudoclaw/openclaw.json) */
+/** Restart all Sudoclaw gateways to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
 const restartOpenClawGateways = async (): Promise<void> => {
   const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
 

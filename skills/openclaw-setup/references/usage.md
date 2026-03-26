@@ -1,4 +1,4 @@
-# OpenClaw 使用指南
+# SudoClaw 使用指南
 
 ## 创建和管理 Agent
 
@@ -11,7 +11,7 @@ openclaw agents list
 ### 添加新 Agent
 
 ```bash
-openclaw agents add <agent-name> --workspace ~/.openclaw/workspace-<name>
+openclaw agents add <agent-name> --workspace ~/.nexus/sudoclaw/workspace-<name>
 ```
 
 ### 设置 Agent 身份
@@ -23,7 +23,7 @@ openclaw agents set-identity --agent main --name "My Assistant" --emoji "🦞"
 ### 从文件加载身份
 
 ```bash
-openclaw agents set-identity --workspace ~/.openclaw/workspace --from-identity
+openclaw agents set-identity --workspace ~/.nexus/sudoclaw/workspace --from-identity
 ```
 
 ## 与 Agent 对话
@@ -57,7 +57,7 @@ openclaw agent --to +1234567890 --message "状态更新" --deliver
 ### 发送到电话号码
 
 ```bash
-openclaw message send --to +1234567890 --message "Hello from OpenClaw"
+openclaw message send --to +1234567890 --message "Hello from SudoClaw"
 ```
 
 ### 发送到渠道
@@ -91,12 +91,12 @@ openclaw channels status --probe
 ### 创建工作区
 
 ```bash
-openclaw setup --workspace ~/.openclaw/workspace
+openclaw setup --workspace ~/.nexus/sudoclaw/workspace
 ```
 
 ### 工作区文件结构
 
-默认工作区位置：`~/.openclaw/workspace`
+默认工作区位置：`~/.nexus/sudoclaw/workspace`
 
 重要文件：
 
@@ -109,9 +109,9 @@ openclaw setup --workspace ~/.openclaw/workspace
 ### 初始化工作区模板
 
 ```bash
-cp docs/reference/templates/AGENTS.md ~/.openclaw/workspace/AGENTS.md
-cp docs/reference/templates/SOUL.md ~/.openclaw/workspace/SOUL.md
-cp docs/reference/templates/TOOLS.md ~/.openclaw/workspace/TOOLS.md
+cp docs/reference/templates/AGENTS.md ~/.nexus/sudoclaw/workspace/AGENTS.md
+cp docs/reference/templates/SOUL.md ~/.nexus/sudoclaw/workspace/SOUL.md
+cp docs/reference/templates/TOOLS.md ~/.nexus/sudoclaw/workspace/TOOLS.md
 ```
 
 ## 自动化任务
@@ -133,11 +133,11 @@ openclaw webhooks add <name> --url <webhook-url>
 ### Gmail Pub/Sub
 
 配置 Gmail 触发器（需要额外设置）：
-参考文档：https://docs.openclaw.ai/automation/gmail-pubsub
+参考文档：https://docs.sudoclaw.ai/automation/gmail-pubsub
 
 ## 更新和升级
 
-### 更新 OpenClaw
+### 更新 SudoClaw
 
 ```bash
 npm install -g openclaw@latest

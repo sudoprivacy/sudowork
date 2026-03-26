@@ -18,7 +18,7 @@ interface GatewayManagerConfig {
   port?: number;
   /** Custom environment variables */
   customEnv?: Record<string, string>;
-  /** OpenClaw state dir (e.g. ~/.sudoclaw) — set cwd to package/ for reliable module resolution */
+  /** OpenClaw state dir (e.g. ~/.nexus/sudoclaw) — set cwd to package/ for reliable module resolution */
   stateDir?: string;
   /** Force subprocess (disables in-process); needed to restart gateway on device token mismatch */
   forceSubprocessGateway?: boolean;

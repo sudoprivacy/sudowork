@@ -16,7 +16,7 @@ import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { OpenClawGatewayManager } from '@/agent/openclaw';
 import * as net from 'node:net';
 
-const CONFIG_FILENAME = 'openclaw.json';
+const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 
@@ -207,7 +207,7 @@ export function initSudoclawBridge(): void {
     const manager = new OpenClawGatewayManager({
       port: testPort,
       stateDir: SUDOCLAW_DIR,
-      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
+      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: path.join(SUDOCLAW_DIR, CONFIG_FILENAME) },
       forceSubprocessGateway: true,
     });
 
@@ -308,7 +308,7 @@ export function initSudoclawBridge(): void {
       console.log('[SudoclawBridge] Starting WeChat plugin installation...');
       ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'installing', message: '正在安装微信插件...' });
 
-      // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/.sudoclaw/
+      // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/sudoclaw/
       const sudoclawBinDir = path.join(SUDOCLAW_DIR, 'bin');
       const env: Record<string, string> = {
         ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined) as [string, string][]),

@@ -7,7 +7,7 @@
 /**
  * OpenClaw Config Reader for Sudoclaw
  *
- * Reads OpenClaw configuration ONLY from the specified Sudoclaw directory (~/.nexus/.sudoclaw).
+ * Reads OpenClaw configuration ONLY from the specified Sudoclaw directory (~/.nexus/sudoclaw).
  * NEVER reads from system OpenClaw (~/.openclaw) to ensure complete isolation.
  */
 
@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const CONFIG_FILENAME = 'openclaw.json';
+const CONFIG_FILENAME = 'sudoclaw.json';
 
 interface OpenClawGatewayAuth {
   mode?: 'none' | 'token' | 'password';
@@ -48,7 +48,7 @@ function resolveUserPath(input: string): string {
 }
 
 /**
- * Read OpenClaw config from a specific state directory (e.g. ~/.nexus/.sudoclaw)
+ * Read OpenClaw config from a specific state directory (e.g. ~/.nexus/sudoclaw)
  * This is the ONLY config reader for Sudoclaw - ensures complete isolation from system OpenClaw.
  */
 export function readOpenClawConfigFromDir(stateDir: string): OpenClawConfig | null {
@@ -101,7 +101,7 @@ export function getGatewayAuthPassword(stateDir: string): string | null {
   return null;
 }
 
-/** Default port for Sudoclaw (~/.nexus/.sudoclaw) — isolated from system OpenClaw (18789) */
+/** Default port for Sudoclaw (~/.nexus/sudoclaw) — isolated from system OpenClaw (18789) */
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 /**

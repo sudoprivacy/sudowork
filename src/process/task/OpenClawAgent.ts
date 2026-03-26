@@ -56,7 +56,7 @@ export interface OpenClawAgentData {
     token?: string;
     password?: string;
     useExternalGateway?: boolean;
-    /** OpenClaw state directory (e.g. ~/.sudoclaw) */
+    /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw) */
     stateDir?: string;
     forceSubprocessGateway?: boolean;
   };
@@ -339,7 +339,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingNavigationTools.clear();
   }
 
-  /** Restart gateway to pick up config changes (~/.sudoclaw/openclaw.json) */
+  /** Restart gateway to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
   async restartGateway(): Promise<void> {
     // Full stop + reconnect
     if (this.connection) {

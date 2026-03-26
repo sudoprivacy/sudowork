@@ -154,7 +154,7 @@ export function initConversationBridge(): void {
       }
 
       // Try to get gateway status
-      let gatewayPort = 18789;
+      let gatewayPort = 17863;
       let gatewayHost = 'localhost';
       let workspace: string | undefined;
       let agentName: string | undefined;
@@ -165,7 +165,7 @@ export function initConversationBridge(): void {
         const { readFile } = await import('node:fs/promises');
         const { join } = await import('node:path');
         const { homedir } = await import('node:os');
-        const configPath = join(homedir(), '.openclaw', 'openclaw.json');
+        const configPath = join(homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
         const configContent = await readFile(configPath, 'utf-8');
         const config = JSON.parse(configContent);
 

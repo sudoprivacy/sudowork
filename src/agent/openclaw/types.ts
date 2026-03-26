@@ -273,7 +273,7 @@ export interface OpenClawGatewayConfig {
   password?: string;
   /** Connect to external gateway instead of spawning */
   useExternalGateway?: boolean;
-  /** OpenClaw state directory (e.g. ~/.sudoclaw). Sets OPENCLAW_STATE_DIR when spawning */
+  /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw). Sets OPENCLAW_STATE_DIR when spawning */
   stateDir?: string;
   /** Force subprocess gateway (enables restart on device token mismatch; avoids in-process which cannot restart) */
   forceSubprocessGateway?: boolean;
@@ -283,7 +283,7 @@ export interface OpenClawGatewayConfig {
 
 export interface OpenClawGatewayClientOptions {
   url?: string;
-  /** OpenClaw state dir (e.g. ~/.sudoclaw). Must match gateway for device auth. */
+  /** OpenClaw state dir (e.g. ~/.nexus/sudoclaw). Must match gateway for device auth. */
   stateDir?: string;
   token?: string;
   password?: string;
