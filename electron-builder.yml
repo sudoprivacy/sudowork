@@ -116,6 +116,10 @@ files:
 extraResources:
   - from: public
     to: .
+  - from: resources/app.ico
+    to: app.ico
+  - from: resources/app.png
+    to: app.png
   - from: THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
   # CLI tools (bundled at build time via scripts/download-*.js)

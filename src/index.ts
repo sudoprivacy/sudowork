@@ -105,7 +105,7 @@ const handleDeepLinkUrl = (url: string) => {
   if (!parsed) return;
 
   if (!mainWindow || mainWindow.isDestroyed()) {
-    // Window not ready yet – last-write-wins: only the most recent deep link is kept,
+    // Window not ready yet - last-write-wins: only the most recent deep link is kept,
     // which is intentional since the user can only act on one at a time.
     pendingDeepLinkUrl = url;
     return;
@@ -336,7 +336,19 @@ const getTrayIcon = (): Electron.NativeImage => {
 
   // Windows: 优先使用 .ico 格式，Linux/macOS 使用 .png
   const iconFile = process.platform === 'win32' ? 'app.ico' : 'app.png';
-  const iconPath = path.join(resourcesPath, iconFile);
+  let iconPath = path.join(resourcesPath, iconFile);
+
+  if (!fs.existsSync(iconPath)) {
+    // Fallback 1: Check if it's in the same directory as the executable (common for some portable builds)
+    const execDir = path.dirname(app.getPath('exe'));
+    iconPath = path.join(execDir, 'resources', iconFile);
+  }
+
+  if (!fs.existsSync(iconPath)) {
+    // Fallback 2: Check standard production resources path (extraResources from builder)
+    const prodPath = path.join(process.resourcesPath, iconFile);
+    iconPath = prodPath;
+  }
 
   let icon: Electron.NativeImage;
 
@@ -659,7 +671,7 @@ const handleAppReady = async (): Promise<void> => {
   // and serves the local file through Electron's net module.
   protocol.handle(AION_ASSET_PROTOCOL, (request) => {
     const url = new URL(request.url);
-    // pathname is /C:/path/to/file.svg — strip leading slash on Windows
+    // pathname is /C:/path/to/file.svg - strip leading slash on Windows
     let filePath = decodeURIComponent(url.pathname);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
@@ -724,7 +736,7 @@ const handleAppReady = async (): Promise<void> => {
       // Explicit app.exit() calls bypass will-quit, so they are unaffected.
       if (!isExplicitQuit) {
         event.preventDefault();
-        console.warn('[WebUI] Prevented unexpected quit — server is still running');
+        console.warn('[WebUI] Prevented unexpected quit - server is still running');
       }
     });
   } else {
@@ -736,7 +748,7 @@ const handleAppReady = async (): Promise<void> => {
     // Sudoclaw is always inserted into the detected list unconditionally (no execSync
     // needed), so it will show up immediately.  Other agents (claude, gemini, …) may
     // appear slightly later once detection finishes and the renderer's SWR revalidates
-    // on window focus — this is an acceptable trade-off.
+    // on window focus - this is an acceptable trade-off.
     const acpDetectionDone = initializeAcpDetector();
 
     createWindow();
@@ -754,13 +766,11 @@ const handleAppReady = async (): Promise<void> => {
       try {
         const savedCloseToTray = await ProcessConfig.get('system.closeToTray');
         closeToTrayEnabled = savedCloseToTray ?? false;
-        if (closeToTrayEnabled) {
-          // 等待 i18n 初始化完成后再创建托盘（短暂延迟确保语言加载）
-          // Wait for i18n to initialize before creating tray (short delay to ensure language is loaded)
-          await new Promise((resolve) => setTimeout(resolve, 100));
 
-          createOrUpdateTray();
-        }
+        // 无论设置如何，启动时都创建托盘图标（确保图标常驻）
+        // Regardless of setting, create tray icon on startup (ensure it's persistent)
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        createOrUpdateTray();
       } catch {
         // Ignore storage read errors, default to false
       }
@@ -768,11 +778,8 @@ const handleAppReady = async (): Promise<void> => {
       // 监听设置变更（通过 bridge 库）/ Listen for setting changes (via bridge library)
       onCloseToTrayChanged((enabled) => {
         closeToTrayEnabled = enabled;
-        if (enabled) {
-          createOrUpdateTray();
-        } else {
-          destroyTray();
-        }
+        // 托盘图标现在是常驻的，变更设置只需更新内部逻辑标识，不需要创建/销毁托盘
+        // Tray icon is now persistent, change setting only updates internal flag
       });
     }
 
