@@ -109,14 +109,19 @@ class DynamicNexusService {
   }
 
   /**
-   * Checks if nexus is already installed locally
+   * Checks if nexus is already installed locally.
+   * Returns true if no bundled resource is available (Nexus is optional — skip silently).
+   * Only checks for the nexusd executable (consistent with Node/Sudoclaw pattern).
    */
   async checkInstalled(): Promise<boolean> {
-    const envDir = this.getCondaEnvDir();
-    const markerFile = path.join(envDir, CONDA_READY_MARKER);
-    const nexusdBin = this.getNexusdPath(envDir);
+    // No bundle available → Nexus is not required for this build, treat as "installed"
+    if (!this.getBundledNexusPath()) {
+      return true;
+    }
 
-    return fs.existsSync(markerFile) && fs.existsSync(nexusdBin);
+    const envDir = this.getCondaEnvDir();
+    const nexusdBin = this.getNexusdPath(envDir);
+    return fs.existsSync(nexusdBin);
   }
 
   /**
