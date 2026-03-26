@@ -26,6 +26,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportTargetPath, setExportTargetPath] = useState('');
   const [exportModalLoading, setExportModalLoading] = useState(false);
+  const [exportFinished, setExportFinished] = useState(false);
   const [showExportDirectorySelector, setShowExportDirectorySelector] = useState(false);
   const [currentExportRequestId, setCurrentExportRequestId] = useState<string | null>(null);
   const exportCanceledRef = useRef(false);
@@ -80,6 +81,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
     setExportTask(null);
     setExportTargetPath('');
     setExportModalLoading(false);
+    setExportFinished(false);
     setCurrentExportRequestId(null);
   }, [currentExportRequestId, exportModalLoading]);
 
@@ -88,6 +90,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
       exportCanceledRef.current = false;
       setExportTask(task);
       setExportModalVisible(true);
+      setExportFinished(false);
       const desktopPath = await getDesktopPath();
       setExportTargetPath(desktopPath);
     },
@@ -250,10 +253,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
 
         if (success) {
           Message.success(t('conversation.history.exportSuccess'));
-          setExportModalVisible(false);
-          setExportTask(null);
-          setExportTargetPath('');
-          setCurrentExportRequestId(null);
+          setExportFinished(true);
         } else {
           Message.error(t('conversation.history.exportFailed'));
         }
@@ -282,10 +282,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
         Message.success(t('conversation.history.exportSuccess'));
         setSelectedConversationIds(new Set());
         onBatchModeChange?.(false);
-        setExportModalVisible(false);
-        setExportTask(null);
-        setExportTargetPath('');
-        setCurrentExportRequestId(null);
+        setExportFinished(true);
       } else {
         Message.error(t('conversation.history.exportFailed'));
       }
@@ -308,6 +305,7 @@ export const useExport = ({ conversations, selectedConversationIds, setSelectedC
     exportModalVisible,
     exportTargetPath,
     exportModalLoading,
+    exportFinished,
     showExportDirectorySelector,
     setShowExportDirectorySelector,
     closeExportModal,

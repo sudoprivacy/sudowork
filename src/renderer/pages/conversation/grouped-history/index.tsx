@@ -55,7 +55,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     markAsRead,
   });
 
-  const { exportTask, exportModalVisible, exportTargetPath, exportModalLoading, showExportDirectorySelector, setShowExportDirectorySelector, closeExportModal, handleSelectExportDirectoryFromModal, handleSelectExportFolder, handleExportConversation, handleBatchExport, handleConfirmExport } = useExport({
+  const { exportTask, exportModalVisible, exportTargetPath, exportModalLoading, exportFinished, showExportDirectorySelector, setShowExportDirectorySelector, closeExportModal, handleSelectExportDirectoryFromModal, handleSelectExportFolder, handleExportConversation, handleBatchExport, handleConfirmExport } = useExport({
     conversations,
     selectedConversationIds,
     setSelectedConversationIds,
@@ -145,23 +145,25 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           </div>
 
           <div className='flex gap-12px justify-end'>
-            <button
-              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-              style={{
-                border: '1px solid var(--color-border-2)',
-                backgroundColor: 'var(--color-fill-2)',
-                color: 'var(--color-text-1)',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
-              }}
-              onClick={closeExportModal}
-            >
-              {t('common.cancel')}
-            </button>
+            {!exportFinished && (
+              <button
+                className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
+                style={{
+                  border: '1px solid var(--color-border-2)',
+                  backgroundColor: 'var(--color-fill-2)',
+                  color: 'var(--color-text-1)',
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
+                }}
+                onClick={closeExportModal}
+              >
+                {t('common.cancel')}
+              </button>
+            )}
             <button
               className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
               style={{
@@ -181,11 +183,15 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                 }
               }}
               onClick={() => {
-                void handleConfirmExport();
+                if (exportFinished) {
+                  closeExportModal();
+                } else {
+                  void handleConfirmExport();
+                }
               }}
               disabled={exportModalLoading}
             >
-              {exportModalLoading ? t('conversation.history.exporting') : t('common.confirm')}
+              {exportModalLoading ? t('conversation.history.exporting') : exportFinished ? t('common.close') : t('common.confirm')}
             </button>
           </div>
         </div>
