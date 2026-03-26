@@ -43,6 +43,11 @@ const LoginPage: React.FC = () => {
     }
   }, [navigate, status]);
 
+  // 页面加载时重置倒计时
+  useEffect(() => {
+    setCountdown(0);
+  }, []);
+
   // 倒计时定时器
   useEffect(() => {
     let timer: NodeJS.Timeout;

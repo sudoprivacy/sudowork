@@ -99,7 +99,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         label: t('settings.memberManagement', { defaultValue: '成员管理' }),
         icon: <Peoples />,
         path: 'members',
-        hidden: currentUser?.role !== 'ADMIN',
+        hidden: !['ADMIN', 'ENTERPRISE_ADMIN', 'SUPER_ADMIN'].includes(currentUser?.role || ''),
       },
       sudorouter: { id: 'sudorouter', label: t('settings.sudorouter', { defaultValue: 'Sudorouter' }), icon: <Cloudy />, path: 'sudorouter' },
       // model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },

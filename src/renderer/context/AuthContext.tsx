@@ -7,7 +7,7 @@ type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 export interface AuthUser {
   id: string;
   nickname: string;
-  role: 'ADMIN' | 'USER';
+  role: 'SUPER_ADMIN' | 'ENTERPRISE_ADMIN' | 'ADMIN' | 'USER';
   status: number;
   enterprise_code?: string;
   token?: string;
