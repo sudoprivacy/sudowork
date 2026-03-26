@@ -10,6 +10,7 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
+import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Button, Form, Input, Message, Switch, Tabs, Tooltip } from '@arco-design/web-react';
 import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh } from '@icon-park/react';
@@ -35,6 +36,7 @@ const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; ex
 );
 
 const CHANNEL_LOGOS = [
+  { src: ChannelWeChatLogo, alt: 'WeChat' },
   { src: ChannelTelegramLogo, alt: 'Telegram' },
   { src: ChannelLarkLogo, alt: 'Lark' },
   { src: ChannelDingTalkLogo, alt: 'DingTalk' },
