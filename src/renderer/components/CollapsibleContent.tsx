@@ -77,6 +77,13 @@ export const CollapsibleContent: React.FC<CollapsibleContentProps> = ({ children
   const { t } = useTranslation(); // 国际化 i18n
   const { theme } = useThemeContext(); // 主题上下文（亮色/暗色）Theme context (light/dark)
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed); // 折叠状态 Collapse state
+
+  // Sync isCollapsed with defaultCollapsed prop when it changes
+  // 当 defaultCollapsed 属性变化时同步内部折叠状态
+  useEffect(() => {
+    setIsCollapsed(defaultCollapsed);
+  }, [defaultCollapsed]);
+
   const [needsCollapse, setNeedsCollapse] = useState(false); // 是否需要折叠功能 Whether collapse feature is needed
   const contentRef = useRef<HTMLDivElement>(null); // 内容容器引用 Content container ref
 

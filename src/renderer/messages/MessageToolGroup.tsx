@@ -411,6 +411,14 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
         newCollapsedStates[item.callId] = true;
       });
       setCollapsedStates(newCollapsedStates);
+    } else {
+      // While running, ensure the last one is expanded
+      const newCollapsedStates: Record<string, boolean> = {};
+      message.content.forEach((item, idx) => {
+        // Collapse previous ones if there's a next one
+        newCollapsedStates[item.callId] = idx < message.content.length - 1;
+      });
+      setCollapsedStates(newCollapsedStates);
     }
   }, [message.content]);
 

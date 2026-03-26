@@ -145,8 +145,12 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
             virtuosoRef.current.scrollToIndex({
               index: itemCount - 1,
               align: 'start',
-              behavior: 'smooth',
+              behavior: 'auto', // Use auto for immediate positioning
             });
+
+            // Set userScrolledRef to true to prevent further auto-scrolling
+            // and pin the user prompt at the top
+            userScrolledRef.current = true;
           }
         });
       });

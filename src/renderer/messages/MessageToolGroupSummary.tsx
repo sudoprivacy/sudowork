@@ -136,6 +136,25 @@ const MessageToolGroupSummary: React.FC<{ messages: Array<IMessageToolGroup | IM
     if (!messages.length) return false;
     return messages.some((m) => (m.type === 'tool_group' && m.content.some((t) => t.status !== 'Success' && t.status !== 'Error' && t.status !== 'Canceled')) || (m.type === 'acp_tool_call' && m.content.update.status !== 'completed'));
   });
+
+  // Auto-collapse when all messages are completed
+  // 所有工具调用完成后自动折叠
+  React.useEffect(() => {
+    const allCompleted = messages.every((m) => {
+      if (m.type === 'tool_group') {
+        return m.content.every((t) => t.status === 'Success' || t.status === 'Error' || t.status === 'Canceled');
+      }
+      if (m.type === 'acp_tool_call') {
+        return m.content.update.status === 'completed' || m.content.update.status === 'failed';
+      }
+      return true;
+    });
+
+    if (allCompleted) {
+      setShowMore(false);
+    }
+  }, [messages]);
+
   const tools = useMemo(() => {
     const items = messages
       .map((m) => {
