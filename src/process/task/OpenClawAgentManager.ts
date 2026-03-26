@@ -15,6 +15,7 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DEFAULT_PORT, SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import WorkerManage from '@process/WorkerManage';
 import BaseAgentManager from '@process/task/BaseAgentManager';
@@ -223,9 +224,25 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
         addMessage(this.conversation_id, userMessage);
       }
 
-      // Send message to agent (use agentContent if provided, e.g. with injected skills)
+      // On the first message, prepend a workspace directive so the agent uses the
+      // per-conversation workspace dir for all file operations and bash commands.
+      let agentContent = data.agentContent || data.content;
+      if (this.isFirstMessage && this.workspace) {
+        this.isFirstMessage = false;
+        const configuredWorkspace = getSudoclawWorkspaceRoot();
+        agentContent =
+          `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` +
+          `Your working directory for this session ONLY is '${this.workspace}'. ` +
+          `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` +
+          `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory. ]\n\n` +
+          agentContent;
+      } else {
+        this.isFirstMessage = false;
+      }
+
+      // Send message to agent
       const result = await this.agent.sendMessage({
-        content: data.agentContent || data.content,
+        content: agentContent,
         files: data.files,
         msg_id: data.msg_id,
       });

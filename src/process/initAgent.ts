@@ -153,7 +153,7 @@ export const createNanobotAgent = async (options: ICreateConversationParams): Pr
   };
 };
 
-function getSudoclawWorkspaceRoot(): string {
+export function getSudoclawWorkspaceRoot(): string {
   try {
     const configPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
     const raw = fsSync.readFileSync(configPath, 'utf-8');
