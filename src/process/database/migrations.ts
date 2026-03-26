@@ -909,13 +909,9 @@ const migration_v16: IMigration = {
   up: (db) => {
     // 1. Convert existing gemini/codex/nanobot conversations to 'acp' type.
     //    Update the extra JSON to include the original backend info.
-    const legacyRows = db.prepare(
-      `SELECT id, type, extra FROM conversations WHERE type IN ('gemini', 'codex', 'nanobot')`
-    ).all() as Array<{ id: string; type: string; extra: string }>;
+    const legacyRows = db.prepare(`SELECT id, type, extra FROM conversations WHERE type IN ('gemini', 'codex', 'nanobot')`).all() as Array<{ id: string; type: string; extra: string }>;
 
-    const updateStmt = db.prepare(
-      `UPDATE conversations SET type = 'acp', extra = ? WHERE id = ?`
-    );
+    const updateStmt = db.prepare(`UPDATE conversations SET type = 'acp', extra = ? WHERE id = ?`);
 
     for (const row of legacyRows) {
       let extra: Record<string, unknown>;
@@ -975,9 +971,7 @@ const migration_v16: IMigration = {
     `);
 
     // 3. Update channel_sessions agent_type if table exists
-    const tables = db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='assistant_sessions'`
-    ).all() as Array<{ name: string }>;
+    const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='assistant_sessions'`).all() as Array<{ name: string }>;
 
     if (tables.length > 0) {
       db.exec(`

@@ -47,7 +47,7 @@ const GuidPage: React.FC = () => {
 
   // 关闭功能菜单面板，回到普通 GuidPage
   const handleBackToChat = useCallback(() => {
-    navigate('/guid', { replace: true });
+    void navigate('/guid', { replace: true });
   }, [navigate]);
 
   // Open external link

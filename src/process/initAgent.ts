@@ -86,7 +86,6 @@ function getSudoclawWorkspaceRoot(): string {
   return getSystemDir().workDir;
 }
 
-
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use workspace root from openclaw.json so the agent's working dir matches the UI workspace panel.

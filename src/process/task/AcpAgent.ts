@@ -21,18 +21,7 @@ import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type {
-  AcpBackend,
-  AcpModelInfo,
-  AcpPermissionOption,
-  AcpPermissionRequest,
-  AcpPromptResponseUsage,
-  AcpResult,
-  AcpSessionConfigOption,
-  AcpSessionUpdate,
-  AvailableCommandsUpdate,
-  ToolCallUpdate,
-} from '@/types/acpTypes';
+import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
@@ -589,9 +578,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         }
 
         if (data.files && data.files.length > 0) {
-          const fileRefs = data.files
-            .map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath))
-            .join(' ');
+          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
           contentToSend = fileRefs + ' ' + contentToSend;
         }
 

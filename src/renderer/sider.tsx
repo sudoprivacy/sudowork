@@ -51,7 +51,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
-    navigate(`/guid?menu=${menuId}`);
+    void navigate(`/guid?menu=${menuId}`);
   };
 
   useEffect(() => {
@@ -120,7 +120,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    navigate('/guid');
+                    void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
                     }
@@ -137,7 +137,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
-                    navigate('/guid');
+                    void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
                     }

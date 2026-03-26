@@ -646,7 +646,6 @@ const SkillModalContent: React.FC = () => {
     return () => observer.disconnect();
   }, [findScrollParent, hasMore]);
 
-
   // Reload when category changes — fetchSkills is now stable so no infinite loop
   useEffect(() => {
     setSkills([]);

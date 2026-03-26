@@ -200,10 +200,7 @@ export class ChannelMessageService {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
-          staleStream.callback(
-            { type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } },
-            true
-          );
+          staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } }, true);
           staleStream.resolve(staleStream.msgId);
         }
       }, STREAM_TIMEOUT_MS);
@@ -330,4 +327,3 @@ export function getChannelMessageService(): ChannelMessageService {
   }
   return serviceInstance;
 }
-
