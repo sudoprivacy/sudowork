@@ -264,12 +264,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       if (this.isFirstMessage && this.workspace) {
         this.isFirstMessage = false;
         const configuredWorkspace = getSudoclawWorkspaceRoot();
-        processedContent =
-          `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` +
-          `Your working directory for this session ONLY is '${this.workspace}'. ` +
-          `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` +
-          `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` +
-          processedContent;
+        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + processedContent;
       } else {
         this.isFirstMessage = false;
       }

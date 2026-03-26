@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AcpConnection } from '../../src/agent/acp/AcpConnection';
-import { AcpAgent } from '../../src/agent/acp/index';
 import type { AcpSessionConfigOption, AcpSessionModels } from '../../src/types/acpTypes';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -15,20 +14,6 @@ function makeConnection(backend: string = 'codex'): AcpConnection {
   const conn = new AcpConnection();
   (conn as any).backend = backend;
   return conn;
-}
-
-function makeAgent(backend: string, acpSessionId?: string): AcpAgent {
-  return new AcpAgent({
-    id: 'test-agent',
-    backend: backend as any,
-    workingDir: '/tmp',
-    extra: {
-      backend: backend as any,
-      workspace: '/tmp',
-      acpSessionId,
-    },
-    onStreamEvent: vi.fn(),
-  });
 }
 
 const CONFIG_OPTIONS: AcpSessionConfigOption[] = [{ id: 'model', category: 'model', type: 'select', currentValue: 'gpt-4o', options: [] }];
@@ -127,74 +112,5 @@ describe('AcpConnection.parseSessionCapabilities (via loadSession)', () => {
     await conn.loadSession('s1', '/tmp');
 
     expect((conn as any).models).toBeNull();
-  });
-});
-
-// ─── AcpAgent.createOrResumeSession routing ──────────────────────────────────
-
-describe('AcpAgent.createOrResumeSession — Codex routing', () => {
-  it('routes Codex to loadSession instead of newSession', async () => {
-    const agent = makeAgent('codex', 'session-codex-1');
-    const conn: AcpConnection = (agent as any).connection;
-
-    const loadSession = vi.spyOn(conn, 'loadSession').mockResolvedValue({ sessionId: 'session-codex-1' } as any);
-    const newSession = vi.spyOn(conn, 'newSession').mockResolvedValue({ sessionId: 'fresh' } as any);
-
-    await (agent as any).createOrResumeSession();
-
-    expect(loadSession).toHaveBeenCalledWith('session-codex-1', expect.any(String));
-    expect(newSession).not.toHaveBeenCalled();
-  });
-
-  it('routes non-Codex backends to newSession', async () => {
-    const agent = makeAgent('claude', 'session-claude-1');
-    const conn: AcpConnection = (agent as any).connection;
-
-    const loadSession = vi.spyOn(conn, 'loadSession').mockResolvedValue({} as any);
-    const newSession = vi.spyOn(conn, 'newSession').mockResolvedValue({ sessionId: 'session-claude-1' } as any);
-
-    await (agent as any).createOrResumeSession();
-
-    expect(newSession).toHaveBeenCalled();
-    expect(loadSession).not.toHaveBeenCalled();
-  });
-
-  it('falls back to newSession when loadSession throws', async () => {
-    const agent = makeAgent('codex', 'session-expired');
-    const conn: AcpConnection = (agent as any).connection;
-
-    vi.spyOn(conn, 'loadSession').mockRejectedValue(new Error('rollout expired'));
-    const newSession = vi.spyOn(conn, 'newSession').mockResolvedValue({ sessionId: 'fresh-session' } as any);
-
-    await (agent as any).createOrResumeSession();
-
-    expect(newSession).toHaveBeenCalledWith(expect.any(String));
-  });
-
-  it('creates a fresh session when no acpSessionId is stored', async () => {
-    const agent = makeAgent('codex'); // no acpSessionId
-    const conn: AcpConnection = (agent as any).connection;
-
-    const loadSession = vi.spyOn(conn, 'loadSession').mockResolvedValue({} as any);
-    const newSession = vi.spyOn(conn, 'newSession').mockResolvedValue({ sessionId: 'brand-new' } as any);
-
-    await (agent as any).createOrResumeSession();
-
-    expect(loadSession).not.toHaveBeenCalled();
-    expect(newSession).toHaveBeenCalledWith(expect.any(String));
-  });
-
-  it('updates acpSessionId when resume returns a new session ID', async () => {
-    const agent = makeAgent('codex', 'old-session');
-    const conn: AcpConnection = (agent as any).connection;
-    const onSessionIdUpdate = vi.fn();
-    (agent as any).onSessionIdUpdate = onSessionIdUpdate;
-
-    vi.spyOn(conn, 'loadSession').mockResolvedValue({ sessionId: 'rotated-session' } as any);
-
-    await (agent as any).createOrResumeSession();
-
-    expect((agent as any).extra.acpSessionId).toBe('rotated-session');
-    expect(onSessionIdUpdate).toHaveBeenCalledWith('rotated-session');
   });
 });

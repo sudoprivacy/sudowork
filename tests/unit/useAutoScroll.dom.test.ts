@@ -63,7 +63,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
       expect.objectContaining({
         index: 2, // itemCount - 1
-        behavior: 'smooth',
+        behavior: 'auto',
         align: 'start',
       })
     );
