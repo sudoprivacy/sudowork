@@ -71,7 +71,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   };
 };
 
-function getSudoclawWorkspaceRoot(): string {
+export function getSudoclawWorkspaceRoot(): string {
   try {
     const configPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
     const raw = fsSync.readFileSync(configPath, 'utf-8');
