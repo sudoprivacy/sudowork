@@ -351,26 +351,27 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
-    id: 'qa-tester',
-    avatar: '🧪',
+    id: 'doctor',
+    avatar: '🩺',
     presetAgentType: 'gemini',
-    resourceDir: 'assistant/qa-tester',
+    resourceDir: 'assistant/doctor',
     ruleFiles: {
-      'en-US': 'qa-tester.md',
-      'zh-CN': 'qa-tester.md',
+      'en-US': 'doctor.md',
+      'zh-CN': 'doctor.md',
     },
     defaultEnabledSkills: ['browser'],
+    defaultMode: 'yolo',
     nameI18n: {
-      'en-US': 'QA Tester',
-      'zh-CN': 'QA 测试员',
+      'en-US': 'Doctor',
+      'zh-CN': '诊断医生',
     },
     descriptionI18n: {
-      'en-US': 'Self-test this app by operating its own UI via browser automation. Takes screenshots, verifies behavior, reports issues.',
-      'zh-CN': '通过浏览器自动化操作自身 UI 进行自测。截图验证行为，报告问题。',
+      'en-US': 'Self-diagnose this app by exploring its UI via browser automation. Deep-thinking, methodical testing with automated bug filing.',
+      'zh-CN': '通过浏览器自动化探索自身 UI 进行自我诊断。深度思考、系统化测试，自动提交 bug。',
     },
     promptsI18n: {
-      'en-US': ['Test the /model command — list models, switch, verify', 'Explore the app UI and look for any bugs', 'Test creating a new conversation and sending a message'],
-      'zh-CN': ['测试 /model 命令 — 列出模型、切换、验证', '探索应用 UI，寻找 bug', '测试新建会话并发送消息'],
+      'en-US': ['Explore the app UI and look for any bugs', 'Test the security protection page toggles', 'Test creating a new conversation and sending a message'],
+      'zh-CN': ['探索应用 UI，寻找 bug', '测试安全防护页面的开关功能', '测试新建会话并发送消息'],
     },
   },
 ];

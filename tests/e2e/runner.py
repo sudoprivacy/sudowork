@@ -16,29 +16,9 @@ from pathlib import Path
 
 import yaml
 
-# Ops registry — maps op names to async functions
-from ops.connect import connect
-from ops.new_conversation import new_conversation
-from ops.send_message import send_message
-from ops.type_text import type_text
-from ops.screenshot import screenshot
-from ops.get_page_text import get_page_text
-from ops.click_allow import click_allow
-from ops.switch_conversation import switch_conversation
-from ops.wait_for_response import wait_for_response
-from ops.judge import judge
+from ops.registry import discover_ops, invoke_op
 
-OPS = {
-    "new_conversation": new_conversation,
-    "send_message": send_message,
-    "switch_conversation": switch_conversation,
-    "wait_for_response": wait_for_response,
-    "type_text": type_text,
-    "screenshot": screenshot,
-    "get_page_text": get_page_text,
-    "click_allow": click_allow,
-    "judge": judge,
-}
+OPS = discover_ops()
 
 CASES_DIR = Path(__file__).parent / "cases"
 
@@ -68,22 +48,11 @@ async def run_case(tab, case_path: Path) -> dict:
             print(f"  [{i+1}] SKIP: unknown op '{op_name}'")
             continue
 
-        op_fn = OPS[op_name]
-
         # Build kwargs from step (exclude 'op')
         kwargs = {k: v for k, v in step.items() if k != "op"}
-        # Always pass tab as first arg
-        kwargs_for_call = {"tab": tab, **kwargs}
 
-        # Filter kwargs to only those the function accepts
-        import inspect
-        sig = inspect.signature(op_fn)
-        valid_kwargs = {k: v for k, v in kwargs_for_call.items() if k in sig.parameters}
-
-        try:
-            result = await op_fn(**valid_kwargs)
-        except Exception as e:
-            result = {"error": str(e)}
+        # Use shared invoke_op (same code path as run_op.py)
+        result = await invoke_op(tab, op_name, OPS, **kwargs)
 
         # Check result
         if op_name == "judge":
@@ -107,6 +76,7 @@ async def run_case(tab, case_path: Path) -> dict:
 
 async def main(port: int, case_filter: str = None):
     """Run E2E tests."""
+    from ops.connect import connect
     print(f"Connecting to Sudowork CDP on port {port}...")
     browser, tab = await connect(port=port)
     print(f"Connected: {getattr(tab._target, 'url', '')}")
