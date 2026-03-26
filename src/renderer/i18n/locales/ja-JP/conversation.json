@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Hi、今日の予定は何ですか？",
     "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
-    "uploadFile": "ファイルを追加",
+    "uploadLocalFile": "ローカルファイルを追加",
+    "uploadBdpanFile": "バイドゥ・ネットディスクのファイルを追加",
     "linkFolder": "フォルダを追加",
     "newConversation": "新しいチャット",
     "multiAgentModeEnabled": "マルチエージェントモードに入ります",

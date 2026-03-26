@@ -13,6 +13,7 @@ import { iconColors } from '@/renderer/theme/colors';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -97,7 +98,13 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               <Menu.Item key='file'>
                 <div className='flex items-center gap-8px'>
                   <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                  <span>{t('conversation.welcome.uploadFile')}</span>
+                  <span>{t('conversation.welcome.uploadLocalFile')}</span>
+                </div>
+              </Menu.Item>
+              <Menu.Item key='bdpan'>
+                <div className='flex items-center gap-8px'>
+                  <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                  <span>{t('conversation.welcome.uploadBdpanFile')}</span>
                 </div>
               </Menu.Item>
               <Menu.Item key='workspace'>

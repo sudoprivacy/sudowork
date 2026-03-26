@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Hi，今天有什么安排？",
     "placeholder": "发消息、上传文件、打开文件夹或创建定时任务...",
-    "uploadFile": "上传文件",
+    "uploadLocalFile": "上传本地文件",
+    "uploadBdpanFile": "上传百度网盘文件",
     "linkFolder": "打开文件夹",
     "newConversation": "新会话",
     "multiAgentModeEnabled": "已进入多智能体模式",

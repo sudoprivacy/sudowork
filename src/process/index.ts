@@ -96,16 +96,21 @@ async function installRuntimes(): Promise<void> {
 
   // Check which components are already installed
   mainLog('Runtime', 'Checking runtime dependencies...');
-  const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
+  const [{ dynamicNexusService }, { ensureSudoclawInstalled }, { isBdpanInstalled, ensureBdpanInstalled }] = await Promise.all([
+    import('./services/nexus/DynamicNexusService'),
+    import('./services/sudoclaw/SudoclawInstallService'),
+    import('./services/bdpan/BdpanInstallService'),
+  ]);
 
   const nodeInstalled = await checkNodeInstalled();
   const sudoclawInstalled = await checkSudoclawInstalled();
   const nexusInstalled = await dynamicNexusService.checkInstalled();
+  const bdpanInstalled = isBdpanInstalled();
 
-  mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
+  mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, Bdpan=${bdpanInstalled}`);
 
   // All components present — go directly to ready without showing "组件安装中"
-  if (nodeInstalled && sudoclawInstalled && nexusInstalled) {
+  if (nodeInstalled && sudoclawInstalled && nexusInstalled && bdpanInstalled) {
     mainLog('Runtime', 'All runtimes already installed, skipping installation');
     try {
       const { repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
@@ -120,7 +125,7 @@ async function installRuntimes(): Promise<void> {
 
   // At least one component is missing — show "组件安装中" and install only what's needed
 
-  // Node.js (progress: 10-30%)
+  // Node.js (progress: 10-25%)
   if (!nodeInstalled) {
     try {
       mainLog('Runtime', 'Installing Node.js runtime...');
@@ -134,11 +139,11 @@ async function installRuntimes(): Promise<void> {
     }
   }
 
-  // Sudoclaw (progress: 30-60%)
+  // Sudoclaw (progress: 25-50%)
   if (!sudoclawInstalled) {
     try {
       mainLog('Runtime', 'Installing Sudoclaw...');
-      initStatusManager.setStatus('installing', '组件安装中', 30);
+      initStatusManager.setStatus('installing', '组件安装中', 25);
       const sudoclawResult = await ensureSudoclawInstalled();
       if (!sudoclawResult.installed) {
         mainError('Runtime', 'Sudoclaw install failed - missing required files after extraction');
@@ -153,11 +158,11 @@ async function installRuntimes(): Promise<void> {
     }
   }
 
-  // Nexus (progress: 60-90%)
+  // Nexus (progress: 50-80%)
   if (!nexusInstalled) {
     try {
       mainLog('Runtime', 'Installing Nexus...');
-      initStatusManager.setStatus('installing', '组件安装中', 60);
+      initStatusManager.setStatus('installing', '组件安装中', 50);
       await dynamicNexusService.install();
       mainLog('Runtime', 'Nexus installed successfully, starting...');
       await dynamicNexusService.start();
@@ -165,6 +170,17 @@ async function installRuntimes(): Promise<void> {
     } catch (err) {
       mainError('Runtime', 'Nexus install/start failed', err);
       // Nexus install failure is not critical, continue
+    }
+  }
+
+  // bdpan (progress: 80-95%) — non-fatal, runs silently in background
+  if (!bdpanInstalled) {
+    try {
+      mainLog('Runtime', 'Installing bdpan CLI...');
+      initStatusManager.setStatus('installing', '组件安装中', 80);
+      await ensureBdpanInstalled();
+    } catch (err) {
+      mainWarn('Runtime', `bdpan install failed (non-fatal): ${err}`);
     }
   }
 

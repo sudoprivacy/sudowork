@@ -142,6 +142,9 @@ win:
     # Node.js runtime for Windows (zip format)
     - from: resources/node-win32-${arch}.zip
       to: node-win32-${arch}.zip
+    # bdpan installer for Windows (bundled at build time)
+    - from: resources/bdpan-installer-windows-${arch}.exe
+      to: bdpan-installer-windows-${arch}.exe
 
 nsis:
   oneClick: false
@@ -168,6 +171,9 @@ mac:
     # Node.js runtime for macOS (tar.gz format)
     - from: resources/node-darwin-${arch}.tar.gz
       to: node-darwin-${arch}.tar.gz
+    # bdpan installer for macOS (arch-specific binary, bundled at build time)
+    - from: resources/bdpan-installer-darwin-${arch}
+      to: bdpan-installer-darwin-${arch}
 
 dmg:
   # Use UDZO format which is more reliable on CI

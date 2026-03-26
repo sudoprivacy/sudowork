@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
-    "uploadFile": "Dosya Yükle",
+    "uploadLocalFile": "Yerel Dosya Yükle",
+    "uploadBdpanFile": "Baidu Netdisk Dosyası Yükle",
     "linkFolder": "Klasör Aç",
     "newConversation": "Yeni Sohbet",
     "multiAgentModeEnabled": "Çoklu ajan moduna giriliyor",

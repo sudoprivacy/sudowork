@@ -198,6 +198,7 @@ resources/nexus.tar.gz
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-darwin-arm64.tar.gz
+resources/bdpan-installer-*
 tests/e2e/ops/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/
