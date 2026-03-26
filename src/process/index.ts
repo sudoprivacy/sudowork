@@ -12,8 +12,6 @@ import { app } from 'electron';
 if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
-import * as fs from 'fs';
-import * as path from 'path';
 import initStorage from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
@@ -23,38 +21,6 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainWarn, mainError, perfLog } from './utils/mainLogger';
-import { getDataPath } from '@process/utils';
-
-/** Marker file that records the app version after all components are successfully installed */
-const COMPONENTS_READY_MARKER = '.components_ready';
-
-function getComponentsReadyMarkerPath(): string {
-  return path.join(getDataPath(), COMPONENTS_READY_MARKER);
-}
-
-/** Returns true if the marker file exists and matches the given app version */
-function isComponentsReadyForVersion(version: string): boolean {
-  try {
-    const markerPath = getComponentsReadyMarkerPath();
-    if (!fs.existsSync(markerPath)) return false;
-    const markerVersion = fs.readFileSync(markerPath, 'utf-8').trim();
-    return markerVersion === version;
-  } catch {
-    return false;
-  }
-}
-
-/** Writes the components-ready marker with the current app version */
-function writeComponentsReadyMarker(version: string): void {
-  try {
-    const markerPath = getComponentsReadyMarkerPath();
-    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
-    fs.writeFileSync(markerPath, version, 'utf-8');
-    mainLog('Runtime', `Components ready marker written for v${version}`);
-  } catch (err) {
-    mainWarn('Runtime', `Failed to write components ready marker: ${err}`);
-  }
-}
 
 export const initializeProcess = async () => {
   const totalStart = Date.now();
@@ -128,18 +94,7 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
-  const appVersion = app.getVersion();
-
-  // Fast-path: if marker file exists with current app version, all components are already
-  // installed — skip all checks and go directly to ready without showing "组件安装中".
-  if (isComponentsReadyForVersion(appVersion)) {
-    mainLog('Runtime', `Components ready marker found for v${appVersion}, skipping checks`);
-    initStatusManager.setStatus('ready', '初始化完成', 100);
-    void startSudoclawGatewayInBackground();
-    return;
-  }
-
-  // Check if all components are already installed
+  // Check which components are already installed
   mainLog('Runtime', 'Checking runtime dependencies...');
   const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
 
@@ -149,82 +104,73 @@ async function installRuntimes(): Promise<void> {
 
   mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
 
+  // All components present — go directly to ready without showing "组件安装中"
   if (nodeInstalled && sudoclawInstalled && nexusInstalled) {
     mainLog('Runtime', 'All runtimes already installed, skipping installation');
-    // Still need to repair config in case it's outdated
     try {
       const { repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
       repairOpenClawConfig();
     } catch {
       // ignore
     }
-
-    // Write marker so next startup fast-paths directly to ready
-    writeComponentsReadyMarker(appVersion);
-
-    // Set ready first so user can enter main UI
     initStatusManager.setStatus('ready', '初始化完成', 100);
-
-    // Start Sudoclaw gateway in background (non-blocking)
     void startSudoclawGatewayInBackground();
     return;
   }
 
-  // Install bundled Node.js (progress: 10-25%)
-  try {
-    mainLog('Runtime', 'Installing Node.js runtime...');
-    initStatusManager.setStatus('installing', '组件安装中', 10);
-    await ensureNodeInstalled();
-    mainLog('Runtime', 'Node.js runtime installed successfully');
-  } catch (err) {
-    mainError('Runtime', 'Node.js runtime install failed', err);
-    initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
-    return;
-  }
+  // At least one component is missing — show "组件安装中" and install only what's needed
 
-  // Install Sudoclaw (built-in OpenClaw) (progress: 30-50%)
-  try {
-    mainLog('Runtime', 'Installing Sudoclaw...');
-    initStatusManager.setStatus('installing', '组件安装中', 30);
-    const sudoclawResult = await ensureSudoclawInstalled();
-    if (!sudoclawResult.installed) {
-      mainError('Runtime', 'Sudoclaw install failed - missing required files after extraction');
-      initStatusManager.setStatus('error', '安装失败', 0, 'Sudoclaw install incomplete, please reinstall the app');
+  // Node.js (progress: 10-30%)
+  if (!nodeInstalled) {
+    try {
+      mainLog('Runtime', 'Installing Node.js runtime...');
+      initStatusManager.setStatus('installing', '组件安装中', 10);
+      await ensureNodeInstalled();
+      mainLog('Runtime', 'Node.js runtime installed successfully');
+    } catch (err) {
+      mainError('Runtime', 'Node.js runtime install failed', err);
+      initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
       return;
     }
-    mainLog('Runtime', 'Sudoclaw installed successfully');
-  } catch (err) {
-    mainError('Runtime', 'Sudoclaw install failed', err);
-    initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
-    return;
   }
 
-  // Install Nexus (progress: 60-90%)
-  try {
-    initStatusManager.setStatus('installing', '组件安装中', 60);
+  // Sudoclaw (progress: 30-60%)
+  if (!sudoclawInstalled) {
+    try {
+      mainLog('Runtime', 'Installing Sudoclaw...');
+      initStatusManager.setStatus('installing', '组件安装中', 30);
+      const sudoclawResult = await ensureSudoclawInstalled();
+      if (!sudoclawResult.installed) {
+        mainError('Runtime', 'Sudoclaw install failed - missing required files after extraction');
+        initStatusManager.setStatus('error', '安装失败', 0, 'Sudoclaw install incomplete, please reinstall the app');
+        return;
+      }
+      mainLog('Runtime', 'Sudoclaw installed successfully');
+    } catch (err) {
+      mainError('Runtime', 'Sudoclaw install failed', err);
+      initStatusManager.setStatus('error', '安装失败', 0, err instanceof Error ? err.message : String(err));
+      return;
+    }
+  }
 
-    // Only install if bundled resource exists
-    const isInstalled = await dynamicNexusService.checkInstalled();
-    if (!isInstalled) {
+  // Nexus (progress: 60-90%)
+  if (!nexusInstalled) {
+    try {
       mainLog('Runtime', 'Installing Nexus...');
+      initStatusManager.setStatus('installing', '组件安装中', 60);
       await dynamicNexusService.install();
       mainLog('Runtime', 'Nexus installed successfully, starting...');
       await dynamicNexusService.start();
       mainLog('Runtime', 'Nexus started successfully');
+    } catch (err) {
+      mainError('Runtime', 'Nexus install/start failed', err);
+      // Nexus install failure is not critical, continue
     }
-  } catch (err) {
-    mainError('Runtime', 'Nexus install/start failed', err);
-    // Nexus install failure is not critical, continue
   }
 
-  // Write marker so next startup fast-paths directly to ready (no "组件安装中")
-  writeComponentsReadyMarker(appVersion);
-
-  // Set ready first so user can enter main UI
+  // All done
   initStatusManager.setStatus('ready', '初始化完成', 100);
   mainLog('Runtime', 'Runtime installation complete');
-
-  // Start Sudoclaw gateway in background (non-blocking)
   void startSudoclawGatewayInBackground();
 }
 
