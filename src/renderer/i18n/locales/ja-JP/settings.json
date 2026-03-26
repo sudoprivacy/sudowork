@@ -199,6 +199,7 @@
   "fontSizeReset": "ズームをリセット",
   "lightMode": "ライト",
   "darkMode": "ダーク",
+  "systemMode": "システム",
   "agent": "エージェント",
   "tools": "ツール",
   "webui": "リモート接続",

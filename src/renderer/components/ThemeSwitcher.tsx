@@ -5,85 +5,58 @@
  */
 
 import { useThemeContext } from '@/renderer/context/ThemeContext';
-import { IconMoon, IconMoonFill, IconSun, IconSunFill } from '@arco-design/web-react/icon';
+import type { ThemePreference } from '@/renderer/hooks/useTheme';
+import { IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+
+const SystemIcon: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
+  <svg width='1em' height='1em' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg' style={style}>
+    <rect x='4' y='8' width='40' height='28' rx='3' stroke='currentColor' strokeWidth='4' fill='currentColor' fillOpacity='0.15' />
+    <path d='M14 44h20' stroke='currentColor' strokeWidth='4' strokeLinecap='round' />
+    <path d='M24 36v8' stroke='currentColor' strokeWidth='4' strokeLinecap='round' />
+  </svg>
+);
 
 /**
  * 主题切换器组件 / Theme switcher component
  *
- * 提供明暗模式切换功能
- * Provides light/dark mode switching functionality
+ * 三个紧凑的图标按钮: 浅色 / 系统 / 深色
+ * Three compact icon buttons: Light / System / Dark
  */
 export const ThemeSwitcher = () => {
-  const { theme, setTheme } = useThemeContext();
+  const { themePreference, setTheme } = useThemeContext();
   const { t } = useTranslation();
-  const trackInset = 6;
-  const splitGap = 1;
-  const options = [
-    { value: 'light' as const, label: t('settings.lightMode'), icon: IconSun, activeIcon: IconSunFill },
-    { value: 'dark' as const, label: t('settings.darkMode'), icon: IconMoon, activeIcon: IconMoonFill },
+
+  const options: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
+    { value: 'light', label: t('settings.lightMode'), icon: <IconSunFill style={{ fontSize: 14 }} /> },
+    { value: 'system', label: t('settings.systemMode'), icon: <SystemIcon style={{ fontSize: 14 }} /> },
+    { value: 'dark', label: t('settings.darkMode'), icon: <IconMoonFill style={{ fontSize: 14 }} /> },
   ];
 
   return (
-    <div className='relative inline-grid grid-cols-2 p-6px rd-full border border-solid border-[var(--color-border-2)] bg-1 w-full max-w-240px md:w-auto md:min-w-216px' role='radiogroup' aria-label={t('settings.theme')}>
-      <span
-        aria-hidden='true'
-        className='absolute rd-full border border-solid border-[var(--color-border-2)] transition-all duration-260 ease-[cubic-bezier(0.2,0.8,0.2,1)]'
-        style={{
-          top: trackInset,
-          bottom: trackInset,
-          left: theme === 'light' ? trackInset : `calc(50% + ${splitGap}px)`,
-          right: theme === 'light' ? `calc(50% + ${splitGap}px)` : trackInset,
-          backgroundColor: 'var(--color-fill-2)',
-          boxShadow: theme === 'dark' ? '0 1px 4px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
-        }}
-      />
+    <div className='inline-flex items-center gap-2px rd-6px bg-[var(--color-fill-1)] p-2px' role='radiogroup' aria-label={t('settings.theme')}>
       {options.map((option) => {
-        const isActive = theme === option.value;
-        const Icon = option.icon;
-        const ActiveIcon = option.activeIcon;
-
+        const isActive = themePreference === option.value;
         return (
           <button
             key={option.value}
             type='button'
             role='radio'
             aria-checked={isActive}
-            className='relative z-1 h-33px min-w-0 px-10px md:px-12px rd-full text-13px font-500 inline-flex items-center justify-center gap-6px transition-all duration-180 active:scale-[0.985] disabled:cursor-not-allowed'
+            aria-label={option.label}
+            title={option.label}
+            className='inline-flex items-center justify-center w-26px h-26px rd-5px transition-all duration-160 cursor-pointer border-none'
             style={{
-              color: isActive ? (theme === 'dark' ? 'var(--color-text-1)' : 'rgb(var(--primary-6))') : 'var(--color-text-2)',
-              backgroundColor: 'transparent',
-              border: '1px solid transparent',
-              cursor: isActive ? 'default' : 'pointer',
+              color: isActive ? 'rgb(var(--primary-6))' : 'var(--color-text-4)',
+              backgroundColor: isActive ? 'var(--color-bg-2)' : 'transparent',
+              boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             }}
             onClick={() => {
-              if (!isActive) {
-                void setTheme(option.value);
-              }
+              if (!isActive) void setTheme(option.value);
             }}
           >
-            <span className='relative inline-flex items-center justify-center w-14px h-14px'>
-              <Icon
-                style={{
-                  fontSize: 14,
-                  opacity: isActive ? 0 : 0.8,
-                  transform: isActive ? 'scale(0.6) rotate(-20deg)' : 'scale(1) rotate(0deg)',
-                  transition: 'transform 220ms ease, opacity 220ms ease',
-                  position: 'absolute',
-                }}
-              />
-              <ActiveIcon
-                style={{
-                  fontSize: 14,
-                  opacity: isActive ? 1 : 0,
-                  transform: isActive ? 'scale(1.08) rotate(0deg)' : 'scale(0.65) rotate(20deg)',
-                  transition: 'transform 220ms ease, opacity 220ms ease',
-                  position: 'absolute',
-                }}
-              />
-            </span>
-            {option.label}
+            {option.icon}
           </button>
         );
       })}

@@ -199,6 +199,7 @@
   "fontSizeReset": "Yakınlaştırmayı sıfırla",
   "lightMode": "Açık",
   "darkMode": "Koyu",
+  "systemMode": "Sistem",
   "agent": "Ajan",
   "tools": "Araçlar",
   "webui": "Uzak Bağlantı",
