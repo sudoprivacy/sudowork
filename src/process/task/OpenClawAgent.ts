@@ -23,6 +23,7 @@ import net from 'node:net';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import WorkerManage from '@process/WorkerManage';
 import BaseAgent from '@process/task/BaseAgent';
@@ -257,8 +258,23 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       this.agentAssistantFallbackText = '';
       this.adapter.resetMessageTracking();
 
-      // Process file references
+      // On the first message, prepend a workspace directive so the agent uses the
+      // per-conversation workspace dir for all file operations and bash commands.
       let processedContent = data.agentContent || data.content;
+      if (this.isFirstMessage && this.workspace) {
+        this.isFirstMessage = false;
+        const configuredWorkspace = getSudoclawWorkspaceRoot();
+        processedContent =
+          `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` +
+          `Your working directory for this session ONLY is '${this.workspace}'. ` +
+          `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` +
+          `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` +
+          processedContent;
+      } else {
+        this.isFirstMessage = false;
+      }
+
+      // Process file references
       if (data.files && data.files.length > 0) {
         const fileRefs = data.files.map((f) => (f.includes(' ') ? `@"${f}"` : `@${f}`)).join(' ');
         processedContent = `${fileRefs} ${processedContent}`;
