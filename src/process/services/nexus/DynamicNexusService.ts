@@ -5,6 +5,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
+import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
@@ -185,16 +186,21 @@ class DynamicNexusService {
         // Extract
         fs.mkdirSync(envDir, { recursive: true });
         this.emitSetup('extracting', 'Extracting Nexus environment...');
-        await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
+        await tar.x({ file: tempTarGzPath, cwd: envDir });
 
         // Run conda-unpack to fix hardcoded paths
         const condaUnpack = this.getCondaUnpackPath(envDir);
         if (fs.existsSync(condaUnpack)) {
           if (!this.isWindows) fs.chmodSync(condaUnpack, 0o755);
           this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
-          // Use python from conda env to run conda-unpack (shebang may point to wrong path)
-          const pythonBin = this.getPythonPath(envDir);
-          await execAsync(`"${pythonBin}" "${condaUnpack}"`);
+          if (this.isWindows) {
+            // On Windows, conda-unpack.exe is a binary executable, run it directly
+            await execAsync(`"${condaUnpack}"`);
+          } else {
+            // On macOS/Linux, use python from conda env to run conda-unpack (shebang may point to wrong path)
+            const pythonBin = this.getPythonPath(envDir);
+            await execAsync(`"${pythonBin}" "${condaUnpack}"`);
+          }
         }
 
         // Ensure nexusd is executable

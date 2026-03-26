@@ -92,6 +92,7 @@ export function initNexusBridge(): void {
       const fs = await import('fs');
       const path = await import('path');
       const os = await import('os');
+      const tar = await import('tar');
       const { exec } = await import('child_process');
       const util = await import('util');
 
@@ -119,7 +120,7 @@ export function initNexusBridge(): void {
       // 解压
       await fs.promises.mkdir(envDir, { recursive: true });
       console.log(`[NexusBridge] Extracting local nexus file to ${envDir}...`);
-      await execAsync(`tar -xzf "${tempTarGzPath}" -C "${envDir}"`);
+      await tar.x({ file: tempTarGzPath, cwd: envDir });
 
       // 运行 conda-unpack 修复硬编码路径
       // Windows 下路径为 Scripts\conda-unpack.exe，macOS/Linux 为 bin/conda-unpack
