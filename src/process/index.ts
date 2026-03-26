@@ -12,6 +12,8 @@ import { app } from 'electron';
 if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
+import * as fs from 'fs';
+import * as path from 'path';
 import initStorage from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
@@ -21,6 +23,38 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainWarn, mainError, perfLog } from './utils/mainLogger';
+import { getDataPath } from '@process/utils';
+
+/** Marker file that records the app version after all components are successfully installed */
+const COMPONENTS_READY_MARKER = '.components_ready';
+
+function getComponentsReadyMarkerPath(): string {
+  return path.join(getDataPath(), COMPONENTS_READY_MARKER);
+}
+
+/** Returns true if the marker file exists and matches the given app version */
+function isComponentsReadyForVersion(version: string): boolean {
+  try {
+    const markerPath = getComponentsReadyMarkerPath();
+    if (!fs.existsSync(markerPath)) return false;
+    const markerVersion = fs.readFileSync(markerPath, 'utf-8').trim();
+    return markerVersion === version;
+  } catch {
+    return false;
+  }
+}
+
+/** Writes the components-ready marker with the current app version */
+function writeComponentsReadyMarker(version: string): void {
+  try {
+    const markerPath = getComponentsReadyMarkerPath();
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+    fs.writeFileSync(markerPath, version, 'utf-8');
+    mainLog('Runtime', `Components ready marker written for v${version}`);
+  } catch (err) {
+    mainWarn('Runtime', `Failed to write components ready marker: ${err}`);
+  }
+}
 
 export const initializeProcess = async () => {
   const totalStart = Date.now();
@@ -94,6 +128,17 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
+  const appVersion = app.getVersion();
+
+  // Fast-path: if marker file exists with current app version, all components are already
+  // installed — skip all checks and go directly to ready without showing "组件安装中".
+  if (isComponentsReadyForVersion(appVersion)) {
+    mainLog('Runtime', `Components ready marker found for v${appVersion}, skipping checks`);
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+    void startSudoclawGatewayInBackground();
+    return;
+  }
+
   // Check if all components are already installed
   mainLog('Runtime', 'Checking runtime dependencies...');
   const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
@@ -113,6 +158,9 @@ async function installRuntimes(): Promise<void> {
     } catch {
       // ignore
     }
+
+    // Write marker so next startup fast-paths directly to ready
+    writeComponentsReadyMarker(appVersion);
 
     // Set ready first so user can enter main UI
     initStatusManager.setStatus('ready', '初始化完成', 100);
@@ -138,7 +186,12 @@ async function installRuntimes(): Promise<void> {
   try {
     mainLog('Runtime', 'Installing Sudoclaw...');
     initStatusManager.setStatus('installing', '组件安装中', 30);
-    await ensureSudoclawInstalled();
+    const sudoclawResult = await ensureSudoclawInstalled();
+    if (!sudoclawResult.installed) {
+      mainError('Runtime', 'Sudoclaw install failed - missing required files after extraction');
+      initStatusManager.setStatus('error', '安装失败', 0, 'Sudoclaw install incomplete, please reinstall the app');
+      return;
+    }
     mainLog('Runtime', 'Sudoclaw installed successfully');
   } catch (err) {
     mainError('Runtime', 'Sudoclaw install failed', err);
@@ -163,6 +216,9 @@ async function installRuntimes(): Promise<void> {
     mainError('Runtime', 'Nexus install/start failed', err);
     // Nexus install failure is not critical, continue
   }
+
+  // Write marker so next startup fast-paths directly to ready (no "组件安装中")
+  writeComponentsReadyMarker(appVersion);
 
   // Set ready first so user can enter main UI
   initStatusManager.setStatus('ready', '初始化完成', 100);

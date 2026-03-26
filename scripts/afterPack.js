@@ -74,9 +74,10 @@ function removeUnnotarizableFiles(dir) {
  * Sign all binary files recursively in a directory
  * @param {string} dir - Directory to search for binaries
  * @param {string} identity - Code signing identity
+ * @param {string|null} entitlementsPath - Optional entitlements plist path (required for JIT-capable binaries like Node.js)
  * @returns {number} Number of binaries signed
  */
-function signBinariesInDir(dir, identity) {
+function signBinariesInDir(dir, identity, entitlementsPath = null) {
   // Extensions that are definitely Mach-O/native binaries — always sign
   const nativeBinaryExtensions = new Set(['.node', '.dylib', '.so']);
 
@@ -160,7 +161,8 @@ function signBinariesInDir(dir, identity) {
   let signedCount = 0;
   for (const binary of binaries) {
     try {
-      execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${binary}"`, {
+      const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
+      execSync(`codesign --sign "${identity}" --force --timestamp --options runtime ${entitlementsFlag} "${binary}"`, {
         stdio: 'pipe',
       });
       console.log(`   ✓ Signed: ${path.basename(binary)}`);
@@ -179,8 +181,9 @@ function signBinariesInDir(dir, identity) {
  * @param {string} archivePath - Path to the archive file
  * @param {string} identity - Code signing identity
  * @param {boolean} isNested - Whether this is a nested archive call
+ * @param {string|null} entitlementsPath - Optional entitlements plist path (pass for Node.js runtime archive)
  */
-async function signBinariesInArchive(archivePath, identity, isNested = false) {
+async function signBinariesInArchive(archivePath, identity, isNested = false, entitlementsPath = null) {
   if (!fs.existsSync(archivePath)) {
     console.log(`   ⚠️  ${archivePath} not found, skipping signing`);
     return;
@@ -269,8 +272,8 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
         const nestedFlag = (nestedTar.endsWith('.tgz') || nestedTar.endsWith('.tar.gz')) ? '-xzf' : '-xf';
         execSync(`tar ${nestedFlag} "${nestedTar}" -C "${nestedExtractedDir}"`, { stdio: 'inherit' });
 
-        // Sign binaries in nested content
-        const nestedSigned = signBinariesInDir(nestedExtractedDir, identity);
+        // Sign binaries in nested content (propagate entitlements for Node archives)
+        const nestedSigned = signBinariesInDir(nestedExtractedDir, identity, entitlementsPath);
         console.log(`   Signed ${nestedSigned} binaries in nested archive`);
 
         // Re-pack the nested tar (preserve compression format)
@@ -307,7 +310,7 @@ async function signBinariesInArchive(archivePath, identity, isNested = false) {
     }
 
     // Sign binaries in the main extracted content
-    const signedCount = signBinariesInDir(extractedDir, identity);
+    const signedCount = signBinariesInDir(extractedDir, identity, entitlementsPath);
     console.log(`   Signed ${signedCount} binaries total`);
 
     // Re-pack the main archive
@@ -399,11 +402,16 @@ module.exports = async function afterPack(context) {
 
     const archivesToSign = [...fixedArchives, nodeArchive];
     const identity = process.env.CSC_NAME;
+    // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
+    // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
+    const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');
 
     for (const archiveFile of archivesToSign) {
       const archivePath = path.join(resourcesDir, archiveFile);
+      // Only the Node runtime archive contains a JIT-capable executable — pass entitlements for it only.
+      const useEntitlements = archiveFile === nodeArchive ? entitlementsPath : null;
       try {
-        await signBinariesInArchive(archivePath, identity);
+        await signBinariesInArchive(archivePath, identity, false, useEntitlements);
       } catch (err) {
         console.warn(`   ⚠️  Failed to sign binaries in ${archiveFile}: ${err.message}`);
         // Don't throw - allow build to continue
