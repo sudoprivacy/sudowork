@@ -1,8 +1,8 @@
-# OpenClaw 故障排除指南
+# SudoClaw 故障排除指南
 
 ## 使用 Doctor 命令（主要诊断工具）
 
-`openclaw doctor` 是 OpenClaw 的健康检查和修复工具。
+`openclaw doctor` 是 SudoClaw 的健康检查和修复工具。
 
 ### 基本诊断
 
@@ -52,7 +52,7 @@ openclaw doctor --non-interactive
 1. 检查配置文件是否存在：
 
    ```bash
-   cat ~/.openclaw/openclaw.json
+   cat ~/.nexus/sudoclaw/sudoclaw.json
    ```
 
 2. 检查 `gateway.mode` 是否设置：
@@ -71,10 +71,10 @@ openclaw doctor --non-interactive
 
    ```bash
    # macOS
-   lsof -i :18789
+   lsof -i :17863
 
    # Linux
-   ss -ltnp | grep 18789
+   ss -ltnp | grep 17863
    ```
 
 4. 查看 Gateway 日志：
@@ -147,7 +147,7 @@ openclaw doctor --repair
 或手动修复：
 
 ```bash
-chmod 600 ~/.openclaw/openclaw.json
+chmod 600 ~/.nexus/sudoclaw/sudoclaw.json
 ```
 
 ### 问题 5：服务未运行
@@ -161,7 +161,7 @@ launchctl list | grep openclaw
 # 启动服务
 launchctl load ~/Library/LaunchAgents/com.openclaw.gateway.plist
 
-# 或使用 OpenClaw 命令
+# 或使用 SudoClaw 命令
 openclaw gateway install
 ```
 
@@ -207,7 +207,7 @@ systemctl --user enable openclaw-gateway
 5. **检查配置文件**
 
    ```bash
-   cat ~/.openclaw/openclaw.json
+   cat ~/.nexus/sudoclaw/sudoclaw.json
    ```
 
 6. **如果问题持续，建议用户：**

@@ -7,7 +7,7 @@
 /**
  * Sudoclaw Install Service
  *
- * Built-in OpenClaw installation for Sudowork. Installs to ~/.nexus/.sudoclaw (separate
+ * Built-in OpenClaw installation for Sudowork. Installs to ~/.nexus/sudoclaw (separate
  * from official ~/.openclaw) so users get a one-click experience without system
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
@@ -22,20 +22,26 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
 
-/** Sudoclaw root: ~/.nexus/.sudoclaw (macOS/Linux) or %USERPROFILE%\.nexus\.sudoclaw (Windows) */
-export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', '.sudoclaw');
+/** Legacy path for migration from ~/.nexus/.sudoclaw (dot-prefixed) */
+const LEGACY_SUDOCLAW_DIR_V2 = path.join(os.homedir(), '.nexus', '.sudoclaw');
+
+/** Sudoclaw root: ~/.nexus/sudoclaw (macOS/Linux) or %USERPROFILE%\.nexus\sudoclaw (Windows) */
+export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', 'sudoclaw');
 
 /** Default gateway port for Sudoclaw (17863) — avoids conflict with system OpenClaw (18789) */
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
-/** CLI bin path: ~/.nexus/.sudoclaw/cli/package/bin/ (included in tgz) */
+/** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
 /** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
 const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
-const CONFIG_FILENAME = 'openclaw.json';
+export const CONFIG_FILENAME = 'sudoclaw.json';
+
+/** Full path to sudoclaw.json config file */
+export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
 function hasDistEntry(pkgRoot: string): boolean {
@@ -115,7 +121,21 @@ function hasBinWrapper(pkgRoot: string): boolean {
   return fs.existsSync(path.join(binDir, 'openclaw'));
 }
 
-/** Repair openclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
+/** Migrate config filename from openclaw.json to sudoclaw.json */
+function migrateConfigFilename(): void {
+  const oldConfigPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
+  const newConfigPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+  if (fs.existsSync(oldConfigPath) && !fs.existsSync(newConfigPath)) {
+    try {
+      fs.renameSync(oldConfigPath, newConfigPath);
+      mainLog('Sudoclaw', `Migrated openclaw.json to ${CONFIG_FILENAME}`);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/** Repair sudoclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
 export function repairOpenClawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
@@ -125,12 +145,12 @@ export function repairOpenClawConfig(): void {
     let changed = false;
 
     // CRITICAL: Force workspace to Sudoclaw directory to ensure complete isolation from system OpenClaw
-    // This prevents Sudoclaw from accidentally using ~/.sudoclaw or ~/.openclaw workspace
+    // This prevents Sudoclaw from accidentally using ~/.openclaw workspace
     const agents = config.agents as { defaults?: { workspace?: string } } | undefined;
     if (agents?.defaults) {
       const currentWorkspace = agents.defaults.workspace;
       if (typeof currentWorkspace !== 'string' || (!currentWorkspace.includes(SUDOCLAW_DIR) && !currentWorkspace.includes('.nexus'))) {
-        // Workspace points outside ~/.nexus/.sudoclaw - force reset to isolated directory
+        // Workspace points outside ~/.nexus/sudoclaw - force reset to isolated directory
         agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
         changed = true;
         mainLog('Sudoclaw', `Fixed workspace path to isolated directory: ${SUDOCLAW_WORKSPACE_DIR}`);
@@ -192,7 +212,7 @@ export function repairOpenClawConfig(): void {
     }
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-      mainLog('Sudoclaw', 'Repaired openclaw.json schema');
+      mainLog('Sudoclaw', 'Repaired sudoclaw.json schema');
     }
   } catch {
     // ignore parse errors
@@ -210,7 +230,7 @@ function ensureDefaultConfig(): void {
         model: { primary: 'sudorouter/gemini-3-flash-preview', fallbacks: [] as string[] },
         models: {},
       },
-      list: [{ id: 'main', identity: { name: 'OpenClaw', emoji: '🦞' } }],
+      list: [{ id: 'main', identity: { name: 'SudoClaw', emoji: '🦞' } }],
     },
     models: {
       mode: 'merge' as const,
@@ -239,14 +259,21 @@ function ensureDefaultConfig(): void {
   }
 }
 
-/** Migrate from legacy ~/.sudoclaw to ~/.nexus/.sudoclaw */
+/** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
-  if (!fs.existsSync(LEGACY_SUDOCLAW_DIR)) return;
+  // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
+  migrateLegacyDir(LEGACY_SUDOCLAW_DIR_V2, 'v2 (~/.nexus/.sudoclaw)');
+  // Then try the oldest legacy path (~/.sudoclaw)
+  migrateLegacyDir(LEGACY_SUDOCLAW_DIR, 'v1 (~/.sudoclaw)');
+}
+
+function migrateLegacyDir(legacyDir: string, label: string): void {
+  if (!fs.existsSync(legacyDir)) return;
   if (fs.existsSync(SUDOCLAW_DIR)) {
     // New already exists, remove legacy to avoid confusion
     try {
-      fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
-      mainLog('Sudoclaw', 'Removed legacy ~/.sudoclaw (already migrated)');
+      fs.rmSync(legacyDir, { recursive: true, force: true });
+      mainLog('Sudoclaw', `Removed legacy ${label} (already migrated)`);
     } catch {
       // ignore
     }
@@ -254,16 +281,16 @@ function migrateLegacySudoclaw(): void {
   }
   try {
     fs.mkdirSync(path.dirname(SUDOCLAW_DIR), { recursive: true });
-    fs.renameSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR);
-    mainLog('Sudoclaw', 'Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw');
+    fs.renameSync(legacyDir, SUDOCLAW_DIR);
+    mainLog('Sudoclaw', `Migrated ${label} to ~/.nexus/sudoclaw`);
   } catch (err) {
-    mainError('Sudoclaw', 'Migration failed, falling back to copy', err);
+    mainError('Sudoclaw', `Migration from ${label} failed, falling back to copy`, err);
     try {
-      fs.cpSync(LEGACY_SUDOCLAW_DIR, SUDOCLAW_DIR, { recursive: true });
-      fs.rmSync(LEGACY_SUDOCLAW_DIR, { recursive: true, force: true });
-      mainLog('Sudoclaw', 'Migrated ~/.sudoclaw to ~/.nexus/.sudoclaw (copy)');
+      fs.cpSync(legacyDir, SUDOCLAW_DIR, { recursive: true });
+      fs.rmSync(legacyDir, { recursive: true, force: true });
+      mainLog('Sudoclaw', `Migrated ${label} to ~/.nexus/sudoclaw (copy)`);
     } catch (copyErr) {
-      mainError('Sudoclaw', 'Migration failed', copyErr);
+      mainError('Sudoclaw', `Migration from ${label} failed`, copyErr);
     }
   }
 }
@@ -283,16 +310,17 @@ function getBundledOpenclawPath(): string | null {
 }
 
 /**
- * Ensure OpenClaw is installed in ~/.nexus/.sudoclaw.
+ * Ensure OpenClaw is installed in ~/.nexus/sudoclaw.
  * Called on app startup — runs silently, no user prompt.
  * Note: ensureNodeInstalled() is called before this in process/index.ts
  *
  * On Windows, NSIS installer may have already extracted files to:
- * - ~/.nexus/.sudoclaw/cli/package/... (extracted from openclaw.tgz)
+ * - ~/.nexus/sudoclaw/cli/package/... (extracted from openclaw.tgz)
  * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
  */
 export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
   migrateLegacySudoclaw();
+  migrateConfigFilename();
   repairOpenClawConfig();
 
   const pkgRoot = resolvePackageRoot();

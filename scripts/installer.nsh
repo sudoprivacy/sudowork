@@ -14,8 +14,8 @@
   ; Create directory structure
   CreateDirectory "$R1"
   CreateDirectory "$R1\node"
-  CreateDirectory "$R1\.sudoclaw\cli"
-  CreateDirectory "$R1\.sudoclaw\bin"
+  CreateDirectory "$R1\sudoclaw\cli"
+  CreateDirectory "$R1\sudoclaw\bin"
   CreateDirectory "$R1\nexus_env"
 
   ; Show installation progress header
@@ -42,7 +42,7 @@
   ; tgz contains: package/... with package/bin/openclaw.cmd inside
   ; Extract to cli directory, then move bin to parent
   DetailPrint "[2/3] Extracting Sudoclaw..."
-  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\openclaw.tgz" -C "$R1\.sudoclaw\cli" --overwrite'
+  nsExec::ExecToStack 'tar -xzf "$INSTDIR\resources\openclaw.tgz" -C "$R1\sudoclaw\cli" --overwrite'
   Pop $R2
   Pop $R3
   StrCmp $R2 "0" sudoclaw_ok sudoclaw_fail
@@ -52,10 +52,10 @@
     Goto sudoclaw_done
   sudoclaw_ok:
     DetailPrint "Sudoclaw extracted successfully"
-    ; Move bin from package/bin to ~/.nexus/.sudoclaw/bin
-    IfFileExists "$R1\.sudoclaw\cli\package\bin\openclaw.cmd" 0 sudoclaw_done
+    ; Move bin from package/bin to ~/.nexus/sudoclaw/bin
+    IfFileExists "$R1\sudoclaw\cli\package\bin\openclaw.cmd" 0 sudoclaw_done
     DetailPrint "Setting up Sudoclaw CLI wrappers..."
-    nsExec::ExecToStack 'powershell -NoProfile -Command "Copy-Item -Path \"$R1\.sudoclaw\cli\package\bin\*\" -Destination \"$R1\.sudoclaw\bin\" -Force"'
+    nsExec::ExecToStack 'powershell -NoProfile -Command "Copy-Item -Path \"$R1\sudoclaw\cli\package\bin\*\" -Destination \"$R1\sudoclaw\bin\" -Force"'
     Pop $R4
     Pop $R5
   sudoclaw_done:

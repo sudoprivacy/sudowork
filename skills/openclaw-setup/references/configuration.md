@@ -1,14 +1,14 @@
-# OpenClaw 配置管理
+# SudoClaw 配置管理
 
 ## 配置文件位置
 
 ### 主要配置文件
 
-- **配置文件**: `~/.openclaw/openclaw.json`
-- **工作区**: `~/.openclaw/workspace`（默认）
-- **凭证**: `~/.openclaw/credentials/`
-- **会话**: `~/.openclaw/agents/<agentId>/sessions/`
-- **状态**: `~/.openclaw/`（整个目录）
+- **配置文件**: `~/.nexus/sudoclaw/sudoclaw.json`
+- **工作区**: `~/.nexus/sudoclaw/workspace`（默认）
+- **凭证**: `~/.nexus/sudoclaw/credentials/`
+- **会话**: `~/.nexus/sudoclaw/agents/<agentId>/sessions/`
+- **状态**: `~/.nexus/sudoclaw/`（整个目录）
 
 ### 环境变量
 
@@ -43,7 +43,7 @@ openclaw config set <key> <value>
 
 ```bash
 openclaw config set gateway.mode local
-openclaw config set gateway.port 18789
+openclaw config set gateway.port 17863
 ```
 
 ### 交互式配置
@@ -68,7 +68,7 @@ openclaw configure --section channels
 {
   gateway: {
     mode: 'local', // 或 "remote"
-    port: 18789,
+    port: 17863,
     bind: '127.0.0.1', // 或 "0.0.0.0"
     auth: {
       token: 'your-token-here',
@@ -83,7 +83,7 @@ openclaw configure --section channels
 {
   agents: {
     defaults: {
-      workspace: '~/.openclaw/workspace',
+      workspace: '~/.nexus/sudoclaw/workspace',
       model: 'anthropic/claude-opus-4-5',
       // 其他默认设置
     },
@@ -91,7 +91,7 @@ openclaw configure --section channels
       {
         id: 'main',
         identity: {
-          name: 'OpenClaw',
+          name: 'SudoClaw',
           emoji: '🦞',
           avatar: 'avatars/openclaw.png',
         },
@@ -125,8 +125,8 @@ openclaw configure --section channels
 使用不同的配置文件和状态目录运行多个实例：
 
 ```bash
-OPENCLAW_CONFIG_PATH=~/.openclaw/a.json \
-OPENCLAW_STATE_DIR=~/.openclaw-a \
+OPENCLAW_CONFIG_PATH=~/.nexus/sudoclaw/a.json \
+OPENCLAW_STATE_DIR=~/.nexus/sudoclaw-a \
 openclaw gateway --port 19001
 ```
 
@@ -135,7 +135,7 @@ openclaw gateway --port 19001
 配置文件应该设置为仅所有者可读写：
 
 ```bash
-chmod 600 ~/.openclaw/openclaw.json
+chmod 600 ~/.nexus/sudoclaw/sudoclaw.json
 ```
 
 `openclaw doctor` 会自动检查并修复权限问题。

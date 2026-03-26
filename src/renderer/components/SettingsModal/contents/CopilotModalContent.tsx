@@ -342,7 +342,7 @@ const CopilotModalContent: React.FC = () => {
     setConfigLoading(true);
     try {
       const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
-      const configFilePath = `${homeDir}/.nexus/.sudoclaw/openclaw.json`;
+      const configFilePath = `${homeDir}/.nexus/sudoclaw/sudoclaw.json`;
       setConfigPath(configFilePath);
 
       const res = await ipcBridge.sudoclaw.getConfig.invoke();
@@ -551,7 +551,7 @@ const CopilotModalContent: React.FC = () => {
           <div className='flex items-center justify-between'>
             <div className='flex-1'>
               <div className='text-14px text-t-primary font-500'>Sudoclaw 配置文件</div>
-              <Tooltip content='~/.nexus/.sudoclaw/openclaw.json'>
+              <Tooltip content='~/.nexus/sudoclaw/sudoclaw.json'>
                 <div className='text-12px text-t-tertiary mt-2px'>直接编辑配置文件</div>
               </Tooltip>
             </div>

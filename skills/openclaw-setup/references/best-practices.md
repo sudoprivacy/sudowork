@@ -1,4 +1,4 @@
-# OpenClaw 最佳实践和特殊场景
+# SudoClaw 最佳实践和特殊场景
 
 ## 帮助用户时的最佳实践
 
@@ -23,7 +23,7 @@
 
 ```bash
 # 1. 创建新的 Agent
-openclaw agents add code-review --workspace ~/.openclaw/workspace-code-review
+openclaw agents add code-review --workspace ~/.nexus/sudoclaw/workspace-code-review
 
 # 2. 编辑工作区的 AGENTS.md，定义代码审查逻辑
 # 3. 配置 TOOLS.md，启用 GitHub 相关工具
@@ -49,8 +49,8 @@ openclaw cron add "0 9 * * *" --message "生成每日报告" --agent main
 ### 场景 3：多 Agent 路由
 
 1. 创建多个 Agent：`openclaw agents add <name>`
-2. 配置路由规则在 `openclaw.json` 中
-3. 参考文档：https://docs.openclaw.ai/concepts/multi-agent
+2. 配置路由规则在 `sudoclaw.json` 中
+3. 参考文档：https://docs.sudoclaw.ai/concepts/multi-agent
 
 **示例配置：**
 
@@ -58,8 +58,8 @@ openclaw cron add "0 9 * * *" --message "生成每日报告" --agent main
 {
   agents: {
     list: [
-      { id: 'work', workspace: '~/.openclaw/workspace-work' },
-      { id: 'personal', workspace: '~/.openclaw/workspace-personal' },
+      { id: 'work', workspace: '~/.nexus/sudoclaw/workspace-work' },
+      { id: 'personal', workspace: '~/.nexus/sudoclaw/workspace-personal' },
     ],
   },
   bindings: [
@@ -86,7 +86,7 @@ openclaw cron add "0 9 * * *" --message "生成每日报告" --agent main
 
 ```bash
 # 在本地机器上
-ssh -N -L 18789:127.0.0.1:18789 user@remote-server
+ssh -N -L 17863:127.0.0.1:17863 user@remote-server
 
 # 在另一个终端
 openclaw gateway status  # 应该能连接到远程 Gateway
@@ -98,32 +98,32 @@ openclaw gateway status  # 应该能连接到远程 Gateway
 
 ```bash
 # 使用 git 备份（推荐）
-cd ~/.openclaw/workspace
+cd ~/.nexus/sudoclaw/workspace
 git init
 git add .
 git commit -m "Backup workspace"
 
 # 推送到私有仓库
-git remote add origin git@github.com:username/openclaw-workspace.git
+git remote add origin git@github.com:username/sudoclaw-workspace.git
 git push -u origin main
 ```
 
 ### 场景 6：迁移到新机器
 
-1. 备份配置文件：`~/.openclaw/openclaw.json`
-2. 备份工作区：`~/.openclaw/workspace`
-3. 备份凭证（如果需要）：`~/.openclaw/credentials/`
-4. 在新机器上安装 OpenClaw
+1. 备份配置文件：`~/.nexus/sudoclaw/sudoclaw.json`
+2. 备份工作区：`~/.nexus/sudoclaw/workspace`
+3. 备份凭证（如果需要）：`~/.nexus/sudoclaw/credentials/`
+4. 在新机器上安装 SudoClaw
 5. 恢复配置和工作区
 6. 运行 `openclaw doctor` 检查配置
 
 ## 安全建议
 
-1. **配置文件权限**：确保 `~/.openclaw/openclaw.json` 权限为 600
+1. **配置文件权限**：确保 `~/.nexus/sudoclaw/sudoclaw.json` 权限为 600
 2. **API 密钥**：使用环境变量或安全的密钥管理工具
 3. **DM 策略**：默认使用 `pairing` 策略，避免开放 DM
 4. **Gateway 认证**：即使本地运行，也建议设置 Gateway token
-5. **定期更新**：保持 OpenClaw 和依赖项更新
+5. **定期更新**：保持 SudoClaw 和依赖项更新
 
 ## 性能优化
 

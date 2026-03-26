@@ -1,8 +1,8 @@
-# OpenClaw 卸载指南
+# SudoClaw 卸载指南
 
 ## 概述
 
-本指南提供完全卸载 OpenClaw 的步骤，包括：
+本指南提供完全卸载 SudoClaw 的步骤，包括：
 
 - 停止所有运行中的服务
 - 卸载 npm 全局包
@@ -12,7 +12,7 @@
 
 ## 卸载前准备
 
-### 1. 停止所有 OpenClaw 进程
+### 1. 停止所有 SudoClaw 进程
 
 **停止 Gateway 服务：**
 
@@ -84,14 +84,14 @@ openclaw --version
 **删除主配置目录：**
 
 ```bash
-rm -rf ~/.openclaw
+rm -rf ~/.nexus/sudoclaw
 ```
 
 **检查并删除其他可能的位置：**
 
 ```bash
 # 检查是否有其他配置目录
-ls -la ~ | grep -i openclaw
+ls -la ~ | grep -i sudoclaw
 ls -la ~ | grep -i clawd
 
 # 如果存在，删除它们
@@ -137,7 +137,7 @@ rm -f ~/Library/Logs/openclaw-gateway.log
 
 ### 步骤 5：清理环境变量（可选）
 
-检查 shell 配置文件（`.zshrc`, `.bash_profile`, `.bashrc`）中是否有 OpenClaw 相关的环境变量：
+检查 shell 配置文件（`.zshrc`, `.bash_profile`, `.bashrc`）中是否有 SudoClaw 相关的环境变量：
 
 ```bash
 # 检查环境变量
@@ -155,9 +155,9 @@ grep -i openclaw ~/.zshrc ~/.bash_profile ~/.bashrc 2>/dev/null
 ### 步骤 6：清理端口占用（如果仍有进程）
 
 ```bash
-# 检查端口 18789 是否被占用
-lsof -i :18789  # macOS
-ss -ltnp | grep 18789  # Linux
+# 检查端口 17863 是否被占用
+lsof -i :17863  # macOS
+ss -ltnp | grep 17863  # Linux
 
 # 如果发现进程，停止它
 kill -9 <PID>
@@ -165,7 +165,7 @@ kill -9 <PID>
 
 ## 验证卸载完成
 
-执行以下检查，确认 OpenClaw 已完全卸载：
+执行以下检查，确认 SudoClaw 已完全卸载：
 
 ```bash
 # 1. 检查命令是否还存在
@@ -173,7 +173,7 @@ which openclaw
 # 应该返回空或 "not found"
 
 # 2. 检查配置目录是否已删除
-ls -la ~/.openclaw
+ls -la ~/.nexus/sudoclaw
 # 应该返回 "No such file or directory"
 
 # 3. 检查系统服务是否已移除
@@ -198,7 +198,7 @@ ps aux | grep openclaw | grep -v grep
 
 ```bash
 #!/bin/bash
-echo "正在卸载 OpenClaw..."
+echo "正在卸载 SudoClaw..."
 
 # 停止服务
 openclaw gateway stop 2>/dev/null
@@ -208,7 +208,7 @@ killall openclaw 2>/dev/null
 npm uninstall -g openclaw 2>/dev/null
 
 # 删除配置目录
-rm -rf ~/.openclaw
+rm -rf ~/.nexus/sudoclaw
 rm -rf ~/clawd
 
 # macOS: 删除 LaunchAgent
@@ -228,7 +228,7 @@ fi
 # 清理日志
 rm -f ~/Library/Logs/openclaw-gateway.log
 
-echo "OpenClaw 卸载完成！"
+echo "SudoClaw 卸载完成！"
 ```
 
 ## 注意事项
@@ -236,7 +236,7 @@ echo "OpenClaw 卸载完成！"
 1. **备份重要数据**：卸载前，如果需要保留配置或工作区数据，请先备份：
 
    ```bash
-   cp -r ~/.openclaw ~/.openclaw.backup
+   cp -r ~/.nexus/sudoclaw ~/.nexus/sudoclaw.backup
    ```
 
 2. **多实例安装**：如果使用环境变量配置了多个实例，需要分别清理每个实例的配置目录。
@@ -294,14 +294,14 @@ systemctl --user disable openclaw-gateway
 
 ```bash
 # 检查文件权限
-ls -la ~/.openclaw
+ls -la ~/.nexus/sudoclaw
 
 # 修改权限后删除
-chmod -R 755 ~/.openclaw
-rm -rf ~/.openclaw
+chmod -R 755 ~/.nexus/sudoclaw
+rm -rf ~/.nexus/sudoclaw
 ```
 
 ## 参考资源
 
-- [OpenClaw GitHub 仓库](https://github.com/openclaw/openclaw)
-- [OpenClaw 官方文档](https://docs.openclaw.ai)
+- [SudoClaw GitHub 仓库](https://github.com/sudoprivacy/sudoclaw)
+- [SudoClaw 官方文档](https://docs.sudoclaw.ai)

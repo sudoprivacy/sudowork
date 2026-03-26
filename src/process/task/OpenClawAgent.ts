@@ -56,7 +56,7 @@ export interface OpenClawAgentData {
     token?: string;
     password?: string;
     useExternalGateway?: boolean;
-    /** OpenClaw state directory (e.g. ~/.sudoclaw) */
+    /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw) */
     stateDir?: string;
     forceSubprocessGateway?: boolean;
   };
@@ -119,7 +119,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         const probeHost = host === 'localhost' ? '127.0.0.1' : host;
         const alreadyListening = await isTcpPortOpen(probeHost, port);
         if (!alreadyListening) {
-          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir } : undefined;
+          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir, OPENCLAW_CONFIG_PATH: `${stateDir}/sudoclaw.json` } : undefined;
           this.gatewayManager = new OpenClawGatewayManager({
             port,
             customEnv,
@@ -339,7 +339,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingNavigationTools.clear();
   }
 
-  /** Restart gateway to pick up config changes (~/.sudoclaw/openclaw.json) */
+  /** Restart gateway to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
   async restartGateway(): Promise<void> {
     // Full stop + reconnect
     if (this.connection) {

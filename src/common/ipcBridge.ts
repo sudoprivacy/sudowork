@@ -462,8 +462,8 @@ export const libreOffice = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
-// Sudoclaw config (~/.nexus/.sudoclaw) / OpenClaw 配置
-// Matches openclaw.json schema: models.providers, agents.defaults, etc.
+// Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
+// Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
 export type SudoclawProviderModel = { id: string; name?: string };
 export type SudoclawProvider = {
   baseUrl?: string;
@@ -490,7 +490,7 @@ export type SudoclawTestGatewayResult = {
 };
 
 export const sudoclaw = {
-  /** Get Sudoclaw config from ~/.nexus/.sudoclaw/openclaw.json */
+  /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
   getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
   /** Save Sudoclaw config */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),

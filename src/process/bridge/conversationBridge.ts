@@ -111,9 +111,9 @@ export function initConversationBridge(): void {
         success: true,
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -125,9 +125,9 @@ export function initConversationBridge(): void {
         msg: error instanceof Error ? error.message : String(error),
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -154,7 +154,7 @@ export function initConversationBridge(): void {
       }
 
       // Try to get gateway status
-      let gatewayPort = 18789;
+      let gatewayPort = 17863;
       let gatewayHost = 'localhost';
       let workspace: string | undefined;
       let agentName: string | undefined;
@@ -165,7 +165,7 @@ export function initConversationBridge(): void {
         const { readFile } = await import('node:fs/promises');
         const { join } = await import('node:path');
         const { homedir } = await import('node:os');
-        const configPath = join(homedir(), '.openclaw', 'openclaw.json');
+        const configPath = join(homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
         const configContent = await readFile(configPath, 'utf-8');
         const config = JSON.parse(configContent);
 
