@@ -148,7 +148,7 @@ jobs:
           name: CLI Resources ${{ inputs.tag_name }}
           body: |
             ## CLI Bundles
-            Built with Node.js v24.9.0 runtime requirement.
+            Built with Node.js v22.22.2 runtime requirement.
 
             | Platform | Arch | Files |
             |----------|------|-------|

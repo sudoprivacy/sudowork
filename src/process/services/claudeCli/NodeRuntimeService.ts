@@ -22,7 +22,7 @@ import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 
 /** Node.js LTS version to bundle */
-const NODE_VERSION = '24.9.0';
+const NODE_VERSION = '22.22.2';
 
 /** Directory to store bundled Node.js */
 const getNodeDir = (): string => path.join(getDataPath(), 'node');
@@ -34,9 +34,9 @@ export function getNodeBinaryPath(): string {
   const arch = process.arch;
 
   // Node.js official download naming:
-  // - macOS: node-v24.9.0-darwin-x64/bin/node
-  // - Windows: node-v24.9.0-win-x64/node.exe (note: "win" not "win32")
-  // - Linux: node-v24.9.0-linux-x64/bin/node
+  // - macOS: node-v22.22.2-darwin-x64/bin/node
+  // - Windows: node-v22.22.2-win-x64/node.exe (note: "win" not "win32")
+  // - Linux: node-v22.22.2-linux-x64/bin/node
   const nodePlatform = platform === 'win32' ? 'win' : platform;
   const dirName = `node-v${NODE_VERSION}-${nodePlatform}-${arch}`;
 
