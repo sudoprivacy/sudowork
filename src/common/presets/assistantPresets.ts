@@ -17,6 +17,17 @@ export type AssistantPreset = {
    * 此助手默认启用的技能列表（来自 skills/ 目录的技能名称）
    */
   defaultEnabledSkills?: string[];
+  /**
+   * Default agent mode for this assistant (e.g., 'yolo' for auto-approve).
+   * Applied when creating a new conversation — user can override via mode selector.
+   */
+  defaultMode?: string;
+  /**
+   * Gemini CLI model config overrides (temperature, thinkingBudget, etc).
+   * Written to .gemini/settings.json in the conversation workspace before CLI starts.
+   * See: node_modules/@office-ai/aioncli-core/dist/docs/cli/generation-settings.md
+   */
+  modelConfigs?: Record<string, unknown>;
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -361,6 +372,17 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
     defaultEnabledSkills: ['browser'],
     defaultMode: 'yolo',
+    modelConfigs: {
+      overrides: [{
+        match: {},
+        modelConfig: {
+          generateContentConfig: {
+            temperature: 0.2,
+            thinkingConfig: { thinkingBudget: 8192 },
+          },
+        },
+      }],
+    },
     nameI18n: {
       'en-US': 'Doctor',
       'zh-CN': '诊断医生',

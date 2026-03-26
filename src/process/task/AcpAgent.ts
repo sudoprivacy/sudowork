@@ -25,7 +25,10 @@ import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionReques
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
+import * as fs from 'node:fs';
+import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -256,6 +259,26 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         customEnv,
         yoloMode,
       };
+
+      // Write preset modelConfigs to .gemini/settings.json for Gemini backend
+      // The Gemini CLI reads this file from the workspace directory on startup
+      if (this.extra.backend === 'gemini' && this.extra.presetAssistantId?.startsWith('builtin-')) {
+        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
+        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+        if (preset?.modelConfigs && this.extra.workspace) {
+          try {
+            const geminiDir = nodePath.join(this.extra.workspace, '.gemini');
+            if (!fs.existsSync(geminiDir)) {
+              fs.mkdirSync(geminiDir, { recursive: true });
+            }
+            const settingsPath = nodePath.join(geminiDir, 'settings.json');
+            fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
+            mainLog('[AcpAgent]', `Wrote Gemini model config to ${settingsPath}`);
+          } catch (error) {
+            mainWarn('[AcpAgent]', 'Failed to write Gemini model config:', error);
+          }
+        }
+      }
 
       // Connect
       await this.connect();
