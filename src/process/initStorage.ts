@@ -654,7 +654,7 @@ const initStorage = async () => {
     const existingServerConfig = await configFile.get('sudowork.server').catch(() => undefined);
     if (!existingServerConfig) {
       await configFile.set('sudowork.server', {
-        baseUrl: 'http://localhost:3000',
+        baseUrl: 'https://sudoclaw-server.sudoprivacy.com',
       });
       console.log('[Sudowork] Sudowork Server config initialized');
     }

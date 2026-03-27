@@ -134,7 +134,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code, remember }: LoginParams): Promise<LoginResult> => {
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const baseUrl = serverConfig.baseUrl || 'http://localhost:3000';
+      const baseUrl = serverConfig.baseUrl || 'https://sudoclaw-server.sudoprivacy.com';
 
       const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
         method: 'POST',

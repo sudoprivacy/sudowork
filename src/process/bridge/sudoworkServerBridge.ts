@@ -9,11 +9,11 @@ import { ProcessConfig } from '../initStorage';
 
 export function initSudoworkServerBridge(): void {
   sudoworkServer.getConfig.provider(async () => {
-    return (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'http://localhost:3000' };
+    return (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'https://sudoclaw-server.sudoprivacy.com' };
   });
 
   sudoworkServer.updateConfig.provider(async (config) => {
-    const current = (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'http://localhost:3000' };
+    const current = (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'https://sudoclaw-server.sudoprivacy.com' };
     await ProcessConfig.set('sudowork.server', { ...current, ...config });
   });
 }
