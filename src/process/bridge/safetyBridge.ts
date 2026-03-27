@@ -11,7 +11,13 @@
  */
 
 import { ipcBridge } from '@/common';
+import { ProcessConfig } from '@/process/initStorage';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
+import { getNexusClient, CONFIG_DIR } from '../services/safety/SecurityHookFile';
+import type { BlacklistConfig } from '@/common/safetyTypes';
+
+const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
+const BLACKLIST_STORAGE_KEY = 'safetyHook.blacklist';
 
 export function initSafetyBridge(): void {
   // Get current safety status
@@ -66,11 +72,11 @@ export function initSafetyBridge(): void {
       if (enabled) {
         // Stop first if already running, then start
         console.log('[SafetyBridge] Stopping and starting service...');
-        service.stop();
+        await service.stop();
         await service.start({ pollingIntervalMs: 5000 });
       } else {
         console.log('[SafetyBridge] Stopping service...');
-        service.stop();
+        await service.stop();
       }
       return { success: true };
     } catch (err) {
@@ -78,6 +84,40 @@ export function initSafetyBridge(): void {
         success: false,
         msg: err instanceof Error ? err.message : String(err),
       };
+    }
+  });
+
+  // Get blacklist configuration
+  ipcBridge.safety.getBlacklist.provider(async () => {
+    try {
+      const config = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
+      return { success: true, data: config || { rules: [] } };
+    } catch (err) {
+      return {
+        success: false,
+        msg: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });
+
+  // Set blacklist configuration
+  ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: BlacklistConfig }) => {
+    try {
+      // Save to local storage
+      await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
+
+      // Sync to Nexus
+      const client = getNexusClient();
+      await client.mkdir(CONFIG_DIR, true);
+      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
+
+      // Hook processes will read updated config from Nexus via polling
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('[SafetyBridge] Failed to set blacklist:', errorMsg);
+      return { success: false, msg: errorMsg };
     }
   });
 }

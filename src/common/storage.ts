@@ -133,6 +133,10 @@ export interface IConfigStorageRefer {
     customAgentId?: string;
     name?: string;
   };
+  // Safety hook enabled state / 安全 Hook 启用状态
+  'safetyHook.enabled'?: boolean;
+  // Safety hook blacklist configuration / 安全 Hook 黑名单配置
+  'safetyHook.blacklist'?: import('./safetyTypes').BlacklistConfig;
 }
 
 export interface IEnvStorageRefer {

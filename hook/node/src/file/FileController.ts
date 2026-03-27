@@ -17,7 +17,7 @@ export interface ControllerSource {
   errorWith(reason: string): void;
 }
 
-export type FileFlag = 'O_RDONLY' | 'O_WRONLY' | 'O_RDWR' | 'O_CREAT' | 'O_EXCL' | 'O_NOCTTY' | 'O_TRUNC' | 'O_APPEND' | 'O_DIRECTORY' | 'O_NOATIME' | 'O_NOFOLLOW' | 'O_SYNC' | 'O_DSYNC' | 'O_SYMLINK' | 'O_DIRECT' | 'O_NONBLOCK' | 'REMOVE';
+export type FileFlag = 'O_RDONLY' | 'O_WRONLY' | 'O_RDWR' | 'O_CREAT' | 'O_EXCL' | 'O_NOCTTY' | 'O_TRUNC' | 'O_APPEND' | 'O_DIRECTORY' | 'O_NOATIME' | 'O_NOFOLLOW' | 'O_SYNC' | 'O_DSYNC' | 'O_SYMLINK' | 'O_DIRECT' | 'O_NONBLOCK' | 'REMOVE' | 'RENAME';
 
 export type FileEventMap = {
   file: [

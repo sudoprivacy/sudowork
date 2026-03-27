@@ -241,8 +241,8 @@ class DynamicNexusService {
   async start(): Promise<void> {
     if (this._running) return;
 
-    // 使用固定端口 12012
-    this._port = 12012;
+    // 使用固定端口 2026
+    this._port = 2026;
 
     const envDir = this.getCondaEnvDir();
     const nexusdBin = this.getNexusdPath(envDir);

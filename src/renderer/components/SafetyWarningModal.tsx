@@ -5,7 +5,7 @@
  */
 
 import { Modal } from '@arco-design/web-react';
-import { IconSafe, IconInfoCircle, IconLink, IconFile } from '@arco-design/web-react/icon';
+import { IconInfoCircle, IconLink, IconFile } from '@arco-design/web-react/icon';
 import React, { useEffect, useState } from 'react';
 import type { SafetyStatus, NetworkEventData, FileEventData } from '@/common/safetyTypes';
 
@@ -17,22 +17,6 @@ export interface SafetyWarningModalProps {
 }
 
 const COUNTDOWN_SECONDS = 10;
-
-const riskLevelColors: Record<string, string> = {
-  none: 'var(--color-success)',
-  low: 'var(--color-warning)',
-  medium: 'var(--color-orange)',
-  high: 'var(--color-danger)',
-  critical: 'var(--color-purple)',
-};
-
-const riskLevelIcons: Record<string, React.ReactNode> = {
-  none: <IconSafe style={{ color: 'var(--color-success)' }} />,
-  low: <IconInfoCircle style={{ color: 'var(--color-warning)' }} />,
-  medium: <IconInfoCircle style={{ color: 'var(--color-orange)' }} />,
-  high: <IconSafe style={{ color: 'var(--color-danger)' }} />,
-  critical: <IconSafe style={{ color: 'var(--color-purple)' }} />,
-};
 
 // Icons for event types
 const eventTypeIcons: Record<string, React.ReactNode> = {
@@ -47,7 +31,6 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
     const translations: Record<string, string> = {
       'safety.warning': '安全警告',
       'safety.riskDetected': '检测到安全风险',
-      'safety.riskLevel': '风险等级',
       'safety.riskDetails': '风险详情',
       'safety.riskCode': '风险代码',
       'safety.riskMessage': '风险消息',
@@ -57,11 +40,6 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       'safety.pleaseReviewRisk': '请审查以下风险并决定是否继续',
       'safety.waitingForConfirmation': '正在等待您的确认...',
       'safety.autoConfirmIn': '秒后自动确认',
-      'safety.riskLevel.none': '无',
-      'safety.riskLevel.low': '低',
-      'safety.riskLevel.medium': '中',
-      'safety.riskLevel.high': '高',
-      'safety.riskLevel.critical': '严重',
       'safety.eventType': '事件类型',
       'safety.networkRequest': '网络请求',
       'safety.fileOperation': '文件操作',
@@ -102,17 +80,6 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
     };
   }, [visible, onConfirm]);
 
-  const formatRiskLevel = (level: string): string => {
-    const levelMap: Record<string, string> = {
-      none: t('safety.riskLevel.none'),
-      low: t('safety.riskLevel.low'),
-      medium: t('safety.riskLevel.medium'),
-      high: t('safety.riskLevel.high'),
-      critical: t('safety.riskLevel.critical'),
-    };
-    return levelMap[level] || level;
-  };
-
   const formatDetectedAt = (timestamp: number): string => {
     const date = new Date(timestamp);
     return date.toLocaleString();
@@ -144,6 +111,8 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       'O_DIRECT': '绕开系统缓存 io',
       'O_NONBLOCK': '非阻塞 io',
       'O_NOCTTY': '未知',
+      'REMOVE': '删除',
+      'RENAME': '重命名',
     };
 
     return flags.map((flag) => `${flag}${flagDescriptions[flag] ? ` (${flagDescriptions[flag]})` : ''}`).join(', ');
@@ -216,8 +185,8 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       visible={visible}
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {riskLevelIcons[status.level]}
-          <span style={{ color: riskLevelColors[status.level] }}>{t('safety.warning')}</span>
+          <IconInfoCircle style={{ color: 'var(--color-warning)' }} />
+          <span>{t('safety.warning')}</span>
         </div>
       }
       closable={false}
@@ -226,9 +195,6 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       onCancel={onCancel}
       okText={countdown > 0 ? `${t('safety.confirmContinue')} (${countdown}${t('safety.autoConfirmIn')})` : t('safety.confirmContinue')}
       cancelText={t('safety.deny')}
-      okButtonProps={{
-        status: status.level === 'critical' ? 'danger' : 'default',
-      }}
       style={{ width: 600 }}
     >
       <div style={{ padding: '8px 0' }}>
@@ -242,21 +208,6 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
             marginBottom: 16,
           }}
         >
-          <div style={{ marginBottom: 12 }}>
-            <strong style={{ color: 'var(--color-text-1)', marginRight: 8 }}>{t('safety.riskLevel')}:</strong>
-            <span
-              style={{
-                color: riskLevelColors[status.level],
-                fontWeight: 500,
-                padding: '2px 8px',
-                backgroundColor: `${riskLevelColors[status.level]}20`,
-                borderRadius: 4,
-              }}
-            >
-              {formatRiskLevel(status.level)}
-            </span>
-          </div>
-
           {status.eventType && (
             <div style={{ marginBottom: 12 }}>
               <strong style={{ color: 'var(--color-text-1)', marginRight: 8 }}>{t('safety.eventType')}:</strong>

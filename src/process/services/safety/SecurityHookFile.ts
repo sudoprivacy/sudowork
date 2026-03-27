@@ -18,6 +18,8 @@ import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileD
 /** Nexus security hook directory paths */
 export const EVENT_DIR = '/safe/event';
 export const ACTION_DIR = '/safe/action';
+export const CONFIG_DIR = '/safe/config';
+export const ENABLED_CONFIG_PATH = '/safe/config/enabled';
 
 /**
  * Get Nexus RPC client instance
@@ -34,8 +36,53 @@ export async function ensureSecurityHookDirs(): Promise<void> {
     const client = getNexusClient();
     await client.mkdir(EVENT_DIR, true);
     await client.mkdir(ACTION_DIR, true);
+    await client.mkdir(CONFIG_DIR, true);
   } catch {
     // Directories may already exist, ignore errors
+  }
+}
+
+/**
+ * Write safety hook enabled state to Nexus filesystem
+ * This allows hook.js in Agent CLI processes to detect state changes
+ */
+export async function writeEnabledState(enabled: boolean): Promise<void> {
+  try {
+    const client = getNexusClient();
+    await client.write(ENABLED_CONFIG_PATH, JSON.stringify({ enabled, timestamp: Date.now() }));
+    console.log(`[SecurityHook] Wrote enabled state: ${enabled}`);
+  } catch (error) {
+    console.error('[SecurityHook] Failed to write enabled state:', error);
+  }
+}
+
+/**
+ * Read safety hook enabled state from Nexus filesystem
+ */
+export async function readEnabledState(): Promise<boolean> {
+  try {
+    const client = getNexusClient();
+    const result = await client.read(ENABLED_CONFIG_PATH, false);
+
+    // Handle Buffer result
+    if (Buffer.isBuffer(result)) {
+      const data = JSON.parse(result.toString('utf-8'));
+      return data.enabled === true;
+    }
+
+    // Handle object result with content
+    if (result && typeof result === 'object' && 'content' in result) {
+      const content = result.content;
+      const data = Buffer.isBuffer(content)
+        ? JSON.parse(content.toString('utf-8'))
+        : JSON.parse(String(content));
+      return data.enabled === true;
+    }
+
+    return true; // Default to enabled
+  } catch (error) {
+    // File may not exist yet, default to enabled
+    return true;
   }
 }
 

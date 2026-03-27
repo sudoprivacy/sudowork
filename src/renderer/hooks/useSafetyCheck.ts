@@ -69,7 +69,6 @@ export function useSafetyCheck(): UseSafetyCheckReturn {
   // Listen for status changes from main process
   useEffect(() => {
     const unsubscribe = ipcBridge.safety.onStatusChange.on((newStatus) => {
-      console.log('[useSafetyCheck] Received status change from main process:', newStatus.level);
       setStatus(newStatus);
       setHasEvent(newStatus.level !== 'none');
     });

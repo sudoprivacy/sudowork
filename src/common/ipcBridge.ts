@@ -1059,7 +1059,7 @@ export const sudoworkServer = {
 
 // ==================== Safety Hook API ====================
 
-import type { SafetyStatus } from '@/common/safetyTypes';
+import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 
 export const safety = {
   /** Get current safety status */
@@ -1072,4 +1072,8 @@ export const safety = {
   setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
   /** Safety status change event (Main -> Renderer) */
   onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
+  /** Get blacklist configuration */
+  getBlacklist: bridge.buildProvider<IBridgeResponse<BlacklistConfig>, void>('safety.get-blacklist'),
+  /** Set blacklist configuration */
+  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
 };

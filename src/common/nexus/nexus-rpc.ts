@@ -298,10 +298,15 @@ let nexusInstance: Nexus | null = null;
 
 /**
  * Get or create Nexus RPC client instance
+ * Connects to the local Nexus server on port 2026 (DynamicNexusService)
  */
 export function getNexusRpcClient(options?: NexusRpcOptions): Nexus {
   if (!nexusInstance) {
-    nexusInstance = new Nexus(options);
+    // Default to local Nexus server port 2026 (matches DynamicNexusService)
+    nexusInstance = new Nexus({
+      serverUrl: 'http://127.0.0.1:2026',
+      ...options,
+    });
   }
   return nexusInstance;
 }

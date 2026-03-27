@@ -31,7 +31,27 @@ export class SafetyFileService {
     this.config = config;
     if (!this.initialized) {
       await ensureSecurityHookDirs();
+      // Mark all existing events as processed (skip stale events from previous sessions)
+      await this.markExistingEventsAsProcessed();
       this.initialized = true;
+    }
+  }
+
+  /**
+   * Mark all existing events as processed to avoid re-processing stale events
+   * after app restart
+   */
+  private static async markExistingEventsAsProcessed(): Promise<void> {
+    try {
+      const events = await listEventFiles();
+      for (const event of events) {
+        this.processedEvents.add(event.filename);
+      }
+      if (events.length > 0) {
+        console.log(`[SafetyFileService] Marked ${events.length} existing events as processed (skipping stale events)`);
+      }
+    } catch (error) {
+      console.warn('[SafetyFileService] Failed to mark existing events:', error);
     }
   }
 

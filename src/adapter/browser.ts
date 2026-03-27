@@ -26,13 +26,14 @@ if (win.electronAPI) {
       return win.electronAPI.emit(name, data);
     },
     on(emitter) {
+      win.__bridgeEmitter = emitter;
       win.electronAPI?.on((event) => {
         try {
           const { value } = event;
           const { name, data } = JSON.parse(value);
           emitter.emit(name, data);
         } catch (e) {
-          console.warn('JSON parsing error:', e);
+          console.warn('[BrowserAdapter] JSON parsing error:', e);
         }
       });
     },
