@@ -160,6 +160,20 @@
   "contextUsage": {
     "contextUsed": "上下文已使用"
   },
+  "bdpan": {
+    "title": "百度網盤檔案",
+    "checking": "正在檢查登入狀態...",
+    "waitingAuth": "正在等待身份驗證，請在瀏覽器中完成授權...",
+    "loginTimeout": "登入超時，請重試",
+    "loginFailed": "登入失敗，請重試",
+    "lsFailed": "檔案載入失敗",
+    "emptyDir": "此資料夾為空",
+    "selectedCount": "已選 {{count}} 個檔案",
+    "selectHint": "點擊檔案選取，點擊資料夾進入",
+    "cancel": "取消",
+    "confirm": "確定",
+    "retry": "重試"
+  },
   "skill_generator": {
     "title": "Generate Skill/Rule",
     "generate": "Generate",

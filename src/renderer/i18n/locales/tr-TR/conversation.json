@@ -155,6 +155,20 @@
   "contextUsage": {
     "contextUsed": "bağlam kullanıldı"
   },
+  "bdpan": {
+    "title": "Baidu Netdisk Dosyaları",
+    "checking": "Giriş durumu kontrol ediliyor...",
+    "waitingAuth": "Kimlik doğrulama bekleniyor, lütfen tarayıcıda tamamlayın...",
+    "loginTimeout": "Giriş zaman aşımına uğradı, lütfen tekrar deneyin",
+    "loginFailed": "Giriş başarısız, lütfen tekrar deneyin",
+    "lsFailed": "Dosyalar yüklenemedi",
+    "emptyDir": "Bu klasör boş",
+    "selectedCount": "{{count}} dosya seçildi",
+    "selectHint": "Dosya seçmek için tıklayın, klasöre girmek için tıklayın",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "retry": "Tekrar Dene"
+  },
   "skill_generator": {
     "title": "Yetenek/Kural Oluştur",
     "generate": "Oluştur",

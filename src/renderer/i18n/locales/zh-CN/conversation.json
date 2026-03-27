@@ -160,6 +160,20 @@
   "contextUsage": {
     "contextUsed": "上下文已使用"
   },
+  "bdpan": {
+    "title": "百度网盘文件",
+    "checking": "正在检查登录状态...",
+    "waitingAuth": "正在等待身份验证，请在浏览器中完成授权...",
+    "loginTimeout": "登录超时，请重试",
+    "loginFailed": "登录失败，请重试",
+    "lsFailed": "文件加载失败",
+    "emptyDir": "此文件夹为空",
+    "selectedCount": "已选 {{count}} 个文件",
+    "selectHint": "点击文件选中，点击文件夹进入",
+    "cancel": "取消",
+    "confirm": "确定",
+    "retry": "重试"
+  },
   "skill_generator": {
     "title": "生成 Skill/规则",
     "generate": "生成",

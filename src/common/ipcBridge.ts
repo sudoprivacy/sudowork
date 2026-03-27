@@ -154,6 +154,20 @@ export interface IOpenDialogResult {
 export const dialog = {
   showOpen: bridge.buildProvider<IBridgeResponse<IOpenDialogResult>, { defaultPath?: string; properties?: OpenDialogOptions['properties']; filters?: OpenDialogOptions['filters'] } | undefined>('show-open'), // 打开文件/文件夹选择窗口
 };
+
+export interface BdpanFileEntry {
+  filename: string;
+  path: string;
+  isdir: boolean;
+  size: number;
+  server_mtime: number;
+}
+
+export const bdpan = {
+  whoami: bridge.buildProvider<IBridgeResponse<{ authenticated: boolean; has_valid_token: boolean; username?: string; error?: string }>, void>('bdpan.whoami'),
+  loginInteractive: bridge.buildProvider<IBridgeResponse<{ type: string; message?: string }>, void>('bdpan.loginInteractive'),
+  ls: bridge.buildProvider<IBridgeResponse<{ files: BdpanFileEntry[]; error?: string }>, { path: string }>('bdpan.ls'),
+};
 export const fs = {
   getFilesByDir: bridge.buildProvider<Array<IDirOrFile>, { dir: string; root: string }>('get-file-by-dir'), // 获取指定文件夹下所有文件夹和文件列表
   listDir: bridge.buildProvider<string[], { dir: string }>('fs.list-dir'), // 列出目录下的直接子项名称（不递归）

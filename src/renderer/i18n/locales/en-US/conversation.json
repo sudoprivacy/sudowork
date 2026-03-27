@@ -160,6 +160,20 @@
   "contextUsage": {
     "contextUsed": "context used"
   },
+  "bdpan": {
+    "title": "Baidu Netdisk Files",
+    "checking": "Checking login status...",
+    "waitingAuth": "Waiting for authentication, please complete in your browser...",
+    "loginTimeout": "Login timed out, please try again",
+    "loginFailed": "Login failed, please try again",
+    "lsFailed": "Failed to load files",
+    "emptyDir": "This folder is empty",
+    "selectedCount": "{{count}} file(s) selected",
+    "selectHint": "Click files to select, click folders to navigate",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "retry": "Retry"
+  },
   "skill_generator": {
     "title": "Generate Skill/Rule",
     "generate": "Generate",

@@ -160,6 +160,20 @@
   "contextUsage": {
     "contextUsed": "コンテキスト使用量"
   },
+  "bdpan": {
+    "title": "バイドゥ・ネットディスクのファイル",
+    "checking": "ログイン状態を確認中...",
+    "waitingAuth": "認証待ち中です、ブラウザで認証を完了してください...",
+    "loginTimeout": "ログインがタイムアウトしました、再試行してください",
+    "loginFailed": "ログインに失敗しました、再試行してください",
+    "lsFailed": "ファイルの読み込みに失敗しました",
+    "emptyDir": "このフォルダーは空です",
+    "selectedCount": "{{count}} 件のファイルを選択中",
+    "selectHint": "ファイルをクリックして選択、フォルダーをクリックして移動",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "retry": "再試行"
+  },
   "skill_generator": {
     "title": "Generate Skill/Rule",
     "generate": "Generate",
