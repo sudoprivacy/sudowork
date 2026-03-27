@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import './LoginPage.css';
 
@@ -80,8 +81,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const res = await fetch(`${serverConfig.baseUrl}/api/v1/auth/send-code`, {
+      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),

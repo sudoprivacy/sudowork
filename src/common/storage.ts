@@ -84,8 +84,11 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
-  // Sudowork Server (Enterprise Control Center) configuration
-  'sudowork.server': {
+  /**
+   * @deprecated Server URL is now hardcoded in src/common/sudoworkServer.ts.
+   * This config key is kept for backward compatibility but is no longer used.
+   */
+  'sudowork.server'?: {
     baseUrl: string;
     enterpriseCode?: string;
   };

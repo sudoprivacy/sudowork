@@ -352,12 +352,14 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   // 3. Some assistant rule files are missing (new preset added)
   const skillsDirExists = existsSync(skillsDir);
   const assistantsDirExists = existsSync(assistantsDir);
-  const hasAllAssistantRules = assistantsDirExists && ASSISTANT_PRESETS.every((preset) => {
-    if (Object.keys(preset.ruleFiles).length === 0) return true;
-    const firstLocale = Object.keys(preset.ruleFiles)[0];
-    const targetFileName = `builtin-${preset.id}.${firstLocale}.md`;
-    return existsSync(path.join(assistantsDir, targetFileName));
-  });
+  const hasAllAssistantRules =
+    assistantsDirExists &&
+    ASSISTANT_PRESETS.every((preset) => {
+      if (Object.keys(preset.ruleFiles).length === 0) return true;
+      const firstLocale = Object.keys(preset.ruleFiles)[0];
+      const targetFileName = `builtin-${preset.id}.${firstLocale}.md`;
+      return existsSync(path.join(assistantsDir, targetFileName));
+    });
   const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists || !hasAllAssistantRules;
 
   if (!needsCopy) {
@@ -657,20 +659,7 @@ const initStorage = async () => {
   ChatMessageStorage.interceptor(chatMessageFile);
   EnvStorage.interceptor(envFile);
 
-  // 4. 初始化 Sudowork Server 配置
-  try {
-    const existingServerConfig = await configFile.get('sudowork.server').catch(() => undefined);
-    if (!existingServerConfig) {
-      await configFile.set('sudowork.server', {
-        baseUrl: 'https://sudoclaw-server.sudoprivacy.com',
-      });
-      console.log('[Sudowork] Sudowork Server config initialized');
-    }
-  } catch (error) {
-    console.error('[Sudowork] Failed to initialize Sudowork Server config:', error);
-  }
-
-  // 5. 初始化 MCP 配置（为所有用户提供默认配置）
+  // 4. 初始化 MCP 配置（为所有用户提供默认配置）
   try {
     const existingMcpConfig = await configFile.get('mcp.config').catch((): undefined => undefined);
 
