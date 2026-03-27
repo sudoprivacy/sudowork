@@ -54,15 +54,16 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       return task;
     }
     case 'openclaw-gateway': {
-      // Try to get model from multiple sources
+      // Try to get model from multiple sources (priority: openclawModelId > runtimeValidation > model)
+      const modelFromOpenClawModelId = (conversation.extra as any).openclawModelId;
       const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
       const modelFromConfig = (conversation.extra as any).model;
 
       const task = new OpenClawAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
-        // Extract model from runtimeValidation or extra.model
-        model: modelFromRuntimeValidation || modelFromConfig,
+        // Extract model: prefer openclawModelId (per-conversation), then runtimeValidation, then model
+        model: modelFromOpenClawModelId || modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,
       });

@@ -12,6 +12,7 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
+import { Down } from '@icon-park/react';
 
 type OpenClawModel = IOpenClawModelsResponse['data'][number];
 
@@ -34,10 +35,11 @@ const OpenClawModelSelector: React.FC<{
     data: response,
     isLoading,
     error,
-  } = useSWR<IOpenClawModelsResponse>('openclaw-models', () => ipcBridge.openclaw.getModels.invoke(), {
+  } = useSWR<IOpenClawModelsResponse>(['openclaw-models', conversationId], () => ipcBridge.openclaw.getModels.invoke(), {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 60000, // Cache for 1 minute
+    dedupingInterval: 0, // 每次都重新请求模型列表
+    revalidateOnMount: true, // 组件挂载时重新请求模型列表
   });
 
   const models = response?.data;
@@ -47,18 +49,34 @@ const OpenClawModelSelector: React.FC<{
 
   // Load current model from conversation extra on mount
   useEffect(() => {
+    // 只有当 models 加载完成后才会执行
+    if (!models) {
+      return;
+    }
+
     ipcBridge.conversation.get
       .invoke({ id: conversationId })
       .then((conversation) => {
         if (conversation?.extra) {
           const extra = conversation.extra as { openclawModelId?: string };
           setSelectedModelId(extra.openclawModelId || null);
+        } else {
+          // 如果 conversation.extra 中没有 openclawModelId 属性，从模型列表中找到 isPrimary 是 true 的模型
+          const primaryModel = models.find((model) => model.isPrimary);
+          if (primaryModel) {
+            setSelectedModelId(primaryModel.model_id);
+          }
         }
       })
       .catch((err) => {
         console.error('[OpenClawModelSelector] Failed to load conversation:', err);
+        // 如果加载 conversation 失败，从模型列表中找到 isPrimary 是 true 的模型
+        const primaryModel = models.find((model) => model.isPrimary);
+        if (primaryModel) {
+          setSelectedModelId(primaryModel.model_id);
+        }
       });
-  }, [conversationId]);
+  }, [conversationId, models]);
 
   // Handle model selection
   const handleSelectModel = useCallback(
@@ -102,10 +120,13 @@ const OpenClawModelSelector: React.FC<{
   );
 
   // Format model label with ratio and primary indicator
-  const formatModelLabel = useCallback((model: OpenClawModel) => {
-    const label = `${model.model_id} (${model.model_ratio}x)`;
-    return model.isPrimary ? `${label} (默认)` : label;
-  }, []);
+  const formatModelLabel = useCallback(
+    (model: OpenClawModel) => {
+      const label = `${model.model_id} (${model.model_ratio}x)`;
+      return model.model_id === selectedModelId || (model.isPrimary && !selectedModelId) ? `${label} (当前模型)` : label;
+    },
+    [selectedModelId]
+  );
 
   // Find selected model object
   const selectedModel = models?.find((m) => m.model_id === selectedModelId) || models?.find((m) => m.isPrimary);
@@ -116,7 +137,7 @@ const OpenClawModelSelector: React.FC<{
     return (
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' disabled>
         <span className='flex items-center gap-6px min-w-0'>
-          <span>{t('translation:loading', { defaultValue: 'Loading' }) === 'Loading' ? 'Loading' : '加载中'}</span>
+          <span>{t('common.loading', { defaultValue: 'Loading...' })}</span>
         </span>
       </Button>
     );
@@ -143,7 +164,7 @@ const OpenClawModelSelector: React.FC<{
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0'>
           <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
-          <i className='arco-icon arco-icon-down'></i>
+          <Down theme='outline' size={14} />
         </span>
       </Button>
     </Dropdown>
