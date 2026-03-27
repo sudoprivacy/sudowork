@@ -234,7 +234,28 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.restartGateway.provider(async () => {
     try {
-      await WorkerManage.restartOpenClawGateways();
+      // Repair config before restart to ensure correct settings
+      const { repairOpenClawConfig } = await import('../services/sudoclaw/SudoclawInstallService');
+      repairOpenClawConfig();
+
+      // Check if there are running gateway tasks
+      const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
+
+      if (openclawTasks.length > 0) {
+        // Restart existing gateways
+        await WorkerManage.restartOpenClawGateways();
+      } else {
+        // No running gateway - start a new one
+        console.log('[SudoclawBridge] No running gateway, starting new one...');
+        const { OpenClawGatewayManager } = await import('@/agent/openclaw');
+        const gatewayManager = new OpenClawGatewayManager({
+          port: SUDOCLAW_DEFAULT_PORT,
+          stateDir: SUDOCLAW_DIR,
+          customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: path.join(SUDOCLAW_DIR, CONFIG_FILENAME) },
+          forceSubprocessGateway: true,
+        });
+        await gatewayManager.start();
+      }
       return { success: true };
     } catch (err) {
       console.error('[SudoclawBridge] Restart gateway failed:', err);

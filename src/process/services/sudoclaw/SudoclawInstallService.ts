@@ -373,6 +373,7 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
     }
 
     ensureDefaultConfig();
+    repairOpenClawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);

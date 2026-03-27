@@ -190,7 +190,24 @@ const CopilotModalContent: React.FC = () => {
       const patch = buildPatchFromForm();
       const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
       if (res?.success) {
-        Message.success(t('common.saveSuccess', { defaultValue: 'Saved' }));
+        // Prompt user to restart Gateway
+        Modal.confirm({
+          title: '配置已保存',
+          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+          okText: '重启 Gateway',
+          cancelText: '稍后重启',
+          onOk: async () => {
+            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+            if (restartRes?.success) {
+              Message.success('Gateway 重启中...');
+              setTimeout(() => {
+                void loadConfig();
+              }, 3000);
+            } else {
+              Message.error(restartRes?.msg || '重启失败');
+            }
+          },
+        });
       } else {
         Message.error(res?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
       }
@@ -199,7 +216,7 @@ const CopilotModalContent: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [buildPatchFromForm, t]);
+  }, [buildPatchFromForm, t, loadConfig]);
 
   const handleAddProvider = useCallback(() => {
     setProviders((prev) => {
@@ -304,27 +321,39 @@ const CopilotModalContent: React.FC = () => {
 
   const restartGateway = async () => {
     try {
-      if (status?.gatewayRunning) {
-        Modal.confirm({
-          title: '重启 Sudoclaw Gateway',
-          content: '确定要重启 Sudoclaw Gateway 吗？这可能会中断正在进行的对话。',
-          okText: '确定',
-          cancelText: '取消',
-          onOk: async () => {
-            const res = await ipcBridge.sudoclaw.restartGateway.invoke();
-            if (res?.success) {
-              Message.success('重启命令已发送，请稍候...');
-              setTimeout(() => {
-                void loadConfig();
-              }, 5000);
-            } else {
-              Message.error(res?.msg || '重启失败');
-            }
-          },
-        });
-      } else {
-        Message.info('Sudoclaw Gateway 未运行，无需重启');
-      }
+      const isRunning = testStatus === 'ok';
+      Modal.confirm({
+        title: isRunning ? '重启 Sudoclaw Gateway' : '启动 Sudoclaw Gateway',
+        content: isRunning ? '确定要重启 Sudoclaw Gateway 吗？这可能会中断正在进行的对话。' : 'Sudoclaw Gateway 未运行，是否立即启动？',
+        okText: '确定',
+        cancelText: '取消',
+        onOk: async () => {
+          const res = await ipcBridge.sudoclaw.restartGateway.invoke();
+          if (res?.success) {
+            Message.success(isRunning ? 'Gateway 重启中...' : 'Gateway 启动中...');
+            // Refresh status and test connection after restart
+            setTestStatus('testing');
+            setTimeout(async () => {
+              await loadConfig();
+              try {
+                const testRes = await ipcBridge.sudoclaw.testGateway.invoke();
+                if (testRes?.success && testRes.data?.success) {
+                  setTestStatus('ok');
+                  setTestError(null);
+                } else {
+                  setTestStatus('error');
+                  setTestError({ error: testRes?.data?.error || 'Connection failed' });
+                }
+              } catch (err) {
+                setTestStatus('error');
+                setTestError({ error: err instanceof Error ? err.message : String(err) });
+              }
+            }, 3000);
+          } else {
+            Message.error(res?.msg || '重启失败');
+          }
+        },
+      });
     } catch (error) {
       Message.error('重启失败');
     }
@@ -357,9 +386,25 @@ const CopilotModalContent: React.FC = () => {
       const parsed = JSON.parse(configContent);
       const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: parsed });
       if (res?.success) {
-        Message.success('配置已保存并应用');
         setEditConfigVisible(false);
-        await loadConfig();
+        // Prompt user to restart Gateway
+        Modal.confirm({
+          title: '配置已保存',
+          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+          okText: '重启 Gateway',
+          cancelText: '稍后重启',
+          onOk: async () => {
+            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+            if (restartRes?.success) {
+              Message.success('Gateway 重启中...');
+              setTimeout(() => {
+                void loadConfig();
+              }, 3000);
+            } else {
+              Message.error(restartRes?.msg || '重启失败');
+            }
+          },
+        });
       } else {
         Message.error(res?.msg || '保存配置失败');
       }
