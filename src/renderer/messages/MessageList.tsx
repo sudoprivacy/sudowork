@@ -29,11 +29,14 @@ import MessageToolCall from './MessageToolCall';
 import MessageToolGroup from './MessageToolGroup';
 import MessageToolGroupSummary from './MessageToolGroupSummary';
 import MessageText from './MessagetText';
+import TurnActions from './TurnActions';
 import type { WriteFileResult } from './types';
 import { useAutoScroll } from './useAutoScroll';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import { copyText } from '@/renderer/utils/clipboard';
 import { IconCopy } from '@arco-design/web-react/icon';
+import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 
@@ -44,7 +47,8 @@ type IMessageVO =
       type: 'tool_summary';
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
-    };
+    }
+  | { type: 'turn_actions'; id: string; turnTexts: string[] };
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
@@ -168,11 +172,21 @@ const MessageList: React.FC<{ className?: string }> = () => {
     }
   };
 
-  // Pre-process message list to group Codex turn_diff messages
+  // Pre-process message list to group Codex turn_diff messages and add turn-level copy actions
   const processedList = useMemo(() => {
     const result: Array<IMessageVO> = [];
     let diffsChanges: FileChangeInfo[] = [];
     let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
+    let turnTexts: string[] = [];
+    let lastAiTextId = '';
+
+    const flushTurnActions = () => {
+      if (turnTexts.length > 0) {
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts });
+        turnTexts = [];
+        lastAiTextId = '';
+      }
+    };
 
     const pushFileDffChanges = (changes: FileChangeInfo) => {
       if (!diffsChanges.length) {
@@ -200,6 +214,26 @@ const MessageList: React.FC<{ className?: string }> = () => {
       if (message.type === 'agent_status') continue;
       // Hide gateway-disconnected tips from chat
       if (message.type === 'tips' && typeof message.content?.content === 'string' && message.content.content.startsWith('Gateway disconnected:')) continue;
+
+      // Flush turn actions before a user message
+      if (message.position === 'right') {
+        flushTurnActions();
+      }
+
+      // Collect AI text content for turn-level copy
+      if (message.type === 'text' && message.position === 'left') {
+        const rawContent = message.content.content;
+        if (typeof rawContent === 'string' && rawContent.trim()) {
+          let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
+          const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
+          if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
+          if (cleaned.trim()) {
+            turnTexts.push(cleaned);
+            lastAiTextId = message.id;
+          }
+        }
+      }
+
       if (message.type === 'codex_tool_call' && message.content.subtype === 'turn_diff') {
         pushFileDffChanges(parseDiff((message.content as TurnDiffContent).data.unified_diff));
         continue;
@@ -223,6 +257,8 @@ const MessageList: React.FC<{ className?: string }> = () => {
       diffsChanges = [];
       result.push(message);
     }
+    // Flush any remaining turn actions at the end
+    flushTurnActions();
     return result;
   }, [list]);
 
@@ -239,7 +275,7 @@ const MessageList: React.FC<{ className?: string }> = () => {
       if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
 
       const targetIndex = processedList.findIndex((item) => {
-        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary') {
+        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions') {
           return false;
         }
         const message = item as TMessage;
@@ -286,6 +322,13 @@ const MessageList: React.FC<{ className?: string }> = () => {
               }}
             />
           )}
+        </div>
+      );
+    }
+    if ('type' in item && item.type === 'turn_actions') {
+      return (
+        <div key={item.id} className='min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} />
         </div>
       );
     }
