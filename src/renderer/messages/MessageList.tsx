@@ -196,6 +196,10 @@ const MessageList: React.FC<{ className?: string }> = () => {
       const message = list[i];
       // Skip available_commands messages
       if (message.type === 'available_commands') continue;
+      // Hide agent_status badges from chat — shown via AgentStatusBanner instead
+      if (message.type === 'agent_status') continue;
+      // Hide gateway-disconnected tips from chat
+      if (message.type === 'tips' && typeof message.content?.content === 'string' && message.content.content.startsWith('Gateway disconnected:')) continue;
       if (message.type === 'codex_tool_call' && message.content.subtype === 'turn_diff') {
         pushFileDffChanges(parseDiff((message.content as TurnDiffContent).data.unified_diff));
         continue;

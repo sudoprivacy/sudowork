@@ -208,6 +208,7 @@ const useAcpMessage = (conversation_id: string) => {
           };
           if (isMountedRef.current && agentData?.status) {
             setAcpStatus(agentData.status);
+            emitter.emit('agent.connection.status', conversation_id, agentData.status);
             // Reset running state when authentication is complete
             if (['authenticated', 'session_active'].includes(agentData.status)) {
               setRunning(false);
@@ -221,7 +222,6 @@ const useAcpMessage = (conversation_id: string) => {
               aiProcessingRef.current = false;
             }
           }
-          addOrUpdateMessage(transformedMessage);
           break;
         }
         case 'user_content':

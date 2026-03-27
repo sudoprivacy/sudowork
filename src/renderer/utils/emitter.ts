@@ -38,6 +38,7 @@ interface EventTypes {
   'preview.open': [{ content: string; contentType: PreviewContentType; metadata?: { title?: string; fileName?: string } }];
   // 填充输入框事件 / Fill sendbox input event
   'sendbox.fill': [string]; // prompt text to fill
+  'agent.connection.status': [string, string]; // [conversationId, status]
   'staroffice.install.request': [{ conversationId: string; text: string; detectedUrl?: string | null }];
   'staroffice.install.finished': [{ conversationId: string }];
 }

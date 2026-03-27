@@ -22,6 +22,7 @@ import AcpChat from './acp/AcpChat';
 import ChatLayout from './ChatLayout';
 import ChatSider from './ChatSider';
 import OpenClawChat from './openclaw/OpenClawChat';
+import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import OpenClawModelSelector from '@/renderer/components/OpenClawModelSelector';
 import { usePreviewContext } from './preview';
@@ -196,6 +197,7 @@ const ChatConversation: React.FC<{
 
   const headerExtraNode = (
     <div className='flex items-center gap-8px'>
+      {conversation && <AgentStatusDot conversation_id={conversation.id} />}
       {conversation?.type === 'openclaw-gateway' && (
         <div className='shrink-0'>
           {/* <StarOfficeMonitorCard

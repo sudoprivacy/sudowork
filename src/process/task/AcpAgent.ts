@@ -101,6 +101,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
   private pendingNavigationTools = new Set<string>();
   private statusMessageId: string | null = null;
+  private _lastConnectionStatus: string | null = null;
 
   // Model tracking
   private userModelOverride: string | null = null;
@@ -1363,7 +1364,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Message Emission Helpers ==========
 
+  get lastConnectionStatus(): string | null {
+    return this._lastConnectionStatus;
+  }
+
   private emitStatusMessage(status: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error'): void {
+    this._lastConnectionStatus = status;
+
     if (!this.statusMessageId) {
       this.statusMessageId = uuid();
     }
