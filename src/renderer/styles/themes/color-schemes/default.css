@@ -93,19 +93,19 @@
   --bg-3: #333333; /* 边框/分隔 */
   --bg-4: #404040;
   --bg-5: #4d4d4d;
-  --bg-6: #5a5a5a; /* 禁用/次要文字 */
-  --bg-8: #737373;
-  --bg-9: #a6a6a6;
-  --bg-10: #d9d9d9;
+  --bg-6: #6e6e6e; /* 禁用/次要文字 */
+  --bg-8: #909090;
+  --bg-9: #b8b8b8;
+  --bg-10: #e0e0e0;
 
   /* Interactive State Colors - Dark Mode */
   --bg-hover: #1f1f1f; /* 悬停背景 */
   --bg-active: #2d2d2d; /* 激活/按下背景 */
 
   /* Text Colors - Dark Mode */
-  --text-primary: #e5e5e5; /* 主要文字 */
-  --text-secondary: #a6a6a6; /* 次要文字 */
-  --text-disabled: #737373; /* 禁用文字 */
+  --text-primary: #f0f0f0; /* 主要文字 */
+  --text-secondary: #c0c0c0; /* 次要文字 */
+  --text-disabled: #8a8a8a; /* 禁用文字 */
 
   /* Semantic Colors - Dark Mode */
   --primary: #4d9fff;
