@@ -279,35 +279,27 @@ const CopilotModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleTestGateway = useCallback(async () => {
+  const handleRefreshRuntime = async () => {
+    setRuntimeLoading(true);
     setTestStatus('testing');
     setTestError(null);
     try {
+      await loadConfig();
+      // Test connection after refreshing status
       const res = await ipcBridge.sudoclaw.testGateway.invoke();
-      if (!res?.success || !res.data) {
-        setTestStatus('error');
-        setTestError({ error: res?.msg || 'Unknown error' });
-        return;
-      }
-      const { success, error, stdout, stderr } = res.data;
-      if (success) {
+      if (res?.success && res.data?.success) {
         setTestStatus('ok');
         setTestError(null);
-        // Refresh status after successful test to update "isConnected"
-        void loadConfig();
       } else {
         setTestStatus('error');
-        setTestError({ error, stdout, stderr });
+        setTestError({ error: res?.data?.error || 'Connection failed' });
       }
     } catch (err) {
       setTestStatus('error');
       setTestError({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setRuntimeLoading(false);
     }
-  }, []);
-
-  const handleRefreshRuntime = async () => {
-    await loadConfig();
-    Message.success('状态已刷新');
   };
 
   const restartGateway = async () => {
@@ -379,7 +371,22 @@ const CopilotModalContent: React.FC = () => {
   };
 
   useEffect(() => {
-    void loadConfig();
+    // Initial load with connection test
+    setTestStatus('testing');
+    loadConfig().then(async () => {
+      try {
+        const res = await ipcBridge.sudoclaw.testGateway.invoke();
+        if (res?.success && res.data?.success) {
+          setTestStatus('ok');
+        } else {
+          setTestStatus('error');
+          setTestError({ error: res?.data?.error || 'Connection failed' });
+        }
+      } catch (err) {
+        setTestStatus('error');
+        setTestError({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
   }, [loadConfig]);
 
   if (loading) {
@@ -405,9 +412,19 @@ const CopilotModalContent: React.FC = () => {
             </Text>
           </div>
           <Space>
-            {isConnected && (
+            {testStatus === 'testing' && (
+              <Tag color='blue' size='large'>
+                测试中...
+              </Tag>
+            )}
+            {testStatus === 'ok' && (
               <Tag color='green' size='large'>
                 已连接
+              </Tag>
+            )}
+            {testStatus === 'error' && (
+              <Tag color='red' size='large'>
+                未连接
               </Tag>
             )}
             <Button type='primary' icon={<Refresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>
@@ -416,14 +433,27 @@ const CopilotModalContent: React.FC = () => {
           </Space>
         </div>
 
-        {!isConnected && (
+        {testStatus === 'error' && (
+          <Alert
+            type='error'
+            className='mb-24px'
+            content={
+              <div>
+                <div className='font-500 mb-4px'>Sudoclaw 连接失败</div>
+                <div className='text-13px'>{testError?.error || '请确保 Sudoclaw 已安装并运行。'}</div>
+              </div>
+            }
+          />
+        )}
+
+        {testStatus === 'ok' && !isConnected && (
           <Alert
             type='warning'
             className='mb-24px'
             content={
               <div>
-                <div className='font-500 mb-4px'>Sudoclaw 未连接</div>
-                <div className='text-13px'>请确保 Sudoclaw 已安装并运行。</div>
+                <div className='font-500 mb-4px'>Sudoclaw 状态异常</div>
+                <div className='text-13px'>Gateway 运行中但会话未建立，请尝试重启 Gateway。</div>
               </div>
             }
           />
@@ -434,30 +464,6 @@ const CopilotModalContent: React.FC = () => {
           <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={iconColors.primary} />} status='info' description={status?.model} />
           <StatusCard title='工作区' value={status?.workspace ? '已配置' : '未配置'} icon={<Folder theme='outline' size='24' fill={status?.workspace ? iconColors.warning : '#999'} />} status={status?.workspace ? 'success' : 'info'} description={status?.workspace} />
           <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? iconColors.success : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
-        </div>
-
-        <div className='mb-24px p-12px rd-8px bg-t-fill-2'>
-          <div className='flex items-center justify-between mb-8px'>
-            <span className='text-14px font-600 text-t-primary'>{t('settings.openclaw_testGateway', { defaultValue: 'Sudoclaw 连接测试' })}</span>
-            <div className='flex items-center gap-8px'>
-              <span className={`text-12px ${testStatus === 'ok' ? 'color-green-6' : testStatus === 'error' ? 'color-red-6' : testStatus === 'testing' ? 'color-blue-6' : 'text-t-tertiary'}`}>
-                {testStatus === 'ok' && t('settings.openclaw_testStatusOk', { defaultValue: '连接正常' })}
-                {testStatus === 'error' && t('settings.openclaw_testStatusError', { defaultValue: '连接失败' })}
-                {testStatus === 'testing' && t('settings.openclaw_testStatusTesting', { defaultValue: '测试中...' })}
-                {testStatus === 'idle' && t('settings.openclaw_testStatusIdle', { defaultValue: '未测试' })}
-              </span>
-              <Button type='outline' size='small' loading={testStatus === 'testing'} onClick={handleTestGateway} disabled={!status?.installed}>
-                {t('settings.openclaw_testButton', { defaultValue: '测试连接' })}
-              </Button>
-            </div>
-          </div>
-          {testError && (
-            <div className='mt-8px p-8px rd-4px bg-red-1 color-red-6 text-12px font-mono overflow-x-auto max-h-120px overflow-y-auto'>
-              {testError.error && <div className='font-600 mb-4px'>{testError.error}</div>}
-              {testError.stderr && <pre className='mt-2px whitespace-pre-wrap break-words'>{testError.stderr}</pre>}
-              {testError.stdout && <pre className='mt-2px whitespace-pre-wrap break-words'>{testError.stdout}</pre>}
-            </div>
-          )}
         </div>
 
         <Card title='🚀 模型与供应商配置' className='mb-24px rd-12px'>
@@ -568,7 +574,7 @@ const CopilotModalContent: React.FC = () => {
       </div>
 
       {editConfigVisible && (
-        <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
+        <Modal title='编辑 SudoClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
           <div className='flex flex-col gap-8px'>
             <Tooltip content={configPath}>
               <Text type='secondary' className='text-12px'>

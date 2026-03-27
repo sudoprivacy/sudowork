@@ -149,7 +149,7 @@ export function repairOpenClawConfig(): void {
     const agents = config.agents as { defaults?: { workspace?: string } } | undefined;
     if (agents?.defaults) {
       const currentWorkspace = agents.defaults.workspace;
-      if (typeof currentWorkspace !== 'string' || (!currentWorkspace.includes(SUDOCLAW_DIR) && !currentWorkspace.includes('.nexus'))) {
+      if (typeof currentWorkspace !== 'string' || !currentWorkspace.includes(SUDOCLAW_DIR)) {
         // Workspace points outside ~/.nexus/sudoclaw - force reset to isolated directory
         agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
         changed = true;

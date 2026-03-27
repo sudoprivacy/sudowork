@@ -13,7 +13,6 @@ import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
-import { OpenClawGatewayManager } from '@/agent/openclaw';
 import * as net from 'node:net';
 
 const CONFIG_FILENAME = 'sudoclaw.json';
@@ -204,34 +203,32 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.testGateway.provider(async () => {
     const testPort = SUDOCLAW_DEFAULT_PORT;
-    const manager = new OpenClawGatewayManager({
-      port: testPort,
-      stateDir: SUDOCLAW_DIR,
-      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: path.join(SUDOCLAW_DIR, CONFIG_FILENAME) },
-      forceSubprocessGateway: true,
+    const host = '127.0.0.1';
+
+    // Check if gateway is already running
+    const isRunning = await new Promise<boolean>((resolve) => {
+      const socket = net.createConnection({ host, port: testPort });
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.setTimeout(1000);
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(false);
+      });
     });
 
-    let stdout = '';
-    let stderr = '';
-    manager.on('stdout', (d) => {
-      stdout += d;
-    });
-    manager.on('stderr', (d) => {
-      stderr += d;
-    });
-
-    try {
-      const port = await manager.start();
-      // Test successful - shut down immediately as requested
-      await manager.stop();
-      return { success: true, data: { success: true, port, stdout, stderr } };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await manager.stop().catch(() => {});
-      return {
-        success: true,
-        data: { success: false, error: msg, stdout, stderr },
-      };
+    if (isRunning) {
+      console.log('[SudoclawBridge] Gateway running, connection test passed');
+      return { success: true, data: { success: true, port: testPort, stdout: 'Connection OK', stderr: '' } };
+    } else {
+      console.log('[SudoclawBridge] Gateway not running');
+      return { success: true, data: { success: false, error: 'Gateway is not running. Please start Sudoclaw first.', stdout: '', stderr: '' } };
     }
   });
 
