@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone, code, enterprise_code }),
       });
 
       const data = (await response.json()) as any;
