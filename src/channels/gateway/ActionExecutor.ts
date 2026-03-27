@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import type { TMessage } from '@/common/chatLib';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
+import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
@@ -16,7 +19,7 @@ import { getChannelMessageService } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
-import { getChannelConversationName, resolveChannelConvType } from '../types';
+import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
 import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard } from '../plugins/dingtalk/DingTalkCards';
@@ -26,6 +29,12 @@ import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
+
+function getChannelWorkspacePath(platform: string): string {
+  const dir = path.join(getDataPath(), 'channel-media', platform);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
 // ==================== Platform-specific Helpers ====================
 
@@ -388,7 +397,11 @@ export class ActionExecutor {
 
         // Map backend to conversation type for lookup
         const { convType, convBackend } = resolveChannelConvType(backend);
-        const conversationName = getChannelConversationName(platform, convType, convBackend, chatId);
+
+        // Build human-readable conversation name (just the user's display name)
+        // TODO: WeChat API doesn't provide user display names in messages — find a way to resolve human-readable names (e.g., via a contacts/profile API)
+        const displayName = channelUser.displayName || user.displayName || chatId;
+        const conversationName = displayName;
 
         // Lookup existing conversation by source + chatId + type + backend (per-chat isolation)
         const db2 = getDatabase();
@@ -404,7 +417,7 @@ export class ActionExecutor {
                 name: conversationName,
                 source,
                 channelChatId: chatId,
-                extra: {},
+                extra: { workspace: getChannelWorkspacePath(source) },
               })
             : await ConversationService.createConversation({
                 type: 'acp',
@@ -416,12 +429,13 @@ export class ActionExecutor {
                   backend: backend as AcpBackend,
                   customAgentId,
                   agentName,
+                  workspace: getChannelWorkspacePath(source),
                 },
               });
 
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
-          session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, undefined, chatId);
+          session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), chatId);
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
