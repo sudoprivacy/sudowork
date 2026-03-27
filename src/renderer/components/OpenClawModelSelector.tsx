@@ -108,7 +108,7 @@ const OpenClawModelSelector: React.FC<{
   }, []);
 
   // Find selected model object
-  const selectedModel = models?.find((m) => m.model_id === selectedModelId);
+  const selectedModel = models?.find((m) => m.model_id === selectedModelId) || models?.find((m) => m.isPrimary);
   const displayLabel = selectedModel ? formatModelLabel(selectedModel) : selectedModelId || t('conversation.welcome.selectModel');
 
   // Show loading state when models are being fetched
