@@ -82,6 +82,7 @@ export interface AcpAgentData {
   acpSessionUpdatedAt?: number;
   sessionMode?: string;
   currentModelId?: string;
+  presetAssistantId?: string;
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -126,6 +127,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     agentName?: string;
     acpSessionId?: string;
     acpSessionUpdatedAt?: number;
+    presetAssistantId?: string;
   };
 
   constructor(data: AcpAgentData) {
@@ -149,6 +151,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       agentName: data.agentName,
       acpSessionId: data.acpSessionId,
       acpSessionUpdatedAt: data.acpSessionUpdatedAt,
+      presetAssistantId: data.presetAssistantId,
     };
 
     this.setupConnectionHandlers();

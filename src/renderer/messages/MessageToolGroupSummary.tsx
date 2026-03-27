@@ -1,7 +1,7 @@
 import type { BadgeProps } from '@arco-design/web-react';
 import { Badge } from '@arco-design/web-react';
 import { IconDown, IconRight } from '@arco-design/web-react/icon';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import type { IMessageAcpToolCall, IMessageToolGroup } from '../../common/chatLib';
 import './MessageToolGroupSummary.css';
 
@@ -95,7 +95,7 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
 };
 
 const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   const hasDetail = item.input || item.output;
 
   return (
@@ -131,15 +131,33 @@ const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
   );
 };
 
-const MessageToolGroupSummary: React.FC<{ messages: Array<IMessageToolGroup | IMessageAcpToolCall> }> = ({ messages }) => {
-  const [showMore, setShowMore] = useState(() => {
-    if (!messages.length) return false;
-    return messages.some((m) => (m.type === 'tool_group' && m.content.some((t) => t.status !== 'Success' && t.status !== 'Error' && t.status !== 'Canceled')) || (m.type === 'acp_tool_call' && m.content.update.status !== 'completed'));
-  });
+interface MessageToolGroupSummaryProps {
+  messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
+  summaryId: string;
+  isExpanded: boolean;
+  onToggle: (id: string) => void;
+}
+
+const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messages, summaryId, isExpanded, onToggle }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const prevMessagesRef = useRef(messages);
+  const prevIsExpandedRef = useRef(isExpanded);
 
   // Auto-collapse when all messages are completed
   // 所有工具调用完成后自动折叠
-  React.useEffect(() => {
+  useEffect(() => {
+    const prevMessages = prevMessagesRef.current;
+    const wasInProgress = prevMessages.some((m) => {
+      if (m.type === 'tool_group') {
+        return m.content.some((t) => t.status !== 'Success' && t.status !== 'Error' && t.status !== 'Canceled');
+      }
+      if (m.type === 'acp_tool_call') {
+        return m.content.update.status !== 'completed' && m.content.update.status !== 'failed';
+      }
+      return true;
+    });
+
     const allCompleted = messages.every((m) => {
       if (m.type === 'tool_group') {
         return m.content.every((t) => t.status === 'Success' || t.status === 'Error' || t.status === 'Canceled');
@@ -150,10 +168,71 @@ const MessageToolGroupSummary: React.FC<{ messages: Array<IMessageToolGroup | IM
       return true;
     });
 
-    if (allCompleted) {
-      setShowMore(false);
+    // Only auto-collapse if we were in-progress and now completed, and currently expanded
+    // 只有当从进行中变为完成时才自动折叠，并且当前是展开状态
+    if (wasInProgress && allCompleted && isExpanded) {
+      onToggle(summaryId);
     }
-  }, [messages]);
+
+    prevMessagesRef.current = messages;
+    prevIsExpandedRef.current = isExpanded;
+  }, [messages, isExpanded, summaryId, onToggle]);
+
+  // Preserve scroll position when toggling showMore
+  // 切换展开/折叠时保持滚动位置，确保按钮位置不变
+  const handleToggleShowMore = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      const container = containerRef.current;
+      const button = buttonRef.current;
+      if (!container || !button) {
+        onToggle(summaryId);
+        return;
+      }
+
+      // Find the scrollable parent
+      let scrollParent: Element | null = container.parentElement;
+      while (scrollParent) {
+        const style = window.getComputedStyle(scrollParent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll') {
+          break;
+        }
+        scrollParent = scrollParent.parentElement;
+      }
+
+      if (!scrollParent) {
+        onToggle(summaryId);
+        return;
+      }
+
+      // Record the button's position relative to the scroll parent before toggle
+      const buttonRectBefore = button.getBoundingClientRect();
+      const scrollParentRectBefore = scrollParent.getBoundingClientRect();
+      const buttonOffsetTopBefore = buttonRectBefore.top - scrollParentRectBefore.top + scrollParent.scrollTop;
+      const scrollTopBefore = scrollParent.scrollTop;
+
+      // Toggle state
+      onToggle(summaryId);
+
+      // After DOM update, restore the button to the same visual position
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const buttonRectAfter = button.getBoundingClientRect();
+          const scrollParentRectAfter = scrollParent.getBoundingClientRect();
+          const buttonOffsetTopAfter = buttonRectAfter.top - scrollParentRectAfter.top + scrollParent.scrollTop;
+
+          const delta = buttonOffsetTopAfter - buttonOffsetTopBefore;
+
+          // Adjust scroll to keep button at the same position
+          if (Math.abs(delta) > 2) {
+            scrollParent.scrollTop = scrollTopBefore + delta;
+          }
+        });
+      });
+    },
+    [summaryId, onToggle]
+  );
 
   const tools = useMemo(() => {
     const items = messages
@@ -172,12 +251,12 @@ const MessageToolGroupSummary: React.FC<{ messages: Array<IMessageToolGroup | IM
   }, [messages]);
 
   return (
-    <div>
-      <div className='flex items-center gap-10px color-#86909C cursor-pointer' onClick={() => setShowMore(!showMore)}>
+    <div ref={containerRef} onClick={(e) => e.stopPropagation()}>
+      <div ref={buttonRef} className='flex items-center gap-10px color-#86909C cursor-pointer' onClick={handleToggleShowMore}>
         <Badge status='default' text='View Steps' className={'![&_span.arco-badge-status-text]:color-#86909C'}></Badge>
-        {showMore ? <IconDown /> : <IconRight />}
+        {isExpanded ? <IconDown /> : <IconRight />}
       </div>
-      {showMore && (
+      {isExpanded && (
         <div className='p-l-20px flex flex-col gap-8px pt-8px'>
           {tools.map((item) => (
             <ToolItemDetail key={item.key} item={item} />

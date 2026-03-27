@@ -373,15 +373,17 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     defaultEnabledSkills: ['browser'],
     defaultMode: 'yolo',
     modelConfigs: {
-      overrides: [{
-        match: {},
-        modelConfig: {
-          generateContentConfig: {
-            temperature: 0.2,
-            thinkingConfig: { thinkingBudget: 8192 },
+      overrides: [
+        {
+          match: {},
+          modelConfig: {
+            generateContentConfig: {
+              temperature: 0.2,
+              thinkingConfig: { thinkingBudget: 8192 },
+            },
           },
         },
-      }],
+      ],
     },
     nameI18n: {
       'en-US': 'Doctor',

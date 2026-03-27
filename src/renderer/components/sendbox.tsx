@@ -19,6 +19,8 @@ import { useCompositionInput } from '../hooks/useCompositionInput';
 import { useDragUpload } from '../hooks/useDragUpload';
 import { useLatestRef } from '../hooks/useLatestRef';
 import { usePasteService } from '../hooks/usePasteService';
+import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
+import { IconPaste } from '@arco-design/web-react/icon';
 import type { FileMetadata } from '../services/FileService';
 import { allSupportedExts } from '../services/FileService';
 
@@ -60,6 +62,46 @@ const SendBox: React.FC<{
   const mobileUserFocusIntentUntilRef = useRef(0);
   const latestInputRef = useLatestRef(input);
   const setInputRef = useLatestRef(setInput);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const target = e.currentTarget as HTMLTextAreaElement;
+      const items: ContextMenuItem[] = [
+        {
+          label: t('common.paste', { defaultValue: 'Paste' }),
+          icon: <IconPaste />,
+          onClick: async () => {
+            try {
+              const text = await navigator.clipboard.readText();
+              if (text && target) {
+                const cursorPosition = target.selectionStart ?? target.value.length;
+                const currentValue = target.value;
+                const start = target.selectionStart ?? target.value.length;
+                const end = target.selectionEnd ?? start;
+                const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+
+                // Use input ref setter to ensure state is updated
+                setInput(newValue);
+
+                // Focus and set cursor position after insertion
+                setTimeout(() => {
+                  target.focus();
+                  const newCursorPos = cursorPosition + text.length;
+                  target.setSelectionRange(newCursorPos, newCursorPos);
+                }, 10);
+              }
+            } catch (error) {
+              console.error('Failed to read clipboard:', error);
+            }
+          },
+        },
+      ];
+      setContextMenu({ x: e.clientX, y: e.clientY, items });
+    },
+    [setInput, t]
+  );
 
   // 集成预览面板的"添加到聊天"功能 / Integrate preview panel's "Add to chat" functionality
   const { setSendBoxHandler, domSnippets, removeDomSnippet, clearDomSnippets } = usePreviewContext();
@@ -346,6 +388,7 @@ const SendBox: React.FC<{
 
   return (
     <div className={className}>
+      {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
         className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
@@ -427,6 +470,7 @@ const SendBox: React.FC<{
               setInput(v);
             }}
             onPaste={onPaste}
+            onContextMenu={handleContextMenu}
             onTouchStart={markMobileFocusIntent}
             onMouseDown={markMobileFocusIntent}
             onFocus={handleInputFocus}

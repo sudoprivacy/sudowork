@@ -418,7 +418,7 @@ const CopilotModalContent: React.FC = () => {
   useEffect(() => {
     // Initial load with connection test
     setTestStatus('testing');
-    loadConfig().then(async () => {
+    void loadConfig().then(async () => {
       try {
         const res = await ipcBridge.sudoclaw.testGateway.invoke();
         if (res?.success && res.data?.success) {
