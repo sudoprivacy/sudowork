@@ -101,18 +101,24 @@ export class OpenClawGatewayConnection {
 
     this.ws.on('close', (code, reason) => {
       const reasonText = this.rawDataToString(reason);
+      // Only notify the agent when a previously-established connection drops.
+      // Closes during initial connect or reconnect retries (wasEstablished=false)
+      // are handled internally by scheduleReconnect() and should not surface as
+      // "disconnected" to the agent.
+      const wasEstablished = this._isConnected;
       this.ws = null;
       this._isConnected = false;
       this.flushPendingErrors(new Error(`Gateway closed (${code}): ${reasonText}`));
       this.scheduleReconnect();
-      this.opts.onClose?.(code, reasonText);
+      if (wasEstablished) {
+        this.opts.onClose?.(code, reasonText);
+      }
     });
 
     this.ws.on('error', (err) => {
+      // Just log — ws.on('close') always follows, and scheduleReconnect() will
+      // call onConnectError if max retries are exceeded.
       console.error('[OpenClawGateway] WebSocket error:', err);
-      if (!this.connectSent) {
-        this.opts.onConnectError?.(err instanceof Error ? err : new Error(String(err)));
-      }
     });
   }
 

@@ -180,7 +180,7 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
     const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
 
-    process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
+    process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--bind', 'loopback', '--force'];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
     process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
@@ -228,7 +228,7 @@ export class OpenClawGatewayManager extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       // Use --auth none to disable authentication, --force to kill any existing listener
-      const args = ['gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
+      const args = ['gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--bind', 'loopback', '--force'];
       const env = getEnhancedEnv(this.customEnv);
       const isWindows = process.platform === 'win32';
 

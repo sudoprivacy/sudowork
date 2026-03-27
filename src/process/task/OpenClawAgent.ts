@@ -83,9 +83,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private currentStreamMsgId: string | null = null;
   private accumulatedAssistantText = '';
   private agentAssistantFallbackText = '';
-  private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
-  private disconnectTipMessageId: string | null = null;
   private isFirstMessage: boolean = true;
 
   constructor(data: OpenClawAgentData) {
@@ -103,6 +101,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private async connect(data: OpenClawAgentData): Promise<void> {
     try {
       this.emitStatusMessage('connecting');
+
+      // Stop any existing connection to prevent its scheduleReconnect() timers from
+      // reconnecting to the new gateway and causing duplicate event processing.
+      if (this.connection) {
+        this.connection.stop();
+        this.connection = null;
+      }
 
       const gatewayConfig = data.gateway ?? { port: SUDOCLAW_DEFAULT_PORT };
       const useExternal = gatewayConfig.useExternalGateway ?? false;
@@ -678,7 +683,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   private handleConnectError(err: Error): void {
     console.error('[OpenClawAgent] Connection error:', err);
-    this.emitErrorMessage(`Connection error: ${err.message}`);
+    this.emitStatusMessage('error');
   }
 
   private handleClose(_code: number, reason: string): void {
@@ -707,8 +712,8 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleDisconnect(reason: string): void {
+    console.log(`[OpenClawAgent] Gateway disconnected: ${reason}`);
     this.emitStatusMessage('disconnected');
-    this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
 
     const finishMsg: IResponseMessage = {
       type: 'finish',
@@ -829,24 +834,16 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private emitStatusMessage(status: 'connecting' | 'connected' | 'session_active' | 'disconnected' | 'error'): void {
     this._lastConnectionStatus = status;
 
-    if (!this.statusMessageId) {
-      this.statusMessageId = uuid();
-    }
-
-    const message: TMessage = {
-      id: this.statusMessageId!,
-      msg_id: this.statusMessageId!,
-      conversation_id: this.conversation_id,
+    // Emit live update to the frontend indicator only — not persisted to DB.
+    // Persisting causes stale status bubbles to accumulate in chat history across restarts.
+    const msg: IResponseMessage = {
       type: 'agent_status',
-      position: 'center',
-      createdAt: Date.now(),
-      content: {
-        backend: 'openclaw-gateway',
-        status,
-      },
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: { backend: 'openclaw-gateway', status },
     };
-
-    this.emitTMessage(message);
+    ipcBridge.openclawConversation.responseStream.emit(msg);
+    ipcBridge.conversation.responseStream.emit(msg);
   }
 
   private emitErrorMessage(error: string, kind: 'generic' | 'disconnect' = 'generic'): void {

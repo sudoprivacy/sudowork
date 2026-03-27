@@ -472,6 +472,9 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       const stored = sessionStorage.getItem(storageKey);
       if (!stored) return;
       if (sessionStorage.getItem(processedKey)) return;
+      // Skip if a user message is already in flight (e.g. gateway reconnect triggered session_active
+      // while the user's manual message is being sent — would cause duplicates).
+      if (aiProcessingRef.current) return;
 
       try {
         const runtimeOk = await validateRuntimeMismatch(conversation_id);
