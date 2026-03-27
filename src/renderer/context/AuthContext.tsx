@@ -1,6 +1,7 @@
 import { ipcBridge } from '@/common';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
+import type { SudoclawConfig } from '@/common/ipcBridge';
 
 type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
@@ -11,12 +12,22 @@ export interface AuthUser {
   status: number;
   enterprise_code?: string;
   token?: string;
+  sudorouter_key?: string;
+  model_service_url?: string;
+  models?: string[];
+  points?: {
+    total: number;
+    used: number;
+    remaining: number;
+    bonus: number;
+  };
 }
 
 interface LoginParams {
   phone: string;
   code: string;
   enterprise_code: string;
+  invitation_code?: string;
   remember?: boolean;
 }
 
@@ -120,7 +131,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [refresh]);
 
-  const login = useCallback(async ({ phone, code, enterprise_code, remember }: LoginParams): Promise<LoginResult> => {
+  const login = useCallback(async ({ phone, code, enterprise_code, invitation_code, remember }: LoginParams): Promise<LoginResult> => {
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
       const baseUrl = serverConfig.baseUrl || 'http://localhost:3000';
@@ -130,7 +141,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, code, enterprise_code }),
+        body: JSON.stringify({ phone, code, enterprise_code, invitation_code }),
       });
 
       const data = (await response.json()) as any;
@@ -149,6 +160,58 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setStatus('authenticated');
       localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
       setReady(true);
+
+      // 自动配置 Sudoclaw
+      if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
+        try {
+          // 获取当前配置（保留用户其他设置）
+          const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
+          const currentProviders = currentConfig?.data?.models?.providers || {};
+          const existingSudorouter = currentProviders['sudorouter'] || {};
+
+          // 构建 provider models
+          const providerModels = authData.models.map((id) => ({ id, name: id }));
+
+          // 构建 provider 配置（保留原有的 api 字段）
+          const providers = {
+            ...currentProviders,
+            sudorouter: {
+              ...existingSudorouter,
+              baseUrl: authData.model_service_url,
+              apiKey: authData.sudorouter_key,
+              models: providerModels,
+            },
+          };
+
+          // 确定 primary model（优先使用 gemini-3-flash-preview）
+          const primaryModel = authData.models.includes('gemini-3-flash-preview') ? 'gemini-3-flash-preview' : authData.models[0] || 'gemini-3-flash-preview';
+
+          // 更新配置（保留所有原有字段）
+          const patch: SudoclawConfig = {
+            ...currentConfig?.data,
+            models: {
+              mode: currentConfig?.data?.models?.mode || 'merge',
+              providers,
+            },
+            agents: {
+              ...currentConfig?.data?.agents,
+              defaults: {
+                ...currentConfig?.data?.agents?.defaults,
+                model: {
+                  ...currentConfig?.data?.agents?.defaults?.model,
+                  primary: `sudorouter/${primaryModel}`,
+                },
+              },
+            },
+          };
+
+          await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
+          console.log('[Auth] Sudoclaw 配置已更新');
+        } catch (error) {
+          console.error('[Auth] Sudoclaw 配置失败:', error);
+          // 不阻止登录流程
+        }
+      }
 
       return { success: true };
     } catch (error) {

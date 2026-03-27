@@ -35,7 +35,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 从 AuthContext 获取实际用户信息
   const userInfo = {
-    email: currentUser?.enterprise_code ? `企业码：${currentUser.enterprise_code}` : 'user@sudowork.com',
+    email: currentUser?.phone || '',
     name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };

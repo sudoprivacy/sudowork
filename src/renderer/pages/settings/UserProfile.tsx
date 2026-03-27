@@ -10,6 +10,7 @@ const UserProfile: React.FC = () => {
   const { t } = useTranslation();
   const { user: currentUser, refresh } = useAuth();
   const [profile, setProfile] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
@@ -21,15 +22,23 @@ const UserProfile: React.FC = () => {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
       const headers = { Authorization: `Bearer ${currentUser?.token}` };
 
-      const [profileRes, ledgerRes] = await Promise.all([fetch(`${serverConfig.baseUrl}/api/v1/user/profile`, { headers }), fetch(`${serverConfig.baseUrl}/api/v1/user/ledger`, { headers })]);
+      // 并行调用：用户信息 + 仪表盘数据（积分、今日统计、使用流水）
+      const [profileRes, dashboardRes] = await Promise.all([fetch(`${serverConfig.baseUrl}/api/v1/user/profile`, { headers }), fetch(`${serverConfig.baseUrl}/api/v1/user/dashboard`, { headers })]);
 
       const profileData = await profileRes.json();
-      const ledgerData = await ledgerRes.json();
+      const dashboardData = await dashboardRes.json();
 
       if (profileData.success) setProfile(profileData.data);
-      if (ledgerData.success) setLedger(ledgerData.data);
+      if (dashboardData.success) {
+        // 合并 points 和 usage_today 到 stats
+        setStats({
+          ...dashboardData.data.points,
+          usage_today: dashboardData.data.usage_today,
+        });
+        setLedger(dashboardData.data.ledger?.list || []);
+      }
     } catch (e) {
-      console.error('Failed to fetch profile/ledger:', e);
+      console.error('Failed to fetch profile/dashboard:', e);
     }
     setLoading(false);
   };
@@ -38,9 +47,11 @@ const UserProfile: React.FC = () => {
     if (currentUser?.token) fetchProfile();
   }, [currentUser]);
 
-  const usedPoints = profile?.used_points || 0;
-  const totalPoints = profile?.total_points || 100;
-  const usedPercent = Math.round((usedPoints / totalPoints) * 100);
+  const usedPoints = stats?.used || 0;
+  const totalPoints = stats?.total || 100;
+  const remainingPoints = stats?.remaining || 0;
+  const bonusPoints = stats?.bonus || 1000;
+  const usedPercent = totalPoints > 0 ? Math.round((usedPoints / totalPoints) * 100) : 0;
 
   const handleEditNickname = () => {
     setEditingNickname(profile?.nickname || currentUser?.nickname || '');
@@ -110,35 +121,52 @@ const UserProfile: React.FC = () => {
               <span className='text-12px text-t-secondary flex items-center gap-4px'>
                 <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
               </span>
-              <span className='text-12px text-t-secondary flex items-center gap-4px'>
-                <Wechat size='14' /> {profile?.enterprise_code ? `企业码：${profile.enterprise_code}` : '已绑定微信'}
-              </span>
             </div>
           </div>
         </div>
 
         {/* Dashboard */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-16px'>
-          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-160px'>
-            <div className='text-13px font-500 text-t-secondary'>可用积分</div>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-16px'>
+          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+            <div className='text-13px font-500 text-t-secondary'>剩余积分</div>
             <div className='flex items-baseline gap-8px'>
-              <span className='text-40px font-700 italic'>{(profile?.balance || 0).toFixed(2)}</span>
-              <span className='text-12px font-600 text-primary'>PTS</span>
+              <span className='text-36px font-700 italic text-primary'>{remainingPoints}</span>
+              <span className='text-12px font-600 text-t-dim'>PTS</span>
             </div>
-            <Progress percent={usedPercent} showText={false} size='small' color='var(--color-primary)' />
           </div>
 
-          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-160px'>
-            <div className='text-13px font-500 text-t-secondary'>使用统计</div>
-            <div className='flex justify-between items-end'>
-              <div className='flex flex-col'>
-                <span className='text-11px text-t-dim uppercase'>累计已用</span>
-                <span className='text-20px font-700'>{usedPoints.toFixed(2)}</span>
-              </div>
-              <div className='flex flex-col text-right'>
-                <span className='text-11px text-t-dim uppercase'>总额度</span>
-                <span className='text-20px font-700 text-t-primary'>{totalPoints.toFixed(2)}</span>
-              </div>
+          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+            <div className='text-13px font-500 text-t-secondary'>累计已用</div>
+            <div className='flex items-baseline gap-8px'>
+              <span className='text-36px font-700'>{usedPoints}</span>
+              <span className='text-12px font-600 text-t-dim'>PTS</span>
+            </div>
+          </div>
+
+          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+            <div className='text-13px font-500 text-t-secondary'>赠送积分</div>
+            <div className='flex items-baseline gap-8px'>
+              <span className='text-36px font-700 text-green-500'>{bonusPoints}</span>
+              <span className='text-12px font-600 text-t-dim'>PTS</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Today Stats */}
+        <div className='p-24px bg-2 rd-16px border border-border-2'>
+          <div className='text-14px font-600 mb-16px'>今日使用</div>
+          <div className='grid grid-cols-3 gap-16px'>
+            <div className='text-center'>
+              <div className='text-24px font-700'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
+              <div className='text-12px text-t-dim'>Tokens</div>
+            </div>
+            <div className='text-center'>
+              <div className='text-24px font-700 text-primary'>{stats?.usage_today?.cost_points || 0}</div>
+              <div className='text-12px text-t-dim'>消耗积分</div>
+            </div>
+            <div className='text-center'>
+              <div className='text-24px font-700'>{stats?.usage_today?.requests || 0}</div>
+              <div className='text-12px text-t-dim'>请求数</div>
             </div>
           </div>
         </div>
@@ -146,12 +174,30 @@ const UserProfile: React.FC = () => {
         {/* Ledger Table */}
         <div className='bg-2 rd-16px border border-border-2 overflow-hidden'>
           <div className='px-20px py-16px border-b border-border-2 font-600 text-14px'>使用流水</div>
-          <Table dataSource={ledger} pagination={{ pageSize: 5 }} loading={loading} className='[&_.arco-table-th]:bg-transparent [&_.arco-table-td]:bg-transparent'>
-            <Table.Column title='时间' dataIndex='timestamp' render={(t) => new Date(t).toLocaleString()} />
-            <Table.Column title='类型' dataIndex='type' render={(val) => <Tag color={val === 'BONUS' ? 'green' : 'orange'}>{val === 'BONUS' ? '奖励' : '消耗'}</Tag>} />
-            <Table.Column title='备注' dataIndex='memo' />
-            <Table.Column title='变动' dataIndex='amount' align='right' render={(val) => <span className={val > 0 ? 'text-green-500' : 'text-primary'}>{val > 0 ? `+${val}` : val}</span>} />
-          </Table>
+          {ledger.length > 0 ? (
+            <table className='w-full'>
+              <thead>
+                <tr className='border-b border-border-2 text-13px text-t-secondary'>
+                  <th className='py-12px px-20px text-left font-500'>模型</th>
+                  <th className='py-12px px-20px text-left font-500'>使用时间</th>
+                  <th className='py-12px px-20px text-right font-500'>输入Token</th>
+                  <th className='py-12px px-20px text-right font-500'>输出Token</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.map((item, index) => (
+                  <tr key={index} className='border-b border-border-1 last:border-b-0 text-14px'>
+                    <td className='py-12px px-20px'>{item.model || '-'}</td>
+                    <td className='py-12px px-20px'>{item.timestamp ? new Date(item.timestamp).toLocaleString() : '-'}</td>
+                    <td className='py-12px px-20px text-right font-500'>{(item.prompt_tokens || 0).toLocaleString()}</td>
+                    <td className='py-12px px-20px text-right font-500'>{(item.completion_tokens || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className='py-24px text-center text-t-dim'>暂无使用记录</div>
+          )}
         </div>
       </div>
 

@@ -31,9 +31,12 @@ const LoginPage: React.FC = () => {
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [enterpriseCode, setEnterpriseCode] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // 固定企业码
+  const ENTERPRISE_CODE = 'sudo';
 
   const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string } | null>(null);
 
@@ -100,13 +103,13 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!phone || !code || !enterpriseCode) {
+    if (!phone || !code || !invitationCode) {
       Message.warning('请填写所有必填项');
       return;
     }
 
     setLoading(true);
-    const result = await login({ phone, code, enterprise_code: enterpriseCode });
+    const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE, invitation_code: invitationCode });
 
     if (result.success) {
       Message.success('登录成功');
@@ -191,19 +194,19 @@ const LoginPage: React.FC = () => {
           <div className='login-page__logo'>
             <AionLogoMark />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>Sudowork Enterprise</h1>
+          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
           <p className='text-13px text-t-dim'>企业级 Agent 协同指挥中心</p>
         </div>
 
         <div className='flex flex-col gap-20px mt-32px'>
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>企业邀请码</div>
-            <Input size='large' prefix={<Protect className='text-t-dim' />} placeholder='请输入企业代码' value={enterpriseCode} onChange={setEnterpriseCode} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
+            <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
+            <Input size='large' prefix={<Phone className='text-t-dim' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-dim' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
+            <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
+            <Input size='large' prefix={<Protect className='text-t-dim' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='!rd-12px !bg-fill-2/50 border-none h-48px' maxLength={6} />
           </div>
 
           <div className='flex flex-col gap-8px'>
@@ -219,10 +222,6 @@ const LoginPage: React.FC = () => {
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='!rd-12px h-52px mt-12px font-800 text-16px tracking-wide shadow-lg shadow-primary/30'>
             登录
           </Button>
-        </div>
-
-        <div className='mt-32px pt-20px border-t border-border-1 text-center'>
-          <p className='text-11px text-t-dim uppercase tracking-widest mono'>Sudowork Protocol v4.0.2</p>
         </div>
       </div>
     </div>
