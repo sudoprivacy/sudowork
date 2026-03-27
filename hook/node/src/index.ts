@@ -7,7 +7,7 @@ import NodeInterceptors from '@mswjs/interceptors/presets/node';
 import type { BlacklistConfig } from './blacklist/types';
 
 export interface SafetyHookOptions {
-  /** Nexus server URL, defaults to http://127.0.0.1:2026 */
+  /** Nexus server URL, defaults to http://127.0.0.1:12012 */
   nexusUrl?: string;
   /** Enable network interception, defaults to true */
   enableNetwork?: boolean;
@@ -24,7 +24,7 @@ let fileInterceptor: FileInterceptor | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
 let statePollingTimer: NodeJS.Timeout | null = null;
-let currentNexusUrl: string = 'http://127.0.0.1:2026';
+let currentNexusUrl: string = 'http://127.0.0.1:12012';
 let currentStatePollingInterval: number = 3000;
 
 /** Path in Nexus filesystem for enabled state sync */
@@ -43,7 +43,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     return;
   }
 
-  const nexusUrl = options.nexusUrl || 'http://127.0.0.1:2026';
+  const nexusUrl = options.nexusUrl || 'http://127.0.0.1:12012';
   const enableNetwork = options.enableNetwork !== false;
   const enableFile = options.enableFile !== false;
   const timeout = options.timeout || 600_000;

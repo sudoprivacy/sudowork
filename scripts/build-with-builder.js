@@ -376,7 +376,47 @@ if (forceBuild) console.log('⚡ --force: Force full rebuild');
 
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
+// Build hook.js for safety hook interception
+function buildSafetyHook() {
+  const hookDir = path.resolve(__dirname, '../hook/node');
+  const hookDist = path.join(hookDir, 'dist/hook.js');
+
+  // Check if hook source exists
+  if (!fs.existsSync(hookDir)) {
+    console.log('⚠️  hook/node directory not found, skipping hook build');
+    return true;
+  }
+
+  console.log('🔨 Building safety hook...');
+
+  try {
+    // Run esbuild to bundle hook.js
+    execSync('npx esbuild src/index.ts --bundle --platform=node --outfile=./dist/hook.js --format=esm', {
+      cwd: hookDir,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+
+    if (fs.existsSync(hookDist)) {
+      console.log('✅ Safety hook built successfully');
+      return true;
+    } else {
+      console.log('❌ Safety hook build failed: hook.js not generated');
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Safety hook build failed: ${error.message}`);
+    return false;
+  }
+}
+
 try {
+  // 0. Build safety hook first (required for Sudoclaw gateway interception)
+  const hookBuilt = buildSafetyHook();
+  if (!hookBuilt) {
+    console.log('⚠️  Continuing without safety hook. Sudoclaw interception will not work.');
+  }
+
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   if (packageJson.main !== './out/main/index.js') {

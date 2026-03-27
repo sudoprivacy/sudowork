@@ -6,7 +6,7 @@ export interface NexusClientOptions {
   /** API key (e.g. `nx_live_<id>`, `nx_test_<id>`, or any bearer token). */
   readonly apiKey: string;
 
-  /** Base URL of the Nexus API server. Default: "http://localhost:2026" */
+  /** Base URL of the Nexus API server. Default: "http://localhost:12012" */
   readonly baseUrl?: string;
 
   /** Request timeout in milliseconds. Default: 30000 */
