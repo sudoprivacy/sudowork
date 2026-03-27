@@ -186,6 +186,9 @@ tests/e2e/report/
 # This file has no meaning and should never be committed.
 $null
 
+# HTTP test files
+*.http
+
 # vx tool manager (local development only, not used in CI)
 vx.lock
 vx.toml
