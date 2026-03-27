@@ -94,6 +94,7 @@
     "createNewConversation": "Create new chat in current workspace",
     "search.empty": "The search result is empty",
     "addFile": "Add File",
+    "clearMemory": "Clear Session Memory",
     "refresh": "Refresh",
     "temporarySpace": "Temporary Space",
     "changeWorkspace": "Change Workspace",

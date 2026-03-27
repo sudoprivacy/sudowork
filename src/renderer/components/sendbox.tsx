@@ -47,7 +47,8 @@ const SendBox: React.FC<{
   sendButtonPrefix?: React.ReactNode;
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand }) => {
+  onClearMemory?: () => void;
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onClearMemory }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -224,18 +225,25 @@ const SendBox: React.FC<{
   const [message, context] = Message.useMessage();
 
   const builtinSlashCommands = useMemo<SlashCommandItem[]>(() => {
-    if (!onSlashBuiltinCommand) {
-      return [];
-    }
-    return [
-      {
+    const cmds: SlashCommandItem[] = [];
+    if (onSlashBuiltinCommand) {
+      cmds.push({
         name: 'open',
         description: t('conversation.workspace.addFile', { defaultValue: 'Add File' }),
         kind: 'builtin',
         source: 'builtin',
-      },
-    ];
-  }, [onSlashBuiltinCommand, t]);
+      });
+    }
+    if (onClearMemory) {
+      cmds.push({
+        name: 'clear',
+        description: t('conversation.workspace.clearMemory', { defaultValue: 'Clear Session Memory' }),
+        kind: 'builtin',
+        source: 'builtin',
+      });
+    }
+    return cmds;
+  }, [onSlashBuiltinCommand, onClearMemory, t]);
 
   const mergedSlashCommands = useMemo(() => {
     const map = new Map<string, SlashCommandItem>();
@@ -254,7 +262,11 @@ const SendBox: React.FC<{
     input,
     commands: mergedSlashCommands,
     onExecuteBuiltin: (name) => {
-      onSlashBuiltinCommand?.(name);
+      if (name === 'clear') {
+        onClearMemory?.();
+      } else {
+        onSlashBuiltinCommand?.(name);
+      }
       setInput('');
     },
     onSelectTemplate: (name) => {

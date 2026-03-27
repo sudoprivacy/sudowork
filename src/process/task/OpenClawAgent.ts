@@ -319,6 +319,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
   }
 
+  async clearSessionMemory(): Promise<void> {
+    await this.bootstrap;
+    const key = this.connection?.sessionKey ?? this.conversation_id;
+    const result = await this.connection!.sessionsReset({ key, reason: 'reset' });
+    this.connection!.sessionKey = result.key;
+    this.saveSessionKey(this.connection!.sessionKey);
+  }
+
   kill() {
     const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
     const shouldStopGateway = others.length === 0;

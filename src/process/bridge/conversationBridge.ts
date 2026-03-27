@@ -463,6 +463,19 @@ export function initConversationBridge(): void {
     return Promise.resolve();
   });
 
+  ipcBridge.conversation.clearMemory.provider(async ({ conversation_id }) => {
+    try {
+      const task = WorkerManage.getTaskById(conversation_id) as OpenClawAgent | undefined;
+      if (!task || task.type !== 'openclaw-gateway') {
+        return { success: false, msg: 'not an openclaw-gateway conversation' };
+      }
+      await task.clearSessionMemory();
+      return { success: true };
+    } catch (e) {
+      return { success: false, msg: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
   ipcBridge.conversation.get.provider(async ({ id }) => {
     try {
       const db = getDatabase();

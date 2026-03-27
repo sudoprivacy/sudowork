@@ -94,6 +94,7 @@
     "createNewConversation": "현재 워크스페이스에서 새 채팅 만들기",
     "search.empty": "검색 결과가 없습니다",
     "addFile": "파일 추가",
+    "clearMemory": "세션 기억 지우기",
     "refresh": "새로고침",
     "temporarySpace": "임시 공간",
     "changeWorkspace": "워크스페이스 변경",

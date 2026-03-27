@@ -94,6 +94,7 @@
     "createNewConversation": "當前空間創建新會話",
     "search.empty": "搜索結果為空",
     "addFile": "新增檔案",
+    "clearMemory": "清除會話記憶",
     "refresh": "重新整理",
     "temporarySpace": "臨時空間",
     "changeWorkspace": "更換工作空間",

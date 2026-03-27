@@ -519,6 +519,10 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     };
   }, [conversation_id, openclawStatus, addOrUpdateMessage]);
 
+  const handleClearMemory = useCallback(() => {
+    void ipcBridge.conversation.clearMemory.invoke({ conversation_id });
+  }, [conversation_id]);
+
   const handleStop = async (): Promise<void> => {
     try {
       await ipcBridge.conversation.stop.invoke({ conversation_id });
@@ -626,6 +630,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         onSend={onSendHandler}
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
+        onClearMemory={handleClearMemory}
       ></SendBox>
     </div>
   );

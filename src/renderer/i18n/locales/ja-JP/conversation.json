@@ -94,6 +94,7 @@
     "createNewConversation": "現在のワークスペースで新しいチャットを作成",
     "search.empty": "検索結果は空です",
     "addFile": "ファイルを追加",
+    "clearMemory": "セッション記憶をクリア",
     "refresh": "更新",
     "temporarySpace": "一時スペース",
     "changeWorkspace": "ワークスペースを変更",
