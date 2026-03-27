@@ -15,6 +15,7 @@ export interface AuthUser {
   sudorouter_key?: string;
   model_service_url?: string;
   models?: string[];
+  phone?: string;
   points?: {
     total: number;
     used: number;

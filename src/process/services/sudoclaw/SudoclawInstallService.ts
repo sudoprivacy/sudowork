@@ -36,8 +36,8 @@ const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
-/** Nexus skills dir (~/.nexus/config/skills) — loaded by OpenClaw via skills.load.extraDirs */
-const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'config', 'skills');
+/** Nexus skills dir (~/.nexus/skills) — loaded by OpenClaw via skills.load.extraDirs */
+const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'skills');
 export const CONFIG_FILENAME = 'sudoclaw.json';
 
 /** Full path to sudoclaw.json config file */
@@ -198,7 +198,7 @@ export function repairOpenClawConfig(): void {
       }
     }
 
-    // Ensure ~/.nexus/config/skills is in skills.load.extraDirs for default skill loading
+    // Ensure ~/.nexus/skills is in skills.load.extraDirs for default skill loading
     const skills = config.skills as { load?: { extraDirs?: string[] } } | undefined;
     const extraDirs = skills?.load?.extraDirs;
     if (!Array.isArray(extraDirs) || !extraDirs.includes(NEXUS_SKILLS_DIR)) {

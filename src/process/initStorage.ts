@@ -38,56 +38,6 @@ const mkdirSync = (path: string) => {
   return _mkdirSync(path, { recursive: true });
 };
 
-/**
- * 迁移老版本数据从temp目录到userData/config目录
- */
-const migrateLegacyData = async () => {
-  const oldDir = getTempPath(); // 老的temp目录
-  const newDir = getConfigPath(); // 新的userData/config目录
-
-  try {
-    // 检查新目录是否为空（不存在或者存在但无内容）
-    const isNewDirEmpty =
-      !existsSync(newDir) ||
-      (() => {
-        try {
-          return existsSync(newDir) && readdirSync(newDir).length === 0;
-        } catch (error) {
-          console.warn('[Sudowork] Warning: Could not read new directory during migration check:', error);
-          return false; // 假设非空以避免迁移覆盖
-        }
-      })();
-
-    // 检查迁移条件：老目录存在且新目录为空
-    if (existsSync(oldDir) && isNewDirEmpty) {
-      // 创建目标目录
-      mkdirSync(newDir);
-
-      // 复制所有文件和文件夹
-      await copyDirectoryRecursively(oldDir, newDir);
-
-      // 验证迁移是否成功
-      const isVerified = await verifyDirectoryFiles(oldDir, newDir);
-      if (isVerified) {
-        // 确保不会删除相同的目录
-        if (path.resolve(oldDir) !== path.resolve(newDir)) {
-          try {
-            await fs.rm(oldDir, { recursive: true });
-          } catch (cleanupError) {
-            console.warn('[Sudowork] 原目录清理失败，请手动删除:', oldDir, cleanupError);
-          }
-        }
-      }
-
-      return true;
-    }
-  } catch (error) {
-    console.error('[Sudowork] 数据迁移失败:', error);
-  }
-
-  return false;
-};
-
 const WriteFile = (path: string, data: string) => {
   return fs.writeFile(path, data);
 };
@@ -251,6 +201,7 @@ const envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORA
 const dirConfig = envFile.getSync('nexus.dir');
 
 const cacheDir = dirConfig?.cacheDir || getHomePage();
+const dataDir = getDataPath(); // ~/.nexus
 
 const configFile = JsonFileBuilder<IConfigStorageRefer>(path.join(cacheDir, STORAGE_PATH.config));
 type ConversationHistoryData = Record<string, TMessage[]>;
@@ -306,7 +257,7 @@ const chatMessageFile = conversationHistoryProxy(_chatMessageFile, cacheDir);
  * Get assistant rules directory path
  */
 const getAssistantsDir = () => {
-  return path.join(cacheDir, STORAGE_PATH.assistants);
+  return path.join(dataDir, 'assistants');
 };
 
 /**
@@ -314,7 +265,7 @@ const getAssistantsDir = () => {
  * Get skills scripts directory path
  */
 const getSkillsDir = () => {
-  return path.join(cacheDir, STORAGE_PATH.skills);
+  return path.join(dataDir, 'skills');
 };
 
 /**
@@ -633,11 +584,6 @@ const initStorage = async () => {
   console.log('[Sudowork] Starting storage initialization...');
   const startTime = Date.now();
 
-  // 1. 先执行数据迁移（在任何目录创建之前）
-  const migrateStart = Date.now();
-  await migrateLegacyData();
-  perfLog('initStorage.migrateLegacyData', Date.now() - migrateStart);
-
   // 2. 创建必要的目录（迁移后再创建，确保迁移能正常进行）
   // Use ensureDirectory to handle cases where a regular file blocks the path (#841)
   ensureDirectory(getHomePage());
@@ -651,7 +597,7 @@ const initStorage = async () => {
 
   // 4. 初始化 Sudowork Server 配置
   try {
-    const existingServerConfig = await configFile.get('sudowork.server').catch(() => undefined);
+    const existingServerConfig = await configFile.get('sudowork.server').catch((): undefined => undefined);
     if (!existingServerConfig) {
       await configFile.set('sudowork.server', {
         baseUrl: 'https://sudoclaw-server.sudoprivacy.com',

@@ -89,7 +89,8 @@ export const initializeProcess = async () => {
  */
 async function installRuntimes(): Promise<void> {
   // Skip on Windows - installed by NSIS installer
-  if (process.platform === 'win32') {
+  const isWin32 = process.platform === 'win32';
+  if (isWin32) {
     mainLog('Runtime', 'Skipping runtime installation on Windows (installed by NSIS)');
     initStatusManager.setStatus('ready', '初始化完成', 100);
     // Start Sudoclaw gateway in background (non-blocking)
@@ -109,15 +110,12 @@ async function installRuntimes(): Promise<void> {
   const fastNodeOk = isNodeInstalled();
 
   // Sudoclaw: check the openclaw binary under ~/.nexus/sudoclaw/cli/package/bin/
-  const sudoclawBinName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
+  const sudoclawBinName = 'openclaw';
   const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
   const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
   // Nexus: check nexusd binary; treat as OK when no resource bundle is present (optional)
-  const nexusEnvBinPath =
-    process.platform === 'win32'
-      ? path.join(os.homedir(), '.nexus', 'nexus_env', 'Scripts', 'nexusd.exe')
-      : path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
+  const nexusEnvBinPath = isWin32 ? path.join(os.homedir(), '.nexus', 'nexus_env', 'Scripts', 'nexusd.exe') : path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
   const nexusResPath = path.join(resDir, 'nexus.tar.gz');
   const hasNexusResource = (() => {
     try {
@@ -175,7 +173,7 @@ async function installRuntimes(): Promise<void> {
 
   // Check which resource files are available before showing the install dialog.
   // Only show "组件安装中" and attempt install when the source archive actually exists.
-  const nodeResName = `node-${process.platform}-${process.arch}.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`;
+  const nodeResName = `node-${process.platform}-${process.arch}.${isWin32 ? 'zip' : 'tar.gz'}`;
   const hasNodeResource = fs.existsSync(path.join(resDir, nodeResName));
   const hasSudoclawResource = fs.existsSync(path.join(resDir, 'openclaw.tgz'));
 
@@ -273,7 +271,7 @@ async function startSudoclawGatewayInBackground(): Promise<void> {
     const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
 
     // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts
-    // This guarantees ~/.nexus/config/skills is always loaded regardless of:
+    // This guarantees ~/.nexus/skills is always loaded regardless of:
     // - Platform (Windows/macOS/Linux)
     // - Whether config was manually modified
     // - Whether repair was skipped during install check
