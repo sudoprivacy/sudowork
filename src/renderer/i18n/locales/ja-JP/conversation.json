@@ -172,7 +172,8 @@
     "selectHint": "ファイルをクリックして選択、フォルダーをクリックして移動",
     "cancel": "キャンセル",
     "confirm": "確認",
-    "retry": "再試行"
+    "retry": "再試行",
+    "logout": "ログアウト"
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

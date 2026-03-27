@@ -172,7 +172,8 @@
     "selectHint": "Click files to select, click folders to navigate",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "retry": "Retry"
+    "retry": "Retry",
+    "logout": "Logout"
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

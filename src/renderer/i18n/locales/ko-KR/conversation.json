@@ -172,7 +172,8 @@
     "selectHint": "파일 클릭하여 선택, 폴더 클릭하여 이동",
     "cancel": "취소",
     "confirm": "확인",
-    "retry": "재시도"
+    "retry": "재시도",
+    "logout": "로그아웃"
   },
   "skill_generator": {
     "title": "스킬/규칙 생성",

@@ -167,7 +167,8 @@
     "selectHint": "Dosya seçmek için tıklayın, klasöre girmek için tıklayın",
     "cancel": "İptal",
     "confirm": "Onayla",
-    "retry": "Tekrar Dene"
+    "retry": "Tekrar Dene",
+    "logout": "Çıkış Yap"
   },
   "skill_generator": {
     "title": "Yetenek/Kural Oluştur",

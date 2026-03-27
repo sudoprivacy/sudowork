@@ -40,17 +40,17 @@ function runBdpan(args: string[]): Promise<{ stdout: string; stderr: string; cod
   });
 }
 
-/** Parse the last complete JSON object from a potentially multi-line output */
-function parseLastJson(text: string): Record<string, unknown> | null {
+/** Parse the last complete JSON value (object or array) from a potentially multi-line output */
+function parseLastJson(text: string): unknown {
   const lines = text.trim().split('\n').filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
-      return JSON.parse(lines[i]) as Record<string, unknown>;
+      return JSON.parse(lines[i]);
     } catch {}
   }
   // Try parsing full text as single JSON blob
   try {
-    return JSON.parse(text.trim()) as Record<string, unknown>;
+    return JSON.parse(text.trim());
   } catch {}
   return null;
 }
@@ -62,8 +62,8 @@ export function initBdpanBridge(): void {
     if (code !== 0) {
       return { success: false, data: { authenticated: false, has_valid_token: false, error: stderr || 'bdpan whoami failed' } };
     }
-    const json = parseLastJson(stdout);
-    if (!json) {
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    if (!json || Array.isArray(json)) {
       return { success: false, data: { authenticated: false, has_valid_token: false, error: 'Invalid JSON from bdpan whoami' } };
     }
     return {
@@ -104,10 +104,10 @@ export function initBdpanBridge(): void {
 
         // Check for success/error JSON in line
         for (const line of text.split('\n').filter(Boolean)) {
-          const json = parseLastJson(line);
-          if (json?.['message'] === '登录成功' || json?.['authenticated'] === true || json?.['success'] === true) {
+          const json = parseLastJson(line) as Record<string, unknown> | null;
+          if (json && !Array.isArray(json) && (json['message'] === '登录成功' || json['authenticated'] === true || json['success'] === true)) {
             done({ success: true, data: { type: 'success' } });
-          } else if (json?.['error']) {
+          } else if (json && !Array.isArray(json) && json['error']) {
             done({ success: false, data: { type: 'error', message: String(json['error']) } });
           } else if (line.includes('登录成功') || line.includes('授权成功')) {
             done({ success: true, data: { type: 'success' } });
@@ -123,8 +123,8 @@ export function initBdpanBridge(): void {
         if (code === 0) {
           done({ success: true, data: { type: 'success' } });
         } else {
-          const json = parseLastJson(stdout);
-          const errMsg = json?.['error'] ? String(json['error']) : null;
+          const json = parseLastJson(stdout) as Record<string, unknown> | null;
+          const errMsg = json && !Array.isArray(json) && json['error'] ? String(json['error']) : null;
           done({ success: false, data: { type: 'error', message: errMsg ?? '' } });
         }
       });
@@ -133,6 +133,12 @@ export function initBdpanBridge(): void {
         done({ success: false, data: { type: 'error', message: err.message } });
       });
     });
+  });
+
+  // ── logout ───────────────────────────────────────────────────────────────────
+  ipcBridge.bdpan.logout.provider(async () => {
+    const { code } = await runBdpan(['logout', '--json']);
+    return { success: code === 0, data: { success: code === 0 } };
   });
 
   // ── ls ───────────────────────────────────────────────────────────────────────
@@ -145,7 +151,20 @@ export function initBdpanBridge(): void {
     if (!json) {
       return { success: false, data: { files: [], error: 'Invalid JSON from bdpan ls' } };
     }
-    const files = (json['list'] ?? json['files'] ?? json['data'] ?? []) as BdpanFileEntry[];
+    // bdpan ls returns a top-level array; also handle object wrappers for robustness
+    const rawList: unknown[] = Array.isArray(json)
+      ? json
+      : (((json as Record<string, unknown>)['list'] ?? (json as Record<string, unknown>)['files'] ?? (json as Record<string, unknown>)['data'] ?? []) as unknown[]);
+    const files: BdpanFileEntry[] = rawList.map((item) => {
+      const r = item as Record<string, unknown>;
+      return {
+        filename: (r['server_filename'] ?? r['filename'] ?? '') as string,
+        path: r['path'] as string,
+        isdir: r['isdir'] === true || r['isdir'] === 1,
+        size: (r['size'] as number) ?? 0,
+        server_mtime: (r['server_mtime'] as number) ?? 0,
+      };
+    });
     return { success: true, data: { files } };
   });
 }

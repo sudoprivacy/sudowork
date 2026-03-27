@@ -172,7 +172,8 @@
     "selectHint": "点击文件选中，点击文件夹进入",
     "cancel": "取消",
     "confirm": "确定",
-    "retry": "重试"
+    "retry": "重试",
+    "logout": "登出"
   },
   "skill_generator": {
     "title": "生成 Skill/规则",

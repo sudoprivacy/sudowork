@@ -172,7 +172,8 @@
     "selectHint": "點擊檔案選取，點擊資料夾進入",
     "cancel": "取消",
     "confirm": "確定",
-    "retry": "重試"
+    "retry": "重試",
+    "logout": "登出"
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",
