@@ -409,6 +409,8 @@ export const preview = {
 
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
+  /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
+  saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },

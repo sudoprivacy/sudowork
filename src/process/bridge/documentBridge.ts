@@ -144,4 +144,14 @@ export function initDocumentBridge(): void {
   ipcBridge.document.libreOffice.isAvailable.provider(async () => {
     return await conversionService.isLibreOfficeAvailable();
   });
+
+  // 保存为 Word 文档接口 / Save as Word document endpoint
+  ipcBridge.document.saveAsDocx.provider(async ({ markdown, conversationId, fileName }) => {
+    try {
+      const result = await conversionService.markdownToWordAndSave(markdown, conversationId, fileName);
+      return result;
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }
