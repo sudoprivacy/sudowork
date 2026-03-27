@@ -5,6 +5,9 @@
  */
 
 import { app } from 'electron';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 // Force node-gyp-build to skip build/ directory and use prebuilds/ only in production
 // This prevents loading wrong architecture binaries from development environment
@@ -16,7 +19,7 @@ import initStorage from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
-import { ensureNodeInstalled } from './services/claudeCli/NodeRuntimeService';
+import { ensureNodeInstalled, isNodeInstalled } from './services/claudeCli/NodeRuntimeService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
@@ -94,7 +97,59 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
-  // Check which components are already installed
+  // ── Fast synchronous pre-check (no awaits, only fs.existsSync) ──────────────
+  // Check critical executables directly before any dynamic import.
+  // Running before the first `await` means this executes synchronously in the
+  // same event-loop tick as `void installRuntimes()`, so initStatusManager is
+  // set to 'ready' before the renderer can poll getStatus via IPC.
+  // This prevents the brief "组件安装中" flash on subsequent launches.
+  const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
+
+  // Node: use the already-loaded isNodeInstalled() (static import, fs.existsSync only)
+  const fastNodeOk = isNodeInstalled();
+
+  // Sudoclaw: check the openclaw binary under ~/.nexus/sudoclaw/cli/package/bin/
+  const sudoclawBinName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
+  const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
+  const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
+
+  // Nexus: check nexusd binary; treat as OK when no resource bundle is present (optional)
+  const nexusEnvBinPath =
+    process.platform === 'win32'
+      ? path.join(os.homedir(), '.nexus', 'nexus_env', 'Scripts', 'nexusd.exe')
+      : path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
+  const nexusResPath = path.join(resDir, 'nexus.tar.gz');
+  const hasNexusResource = (() => {
+    try {
+      return fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
+    } catch {
+      return false;
+    }
+  })();
+  const fastNexusOk = !hasNexusResource || fs.existsSync(nexusEnvBinPath);
+
+  mainLog('Runtime', `Fast check: Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk} (hasNexusResource=${hasNexusResource})`);
+
+  if (fastNodeOk && fastSudoclawOk && fastNexusOk) {
+    // All installed — mark ready immediately (synchronous, no dialog shown)
+    mainLog('Runtime', 'All runtimes already installed, skipping installation');
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+    // Repair config and start gateway deferred (non-blocking, after ready is set)
+    void import('./services/sudoclaw/SudoclawInstallService')
+      .then(({ repairOpenClawConfig }) => {
+        repairOpenClawConfig();
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => {
+        void startSudoclawGatewayInBackground();
+      });
+    return;
+  }
+  // ── End fast check ───────────────────────────────────────────────────────────
+
+  // At least one component appears to be missing — do full async check
   mainLog('Runtime', 'Checking runtime dependencies...');
   const [{ dynamicNexusService }, { ensureSudoclawInstalled }] = await Promise.all([import('./services/nexus/DynamicNexusService'), import('./services/sudoclaw/SudoclawInstallService')]);
 
@@ -102,11 +157,11 @@ async function installRuntimes(): Promise<void> {
   const sudoclawInstalled = await checkSudoclawInstalled();
   const nexusInstalled = await dynamicNexusService.checkInstalled();
 
-  mainLog('Runtime', `Runtime status: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
+  mainLog('Runtime', `Full check: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}`);
 
-  // All components present — go directly to ready without showing "组件安装中"
+  // Full check may confirm everything is fine (e.g. fast check had a false negative)
   if (nodeInstalled && sudoclawInstalled && nexusInstalled) {
-    mainLog('Runtime', 'All runtimes already installed, skipping installation');
+    mainLog('Runtime', 'All runtimes confirmed installed');
     try {
       const { repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
       repairOpenClawConfig();
@@ -118,10 +173,26 @@ async function installRuntimes(): Promise<void> {
     return;
   }
 
-  // At least one component is missing — show "组件安装中" and install only what's needed
+  // Check which resource files are available before showing the install dialog.
+  // Only show "组件安装中" and attempt install when the source archive actually exists.
+  const nodeResName = `node-${process.platform}-${process.arch}.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`;
+  const hasNodeResource = fs.existsSync(path.join(resDir, nodeResName));
+  const hasSudoclawResource = fs.existsSync(path.join(resDir, 'openclaw.tgz'));
+
+  const willInstallNode = !nodeInstalled && hasNodeResource;
+  const willInstallSudoclaw = !sudoclawInstalled && hasSudoclawResource;
+  const willInstallNexus = !nexusInstalled && hasNexusResource;
+
+  if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus) {
+    // Missing components but no resources to install from — skip dialog, mark ready
+    mainWarn('Runtime', 'Some components missing but no installation resources found, marking ready');
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+    void startSudoclawGatewayInBackground();
+    return;
+  }
 
   // Node.js (progress: 10-30%)
-  if (!nodeInstalled) {
+  if (willInstallNode) {
     try {
       mainLog('Runtime', 'Installing Node.js runtime...');
       initStatusManager.setStatus('installing', '组件安装中', 10);
@@ -135,7 +206,7 @@ async function installRuntimes(): Promise<void> {
   }
 
   // Sudoclaw (progress: 30-60%)
-  if (!sudoclawInstalled) {
+  if (willInstallSudoclaw) {
     try {
       mainLog('Runtime', 'Installing Sudoclaw...');
       initStatusManager.setStatus('installing', '组件安装中', 30);
@@ -154,7 +225,7 @@ async function installRuntimes(): Promise<void> {
   }
 
   // Nexus (progress: 60-90%)
-  if (!nexusInstalled) {
+  if (willInstallNexus) {
     try {
       mainLog('Runtime', 'Installing Nexus...');
       initStatusManager.setStatus('installing', '组件安装中', 60);
