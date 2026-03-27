@@ -292,7 +292,12 @@ class DynamicNexusService {
       mainLog('Nexus:stdout', d.toString().trim());
     });
     this.process.stderr?.on('data', (d: Buffer) => {
-      mainError('Nexus:stderr', d.toString().trim());
+      const msg = d.toString().trim();
+      if (!msg) return;
+      // Nexus (Python) writes info/debug logs to stderr; only escalate warnings and errors
+      if (/\[(warn|warning|error|critical)\s*\]/i.test(msg)) {
+        mainError('Nexus:stderr', msg);
+      }
     });
     this.process.on('exit', (code, signal) => {
       mainLog('Nexus', `Process exited — code=${code} signal=${signal} uptime=${Date.now() - spawnStart}ms`);
