@@ -20,6 +20,7 @@ export interface IOpenClawModelsResponse {
   data: Array<{
     model_id: string;
     model_ratio: number;
+    isPrimary?: boolean;
   }>;
   success: boolean;
 }

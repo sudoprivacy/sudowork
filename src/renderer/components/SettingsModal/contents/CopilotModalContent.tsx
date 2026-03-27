@@ -20,8 +20,8 @@ const { Title, Text } = Typography;
 const DEFAULT_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 const API_TYPE_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai-responses', label: 'OpenAI' },
+  { value: 'anthropic-messages', label: 'Anthropic' },
   { value: 'google-generative-ai', label: 'Google Generative AI' },
   { value: 'custom', label: 'Custom' },
 ];
@@ -418,20 +418,26 @@ const CopilotModalContent: React.FC = () => {
   useEffect(() => {
     // Initial load with connection test
     setTestStatus('testing');
-    void loadConfig().then(async () => {
-      try {
-        const res = await ipcBridge.sudoclaw.testGateway.invoke();
-        if (res?.success && res.data?.success) {
-          setTestStatus('ok');
-        } else {
+    void loadConfig()
+      .then(async () => {
+        try {
+          const res = await ipcBridge.sudoclaw.testGateway.invoke();
+          if (res?.success && res.data?.success) {
+            setTestStatus('ok');
+          } else {
+            setTestStatus('error');
+            setTestError({ error: res?.data?.error || 'Connection failed' });
+          }
+        } catch (err) {
           setTestStatus('error');
-          setTestError({ error: res?.data?.error || 'Connection failed' });
+          setTestError({ error: err instanceof Error ? err.message : String(err) });
         }
-      } catch (err) {
+      })
+      .catch((err) => {
+        console.error('Failed to load config:', err);
         setTestStatus('error');
         setTestError({ error: err instanceof Error ? err.message : String(err) });
-      }
-    });
+      });
   }, [loadConfig]);
 
   if (loading) {

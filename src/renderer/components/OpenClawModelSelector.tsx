@@ -101,17 +101,29 @@ const OpenClawModelSelector: React.FC<{
     [conversationId]
   );
 
-  // Format model label with ratio
+  // Format model label with ratio and primary indicator
   const formatModelLabel = useCallback((model: OpenClawModel) => {
-    return `${model.model_id} (${model.model_ratio}x)`;
+    const label = `${model.model_id} (${model.model_ratio}x)`;
+    return model.isPrimary ? `${label} (默认)` : label;
   }, []);
 
   // Find selected model object
   const selectedModel = models?.find((m) => m.model_id === selectedModelId);
   const displayLabel = selectedModel ? formatModelLabel(selectedModel) : selectedModelId || t('conversation.welcome.selectModel');
 
-  // Hide selector when models are unavailable (loading, error, or empty)
-  if (isLoading || error || !models?.length) {
+  // Show loading state when models are being fetched
+  if (isLoading) {
+    return (
+      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' disabled>
+        <span className='flex items-center gap-6px min-w-0'>
+          <span>{t('translation:loading', { defaultValue: 'Loading' }) === 'Loading' ? 'Loading' : '加载中'}</span>
+        </span>
+      </Button>
+    );
+  }
+
+  // Hide selector when models are unavailable (error or empty)
+  if (error || !models?.length) {
     return null;
   }
 
@@ -131,6 +143,7 @@ const OpenClawModelSelector: React.FC<{
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0'>
           <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
+          <i className='arco-icon arco-icon-down'></i>
         </span>
       </Button>
     </Dropdown>
