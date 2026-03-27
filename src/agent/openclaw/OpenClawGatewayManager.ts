@@ -368,6 +368,14 @@ export class OpenClawGatewayManager extends EventEmitter {
   }
 
   /**
+   * Check if gateway is running in-process (vs subprocess).
+   * In-process mode cannot receive SIGUSR1 for hot-reload.
+   */
+  isInProcess(): boolean {
+    return this.inProcess;
+  }
+
+  /**
    * Send SIGUSR1 to the gateway process for hot-reload (skills/config).
    * On Unix, OpenClaw handles SIGUSR1 to reload config and skills without full restart.
    * On Windows, SIGUSR1 is not supported — no-op.

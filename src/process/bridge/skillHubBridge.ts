@@ -258,24 +258,33 @@ export function initSkillHubBridge(): void {
 
       console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
-      // Hot-reload Sudoclaw gateway using SIGUSR1 signal (no full restart needed).
-      // This is more stable and faster than restart, as gateway keeps sessions alive.
-      // Fallback to restart if signal fails or gateway doesn't support it.
+      // Reload Sudoclaw gateway to pick up new skills.
+      // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
+      // - On Windows/In-process: full restart required (SIGUSR1 not supported)
       void (async () => {
         try {
           const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
 
           if (gateway) {
-            gateway.sendReloadSignal();
-            console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
-            // Wait a bit for gateway to reload, then reconnect agent connections
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            WorkerManage.reloadOpenClawSkills();
+            // Check if hot-reload is supported (Unix + subprocess mode)
+            const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
+
+            if (canHotReload) {
+              gateway.sendReloadSignal();
+              console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
+              // Wait a bit for gateway to reload, then reconnect agent connections
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              WorkerManage.reloadOpenClawSkills();
+            } else {
+              // Windows or in-process: must restart gateway
+              console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
+              await WorkerManage.restartOpenClawGateways();
+            }
           } else {
-            console.log('[SkillHub] Gateway not running, skipping hot-reload');
+            console.log('[SkillHub] Gateway not running, skipping reload');
           }
         } catch (err) {
-          console.warn('[SkillHub] SIGUSR1 failed, falling back to restart:', err);
+          console.warn('[SkillHub] Reload failed:', err);
           // Fallback: full restart
           await WorkerManage.restartOpenClawGateways();
         }
