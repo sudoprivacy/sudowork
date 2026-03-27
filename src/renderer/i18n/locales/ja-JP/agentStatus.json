@@ -1,0 +1,9 @@
+{
+  "connecting": "接続中",
+  "connected": "接続済み",
+  "authenticated": "認証済み",
+  "session_active": "アクティブ",
+  "disconnected": "切断",
+  "error": "エラー",
+  "unknown": "不明"
+}

@@ -1,0 +1,9 @@
+{
+  "connecting": "Bağlanıyor",
+  "connected": "Bağlı",
+  "authenticated": "Doğrulandı",
+  "session_active": "Aktif",
+  "disconnected": "Bağlantı kesildi",
+  "error": "Hata",
+  "unknown": "Bilinmiyor"
+}

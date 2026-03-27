@@ -1,0 +1,9 @@
+{
+  "connecting": "連線中",
+  "connected": "已連線",
+  "authenticated": "已認證",
+  "session_active": "會話活躍",
+  "disconnected": "已斷開",
+  "error": "連線錯誤",
+  "unknown": "未知狀態"
+}

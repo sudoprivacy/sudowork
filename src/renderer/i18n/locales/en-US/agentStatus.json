@@ -1,0 +1,9 @@
+{
+  "connecting": "Connecting",
+  "connected": "Connected",
+  "authenticated": "Authenticated",
+  "session_active": "Active",
+  "disconnected": "Disconnected",
+  "error": "Error",
+  "unknown": "Unknown"
+}

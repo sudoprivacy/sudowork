@@ -493,6 +493,20 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Get the last emitted connection status for any agent type (openclaw or acp)
+  // Uses cache-only lookup (getTaskById) — no side effects, no bootstrapping
+  ipcBridge.conversation.getConnectionStatus.provider(async ({ conversation_id }) => {
+    try {
+      const task = WorkerManage.getTaskById(conversation_id) as (OpenClawAgent | AcpAgent | undefined);
+      if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
+        return { success: true, data: { status: null } };
+      }
+      return { success: true, data: { status: (task as any).lastConnectionStatus as string | null } };
+    } catch {
+      return { success: true, data: { status: null } };
+    }
+  });
+
   // Abort controller for workspace reads: each new request aborts the previous one
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;

@@ -84,6 +84,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private accumulatedAssistantText = '';
   private agentAssistantFallbackText = '';
   private statusMessageId: string | null = null;
+  private _lastConnectionStatus: string | null = null;
   private disconnectTipMessageId: string | null = null;
   private isFirstMessage: boolean = true;
 
@@ -813,7 +814,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Message Emission Helpers ==========
 
+  get lastConnectionStatus(): string | null {
+    return this._lastConnectionStatus;
+  }
+
   private emitStatusMessage(status: 'connecting' | 'connected' | 'session_active' | 'disconnected' | 'error'): void {
+    this._lastConnectionStatus = status;
+
     if (!this.statusMessageId) {
       this.statusMessageId = uuid();
     }

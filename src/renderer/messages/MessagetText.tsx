@@ -6,13 +6,8 @@
 
 import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
-import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { copyText } from '@/renderer/utils/clipboard';
+import React, { useMemo } from 'react';
 import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import CollapsibleContent from '../components/CollapsibleContent';
 import FilePreview from '../components/FilePreview';
@@ -66,8 +61,6 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   const { text, files } = parseFileMarker(contentToRender);
   const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
-  const { t } = useTranslation();
-  const [showCopyAlert, setShowCopyAlert] = useState(false);
   const isUserMessage = message.position === 'right';
 
   // 过滤空内容，避免渲染空DOM
@@ -75,33 +68,11 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     return null;
   }
 
-  const handleCopy = () => {
-    const baseText = json ? JSON.stringify(data, null, 2) : text;
-    const fileList = visibleFiles.length ? `Files:\n${visibleFiles.map((path) => `- ${path}`).join('\n')}\n\n` : '';
-    const textToCopy = fileList + baseText;
-    copyText(textToCopy)
-      .then(() => {
-        setShowCopyAlert(true);
-        setTimeout(() => setShowCopyAlert(false), 2000);
-      })
-      .catch(() => {
-        Message.error(t('common.copyFailed'));
-      });
-  };
-
-  const copyButton = (
-    <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-      <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto' onClick={handleCopy} style={{ lineHeight: 0 }}>
-        <Copy theme='outline' size='16' fill={iconColors.secondary} />
-      </div>
-    </Tooltip>
-  );
-
   const cronMeta = message.content.cronMeta;
 
   return (
     <>
-      <div className={classNames('min-w-0 flex flex-col group', isUserMessage ? 'items-end' : 'items-start')}>
+      <div className={classNames('min-w-0 flex flex-col', isUserMessage ? 'items-end' : 'items-start')}>
         {cronMeta && <MessageCronBadge meta={cronMeta} />}
         {visibleFiles.length > 0 && (
           <div className={classNames('mt-6px', { 'self-end': isUserMessage })}>
@@ -134,16 +105,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
             <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{data}</MarkdownView>
           )}
         </div>
-        <div
-          className={classNames('h-32px flex items-center mt-4px', {
-            'justify-end': isUserMessage,
-            'justify-start': !isUserMessage,
-          })}
-        >
-          {copyButton}
-        </div>
       </div>
-      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% transform -translate-x-50% z-9999 w-max max-w-[80%]' style={{ boxShadow: '0px 2px 12px rgba(0,0,0,0.12)' }} closable={false} />}
     </>
   );
 };
