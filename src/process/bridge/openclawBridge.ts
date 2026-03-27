@@ -6,7 +6,7 @@
 
 import { ipcBridge, type IOpenClawModelsResponse } from '../../common';
 
-const MODEL_API_URL = 'https://chat.sudorouter.ai/api/specific_pricing';
+const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
 
 export function initOpenClawBridge(): void {
   ipcBridge.openclaw.getModels.provider(async () => {

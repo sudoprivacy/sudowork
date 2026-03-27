@@ -276,12 +276,12 @@ class DynamicNexusService {
       }
     }
 
-    // Use the python interpreter from the conda env to run nexusd
+    // Use the python interpreter from the extracted conda env to run nexusd.
     const pythonPath = this.getPythonPath(envDir);
-    const executablePath = pythonPath; // Use python from conda env
+    const executablePath = pythonPath;
 
-    // 使用固定参数，包括固定端口
-    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=embedded', '--auth-type', 'none', '--port', String(this._port)];
+    // Use the full profile on the fixed localhost port.
+    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=full', '--auth-type', 'none', '--port', String(this._port)];
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
