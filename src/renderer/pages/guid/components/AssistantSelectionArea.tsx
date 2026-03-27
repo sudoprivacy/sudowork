@@ -62,8 +62,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
           )}
           <div className='w-full'>
             <div className='flex items-center justify-between py-8px cursor-pointer select-none' onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-              <span className='text-13px text-[rgb(var(--primary-6))] opacity-80'>{t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}</span>
-              <Down theme='outline' size={14} fill='rgb(var(--primary-6))' className={`transition-transform duration-300 ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
+              <span className='text-13px' style={{ color: 'var(--text-secondary)' }}>{t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}</span>
+              <Down theme='outline' size={14} style={{ color: 'var(--text-secondary)' }} className={`transition-transform duration-300 ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
             </div>
             <div className={`overflow-hidden transition-all duration-300 ${isDescriptionExpanded ? 'max-h-240px mt-4px opacity-100' : 'max-h-0 opacity-0'}`}>
               <div
@@ -88,7 +88,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
                   {prompts.map((prompt: string, index: number) => (
                     <div
                       key={index}
-                      className='px-12px py-6px bg-fill-2 hover:bg-fill-3 text-[rgb(var(--primary-6))] text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                      className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                      style={{ background: 'var(--bg-2)', color: 'var(--text-primary)', border: '1px solid var(--bg-3)' }}
                       onClick={() => {
                         onSetInput(prompt);
                         onFocusInput();
