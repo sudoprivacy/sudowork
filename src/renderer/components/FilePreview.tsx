@@ -49,6 +49,9 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   const [fileSize, setFileSize] = useState<string>('');
 
   useEffect(() => {
+    // bdpan:// paths are remote — skip local fs operations
+    if (path.startsWith('bdpan://')) return;
+
     // 获取文件大小
     ipcBridge.fs.getFileMetadata
       .invoke({ path })

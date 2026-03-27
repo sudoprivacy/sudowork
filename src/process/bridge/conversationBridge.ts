@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
+import * as path from 'path';
+import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -18,6 +21,7 @@ import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initConversationBridge(): void {
   ipcBridge.openclawConversation.getRuntime.provider(async ({ conversation_id }) => {
@@ -585,7 +589,71 @@ export function initConversationBridge(): void {
       filesToProcess = [openclawTask.workspace];
       console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
     }
-    const workspaceFiles = await copyFilesToDirectory(task.workspace ?? '', filesToProcess, false);
+
+    // Download bdpan:// files to workspace before copying
+    const workspace = task.workspace ?? '';
+    const resolvedFiles: string[] = [];
+    for (const f of filesToProcess) {
+      if (f.startsWith('bdpan://')) {
+        // Parse bdpan:///<path>?root=<root>
+        const raw = f.slice('bdpan://'.length);
+        const qIdx = raw.indexOf('?');
+        const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
+        const rootParam = qIdx >= 0 ? new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '' : '';
+        // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
+        const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
+        const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
+        const filename = remoteFull.split('/').filter(Boolean).pop() ?? 'bdpan_file';
+        const destDir = workspace || os.tmpdir();
+        const localPath = path.join(destDir, filename);
+        mainLog('ConversationBridge', `Downloading bdpan file: ${remoteArg} → ${localPath}`);
+        try {
+          const localBin = `${os.homedir()}/.local/bin`;
+          if (!process.env.PATH?.includes(localBin)) {
+            process.env.PATH = `${localBin}:${process.env.PATH ?? ''}`;
+          }
+          await new Promise<void>((resolve) => {
+            const args = ['download', remoteArg, localPath, '--json'];
+            mainLog('ConversationBridge', `bdpan spawn: bdpan ${args.join(' ')}`);
+            const child = spawn('bdpan', args, {
+              env: { ...process.env, HOME: os.homedir() },
+            });
+            let stdout = '';
+            let stderr = '';
+            child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+            child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+            child.on('close', (code) => {
+              mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
+              // bdpan always exits 0; check JSON code field for success
+              try {
+                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string; data?: { local?: string } };
+                mainLog('ConversationBridge', `bdpan JSON: ${JSON.stringify(json)}`);
+                if (json.code === 0) {
+                  mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
+                  resolvedFiles.push(localPath);
+                } else {
+                  mainError('ConversationBridge', `bdpan download failed: ${json.error ?? stdout}`);
+                }
+              } catch {
+                mainError('ConversationBridge', `bdpan download unexpected output: ${stdout}`);
+              }
+              resolve();
+            });
+            child.on('error', (err) => {
+              mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
+              resolve();
+            });
+          });
+        } catch (err) {
+          mainError('ConversationBridge', `bdpan download exception: ${err}`);
+        }
+      } else {
+        resolvedFiles.push(f);
+      }
+    }
+    filesToProcess = resolvedFiles;
+
+    const workspaceFiles = await copyFilesToDirectory(workspace, filesToProcess, false);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents

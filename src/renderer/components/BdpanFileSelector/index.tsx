@@ -305,7 +305,10 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
             <Button
               type='primary'
               disabled={selected.size === 0}
-              onClick={() => onConfirm(Array.from(selected))}
+              onClick={() => {
+                const root = bdpanRoot ?? '';
+                onConfirm(Array.from(selected).map((p) => `bdpan://${p}?root=${encodeURIComponent(root)}`));
+              }}
             >
               {t('conversation.bdpan.confirm')}
             </Button>

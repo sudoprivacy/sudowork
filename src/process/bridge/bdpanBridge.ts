@@ -5,6 +5,7 @@
  */
 
 import * as os from 'os';
+import * as path from 'path';
 import { spawn } from 'child_process';
 import { ipcBridge } from '../../common';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -139,6 +140,20 @@ export function initBdpanBridge(): void {
   ipcBridge.bdpan.logout.provider(async () => {
     const { code } = await runBdpan(['logout', '--json']);
     return { success: code === 0, data: { success: code === 0 } };
+  });
+
+  // ── download ─────────────────────────────────────────────────────────────────
+  // Downloads a remote bdpan file to destDir, using the remote filename.
+  ipcBridge.bdpan.download.provider(async ({ remotePath, destDir }) => {
+    const filename = remotePath.split('/').filter(Boolean).pop() ?? 'bdpan_file';
+    const localPath = path.join(destDir, filename);
+    const { stdout, stderr, code } = await runBdpan(['download', remotePath, localPath, '--json']);
+    if (code !== 0) {
+      mainError('Bdpan', `download failed: ${stderr || stdout}`);
+      return { success: false, data: { localPath: '' } };
+    }
+    mainLog('Bdpan', `downloaded ${remotePath} → ${localPath}`);
+    return { success: true, data: { localPath } };
   });
 
   // ── ls ───────────────────────────────────────────────────────────────────────
