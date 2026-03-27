@@ -18,6 +18,7 @@ const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'))
 const SecuritySettings = React.lazy(() => import('./pages/settings/SecuritySettings'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
+const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
@@ -49,6 +50,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
     <HashRouter>
       <Routes>
         <Route path='/login' element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
+        <Route path='/register' element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />
           <Route path='/guid' element={withRouteFallback(Guid)} />

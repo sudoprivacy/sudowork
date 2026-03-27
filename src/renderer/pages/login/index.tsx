@@ -31,14 +31,13 @@ const LoginPage: React.FC = () => {
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
   // 固定企业码
   const ENTERPRISE_CODE = 'sudo';
 
-  const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string } | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string; type?: string } | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -103,19 +102,27 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!phone || !code || !invitationCode) {
+    if (!phone || !code) {
       Message.warning('请填写所有必填项');
       return;
     }
 
     setLoading(true);
-    const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE, invitation_code: invitationCode });
+    const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE });
 
     if (result.success) {
-      Message.success('登录成功');
-      setTimeout(() => navigate('/guid', { replace: true }), 600);
+      setTimeout(() => navigate('/guid', { replace: true }), 300);
     } else {
       const statusCode = (result as any).status;
+      const needRegister = (result as any).need_register;
+      const registerToken = (result as any).register_token;
+
+      // 处理需要注册的情况
+      if (needRegister && registerToken) {
+        navigate(`/register?token=${registerToken}&phone=${encodeURIComponent(phone)}`, { replace: true });
+        return;
+      }
+
       // 处理审核中状态
       if (statusCode === 0) {
         setStatusMsg({
@@ -202,11 +209,6 @@ const LoginPage: React.FC = () => {
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
             <Input size='large' prefix={<Phone className='text-t-dim' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
-          </div>
-
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-t-dim' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='!rd-12px !bg-fill-2/50 border-none h-48px' maxLength={6} />
           </div>
 
           <div className='flex flex-col gap-8px'>

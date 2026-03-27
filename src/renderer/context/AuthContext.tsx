@@ -26,7 +26,7 @@ export interface AuthUser {
 interface LoginParams {
   phone: string;
   code: string;
-  enterprise_code: string;
+  enterprise_code?: string;
   invitation_code?: string;
   remember?: boolean;
 }
@@ -37,6 +37,21 @@ interface LoginResult {
   success: boolean;
   message?: string;
   code?: LoginErrorCode;
+  need_register?: boolean;
+  register_token?: string;
+  phone?: string;
+}
+
+interface RegisterParams {
+  register_token: string;
+  nickname: string;
+  invitation_code: string;
+}
+
+interface RegisterResult {
+  success: boolean;
+  message?: string;
+  code?: LoginErrorCode;
 }
 
 interface AuthContextValue {
@@ -44,6 +59,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   status: AuthStatus;
   login: (params: LoginParams) => Promise<LoginResult>;
+  register: (params: RegisterParams) => Promise<RegisterResult>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -78,6 +94,67 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
   }
 
   return null;
+}
+
+// 处理登录成功后的通用逻辑
+async function handleLoginSuccess(data: any, setUser: (user: AuthUser) => void, setStatus: (status: AuthStatus) => void, setReady: (ready: boolean) => void) {
+  const authData = { ...data.data.user, token: data.data.token };
+  setUser(authData);
+  setStatus('authenticated');
+  localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
+  setReady(true);
+
+  // 自动配置 Sudoclaw
+  if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
+    try {
+      // 获取当前配置（保留用户其他设置）
+      const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
+      const currentProviders = currentConfig?.data?.models?.providers || {};
+      const existingSudorouter = currentProviders['sudorouter'] || {};
+
+      // 构建 provider models
+      const providerModels = authData.models.map((id: string) => ({ id, name: id }));
+
+      // 构建 provider 配置（保留原有的 api 字段）
+      const providers = {
+        ...currentProviders,
+        sudorouter: {
+          ...existingSudorouter,
+          baseUrl: authData.model_service_url,
+          apiKey: authData.sudorouter_key,
+          models: providerModels,
+        },
+      };
+
+      // 确定 primary model（优先使用 gemini-3-flash-preview）
+      const primaryModel = authData.models.includes('gemini-3-flash-preview') ? 'gemini-3-flash-preview' : authData.models[0] || 'gemini-3-flash-preview';
+
+      // 更新配置（保留所有原有字段）
+      const patch: SudoclawConfig = {
+        ...currentConfig?.data,
+        models: {
+          mode: currentConfig?.data?.models?.mode || 'merge',
+          providers,
+        },
+        agents: {
+          ...currentConfig?.data?.agents,
+          defaults: {
+            ...currentConfig?.data?.agents?.defaults,
+            model: {
+              ...currentConfig?.data?.agents?.defaults?.model,
+              primary: `sudorouter/${primaryModel}`,
+            },
+          },
+        },
+      };
+
+      await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
+      console.log('[Auth] Sudoclaw 配置已更新');
+    } catch (error) {
+      console.error('[Auth] Sudoclaw 配置失败:', error);
+      // 不阻止登录流程
+    }
+  }
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -141,7 +218,53 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, code, enterprise_code, invitation_code }),
+        body: JSON.stringify({ phone, code }),
+      });
+
+      const data = (await response.json()) as any;
+
+      // 用户不存在，需要注册
+      if (data.need_register) {
+        return {
+          success: false,
+          need_register: true,
+          register_token: data.register_token,
+          phone: data.phone,
+          message: data.msg || '用户不存在，请先注册',
+        };
+      }
+
+      if (!response.ok || !data.success || !data.data) {
+        return {
+          success: false,
+          message: data?.msg || data?.message || '登录失败',
+          code: 'invalidCredentials',
+        };
+      }
+
+      await handleLoginSuccess(data, setUser, setStatus, setReady);
+      return { success: true };
+    } catch (error) {
+      console.error('Login request failed:', error);
+      return {
+        success: false,
+        message: '连接到中控服务器失败',
+        code: 'networkError',
+      };
+    }
+  }, []);
+
+  const register = useCallback(async ({ register_token, nickname, invitation_code }: RegisterParams): Promise<RegisterResult> => {
+    try {
+      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+      const baseUrl = serverConfig.baseUrl || 'https://sudoclaw-server.sudoprivacy.com';
+
+      const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ register_token, nickname, invitation_code }),
       });
 
       const data = (await response.json()) as any;
@@ -149,73 +272,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (!response.ok || !data.success || !data.data) {
         return {
           success: false,
-          message: data?.msg || data?.message || '登录失败',
+          message: data?.msg || data?.message || '注册失败',
           code: 'invalidCredentials',
-          status: data?.status,
-        } as any;
+        };
       }
 
-      const authData = { ...data.data.user, token: data.data.token };
-      setUser(authData);
-      setStatus('authenticated');
-      localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
-      setReady(true);
-
-      // 自动配置 Sudoclaw
-      if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
-        try {
-          // 获取当前配置（保留用户其他设置）
-          const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
-          const currentProviders = currentConfig?.data?.models?.providers || {};
-          const existingSudorouter = currentProviders['sudorouter'] || {};
-
-          // 构建 provider models
-          const providerModels = authData.models.map((id) => ({ id, name: id }));
-
-          // 构建 provider 配置（保留原有的 api 字段）
-          const providers = {
-            ...currentProviders,
-            sudorouter: {
-              ...existingSudorouter,
-              baseUrl: authData.model_service_url,
-              apiKey: authData.sudorouter_key,
-              models: providerModels,
-            },
-          };
-
-          // 确定 primary model（优先使用 gemini-3-flash-preview）
-          const primaryModel = authData.models.includes('gemini-3-flash-preview') ? 'gemini-3-flash-preview' : authData.models[0] || 'gemini-3-flash-preview';
-
-          // 更新配置（保留所有原有字段）
-          const patch: SudoclawConfig = {
-            ...currentConfig?.data,
-            models: {
-              mode: currentConfig?.data?.models?.mode || 'merge',
-              providers,
-            },
-            agents: {
-              ...currentConfig?.data?.agents,
-              defaults: {
-                ...currentConfig?.data?.agents?.defaults,
-                model: {
-                  ...currentConfig?.data?.agents?.defaults?.model,
-                  primary: `sudorouter/${primaryModel}`,
-                },
-              },
-            },
-          };
-
-          await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-          console.log('[Auth] Sudoclaw 配置已更新');
-        } catch (error) {
-          console.error('[Auth] Sudoclaw 配置失败:', error);
-          // 不阻止登录流程
-        }
-      }
-
+      await handleLoginSuccess(data, setUser, setStatus, setReady);
       return { success: true };
     } catch (error) {
-      console.error('Login request failed:', error);
+      console.error('Register request failed:', error);
       return {
         success: false,
         message: '连接到中控服务器失败',
@@ -257,10 +322,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       user,
       status,
       login,
+      register,
       logout,
       refresh,
     }),
-    [login, logout, ready, refresh, status, user]
+    [login, register, logout, ready, refresh, status, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
