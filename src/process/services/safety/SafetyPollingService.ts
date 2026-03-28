@@ -104,7 +104,7 @@ export class SafetyPollingService {
     try {
       const storedEnabled = await ProcessConfig.get(SAFETY_HOOK_ENABLED_KEY);
       this.enabled = storedEnabled !== false; // default to true if not set
-      setSafetyHookEnabled(this.enabled);  // Use setter to notify listeners
+      setSafetyHookEnabled(this.enabled); // Use setter to notify listeners
       // Sync to Nexus filesystem for Agent CLI processes
       await writeEnabledState(this.enabled);
       console.log(`[SafetyPolling] Initialized with enabled=${this.enabled}`);

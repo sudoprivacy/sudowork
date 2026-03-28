@@ -216,7 +216,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     onClick={async () => {
                       await logout();
                       Message.success('已退出登录');
-                      navigate('/login', { replace: true });
+                      void navigate('/login', { replace: true });
                     }}
                   >
                     <Logout theme='outline' size='18' />

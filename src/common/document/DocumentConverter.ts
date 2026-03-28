@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TextRun as ITextRun, FileChild } from 'docx'; 
+import type { TextRun as ITextRun, FileChild } from 'docx';
 /**
  * 文档转换器 - Markdown 中心化
  *
@@ -93,14 +93,7 @@ export class DocumentConverter {
     const visit = (node: any) => {
       switch (node.type) {
         case 'heading': {
-          const levels = [
-            HeadingLevel.HEADING_1,
-            HeadingLevel.HEADING_2,
-            HeadingLevel.HEADING_3,
-            HeadingLevel.HEADING_4,
-            HeadingLevel.HEADING_5,
-            HeadingLevel.HEADING_6,
-          ];
+          const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
           children.push(
             new Paragraph({
               heading: levels[node.depth - 1] || HeadingLevel.HEADING_1,

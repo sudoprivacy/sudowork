@@ -497,7 +497,7 @@ export function initConversationBridge(): void {
   // Uses cache-only lookup (getTaskById) — no side effects, no bootstrapping
   ipcBridge.conversation.getConnectionStatus.provider(async ({ conversation_id }) => {
     try {
-      const task = WorkerManage.getTaskById(conversation_id) as (OpenClawAgent | AcpAgent | undefined);
+      const task = WorkerManage.getTaskById(conversation_id) as OpenClawAgent | AcpAgent | undefined;
       if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
         return { success: true, data: { status: null } };
       }

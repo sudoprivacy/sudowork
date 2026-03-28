@@ -73,11 +73,6 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   const [converting, setConverting] = useState(false);
   const isUserMessage = message.position === 'right';
 
-  // 过滤空内容，避免渲染空DOM
-  if (!message.content.content || (typeof message.content.content === 'string' && !message.content.content.trim())) {
-    return null;
-  }
-
   const handleConvertToWord = useCallback(async () => {
     if (converting) return;
     setConverting(true);
@@ -103,6 +98,11 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
       setConverting(false);
     }
   }, [text, message.conversation_id, t, converting]);
+
+  // 过滤空内容，避免渲染空DOM
+  if (!message.content.content || (typeof message.content.content === 'string' && !message.content.content.trim())) {
+    return null;
+  }
 
   const handleCopy = () => {
     const baseText = json ? JSON.stringify(data, null, 2) : text;

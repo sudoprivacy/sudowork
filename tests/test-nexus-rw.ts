@@ -36,16 +36,20 @@ async function testNexusRW() {
   const client = getNexusRpcClient();
   const testUuid = generateUuid();
   const testPath = `${EVENT_DIR}/${testUuid}`;
-  const testContent = JSON.stringify({
-    type: 'network',
-    data: {
-      requestId: `test_${Date.now()}`,
-      url: 'https://test.example.com',
-      method: 'GET',
-      headers: {},
-      body: ''
-    }
-  }, null, 2);
+  const testContent = JSON.stringify(
+    {
+      type: 'network',
+      data: {
+        requestId: `test_${Date.now()}`,
+        url: 'https://test.example.com',
+        method: 'GET',
+        headers: {},
+        body: '',
+      },
+    },
+    null,
+    2
+  );
 
   console.log(`测试 UUID: ${testUuid}`);
   console.log(`测试路径: ${testPath}\n`);

@@ -83,16 +83,10 @@ export const initializeProcess = async () => {
 
   // Start Safety Polling Service in the background (non-blocking)
   // Polls /safe/event/{uuid} for event files from counterparty
-  void import('./services/safety/SafetyPollingService')
-    .then(({ SafetyPollingService }) => {
-      const service = SafetyPollingService.getInstance();
-      service.start({
-        pollingIntervalMs: 3000, // 3 seconds
-      });
-    })
-    .catch((error) => {
-      console.error('[Process] Failed to start SafetyPollingService:', error);
-    });
+  void import('./services/safety/SafetyPollingService').then(({ SafetyPollingService }) => {
+    const service = SafetyPollingService.getInstance();
+    void service.start({ pollingIntervalMs: 3000 });
+  });
 };
 
 /**

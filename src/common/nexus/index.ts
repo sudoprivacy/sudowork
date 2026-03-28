@@ -14,55 +14,24 @@
  */
 
 // Client
-export { FetchClient } from "./fetch-client.js";
+export { FetchClient } from './fetch-client.js';
 
 // SSE
-export { SseClient, RingBuffer } from "./sse-client.js";
-export type { SseClientOptions, SseEventHandler, SseErrorHandler, SseReconnectHandler } from "./sse-client.js";
+export { SseClient, RingBuffer } from './sse-client.js';
+export type { SseClientOptions, SseEventHandler, SseErrorHandler, SseReconnectHandler } from './sse-client.js';
 
 // Config
-export { resolveConfig } from "./config.js";
+export { resolveConfig } from './config.js';
 
 // Errors
-export {
-  NexusApiError,
-  AuthenticationError,
-  ForbiddenError,
-  NotFoundError,
-  ConflictError,
-  RateLimitError,
-  ServerError,
-  NetworkError,
-  TimeoutError,
-  AbortError,
-} from "./errors.js";
+export { NexusApiError, AuthenticationError, ForbiddenError, NotFoundError, ConflictError, RateLimitError, ServerError, NetworkError, TimeoutError, AbortError } from './errors.js';
 
 // Types
-export type {
-  NexusClientOptions,
-  RequestOptions,
-  ApiErrorResponse,
-  PaginatedResponse,
-  SseEvent,
-  AspectEnvelope,
-  AspectListResponse,
-  DatasetSchema,
-  CatalogSchemaResponse,
-  ColumnSearchResult,
-  ColumnSearchResponse,
-  ReplayRecord,
-  ReplayResponse,
-} from "./types.js";
+export type { NexusClientOptions, RequestOptions, ApiErrorResponse, PaginatedResponse, SseEvent, AspectEnvelope, AspectListResponse, DatasetSchema, CatalogSchemaResponse, ColumnSearchResult, ColumnSearchResponse, ReplayRecord, ReplayResponse } from './types.js';
 
 // Case transform utilities
-export {
-  snakeToCamel,
-  camelToSnake,
-  transformKeys,
-  snakeToCamelKeys,
-  camelToSnakeKeys,
-} from "./case-transform.js";
+export { snakeToCamel, camelToSnake, transformKeys, snakeToCamelKeys, camelToSnakeKeys } from './case-transform.js';
 
 // Nexus RPC Client
-export { Nexus, NexusError, getNexusRpcClient } from "./nexus-rpc.js";
-export type { NexusRpcOptions, NexusListItem } from "./nexus-rpc.js";
+export { Nexus, NexusError, getNexusRpcClient } from './nexus-rpc.js';
+export type { NexusRpcOptions, NexusListItem } from './nexus-rpc.js';

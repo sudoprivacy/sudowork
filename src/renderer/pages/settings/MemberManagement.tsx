@@ -35,7 +35,7 @@ const MemberManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentUser?.token) fetchMembers();
+    if (currentUser?.token) void fetchMembers();
   }, [currentUser]);
 
   const handleApprove = (user: any) => {
@@ -56,7 +56,7 @@ const MemberManagement: React.FC = () => {
           const data = await res.json();
           if (data.success) {
             Message.success(`已批准 ${user.nickname}，Key 已下发。`);
-            fetchMembers();
+            void fetchMembers();
           }
         } catch (e) {
           Message.error('审批失败');
@@ -85,7 +85,7 @@ const MemberManagement: React.FC = () => {
           const data = await res.json();
           if (data.success) {
             Message.success(`已拒绝 ${user.nickname} 的申请。`);
-            fetchMembers();
+            void fetchMembers();
           }
         } catch (e) {
           Message.error('拒绝失败');
@@ -114,7 +114,7 @@ const MemberManagement: React.FC = () => {
           const data = await res.json();
           if (data.success) {
             Message.success(`已删除用户 ${user.nickname}。`);
-            fetchMembers();
+            void fetchMembers();
           } else {
             Message.error(data.msg || '删除失败');
           }

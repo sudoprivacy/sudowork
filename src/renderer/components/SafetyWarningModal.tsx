@@ -95,24 +95,24 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
 
   const formatFileFlags = (flags: string[]): string => {
     const flagDescriptions: Record<string, string> = {
-      'O_RDONLY': '只读',
-      'O_WRONLY': '只写',
-      'O_RDWR': '读写',
-      'O_CREAT': '不存在则创建',
-      'O_EXCL': '创建若存在则失败',
-      'O_TRUNC': '截断写',
-      'O_APPEND': '追加写',
-      'O_DIRECTORY': '打开目录',
-      'O_NOATIME': '读不更新 atime',
-      'O_NOFOLLOW': '读若符号链接则失败',
-      'O_SYNC': '同步 io',
-      'O_DSYNC': '同步 io',
-      'O_SYMLINK': '打开符号链接本身',
-      'O_DIRECT': '绕开系统缓存 io',
-      'O_NONBLOCK': '非阻塞 io',
-      'O_NOCTTY': '未知',
-      'REMOVE': '删除',
-      'RENAME': '重命名',
+      O_RDONLY: '只读',
+      O_WRONLY: '只写',
+      O_RDWR: '读写',
+      O_CREAT: '不存在则创建',
+      O_EXCL: '创建若存在则失败',
+      O_TRUNC: '截断写',
+      O_APPEND: '追加写',
+      O_DIRECTORY: '打开目录',
+      O_NOATIME: '读不更新 atime',
+      O_NOFOLLOW: '读若符号链接则失败',
+      O_SYNC: '同步 io',
+      O_DSYNC: '同步 io',
+      O_SYMLINK: '打开符号链接本身',
+      O_DIRECT: '绕开系统缓存 io',
+      O_NONBLOCK: '非阻塞 io',
+      O_NOCTTY: '未知',
+      REMOVE: '删除',
+      RENAME: '重命名',
     };
 
     return flags.map((flag) => `${flag}${flagDescriptions[flag] ? ` (${flagDescriptions[flag]})` : ''}`).join(', ');
@@ -132,16 +132,18 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       {data.headers && Object.keys(data.headers).length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <strong style={{ color: 'var(--color-text-1)', marginRight: 8 }}>{t('safety.headers')}:</strong>
-          <pre style={{
-            marginTop: 4,
-            padding: 8,
-            backgroundColor: 'var(--color-fill-3)',
-            borderRadius: 4,
-            fontSize: 11,
-            fontFamily: 'monospace',
-            overflow: 'auto',
-            maxHeight: 100,
-          }}>
+          <pre
+            style={{
+              marginTop: 4,
+              padding: 8,
+              backgroundColor: 'var(--color-fill-3)',
+              borderRadius: 4,
+              fontSize: 11,
+              fontFamily: 'monospace',
+              overflow: 'auto',
+              maxHeight: 100,
+            }}
+          >
             {JSON.stringify(data.headers, null, 2)}
           </pre>
         </div>
@@ -149,16 +151,18 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       {data.body && data.body.trim() && (
         <div style={{ marginBottom: 8 }}>
           <strong style={{ color: 'var(--color-text-1)', marginRight: 8 }}>{t('safety.body')}:</strong>
-          <pre style={{
-            marginTop: 4,
-            padding: 8,
-            backgroundColor: 'var(--color-fill-3)',
-            borderRadius: 4,
-            fontSize: 11,
-            fontFamily: 'monospace',
-            overflow: 'auto',
-            maxHeight: 100,
-          }}>
+          <pre
+            style={{
+              marginTop: 4,
+              padding: 8,
+              backgroundColor: 'var(--color-fill-3)',
+              borderRadius: 4,
+              fontSize: 11,
+              fontFamily: 'monospace',
+              overflow: 'auto',
+              maxHeight: 100,
+            }}
+          >
             {data.body}
           </pre>
         </div>

@@ -88,7 +88,6 @@ async function testNexusList(dirPath: string = '/safe/event') {
         console.error('读取失败:', readError);
       }
     }
-
   } catch (error) {
     console.error('查询失败:', error);
     process.exit(1);

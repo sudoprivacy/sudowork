@@ -62,7 +62,9 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
           )}
           <div className='w-full'>
             <div className='flex items-center justify-between py-8px cursor-pointer select-none' onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-              <span className='text-13px' style={{ color: 'var(--text-secondary)' }}>{t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}</span>
+              <span className='text-13px' style={{ color: 'var(--text-secondary)' }}>
+                {t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}
+              </span>
               <Down theme='outline' size={14} style={{ color: 'var(--text-secondary)' }} className={`transition-transform duration-300 ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
             </div>
             <div className={`overflow-hidden transition-all duration-300 ${isDescriptionExpanded ? 'max-h-240px mt-4px opacity-100' : 'max-h-0 opacity-0'}`}>

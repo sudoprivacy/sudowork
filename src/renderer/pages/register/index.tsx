@@ -36,7 +36,7 @@ const RegisterPage: React.FC = () => {
 
     if (!registerToken) {
       Message.error('注册凭证无效，请重新登录');
-      navigate('/login', { replace: true });
+      void navigate('/login', { replace: true });
       return;
     }
 

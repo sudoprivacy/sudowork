@@ -101,9 +101,7 @@ const SecuritySettings: React.FC = () => {
       updatedAt: Date.now(),
     };
 
-    const newRules = editingRule
-      ? blacklistConfig.rules.map((r) => (r.id === editingRule.id ? newRule : r))
-      : [...blacklistConfig.rules, newRule];
+    const newRules = editingRule ? blacklistConfig.rules.map((r) => (r.id === editingRule.id ? newRule : r)) : [...blacklistConfig.rules, newRule];
 
     const newConfig = { rules: newRules };
 
@@ -130,42 +128,46 @@ const SecuritySettings: React.FC = () => {
   }, [ruleForm, editingRule, blacklistConfig]);
 
   // Handle delete rule
-  const handleDeleteRule = useCallback(async (ruleId: string) => {
-    const newRules = blacklistConfig.rules.filter((r) => r.id !== ruleId);
-    const newConfig = { rules: newRules };
+  const handleDeleteRule = useCallback(
+    async (ruleId: string) => {
+      const newRules = blacklistConfig.rules.filter((r) => r.id !== ruleId);
+      const newConfig = { rules: newRules };
 
-    try {
-      const result = await ipcBridge.safety.setBlacklist.invoke({ config: newConfig });
-      if (result.success) {
-        setBlacklistConfig(newConfig);
-        Message.success('规则已删除');
-      } else {
-        Message.error(result.msg || '删除规则失败');
+      try {
+        const result = await ipcBridge.safety.setBlacklist.invoke({ config: newConfig });
+        if (result.success) {
+          setBlacklistConfig(newConfig);
+          Message.success('规则已删除');
+        } else {
+          Message.error(result.msg || '删除规则失败');
+        }
+      } catch (err) {
+        console.error('[SecuritySettings] Failed to delete rule:', err);
+        Message.error('删除规则失败');
       }
-    } catch (err) {
-      console.error('[SecuritySettings] Failed to delete rule:', err);
-      Message.error('删除规则失败');
-    }
-  }, [blacklistConfig]);
+    },
+    [blacklistConfig]
+  );
 
   // Handle toggle rule enabled
-  const handleToggleRule = useCallback(async (ruleId: string, enabled: boolean) => {
-    const newRules = blacklistConfig.rules.map((r) =>
-      r.id === ruleId ? { ...r, enabled, updatedAt: Date.now() } : r
-    );
-    const newConfig = { rules: newRules };
+  const handleToggleRule = useCallback(
+    async (ruleId: string, enabled: boolean) => {
+      const newRules = blacklistConfig.rules.map((r) => (r.id === ruleId ? { ...r, enabled, updatedAt: Date.now() } : r));
+      const newConfig = { rules: newRules };
 
-    try {
-      const result = await ipcBridge.safety.setBlacklist.invoke({ config: newConfig });
-      if (result.success) {
-        setBlacklistConfig(newConfig);
-      } else {
-        Message.error(result.msg || '切换规则失败');
+      try {
+        const result = await ipcBridge.safety.setBlacklist.invoke({ config: newConfig });
+        if (result.success) {
+          setBlacklistConfig(newConfig);
+        } else {
+          Message.error(result.msg || '切换规则失败');
+        }
+      } catch (err) {
+        console.error('[SecuritySettings] Failed to toggle rule:', err);
       }
-    } catch (err) {
-      console.error('[SecuritySettings] Failed to toggle rule:', err);
-    }
-  }, [blacklistConfig]);
+    },
+    [blacklistConfig]
+  );
 
   // Open edit modal
   const openEditModal = useCallback((rule: BlacklistRule) => {
@@ -309,7 +311,7 @@ const SecuritySettings: React.FC = () => {
                   {/* 规则说明 */}
                   <div className='mb-12px'>
                     <span className='text-14px text-t-secondary'>
-                      当前黑名单规则：{blacklistConfig.rules.filter(r => r.enabled).length} 条生效
+                      当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
                       {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
                     </span>
                   </div>
@@ -317,20 +319,13 @@ const SecuritySettings: React.FC = () => {
                   {/* Rules section */}
                   <div className='flex items-center justify-between mb-12px'>
                     <h4 className='text-16px font-500 text-t-primary'>拦截规则</h4>
-                    <Button
-                      type='primary'
-                      size='small'
-                      icon={<Plus theme='outline' size='14' />}
-                      onClick={openAddModal}
-                    >
+                    <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
                       添加规则
                     </Button>
                   </div>
 
                   {blacklistConfig.rules.length === 0 ? (
-                    <div className='text-center py-24px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>
-                      暂无拦截规则
-                    </div>
+                    <div className='text-center py-24px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>暂无拦截规则</div>
                   ) : (
                     <Table
                       data={blacklistConfig.rules}
@@ -374,35 +369,16 @@ const SecuritySettings: React.FC = () => {
                           title: '启用',
                           dataIndex: 'enabled',
                           width: 60,
-                          render: (enabled, record) => (
-                            <Switch
-                              size='small'
-                              checked={enabled}
-                              onChange={(checked) => handleToggleRule(record.id, checked)}
-                            />
-                          ),
+                          render: (enabled, record) => <Switch size='small' checked={enabled} onChange={(checked) => handleToggleRule(record.id, checked)} />,
                         },
                         {
                           title: '操作',
                           width: 80,
                           render: (_, record) => (
                             <Space size='small'>
-                              <Button
-                                type='text'
-                                size='mini'
-                                icon={<Edit theme='outline' size='14' />}
-                                onClick={() => openEditModal(record)}
-                              />
-                              <Popconfirm
-                                title='确认删除此规则？'
-                                onOk={() => handleDeleteRule(record.id)}
-                              >
-                                <Button
-                                  type='text'
-                                  size='mini'
-                                  status='danger'
-                                  icon={<Delete theme='outline' size='14' />}
-                                />
+                              <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => openEditModal(record)} />
+                              <Popconfirm title='确认删除此规则？' onOk={() => handleDeleteRule(record.id)}>
+                                <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
                               </Popconfirm>
                             </Space>
                           ),
@@ -432,11 +408,7 @@ const SecuritySettings: React.FC = () => {
         <div className='flex flex-col gap-16px'>
           <div>
             <label className='block text-14px text-t-secondary mb-4px'>类型</label>
-            <Select
-              value={ruleForm.type}
-              onChange={(val) => setRuleForm({ ...ruleForm, type: val })}
-              style={{ width: '100%' }}
-            >
+            <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
               <Option value='network'>网络请求 (域名/IP)</Option>
               <Option value='file'>文件操作 (路径)</Option>
             </Select>
@@ -444,35 +416,20 @@ const SecuritySettings: React.FC = () => {
 
           <div>
             <label className='block text-14px text-t-secondary mb-4px'>匹配方式</label>
-            <Select
-              value={ruleForm.matchType}
-              onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })}
-              style={{ width: '100%' }}
-            >
+            <Select value={ruleForm.matchType} onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })} style={{ width: '100%' }}>
               <Option value='exact'>精确匹配</Option>
               <Option value='wildcard'>通配符匹配</Option>
             </Select>
           </div>
 
           <div>
-            <label className='block text-14px text-t-secondary mb-4px'>
-              {ruleForm.type === 'network' ? '域名/IP 模式' : '路径模式'}
-            </label>
-            <Input
-              placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : '例如: /etc/* 或 ~/.ssh/*'}
-              value={ruleForm.pattern}
-              onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })}
-            />
+            <label className='block text-14px text-t-secondary mb-4px'>{ruleForm.type === 'network' ? '域名/IP 模式' : '路径模式'}</label>
+            <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : '例如: /etc/* 或 ~/.ssh/*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
           </div>
 
           <div>
             <label className='block text-14px text-t-secondary mb-4px'>描述 (可选)</label>
-            <TextArea
-              placeholder='规则说明'
-              value={ruleForm.description}
-              onChange={(val) => setRuleForm({ ...ruleForm, description: val })}
-              autoSize={{ minRows: 2, maxRows: 4 }}
-            />
+            <TextArea placeholder='规则说明' value={ruleForm.description} onChange={(val) => setRuleForm({ ...ruleForm, description: val })} autoSize={{ minRows: 2, maxRows: 4 }} />
           </div>
         </div>
       </Modal>

@@ -12,7 +12,8 @@
  * - Action files: /safe/action/{uuid} (Sudowork → counterparty)
  */
 
-import { Nexus, getNexusRpcClient } from '@/common/nexus';
+import type { Nexus } from '@/common/nexus';
+import { getNexusRpcClient } from '@/common/nexus';
 import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileData, EventType, RiskLevel, NetworkEventData, FileEventData } from '@/common/safetyTypes';
 
 /** Nexus security hook directory paths */
@@ -73,9 +74,7 @@ export async function readEnabledState(): Promise<boolean> {
     // Handle object result with content
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
-      const data = Buffer.isBuffer(content)
-        ? JSON.parse(content.toString('utf-8'))
-        : JSON.parse(String(content));
+      const data = Buffer.isBuffer(content) ? JSON.parse(content.toString('utf-8')) : JSON.parse(String(content));
       return data.enabled === true;
     }
 
@@ -94,9 +93,7 @@ export async function readEventFile(eventUuidOrPath: string): Promise<EventFileD
   try {
     const client = getNexusClient();
     // Determine if it's a full path or just a UUID
-    const filePath = eventUuidOrPath.startsWith('/')
-      ? eventUuidOrPath
-      : `${EVENT_DIR}/${eventUuidOrPath}`;
+    const filePath = eventUuidOrPath.startsWith('/') ? eventUuidOrPath : `${EVENT_DIR}/${eventUuidOrPath}`;
 
     const result = await client.read(filePath, false);
 

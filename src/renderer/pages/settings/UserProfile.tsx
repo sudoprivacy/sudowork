@@ -44,7 +44,7 @@ const UserProfile: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentUser?.token) fetchProfile();
+    if (currentUser?.token) void fetchProfile();
   }, [currentUser]);
 
   const usedPoints = stats?.used || 0;

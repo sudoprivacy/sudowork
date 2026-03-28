@@ -179,7 +179,9 @@ body.login-page-active {
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
   -webkit-app-region: no-drag;
 }
 
@@ -568,7 +570,9 @@ body.login-page-active {
 /* Global button overrides for login page - disable all hover effects */
 .login-page .arco-btn {
   transform: none !important;
-  transition: opacity 0.15s ease, background 0.15s ease !important;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease !important;
 }
 
 .login-page .arco-btn:hover,
