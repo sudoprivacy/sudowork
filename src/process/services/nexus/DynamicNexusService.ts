@@ -341,13 +341,24 @@ class DynamicNexusService {
    */
   stop(): void {
     if (this.process) {
-      this.process.kill('SIGTERM');
+      // Use SIGKILL instead of SIGTERM: SIGKILL cannot be caught or ignored and takes
+      // effect immediately. SIGTERM requires the process to handle it, but Electron's
+      // before-quit handler is async and the app may exit before nexusd processes SIGTERM,
+      // leaving it orphaned (adopted by launchd on macOS).
+      this.process.kill('SIGKILL');
       this.process = null;
     }
     this._running = false;
-    // Fire-and-forget: ensure no orphaned process keeps the port occupied
-    if (this._port > 0) {
-      this.killProcessOnPort(this._port).catch(() => {});
+    // Synchronous fallback: kill any process still holding the port.
+    // execSync is used deliberately here — stop() is called from the synchronous
+    // portion of before-quit and we need cleanup to complete before the process exits.
+    if (this._port > 0 && process.platform !== 'win32') {
+      try {
+        const { execSync } = require('child_process');
+        execSync(`lsof -ti tcp:${this._port} | xargs kill -9 2>/dev/null || true`, { timeout: 2000 });
+      } catch {
+        // Port was already free or lsof unavailable — ignore
+      }
     }
   }
 

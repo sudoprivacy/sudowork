@@ -1,5 +1,6 @@
 import { dynamicNexusService } from './services/nexus/DynamicNexusService';
 import { mainLog, mainError } from './utils/mainLogger';
+import { ipcBridge } from '../common';
 
 /**
  * 启动 Nexus 服务的函数，使用动态下载方式
@@ -13,6 +14,11 @@ export const startNexusService = async (): Promise<void> => {
       // 如果已安装，则启动服务
       mainLog('Nexus', 'Starting Nexus service...');
       await dynamicNexusService.start();
+      // Notify the renderer that nexus is now running so the About page refreshes.
+      // start() may have been delayed by the one-time macOS codesign repair (~1–2 min),
+      // during which the About page would have shown "not running". Emitting installResult
+      // triggers the renderer to re-query the nexus status and update the UI.
+      ipcBridge.nexus.installResult.emit({ success: true, msg: 'Nexus 服务已启动' });
     } else {
       // 如果未安装，记录一条消息，但不中断应用启动
       mainLog('Nexus', 'Not installed yet. It can be installed from the settings.');
