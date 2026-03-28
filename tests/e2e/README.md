@@ -2,49 +2,68 @@
 
 Screenshot-driven E2E tests for Sudowork, powered by ai-dev-browser.
 
-## What is an Op?
-
-An op is ONE atomic human-computer interaction primitive:
-
-- `type_text` — type text into a field
-- `press_key` — press a key or key combo (Enter, Ctrl+Enter, Escape)
-- `mouse_click` — click at coordinates or on an element (CDP mouse events)
-- `screenshot` — capture the screen
-- `get_page_text` — read all visible text
-
-NOT an op: "type text then press enter" — that's 2 primitives.
+Aligned with [human-browser-primitives](https://github.com/sudoprivacy/human-browser-primitives) spec.
 
 ## Architecture
 
 ```
-run_op.py          — CLI entry: invoke a single op from the shell
-runner.py          — YAML case executor: run multi-step test cases
-ops/registry.py    — shared: op discovery + invocation (used by both)
-ops/*.py           — one file per op, auto-discovered
-cases/*.yaml       — test cases referencing ops
+human-browser-primitives/spec.md    ← W3C core primitive definitions
+ops-spec.yaml                       ← app-specific convenience param extensions
+generate.py                         ← reads both specs → generates code
+
+primitives/                          ← AUTO-GENERATED, DO NOT EDIT
+  key_down.py, pointer_move.py ...   #   pure W3C implementations, core params only
+
+ops/                                 ← AUTO-GENERATED, DO NOT EDIT
+  key_down.py, pointer_move.py ...   #   thin wrappers: core + convenience params
+
+utils.py                            ← hand-written resolver functions
+run_op.py                           ← CLI entry point
+runner.py                           ← YAML test case executor
 ```
 
-## Rules
+## Primitives (from spec)
 
-1. Each op = one HCI primitive. If you'd describe it with "and then", split it.
-2. Ops must NOT call AI. They are deterministic scripts.
-3. Ops use CDP events (human-like) over DOM manipulation (js_exec).
-   Use js_exec ONLY when CDP can't reach the element (e.g., React state setter).
-4. Both E2E runner and Doctor use ops via `ops/registry.py`. No raw `ai_dev_browser.tools.*` calls.
-5. Auto-discovered: drop a `.py` file in `ops/`, export an async function matching the filename.
+### Input
+| Primitive | Core Params | Convenience Params |
+|---|---|---|
+| `key_down` | `value` | *(React fallback auto-detected)* |
+| `key_up` | `value` | |
+| `pointer_down` | `button` | `text`, `selector` |
+| `pointer_up` | `button` | |
+| `pointer_move` | `x`, `y`, `duration`, `origin` | `text`, `selector` |
+| `scroll` | `x`, `y`, `delta_x`, `delta_y` | |
+| `pause` | `duration` (ms) | |
+
+### Observation
+| Primitive | Core Params | Convenience Params |
+|---|---|---|
+| `screenshot` | | `path` |
+| `get_text` | `element` | `shadow_dom` |
+| `get_attribute` | `element`, `name` | |
+| `is_displayed` | `element` | |
 
 ## Usage
 
 ```bash
-# Run a single op (used by Doctor and interactive testing)
-python tests/e2e/run_op.py --port 9230 --op screenshot
-python tests/e2e/run_op.py --port 9230 --op mouse_click --text "技能商店"
-python tests/e2e/run_op.py --port 9230 --op type_text --text "/model"
-python tests/e2e/run_op.py --port 9230 --op press_key --key Ctrl+Enter
-python tests/e2e/run_op.py --port 9230 --op file_bug --title "bug" --body "desc"
-python tests/e2e/run_op.py --list  # List all available ops
+# Single primitive
+python tests/e2e/run_op.py --port 9230 --op pointer_move --text "技能商店"
+python tests/e2e/run_op.py --port 9230 --op pointer_down
+python tests/e2e/run_op.py --port 9230 --op pointer_up
+python tests/e2e/run_op.py --port 9230 --op key_down --value Enter
+python tests/e2e/run_op.py --port 9230 --op key_up --value Enter
+python tests/e2e/run_op.py --port 9230 --op screenshot --path out.png
 
-# Run YAML test cases
-python tests/e2e/runner.py --port 9230
+# Regenerate from specs
+python tests/e2e/generate.py
+
+# Run test cases
 python tests/e2e/runner.py --port 9230 --case model-command
 ```
+
+## Rules
+
+1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.
+2. To change a primitive: edit `human-browser-primitives/spec.md` → `generate.py`.
+3. To change convenience params: edit `ops-spec.yaml` → `generate.py`.
+4. To change resolver logic: edit `utils.py` (only hand-written code).

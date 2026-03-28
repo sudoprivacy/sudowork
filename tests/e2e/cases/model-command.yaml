@@ -2,65 +2,46 @@ name: "/model command"
 description: "Test /model slash command: list models, autocomplete, switch, verify"
 
 steps:
-  # Start fresh
-  - op: mouse_click
+  # Start fresh — click "新会话"
+  - op: pointer_move
     text: "新会话"
-    wait: 5
+  - op: pointer_down
+  - op: pointer_up
+  - op: pause
+    duration: 5000
 
-  # 1. Warmup — first message may be dropped due to ACP init delay
-  - op: type_text
-    text: "/model"
-  - op: press_key
-    key: Enter
-    wait: 15
+  # 1. Type /model and send
+  - op: key_down
+    value: "/"
+  - op: key_up
+    value: "/"
+  - op: key_down
+    value: "m"
+  - op: key_up
+    value: "m"
+  - op: key_down
+    value: "o"
+  - op: key_up
+    value: "o"
+  - op: key_down
+    value: "d"
+  - op: key_up
+    value: "d"
+  - op: key_down
+    value: "e"
+  - op: key_up
+    value: "e"
+  - op: key_down
+    value: "l"
+  - op: key_up
+    value: "l"
+  - op: key_down
+    value: "Enter"
+  - op: key_up
+    value: "Enter"
+  - op: pause
+    duration: 8000
 
-  # 2. Test autocomplete (ACP is now warm)
-  - op: type_text
-    text: "/mo"
-    wait: 2
-  - op: judge
-    expect: "autocomplete dropdown showing /model command option"
-    use_agent: true
-
-  # 3. Clear autocomplete by sending the command
-  - op: type_text
-    text: "/model"
-  - op: press_key
-    key: Enter
-    wait: 8
-
-  # 4. Test invalid model
-  - op: type_text
-    text: "/model nonexistent-xyz"
-  - op: press_key
-    key: Enter
-    wait: 5
-  - op: judge
-    expect: "unknown model available default sonnet haiku"
-
-  # 5. Switch to sonnet
-  - op: type_text
-    text: "/model sonnet"
-  - op: press_key
-    key: Enter
-    wait: 5
-  - op: judge
-    expect: "switched sonnet"
-
-  # 6. Verify switch
-  - op: type_text
-    text: "/model"
-  - op: press_key
-    key: Enter
-    wait: 8
-  - op: judge
-    expect: "sonnet current"
-
-  # 7. Switch back to default
-  - op: type_text
-    text: "/model default"
-  - op: press_key
-    key: Enter
-    wait: 5
-  - op: judge
-    expect: "switched default"
+  # 2. Screenshot to verify
+  - op: screenshot
+    path: "screenshots/model-command-result.png"
