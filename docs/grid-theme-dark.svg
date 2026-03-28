@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <!-- Grid pattern for dark mode: #0e0e0e bg + white 5% opacity lines -->
+    <pattern id="grid-dark" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect width="40" height="40" fill="#0e0e0e"/>
+      <line x1="0" y1="0" x2="40" y2="0" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+      <line x1="0" y1="0" x2="0" y2="40" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+    </pattern>
+    <!-- Sidebar pattern -->
+    <clipPath id="sidebar-clip">
+      <rect x="0" y="0" width="240" height="900"/>
+    </clipPath>
+    <!-- Main area clip -->
+    <clipPath id="main-clip">
+      <rect x="240" y="0" width="1200" height="900"/>
+    </clipPath>
+  </defs>
+
+  <!-- Main grid background -->
+  <rect width="1440" height="900" fill="url(#grid-dark)"/>
+
+  <!-- Sidebar (solid, no grid) -->
+  <rect x="0" y="0" width="240" height="900" fill="#1a1a1a"/>
+  <!-- Sidebar right border -->
+  <line x1="240" y1="0" x2="240" y2="900" stroke="#333" stroke-width="1"/>
+
+  <!-- Sidebar header -->
+  <rect x="0" y="0" width="240" height="52" fill="#1a1a1a"/>
+  <line x1="0" y1="52" x2="240" y2="52" stroke="#333" stroke-width="1"/>
+
+  <!-- Logo icon -->
+  <rect x="16" y="14" width="24" height="24" rx="5" fill="url(#logo-grad)"/>
+  <defs>
+    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4d9fff"/>
+      <stop offset="100%" style="stop-color:#7b5ea7"/>
+    </linearGradient>
+  </defs>
+  <text x="28" y="31" font-family="system-ui" font-size="12" font-weight="bold" fill="white" text-anchor="middle">S</text>
+  <text x="50" y="31" font-family="system-ui" font-size="14" font-weight="600" fill="#e5e5e5">Sudowork</text>
+
+  <!-- New Chat button -->
+  <rect x="12" y="62" width="216" height="34" rx="7" fill="rgba(77,159,255,0.12)" stroke="rgba(77,159,255,0.25)" stroke-width="1"/>
+  <text x="120" y="84" font-family="system-ui" font-size="13" fill="#4d9fff" text-anchor="middle">+ New Chat</text>
+
+  <!-- Section label -->
+  <text x="18" y="120" font-family="system-ui" font-size="10" font-weight="600" fill="#737373" letter-spacing="0.8">RECENT</text>
+
+  <!-- Active chat item -->
+  <rect x="8" y="128" width="224" height="32" rx="6" fill="rgba(77,159,255,0.12)"/>
+  <text x="18" y="148" font-family="system-ui" font-size="13" fill="#4d9fff">Grid theme implementation</text>
+
+  <!-- Other chat items -->
+  <text x="18" y="178" font-family="system-ui" font-size="13" fill="#a6a6a6">Build a REST API server</text>
+  <text x="18" y="208" font-family="system-ui" font-size="13" fill="#a6a6a6">Debug TypeScript errors</text>
+  <text x="18" y="238" font-family="system-ui" font-size="13" fill="#a6a6a6">Refactor React components</text>
+  <text x="18" y="268" font-family="system-ui" font-size="13" fill="#a6a6a6">Database schema design</text>
+
+  <text x="18" y="306" font-family="system-ui" font-size="10" font-weight="600" fill="#737373" letter-spacing="0.8">YESTERDAY</text>
+  <text x="18" y="336" font-family="system-ui" font-size="13" fill="#a6a6a6">Docker compose setup</text>
+  <text x="18" y="366" font-family="system-ui" font-size="13" fill="#a6a6a6">Authentication middleware</text>
+
+  <!-- Toolbar (semi-transparent over grid) -->
+  <rect x="241" y="0" width="1199" height="48" fill="rgba(14,14,14,0.75)"/>
+  <line x1="241" y1="48" x2="1440" y2="48" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <text x="261" y="29" font-family="system-ui" font-size="14" font-weight="500" fill="#a6a6a6">Grid theme implementation</text>
+
+  <!-- User message 1 -->
+  <rect x="900" y="72" width="480" height="52" rx="12" fill="rgba(30,42,58,0.92)" stroke="rgba(77,159,255,0.2)" stroke-width="1"/>
+  <text x="910" y="90" font-family="system-ui" font-size="11" fill="#737373">You</text>
+  <text x="910" y="110" font-family="system-ui" font-size="13" fill="#d0e4ff">Add a grid background theme — subtle lines,</text>
+  <text x="910" y="126" font-family="system-ui" font-size="13" fill="#d0e4ff">dark bg for dark mode, warm cream for light.</text>
+  <text x="1376" y="68" font-family="system-ui" font-size="11" fill="#737373" text-anchor="end">You</text>
+
+  <!-- AI message 1 -->
+  <rect x="260" y="148" width="580" height="140" rx="12" fill="rgba(26,26,26,0.88)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="270" y="164" font-family="system-ui" font-size="11" fill="#737373">Claude</text>
+  <text x="270" y="184" font-family="system-ui" font-size="13" fill="#e5e5e5">I'll implement a grid background theme for both</text>
+  <text x="270" y="202" font-family="system-ui" font-size="13" fill="#e5e5e5">dark and light modes. Here is the core CSS:</text>
+  <!-- Code block inside message -->
+  <rect x="278" y="210" width="550" height="68" rx="6" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="286" y="226" font-family="Consolas,monospace" font-size="11" fill="#6a9fb5">/* Grid Theme - Dark Mode */</text>
+  <text x="286" y="242" font-family="Consolas,monospace" font-size="11" fill="#c9d1d9">body</text><text x="322" y="242" font-family="Consolas,monospace" font-size="11" fill="#e5e5e5"> {</text>
+  <text x="286" y="258" font-family="Consolas,monospace" font-size="11" fill="#79b8ff">  background-color</text><text x="430" y="258" font-family="Consolas,monospace" font-size="11" fill="#e5e5e5">: </text><text x="440" y="258" font-family="Consolas,monospace" font-size="11" fill="#9ecbff">#0e0e0e;</text>
+  <text x="286" y="274" font-family="Consolas,monospace" font-size="11" fill="#e5e5e5">  background-size: 40px 40px;</text>
+
+  <!-- User message 2 -->
+  <rect x="1060" y="320" width="320" height="42" rx="12" fill="rgba(30,42,58,0.92)" stroke="rgba(77,159,255,0.2)" stroke-width="1"/>
+  <text x="1376" y="316" font-family="system-ui" font-size="11" fill="#737373" text-anchor="end">You</text>
+  <text x="1070" y="346" font-family="system-ui" font-size="13" fill="#d0e4ff">Set it as the default theme.</text>
+
+  <!-- AI message 2 -->
+  <rect x="260" y="390" width="540" height="52" rx="12" fill="rgba(26,26,26,0.88)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="270" y="406" font-family="system-ui" font-size="11" fill="#737373">Claude</text>
+  <text x="270" y="426" font-family="system-ui" font-size="13" fill="#e5e5e5">Done! Updated </text>
+  <rect x="358" y="413" width="130" height="18" rx="3" fill="rgba(255,255,255,0.1)"/>
+  <text x="361" y="426" font-family="Consolas,monospace" font-size="12" fill="#c9d1d9">DEFAULT_THEME_ID</text>
+  <text x="494" y="426" font-family="system-ui" font-size="13" fill="#e5e5e5"> to </text>
+  <rect x="516" y="413" width="76" height="18" rx="3" fill="rgba(255,255,255,0.1)"/>
+  <text x="519" y="426" font-family="Consolas,monospace" font-size="12" fill="#c9d1d9">grid-theme</text>
+  <text x="596" y="426" font-family="system-ui" font-size="13" fill="#e5e5e5">. Grid is now default.</text>
+  <text x="270" y="432" font-family="system-ui" font-size="11" fill="#737373">Claude</text>
+
+  <!-- Input area background (semi-transparent, grid still visible) -->
+  <rect x="241" y="820" width="1199" height="80" fill="rgba(14,14,14,0.82)"/>
+  <line x1="241" y1="820" x2="1440" y2="820" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+  <!-- Input box -->
+  <rect x="300" y="832" width="1080" height="46" rx="11" fill="rgba(26,26,26,0.92)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <text x="316" y="860" font-family="system-ui" font-size="14" fill="#4d4d4d">Message Claude...</text>
+
+  <!-- Send button -->
+  <rect x="1328" y="840" width="34" height="30" rx="7" fill="#4d9fff"/>
+  <text x="1345" y="860" font-family="system-ui" font-size="18" font-weight="bold" fill="white" text-anchor="middle">↑</text>
+
+  <!-- Mode badge -->
+  <rect x="1300" y="14" width="120" height="26" rx="13" fill="rgba(77,159,255,0.15)" stroke="rgba(77,159,255,0.4)" stroke-width="1"/>
+  <text x="1360" y="32" font-family="system-ui" font-size="12" font-weight="500" fill="#4d9fff" text-anchor="middle">🌙 Dark Mode</text>
+</svg>
