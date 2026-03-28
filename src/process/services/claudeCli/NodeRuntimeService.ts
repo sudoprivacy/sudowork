@@ -13,13 +13,16 @@
  * Node.js is bundled at build time via `bun run node:download`.
  */
 
-import { execFile } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
+import type { ICliStatus } from '@/common/ipcBridge';
+
+const execAsync = promisify(exec);
 
 /** Node.js LTS version to bundle */
 const NODE_VERSION = '22.22.2';
@@ -194,4 +197,54 @@ export function uninstallNode(): void {
   if (fs.existsSync(nodeDir)) {
     fs.rmSync(nodeDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Get the system-installed Node.js path (via `which node`).
+ * Returns undefined if no system node is found.
+ */
+export async function getSystemNodePath(): Promise<string | undefined> {
+  try {
+    const cmd = process.platform === 'win32' ? 'where node' : 'which node';
+    const { stdout } = await execAsync(cmd);
+    const nodePath = stdout.trim().split(/\r?\n/)[0];
+    if (nodePath && fs.existsSync(nodePath)) {
+      // Exclude the bundled node path
+      const bundledPath = getNodeBinaryPath();
+      if (nodePath === bundledPath) return undefined;
+      return nodePath;
+    }
+  } catch {
+    // not in PATH
+  }
+  return undefined;
+}
+
+/**
+ * Get the version of a Node.js binary at a given path.
+ */
+export async function getSystemNodeVersion(nodePath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execAsync(`"${nodePath}" --version`);
+    const match = stdout.trim().match(/v?(\d+\.\d+\.\d+)/);
+    return match ? match[1] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Single facade that returns the Node.js runtime status as ICliStatus.
+ * Prefers managed (bundled) Node; falls back to system Node.
+ */
+export async function checkNodeStatus(): Promise<ICliStatus> {
+  if (isNodeInstalled()) {
+    return { installed: true, version: getNodeVersion(), path: getNodeBinaryPath(), source: 'managed' };
+  }
+  const systemPath = await getSystemNodePath();
+  if (systemPath) {
+    const systemVersion = await getSystemNodeVersion(systemPath);
+    return { installed: true, version: systemVersion, path: systemPath, source: 'system' };
+  }
+  return { installed: false, source: 'none' };
 }

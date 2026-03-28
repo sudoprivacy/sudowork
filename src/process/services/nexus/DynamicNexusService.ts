@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { app } from 'electron';
-import { spawn, exec, execSync } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import * as tar from 'tar';
@@ -372,25 +372,27 @@ class DynamicNexusService {
    * nexusd that may still be holding the port (e.g. if the child exited but
    * nexusd itself was spawned as a sub-process and detached).
    */
-  stop(): void {
-    if (this.process) {
-      // Use SIGKILL instead of SIGTERM: SIGKILL cannot be caught or ignored and takes
-      // effect immediately. SIGTERM requires the process to handle it, but Electron's
-      // before-quit handler is async and the app may exit before nexusd processes SIGTERM,
-      // leaving it orphaned (adopted by launchd on macOS).
-      this.process.kill('SIGKILL');
+  async stop(): Promise<void> {
+    const proc = this.process;
+    if (proc) {
+      proc.kill('SIGTERM');
+      // Wait for the child to actually exit (up to 3s), then force-kill
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          if (!proc.killed) {
+            mainLog('Nexus', 'SIGTERM timeout, sending SIGKILL');
+            proc.kill('SIGKILL');
+          }
+          resolve();
+        }, 3000);
+        proc.once('exit', () => { clearTimeout(timeout); resolve(); });
+      });
       this.process = null;
     }
     this._running = false;
-    // Synchronous fallback: kill any process still holding the port.
-    // execSync is used deliberately here — stop() is called from the synchronous
-    // portion of before-quit and we need cleanup to complete before the process exits.
-    if (this._port > 0 && process.platform !== 'win32') {
-      try {
-        execSync(`lsof -ti tcp:${this._port} | xargs kill -9 2>/dev/null || true`, { timeout: 2000 });
-      } catch {
-        // Port was already free or lsof unavailable — ignore
-      }
+    // Force-kill any orphaned process still holding the port
+    if (this._port > 0) {
+      await this.killProcessOnPort(this._port);
     }
   }
 

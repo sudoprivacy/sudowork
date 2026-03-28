@@ -14,8 +14,7 @@ import { app } from 'electron';
 import JSZip from 'jszip';
 import { clearSkillsCache, getSkillsDir } from '@/process/initStorage';
 import WorkerManage from '@process/WorkerManage';
-import { gatewayRegistry } from '@/agent/openclaw/OpenClawGatewayManager';
-import { SUDOCLAW_DEFAULT_PORT } from '@process/services/sudoclaw/SudoclawInstallService';
+import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 
@@ -144,7 +143,7 @@ async function reloadSkillRuntime(): Promise<void> {
   clearSkillsCache();
   AcpSkillManager.resetInstance();
 
-  const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
+  const gateway = serviceManager.getGateway();
   if (!gateway) {
     console.log('[SkillHub] Gateway not running, skipping reload');
     return;
@@ -152,15 +151,14 @@ async function reloadSkillRuntime(): Promise<void> {
 
   const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
   if (canHotReload) {
-    gateway.sendReloadSignal();
+    serviceManager.sendReloadSignal();
     console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    WorkerManage.reloadOpenClawSkills();
     return;
   }
 
   console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
-  await WorkerManage.restartOpenClawGateways();
+  await serviceManager.restartOpenClaw();
 }
 
 /**

@@ -107,6 +107,53 @@
   "closeToTray": "トレイに最小化",
   "gemini": "Gemini",
   "model": "モデル",
+  "runtime": "ランタイム",
+  "runtimeSettings": {
+    "title": "ランタイム",
+    "description": "アプリが依存するランタイムツールとサービスを管理",
+    "tool": "ツール",
+    "actions": "操作",
+    "status": {
+      "notInstalled": "未インストール",
+      "installed": "インストール済み",
+      "running": "実行中 :{{port}}",
+      "notRunning": "停止中",
+      "checking": "確認中…"
+    },
+    "phase": {
+      "downloading": "ダウンロード中 {{percent}}",
+      "mounting": "マウント中…",
+      "copying": "コピー中…",
+      "extracting": "展開中…",
+      "installing": "インストール中…",
+      "unpacking": "解凍中…",
+      "starting": "起動中…",
+      "cleanup": "クリーンアップ中…",
+      "configuring": "設定中…",
+      "ready": "準備完了",
+      "error": "エラー"
+    },
+    "source": {
+      "managed": "管理版",
+      "system": "システム"
+    },
+    "button": {
+      "install": "インストール",
+      "reinstall": "再インストール",
+      "refresh": "更新",
+      "uninstall": "アンインストール",
+      "start": "起動",
+      "stop": "停止"
+    },
+    "installSuccess": "{{name}} のインストールに成功しました",
+    "installFailed": "{{name}} のインストールに失敗しました",
+    "uninstallSuccess": "{{name}} のアンインストールが完了しました",
+    "uninstallFailed": "{{name}} のアンインストールに失敗しました",
+    "startSuccess": "{{name}} を起動しました",
+    "startFailed": "{{name}} の起動に失敗しました",
+    "stopSuccess": "{{name}} を停止しました",
+    "stopFailed": "{{name}} の停止に失敗しました"
+  },
   "system": "システム",
   "about": "情報",
   "openclaw": "Sudoclaw",

@@ -107,6 +107,53 @@
   "closeToTray": "关闭到托盘",
   "gemini": "Gemini",
   "model": "模型",
+  "runtime": "运行环境",
+  "runtimeSettings": {
+    "title": "运行环境",
+    "description": "管理应用依赖的运行时工具和服务",
+    "tool": "工具",
+    "actions": "操作",
+    "status": {
+      "notInstalled": "未安装",
+      "installed": "已安装",
+      "running": "运行中 :{{port}}",
+      "notRunning": "未运行",
+      "checking": "检查中…"
+    },
+    "phase": {
+      "downloading": "下载中 {{percent}}",
+      "mounting": "挂载中…",
+      "copying": "安装中…",
+      "extracting": "解压中…",
+      "installing": "安装中…",
+      "unpacking": "解包中…",
+      "starting": "启动中…",
+      "cleanup": "清理中…",
+      "configuring": "配置中…",
+      "ready": "就绪",
+      "error": "出错"
+    },
+    "source": {
+      "managed": "托管",
+      "system": "系统"
+    },
+    "button": {
+      "install": "安装",
+      "reinstall": "重新安装",
+      "refresh": "刷新",
+      "uninstall": "卸载",
+      "start": "启动",
+      "stop": "停止"
+    },
+    "installSuccess": "{{name}} 安装成功",
+    "installFailed": "{{name}} 安装失败",
+    "uninstallSuccess": "{{name}} 卸载成功",
+    "uninstallFailed": "{{name}} 卸载失败",
+    "startSuccess": "{{name}} 已启动",
+    "startFailed": "{{name}} 启动失败",
+    "stopSuccess": "{{name}} 已停止",
+    "stopFailed": "{{name}} 停止失败"
+  },
   "system": "系统",
   "about": "关于",
   "openclaw": "Copilot",

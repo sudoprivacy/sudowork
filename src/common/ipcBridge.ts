@@ -441,7 +441,7 @@ export interface ICliStatus {
   installed: boolean;
   path?: string;
   version?: string;
-  source: string;
+  source: 'managed' | 'system' | 'none';
 }
 
 // Claude CLI installer / 安装 claude 命令行工具
@@ -455,30 +455,24 @@ export const claudeCli = {
   installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('claude-cli.install-progress'),
 };
 
-// Gemini CLI installer / 安装 gemini 命令行工具
-export const geminiCli = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('gemini-cli.check-installed'),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.install'),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('gemini-cli.uninstall'),
+// Bundled Node.js runtime
+export const nodeRuntime = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('node-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('node-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('node-runtime.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('gemini-cli.install-result'),
-  /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('gemini-cli.install-progress'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('node-runtime.install-result'),
 };
 
 // LibreOffice installer / LibreOffice 在线安装
-export interface ILibreOfficeStatus {
-  installed: boolean;
-  version?: string;
-}
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 
 export const libreOffice = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ILibreOfficeStatus>, void>('libreoffice.check-installed'),
-  getDownloadUrl: bridge.buildProvider<IBridgeResponse<{ url: string }>, void>('libreoffice.get-download-url'),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('libreoffice.check-installed'),
   install: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.install'),
   /** Install LibreOffice from a local file */
   installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('libreoffice.install-from-local-file'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.uninstall'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ILibreOfficeInstallPhase; percent?: number }>, void>('libreoffice.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
@@ -514,38 +508,42 @@ export type SudoclawTestGatewayResult = {
   stderr?: string;
 };
 
+export interface ISudoclawStatus {
+  installed: boolean;
+  configPath: string;
+  gatewayRunning?: boolean;
+  gatewayPort?: number;
+  gatewayHost?: string;
+  gatewayUrl?: string;
+  isConnected?: boolean;
+  hasActiveSession?: boolean;
+  sessionKey?: string | null;
+  workspace?: string;
+  agentName?: string;
+  model?: string;
+  cliPath?: string;
+  version?: string;
+  error?: string;
+}
+
 export const sudoclaw = {
   /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
   getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
   /** Save Sudoclaw config */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
   /** Get Sudoclaw install status */
-  getStatus: bridge.buildProvider<
-    IBridgeResponse<{
-      installed: boolean;
-      configPath: string;
-      gatewayRunning?: boolean;
-      gatewayPort?: number;
-      gatewayHost?: string;
-      gatewayUrl?: string;
-      isConnected?: boolean;
-      hasActiveSession?: boolean;
-      sessionKey?: string | null;
-      workspace?: string;
-      agentName?: string;
-      model?: string;
-      cliPath?: string;
-      version?: string;
-      error?: string;
-    }>,
-    void
-  >('sudoclaw.get-status'),
+  getStatus: bridge.buildProvider<IBridgeResponse<ISudoclawStatus>, void>('sudoclaw.get-status'),
   /** Test OpenClaw gateway connection (start gateway, verify ready, then stop) */
   testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
   /** Restart Sudoclaw gateway */
   restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
+  /** Start Sudoclaw gateway */
+  startGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.start-gateway'),
+  /** Stop Sudoclaw gateway */
+  stopGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.stop-gateway'),
   /** Install Sudoclaw manually from About page */
   install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.uninstall'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
   /** Emitted during installation to report progress */
@@ -585,10 +583,17 @@ export const nexus = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('nexus.check-installed'),
   /** Install Nexus server */
   install: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.uninstall'),
   /** Emitted periodically during installation with current phase and optional download percent */
   installProgress: bridge.buildEmitter<{ phase: NexusInstallPhase; message: string; percent?: number }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
+  /** Install Nexus server from local file */
+  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
+  /** Start Nexus server */
+  start: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.start'),
+  /** Stop Nexus server */
+  stop: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.stop'),
 };
 
 // Deep link protocol handling / 深度链接协议处理

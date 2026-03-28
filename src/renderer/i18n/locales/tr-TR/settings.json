@@ -107,6 +107,53 @@
   "closeToTray": "Tepsiye Kapat",
   "gemini": "Gemini",
   "model": "Model",
+  "runtime": "Çalışma Zamanı",
+  "runtimeSettings": {
+    "title": "Çalışma Zamanı",
+    "description": "Uygulamanın bağlı olduğu çalışma zamanı araçlarını ve hizmetleri yönetin",
+    "tool": "Araç",
+    "actions": "İşlemler",
+    "status": {
+      "notInstalled": "Yüklü değil",
+      "installed": "Yüklü",
+      "running": "Çalışıyor :{{port}}",
+      "notRunning": "Çalışmıyor",
+      "checking": "Kontrol ediliyor…"
+    },
+    "phase": {
+      "downloading": "İndiriliyor {{percent}}",
+      "mounting": "Bağlanıyor…",
+      "copying": "Kopyalanıyor…",
+      "extracting": "Çıkarılıyor…",
+      "installing": "Yükleniyor…",
+      "unpacking": "Paket açılıyor…",
+      "starting": "Başlatılıyor…",
+      "cleanup": "Temizleniyor…",
+      "configuring": "Yapılandırılıyor…",
+      "ready": "Hazır",
+      "error": "Hata"
+    },
+    "source": {
+      "managed": "Yönetilen",
+      "system": "Sistem"
+    },
+    "button": {
+      "install": "Yükle",
+      "reinstall": "Yeniden Yükle",
+      "refresh": "Yenile",
+      "uninstall": "Kaldır",
+      "start": "Başlat",
+      "stop": "Durdur"
+    },
+    "installSuccess": "{{name}} başarıyla yüklendi",
+    "installFailed": "{{name}} yüklenemedi",
+    "uninstallSuccess": "{{name}} başarıyla kaldırıldı",
+    "uninstallFailed": "{{name}} kaldırma başarısız",
+    "startSuccess": "{{name}} başlatıldı",
+    "startFailed": "{{name}} başlatılamadı",
+    "stopSuccess": "{{name}} durduruldu",
+    "stopFailed": "{{name}} durdurulamadı"
+  },
   "system": "Sistem",
   "about": "Hakkında",
   "openclaw": "Sudoclaw",

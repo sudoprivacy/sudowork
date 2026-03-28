@@ -11,11 +11,12 @@ import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/pl
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Toolkit } from '@icon-park/react';
+import { Computer, Earth, Gemini, HardDiskOne, Info, Lightning, LinkCloud, Puzzle, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AboutModalContent from './contents/AboutModalContent';
+import RuntimeModalContent from './contents/RuntimeModalContent';
 import AgentModalContent from './contents/AgentModalContent';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import GeminiModalContent from './contents/GeminiModalContent';
@@ -55,7 +56,7 @@ const RESIZE_DEBOUNCE_DELAY = 150;
 /**
  * 内置设置标签页类型 / Built-in settings tab type
  */
-export type BuiltinSettingTab = 'gemini' | 'model' | 'agent' | 'tools' | 'skill' | 'webui' | 'system' | 'about';
+export type BuiltinSettingTab = 'gemini' | 'model' | 'agent' | 'tools' | 'skill' | 'webui' | 'runtime' | 'system' | 'about';
 
 /**
  * 设置标签页类型（内置 + 扩展）/ Settings tab type (built-in + extension)
@@ -213,7 +214,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       });
     }
 
-    builtinItems.push({ key: 'system', label: t('settings.system'), icon: <Computer theme='outline' size='20' fill={iconColors.secondary} /> }, { key: 'about', label: t('settings.about'), icon: <Info theme='outline' size='20' fill={iconColors.secondary} /> });
+    builtinItems.push(
+      { key: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='20' fill={iconColors.secondary} /> },
+      { key: 'system', label: t('settings.system'), icon: <Computer theme='outline' size='20' fill={iconColors.secondary} /> },
+      { key: 'about', label: t('settings.about'), icon: <Info theme='outline' size='20' fill={iconColors.secondary} /> },
+    );
 
     // Extension tabs — position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
@@ -299,6 +304,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
         return <SkillModalContent />;
       case 'webui':
         return <WebuiModalContent />;
+      case 'runtime':
+        return <RuntimeModalContent />;
       case 'system':
         return <SystemModalContent />;
       case 'about':

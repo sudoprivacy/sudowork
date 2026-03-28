@@ -234,31 +234,51 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.restartGateway.provider(async () => {
     try {
-      // Repair config before restart to ensure correct settings
-      const { repairOpenClawConfig } = await import('../services/sudoclaw/SudoclawInstallService');
-      repairOpenClawConfig();
-
-      // Check if there are running gateway tasks
-      const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
-
-      if (openclawTasks.length > 0) {
-        // Restart existing gateways
-        await WorkerManage.restartOpenClawGateways();
-      } else {
-        // No running gateway - start a new one
-        console.log('[SudoclawBridge] No running gateway, starting new one...');
-        const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-        const gatewayManager = new OpenClawGatewayManager({
-          port: SUDOCLAW_DEFAULT_PORT,
-          stateDir: SUDOCLAW_DIR,
-          customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: path.join(SUDOCLAW_DIR, CONFIG_FILENAME) },
-          forceSubprocessGateway: true,
-        });
-        await gatewayManager.start();
-      }
+      const { serviceManager } = await import('../services/serviceManager');
+      await serviceManager.restartOpenClaw();
       return { success: true };
     } catch (err) {
       console.error('[SudoclawBridge] Restart gateway failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.startGateway.provider(async () => {
+    try {
+      const { serviceManager } = await import('../services/serviceManager');
+      await serviceManager.startOpenClaw();
+      return { success: true };
+    } catch (err) {
+      console.error('[SudoclawBridge] Start gateway failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.stopGateway.provider(async () => {
+    try {
+      const { serviceManager } = await import('../services/serviceManager');
+      await serviceManager.stopOpenClaw();
+      return { success: true };
+    } catch (err) {
+      console.error('[SudoclawBridge] Stop gateway failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.uninstall.provider(async () => {
+    try {
+      // Stop gateway first
+      const { serviceManager } = await import('../services/serviceManager');
+      await serviceManager.stopOpenClaw();
+    } catch {
+      // Ignore stop errors
+    }
+    try {
+      if (fs.existsSync(SUDOCLAW_DIR)) {
+        fs.rmSync(SUDOCLAW_DIR, { recursive: true, force: true });
+      }
+      return { success: true };
+    } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
@@ -392,7 +412,8 @@ export function initSudoclawBridge(): void {
           resolve({ success: true, data: { output: allOutput } });
 
           try {
-            await WorkerManage.restartOpenClawGateways();
+            const { serviceManager } = await import('../services/serviceManager');
+            await serviceManager.restartOpenClaw();
             console.log('[SudoclawBridge] Gateway restarted after WeChat plugin install');
           } catch (restartErr) {
             console.warn('[SudoclawBridge] Gateway restart after WeChat install failed:', restartErr);

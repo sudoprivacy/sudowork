@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
+import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
@@ -27,26 +27,6 @@ const API_TYPE_OPTIONS = [
 ];
 
 type ProviderEntry = { key: string; provider: SudoclawProvider };
-
-// ==================== Types ====================
-
-interface SudoclawStatus {
-  installed: boolean;
-  configPath: string;
-  gatewayRunning?: boolean;
-  gatewayPort?: number;
-  gatewayHost?: string;
-  gatewayUrl?: string;
-  isConnected?: boolean;
-  hasActiveSession?: boolean;
-  sessionKey?: string | null;
-  workspace?: string;
-  agentName?: string;
-  model?: string;
-  cliPath?: string;
-  version?: string;
-  error?: string;
-}
 
 // ==================== 子组件 / Sub-components ====================
 
@@ -97,7 +77,7 @@ const CopilotModalContent: React.FC = () => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<SudoclawStatus | null>(null);
+  const [status, setStatus] = useState<ISudoclawStatus | null>(null);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');

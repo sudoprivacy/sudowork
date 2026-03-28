@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { ipcBridge } from '@/common';
+import type { ICliStatus } from '@/common/ipcBridge';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -12,13 +13,6 @@ import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
-
-export interface CliStatus {
-  installed: boolean;
-  path?: string;
-  version?: string;
-  source: 'managed' | 'system' | 'none';
-}
 
 interface CliConfig {
   /** CLI command name, e.g. 'claude' or 'gemini' */
@@ -86,13 +80,13 @@ export class CliInstallService {
     return null;
   }
 
-  async checkInstalled(): Promise<CliStatus> {
+  async checkInstalled(): Promise<ICliStatus> {
     const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
     const managedBin = path.join(getBinDir(), binName);
     const entryFile = this.resolveEntryFile();
 
+    // Always prefer managed; fall back to system
     if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile)) {
-      // Read version directly from installed package.json — no PATH dependency
       return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() };
     }
 
@@ -100,7 +94,6 @@ export class CliInstallService {
       const cmd = process.platform === 'win32' ? `where ${this.cfg.name}` : `which ${this.cfg.name}`;
       const { stdout } = await execAsync(cmd);
       const paths = stdout.trim().split(/\r?\n/);
-      // Filter out our own managed bin from system check if it's there
       const systemPath = paths.find((p) => !p.startsWith(getBinDir()));
       if (systemPath) {
         return { installed: true, path: systemPath, source: 'system', version: await this.getVersionFromPath(systemPath) };

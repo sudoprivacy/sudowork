@@ -33,8 +33,8 @@ interface GatewayManagerEvents {
   stderr: (data: string) => void;
 }
 
-/** Registry of running Sudoclaw gateway managers (port -> manager) for external restart (e.g. after skill install) */
-export const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
+/** Registry of running Sudoclaw gateway managers (port -> manager) — internal bookkeeping */
+const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
 
 /**
  * Get path to hook.js for gateway safety interception.
@@ -46,24 +46,6 @@ function getHookJsPath(): string {
   }
   // Development mode: use app.getAppPath() to get project root
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
-}
-
-/**
- * Restart the Sudoclaw gateway on the given port. Used after Skill Hub install so new skills load immediately.
- * Returns true if a gateway was found and restarted; false if no gateway was running.
- */
-export async function restartSudoclawGatewayByPort(port: number): Promise<boolean> {
-  const manager = gatewayRegistry.get(port);
-  if (!manager || !manager.isRunning) return false;
-  try {
-    await manager.stop();
-    await manager.start();
-    console.log(`[OpenClawGatewayManager] Restarted gateway on port ${port} for skill reload`);
-    return true;
-  } catch (err) {
-    console.error('[OpenClawGatewayManager] Failed to restart gateway:', err);
-    return false;
-  }
 }
 
 /**
