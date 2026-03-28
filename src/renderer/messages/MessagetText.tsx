@@ -65,7 +65,8 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     return rawContent;
   }, [message.content.content]);
 
-  const { text, files } = parseFileMarker(contentToRender);
+  const { text: rawText, files } = parseFileMarker(contentToRender);
+  const text = rawText.trimEnd();
   const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
@@ -172,7 +173,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           )}
         </div>
         <div
-          className={classNames('h-32px flex items-center mt-4px', {
+          className={classNames('h-24px flex items-center mt-4px', {
             'justify-end': isUserMessage,
             'justify-start': !isUserMessage,
           })}
