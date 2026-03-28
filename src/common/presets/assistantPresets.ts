@@ -28,6 +28,17 @@ export type AssistantPreset = {
    * See: node_modules/@office-ai/aioncli-core/dist/docs/cli/generation-settings.md
    */
   modelConfigs?: Record<string, unknown>;
+  /**
+   * API Key fields for Settings UI. Values are injected as env vars when spawning.
+   */
+  apiKeyFields?: Array<{
+    key: string;
+    label: string;
+    type: 'text' | 'password' | 'select' | 'number' | 'boolean';
+    required?: boolean;
+    options?: string[];
+    default?: string | number | boolean;
+  }>;
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -396,6 +407,33 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     promptsI18n: {
       'en-US': ['Explore the app UI and look for any bugs', 'Test the security protection page toggles', 'Test creating a new conversation and sending a message'],
       'zh-CN': ['探索应用 UI，寻找 bug', '测试安全防护页面的开关功能', '测试新建会话并发送消息'],
+    },
+  },
+  {
+    id: 'jiansheku',
+    avatar: '🏗️',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/jiansheku',
+    ruleFiles: {
+      'en-US': 'jiansheku.md',
+      'zh-CN': 'jiansheku.md',
+    },
+    defaultEnabledSkills: ['jiansheku'],
+    apiKeyFields: [
+      { key: 'JIANSHEKU_APP_KEY', label: 'AppKey', type: 'password', required: true },
+      { key: 'JIANSHEKU_APP_SECRET', label: 'AppSecret', type: 'password', required: true },
+    ],
+    nameI18n: {
+      'en-US': 'Jiansheku Bot',
+      'zh-CN': '建设库助手',
+    },
+    descriptionI18n: {
+      'en-US': 'Query Chinese construction industry data: company info, qualifications, project performance, bidding records, and risk assessments.',
+      'zh-CN': '查询建设行业企业信息、资质、业绩、招投标、风险等数据，支持93个API端点。',
+    },
+    promptsI18n: {
+      'en-US': ['Look up basic info for 中建三局集团有限公司', 'Find companies with special-grade construction qualifications in Guangdong', 'Run a risk scan on 中国建筑第二工程局有限公司'],
+      'zh-CN': ['查询中建三局集团有限公司的工商基本信息', '查找广东省拥有建筑工程施工总承包特级资质的企业', '对中国建筑第二工程局有限公司进行风险扫描'],
     },
   },
 ];

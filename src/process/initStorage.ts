@@ -541,7 +541,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
     // 从预设配置中读取默认启用的技能列表（不包含 cron，因为它是内置 skill，自动注入）
     // Read default enabled skills from preset config (excluding cron, which is builtin and auto-injected)
     const defaultEnabledSkills = preset.defaultEnabledSkills;
-    const enabledByDefault = preset.id === 'cowork' || preset.id === 'openclaw-setup' || preset.id === 'star-office-helper' || preset.id === 'story-roleplay' || preset.id === 'moltbook' || preset.id === 'beautiful-mermaid' || preset.id === 'doctor';
+    const enabledByDefault = preset.id === 'cowork' || preset.id === 'openclaw-setup' || preset.id === 'star-office-helper' || preset.id === 'story-roleplay' || preset.id === 'moltbook' || preset.id === 'beautiful-mermaid' || preset.id === 'doctor' || preset.id === 'jiansheku';
 
     assistants.push({
       id: `builtin-${preset.id}`,
@@ -561,6 +561,8 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
       enabledSkills: defaultEnabledSkills,
       // 复制快捷提示词 / Copy quick prompts
       promptsI18n: preset.promptsI18n,
+      // API Key 配置字段 / API Key configuration fields
+      apiKeyFields: preset.apiKeyFields,
     });
   }
 
