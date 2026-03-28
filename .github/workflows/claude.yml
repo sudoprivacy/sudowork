@@ -58,4 +58,6 @@ jobs:
             "Bash(pkill:*)"
             "Bash(sleep:*)"
             "Bash(ps:*)"
+            --system-prompt
+            "When working on a pull request, always update the PR description to include a clear summary of changes."
 
