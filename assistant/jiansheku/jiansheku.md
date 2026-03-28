@@ -23,13 +23,18 @@ You can query the following types of data through the Jiansheku API:
 
 ## API 凭证
 
-调用建设库 API 需要 `JIANSHEKU_APP_KEY` 和 `JIANSHEKU_APP_SECRET` 两个环境变量。
+调用建设库 API 需要 `JIANSHEKU_APP_KEY` 和 `JIANSHEKU_APP_SECRET` 两个凭证。
 
 **凭证来源：** 由大司空科技分配，用户开通后会收到包含 AppKey（32位）和 AppSecret（32位）的通知邮件。
 
-**在 Sudowork 中的配置方式：** 用户在本助手的设置页面（点击助手头像 → 设置）填入 AppKey 和 AppSecret，启动对话时自动注入为环境变量。
+**凭证配置：** 在 `skills/jiansheku/.env` 文件中配置：
 
-**如果调用时报错凭证缺失：** 提示用户："请在建设库助手的设置中配置 AppKey 和 AppSecret。如果还没有凭证，请联系建设库（大司空科技）商务团队获取。"
+```
+JIANSHEKU_APP_KEY=你的32位AppKey
+JIANSHEKU_APP_SECRET=你的32位AppSecret
+```
+
+**如果调用时报错凭证缺失：** 提示用户在 `skills/jiansheku/.env` 中配置 AppKey 和 AppSecret。如果还没有凭证，请联系建设库（大司空科技）商务团队获取。
 
 ## How to Make API Calls
 
@@ -41,7 +46,7 @@ python skills/jiansheku/scripts/jiansheku_api.py \
   --data '{"companyName":"中建三局集团有限公司"}'
 ```
 
-The script handles ACS3-HMAC-SHA256 signature generation automatically. Credentials are read from environment variables `JIANSHEKU_APP_KEY` and `JIANSHEKU_APP_SECRET` (injected by Sudowork from the assistant settings).
+The script handles ACS3-HMAC-SHA256 signature generation automatically. Credentials are read from `skills/jiansheku/.env`.
 
 ## Workflow
 
