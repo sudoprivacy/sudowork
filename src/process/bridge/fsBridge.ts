@@ -7,7 +7,6 @@
 import { NEXUS_TIMESTAMP_SEPARATOR } from '@/common/constants';
 import fs from 'fs/promises';
 import path from 'path';
-import os from 'os';
 import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
@@ -68,10 +67,13 @@ async function findBuiltinResourceDir(resourceType: ResourceType): Promise<strin
 /**
  * Get user config skills directory
  * 获取用户配置 skills 目录
+ *
+ * Uses the same path as AcpSkillManager (getSkillsDir) to ensure imported skills
+ * can be correctly loaded by agents at runtime.
+ * 使用与 AcpSkillManager 相同的路径，确保导入的 skills 能被 agent 在运行时正确加载。
  */
 function getUserSkillsDir(): string {
-  const userDataPath = app.getPath('userData');
-  return path.join(userDataPath, 'config', 'skills');
+  return getSkillsDir();
 }
 
 /**
