@@ -21,6 +21,9 @@ const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
 // How long to wait for the server port after extraction (first run can be slow).
 const WAIT_PORT_TIMEOUT_AFTER_SETUP_MS = 5 * 60 * 1000; // 5 minutes
 const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
+const WAIT_PORT_RELEASE_TIMEOUT_MS = 10 * 1000; // 10 seconds
+const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
+const NEXUS_POLL_INTERVAL_MS = 200;
 
 export type NexusSetupStage =
   | 'idle'
@@ -253,6 +256,7 @@ class DynamicNexusService {
 
     // 使用固定端口 12012
     this._port = 12012;
+    this._running = false;
 
     const envDir = this.getCondaEnvDir();
     const nexusdBin = this.getNexusdPath(envDir);
@@ -267,16 +271,17 @@ class DynamicNexusService {
     // on subsequent launches.
     await this.repairMacOSLibrarySignatures(envDir);
 
-    // If the port is already taken (orphaned from a previous session), fire-and-forget
-    // the kill so we don't block here. waitForPort() below handles the retry loop.
+    // If the port is already taken, clear it synchronously before spawning a new
+    // process. Otherwise the readiness check can latch onto the old listener and
+    // report a false-positive startup.
     const portOccupied = await this.isPortInUse(this._port);
     if (portOccupied) {
-      mainLog('Nexus', `Port ${this._port} already in use — killing orphaned process (non-blocking)`);
+      const occupantPids = await this.getPidsOnPort(this._port);
+      const pidSummary = occupantPids.length > 0 ? ` (pid=${occupantPids.join(',')})` : '';
+      mainWarn('Nexus', `Port ${this._port} already in use${pidSummary} — clearing before restart`);
       this.emitSetup('starting', `Port ${this._port} already in use. Force-restarting...`);
-      // Fire-and-forget the kill; give the OS a small moment to begin releasing the port,
-      // then proceed to spawn. waitForPort() will retry until the new process is ready.
-      void this.killProcessOnPort(this._port);
-      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      await this.killProcessOnPort(this._port);
+      await this.waitForPortToBeFree(this._port, WAIT_PORT_RELEASE_TIMEOUT_MS);
     }
 
     // Remove stale PID file if exists (nexusd checks this on startup)
@@ -325,8 +330,8 @@ class DynamicNexusService {
       this.emitSetup('error', `Failed to start process: ${err.message}`);
     });
 
-    mainLog('Nexus', `Waiting for port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
-    await this.waitForPort(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
+    mainLog('Nexus', `Waiting for healthy Nexus server on port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
+    await this.waitForHealthyServer(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
     const elapsed = Date.now() - spawnStart;
     mainLog('Nexus', `Server ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
@@ -375,27 +380,51 @@ class DynamicNexusService {
     });
   }
 
+  private async getPidsOnPort(port: number): Promise<string[]> {
+    try {
+      if (process.platform === 'win32') {
+        const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
+        return stdout
+          .trim()
+          .split('\n')
+          .map((line) => line.trim().split(/\s+/).at(-1) ?? '')
+          .filter((pid) => /^\d+$/.test(pid) && pid !== '0');
+      }
+
+      const { stdout } = await execAsync(`lsof -ti tcp:${port}`);
+      return stdout
+        .trim()
+        .split('\n')
+        .map((pid) => pid.trim())
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * Force-kills whatever process is currently holding the given TCP port.
    * macOS/Linux: lsof + kill -9
    * Windows: netstat + taskkill
    */
   private async killProcessOnPort(port: number): Promise<void> {
+    const pids = await this.getPidsOnPort(port);
+    if (pids.length === 0) {
+      mainLog('Nexus', `No process found on port ${port}`);
+      return;
+    }
+
     try {
       if (process.platform === 'win32') {
-        const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
-        for (const line of stdout.trim().split('\n')) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && /^\d+$/.test(pid) && pid !== '0') {
-            await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
-          }
+        for (const pid of pids) {
+          await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
         }
       } else {
-        // macOS / Linux
-        await execAsync(`lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`);
+        for (const pid of pids) {
+          await execAsync(`kill -9 ${pid}`).catch(() => {});
+        }
       }
-      mainLog('Nexus', `Killed process on port ${port}`);
+      mainLog('Nexus', `Killed process on port ${port}: ${pids.join(',')}`);
     } catch {
       // Port was already free, nothing to do
     }
@@ -413,23 +442,9 @@ class DynamicNexusService {
       return true;
     }
 
-    // If process object is gone but we think it's running, update our internal state
-    if (this._running) {
-      this._running = false;
-    }
-
-    return false;
-  }
-
-  private findFreePort(): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const server = net.createServer();
-      server.listen(0, '127.0.0.1', () => {
-        const addr = server.address() as net.AddressInfo;
-        server.close((err) => (err ? reject(err) : resolve(addr.port)));
-      });
-      server.on('error', reject);
-    });
+    const healthy = this._port > 0 ? await this.isHealthyNexusServer(this._port) : false;
+    this._running = healthy;
+    return healthy;
   }
 
   /**
@@ -515,26 +530,52 @@ echo "codesign-repair: signed=\$SIGNED failed=\$FAILED"
     return path.join(getDataPath(), 'nexus_env');
   }
 
-  private waitForPort(port: number, timeoutMs = 10000): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const deadline = Date.now() + timeoutMs;
+  private async waitForPortToBeFree(port: number, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
 
-      const attempt = () => {
-        const socket = net.connect(port, '127.0.0.1', () => {
-          socket.destroy();
-          resolve();
-        });
-        socket.on('error', () => {
-          if (Date.now() >= deadline) {
-            reject(new Error(`[DynamicNexus] Server did not start within ${timeoutMs}ms`));
-            return;
-          }
-          setTimeout(attempt, 200);
-        });
-      };
+    while (Date.now() < deadline) {
+      if (!(await this.isPortInUse(port))) {
+        return;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_POLL_INTERVAL_MS));
+    }
 
-      attempt();
-    });
+    const pids = await this.getPidsOnPort(port);
+    const pidSummary = pids.length > 0 ? ` (pid=${pids.join(',')})` : '';
+    throw new Error(`Port ${port} is still in use after ${timeoutMs}ms${pidSummary}`);
+  }
+
+  private async isHealthyNexusServer(port: number): Promise<boolean> {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/ping`, {
+        signal: AbortSignal.timeout(NEXUS_HEALTHCHECK_TIMEOUT_MS),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async waitForHealthyServer(port: number, timeoutMs = 10000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (this.process?.exitCode !== null && this.process?.exitCode !== undefined) {
+        throw new Error(`nexusd exited before becoming ready (code=${this.process.exitCode})`);
+      }
+
+      if (this.process?.signalCode) {
+        throw new Error(`nexusd exited before becoming ready (signal=${this.process.signalCode})`);
+      }
+
+      if (await this.isHealthyNexusServer(port)) {
+        return;
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_POLL_INTERVAL_MS));
+    }
+
+    throw new Error(`[DynamicNexus] Nexus server did not become healthy within ${timeoutMs}ms`);
   }
 }
 
