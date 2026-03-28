@@ -159,8 +159,18 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   console.log(`   Found ${binaries.length} binaries to sign in ${path.basename(dir)}`);
 
   let signedCount = 0;
+  const failedBinaries = [];
   for (const binary of binaries) {
     try {
+      // Strip any existing signature first (e.g. conda-forge Team ID) so that
+      // codesign --force starts from a clean slate. Without this, some dylibs
+      // can fail re-signing and retain their original Team ID, causing a
+      // "different Team IDs" dlopen error at runtime on the user's machine.
+      try {
+        execSync(`codesign --remove-signature "${binary}"`, { stdio: 'pipe' });
+      } catch {
+        // Binary may have no signature — that is fine, continue to sign.
+      }
       const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
       execSync(`codesign --sign "${identity}" --force --timestamp --options runtime ${entitlementsFlag} "${binary}"`, {
         stdio: 'pipe',
@@ -168,7 +178,16 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
       console.log(`   ✓ Signed: ${path.basename(binary)}`);
       signedCount++;
     } catch (err) {
-      console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${err.message}`);
+      const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+      console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${msg}`);
+      failedBinaries.push(path.basename(binary));
+    }
+  }
+
+  if (failedBinaries.length > 0) {
+    console.warn(`   ⚠️  ${failedBinaries.length} binary/binaries could NOT be signed (Team ID mismatch risk):`);
+    for (const name of failedBinaries) {
+      console.warn(`        - ${name}`);
     }
   }
 
