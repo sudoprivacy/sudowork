@@ -43,9 +43,7 @@ function isUnsafeZipEntryPath(entryPath: string): boolean {
   return normalized === '..' || normalized.startsWith('../');
 }
 
-function resolveZipSkillLayout(
-  zip: JSZip,
-): {
+function resolveZipSkillLayout(zip: JSZip): {
   stripPrefix: string;
 } {
   const fileEntries = Object.values(zip.files)
@@ -59,9 +57,7 @@ function resolveZipSkillLayout(
     }
   }
 
-  const skillMdPaths = fileEntries.filter(
-    (entryPath) => path.posix.basename(entryPath) === 'SKILL.md'
-  );
+  const skillMdPaths = fileEntries.filter((entryPath) => path.posix.basename(entryPath) === 'SKILL.md');
 
   if (skillMdPaths.includes('SKILL.md')) {
     return {
@@ -69,13 +65,7 @@ function resolveZipSkillLayout(
     };
   }
 
-  const skillRoots = Array.from(
-    new Set(
-      skillMdPaths
-        .map((entryPath) => path.posix.dirname(entryPath))
-        .filter((entryPath) => entryPath && entryPath !== '.')
-    )
-  );
+  const skillRoots = Array.from(new Set(skillMdPaths.map((entryPath) => path.posix.dirname(entryPath)).filter((entryPath) => entryPath && entryPath !== '.')));
 
   if (skillRoots.length === 1) {
     const skillRoot = skillRoots[0];
@@ -89,9 +79,7 @@ function resolveZipSkillLayout(
   }
 
   if (skillRoots.length > 1) {
-    throw new Error(
-      `Zip archive contains multiple skill roots: ${skillRoots.join(', ')}`
-    );
+    throw new Error(`Zip archive contains multiple skill roots: ${skillRoots.join(', ')}`);
   }
 
   return {
@@ -99,14 +87,8 @@ function resolveZipSkillLayout(
   };
 }
 
-async function removeExistingInstalledSkillDirs(params: {
-  userSkillsDir: string;
-  requestedSkillName: string;
-  finalSkillDirName: string;
-}): Promise<void> {
-  const dirsToRemove = new Set<string>([
-    path.join(params.userSkillsDir, params.finalSkillDirName),
-  ]);
+async function removeExistingInstalledSkillDirs(params: { userSkillsDir: string; requestedSkillName: string; finalSkillDirName: string }): Promise<void> {
+  const dirsToRemove = new Set<string>([path.join(params.userSkillsDir, params.finalSkillDirName)]);
 
   if (params.requestedSkillName !== params.finalSkillDirName) {
     dirsToRemove.add(path.join(params.userSkillsDir, params.requestedSkillName));
@@ -122,10 +104,7 @@ async function removeExistingInstalledSkillDirs(params: {
   }
 }
 
-async function resolveInstalledSkillDir(
-  userSkillsDir: string,
-  skillName: string
-): Promise<string | null> {
+async function resolveInstalledSkillDir(userSkillsDir: string, skillName: string): Promise<string | null> {
   const directDir = path.join(userSkillsDir, skillName);
   try {
     await fs.access(directDir);
@@ -376,9 +355,7 @@ export function initSkillHubBridge(): void {
       };
       await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-      console.log(
-        `[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`
-      );
+      console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
       // Reload Sudoclaw gateway to pick up new skills.
       // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
