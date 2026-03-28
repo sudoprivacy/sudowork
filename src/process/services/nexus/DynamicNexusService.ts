@@ -14,6 +14,10 @@ const execAsync = promisify(exec);
 // Marker filename written inside the extracted env to record the app version it was unpacked for.
 const CONDA_READY_MARKER = '.nexus-conda-ready';
 
+// Marker written after macOS ad-hoc codesign repair. Presence means the repair has already run
+// for this installation, so start() skips it on subsequent launches.
+const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
+
 // How long to wait for the server port after extraction (first run can be slow).
 const WAIT_PORT_TIMEOUT_AFTER_SETUP_MS = 5 * 60 * 1000; // 5 minutes
 const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
@@ -203,6 +207,12 @@ class DynamicNexusService {
           }
         }
 
+        // Repair code signatures on macOS: strip conda-forge Team IDs and ad-hoc re-sign
+        // all native libraries and executables so dlopen succeeds without Team ID conflicts.
+        // force=true because this is always a fresh install — ignore any stale marker.
+        this.emitSetup('unpacking', 'Repairing native library signatures (macOS)...');
+        await this.repairMacOSLibrarySignatures(envDir, true);
+
         // Ensure nexusd is executable
         const nexusdBin = this.getNexusdPath(envDir);
         if (!fs.existsSync(nexusdBin)) {
@@ -250,6 +260,12 @@ class DynamicNexusService {
     if (!fs.existsSync(nexusdBin)) {
       throw new Error('Nexus not installed. Please install it first.');
     }
+
+    // One-time macOS codesign repair for existing installations that were extracted before
+    // this fix was introduced. repairMacOSLibrarySignatures() is a no-op if the marker file
+    // already exists (written by install() or a previous start()), so this adds no overhead
+    // on subsequent launches.
+    await this.repairMacOSLibrarySignatures(envDir);
 
     // If the port is already taken (orphaned from a previous session), fire-and-forget
     // the kill so we don't block here. waitForPort() below handles the retry loop.
@@ -403,6 +419,81 @@ class DynamicNexusService {
       });
       server.on('error', reject);
     });
+  }
+
+  /**
+   * Strip existing code signatures and apply a uniform ad-hoc signature to all
+   * native libraries (.dylib / .so) and Mach-O executables inside the conda env.
+   *
+   * Why this is needed on macOS:
+   *   conda-forge signs its libraries with its own Team ID. When the conda env is
+   *   re-signed by the Sudowork build pipeline (afterPack.js), a signing failure on
+   *   any individual file leaves it with the original conda-forge Team ID while
+   *   others receive the Sudowork Team ID. macOS then refuses to dlopen the mismatched
+   *   library ("different Team IDs"). Ad-hoc signing removes Team IDs from all files,
+   *   making them consistent and lifting the restriction.
+   *
+   *   Re-signing executables (python, nexusd …) is equally important: a process signed
+   *   with Hardened Runtime + a Team ID enforces Library Validation and will only load
+   *   dylibs with the SAME Team ID. After ad-hoc re-signing, the process has no Team ID
+   *   and no Hardened Runtime, so Library Validation is not enforced.
+   *
+   * @param envDir  Path to the extracted conda environment directory.
+   * @param force   If false (default) the method is a no-op when the repair marker
+   *                already exists, preventing redundant work on subsequent launches.
+   */
+  async repairMacOSLibrarySignatures(envDir: string, force = false): Promise<void> {
+    if (process.platform !== 'darwin') return;
+
+    const repairMarker = path.join(envDir, CODESIGN_REPAIR_MARKER);
+    if (!force && fs.existsSync(repairMarker)) {
+      mainLog('Nexus', 'macOS codesign repair already done — skipping');
+      return;
+    }
+
+    mainLog('Nexus', 'Repairing native library code signatures (macOS ad-hoc re-sign)...');
+
+    // Single bash invocation: strip + ad-hoc sign all .dylib / .so files, then all
+    // Mach-O binaries under bin/.  Using process substitution (<(...)) requires bash.
+    const script = `
+SIGNED=0; FAILED=0
+
+# 1. Native libraries
+while IFS= read -r -d '' f; do
+  codesign --remove-signature "$f" 2>/dev/null || true
+  if codesign --force --sign - "$f" 2>/dev/null; then
+    SIGNED=$((SIGNED+1))
+  else
+    echo "  warn: could not sign $f" >&2
+    FAILED=$((FAILED+1))
+  fi
+done < <(find "${envDir}" \\( -name "*.dylib" -o -name "*.so" \\) -print0)
+
+# 2. Mach-O executables in bin/ (removes hardened-runtime so Library Validation is not enforced)
+while IFS= read -r -d '' f; do
+  if file "$f" 2>/dev/null | grep -q "Mach-O"; then
+    codesign --remove-signature "$f" 2>/dev/null || true
+    if codesign --force --sign - "$f" 2>/dev/null; then
+      SIGNED=$((SIGNED+1))
+    else
+      echo "  warn: could not sign $f" >&2
+      FAILED=$((FAILED+1))
+    fi
+  fi
+done < <(find "${envDir}/bin" -maxdepth 1 -type f -print0)
+
+echo "codesign-repair: signed=\$SIGNED failed=\$FAILED"
+`;
+
+    try {
+      const { stdout, stderr } = await execAsync(script, { shell: '/bin/bash', timeout: 180000 });
+      if (stdout.trim()) mainLog('Nexus', stdout.trim());
+      if (stderr.trim()) mainWarn('Nexus', stderr.trim());
+      fs.writeFileSync(repairMarker, app.getVersion());
+      mainLog('Nexus', 'macOS codesign repair complete');
+    } catch (err) {
+      mainWarn('Nexus', `macOS codesign repair encountered errors (non-fatal): ${err}`);
+    }
   }
 
   /**

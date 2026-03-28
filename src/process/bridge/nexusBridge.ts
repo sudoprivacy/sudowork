@@ -135,6 +135,10 @@ export function initNexusBridge(): void {
         console.warn(`[NexusBridge] conda-unpack not found at ${condaUnpack} — skipping`);
       }
 
+      // Repair code signatures on macOS (strip conda-forge Team IDs, ad-hoc re-sign).
+      // force=true because this is always a fresh local-file install.
+      await dynamicNexusService.repairMacOSLibrarySignatures(envDir, true);
+
       // 确保 nexusd 可执行
       // Windows: bin\nexusd.exe or bin\nexusd; macOS/Linux: bin/nexusd
       const nexusdBin = isWindows ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe')) ? path.join(envDir, 'bin', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd')) : path.join(envDir, 'bin', 'nexusd');
