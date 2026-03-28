@@ -273,9 +273,9 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
         }
       }
 
-      // 仅保留指定的 4 个内置助手：UI 专业设计师、文件规划助手、Beautiful Mermaid、moltbook
-      // Keep only 4 builtin assistants: UI 专业设计师，文件规划助手，Beautiful Mermaid, moltbook
-      let allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot'];
+      // 仅保留指定的内置助手
+      // Keep only allowed builtin assistants
+      let allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor'];
       const filteredAgents = mergedAgents.filter((agent) => {
         const otherAgents = mergedAgents.filter((_) => !_.id.startsWith('builtin-'));
         allowedPresetIds = allowedPresetIds.concat(otherAgents.map((_) => _.id));

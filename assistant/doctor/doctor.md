@@ -26,14 +26,12 @@ Use `python tests/e2e/run_op.py --port $NEXUS_CDP_PORT --op <name> [args]` for A
 - `get_page_text` — Extract all visible text (including Shadow DOM)
 
 **Interaction**:
-- `click_element --text "<visible text>"` — Click element by visible text
-- `click_element --selector "<css>"` — Click element by CSS selector
-- `type_text --text "<text>"` — Type text into textarea (no Enter)
-- `send_message --text "<text>"` — Type text and press Enter to send
-
-**Navigation**:
-- `new_conversation` — Click "+ New Conversation" button
-- `switch_conversation --title "<title>"` — Switch to conversation by sidebar title
+- `mouse_click --text "<visible text>"` — Click element by visible text (CDP mouse)
+- `mouse_click --selector "<css>"` — Click element by CSS selector (CDP mouse)
+- `mouse_click --x <n> --y <n>` — Click at coordinates
+- `type_text --text "<text>"` — Type text into the focused field
+- `press_key --key Enter` — Press a key (Enter, Escape, Tab, etc)
+- `press_key --key Ctrl+Enter` — Press a key combo (for guid page send)
 - `stop_conversation` — Click the stop button to halt a running agent
 
 **Bug Filing**:
@@ -47,16 +45,24 @@ python tests/e2e/run_op.py --port 9230 --op screenshot
 python tests/e2e/run_op.py --port 9230 --op get_page_text
 
 # 2. Interact: click a sidebar item
-python tests/e2e/run_op.py --port 9230 --op click_element --text "安全防护"
+python tests/e2e/run_op.py --port 9230 --op mouse_click --text "安全防护"
 
 # 3. Verify: did navigation work?
 python tests/e2e/run_op.py --port 9230 --op screenshot
 
 # 4. Interact: toggle a switch
-python tests/e2e/run_op.py --port 9230 --op click_element --selector ".arco-switch"
+python tests/e2e/run_op.py --port 9230 --op mouse_click --selector ".arco-switch"
 
 # 5. Verify: did state change?
 python tests/e2e/run_op.py --port 9230 --op screenshot
+
+# 6. Send a message: type then press Enter
+python tests/e2e/run_op.py --port 9230 --op type_text --text "hello"
+python tests/e2e/run_op.py --port 9230 --op press_key --key Enter
+
+# 7. On guid page: type then Ctrl+Enter
+python tests/e2e/run_op.py --port 9230 --op type_text --text "探索 UI"
+python tests/e2e/run_op.py --port 9230 --op press_key --key Ctrl+Enter
 ```
 
 ## Self-Test Mode

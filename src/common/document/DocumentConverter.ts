@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { TextRun as ITextRun, FileChild } from 'docx'; 
 /**
  * 文档转换器 - Markdown 中心化
  *
@@ -43,52 +44,211 @@ export class DocumentConverter {
    * 使用 docx 库将 Markdown 转换为 Word 文档
    */
   async markdownToWord(markdown: string): Promise<ArrayBuffer> {
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType } = await import('docx');
+    const { unified } = await import('unified');
+    const remarkParse = (await import('remark-parse')).default;
+    const remarkGfm = (await import('remark-gfm')).default;
 
-    // 简单实现：将 Markdown 段落转为 Word 段落
-    // 更复杂的实现可以解析 Markdown AST
-    const lines = markdown.split('\n');
-    const paragraphs = [];
+    // 1. 解析 Markdown 为 AST
+    const processor = unified().use(remarkParse).use(remarkGfm);
+    const ast = processor.parse(markdown);
 
-    for (const line of lines) {
-      if (line.startsWith('# ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.substring(2),
-            heading: HeadingLevel.HEADING_1,
-          })
-        );
-      } else if (line.startsWith('## ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.substring(3),
-            heading: HeadingLevel.HEADING_2,
-          })
-        );
-      } else if (line.startsWith('### ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.substring(4),
-            heading: HeadingLevel.HEADING_3,
-          })
-        );
-      } else if (line.trim()) {
-        paragraphs.push(
-          new Paragraph({
-            children: [new TextRun(line)],
-          })
-        );
-      } else {
-        // 空行
-        paragraphs.push(new Paragraph({ text: '' }));
+    const children: FileChild[] = [];
+
+    // 辅助函数：处理内联节点 (text, strong, emphasis, inlineCode, link)
+    const processInlineNodes = (nodes: any[], baseOptions: any = {}): ITextRun[] => {
+      const runs: ITextRun[] = [];
+      for (const node of nodes) {
+        if (node.type === 'text') {
+          runs.push(new TextRun({ ...baseOptions, text: node.value }));
+        } else if (node.type === 'strong') {
+          runs.push(...processInlineNodes(node.children, { ...baseOptions, bold: true }));
+        } else if (node.type === 'emphasis') {
+          runs.push(...processInlineNodes(node.children, { ...baseOptions, italics: true }));
+        } else if (node.type === 'inlineCode') {
+          runs.push(
+            new TextRun({
+              ...baseOptions,
+              text: node.value,
+              font: 'Consolas',
+              shading: { fill: 'F0F0F0' },
+            })
+          );
+        } else if (node.type === 'link') {
+          runs.push(
+            ...processInlineNodes(node.children, {
+              ...baseOptions,
+              color: '0563C1',
+              underline: {},
+            })
+          );
+        } else if (node.type === 'break') {
+          runs.push(new TextRun({ ...baseOptions, text: '', break: 1 }));
+        }
       }
+      return runs;
+    };
+
+    // 2. 遍历 AST 节点
+    const visit = (node: any) => {
+      switch (node.type) {
+        case 'heading': {
+          const levels = [
+            HeadingLevel.HEADING_1,
+            HeadingLevel.HEADING_2,
+            HeadingLevel.HEADING_3,
+            HeadingLevel.HEADING_4,
+            HeadingLevel.HEADING_5,
+            HeadingLevel.HEADING_6,
+          ];
+          children.push(
+            new Paragraph({
+              heading: levels[node.depth - 1] || HeadingLevel.HEADING_1,
+              children: processInlineNodes(node.children),
+              spacing: { before: 240, after: 120 },
+            })
+          );
+          break;
+        }
+        case 'paragraph': {
+          children.push(
+            new Paragraph({
+              children: processInlineNodes(node.children),
+              spacing: { before: 120, after: 120 },
+            })
+          );
+          break;
+        }
+        case 'list': {
+          node.children.forEach((listItem: any, index: number) => {
+            // 处理列表项中的内容 (通常是 paragraph)
+            listItem.children.forEach((child: any) => {
+              if (child.type === 'paragraph') {
+                children.push(
+                  new Paragraph({
+                    children: processInlineNodes(child.children),
+                    bullet: node.ordered ? undefined : { level: 0 },
+                    numbering: node.ordered
+                      ? {
+                          reference: 'main-numbering',
+                          level: 0,
+                          instance: index,
+                        }
+                      : undefined,
+                  })
+                );
+              }
+            });
+          });
+          break;
+        }
+        case 'code': {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: node.value,
+                  font: 'Consolas',
+                }),
+              ],
+              shading: { fill: 'F5F5F5' },
+              border: {
+                top: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
+                bottom: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
+                left: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
+                right: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
+              },
+              spacing: { before: 120, after: 120 },
+            })
+          );
+          break;
+        }
+        case 'blockquote': {
+          node.children.forEach((child: any) => {
+            if (child.type === 'paragraph') {
+              children.push(
+                new Paragraph({
+                  children: processInlineNodes(child.children),
+                  indent: { left: 720 },
+                  border: {
+                    left: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 24 },
+                  },
+                  spacing: { before: 120, after: 120 },
+                })
+              );
+            }
+          });
+          break;
+        }
+        case 'table': {
+          const rows = node.children.map((row: any) => {
+            return new TableRow({
+              children: row.children.map((cell: any) => {
+                return new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: processInlineNodes(cell.children),
+                    }),
+                  ],
+                  shading: { fill: row === node.children[0] ? 'F2F2F2' : undefined },
+                });
+              }),
+            });
+          });
+          children.push(
+            new Table({
+              rows,
+              width: { size: 100, type: WidthType.PERCENTAGE },
+            })
+          );
+          break;
+        }
+        case 'thematicBreak': {
+          children.push(
+            new Paragraph({
+              border: {
+                bottom: { color: '000000', space: 1, style: BorderStyle.SINGLE, size: 6 },
+              },
+            })
+          );
+          break;
+        }
+        default:
+          if (node.children) {
+            node.children.forEach(visit);
+          }
+      }
+    };
+
+    if (ast.type === 'root') {
+      ast.children.forEach(visit);
     }
 
     const doc = new Document({
+      numbering: {
+        config: [
+          {
+            reference: 'main-numbering',
+            levels: [
+              {
+                level: 0,
+                format: 'decimal',
+                text: '%1.',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 720, hanging: 360 },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
       sections: [
         {
           properties: {},
-          children: paragraphs,
+          children: children,
         },
       ],
     });

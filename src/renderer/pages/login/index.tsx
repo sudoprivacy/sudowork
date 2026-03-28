@@ -5,8 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key } from '@icon-park/react';
+import { Phone, Protect, Key, User } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import './LoginPage.css';
 
@@ -27,10 +28,13 @@ const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' clas
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { status, login } = useAuth();
+  const { status, login, register } = useAuth();
 
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
@@ -77,8 +81,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const res = await fetch(`${serverConfig.baseUrl}/api/v1/auth/send-code`, {
+      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -107,19 +110,52 @@ const LoginPage: React.FC = () => {
       return;
     }
 
+    if (mode === 'register') {
+      if (!nickname.trim()) {
+        Message.warning('请输入昵称');
+        return;
+      }
+      if (!invitationCode.trim()) {
+        Message.warning('请输入邀请码');
+        return;
+      }
+    }
+
     setLoading(true);
     const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE });
 
     if (result.success) {
+      if (mode === 'register') {
+        Message.info('该手机号已注册，已直接登录');
+      }
       setTimeout(() => navigate('/guid', { replace: true }), 300);
+      setLoading(false);
+      return;
     } else {
       const statusCode = (result as any).status;
       const needRegister = (result as any).need_register;
       const registerToken = (result as any).register_token;
 
-      // 处理需要注册的情况
       if (needRegister && registerToken) {
-        navigate(`/register?token=${registerToken}&phone=${encodeURIComponent(phone)}`, { replace: true });
+        if (mode === 'register') {
+          // In register mode: proceed with registration inline
+          const regResult = await register({
+            register_token: registerToken,
+            nickname: nickname.trim(),
+            invitation_code: invitationCode.trim(),
+          });
+
+          if (regResult.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(regResult.message || '注册失败');
+          }
+        } else {
+          // In login mode: prompt user to switch to register tab
+          Message.info('该手机号未注册，请切换到注册标签完成注册');
+          setMode('register');
+        }
+        setLoading(false);
         return;
       }
 
@@ -151,7 +187,7 @@ const LoginPage: React.FC = () => {
     return (
       <div className='login-page'>
         <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className={`w-64px h-64px rd-full flex items-center justify-center ${statusMsg.type === 'rejected' ? 'bg-red-100 text-red-500' : 'bg-orange-100 text-orange-500'}`}>
+          <div className={`w-64px h-64px rd-full flex items-center justify-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
             <Protect theme='filled' size={32} />
           </div>
           <div>
@@ -196,33 +232,57 @@ const LoginPage: React.FC = () => {
         <div className='login-page__background-circle login-page__background-circle--sm' />
       </div>
 
-      <div className='login-page__card !bg-white/90 !backdrop-blur-xl border border-white/20 shadow-2xl'>
+      <div className='login-page__card'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
             <AionLogoMark />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
-          <p className='text-13px text-t-dim'>企业级 Agent 协同指挥中心</p>
+          <p className='text-13px text-t-secondary'>企业级 Agent 协同指挥中心</p>
         </div>
 
-        <div className='flex flex-col gap-20px mt-32px'>
+        {/* Tab switcher */}
+        <div className='login-tabs'>
+          <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
+            登录
+          </button>
+          <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
+            注册
+          </button>
+        </div>
+
+        <div className='flex flex-col gap-20px mt-24px'>
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-dim' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='!rd-12px !bg-fill-2/50 border-none h-48px' />
+            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>身份验证</div>
             <Space size='small' className='w-full'>
-              <Input size='large' prefix={<Key className='text-t-dim' />} placeholder='6 位验证码' value={code} onChange={setCode} className='!rd-12px !bg-fill-2/50 border-none h-48px flex-1' />
+              <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
               <Button size='large' disabled={countdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
                 {countdown > 0 ? `${countdown}s` : '发送验证码'}
               </Button>
             </Space>
           </div>
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='!rd-12px h-52px mt-12px font-800 text-16px tracking-wide shadow-lg shadow-primary/30'>
-            登录
+          {mode === 'register' && (
+            <>
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>昵称</div>
+                <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+              </div>
+
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
+                <Input size='large' prefix={<Protect className='text-t-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+              </div>
+            </>
+          )}
+
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+            {mode === 'login' ? '登录' : '注册'}
           </Button>
         </div>
       </div>

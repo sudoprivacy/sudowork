@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import type { SudoclawConfig } from '@/common/ipcBridge';
@@ -211,15 +212,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code, remember }: LoginParams): Promise<LoginResult> => {
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const baseUrl = serverConfig.baseUrl || 'https://sudoclaw-server.sudoprivacy.com';
-
-      const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone, code, enterprise_code }),
       });
 
       const data = (await response.json()) as any;
@@ -257,10 +255,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const register = useCallback(async ({ register_token, nickname, invitation_code }: RegisterParams): Promise<RegisterResult> => {
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const baseUrl = serverConfig.baseUrl || 'https://sudoclaw-server.sudoprivacy.com';
-
-      const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
+      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

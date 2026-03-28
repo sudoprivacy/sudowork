@@ -5,15 +5,16 @@
  */
 
 import { sudoworkServer } from '@/common/ipcBridge';
-import { ProcessConfig } from '../initStorage';
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 
 export function initSudoworkServerBridge(): void {
   sudoworkServer.getConfig.provider(async () => {
-    return (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'https://sudoclaw-server.sudoprivacy.com' };
+    // Always return hardcoded URL, ignore any saved config
+    return { baseUrl: SUDOWORK_SERVER_BASE_URL };
   });
 
-  sudoworkServer.updateConfig.provider(async (config) => {
-    const current = (await ProcessConfig.get('sudowork.server')) || { baseUrl: 'https://sudoclaw-server.sudoprivacy.com' };
-    await ProcessConfig.set('sudowork.server', { ...current, ...config });
+  sudoworkServer.updateConfig.provider(async (_config) => {
+    // No-op: server URL is now hardcoded and cannot be changed via config
+    // This handler exists for backward compatibility but does nothing
   });
 }

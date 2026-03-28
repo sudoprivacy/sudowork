@@ -1,6 +1,57 @@
 import type { ControllerSource, FileFlag } from '../file/FileController';
 import { Nexus } from './Nexus';
 import { randomUUID } from 'node:crypto';
+import { shouldTriggerPopup } from '../blacklist/BlacklistMatcher';
+import type { BlacklistConfig } from '../blacklist/types';
+
+/** Path to blacklist config in Nexus filesystem */
+const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
+
+/** Cached blacklist config (updated via polling in index.ts) */
+let cachedBlacklistConfig: BlacklistConfig | null = null;
+
+/**
+ * Update cached blacklist config (called from index.ts polling)
+ */
+export function updateBlacklistConfig(config: BlacklistConfig): void {
+  cachedBlacklistConfig = config;
+}
+
+/**
+ * Get cached blacklist config
+ */
+export function getBlacklistConfig(): BlacklistConfig | null {
+  return cachedBlacklistConfig;
+}
+
+/**
+ * Read blacklist config from Nexus filesystem
+ */
+async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
+  try {
+    const nexus = new Nexus(this.serverUrl, this.apikey);
+    const result = await nexus.read(BLACKLIST_CONFIG_PATH, false);
+
+    // Handle Buffer result
+    if (Buffer.isBuffer(result)) {
+      return JSON.parse(result.toString('utf-8')) as BlacklistConfig;
+    }
+
+    // Handle object result with content
+    if (result && typeof result === 'object' && 'content' in result) {
+      const content = result.content;
+      const data = Buffer.isBuffer(content)
+        ? JSON.parse(content.toString('utf-8'))
+        : JSON.parse(String(content));
+      return data as BlacklistConfig;
+    }
+
+    return null;
+  } catch {
+    // File may not exist
+    return null;
+  }
+}
 
 export class NexusController extends Nexus {
   constructor(
@@ -16,19 +67,48 @@ export class NexusController extends Nexus {
       return;
     }
 
+    // Check blacklist before creating event
+    let blacklistConfig = cachedBlacklistConfig;
+
+    if (!blacklistConfig) {
+      // Try reading from Nexus if not cached
+      blacklistConfig = await readBlacklistConfig.call(this);
+    }
+
+    // If no blacklist config or empty rules, don't intercept (allow all)
+    if (!blacklistConfig || !blacklistConfig.rules || blacklistConfig.rules.length === 0) {
+      return;
+    }
+
+    const type = payload.type;
+    let data: { url?: string; path?: string; flags?: string[] } = {};
+
+    if (type === 'network') {
+      data = { url: payload.data.url };
+    } else if (type === 'file') {
+      data = { path: payload.data.path, flags: payload.data.flags };
+    }
+
+    const result = shouldTriggerPopup(type, data, blacklistConfig);
+
+    if (!result.shouldTrigger) {
+      // Not in blacklist, allow immediately without popup
+      return;
+    }
+
     const eventID = randomUUID();
     const event = JSON.stringify(payload);
-    this.logger.debug(`event id: ${eventID}, body: ${event}`);
+    console.log(`[SafetyHook] Intercepted ${type}: ${data.url || data.path}`);
 
     try {
       await this.write(`/safe/event/${eventID}`, event);
       const content = await this.readUntilExists(`/safe/action/${eventID}`, this.timeout);
-      const result = JSON.parse(content.toString()) as {
+      const actionResult = JSON.parse(content.toString()) as {
         allow?: boolean;
         reason?: string;
       };
-      if (!result.allow) {
-        controller.errorWith(result.reason || 'Security Violation: request was DENIED');
+      if (!actionResult.allow) {
+        controller.errorWith(actionResult.reason || 'Security Violation: request was DENIED');
       }
     } catch (err) {
       controller.errorWith('remote controller is offline');

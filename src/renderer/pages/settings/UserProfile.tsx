@@ -106,7 +106,7 @@ const UserProfile: React.FC = () => {
         <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.profile')}</div>
 
         {/* Identity */}
-        <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-border-2'>
+        <div className='flex items-center gap-20px p-24px bg-fill-0 rd-16px border border-border-base'>
           <Avatar size={64} className='bg-primary/10'>
             <User theme='outline' size={32} className='text-primary' />
           </Avatar>
@@ -127,57 +127,57 @@ const UserProfile: React.FC = () => {
 
         {/* Dashboard */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-16px'>
-          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+          <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col justify-between h-140px'>
             <div className='text-13px font-500 text-t-secondary'>剩余积分</div>
             <div className='flex items-baseline gap-8px'>
               <span className='text-36px font-700 italic text-primary'>{remainingPoints}</span>
-              <span className='text-12px font-600 text-t-dim'>PTS</span>
+              <span className='text-12px font-600 text-t-tertiary'>PTS</span>
             </div>
           </div>
 
-          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+          <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col justify-between h-140px'>
             <div className='text-13px font-500 text-t-secondary'>累计已用</div>
             <div className='flex items-baseline gap-8px'>
-              <span className='text-36px font-700'>{usedPoints}</span>
-              <span className='text-12px font-600 text-t-dim'>PTS</span>
+              <span className='text-36px font-700 text-t-primary'>{usedPoints}</span>
+              <span className='text-12px font-600 text-t-tertiary'>PTS</span>
             </div>
           </div>
 
-          <div className='p-24px bg-2 rd-16px border border-border-2 flex flex-col justify-between h-140px'>
+          <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col justify-between h-140px'>
             <div className='text-13px font-500 text-t-secondary'>赠送积分</div>
             <div className='flex items-baseline gap-8px'>
-              <span className='text-36px font-700 text-green-500'>{bonusPoints}</span>
-              <span className='text-12px font-600 text-t-dim'>PTS</span>
+              <span className='text-36px font-700 text-success'>{bonusPoints}</span>
+              <span className='text-12px font-600 text-t-tertiary'>PTS</span>
             </div>
           </div>
         </div>
 
         {/* Today Stats */}
-        <div className='p-24px bg-2 rd-16px border border-border-2'>
-          <div className='text-14px font-600 mb-16px'>今日使用</div>
+        <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
+          <div className='text-14px font-600 text-t-primary mb-16px'>今日使用</div>
           <div className='grid grid-cols-3 gap-16px'>
             <div className='text-center'>
-              <div className='text-24px font-700'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
-              <div className='text-12px text-t-dim'>Tokens</div>
+              <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
+              <div className='text-12px text-t-tertiary'>Tokens</div>
             </div>
             <div className='text-center'>
               <div className='text-24px font-700 text-primary'>{stats?.usage_today?.cost_points || 0}</div>
-              <div className='text-12px text-t-dim'>消耗积分</div>
+              <div className='text-12px text-t-tertiary'>消耗积分</div>
             </div>
             <div className='text-center'>
-              <div className='text-24px font-700'>{stats?.usage_today?.requests || 0}</div>
-              <div className='text-12px text-t-dim'>请求数</div>
+              <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.requests || 0}</div>
+              <div className='text-12px text-t-tertiary'>请求数</div>
             </div>
           </div>
         </div>
 
         {/* Ledger Table */}
-        <div className='bg-2 rd-16px border border-border-2 overflow-hidden'>
-          <div className='px-20px py-16px border-b border-border-2 font-600 text-14px'>使用流水</div>
+        <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
+          <div className='px-20px py-16px border-b border-border-base font-600 text-14px text-t-primary'>使用流水</div>
           {ledger.length > 0 ? (
             <table className='w-full'>
               <thead>
-                <tr className='border-b border-border-2 text-13px text-t-secondary'>
+                <tr className='border-b border-border-base text-13px text-t-secondary'>
                   <th className='py-12px px-20px text-left font-500'>模型</th>
                   <th className='py-12px px-20px text-left font-500'>使用时间</th>
                   <th className='py-12px px-20px text-right font-500'>输入Token</th>
@@ -187,16 +187,16 @@ const UserProfile: React.FC = () => {
               <tbody>
                 {ledger.map((item, index) => (
                   <tr key={index} className='border-b border-border-1 last:border-b-0 text-14px'>
-                    <td className='py-12px px-20px'>{item.model || '-'}</td>
-                    <td className='py-12px px-20px'>{item.timestamp ? new Date(item.timestamp).toLocaleString() : '-'}</td>
-                    <td className='py-12px px-20px text-right font-500'>{(item.prompt_tokens || 0).toLocaleString()}</td>
-                    <td className='py-12px px-20px text-right font-500'>{(item.completion_tokens || 0).toLocaleString()}</td>
+                    <td className='py-12px px-20px text-t-primary'>{item.model || '-'}</td>
+                    <td className='py-12px px-20px text-t-secondary'>{item.timestamp ? new Date(item.timestamp).toLocaleString() : '-'}</td>
+                    <td className='py-12px px-20px text-right font-500 text-t-primary'>{(item.prompt_tokens || 0).toLocaleString()}</td>
+                    <td className='py-12px px-20px text-right font-500 text-t-primary'>{(item.completion_tokens || 0).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <div className='py-24px text-center text-t-dim'>暂无使用记录</div>
+            <div className='py-24px text-center text-t-tertiary'>暂无使用记录</div>
           )}
         </div>
       </div>

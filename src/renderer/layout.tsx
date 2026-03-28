@@ -7,6 +7,8 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage, type ICssTheme } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
+import { SafetyWarningModal } from '@/renderer/components/SafetyWarningModal';
+import { useSafetyCheck } from '@/renderer/hooks/useSafetyCheck';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
@@ -78,6 +80,7 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
+  const { hasEvent, status, confirm, cancel } = useSafetyCheck();
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window === 'undefined' ? 390 : window.innerWidth));
@@ -354,6 +357,7 @@ const Layout: React.FC<{
             <Suspense fallback={null}>
               <UpdateModal />
             </Suspense>
+            <SafetyWarningModal visible={hasEvent} status={status} onConfirm={confirm} onCancel={cancel} />
           </ArcoLayout.Content>
         </ArcoLayout>
       </div>

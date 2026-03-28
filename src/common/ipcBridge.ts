@@ -409,6 +409,8 @@ export const preview = {
 
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
+  /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
+  saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
@@ -1053,4 +1055,25 @@ export interface ISudoworkServerConfig {
 export const sudoworkServer = {
   getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
   updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
+};
+
+// ==================== Safety Hook API ====================
+
+import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
+
+export const safety = {
+  /** Get current safety status */
+  getStatus: bridge.buildProvider<IBridgeResponse<SafetyStatus>, void>('safety.get-status'),
+  /** Get service enabled status */
+  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('safety.get-enabled'),
+  /** User confirmation action (allow/deny) */
+  confirm: bridge.buildProvider<IBridgeResponse, { allow: boolean; reason?: string }>('safety.confirm'),
+  /** Enable/disable safety hook service */
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
+  /** Safety status change event (Main -> Renderer) */
+  onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
+  /** Get blacklist configuration */
+  getBlacklist: bridge.buildProvider<IBridgeResponse<BlacklistConfig>, void>('safety.get-blacklist'),
+  /** Set blacklist configuration */
+  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
 };

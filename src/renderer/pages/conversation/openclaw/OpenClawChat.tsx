@@ -12,6 +12,7 @@ import HOC from '@renderer/utils/HOC';
 import React, { useEffect } from 'react';
 import LocalImageView from '../../../components/LocalImageView';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
+import SafetyChatConfirm from '../SafetyChatConfirm';
 import OpenClawSendBox from './OpenClawSendBox';
 
 const OpenClawChat: React.FC<{
@@ -29,9 +30,11 @@ const OpenClawChat: React.FC<{
         <FlexFullContainer>
           <MessageList className='flex-1'></MessageList>
         </FlexFullContainer>
-        <ConversationChatConfirm conversation_id={conversation_id}>
-          <OpenClawSendBox conversation_id={conversation_id} />
-        </ConversationChatConfirm>
+        <SafetyChatConfirm conversation_id={conversation_id}>
+          <ConversationChatConfirm conversation_id={conversation_id}>
+            <OpenClawSendBox conversation_id={conversation_id} />
+          </ConversationChatConfirm>
+        </SafetyChatConfirm>
       </div>
     </ConversationProvider>
   );

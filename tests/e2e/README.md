@@ -4,15 +4,15 @@ Screenshot-driven E2E tests for Sudowork, powered by ai-dev-browser.
 
 ## What is an Op?
 
-An op is ONE atomic human intention:
+An op is ONE atomic human-computer interaction primitive:
 
-- `type_text` — human types text (no Enter)
-- `send_message` — human sends a message (type + Enter)
-- `click_element` — human clicks something
-- `screenshot` — human looks at the screen
-- `stop_conversation` — human clicks the stop button
+- `type_text` — type text into a field
+- `press_key` — press a key or key combo (Enter, Ctrl+Enter, Escape)
+- `mouse_click` — click at coordinates or on an element (CDP mouse events)
+- `screenshot` — capture the screen
+- `get_page_text` — read all visible text
 
-NOT an op: "type text then send then wait for response" — that's 3 intentions.
+NOT an op: "type text then press enter" — that's 2 primitives.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ cases/*.yaml       — test cases referencing ops
 
 ## Rules
 
-1. Each op = one human intention. If you'd describe it with "and then", split it.
+1. Each op = one HCI primitive. If you'd describe it with "and then", split it.
 2. Ops must NOT call AI. They are deterministic scripts.
 3. Ops use CDP events (human-like) over DOM manipulation (js_exec).
    Use js_exec ONLY when CDP can't reach the element (e.g., React state setter).
@@ -38,9 +38,9 @@ cases/*.yaml       — test cases referencing ops
 ```bash
 # Run a single op (used by Doctor and interactive testing)
 python tests/e2e/run_op.py --port 9230 --op screenshot
-python tests/e2e/run_op.py --port 9230 --op click_element --text "技能商店"
-python tests/e2e/run_op.py --port 9230 --op send_message --text "hello"
+python tests/e2e/run_op.py --port 9230 --op mouse_click --text "技能商店"
 python tests/e2e/run_op.py --port 9230 --op type_text --text "/model"
+python tests/e2e/run_op.py --port 9230 --op press_key --key Ctrl+Enter
 python tests/e2e/run_op.py --port 9230 --op file_bug --title "bug" --body "desc"
 python tests/e2e/run_op.py --list  # List all available ops
 
