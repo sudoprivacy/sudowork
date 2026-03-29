@@ -12,7 +12,7 @@
  * Also manages safety hook enabled state and syncs it via Nexus filesystem.
  */
 
-import type { BlacklistConfig, SafetyStatus } from '@/common/safetyTypes';
+import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
 import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile } from './SecurityHookFile';
@@ -369,20 +369,12 @@ export class SafetyPollingService {
     try {
       const client = getNexusClient();
       const content = await client.read(BLACKLIST_CONFIG_PATH);
-      let configStr: string | undefined;
-
-      if (Buffer.isBuffer(content) && content.length > 0) {
-        configStr = content.toString('utf-8');
-      } else if (content && typeof content === 'object' && 'content' in content) {
-        const rawContent = content.content;
-        configStr = Buffer.isBuffer(rawContent) ? rawContent.toString('utf-8') : String(rawContent);
-      }
-
-      if (!configStr) {
+      if (!Buffer.isBuffer(content) || content.length === 0) {
         return false;
       }
-      const config = JSON.parse(configStr) as BlacklistConfig;
-      return config.rules.some((rule) => rule.enabled);
+      const configStr = content.toString('utf-8');
+      const config = JSON.parse(configStr) as { rules?: { enabled?: boolean }[] };
+      return config?.rules?.some((rule: { enabled?: boolean }) => rule.enabled) ?? false;
     } catch (error) {
       // If blacklist file doesn't exist or parse fails, assume no rules
       return false;

@@ -147,17 +147,9 @@ export async function initBlacklist(): Promise<void> {
     // First check if Nexus already has blacklist config
     try {
       const content = await client.read(BLACKLIST_CONFIG_PATH);
-      let configStr: string | undefined;
-
       if (Buffer.isBuffer(content) && content.length > 0) {
-        configStr = content.toString('utf-8');
-      } else if (content && typeof content === 'object' && 'content' in content) {
-        const rawContent = content.content;
-        configStr = Buffer.isBuffer(rawContent) ? rawContent.toString('utf-8') : String(rawContent);
-      }
-
-      if (configStr && configStr.length > 0) {
         // Nexus has data, sync to local storage for persistence
+        const configStr = content.toString('utf-8');
         const nexusConfig = JSON.parse(configStr);
         await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, nexusConfig);
         console.log('[SafetyBlacklist] Synced from Nexus to local storage');

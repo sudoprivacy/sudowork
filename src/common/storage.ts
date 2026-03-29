@@ -222,6 +222,8 @@ export type TChatConversation =
           backend?: AcpBackendAll;
           agentName?: string;
           customWorkspace?: boolean;
+          customAgentId?: string; // UUID for identifying specific custom agent
+          presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
           /** Gateway configuration */
           gateway?: {
             host?: string;
@@ -249,6 +251,10 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID / Preset assistant ID */
           presetAssistantId?: string;
+          /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
+          sessionMode?: string;
+          /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
+          currentModelId?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
