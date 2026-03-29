@@ -413,6 +413,18 @@ module.exports = async function afterPack(context) {
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
   if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
+    // Sign bundled bdpan installer binary directly (it's a plain binary, not an archive)
+    const bdpanBinary = path.join(resourcesDir, `bdpan-installer-darwin-${targetArch}`);
+    if (fs.existsSync(bdpanBinary)) {
+      console.log(`\n🔐 Signing bdpan installer binary...`);
+      try {
+        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${bdpanBinary}"`, { stdio: 'pipe' });
+        console.log(`   ✓ Signed: ${path.basename(bdpanBinary)}`);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to sign bdpan installer: ${err.message}`);
+      }
+    }
+
     // Fixed name archives
     const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
 

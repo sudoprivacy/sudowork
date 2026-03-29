@@ -15,9 +15,11 @@ import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Message, Tag } from '@arco-design/web-react';
-import { Plus } from '@icon-park/react';
+import { Button, Dropdown, Menu, Message, Tag } from '@arco-design/web-react';
+import { Plus, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildDisplayMessage, filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
@@ -459,6 +461,21 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
+  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [messageApi, messageContextHolder] = Message.useMessage();
+  const messageApiRef = useRef(messageApi);
+  messageApiRef.current = messageApi;
+
+  useEffect(() => {
+    return ipcBridge.bdpan.downloadResult.on((result) => {
+      if (result.success) {
+        messageApiRef.current.success(t('conversation.bdpan.download.success'));
+      } else {
+        messageApiRef.current.error(result.error ?? t('conversation.bdpan.download.failed'));
+      }
+    });
+  }, [t]);
 
   // Handle initial message from guid page
   useEffect(() => {
@@ -538,6 +555,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+      {messageContextHolder}
       <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} />
 
       <SendBox
@@ -559,7 +577,41 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         supportedExts={allSupportedExts}
         defaultMultiLine={true}
         lockMultiLine={true}
-        tools={<Button type='secondary' shape='circle' icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} onClick={openFileSelector} />}
+        tools={
+          <Dropdown
+            trigger='hover'
+            onVisibleChange={setIsPlusDropdownOpen}
+            droplist={
+              <Menu
+                className='min-w-200px'
+                onClickMenuItem={(key) => {
+                  if (key === 'file') {
+                    openFileSelector();
+                  } else if (key === 'bdpan') {
+                    setBdpanSelectorVisible(true);
+                  }
+                }}
+              >
+                <Menu.Item key='file'>
+                  <div className='flex items-center gap-8px'>
+                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                  </div>
+                </Menu.Item>
+                <Menu.Item key='bdpan'>
+                  <div className='flex items-center gap-8px'>
+                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                  </div>
+                </Menu.Item>
+              </Menu>
+            }
+          >
+            <span>
+              <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+            </span>
+          </Dropdown>
+        }
         prefix={
           <>
             {(() => {
@@ -627,6 +679,14 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
       ></SendBox>
+      <BdpanFileSelector
+        visible={bdpanSelectorVisible}
+        onCancel={() => setBdpanSelectorVisible(false)}
+        onConfirm={(paths) => {
+          setBdpanSelectorVisible(false);
+          appendSelectedFiles(paths);
+        }}
+      />
     </div>
   );
 };

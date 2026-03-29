@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
-    "uploadFile": "Dosya Yükle",
+    "downloadLocalFile": "Yerel Dosya İçe Aktar",
+    "downloadBdpanFile": "Baidu Netdisk Dosyası İçe Aktar",
     "linkFolder": "Klasör Aç",
     "newConversation": "Yeni Sohbet",
     "multiAgentModeEnabled": "Çoklu ajan moduna giriliyor",
@@ -130,7 +131,8 @@
       "addToChat": "Sohbete ekle",
       "addedToChat": "Sohbete eklendi",
       "openFailed": "Açılamadı",
-      "revealFailed": "İçeren klasör açılamadı"
+      "revealFailed": "İçeren klasör açılamadı",
+      "uploadToBdpan": "Baidu Netdisk'e Yükle"
     },
     "expand": "Çalışma Alanını Genişlet",
     "collapse": "Çalışma Alanını Daralt"
@@ -153,6 +155,42 @@
   },
   "contextUsage": {
     "contextUsed": "bağlam kullanıldı"
+  },
+  "bdpan": {
+    "title": "Baidu Netdisk Dosyaları",
+    "checking": "Giriş durumu kontrol ediliyor...",
+    "waitingAuth": "Kimlik doğrulama bekleniyor, lütfen tarayıcıda tamamlayın...",
+    "gettingAuthUrl": "Yetkilendirme bağlantısı alınıyor...",
+    "authCode": "Yetki Kodu",
+    "authCodePlaceholder": "32 karakterli yetki kodunu girin",
+    "authCodeSubmit": "Gönder",
+    "loginTimeout": "Giriş zaman aşımına uğradı, lütfen tekrar deneyin",
+    "loginFailed": "Giriş başarısız, lütfen tekrar deneyin",
+    "lsFailed": "Dosyalar yüklenemedi",
+    "emptyDir": "Bu klasör boş",
+    "selectedCount": "{{count}} dosya seçildi",
+    "selectHint": "Dosya seçmek için tıklayın, klasöre girmek için tıklayın",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "retry": "Tekrar Dene",
+    "logout": "Çıkış Yap",
+    "mkdir": {
+      "placeholder": "Yeni klasör adı",
+      "confirm": "Oluştur",
+      "failed": "Klasör oluşturulamadı"
+    },
+    "upload": {
+      "title": "Baidu Netdisk'e Yükle",
+      "localPath": "Yerel Yol",
+      "uploadTo": "Şuraya Yükle",
+      "uploadButton": "Yükle",
+      "success": "Baidu Netdisk'e yükleme başarılı",
+      "failed": "Baidu Netdisk'e yükleme başarısız"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "Yetenek/Kural Oluştur",

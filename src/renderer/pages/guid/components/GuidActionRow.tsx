@@ -13,6 +13,8 @@ import { iconColors } from '@/renderer/theme/colors';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +53,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const modeOptions = getAgentModes(modeBackend);
   const currentModeOption = modeOptions.find((mode) => mode.value === selectedMode);
@@ -60,6 +63,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
   const permissionLabel = currentModeOption ? (isMobile ? getModeDisplayLabel(currentModeOption) : `${t('agentMode.permission')} · ${getModeDisplayLabel(currentModeOption)}`) : t('agentMode.permission');
 
   return (
+    <>
     <div className={styles.actionRow}>
       <div className={styles.actionTools}>
         <Dropdown
@@ -80,6 +84,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                     .catch((error) => {
                       console.error('Failed to open file dialog:', error);
                     });
+                } else if (key === 'bdpan') {
+                  setBdpanSelectorVisible(true);
                 } else if (key === 'workspace') {
                   ipcBridge.dialog.showOpen
                     .invoke({ properties: ['openDirectory'] })
@@ -97,7 +103,13 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               <Menu.Item key='file'>
                 <div className='flex items-center gap-8px'>
                   <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                  <span>{t('conversation.welcome.uploadFile')}</span>
+                  <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                </div>
+              </Menu.Item>
+              <Menu.Item key='bdpan'>
+                <div className='flex items-center gap-8px'>
+                  <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                  <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                 </div>
               </Menu.Item>
               <Menu.Item key='workspace'>
@@ -141,6 +153,16 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
         />
       </div>
     </div>
+
+    <BdpanFileSelector
+      visible={bdpanSelectorVisible}
+      onCancel={() => setBdpanSelectorVisible(false)}
+      onConfirm={(paths) => {
+        setBdpanSelectorVisible(false);
+        onFilesUploaded(paths);
+      }}
+    />
+    </>
   );
 };
 

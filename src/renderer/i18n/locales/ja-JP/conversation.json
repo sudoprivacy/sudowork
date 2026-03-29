@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Hi、今日の予定は何ですか？",
     "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
-    "uploadFile": "ファイルを追加",
+    "downloadLocalFile": "ローカルファイルをインポート",
+    "downloadBdpanFile": "バイドゥ・ネットディスクのファイルをインポート",
     "linkFolder": "フォルダを追加",
     "newConversation": "新しいチャット",
     "multiAgentModeEnabled": "マルチエージェントモードに入ります",
@@ -137,7 +138,8 @@
       "addToChat": "チャットに追加",
       "addedToChat": "チャットに追加しました",
       "openFailed": "開けませんでした",
-      "revealFailed": "フォルダーを開けませんでした"
+      "revealFailed": "フォルダーを開けませんでした",
+      "uploadToBdpan": "百度ネットディスクにアップロード"
     }
   },
   "chat": {
@@ -158,6 +160,42 @@
   },
   "contextUsage": {
     "contextUsed": "コンテキスト使用量"
+  },
+  "bdpan": {
+    "title": "バイドゥ・ネットディスクのファイル",
+    "checking": "ログイン状態を確認中...",
+    "waitingAuth": "認証待ち中です、ブラウザで認証を完了してください...",
+    "gettingAuthUrl": "認証リンクを取得中...",
+    "authCode": "認証コード",
+    "authCodePlaceholder": "32文字の認証コードを入力",
+    "authCodeSubmit": "送信",
+    "loginTimeout": "ログインがタイムアウトしました、再試行してください",
+    "loginFailed": "ログインに失敗しました、再試行してください",
+    "lsFailed": "ファイルの読み込みに失敗しました",
+    "emptyDir": "このフォルダーは空です",
+    "selectedCount": "{{count}} 件のファイルを選択中",
+    "selectHint": "ファイルをクリックして選択、フォルダーをクリックして移動",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "retry": "再試行",
+    "logout": "ログアウト",
+    "mkdir": {
+      "placeholder": "新しいフォルダー名",
+      "confirm": "作成",
+      "failed": "フォルダーの作成に失敗しました"
+    },
+    "upload": {
+      "title": "百度ネットディスクにアップロード",
+      "localPath": "ローカルパス",
+      "uploadTo": "アップロード先",
+      "uploadButton": "アップロード",
+      "success": "百度ネットディスクへのアップロードが成功しました",
+      "failed": "百度ネットディスクへのアップロードが失敗しました"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

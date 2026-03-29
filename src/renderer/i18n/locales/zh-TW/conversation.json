@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Hi，今天有什麼安排？",
     "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",
-    "uploadFile": "上傳檔案",
+    "downloadLocalFile": "導入本地檔案",
+    "downloadBdpanFile": "導入百度網盤檔案",
     "linkFolder": "開啟資料夾",
     "newConversation": "新會話",
     "multiAgentModeEnabled": "已進入多智能體模式",
@@ -137,7 +138,8 @@
       "addToChat": "加入聊天",
       "addedToChat": "已加入聊天",
       "openFailed": "開啟失敗",
-      "revealFailed": "無法開啟所在資料夾"
+      "revealFailed": "無法開啟所在資料夾",
+      "uploadToBdpan": "上傳至百度網盤"
     }
   },
   "chat": {
@@ -158,6 +160,42 @@
   },
   "contextUsage": {
     "contextUsed": "上下文已使用"
+  },
+  "bdpan": {
+    "title": "百度網盤檔案",
+    "checking": "正在檢查登入狀態...",
+    "waitingAuth": "正在等待身份驗證，請在瀏覽器中完成授權...",
+    "gettingAuthUrl": "正在獲取授權連結...",
+    "authCode": "授權碼",
+    "authCodePlaceholder": "請輸入32位授權碼",
+    "authCodeSubmit": "提交",
+    "loginTimeout": "登入超時，請重試",
+    "loginFailed": "登入失敗，請重試",
+    "lsFailed": "檔案載入失敗",
+    "emptyDir": "此資料夾為空",
+    "selectedCount": "已選 {{count}} 個檔案",
+    "selectHint": "點擊檔案選取，點擊資料夾進入",
+    "cancel": "取消",
+    "confirm": "確定",
+    "retry": "重試",
+    "logout": "登出",
+    "mkdir": {
+      "placeholder": "新建資料夾名稱",
+      "confirm": "建立",
+      "failed": "建立資料夾失敗"
+    },
+    "upload": {
+      "title": "上傳至百度網盤",
+      "localPath": "本地路徑",
+      "uploadTo": "上傳到",
+      "uploadButton": "上傳",
+      "success": "已成功上傳至百度網盤",
+      "failed": "上傳至百度網盤失敗"
+    },
+    "download": {
+      "success": "已成功導入百度網盤文件",
+      "failed": "導入百度網盤文件失敗"
+    }
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",
