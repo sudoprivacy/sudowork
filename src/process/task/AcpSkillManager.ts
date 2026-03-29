@@ -15,7 +15,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsDir } from '../initStorage';
+import { getSkillsDir, getBuiltinSkillsDir, isUserSkillEnabled } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 
 /**
@@ -280,6 +280,10 @@ export class AcpSkillManager {
 
         // 只加载启用的 skills / Only load enabled skills
         if (!enabledSkills.includes(skillName)) {
+          continue;
+        }
+
+        if (!(await isUserSkillEnabled(skillName))) {
           continue;
         }
 

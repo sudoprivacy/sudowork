@@ -774,6 +774,19 @@ export { getAssistantsDir, getSkillsDir, getBuiltinSkillsDir };
  * Skills content cache to avoid repeated file system reads
  */
 const skillsContentCache = new Map<string, string>();
+const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+
+export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
+  const skillMetaPath = path.join(getSkillsDir(), skillName, SKILL_HUB_META_FILE);
+
+  try {
+    const raw = await fs.readFile(skillMetaPath, 'utf-8');
+    const meta = JSON.parse(raw) as { enabled?: boolean };
+    return meta.enabled !== false;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * 加载指定 skills 的内容（带缓存）
@@ -815,6 +828,9 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
       if (existsSync(builtinSkillFile)) {
         content = await fs.readFile(builtinSkillFile, 'utf-8');
       } else if (existsSync(skillDirFile)) {
+        if (!(await isUserSkillEnabled(skillName))) {
+          continue;
+        }
         content = await fs.readFile(skillDirFile, 'utf-8');
       } else if (existsSync(skillFlatFile)) {
         content = await fs.readFile(skillFlatFile, 'utf-8');

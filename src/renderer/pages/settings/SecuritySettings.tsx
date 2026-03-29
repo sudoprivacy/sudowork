@@ -317,9 +317,7 @@ const SecuritySettings: React.FC = () => {
             {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
             <div className='border-t border-t-[var(--color-border-2)] pt-16px'>
               {!hookEnabled ? (
-                <div className='text-center py-16px text-t-tertiary text-14px'>
-                  安全 Hook 防护已关闭
-                </div>
+                <div className='text-center py-16px text-t-tertiary text-14px'>安全 Hook 防护已关闭</div>
               ) : (
                 <>
                   {/* 规则说明 */}

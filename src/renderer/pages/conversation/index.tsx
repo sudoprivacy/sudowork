@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 import { Spin } from '@arco-design/web-react';
 import React, { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -35,6 +36,11 @@ const ChatConversationIndex: React.FC = () => {
   useEffect(() => {
     if (data) {
       openTab(data);
+      if (shouldSyncWorkspaceSkills(data)) {
+        void ipcBridge.conversation.syncWorkspaceSkills.invoke({ conversation_id: data.id }).catch((error) => {
+          console.warn('Failed to sync workspace skills:', error);
+        });
+      }
     }
   }, [data, openTab]);
 
