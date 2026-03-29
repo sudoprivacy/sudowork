@@ -160,9 +160,7 @@ export function initNexusBridge(): void {
         console.warn(`[NexusBridge] conda-unpack not found at ${condaUnpack} — skipping`);
       }
 
-      const nexusdBin = isWindows
-        ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe')) ? path.join(envDir, 'bin', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd'))
-        : path.join(envDir, 'bin', 'nexusd');
+      const nexusdBin = isWindows ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe')) ? path.join(envDir, 'bin', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd')) : path.join(envDir, 'bin', 'nexusd');
 
       if (!fs.existsSync(nexusdBin)) {
         throw new Error(`nexusd not found at ${nexusdBin} after extraction`);

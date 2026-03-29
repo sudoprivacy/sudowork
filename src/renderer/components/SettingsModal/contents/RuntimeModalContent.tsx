@@ -585,26 +585,14 @@ const RuntimeModalContent: React.FC = () => {
             const loading = record.loadState !== 'idle';
             const installed = isInstalled(record);
             const source = record.status?.source;
-            const sourceLabel = source && source !== 'none'
-              ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source })
-              : undefined;
+            const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
             // Can only uninstall managed; system (e.g. Homebrew) can't be uninstalled from here
             const canUninstall = source === 'managed';
 
             return (
-              <div
-                key={record.key}
-                className='rd-12px bg-fill-1 hover:bg-fill-2 px-16px py-12px flex items-center gap-12px transition-colors'
-              >
+              <div key={record.key} className='rd-12px bg-fill-1 hover:bg-fill-2 px-16px py-12px flex items-center gap-12px transition-colors'>
                 {/* Badge */}
-                <div
-                  className={classNames(
-                    'w-40px h-40px rd-10px flex items-center justify-center flex-shrink-0 text-11px font-700',
-                    badgeColors[record.key] || 'bg-blue-1 color-blue-6',
-                  )}
-                >
-                  {record.badge}
-                </div>
+                <div className={classNames('w-40px h-40px rd-10px flex items-center justify-center flex-shrink-0 text-11px font-700', badgeColors[record.key] || 'bg-blue-1 color-blue-6')}>{record.badge}</div>
 
                 {/* Info */}
                 <div className='flex flex-col gap-2px flex-1 min-w-0'>
@@ -612,45 +600,43 @@ const RuntimeModalContent: React.FC = () => {
                   <div className='flex items-center gap-6px'>
                     <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
                     <span className='text-11px font-500 text-t-secondary'>{statusText}</span>
-                    {version && (
-                      <span className='px-6px py-1px rd-20px text-10px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>
-                        {version}
-                      </span>
-                    )}
+                    {version && <span className='px-6px py-1px rd-20px text-10px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>{version}</span>}
                     {/* Source badge */}
-                    {sourceLabel && installed && (
-                      <span className='px-6px py-1px rd-20px text-10px font-500 bg-blue-1 color-blue-6 whitespace-nowrap'>
-                        {sourceLabel}
-                      </span>
-                    )}
+                    {sourceLabel && installed && <span className='px-6px py-1px rd-20px text-10px font-500 bg-blue-1 color-blue-6 whitespace-nowrap'>{sourceLabel}</span>}
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className='flex items-center gap-6px flex-shrink-0'>
                   {/* Start/Stop buttons — for sudoclaw and nexus when installed */}
-                  {record.onStart && record.onStop && (() => {
-                    const isRunning = (record.key === 'sudoclaw' && record.sudoclawGatewayRunning) || (record.key === 'nexus' && record.nexusRunning);
-                    return isRunning ? (
-                      <Button type='outline' size='mini' status='warning' disabled={loading} onClick={record.onStop} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.stop')}
-                      </Button>
-                    ) : installed ? (
-                      <Button type='outline' size='mini' disabled={loading} onClick={record.onStart} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.start')}
-                      </Button>
-                    ) : null;
-                  })()}
+                  {record.onStart &&
+                    record.onStop &&
+                    (() => {
+                      const isRunning = (record.key === 'sudoclaw' && record.sudoclawGatewayRunning) || (record.key === 'nexus' && record.nexusRunning);
+                      return isRunning ? (
+                        <Button type='outline' size='mini' status='warning' disabled={loading} onClick={record.onStop} style={{ fontSize: 11 }}>
+                          {t('settings.runtimeSettings.button.stop')}
+                        </Button>
+                      ) : installed ? (
+                        <Button type='outline' size='mini' disabled={loading} onClick={record.onStart} style={{ fontSize: 11 }}>
+                          {t('settings.runtimeSettings.button.start')}
+                        </Button>
+                      ) : null;
+                    })()}
 
                   {record.onUninstall ? (
-                    /* Install / Uninstall — managed can be uninstalled; system shows Install */
-                    canUninstall ? (
+                    /* Install / Uninstall — only show install when not installed */
+                    !installed ? (
+                      <Button type='primary' size='mini' disabled={loading} onClick={record.onInstall} style={{ fontSize: 11 }}>
+                        {t('settings.runtimeSettings.button.install')}
+                      </Button>
+                    ) : canUninstall ? (
                       <Button type='outline' size='mini' status='warning' disabled={loading} onClick={record.onUninstall} style={{ fontSize: 11 }}>
                         {t('settings.runtimeSettings.button.uninstall')}
                       </Button>
                     ) : (
-                      <Button type='primary' size='mini' disabled={loading} onClick={record.onInstall} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.install')}
+                      <Button type='outline' size='mini' disabled={loading} onClick={record.onRefresh} style={{ fontSize: 11 }}>
+                        {t('settings.runtimeSettings.button.refresh')}
                       </Button>
                     )
                   ) : (

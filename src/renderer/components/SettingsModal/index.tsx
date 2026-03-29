@@ -214,11 +214,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       });
     }
 
-    builtinItems.push(
-      { key: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='20' fill={iconColors.secondary} /> },
-      { key: 'system', label: t('settings.system'), icon: <Computer theme='outline' size='20' fill={iconColors.secondary} /> },
-      { key: 'about', label: t('settings.about'), icon: <Info theme='outline' size='20' fill={iconColors.secondary} /> },
-    );
+    builtinItems.push({ key: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='20' fill={iconColors.secondary} /> }, { key: 'system', label: t('settings.system'), icon: <Computer theme='outline' size='20' fill={iconColors.secondary} /> }, { key: 'about', label: t('settings.about'), icon: <Info theme='outline' size='20' fill={iconColors.secondary} /> });
 
     // Extension tabs — position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();

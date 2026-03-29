@@ -15,11 +15,9 @@
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
-import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile } from './SecurityHookFile';
-import { initBlacklist } from './SafetyBlacklistService';
+import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile, getNexusClient, CONFIG_DIR } from './SecurityHookFile';
+import { initBlacklist, BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
-import { getNexusClient, CONFIG_DIR } from './SecurityHookFile';
-import { BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 
 /** Storage key for safety hook enabled state */
 const SAFETY_HOOK_ENABLED_KEY = 'safetyHook.enabled';

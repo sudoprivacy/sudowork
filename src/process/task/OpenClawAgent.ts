@@ -117,10 +117,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         onHelloOk: (_hello: HelloOk) => {},
         onConnectError: (err) => this.handleConnectError(err),
         onClose: (code, reason) => this.handleClose(code, reason),
-        onTokenMismatch: !useExternal ? async () => {
-          const { serviceManager } = await import('@process/services/serviceManager');
-          await serviceManager.restartOpenClaw();
-        } : undefined,
+        onTokenMismatch: !useExternal
+          ? async () => {
+              const { serviceManager } = await import('@process/services/serviceManager');
+              await serviceManager.restartOpenClaw();
+            }
+          : undefined,
       });
 
       this.connection.start();

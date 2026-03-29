@@ -13,6 +13,7 @@ import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
+import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 import * as net from 'node:net';
 
 const CONFIG_FILENAME = 'sudoclaw.json';
@@ -178,12 +179,15 @@ export function initSudoclawBridge(): void {
           if (task && typeof task.getDiagnostics === 'function') {
             const diagnostics = task.getDiagnostics();
 
-            data.gatewayRunning = true;
             data.gatewayPort = diagnostics.gatewayPort || port;
             data.gatewayHost = diagnostics.gatewayHost || host;
             data.gatewayUrl = `ws://${data.gatewayHost}:${data.gatewayPort}`;
-            data.isConnected = diagnostics.isConnected ?? isGatewayRunning;
-            data.hasActiveSession = diagnostics.hasActiveSession ?? false;
+            // Runtime task diagnostics are supplemental only.
+            // Actual "running" state must come from the live port probe above,
+            // otherwise a stale task object can make the UI show "running"
+            // after the gateway has already stopped.
+            data.isConnected = isGatewayRunning && (diagnostics.isConnected ?? false);
+            data.hasActiveSession = isGatewayRunning && (diagnostics.hasActiveSession ?? false);
             data.sessionKey = diagnostics.sessionKey || null;
             // Only update runtime info, keep configured workspace (don't overwrite with temp paths)
             data.agentName = diagnostics.agentName || data.agentName;
@@ -191,12 +195,12 @@ export function initSudoclawBridge(): void {
           }
         }
       } catch (innerErr) {
-        console.warn('[SudoclawBridge] getStatus inner failed:', innerErr);
+        mainWarn('SudoclawBridge', 'getStatus inner failed', innerErr);
       }
 
       return { success: true, data };
     } catch (err) {
-      console.error('[SudoclawBridge] getStatus failed:', err);
+      mainError('SudoclawBridge', 'getStatus failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
@@ -224,10 +228,10 @@ export function initSudoclawBridge(): void {
     });
 
     if (isRunning) {
-      console.log('[SudoclawBridge] Gateway running, connection test passed');
+      mainLog('SudoclawBridge', 'Gateway running, connection test passed');
       return { success: true, data: { success: true, port: testPort, stdout: 'Connection OK', stderr: '' } };
     } else {
-      console.log('[SudoclawBridge] Gateway not running');
+      mainLog('SudoclawBridge', 'Gateway not running');
       return { success: true, data: { success: false, error: 'Gateway is not running. Please start Sudoclaw first.', stdout: '', stderr: '' } };
     }
   });
@@ -238,7 +242,7 @@ export function initSudoclawBridge(): void {
       await serviceManager.restartOpenClaw();
       return { success: true };
     } catch (err) {
-      console.error('[SudoclawBridge] Restart gateway failed:', err);
+      mainError('SudoclawBridge', 'Restart gateway failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
@@ -249,7 +253,7 @@ export function initSudoclawBridge(): void {
       await serviceManager.startOpenClaw();
       return { success: true };
     } catch (err) {
-      console.error('[SudoclawBridge] Start gateway failed:', err);
+      mainError('SudoclawBridge', 'Start gateway failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
@@ -260,7 +264,7 @@ export function initSudoclawBridge(): void {
       await serviceManager.stopOpenClaw();
       return { success: true };
     } catch (err) {
-      console.error('[SudoclawBridge] Stop gateway failed:', err);
+      mainError('SudoclawBridge', 'Stop gateway failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
@@ -287,14 +291,17 @@ export function initSudoclawBridge(): void {
     return new Promise((resolve) => {
       void (async () => {
         try {
-          console.log('[SudoclawBridge] Starting Sudoclaw installation...');
+          mainLog('SudoclawBridge', 'Starting Sudoclaw installation...');
 
           // Run installation with progress callback
           await installSudoclawManually((phase, percent) => {
             ipcBridge.sudoclaw.installProgress.emit({ phase, percent });
           });
 
-          console.log('[SudoclawBridge] Sudoclaw installation completed');
+          mainLog('SudoclawBridge', 'Sudoclaw installation completed, starting gateway...');
+          const { serviceManager } = await import('../services/serviceManager');
+          await serviceManager.startOpenClaw();
+          mainLog('SudoclawBridge', 'Sudoclaw gateway started successfully after install');
           resolve({ success: true });
 
           setTimeout(() => {
@@ -302,7 +309,7 @@ export function initSudoclawBridge(): void {
           }, 100);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          console.error('[SudoclawBridge] Sudoclaw installation failed:', err);
+          mainError('SudoclawBridge', 'Sudoclaw installation failed', err);
           resolve({ success: false, msg: errorMsg });
 
           setTimeout(() => {
@@ -343,7 +350,7 @@ export function initSudoclawBridge(): void {
         return;
       }
 
-      console.log('[SudoclawBridge] Starting WeChat plugin installation...');
+      mainLog('SudoclawBridge', 'Starting WeChat plugin installation...');
       ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'installing', message: '正在安装微信插件...' });
 
       // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/sudoclaw/
@@ -368,7 +375,7 @@ export function initSudoclawBridge(): void {
       const processOutput = (data: Buffer) => {
         const text = data.toString();
         allOutput += text;
-        console.log('[SudoclawBridge] CLI output chunk:', text.substring(0, 100).replace(/\n/g, '\\n'));
+        mainLog('SudoclawBridge', `CLI output chunk: ${text.substring(0, 100).replace(/\n/g, '\\n')}`);
 
         // Detect QR code URL from CLI output — look for multiple markers
         if (!qrUrl) {
@@ -377,7 +384,7 @@ export function initSudoclawBridge(): void {
           if (urlMatch) {
             qrUrl = urlMatch[1];
             qrDetected = true;
-            console.log('[SudoclawBridge] QR URL extracted:', qrUrl);
+            mainLog('SudoclawBridge', `QR URL extracted: ${qrUrl}`);
             // Immediately emit once we have the URL
             ipcBridge.sudoclaw.wechatInstallProgress.emit({
               phase: 'qrcode',
@@ -414,9 +421,9 @@ export function initSudoclawBridge(): void {
           try {
             const { serviceManager } = await import('../services/serviceManager');
             await serviceManager.restartOpenClaw();
-            console.log('[SudoclawBridge] Gateway restarted after WeChat plugin install');
+            mainLog('SudoclawBridge', 'Gateway restarted after WeChat plugin install');
           } catch (restartErr) {
-            console.warn('[SudoclawBridge] Gateway restart after WeChat install failed:', restartErr);
+            mainWarn('SudoclawBridge', 'Gateway restart after WeChat install failed', restartErr);
           }
         } else {
           const errMsg = `WeChat plugin install failed (exit code ${code})`;
@@ -427,7 +434,7 @@ export function initSudoclawBridge(): void {
 
       child.on('error', (err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error('[SudoclawBridge] WeChat plugin install error:', err);
+        mainError('SudoclawBridge', 'WeChat plugin install error', err);
         ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: errMsg });
         resolve({ success: false, msg: errMsg });
       });

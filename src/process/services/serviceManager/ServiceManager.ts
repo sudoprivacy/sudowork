@@ -45,7 +45,9 @@ class ServiceManager {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       await dynamicNexusService.stop();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -91,8 +93,7 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig } =
-        await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig } = await import('../sudoclaw/SudoclawInstallService');
 
       // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts.
       // This guarantees ~/.nexus/skills is always loaded regardless of platform,
@@ -117,7 +118,11 @@ class ServiceManager {
 
   async stopOpenClaw(): Promise<void> {
     if (!this.gateway) return;
-    try { await this.gateway.stop(); } catch { /* ignore */ }
+    try {
+      await this.gateway.stop();
+    } catch {
+      /* ignore */
+    }
     this.gateway = null;
     // Force-kill any orphaned process still holding the gateway port
     try {
@@ -138,7 +143,9 @@ class ServiceManager {
         await execAsync(`lsof -ti tcp:${SUDOCLAW_DEFAULT_PORT} | xargs kill -9 2>/dev/null || true`);
       }
       mainLog('ServiceManager', 'Force-killed orphaned processes on gateway port');
-    } catch { /* port already free */ }
+    } catch {
+      /* port already free */
+    }
   }
 
   async restartOpenClaw(): Promise<void> {

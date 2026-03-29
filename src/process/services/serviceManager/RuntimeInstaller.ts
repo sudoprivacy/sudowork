@@ -42,20 +42,14 @@ class RuntimeInstaller {
     // initStatusManager is set to 'ready' before the renderer can poll
     // getStatus via IPC.  This prevents the brief "组件安装中" flash on
     // subsequent launches.
-    const resDir = app.isPackaged
-      ? process.resourcesPath
-      : path.join(app.getAppPath(), 'resources');
+    const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
 
     const fastNodeOk = isNodeInstalled();
 
-    const sudoclawBinPath = path.join(
-      os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', 'openclaw',
-    );
+    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', 'openclaw');
     const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
-    const nexusEnvBinPath = path.join(
-      os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd',
-    );
+    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
       try {
