@@ -16,7 +16,7 @@ import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
 import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState } from './SecurityHookFile';
-import { initBlacklist } from './SafetyBlacklistService';
+import { initBlacklist, loadBlacklist } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
 
 /** Storage key for safety hook enabled state */
@@ -84,6 +84,9 @@ export class SafetyPollingService {
   private currentEventFilename: string | null = null;
   private enabled: boolean = true; // Track whether service is enabled
   private initialized: boolean = false;
+  private cachedHasActiveRules: boolean = false; // Cache for blacklist rules check
+  private lastBlacklistCheckTime: number = 0; // Timestamp of last blacklist check
+  private readonly BLACKLIST_CHECK_INTERVAL_MS = 5000; // Re-check blacklist every 5 seconds
 
   private constructor() {}
 
@@ -107,7 +110,6 @@ export class SafetyPollingService {
       setSafetyHookEnabled(this.enabled); // Use setter to notify listeners
       // Sync to Nexus filesystem for Agent CLI processes
       await writeEnabledState(this.enabled);
-      console.log(`[SafetyPolling] Initialized with enabled=${this.enabled}`);
     } catch (err) {
       console.warn('[SafetyPolling] Failed to load enabled state:', err);
       this.enabled = true;
@@ -172,8 +174,6 @@ export class SafetyPollingService {
     this.interval = setInterval(() => {
       void this.poll();
     }, config.pollingIntervalMs);
-
-    console.log(`[SafetyPolling] Polling started with ${config.pollingIntervalMs}ms interval`);
 
     // Initial poll
     void this.poll();
@@ -282,16 +282,49 @@ export class SafetyPollingService {
   }
 
   /**
+   * Check if blacklist has active rules (with caching)
+   * Re-checks every BLACKLIST_CHECK_INTERVAL_MS to pick up config changes
+   */
+  private async hasActiveBlacklistRules(): Promise<boolean> {
+    const now = Date.now();
+    if (now - this.lastBlacklistCheckTime < this.BLACKLIST_CHECK_INTERVAL_MS) {
+      return this.cachedHasActiveRules;
+    }
+
+    try {
+      const blacklistConfig = await loadBlacklist();
+      this.cachedHasActiveRules = blacklistConfig?.rules?.some(rule => rule.enabled) ?? false;
+      this.lastBlacklistCheckTime = now;
+      return this.cachedHasActiveRules;
+    } catch (error) {
+      console.warn('[SafetyPolling] Failed to load blacklist:', error);
+      return this.cachedHasActiveRules; // Return cached value on error
+    }
+  }
+
+  /**
    * Poll event directory and update status
+   * Only polls if safety hook is enabled AND blacklist has active rules
    */
   private async poll(): Promise<void> {
     if (!this.config) {
       return;
     }
 
+    // Skip polling if safety hook is disabled
+    if (!this.enabled) {
+      return;
+    }
+
+    // Skip polling if blacklist is empty (no rules to match)
+    const hasActiveRules = await this.hasActiveBlacklistRules();
+    if (!hasActiveRules) {
+      // No active blacklist rules, skip polling to reduce overhead
+      return;
+    }
+
     try {
       const filenames = await listEventFilenames();
-      console.log(`[SafetyPolling] Poll found ${filenames.length} events`);
 
       const processedSet = SafetyFileService['processedEvents'];
 
@@ -306,9 +339,7 @@ export class SafetyPollingService {
       // Find first unprocessed event
       for (const filename of filenames) {
         if (!processedSet.has(filename)) {
-          console.log(`[SafetyPolling] Found unprocessed event: ${filename}`);
           const data = await readEventFile(filename);
-          console.log(`[SafetyPolling] Event data:`, data ? JSON.stringify(data).substring(0, 200) : 'null');
 
           if (data) {
             this.currentStatus = eventToSafetyStatus(filename, data);
@@ -316,18 +347,16 @@ export class SafetyPollingService {
             this.currentEventFilename = filename;
 
             processedSet.add(filename);
-            console.log(`[SafetyPolling] Notifying listeners with status:`, JSON.stringify(this.currentStatus).substring(0, 200));
             this.notifyListeners(this.currentStatus);
             break;
           } else {
             // If read failed, mark as processed to ignore it in next polls
-            console.log(`[SafetyPolling] Event data is null, marking as processed`);
             processedSet.add(filename);
           }
         }
       }
     } catch (error) {
-      console.error('[SafetyPolling] Poll error:', error);
+      // Silently ignore poll errors
     }
   }
 }

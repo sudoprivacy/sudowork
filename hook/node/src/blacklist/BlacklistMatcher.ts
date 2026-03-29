@@ -94,7 +94,6 @@ export function matchNetworkRule(
 
       // 1. Match against domain (best for patterns like *baidu* or www.baidu.com)
       if (domain && matchPattern(domain, normalizedPattern, 'wildcard')) {
-        console.log(`[BlacklistMatcher] Domain "${domain}" matched pattern "${normalizedPattern}" (original: ${rule.pattern})`);
         return { matched: true, rule, riskLevel: rule.riskLevel };
       }
 
@@ -156,7 +155,6 @@ export function matchFileRule(
 
     // For wildcard patterns, match the path
     if (matchPattern(normalizedPath, normalizedPattern, rule.matchType)) {
-      console.log(`[BlacklistMatcher] File "${normalizedPath}" matched rule "${normalizedPattern}" (${rule.matchType})`);
       return { matched: true, rule, riskLevel: rule.riskLevel };
     }
 
@@ -164,7 +162,6 @@ export function matchFileRule(
     // e.g., /etc/ or /etc/* should match /etc/passwd
     const dirPattern = normalizedPattern.replace(/\/?\*?$/, '/');
     if (normalizedPath.startsWith(dirPattern)) {
-      console.log(`[BlacklistMatcher] File "${normalizedPath}" matched directory rule "${normalizedPattern}"`);
       return { matched: true, rule, riskLevel: rule.riskLevel };
     }
 
@@ -172,7 +169,6 @@ export function matchFileRule(
     // e.g., pattern "/home/user" should match "/home/user/.env"
     if (!normalizedPattern.endsWith('*') && !normalizedPattern.endsWith('/')) {
       if (normalizedPath.startsWith(normalizedPattern + '/')) {
-        console.log(`[BlacklistMatcher] File "${normalizedPath}" is inside directory rule "${normalizedPattern}"`);
         return { matched: true, rule, riskLevel: rule.riskLevel };
       }
     }
@@ -195,7 +191,6 @@ export function shouldTriggerPopup(
 ): { shouldTrigger: boolean; rule?: BlacklistRule; riskLevel?: RiskLevel } {
   // If no config, don't intercept (allow all)
   if (!config) {
-    console.log(`[BlacklistMatcher] No config, allowing all`);
     return { shouldTrigger: false };
   }
 
@@ -204,16 +199,12 @@ export function shouldTriggerPopup(
 
   // If no relevant rules, don't intercept
   if (relevantRules.length === 0) {
-    console.log(`[BlacklistMatcher] No ${type} rules enabled, allowing: ${data.url || data.path}`);
     return { shouldTrigger: false };
   }
-
-  console.log(`[BlacklistMatcher] Checking ${type} request against ${relevantRules.length} rules: ${data.url || data.path}`);
 
   if (type === 'network' && data.url) {
     const result = matchNetworkRule(data.url, relevantRules);
     if (result.matched) {
-      console.log(`[BlacklistMatcher] Network matched: ${data.url}`);
       return { shouldTrigger: true, rule: result.rule, riskLevel: result.riskLevel };
     }
   }
@@ -221,12 +212,10 @@ export function shouldTriggerPopup(
   if (type === 'file' && data.path && data.flags) {
     const result = matchFileRule(data.path, data.flags, relevantRules);
     if (result.matched) {
-      console.log(`[BlacklistMatcher] File matched: ${data.path}`);
       return { shouldTrigger: true, rule: result.rule, riskLevel: result.riskLevel };
     }
   }
 
   // No rule matched - allow without popup
-  console.log(`[BlacklistMatcher] No match, allowing: ${type} ${data.url || data.path}`);
   return { shouldTrigger: false };
 }

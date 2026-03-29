@@ -98,7 +98,6 @@ export class NexusController extends Nexus {
 
     const eventID = randomUUID();
     const event = JSON.stringify(payload);
-    console.log(`[SafetyHook] Intercepted ${type}: ${data.url || data.path}`);
 
     try {
       await this.write(`/safe/event/${eventID}`, event);

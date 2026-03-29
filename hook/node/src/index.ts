@@ -137,10 +137,8 @@ function startStatePolling(): void {
     try {
       const enabled = await readEnabledState();
       if (!enabled && isApplied) {
-        console.log('[SafetyHook] Detected enabled=false from Nexus, disposing...');
         disposeSafetyHook();
       } else if (enabled && !isApplied) {
-        console.log('[SafetyHook] Detected enabled=true from Nexus, initializing...');
         initSafetyHook({
           nexusUrl: currentNexusUrl,
           statePollingInterval: currentStatePollingInterval,
