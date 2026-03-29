@@ -294,7 +294,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
 
       // 仅保留指定的内置助手
       // Keep only allowed builtin assistants
-      let allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor'];
+      let allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
       const filteredAgents = mergedAgents.filter((agent) => {
         const otherAgents = mergedAgents.filter((_) => !_.id.startsWith('builtin-'));
         allowedPresetIds = allowedPresetIds.concat(otherAgents.map((_) => _.id));
