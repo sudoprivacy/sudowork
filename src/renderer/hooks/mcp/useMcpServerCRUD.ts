@@ -60,6 +60,7 @@ export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serv
     async (serversData: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>[]) => {
       const now = Date.now();
       const addedServers: IMcpServer[] = [];
+      const enabledServers: IMcpServer[] = []; // 收集所有启用的服务器，用于同步到 agents
 
       // 使用函数式更新，避免闭包问题
       await saveMcpServers((prevServers) => {
@@ -70,11 +71,16 @@ export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serv
 
           if (existingServerIndex !== -1) {
             // 如果存在同名服务器，更新现有服务器
-            updatedServers[existingServerIndex] = {
+            const updatedServer = {
               ...updatedServers[existingServerIndex],
               ...serverData,
               updatedAt: now,
             };
+            updatedServers[existingServerIndex] = updatedServer;
+            // 如果更新后的服务器是启用的，也需要同步
+            if (updatedServer.enabled) {
+              enabledServers.push(updatedServer);
+            }
           } else {
             // 如果不存在同名服务器，添加新服务器
             const newServer: IMcpServer = {
@@ -85,11 +91,24 @@ export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serv
             };
             updatedServers.push(newServer);
             addedServers.push(newServer);
+            // 如果新服务器是启用的，需要同步到 agents
+            if (newServer.enabled) {
+              enabledServers.push(newServer);
+            }
           }
         });
 
         return updatedServers;
       });
+
+      // 将启用的服务器同步到所有 agents
+      for (const server of enabledServers) {
+        try {
+          await syncMcpToAgents(server, true);
+        } catch (error) {
+          console.error(`[handleBatchImportMcpServers] Failed to sync server "${server.name}" to agents:`, error);
+        }
+      }
 
       // 检查安装状态
       setTimeout(() => {
