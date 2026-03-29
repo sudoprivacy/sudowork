@@ -558,8 +558,6 @@ export const init = {
 export type NexusInstallPhase = 'checking' | 'downloading' | 'extracting' | 'unpacking' | 'starting' | 'ready' | 'error';
 
 export const nexus = {
-  /** Ping the Nexus server to verify it is running */
-  ping: bridge.buildProvider<IBridgeResponse<{ message: string; timestamp: number; port: number }>, void>('nexus.ping'),
   /** Get the current status of the Nexus server */
   getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number; setupStage: string; installed: boolean }>, void>('nexus.get-status'),
   /** Check if Nexus is installed */
@@ -570,8 +568,6 @@ export const nexus = {
   installProgress: bridge.buildEmitter<{ phase: NexusInstallPhase; message: string; percent?: number }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
-  /** Install Nexus server from local file */
-  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
 };
 
 // Deep link protocol handling / 深度链接协议处理

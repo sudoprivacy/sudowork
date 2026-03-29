@@ -24,6 +24,7 @@ const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
 const WAIT_PORT_RELEASE_TIMEOUT_MS = 10 * 1000; // 10 seconds
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
+const NEXUS_DEFAULT_PORT = 12012;
 
 export type NexusSetupStage =
   | 'idle'
@@ -255,7 +256,7 @@ class DynamicNexusService {
     if (this._running) return;
 
     // 使用固定端口 12012
-    this._port = 12012;
+    this._port = NEXUS_DEFAULT_PORT;
     this._running = false;
 
     const envDir = this.getCondaEnvDir();
@@ -442,7 +443,11 @@ class DynamicNexusService {
       return true;
     }
 
-    const healthy = this._port > 0 ? await this.isHealthyNexusServer(this._port) : false;
+    const port = this._port > 0 ? this._port : NEXUS_DEFAULT_PORT;
+    const healthy = await this.isHealthyNexusServer(port);
+    if (healthy) {
+      this._port = port;
+    }
     this._running = healthy;
     return healthy;
   }
@@ -547,10 +552,11 @@ echo "codesign-repair: signed=\$SIGNED failed=\$FAILED"
 
   private async isHealthyNexusServer(port: number): Promise<boolean> {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/ping`, {
+      const response = await fetch(`http://127.0.0.1:${port}/health`, {
         signal: AbortSignal.timeout(NEXUS_HEALTHCHECK_TIMEOUT_MS),
       });
-      return response.ok;
+      const payload = (await response.json()) as { status?: string };
+      return payload.status === 'healthy';
     } catch {
       return false;
     }
