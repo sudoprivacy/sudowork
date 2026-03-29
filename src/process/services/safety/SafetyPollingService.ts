@@ -374,7 +374,7 @@ export class SafetyPollingService {
       }
       const configStr = content.toString('utf-8');
       const config = JSON.parse(configStr);
-      return config?.rules?.some(rule => rule.enabled) ?? false;
+      return config?.rules?.some((rule) => rule.enabled) ?? false;
     } catch (error) {
       // If blacklist file doesn't exist or parse fails, assume no rules
       return false;

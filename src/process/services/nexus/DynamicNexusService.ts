@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { app } from 'electron';
-import { spawn, exec } from 'child_process';
+import { spawn, exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import * as tar from 'tar';
@@ -387,7 +387,6 @@ class DynamicNexusService {
     // portion of before-quit and we need cleanup to complete before the process exits.
     if (this._port > 0 && process.platform !== 'win32') {
       try {
-        const { execSync } = require('child_process');
         execSync(`lsof -ti tcp:${this._port} | xargs kill -9 2>/dev/null || true`, { timeout: 2000 });
       } catch {
         // Port was already free or lsof unavailable — ignore
@@ -540,7 +539,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find "${envDir}/bin" -maxdepth 1 -type f -print0)
 
-echo "codesign-repair: signed=\$SIGNED failed=\$FAILED"
+echo "codesign-repair: signed=$SIGNED failed=$FAILED"
 `;
 
     try {

@@ -134,32 +134,19 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
             </Space>
           </div>
 
-          <div className='text-12px text-t-tertiary text-center'>
-            此区域仅供运维人员使用
-          </div>
+          <div className='text-12px text-t-tertiary text-center'>此区域仅供运维人员使用</div>
         </div>
       </Modal>
 
       {/* 配置编辑 Modal */}
-      <Modal
-        title='编辑 SudoClaw 配置'
-        visible={editVisible}
-        onOk={handleSaveRawConfig}
-        onCancel={() => setEditVisible(false)}
-        style={{ width: 700 }}
-        confirmLoading={configLoading}
-      >
+      <Modal title='编辑 SudoClaw 配置' visible={editVisible} onOk={handleSaveRawConfig} onCancel={() => setEditVisible(false)} style={{ width: 700 }} confirmLoading={configLoading}>
         <div className='flex flex-col gap-8px'>
           <Tooltip content={configPath}>
             <Text type='secondary' className='text-12px'>
               路径：{configPath}
             </Text>
           </Tooltip>
-          <Input.TextArea
-            value={configContent}
-            onChange={(value) => setConfigContent(value)}
-            style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }}
-          />
+          <Input.TextArea value={configContent} onChange={(value) => setConfigContent(value)} style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }} />
         </div>
       </Modal>
     </>

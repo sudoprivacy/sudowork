@@ -408,13 +408,7 @@ const AboutModalContent: React.FC = () => {
             <Button size='small' type='outline' className='mt-12px' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
               {t('settings.checkForUpdates')}
             </Button>
-            <Button
-                size='small'
-                type='text'
-                className='mt-12px ml-8px opacity-50 hover:opacity-100 transition-opacity'
-                onClick={() => setOpsVisible(true)}
-                icon={<Setting theme='outline' size='14' />}
-              />
+            <Button size='small' type='text' className='mt-12px ml-8px opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' size='14' />} />
           </div>
 
           {/* Tools table */}
