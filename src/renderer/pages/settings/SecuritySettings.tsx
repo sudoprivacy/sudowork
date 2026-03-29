@@ -16,9 +16,9 @@ const SecuritySettings: React.FC = () => {
   const { t } = useTranslation();
 
   // 安全功能状态
-  const [envProtection, setEnvProtection] = useState(true);
-  const [infoProtection, setInfoProtection] = useState(true);
-  const [skillScan, setSkillScan] = useState(true);
+  const envProtection = true;
+  const infoProtection = true;
+  const skillScan = true;
   const [hookEnabled, setHookEnabled] = useState(true);
   const [isHookLoading, setIsHookLoading] = useState(true);
 
@@ -217,11 +217,11 @@ const SecuritySettings: React.FC = () => {
             </div>
             <p className='text-14px text-t-secondary mb-16px leading-relaxed'>当智能体调用各类工具时，系统会进行全过程的安全管控。识别并拦截可能破坏系统、窃取数据、尝试提权的高风险行为，保障您的电脑环境安全。</p>
             <div className='flex items-center justify-end gap-12px'>
-              <Tag color={envProtection ? 'green' : 'gray'} size='small' className='rd-12px px-12px'>
-                <span className={`w-6px h-6px rd-50% inline-block mr-6px ${envProtection ? 'bg-[#52c41a]' : 'bg-[#8c8c8c]'}`}></span>
-                {envProtection ? '保护中' : '已关闭'}
+              <Tag color='green' size='small' className='rd-12px px-12px'>
+                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+                保护中
               </Tag>
-              <Switch checked={envProtection} onChange={setEnvProtection} />
+              <Switch checked={envProtection} disabled />
             </div>
           </div>
         </div>
@@ -243,11 +243,11 @@ const SecuritySettings: React.FC = () => {
             </div>
             <p className='text-14px text-t-secondary mb-16px leading-relaxed'>对输入给智能体的任务、提示词进行智能安全识别，自动检测是否包含个人隐私、敏感密钥、账号凭证等高风险信息，保障用户信息安全。</p>
             <div className='flex items-center justify-end gap-12px'>
-              <Tag color={infoProtection ? 'green' : 'gray'} size='small' className='rd-12px px-12px'>
-                <span className={`w-6px h-6px rd-50% inline-block mr-6px ${infoProtection ? 'bg-[#52c41a]' : 'bg-[#8c8c8c]'}`}></span>
-                {infoProtection ? '保护中' : '已关闭'}
+              <Tag color='green' size='small' className='rd-12px px-12px'>
+                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+                保护中
               </Tag>
-              <Switch checked={infoProtection} onChange={setInfoProtection} />
+              <Switch checked={infoProtection} disabled />
             </div>
           </div>
         </div>
@@ -269,11 +269,11 @@ const SecuritySettings: React.FC = () => {
             </div>
             <p className='text-14px text-t-secondary mb-16px leading-relaxed'>所有 Skill 在安装和接入前，系统都会进行多层安全检测，包括来源可信度、代码审查、权限评估等，确保所有接入的技能纯净无害。</p>
             <div className='flex items-center justify-end gap-12px'>
-              <Tag color={skillScan ? 'green' : 'gray'} size='small' className='rd-12px px-12px'>
-                <span className={`w-6px h-6px rd-50% inline-block mr-6px ${skillScan ? 'bg-[#52c41a]' : 'bg-[#8c8c8c]'}`}></span>
-                {skillScan ? '保护中' : '已关闭'}
+              <Tag color='green' size='small' className='rd-12px px-12px'>
+                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+                保护中
               </Tag>
-              <Switch checked={skillScan} onChange={setSkillScan} />
+              <Switch checked={skillScan} disabled />
             </div>
           </div>
         </div>
