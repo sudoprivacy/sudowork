@@ -20,76 +20,13 @@ import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
+import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 
-const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
-
-async function listWorkspaceSkillTargets(): Promise<Map<string, string>> {
-  const startedAt = Date.now();
-  const skillsDir = getSkillsDir();
-  const targets = new Map<string, string>();
-
-  const addSkillDir = async (skillName: string, skillDir: string, forceBuiltin = false): Promise<void> => {
-    try {
-      const stat = await fs.stat(path.join(skillDir, 'SKILL.md'));
-      if (!stat.isFile()) return;
-    } catch {
-      return;
-    }
-
-    let isBuiltin = forceBuiltin;
-    let enabled = true;
-
-    try {
-      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-      const meta = JSON.parse(raw) as { is_builtin?: boolean; enabled?: boolean; name?: string };
-      if (meta.is_builtin !== undefined) {
-        isBuiltin = meta.is_builtin === true;
-      }
-      if (!isBuiltin) {
-        enabled = meta.enabled !== false;
-      }
-      if (typeof meta.name === 'string' && meta.name.trim()) {
-        skillName = meta.name.trim();
-      }
-    } catch {
-      // No metadata file: treat as enabled custom skill unless forced builtin
-    }
-
-    if (!isBuiltin && !enabled) {
-      return;
-    }
-
-    targets.set(skillName, skillDir);
-  };
-
-  try {
-    const builtinDir = path.join(skillsDir, '_builtin');
-    const builtinEntries = await fs.readdir(builtinDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
-    for (const entry of builtinEntries) {
-      if (!entry.isDirectory()) continue;
-      await addSkillDir(entry.name, path.join(builtinDir, entry.name), true);
-    }
-
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name === '_builtin') continue;
-      await addSkillDir(entry.name, path.join(skillsDir, entry.name), false);
-    }
-  } catch (error) {
-    mainWarn('ConversationSkillSync', 'Failed to list workspace skill targets', error);
-  }
-
-  mainLog('ConversationSkillSync', 'listWorkspaceSkillTargets completed', {
-    count: targets.size,
-    durationMs: Date.now() - startedAt,
-  });
-  return targets;
-}
 
 async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined): Promise<void> {
   if (!shouldSyncWorkspaceSkills(conversation)) return;
@@ -99,7 +36,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
   const workspaceSkillsDir = path.join(workspace, 'skills');
   await fs.mkdir(workspaceSkillsDir, { recursive: true });
 
-  const expectedTargets = await listWorkspaceSkillTargets();
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), resolveConversationEnabledSkillNames(conversation));
   const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
   const existingNames = new Set(existingEntries.map((entry) => entry.name));
   let removedCount = 0;
