@@ -12,6 +12,8 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import { Setting } from '@icon-park/react';
+import OpsModal from '@/renderer/components/OpsModal';
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,8 @@ const AboutModalContent: React.FC = () => {
   const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
   const [sudoclawPhase, setSudoclawPhase] = useState<'extracting' | 'installing' | 'configuring' | undefined>(undefined);
+
+  const [opsVisible, setOpsVisible] = useState<boolean>(false);
 
   const refreshClaude = useCallback(async () => {
     setClaudeLoad('loading');
@@ -404,12 +408,22 @@ const AboutModalContent: React.FC = () => {
             <Button size='small' type='outline' className='mt-12px' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
               {t('settings.checkForUpdates')}
             </Button>
+            <Button
+                size='small'
+                type='text'
+                className='mt-12px ml-8px opacity-50 hover:opacity-100 transition-opacity'
+                onClick={() => setOpsVisible(true)}
+                icon={<Setting theme='outline' size='14' />}
+              />
           </div>
 
           {/* Tools table */}
           <Table columns={columns} data={tableData} pagination={false} showHeader={false} rowClassName={() => 'hover:bg-fill-1'} scroll={{ x: 'max-content' }} />
         </div>
       </div>
+
+      {/* Ops Center Modal */}
+      <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />
     </div>
   );
 };
