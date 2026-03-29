@@ -303,6 +303,16 @@ if (process.parentPort) {
 
 // Auto-apply when loaded via -r flag (CLI usage)
 // Only applies if SUDOWORK_SAFETY_HOOK is not set to 'false'
+// Skip for npm/npx processes — the hook is injected via NODE_OPTIONS which
+// applies to ALL child Node.js processes, including npm/npx that install ACP
+// bridge packages. Intercepting their network/file operations causes them to fail.
 if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
-  initSafetyHook();
+  const mainScript = process.argv[1] || '';
+  const isNpmProcess = mainScript.includes('npm-cli.js') || mainScript.includes('npx-cli.js') ||
+    mainScript.endsWith('/npm') || mainScript.endsWith('/npx');
+  if (isNpmProcess) {
+    // Do not intercept npm/npx — let them run unimpeded
+  } else {
+    initSafetyHook();
+  }
 }
