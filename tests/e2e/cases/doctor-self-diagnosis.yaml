@@ -1,0 +1,59 @@
+name: "doctor self-diagnosis"
+description: "Claude Code explores SudoWork's own UI: switches between all available agents in the conversation page, verifying each one activates correctly"
+
+steps:
+  # ── Phase 1: Go to new conversation (clean state) ──
+  - op: mouse_click
+    text: "新会话"
+  - op: pause
+    duration: 3000
+  - op: screenshot
+    path: "screenshots/doctor-00-home.png"
+  - op: judge
+    expect: "新会话 Sudoclaw Claude Code"
+
+  # ── Phase 2: Select Claude Code agent ──
+  - op: mouse_click
+    selector: "img[alt='claude logo']"
+  - op: pause
+    duration: 2000
+  - op: screenshot
+    path: "screenshots/doctor-01-claude-selected.png"
+  - op: judge
+    expect: "Claude Code 发消息"
+
+  # ── Phase 3: Send task — ask to test agent switching ──
+  - op: type_text
+    text: "请在这个应用里测试 agent 切换功能。先用 screenshot 看看当前新会话页面有哪些 agent 可选，然后逐个点击每个 agent 图标，每次切换后 screenshot 确认切换成功了。最后给我总结哪些 agent 切换成功、哪些失败。"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+
+  # ── Phase 4: Auto-approve permissions & wait ──
+  - op: pause
+    duration: 10000
+  - op: press_key
+    key: "Enter"
+    wait: 2
+  - op: press_key
+    key: "Enter"
+    wait: 2
+  - op: press_key
+    key: "Enter"
+    wait: 2
+  - op: press_key
+    key: "Enter"
+    wait: 2
+  - op: press_key
+    key: "Enter"
+    wait: 2
+
+  - op: wait_for_response
+    timeout: 300
+
+  - op: screenshot
+    path: "screenshots/doctor-02-result.png"
+
+  # ── Phase 5: Verify Claude Code completed the task ──
+  - op: judge
+    expect: "agent 切换 screenshot Sudoclaw Claude"

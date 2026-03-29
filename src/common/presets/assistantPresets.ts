@@ -375,7 +375,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'doctor',
     avatar: '🩺',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'claude',
     resourceDir: 'assistant/doctor',
     ruleFiles: {
       'en-US': 'doctor.md',
