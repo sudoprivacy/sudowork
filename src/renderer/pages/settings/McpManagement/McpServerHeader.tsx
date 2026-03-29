@@ -95,7 +95,6 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
       {!isReadOnly && (
         <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
           <div className='flex items-center gap-2 invisible group-hover:visible'>
-            <McpAgentStatusDisplay serverName={server.name} agentInstallStatus={agentInstallStatus} isLoadingAgentStatus={isServerLoading(server.name)} />
             <Dropdown
               trigger='hover'
               droplist={

@@ -32,7 +32,7 @@ class ServiceManager {
     if (!ok) return;
     // Start services (non-blocking)
     void this.startOpenClaw();
-    void this.startNexus();
+    void this.startNexus().catch(() => {});
     void this.startSafetyPolling();
   }
 
@@ -65,6 +65,7 @@ class ServiceManager {
       }
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
+      throw err;
     }
   }
 

@@ -428,6 +428,33 @@ class DynamicNexusService {
     }
   }
 
+  private async isPidAlive(pid: string): Promise<boolean> {
+    try {
+      if (process.platform === 'win32') {
+        const { stdout } = await execAsync(`powershell -NoProfile -Command "(Get-Process -Id ${pid} -ErrorAction SilentlyContinue) -ne $null"`);
+        return stdout.trim().toLowerCase() === 'true';
+      }
+
+      const { stdout } = await execAsync(`ps -p ${pid} -o pid=`);
+      return stdout.trim() === pid;
+    } catch {
+      return false;
+    }
+  }
+
+  private async waitForPidToExit(pid: string, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (!(await this.isPidAlive(pid))) {
+        return;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_POLL_INTERVAL_MS));
+    }
+
+    throw new Error(`Managed nexusd pid ${pid} did not exit within ${timeoutMs}ms`);
+  }
+
   private async isManagedNexusPid(pid: string): Promise<boolean> {
     if (!/^\d+$/.test(pid)) {
       return false;
@@ -492,6 +519,7 @@ class DynamicNexusService {
       });
     } else {
       await this.killPids([pidFromFile]);
+      await this.waitForPidToExit(pidFromFile, 5000);
     }
 
     this.deletePidFile();
@@ -622,21 +650,6 @@ echo "codesign-repair: signed=$$SIGNED failed=$$FAILED"
    */
   private getCondaEnvDir(): string {
     return path.join(getDataPath(), 'nexus_env');
-  }
-
-  private async waitForPortToBeFree(port: number, timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      if (!(await this.isPortInUse(port))) {
-        return;
-      }
-      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_POLL_INTERVAL_MS));
-    }
-
-    const pids = await this.getPidsOnPort(port);
-    const pidSummary = pids.length > 0 ? ` (pid=${pids.join(',')})` : '';
-    throw new Error(`Port ${port} is still in use after ${timeoutMs}ms${pidSummary}`);
   }
 
   private async isHealthyNexusServer(port: number): Promise<boolean> {

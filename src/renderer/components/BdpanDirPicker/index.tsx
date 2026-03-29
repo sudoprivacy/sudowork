@@ -76,9 +76,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
       const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
       if (res?.success) {
         const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
-        const sorted = rawFiles
-          .filter((f) => f.isdir)
-          .sort((a, b) => a.filename.localeCompare(b.filename));
+        const sorted = rawFiles.filter((f) => f.isdir).sort((a, b) => a.filename.localeCompare(b.filename));
         setDirs(sorted);
 
         if (root === undefined && dirPath === '/') {
@@ -183,7 +181,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
       setAuthCode('');
       setShowNewFolder(false);
       setNewFolderName('');
-      checkAuth();
+      void checkAuth();
     }
   }, [visible]);
 
@@ -218,21 +216,8 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
         <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
           <div className='flex items-center gap-8px'>
             <span className='text-t-primary text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
-            <Input
-              style={{ width: 160 }}
-              maxLength={32}
-              placeholder={t('conversation.bdpan.authCodePlaceholder')}
-              value={authCode}
-              onChange={setAuthCode}
-              onPressEnter={submitAuthCode}
-              disabled={step === 'submitting_code'}
-            />
-            <Button
-              type='primary'
-              loading={step === 'submitting_code'}
-              disabled={authCode.trim().length !== 32}
-              onClick={submitAuthCode}
-            >
+            <Input style={{ width: 160 }} maxLength={32} placeholder={t('conversation.bdpan.authCodePlaceholder')} value={authCode} onChange={setAuthCode} onPressEnter={submitAuthCode} disabled={step === 'submitting_code'} />
+            <Button type='primary' loading={step === 'submitting_code'} disabled={authCode.trim().length !== 32} onClick={submitAuthCode}>
               {t('conversation.bdpan.authCodeSubmit')}
             </Button>
           </div>
@@ -247,7 +232,9 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
           {errorMsg && <p className='text-t-secondary text-12px text-center m-0'>{errorMsg}</p>}
           <div className='flex gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
-            <Button type='primary' onClick={startLogin}>{t('conversation.bdpan.retry')}</Button>
+            <Button type='primary' onClick={startLogin}>
+              {t('conversation.bdpan.retry')}
+            </Button>
           </div>
         </div>
       );
@@ -277,10 +264,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
                   {isLast ? (
                     <span className='text-t-primary text-13px font-medium'>{crumb.label}</span>
                   ) : (
-                    <button
-                      className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0'
-                      onClick={() => loadFiles(crumb.path, root)}
-                    >
+                    <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={() => loadFiles(crumb.path, root)}>
                       {crumb.label}
                     </button>
                   )}
@@ -288,18 +272,15 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
               );
             })}
           </div>
-          <Button
-            type='text'
-            size='small'
-            icon={<Refresh size={15} />}
-            loading={loadingFiles}
-            onClick={() => loadFiles(currentPath, root)}
-          />
+          <Button type='text' size='small' icon={<Refresh size={15} />} loading={loadingFiles} onClick={() => loadFiles(currentPath, root)} />
           <Button
             type='text'
             size='small'
             icon={<FolderPlus size={15} />}
-            onClick={() => { setShowNewFolder(true); setNewFolderName(''); }}
+            onClick={() => {
+              setShowNewFolder(true);
+              setNewFolderName('');
+            }}
           />
         </div>
 
@@ -312,47 +293,28 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
           ) : (
             <>
               {dirs.map((dir) => (
-                <div
-                  key={dir.path}
-                  className='flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]'
-                  onClick={() => loadFiles(dir.path, root)}
-                >
+                <div key={dir.path} className='flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]' onClick={() => loadFiles(dir.path, root)}>
                   <FolderOpen size={18} fill='var(--color-text-3)' />
                   <span className='flex-1 text-t-primary text-14px truncate'>{dir.filename}</span>
                   <span className='text-t-secondary text-12px'>›</span>
                 </div>
               ))}
-              {dirs.length === 0 && !showNewFolder && (
-                <div className='flex items-center justify-center h-full text-t-secondary text-14px'>
-                  {t('conversation.bdpan.emptyDir')}
-                </div>
-              )}
+              {dirs.length === 0 && !showNewFolder && <div className='flex items-center justify-center h-full text-t-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>}
               {/* Inline new folder row */}
               {showNewFolder && (
                 <div className='flex items-center gap-8px px-16px py-8px border-b border-[var(--bg-3)]'>
                   <FolderPlus size={18} fill='var(--color-text-3)' />
-                  <Input
-                    ref={newFolderInputRef}
-                    style={{ flex: 1 }}
-                    placeholder={t('conversation.bdpan.mkdir.placeholder')}
-                    value={newFolderName}
-                    onChange={setNewFolderName}
-                    onPressEnter={handleCreateFolder}
-                    disabled={creatingFolder}
-                  />
-                  <Button
-                    size='small'
-                    type='primary'
-                    loading={creatingFolder}
-                    disabled={!newFolderName.trim()}
-                    onClick={handleCreateFolder}
-                  >
+                  <Input ref={newFolderInputRef} style={{ flex: 1 }} placeholder={t('conversation.bdpan.mkdir.placeholder')} value={newFolderName} onChange={setNewFolderName} onPressEnter={handleCreateFolder} disabled={creatingFolder} />
+                  <Button size='small' type='primary' loading={creatingFolder} disabled={!newFolderName.trim()} onClick={handleCreateFolder}>
                     {t('conversation.bdpan.mkdir.confirm')}
                   </Button>
                   <Button
                     size='small'
                     disabled={creatingFolder}
-                    onClick={() => { setShowNewFolder(false); setNewFolderName(''); }}
+                    onClick={() => {
+                      setShowNewFolder(false);
+                      setNewFolderName('');
+                    }}
                   >
                     {t('conversation.bdpan.cancel')}
                   </Button>
@@ -386,19 +348,12 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
           {username && (
             <span className='text-t-secondary text-13px'>
               {username}{' '}
-              <button
-                className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0'
-                onClick={logout}
-              >
+              <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
                 {t('conversation.bdpan.logout')}
               </button>
             </span>
           )}
-          <button
-            onClick={onCancel}
-            className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none'
-            aria-label='Close'
-          >
+          <button onClick={onCancel} className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
             <Close size={20} fill='#86909c' />
           </button>
         </div>
@@ -407,13 +362,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
   };
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={onCancel}
-      style={{ width: 520 }}
-      header={headerConfig}
-      footer={null}
-    >
+    <AionModal visible={visible} onCancel={onCancel} style={{ width: 520 }} header={headerConfig} footer={null}>
       {renderContent()}
     </AionModal>
   );

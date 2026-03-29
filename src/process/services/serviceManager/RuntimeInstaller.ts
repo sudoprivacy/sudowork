@@ -62,10 +62,7 @@ class RuntimeInstaller {
     const { isBdpanInstalled: checkBdpanInstalled } = await import('../bdpan/BdpanInstallService');
     const fastBdpanOk = checkBdpanInstalled();
 
-    mainLog(
-      TAG,
-      `Fast check: Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}, Bdpan=${fastBdpanOk} (hasNexusResource=${hasNexusResource})`,
-    );
+    mainLog(TAG, `Fast check: Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}, Bdpan=${fastBdpanOk} (hasNexusResource=${hasNexusResource})`);
 
     if (fastNodeOk && fastSudoclawOk && fastNexusOk && fastBdpanOk) {
       mainLog(TAG, 'All runtimes already installed, skipping installation');
@@ -76,26 +73,14 @@ class RuntimeInstaller {
 
     // At least one component appears to be missing — do full async check
     mainLog(TAG, 'Checking runtime dependencies...');
-    const [
-      { dynamicNexusService },
-      { ensureSudoclawInstalled, getSudoclawCliPath },
-      { isBdpanInstalled, ensureBdpanInstalled },
-    ] =
-      await Promise.all([
-        import('../nexus/DynamicNexusService'),
-        import('../sudoclaw/SudoclawInstallService'),
-        import('../bdpan/BdpanInstallService'),
-      ]);
+    const [{ dynamicNexusService }, { ensureSudoclawInstalled, getSudoclawCliPath }, { isBdpanInstalled, ensureBdpanInstalled }] = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../bdpan/BdpanInstallService')]);
 
     const nodeInstalled = isNodeInstalled();
     const sudoclawInstalled = getSudoclawCliPath() !== null;
     const nexusInstalled = await dynamicNexusService.checkInstalled();
     const bdpanInstalled = isBdpanInstalled();
 
-    mainLog(
-      TAG,
-      `Full check: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, Bdpan=${bdpanInstalled}`,
-    );
+    mainLog(TAG, `Full check: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, Bdpan=${bdpanInstalled}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
     if (nodeInstalled && sudoclawInstalled && nexusInstalled && bdpanInstalled) {
@@ -120,10 +105,7 @@ class RuntimeInstaller {
     const willInstallBdpan = !bdpanInstalled && hasBdpanResource;
 
     if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus && !willInstallBdpan) {
-      mainWarn(
-        TAG,
-        'Some components missing but no installation resources found, marking ready',
-      );
+      mainWarn(TAG, 'Some components missing but no installation resources found, marking ready');
       initStatusManager.setStatus('ready', '初始化完成', 100);
       return true;
     }

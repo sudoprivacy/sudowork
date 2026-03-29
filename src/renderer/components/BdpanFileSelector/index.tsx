@@ -73,38 +73,41 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   const [authCode, setAuthCode] = useState('');
 
   // ── Load files ───────────────────────────────────────────────────────────────
-  const loadFiles = useCallback(async (dirPath: string, root?: string) => {
-    setLoadingFiles(true);
-    setStep('file_browser');
-    setCurrentPath(dirPath);
-    setSelected(new Set());
-    setLastSelectedIndex(null);
-    try {
-      const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
-      if (res?.success) {
-        // Filter out the directory itself (bdpan ls returns self for empty dirs)
-        const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
-        const sorted = [...rawFiles].sort((a, b) => {
-          if (a.isdir !== b.isdir) return a.isdir ? -1 : 1;
-          return a.filename.localeCompare(b.filename);
-        });
-        setFiles(sorted);
+  const loadFiles = useCallback(
+    async (dirPath: string, root?: string) => {
+      setLoadingFiles(true);
+      setStep('file_browser');
+      setCurrentPath(dirPath);
+      setSelected(new Set());
+      setLastSelectedIndex(null);
+      try {
+        const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
+        if (res?.success) {
+          // Filter out the directory itself (bdpan ls returns self for empty dirs)
+          const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
+          const sorted = [...rawFiles].sort((a, b) => {
+            if (a.isdir !== b.isdir) return a.isdir ? -1 : 1;
+            return a.filename.localeCompare(b.filename);
+          });
+          setFiles(sorted);
 
-        // On first load (root discovery), derive bdpanRoot from the returned paths
-        if (root === undefined && dirPath === '/') {
-          const detectedRoot = deriveRoot(res.data?.files ?? []);
-          setBdpanRoot(detectedRoot);
-          setCurrentPath(detectedRoot);
+          // On first load (root discovery), derive bdpanRoot from the returned paths
+          if (root === undefined && dirPath === '/') {
+            const detectedRoot = deriveRoot(res.data?.files ?? []);
+            setBdpanRoot(detectedRoot);
+            setCurrentPath(detectedRoot);
+          }
+        } else {
+          Message.error(res?.data?.error ?? t('conversation.bdpan.lsFailed'));
         }
-      } else {
-        Message.error(res?.data?.error ?? t('conversation.bdpan.lsFailed'));
+      } catch (err) {
+        Message.error(String(err));
+      } finally {
+        setLoadingFiles(false);
       }
-    } catch (err) {
-      Message.error(String(err));
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, [t]);
+    },
+    [t]
+  );
 
   // ── Step: check auth ────────────────────────────────────────────────────────
   const checkAuth = useCallback(async () => {
@@ -174,7 +177,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
 
   const navigateInto = (file: BdpanFileEntry) => {
     if (!file.isdir) return;
-    loadFiles(file.path, bdpanRoot ?? undefined);
+    void loadFiles(file.path, bdpanRoot ?? undefined);
   };
 
   const handleFileClick = (file: BdpanFileEntry, index: number, e: React.MouseEvent) => {
@@ -223,7 +226,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       setFiles([]);
       setSelected(new Set());
       setAuthCode('');
-      checkAuth();
+      void checkAuth();
     }
   }, [visible]);
 
@@ -252,21 +255,8 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
         <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
           <div className='flex items-center gap-8px'>
             <span className='text-t-primary text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
-            <Input
-              style={{ width: 160 }}
-              maxLength={32}
-              placeholder={t('conversation.bdpan.authCodePlaceholder')}
-              value={authCode}
-              onChange={setAuthCode}
-              onPressEnter={submitAuthCode}
-              disabled={step === 'submitting_code'}
-            />
-            <Button
-              type='primary'
-              loading={step === 'submitting_code'}
-              disabled={authCode.trim().length !== 32}
-              onClick={submitAuthCode}
-            >
+            <Input style={{ width: 160 }} maxLength={32} placeholder={t('conversation.bdpan.authCodePlaceholder')} value={authCode} onChange={setAuthCode} onPressEnter={submitAuthCode} disabled={step === 'submitting_code'} />
+            <Button type='primary' loading={step === 'submitting_code'} disabled={authCode.trim().length !== 32} onClick={submitAuthCode}>
               {t('conversation.bdpan.authCodeSubmit')}
             </Button>
           </div>
@@ -281,7 +271,9 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
           {errorMsg && <p className='text-t-secondary text-12px text-center m-0'>{errorMsg}</p>}
           <div className='flex gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
-            <Button type='primary' onClick={startLogin}>{t('conversation.bdpan.retry')}</Button>
+            <Button type='primary' onClick={startLogin}>
+              {t('conversation.bdpan.retry')}
+            </Button>
           </div>
         </div>
       );
@@ -304,10 +296,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
                   {isLast ? (
                     <span className='text-t-primary text-13px font-medium'>{crumb.label}</span>
                   ) : (
-                    <button
-                      className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0'
-                      onClick={() => loadFiles(crumb.path, root)}
-                    >
+                    <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={() => loadFiles(crumb.path, root)}>
                       {crumb.label}
                     </button>
                   )}
@@ -315,37 +304,29 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               );
             })}
           </div>
-          <Button
-            type='text'
-            size='small'
-            icon={<Refresh size={15} />}
-            loading={loadingFiles}
-            onClick={() => loadFiles(currentPath, root)}
-          />
+          <Button type='text' size='small' icon={<Refresh size={15} />} loading={loadingFiles} onClick={() => loadFiles(currentPath, root)} />
         </div>
 
         {/* File list */}
-        <div className='flex-1 overflow-y-auto' onClick={(e) => { if (e.target === e.currentTarget) { setSelected(new Set()); setLastSelectedIndex(null); } }}>
+        <div
+          className='flex-1 overflow-y-auto'
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelected(new Set());
+              setLastSelectedIndex(null);
+            }
+          }}
+        >
           {loadingFiles ? (
             <div className='flex items-center justify-center h-full'>
               <Spin />
             </div>
           ) : files.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-t-secondary text-14px'>
-              {t('conversation.bdpan.emptyDir')}
-            </div>
+            <div className='flex items-center justify-center h-full text-t-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
           ) : (
             files.map((file, index) => (
-              <div
-                key={file.path}
-                className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`}
-                onClick={(e) => handleFileClick(file, index, e)}
-              >
-                {file.isdir ? (
-                  <FolderOpen size={18} fill='var(--color-text-3)' />
-                ) : (
-                  <FileDisplayOne size={18} fill='var(--color-text-3)' />
-                )}
+              <div key={file.path} className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
+                {file.isdir ? <FolderOpen size={18} fill='var(--color-text-3)' /> : <FileDisplayOne size={18} fill='var(--color-text-3)' />}
                 <span className='flex-1 text-t-primary text-14px truncate'>{file.filename}</span>
                 {file.isdir && <span className='text-t-secondary text-12px'>›</span>}
               </div>
@@ -355,9 +336,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
 
         {/* Footer */}
         <div className='flex items-center justify-between px-16px py-12px border-t border-[var(--bg-3)] flex-shrink-0'>
-          <span className='text-t-secondary text-13px'>
-            {selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}
-          </span>
+          <span className='text-t-secondary text-13px'>{selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}</span>
           <div className='flex items-center gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button
@@ -384,19 +363,12 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
           {username && (
             <span className='text-t-secondary text-13px'>
               {username}{' '}
-              <button
-                className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0'
-                onClick={logout}
-              >
+              <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
                 {t('conversation.bdpan.logout')}
               </button>
             </span>
           )}
-          <button
-            onClick={onCancel}
-            className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none'
-            aria-label='Close'
-          >
+          <button onClick={onCancel} className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
             <Close size={20} fill='#86909c' />
           </button>
         </div>
@@ -405,13 +377,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   };
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={onCancel}
-      style={{ width: 520 }}
-      header={headerConfig}
-      footer={null}
-    >
+    <AionModal visible={visible} onCancel={onCancel} style={{ width: 520 }} header={headerConfig} footer={null}>
       {renderContent()}
     </AionModal>
   );
