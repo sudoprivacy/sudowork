@@ -905,29 +905,14 @@ app.on('before-quit', async () => {
   isQuitting = true;
   isExplicitQuit = true;
   destroyTray();
-  // 在应用退出前清理工作进程
+
+  // Clean up work processes (per-conversation agents)
   WorkerManage.clear();
 
-  // Stop Sudoclaw gateway processes from gatewayRegistry
+  // Stop all managed services (Nexus, OpenClaw gateway)
   try {
-    const { gatewayRegistry } = await import('@/agent/openclaw/OpenClawGatewayManager');
-    for (const [port, manager] of gatewayRegistry) {
-      try {
-        await manager.stop();
-        console.log(`[Sudowork] Stopped gateway on port ${port}`);
-      } catch (err) {
-        console.warn(`[Sudowork] Failed to stop gateway on port ${port}:`, err);
-      }
-    }
-    gatewayRegistry.clear();
-  } catch {
-    // Ignore cleanup errors
-  }
-
-  // Stop Nexus Python server
-  try {
-    const { dynamicNexusService } = await import('./process/services/nexus/DynamicNexusService');
-    dynamicNexusService.stop();
+    const { serviceManager } = await import('./process/services/serviceManager');
+    await serviceManager.shutdown();
   } catch {
     // Ignore cleanup errors
   }

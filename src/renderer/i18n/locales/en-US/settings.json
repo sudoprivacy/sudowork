@@ -107,6 +107,53 @@
   "closeToTray": "Close to Tray",
   "gemini": "Gemini",
   "model": "Model",
+  "runtime": "Runtime",
+  "runtimeSettings": {
+    "title": "Runtime",
+    "description": "Manage runtime tools and services the app depends on",
+    "tool": "Tool",
+    "actions": "Actions",
+    "status": {
+      "notInstalled": "Not installed",
+      "installed": "Installed",
+      "running": "Running :{{port}}",
+      "notRunning": "Not running",
+      "checking": "Checking…"
+    },
+    "phase": {
+      "downloading": "Downloading {{percent}}",
+      "mounting": "Mounting…",
+      "copying": "Copying…",
+      "extracting": "Extracting…",
+      "installing": "Installing…",
+      "unpacking": "Unpacking…",
+      "starting": "Starting…",
+      "cleanup": "Cleaning up…",
+      "configuring": "Configuring…",
+      "ready": "Ready",
+      "error": "Error"
+    },
+    "source": {
+      "managed": "Managed",
+      "system": "System"
+    },
+    "button": {
+      "install": "Install",
+      "reinstall": "Reinstall",
+      "refresh": "Refresh",
+      "uninstall": "Uninstall",
+      "start": "Start",
+      "stop": "Stop"
+    },
+    "installSuccess": "{{name}} installed successfully",
+    "installFailed": "{{name}} installation failed",
+    "uninstallSuccess": "{{name}} uninstalled successfully",
+    "uninstallFailed": "{{name}} uninstall failed",
+    "startSuccess": "{{name}} started",
+    "startFailed": "{{name}} start failed",
+    "stopSuccess": "{{name}} stopped",
+    "stopFailed": "{{name}} stop failed"
+  },
   "system": "System",
   "about": "About",
   "openclaw": "Copilot",

@@ -7,7 +7,6 @@
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore } from '@/agent/acp/ApprovalStore';
 import { OpenClawGatewayConnection } from '@/agent/openclaw/OpenClawGatewayConnection';
-import { OpenClawGatewayManager } from '@/agent/openclaw/OpenClawGatewayManager';
 import { getGatewayAuthPassword, getGatewayAuthToken, getGatewayPort, readOpenClawConfigFromDir, SUDOCLAW_DEFAULT_PORT } from '@/agent/openclaw/openclawConfig';
 import type { ChatEvent, EventFrame, HelloOk, OpenClawGatewayConfig } from '@/agent/openclaw/types';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
@@ -19,29 +18,12 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import type { AcpBackendAll, AcpResult, ToolCallUpdate } from '@/types/acpTypes';
 import { AcpErrorType, createAcpError } from '@/types/acpTypes';
-import net from 'node:net';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
-import WorkerManage from '@process/WorkerManage';
 import BaseAgent from '@process/task/BaseAgent';
-
-async function isTcpPortOpen(host: string, port: number, timeoutMs = 300): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
-    const socket = net.createConnection({ host, port });
-    const done = (result: boolean) => {
-      socket.removeAllListeners();
-      socket.destroy();
-      resolve(result);
-    };
-    socket.setTimeout(timeoutMs);
-    socket.once('connect', () => done(true));
-    socket.once('timeout', () => done(false));
-    socket.once('error', () => done(false));
-  });
-}
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -71,8 +53,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   bootstrap: Promise<void>;
   private options: OpenClawAgentData;
 
-  // Transport — owned directly (no inner agent)
-  private gatewayManager: OpenClawGatewayManager | null = null;
+  // Transport — WebSocket connection to ServiceManager-owned gateway
   private connection: OpenClawGatewayConnection | null = null;
   private adapter: AcpAdapter;
   private approvalStore = new AcpApprovalStore();
@@ -115,31 +96,20 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       const token = gatewayConfig.token ?? (authFromConfig?.mode === 'token' ? authFromConfig.token : null) ?? (stateDir ? getGatewayAuthToken(stateDir) : null) ?? undefined;
       const password = gatewayConfig.password ?? (authFromConfig?.mode === 'password' ? authFromConfig.password : null) ?? (stateDir ? getGatewayAuthPassword(stateDir) : null) ?? undefined;
 
-      // Start gateway process if not using external
+      // Wait for ServiceManager-owned gateway if not using external
+      let connectHost = host;
+      let connectPort = port;
       if (!useExternal) {
-        const probeHost = host === 'localhost' ? '127.0.0.1' : host;
-        const alreadyListening = await isTcpPortOpen(probeHost, port);
-        if (!alreadyListening) {
-          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir, OPENCLAW_CONFIG_PATH: `${stateDir}/sudoclaw.json` } : undefined;
-          this.gatewayManager = new OpenClawGatewayManager({
-            port,
-            customEnv,
-            stateDir,
-            forceSubprocessGateway: gatewayConfig.forceSubprocessGateway ?? true,
-          });
-
-          try {
-            await this.gatewayManager.start();
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to start OpenClaw Gateway: ${errorMsg}`);
-          }
-        }
+        const { serviceManager } = await import('@process/services/serviceManager');
+        const gw = await serviceManager.waitForGateway();
+        if (!gw) throw new Error('Sudoclaw gateway failed to start');
+        connectHost = gw.host;
+        connectPort = gw.port;
       }
 
       // Create and configure connection
       this.connection = new OpenClawGatewayConnection({
-        url: `ws://${host}:${port}`,
+        url: `ws://${connectHost}:${connectPort}`,
         stateDir: stateDir ?? undefined,
         token,
         password,
@@ -147,7 +117,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         onHelloOk: (_hello: HelloOk) => {},
         onConnectError: (err) => this.handleConnectError(err),
         onClose: (code, reason) => this.handleClose(code, reason),
-        onTokenMismatch: this.gatewayManager ? () => this.restartGatewayForTokenMismatch() : undefined,
+        onTokenMismatch: !useExternal
+          ? async () => {
+              const { serviceManager } = await import('@process/services/serviceManager');
+              await serviceManager.restartOpenClaw();
+            }
+          : undefined,
       });
 
       this.connection.start();
@@ -211,17 +186,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
     if (this.connection.sessionKey !== resumeKey) {
       this.saveSessionKey(this.connection.sessionKey!);
-    }
-  }
-
-  private async restartGatewayForTokenMismatch(): Promise<void> {
-    if (!this.gatewayManager) return;
-    try {
-      await this.gatewayManager.stop();
-      await this.gatewayManager.start();
-    } catch (e) {
-      console.error('[OpenClawAgent] Failed to restart gateway:', e);
-      throw e;
     }
   }
 
@@ -320,19 +284,10 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   kill() {
-    const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
-    const shouldStopGateway = others.length === 0;
-
-    // Stop connection
+    // Stop WebSocket connection only — gateway lifecycle is ServiceManager's responsibility.
     if (this.connection) {
       this.connection.stop();
       this.connection = null;
-    }
-
-    // Stop gateway process only when no other sessions need it
-    if (this.gatewayManager && shouldStopGateway) {
-      void this.gatewayManager.stop().catch((err) => console.error('[OpenClawAgent] gateway stop failed during kill:', err));
-      this.gatewayManager = null;
     }
 
     this.approvalStore.clear();
@@ -340,24 +295,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingNavigationTools.clear();
   }
 
-  /** Restart gateway to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
+  /** Reconnect WebSocket to the (ServiceManager-owned) gateway. */
   async restartGateway(): Promise<void> {
-    // Full stop + reconnect
     if (this.connection) {
       this.connection.stop();
       this.connection = null;
     }
-    if (this.gatewayManager) {
-      await this.gatewayManager.stop();
-      this.gatewayManager = null;
-    }
     this.bootstrap = this.connect(this.options);
     await this.bootstrap;
-  }
-
-  /** Send SIGUSR1 to gateway for hot-reload (skills) — no full restart needed */
-  reloadGatewaySkills(): void {
-    this.gatewayManager?.sendReloadSignal();
   }
 
   getDiagnostics() {

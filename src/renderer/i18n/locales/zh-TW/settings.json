@@ -107,6 +107,53 @@
   "closeToTray": "關閉到托盤",
   "gemini": "Gemini",
   "model": "模型",
+  "runtime": "執行環境",
+  "runtimeSettings": {
+    "title": "執行環境",
+    "description": "管理應用程式依賴的執行時工具和服務",
+    "tool": "工具",
+    "actions": "操作",
+    "status": {
+      "notInstalled": "未安裝",
+      "installed": "已安裝",
+      "running": "執行中 :{{port}}",
+      "notRunning": "未執行",
+      "checking": "檢查中…"
+    },
+    "phase": {
+      "downloading": "下載中 {{percent}}",
+      "mounting": "掛載中…",
+      "copying": "安裝中…",
+      "extracting": "解壓中…",
+      "installing": "安裝中…",
+      "unpacking": "解包中…",
+      "starting": "啟動中…",
+      "cleanup": "清理中…",
+      "configuring": "配置中…",
+      "ready": "就緒",
+      "error": "出錯"
+    },
+    "source": {
+      "managed": "託管",
+      "system": "系統"
+    },
+    "button": {
+      "install": "安裝",
+      "reinstall": "重新安裝",
+      "refresh": "重新整理",
+      "uninstall": "解除安裝",
+      "start": "啟動",
+      "stop": "停止"
+    },
+    "installSuccess": "{{name}} 安裝成功",
+    "installFailed": "{{name}} 安裝失敗",
+    "uninstallSuccess": "{{name}} 解除安裝成功",
+    "uninstallFailed": "{{name}} 解除安裝失敗",
+    "startSuccess": "{{name}} 已啟動",
+    "startFailed": "{{name}} 啟動失敗",
+    "stopSuccess": "{{name}} 已停止",
+    "stopFailed": "{{name}} 停止失敗"
+  },
   "system": "系統",
   "about": "關於",
   "openclaw": "Sudoclaw",

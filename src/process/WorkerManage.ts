@@ -142,35 +142,32 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
-/** Send SIGUSR1 to Sudoclaw gateway for hot-reload (skills) — no full restart */
-const reloadOpenClawSkills = (): void => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  for (const { task } of openclawTasks) {
-    const mgr = task as OpenClawAgent;
-    if (typeof mgr.reloadGatewaySkills === 'function') {
-      mgr.reloadGatewaySkills();
-      return; // Only one gateway; first task that owns it will send signal
-    }
-  }
+/** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
+const reloadOpenClawSkills = async (): Promise<void> => {
+  const { serviceManager } = await import('./services/serviceManager');
+  serviceManager.sendReloadSignal();
 };
 
-/** Restart all Sudoclaw gateways to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
+/** Restart the Sudoclaw gateway (via ServiceManager) and reconnect all agent WebSockets */
 const restartOpenClawGateways = async (): Promise<void> => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
+  const { serviceManager } = await import('./services/serviceManager');
+  await serviceManager.restartOpenClaw();
+  // restartOpenClaw() already calls reconnectOpenClawAgents()
+};
 
+/** Reconnect all active openclaw-gateway agents' WebSocket connections (no gateway restart) */
+const reconnectOpenClawAgents = (): void => {
+  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
   for (const { id, task } of openclawTasks) {
-    const mgr = task as OpenClawAgent;
-    if (typeof mgr.restartGateway === 'function') {
-      // Restart asynchronously without blocking
-      mgr
-        .restartGateway()
-        .then(() => {
-          console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
-        })
-        .catch((err) => {
-          console.error('[WorkerManage] Failed to restart OpenClaw gateway for', id, ':', err);
-        });
-    }
+    const agent = task as OpenClawAgent;
+    agent
+      .restartGateway()
+      .then(() => {
+        console.log('[WorkerManage] Reconnected OpenClaw agent for', id);
+      })
+      .catch((err) => {
+        console.error('[WorkerManage] Failed to reconnect OpenClaw agent for', id, ':', err);
+      });
   }
 };
 
@@ -184,6 +181,7 @@ const WorkerManage = {
   clear,
   reloadOpenClawSkills,
   restartOpenClawGateways,
+  reconnectOpenClawAgents,
 };
 
 export default WorkerManage;

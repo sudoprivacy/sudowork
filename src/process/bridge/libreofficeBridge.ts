@@ -13,14 +13,11 @@ let installState: InstallState = { installing: false };
 export function initLibreOfficeBridge(): void {
   ipcBridge.libreOffice.checkInstalled.provider(async () => {
     try {
-      return { success: true, data: await libreOfficeService.checkInstalled() };
+      const status = await libreOfficeService.checkInstalled();
+      return { success: true, data: { ...status, source: 'system' as const } };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
-  });
-
-  ipcBridge.libreOffice.getDownloadUrl.provider(async () => {
-    return { success: true, data: { url: libreOfficeService.getDownloadUrl() } };
   });
 
   ipcBridge.libreOffice.getInstallState.provider(async () => {
@@ -42,6 +39,15 @@ export function initLibreOfficeBridge(): void {
       return { success: false, msg };
     } finally {
       installState = { installing: false };
+    }
+  });
+
+  ipcBridge.libreOffice.uninstall.provider(async () => {
+    try {
+      await libreOfficeService.uninstall();
+      return { success: true };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
 

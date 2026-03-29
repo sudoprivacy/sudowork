@@ -23,7 +23,7 @@ function getArchNames(): { dir: string; file: string } {
   return { dir: 'x86_64', file: 'x86-64' };
 }
 
-export interface LibreOfficeStatus {
+interface LibreOfficeStatus {
   installed: boolean;
   version?: string;
 }
@@ -440,6 +440,24 @@ export class LibreOfficeService {
       }
       onProgress('cleanup');
     }
+  }
+
+  async uninstall(): Promise<void> {
+    if (process.platform === 'darwin') {
+      const appPath = '/Applications/LibreOffice.app';
+      if (fs.existsSync(appPath)) fs.rmSync(appPath, { recursive: true, force: true });
+    } else if (process.platform === 'win32') {
+      const programFiles = process.env['ProgramFiles'] ?? 'C:\\Program Files';
+      const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+      for (const dir of [path.join(programFiles, 'LibreOffice'), path.join(programFilesX86, 'LibreOffice')]) {
+        if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+      }
+    } else {
+      await execAsync('pkexec dpkg -r libreoffice-common libreoffice-core 2>/dev/null || true');
+    }
+    // Clean download cache
+    const cacheDir = path.join(app.getPath('userData'), 'libreoffice-cache');
+    if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true, force: true });
   }
 }
 

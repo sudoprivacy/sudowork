@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { app } from 'electron';
-import { spawn, exec, execSync } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import * as tar from 'tar';
@@ -18,10 +18,7 @@ const CONDA_READY_MARKER = '.nexus-conda-ready';
 // for this installation, so start() skips it on subsequent launches.
 const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
 
-// How long to wait for the server port after extraction (first run can be slow).
-const WAIT_PORT_TIMEOUT_AFTER_SETUP_MS = 5 * 60 * 1000; // 5 minutes
 const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
-const WAIT_PORT_RELEASE_TIMEOUT_MS = 10 * 1000; // 10 seconds
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
@@ -93,6 +90,10 @@ class DynamicNexusService {
       return path.join(envDir, 'python.exe');
     }
     return path.join(envDir, 'bin', 'python');
+  }
+
+  private getPidFilePath(): string {
+    return path.join(getDataPath(), 'nexusd.pid');
   }
 
   get isRunning(): boolean {
@@ -290,39 +291,21 @@ class DynamicNexusService {
     // on subsequent launches.
     await this.repairMacOSLibrarySignatures(envDir);
 
-    const pidFile = path.join(getDataPath(), 'nexusd.pid');
+    if (fs.existsSync(this.getPidFilePath())) {
+      const stopped = await this.stopManagedPidFromFile('before startup');
+      if (!stopped) {
+        mainWarn('Nexus', 'Found nexusd.pid before startup, but it did not resolve to a managed nexusd process');
+      }
+    }
 
     // If the port is already taken, clear it synchronously before spawning a new
     // process. Otherwise the readiness check can latch onto the old listener and
     // report a false-positive startup.
     const portOccupied = await this.isPortInUse(this._port);
     if (portOccupied) {
-      const healthyExistingServer = await this.isHealthyNexusServer(this._port);
-      if (healthyExistingServer) {
-        mainLog('Nexus', `Reusing existing healthy Nexus server on port ${this._port}`);
-        this._running = true;
-        this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
-        return;
-      }
-
       const occupantPids = await this.getPidsOnPort(this._port);
       const pidSummary = occupantPids.length > 0 ? ` (pid=${occupantPids.join(',')})` : '';
-      mainWarn('Nexus', `Port ${this._port} already in use${pidSummary} — clearing before restart`);
-      this.emitSetup('starting', `Port ${this._port} already in use. Force-restarting...`);
-      await this.killProcessOnPort(this._port);
-      await this.waitForPortToBeFree(this._port, WAIT_PORT_RELEASE_TIMEOUT_MS);
-    }
-
-    // Remove stale PID file if exists (nexusd checks this on startup)
-    // On Windows, os.kill(pid, 0) in nexus's _is_nexusd_process() fails with WinError 87,
-    // so we need to clean up the PID file before starting a new instance.
-    if (fs.existsSync(pidFile)) {
-      try {
-        fs.unlinkSync(pidFile);
-        mainLog('Nexus', `Removed stale PID file: ${pidFile}`);
-      } catch (err) {
-        mainWarn('Nexus', `Failed to remove PID file: ${err}`);
-      }
+      throw new Error(`Port ${this._port} is still in use after pre-start PID stop${pidSummary}`);
     }
 
     // Use the python interpreter from the extracted conda env to run nexusd.
@@ -368,30 +351,16 @@ class DynamicNexusService {
 
   /**
    * Stops the nexus service.
-   * Kills the tracked child process first, then also force-kills any orphaned
-   * nexusd that may still be holding the port (e.g. if the child exited but
-   * nexusd itself was spawned as a sub-process and detached).
+   * Stops only the PID recorded in nexusd.pid.
+   * This avoids killing unrelated processes that may happen to use the same port.
    */
-  stop(): void {
-    if (this.process) {
-      // Use SIGKILL instead of SIGTERM: SIGKILL cannot be caught or ignored and takes
-      // effect immediately. SIGTERM requires the process to handle it, but Electron's
-      // before-quit handler is async and the app may exit before nexusd processes SIGTERM,
-      // leaving it orphaned (adopted by launchd on macOS).
-      this.process.kill('SIGKILL');
-      this.process = null;
-    }
+  async stop(): Promise<void> {
     this._running = false;
-    // Synchronous fallback: kill any process still holding the port.
-    // execSync is used deliberately here — stop() is called from the synchronous
-    // portion of before-quit and we need cleanup to complete before the process exits.
-    if (this._port > 0 && process.platform !== 'win32') {
-      try {
-        execSync(`lsof -ti tcp:${this._port} | xargs kill -9 2>/dev/null || true`, { timeout: 2000 });
-      } catch {
-        // Port was already free or lsof unavailable — ignore
-      }
+    const stopped = await this.stopManagedPidFromFile('on stop');
+    if (!stopped) {
+      mainWarn('Nexus', 'nexusd.pid not found or does not reference a managed nexusd process, skipping Nexus stop');
     }
+    this.process = null;
   }
 
   /**
@@ -429,15 +398,109 @@ class DynamicNexusService {
     }
   }
 
-  /**
-   * Force-kills whatever process is currently holding the given TCP port.
-   * macOS/Linux: lsof + kill -9
-   * Windows: netstat + taskkill
-   */
-  private async killProcessOnPort(port: number): Promise<void> {
-    const pids = await this.getPidsOnPort(port);
+  private readPidFromFile(): string | null {
+    const pidFile = this.getPidFilePath();
+    if (!fs.existsSync(pidFile)) {
+      return null;
+    }
+
+    try {
+      const pid = fs.readFileSync(pidFile, 'utf-8').trim();
+      return /^\d+$/.test(pid) ? pid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getCommandLineForPid(pid: string): Promise<string | null> {
+    try {
+      if (process.platform === 'win32') {
+        const { stdout } = await execAsync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter \\"ProcessId = ${pid}\\").CommandLine"`);
+        const commandLine = stdout.trim();
+        return commandLine || null;
+      }
+
+      const { stdout } = await execAsync(`ps -p ${pid} -o command=`);
+      const commandLine = stdout.trim();
+      return commandLine || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async isManagedNexusPid(pid: string): Promise<boolean> {
+    if (!/^\d+$/.test(pid)) {
+      return false;
+    }
+
+    if (this.process?.pid === Number(pid)) {
+      return true;
+    }
+
+    const commandLine = await this.getCommandLineForPid(pid);
+    if (!commandLine) {
+      return false;
+    }
+
+    const normalizedCommand = commandLine.replaceAll('\\', '/').toLowerCase();
+    const envDir = this.getCondaEnvDir().replaceAll('\\', '/').toLowerCase();
+    const nexusdName = this.isWindows ? 'nexusd.exe' : 'nexusd';
+
+    return normalizedCommand.includes(envDir) && normalizedCommand.includes(nexusdName);
+  }
+
+  private deletePidFile(): void {
+    const pidFile = this.getPidFilePath();
+    if (!fs.existsSync(pidFile)) {
+      return;
+    }
+
+    try {
+      fs.unlinkSync(pidFile);
+      mainLog('Nexus', `Removed PID file: ${pidFile}`);
+    } catch (err) {
+      mainWarn('Nexus', `Failed to remove PID file: ${String(err)}`);
+    }
+  }
+
+  private async stopManagedPidFromFile(context: 'before startup' | 'on stop'): Promise<boolean> {
+    const pidFromFile = this.readPidFromFile();
+    if (!pidFromFile) {
+      return false;
+    }
+
+    if (!(await this.isManagedNexusPid(pidFromFile))) {
+      mainWarn('Nexus', `PID ${pidFromFile} from nexusd.pid does not look like a managed nexusd process, skipping stop ${context}`);
+      return false;
+    }
+
+    const proc = this.process;
+    if (proc?.pid === Number(pidFromFile)) {
+      proc.kill('SIGTERM');
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          if (!proc.killed) {
+            mainLog('Nexus', `SIGTERM timeout for PID ${pidFromFile}, sending SIGKILL`);
+            proc.kill('SIGKILL');
+          }
+          resolve();
+        }, 3000);
+        proc.once('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    } else {
+      await this.killPids([pidFromFile]);
+    }
+
+    this.deletePidFile();
+    return true;
+  }
+
+  private async killPids(pids: string[]): Promise<void> {
     if (pids.length === 0) {
-      mainLog('Nexus', `No process found on port ${port}`);
+      mainLog('Nexus', 'No managed Nexus process found to kill');
       return;
     }
 
@@ -451,9 +514,9 @@ class DynamicNexusService {
           await execAsync(`kill -9 ${pid}`).catch(() => {});
         }
       }
-      mainLog('Nexus', `Killed process on port ${port}: ${pids.join(',')}`);
+      mainLog('Nexus', `Killed managed Nexus process(es): ${pids.join(',')}`);
     } catch {
-      // Port was already free, nothing to do
+      // Processes may already be gone, nothing else to do.
     }
   }
 
