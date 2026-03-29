@@ -191,7 +191,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string }) {
+  async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     try {
@@ -211,7 +211,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           type: 'text',
           position: 'right',
           conversation_id: this.conversation_id,
-          content: { content: data.content },
+          content: { content: data.content, skills: (data as any).skills || [] },
           createdAt: Date.now(),
         };
         addMessage(this.conversation_id, userMessage);

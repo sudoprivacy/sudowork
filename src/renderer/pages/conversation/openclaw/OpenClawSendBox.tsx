@@ -350,7 +350,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       aiProcessingRef.current = true;
       starOfficeInstallInFlightRef.current = true;
       ipcBridge.openclawConversation.sendMessage
-        .invoke({ input: text, msg_id, conversation_id, injectSkills: ['star-office-helper'] })
+        .invoke({ input: text, msg_id, conversation_id, skills: ['star-office-helper'] })
         .then(() => {
           void checkAndUpdateTitle(conversation_id, text);
           emitter.emit('chat.history.refresh');
@@ -390,7 +390,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   });
 
   const sendOpenClawMessage = useCallback(
-    async (message: string) => {
+    async (message: string, skills?: string[]) => {
       const runtimeOk = await validateRuntimeMismatch(conversation_id);
       if (!runtimeOk) return;
 
@@ -416,7 +416,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         conversation_id,
         type: 'text',
         position: 'right',
-        content: { content: displayMessage },
+        content: { content: displayMessage, skills: skills || [] },
         createdAt: Date.now(),
       };
       addOrUpdateMessage(userMessage, true);
@@ -428,6 +428,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
           msg_id,
           conversation_id,
           files: filesToSend,
+          skills: skills || [],
         });
         void checkAndUpdateTitle(conversation_id, message);
         emitter.emit('chat.history.refresh');
@@ -441,8 +442,8 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     [conversation_id, atPath, uploadFile, workspacePath, addOrUpdateMessage, checkAndUpdateTitle, setAtPath, setUploadFile]
   );
 
-  const onSendHandler = async (message: string) => {
-    await sendOpenClawMessage(message);
+  const onSendHandler = async (message: string, skills?: string[]) => {
+    await sendOpenClawMessage(message, skills);
   };
 
   useEffect(() => {
@@ -678,6 +679,10 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         onSend={onSendHandler}
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
+        onSkillsChange={(skills) => {
+          // Store skills in ref or state if needed for session management
+          // For now, they're passed directly to onSend
+        }}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

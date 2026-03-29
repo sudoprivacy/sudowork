@@ -97,7 +97,7 @@ export type CronMessageMeta = {
   triggeredAt: number;
 };
 
-export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta }>;
+export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta; skills?: string[] }>;
 
 export type IMessageTips = IMessage<'tips', { content: string; type: 'error' | 'success' | 'warning' }>;
 

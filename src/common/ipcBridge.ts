@@ -718,8 +718,8 @@ interface ISendMessageParams {
   conversation_id: string;
   files?: string[];
   loading_id?: string;
-  /** Skill names to inject into the message (used by agents with file-reading ability) */
-  injectSkills?: string[];
+  /** Skill names to activate for this message (used by agents with skill execution ability) */
+  skills?: string[];
 }
 
 // Unified confirm message params for all agents

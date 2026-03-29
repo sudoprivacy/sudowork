@@ -9,7 +9,6 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
 import fs from 'fs/promises';
-import path from 'path';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
 import { ipcBridge } from '../../common';
@@ -20,12 +19,11 @@ import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
-import { mainLog, mainWarn } from '../utils/mainLogger';
+import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
@@ -884,10 +882,11 @@ export function initConversationBridge(): void {
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
-      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string } = {
+      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
         content: other.input,
         files: workspaceFiles,
         msg_id: other.msg_id,
+        skills: other.skills || [],
       };
 
       // OpenClaw-specific: inject preset rules, skills content and workspace hints into agentContent
@@ -896,7 +895,7 @@ export function initConversationBridge(): void {
 
         // Inject preset context and enabled skills for preset assistants
         // 为预设助手注入 presetContext 和 enabledSkills
-        const skillsToInject = other.injectSkills?.length ? other.injectSkills : enabledSkills;
+        const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
         if (presetContext || skillsToInject?.length) {
           agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
             presetContext,

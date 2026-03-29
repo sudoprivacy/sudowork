@@ -8,8 +8,8 @@ import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { ipcBridge } from '@/common';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy, FileWord } from '@icon-park/react';
+import { Alert, Message, Tooltip, Tag } from '@arco-design/web-react';
+import { Copy, FileWord, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -73,6 +73,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const [converting, setConverting] = useState(false);
   const isUserMessage = message.position === 'right';
+  const skills = message.content.skills || [];
 
   const handleConvertToWord = useCallback(async () => {
     if (converting) return;
@@ -172,6 +173,29 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
             <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{data}</MarkdownView>
           )}
         </div>
+        {/* Skill tags - displayed below user message content */}
+        {skills.length > 0 && isUserMessage && (
+          <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
+            <div className='flex items-center gap-4px text-10px text-t-secondary mb-4px'>
+              <Lightning size='10' className='text-primary' />
+              <span>{t('messages.skills.usedSkills', { defaultValue: '使用技能' })}</span>
+            </div>
+            <div className='flex flex-wrap gap-4px'>
+              {skills.map((skillName) => (
+                <Tag
+                  key={skillName}
+                  className='text-11px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                  style={{
+                    backgroundColor: 'var(--color-primary-light-1)',
+                    borderColor: 'var(--color-primary-light-2)',
+                  }}
+                >
+                  {skillName}
+                </Tag>
+              ))}
+            </div>
+          </div>
+        )}
         <div
           className={classNames('h-24px flex items-center mt-4px', {
             'justify-end': isUserMessage,

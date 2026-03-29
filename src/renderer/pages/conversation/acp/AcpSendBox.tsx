@@ -531,7 +531,7 @@ const AcpSendBox: React.FC<{
     sendInitialMessage().catch((error) => {});
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
 
-  const onSendHandler = async (message: string) => {
+  const onSendHandler = async (message: string, skills?: string[]) => {
     const msg_id = uuid();
 
     // ACP: 不使用 buildDisplayMessage，直接传原始 message
@@ -556,6 +556,7 @@ const AcpSendBox: React.FC<{
         msg_id,
         conversation_id,
         files: allFiles,
+        skills: skills || [],
       });
 
       void checkAndUpdateTitle(conversation_id, message);
@@ -764,6 +765,10 @@ const AcpSendBox: React.FC<{
         onSend={onSendHandler}
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
+        onSkillsChange={(skills) => {
+          // Store skills in ref or state if needed for session management
+          // For now, they're passed directly to onSend
+        }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
       ></SendBox>
       <BdpanFileSelector
