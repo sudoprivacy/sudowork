@@ -89,6 +89,16 @@ const SecuritySettings: React.FC = () => {
       return;
     }
 
+    // Block overly permissive patterns that would match everything
+    const dangerousPatterns = ['*.*', '*', '/*', '/*.*'];
+    if (dangerousPatterns.includes(ruleForm.pattern.trim())) {
+      Modal.error({
+        title: '规则不允许',
+        content: '禁止使用过于宽泛的匹配规则（如 *.* 或 *），这会拦截所有请求。请使用更精确的匹配模式。',
+      });
+      return;
+    }
+
     const newRule: BlacklistRule = {
       id: editingRule?.id || generateRuleId(),
       enabled: true,
