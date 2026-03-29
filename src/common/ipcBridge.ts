@@ -171,6 +171,7 @@ export const bdpan = {
   logout: bridge.buildProvider<IBridgeResponse<{ success: boolean }>, void>('bdpan.logout'),
   download: bridge.buildProvider<IBridgeResponse<{ localPath: string }>, { remotePath: string; destDir: string }>('bdpan.download'),
   upload: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { localPath: string; remotePath: string }>('bdpan.upload'),
+  mkdir: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { path: string }>('bdpan.mkdir'),
   downloadResult: bridge.buildEmitter<{ success: boolean; error?: string }>('bdpan.downloadResult'),
 };
 export const fs = {

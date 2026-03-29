@@ -179,6 +179,11 @@
     "confirm": "Confirm",
     "retry": "Retry",
     "logout": "Logout",
+    "mkdir": {
+      "placeholder": "New folder name",
+      "confirm": "Create",
+      "failed": "Failed to create folder"
+    },
     "upload": {
       "title": "Upload to Baidu Netdisk",
       "localPath": "Local",

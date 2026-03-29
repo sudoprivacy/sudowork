@@ -179,6 +179,11 @@
     "confirm": "確定",
     "retry": "重試",
     "logout": "登出",
+    "mkdir": {
+      "placeholder": "新建資料夾名稱",
+      "confirm": "建立",
+      "failed": "建立資料夾失敗"
+    },
     "upload": {
       "title": "上傳至百度網盤",
       "localPath": "本地路徑",

@@ -179,6 +179,11 @@
     "confirm": "確認",
     "retry": "再試行",
     "logout": "ログアウト",
+    "mkdir": {
+      "placeholder": "新しいフォルダー名",
+      "confirm": "作成",
+      "failed": "フォルダーの作成に失敗しました"
+    },
     "upload": {
       "title": "百度ネットディスクにアップロード",
       "localPath": "ローカルパス",

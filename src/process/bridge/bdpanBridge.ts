@@ -146,6 +146,20 @@ export function initBdpanBridge(): void {
     return { success: false, data: { error: errMsg } };
   });
 
+  // ── mkdir ────────────────────────────────────────────────────────────────────
+  ipcBridge.bdpan.mkdir.provider(async ({ path: dirPath }) => {
+    const { stdout, stderr, code } = await runBdpan(['mkdir', dirPath, '--json']);
+    mainLog('Bdpan', `mkdir exit=${code} stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`);
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    const jsonCode = json ? (json['code'] as number | undefined) : undefined;
+    if (code === 0 && (jsonCode === undefined || jsonCode === 0)) {
+      return { success: true, data: {} };
+    }
+    const errMsg = (json?.['error'] as string | undefined) || (json?.['message'] as string | undefined) || stderr || stdout || 'bdpan mkdir failed';
+    mainError('Bdpan', `mkdir failed: ${errMsg}`);
+    return { success: false, data: { error: errMsg } };
+  });
+
   // ── ls ───────────────────────────────────────────────────────────────────────
   ipcBridge.bdpan.ls.provider(async ({ path: dirPath }) => {
     const { stdout, stderr, code } = await runBdpan(['ls', dirPath, '--json']);

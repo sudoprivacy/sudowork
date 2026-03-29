@@ -179,6 +179,11 @@
     "confirm": "확인",
     "retry": "재시도",
     "logout": "로그아웃",
+    "mkdir": {
+      "placeholder": "새 폴더 이름",
+      "confirm": "만들기",
+      "failed": "폴더 만들기 실패"
+    },
     "upload": {
       "title": "바이두 넷디스크에 업로드",
       "localPath": "로컬 경로",

@@ -7,9 +7,9 @@
 import { ipcBridge } from '@/common';
 import type { BdpanFileEntry } from '@/common/ipcBridge';
 import AionModal from '@/renderer/components/base/AionModal';
-import { Button, Input, Spin } from '@arco-design/web-react';
-import { Close, FolderOpen, Refresh } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Input, Message, Spin } from '@arco-design/web-react';
+import { Close, FolderOpen, FolderPlus, Refresh } from '@icon-park/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';
@@ -60,6 +60,14 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [authCode, setAuthCode] = useState('');
 
+  // New folder state
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const newFolderInputRef = useRef<any>(null);
+
+  const [messageApi, messageContextHolder] = Message.useMessage();
+
   const loadFiles = useCallback(async (dirPath: string, root?: string) => {
     setLoadingFiles(true);
     setStep('file_browser');
@@ -68,7 +76,6 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
       const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
       if (res?.success) {
         const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
-        // Only show directories
         const sorted = rawFiles
           .filter((f) => f.isdir)
           .sort((a, b) => a.filename.localeCompare(b.filename));
@@ -142,6 +149,27 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
     }
   };
 
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const newPath = currentPath.endsWith('/') ? `${currentPath}${name}` : `${currentPath}/${name}`;
+    setCreatingFolder(true);
+    try {
+      const res = await ipcBridge.bdpan.mkdir.invoke({ path: newPath });
+      if (res?.success) {
+        setShowNewFolder(false);
+        setNewFolderName('');
+        await loadFiles(currentPath, bdpanRoot ?? undefined);
+      } else {
+        messageApi.error(res?.data?.error ?? t('conversation.bdpan.mkdir.failed'));
+      }
+    } catch (err) {
+      messageApi.error(String(err));
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
   const logout = async () => {
     await ipcBridge.bdpan.logout.invoke();
     onCancel();
@@ -153,9 +181,18 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
       setBdpanRoot(null);
       setDirs([]);
       setAuthCode('');
+      setShowNewFolder(false);
+      setNewFolderName('');
       checkAuth();
     }
   }, [visible]);
+
+  // Focus input when new folder row appears
+  useEffect(() => {
+    if (showNewFolder) {
+      setTimeout(() => newFolderInputRef.current?.focus?.(), 50);
+    }
+  }, [showNewFolder]);
 
   const renderContent = () => {
     if (step === 'checking') {
@@ -222,6 +259,8 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
 
     return (
       <div className='flex flex-col h-400px'>
+        {messageContextHolder}
+
         {/* Local path hint */}
         <div className='px-16px py-8px bg-[var(--bg-2)] border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-t-secondary truncate'>
           {t('conversation.bdpan.upload.localPath')}: <span className='font-mono text-t-primary'>{localName}</span>
@@ -256,6 +295,12 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
             loading={loadingFiles}
             onClick={() => loadFiles(currentPath, root)}
           />
+          <Button
+            type='text'
+            size='small'
+            icon={<FolderPlus size={15} />}
+            onClick={() => { setShowNewFolder(true); setNewFolderName(''); }}
+          />
         </div>
 
         {/* Dir list */}
@@ -264,22 +309,56 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
             <div className='flex items-center justify-center h-full'>
               <Spin />
             </div>
-          ) : dirs.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-t-secondary text-14px'>
-              {t('conversation.bdpan.emptyDir')}
-            </div>
           ) : (
-            dirs.map((dir) => (
-              <div
-                key={dir.path}
-                className='flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]'
-                onClick={() => loadFiles(dir.path, root)}
-              >
-                <FolderOpen size={18} fill='var(--color-text-3)' />
-                <span className='flex-1 text-t-primary text-14px truncate'>{dir.filename}</span>
-                <span className='text-t-secondary text-12px'>›</span>
-              </div>
-            ))
+            <>
+              {dirs.map((dir) => (
+                <div
+                  key={dir.path}
+                  className='flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]'
+                  onClick={() => loadFiles(dir.path, root)}
+                >
+                  <FolderOpen size={18} fill='var(--color-text-3)' />
+                  <span className='flex-1 text-t-primary text-14px truncate'>{dir.filename}</span>
+                  <span className='text-t-secondary text-12px'>›</span>
+                </div>
+              ))}
+              {dirs.length === 0 && !showNewFolder && (
+                <div className='flex items-center justify-center h-full text-t-secondary text-14px'>
+                  {t('conversation.bdpan.emptyDir')}
+                </div>
+              )}
+              {/* Inline new folder row */}
+              {showNewFolder && (
+                <div className='flex items-center gap-8px px-16px py-8px border-b border-[var(--bg-3)]'>
+                  <FolderPlus size={18} fill='var(--color-text-3)' />
+                  <Input
+                    ref={newFolderInputRef}
+                    style={{ flex: 1 }}
+                    placeholder={t('conversation.bdpan.mkdir.placeholder')}
+                    value={newFolderName}
+                    onChange={setNewFolderName}
+                    onPressEnter={handleCreateFolder}
+                    disabled={creatingFolder}
+                  />
+                  <Button
+                    size='small'
+                    type='primary'
+                    loading={creatingFolder}
+                    disabled={!newFolderName.trim()}
+                    onClick={handleCreateFolder}
+                  >
+                    {t('conversation.bdpan.mkdir.confirm')}
+                  </Button>
+                  <Button
+                    size='small'
+                    disabled={creatingFolder}
+                    onClick={() => { setShowNewFolder(false); setNewFolderName(''); }}
+                  >
+                    {t('conversation.bdpan.cancel')}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -290,10 +369,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
           </span>
           <div className='flex items-center gap-8px flex-shrink-0'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
-            <Button
-              type='primary'
-              onClick={() => onConfirm(currentPath)}
-            >
+            <Button type='primary' onClick={() => onConfirm(currentPath)}>
               {t('conversation.bdpan.upload.uploadButton')}
             </Button>
           </div>
