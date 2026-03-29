@@ -1,0 +1,201 @@
+name: Nightly Build Release
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: 'main'
+        type: string
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options:
+          - macos-arm64
+          - macos-x64
+          - windows-x64
+          - windows-arm64
+          - linux
+          - all
+        default: 'all'
+      skip_code_quality:
+        description: 'Skip code quality checks (faster builds for debugging)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  prepare-matrix:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      branch: ${{ steps.context.outputs.branch }}
+
+    steps:
+      - name: Resolve build context
+        id: context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.branch }}"
+          else
+            BRANCH="main"
+          fi
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Nightly build branch: $BRANCH"
+
+      - name: Generate build matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PLATFORM="${{ inputs.platform }}"
+          else
+            PLATFORM="all"
+          fi
+
+          MACOS_ARM64='{"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"}'
+          MACOS_X64='{"platform":"macos-x64","os":"macos-15-intel","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"}'
+          WINDOWS_X64='{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}'
+          WINDOWS_ARM64='{"platform":"windows-arm64","os":"windows-2022","command":"node scripts/build-with-builder.js arm64 --win --arm64","artifact-name":"windows-build-arm64","arch":"arm64"}'
+          LINUX='{"platform":"linux","os":"ubuntu-latest","command":"node scripts/build-with-builder.js auto --linux","artifact-name":"linux-build","arch":"x64-arm64"}'
+
+          if [ "$PLATFORM" = "all" ]; then
+            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64,$WINDOWS_ARM64,$LINUX]}"
+          elif [ "$PLATFORM" = "macos-arm64" ]; then
+            MATRIX="{\"include\":[$MACOS_ARM64]}"
+          elif [ "$PLATFORM" = "macos-x64" ]; then
+            MATRIX="{\"include\":[$MACOS_X64]}"
+          elif [ "$PLATFORM" = "windows-x64" ]; then
+            MATRIX="{\"include\":[$WINDOWS_X64]}"
+          elif [ "$PLATFORM" = "windows-arm64" ]; then
+            MATRIX="{\"include\":[$WINDOWS_ARM64]}"
+          elif [ "$PLATFORM" = "linux" ]; then
+            MATRIX="{\"include\":[$LINUX]}"
+          else
+            echo "Unsupported platform: $PLATFORM"
+            exit 1
+          fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Generated matrix for platform '$PLATFORM':"
+          echo "$MATRIX" | python3 -m json.tool
+
+  build-pipeline:
+    name: Build Pipeline
+    needs: prepare-matrix
+    uses: ./.github/workflows/_build-reusable.yml
+    with:
+      matrix: ${{ needs.prepare-matrix.outputs.matrix }}
+      ref: ${{ needs.prepare-matrix.outputs.branch }}
+      skip_code_quality: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_code_quality || false }}
+      append_commit_hash: true
+    secrets: inherit
+
+  release:
+    name: Publish Nightly Release
+    runs-on: ubuntu-latest
+    needs: [prepare-matrix, build-pipeline]
+    if: needs.build-pipeline.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-matrix.outputs.branch }}
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DATE_UTC=$(date -u +%Y-%m-%d)
+          TAG_NAME="nightly-${DATE_UTC}-${SHORT_SHA}"
+          RELEASE_NAME="Nightly Build ${DATE_UTC} (${SHORT_SHA})"
+
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "date_utc=$DATE_UTC" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: nightly-artifacts
+
+      - name: Prepare nightly assets
+        shell: bash
+        run: |
+          rm -rf nightly-release-assets
+          mkdir -p nightly-release-assets
+
+          find nightly-artifacts -type f \( \
+            -name "*.exe" -o \
+            -name "*.msi" -o \
+            -name "*.dmg" -o \
+            -name "*.AppImage" -o \
+            -name "*.zip" \
+          \) -print0 | while IFS= read -r -d '' file; do
+            cp -f "$file" nightly-release-assets/
+          done
+
+          echo "Nightly assets:"
+          ls -lh nightly-release-assets
+
+      - name: Create nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: true
+          draft: false
+          make_latest: false
+          generate_release_notes: false
+          files: |
+            nightly-release-assets/**/*.exe
+            nightly-release-assets/**/*.msi
+            nightly-release-assets/**/*.dmg
+            nightly-release-assets/**/*.AppImage
+            nightly-release-assets/**/*.zip
+          body: |
+            Automated nightly build from `${{ needs.prepare-matrix.outputs.branch }}`.
+
+            - Date (UTC): `${{ steps.meta.outputs.date_utc }}`
+            - Commit: `${{ steps.meta.outputs.short_sha }}`
+            - Trigger: `${{ github.event_name }}`
+
+            This nightly release is for preview/testing downloads only.
+            It intentionally excludes auto-update metadata (`*.yml`, `*.blockmap`) so it does not affect the stable update channel.
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Cleanup old nightly releases
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
+        run: |
+          KEEP=14
+          TO_DELETE=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease \
+            | jq -r '.[] | select(.isPrerelease == true and (.tagName | startswith("nightly-"))) | .tagName' \
+            | tail -n +$((KEEP + 1)))
+
+          if [ -z "$TO_DELETE" ]; then
+            echo "No old nightly releases to clean up."
+            exit 0
+          fi
+
+          echo "Deleting old nightly releases:"
+          echo "$TO_DELETE"
+          echo "$TO_DELETE" | xargs -I{} gh release delete {} --repo "${{ github.repository }}" --yes --cleanup-tag
