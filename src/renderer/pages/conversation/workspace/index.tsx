@@ -362,30 +362,36 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     }
   }, [migrationLoading]);
 
-  const showBdpanUploadPicker = useCallback((node: IDirOrFile) => {
-    const localPath = node.fullPath ?? '';
-    if (!localPath) return;
-    setBdpanUploadLocalPath(localPath);
-    setBdpanUploadPickerVisible(true);
-    modalsHook.closeContextMenu();
-  }, [modalsHook.closeContextMenu]);
+  const showBdpanUploadPicker = useCallback(
+    (node: IDirOrFile) => {
+      const localPath = node.fullPath ?? '';
+      if (!localPath) return;
+      setBdpanUploadLocalPath(localPath);
+      setBdpanUploadPickerVisible(true);
+      modalsHook.closeContextMenu();
+    },
+    [modalsHook.closeContextMenu]
+  );
 
-  const handleBdpanUploadConfirm = useCallback(async (bdpanDirPath: string) => {
-    setBdpanUploadPickerVisible(false);
-    const localPath = bdpanUploadLocalPath;
-    try {
-      const localName = localPath.split('/').filter(Boolean).pop() ?? '';
-      const remotePath = bdpanDirPath.endsWith('/') ? `${bdpanDirPath}${localName}` : `${bdpanDirPath}/${localName}`;
-      const res = await ipcBridge.bdpan.upload.invoke({ localPath, remotePath });
-      if (res?.success) {
-        messageApi.success(t('conversation.bdpan.upload.success'));
-      } else {
-        messageApi.error(res?.data?.error ?? t('conversation.bdpan.upload.failed'));
+  const handleBdpanUploadConfirm = useCallback(
+    async (bdpanDirPath: string) => {
+      setBdpanUploadPickerVisible(false);
+      const localPath = bdpanUploadLocalPath;
+      try {
+        const localName = localPath.split('/').filter(Boolean).pop() ?? '';
+        const remotePath = bdpanDirPath.endsWith('/') ? `${bdpanDirPath}${localName}` : `${bdpanDirPath}/${localName}`;
+        const res = await ipcBridge.bdpan.upload.invoke({ localPath, remotePath });
+        if (res?.success) {
+          messageApi.success(t('conversation.bdpan.upload.success'));
+        } else {
+          messageApi.error(res?.data?.error ?? t('conversation.bdpan.upload.failed'));
+        }
+      } catch (err) {
+        messageApi.error(String(err));
       }
-    } catch (err) {
-      messageApi.error(String(err));
-    }
-  }, [bdpanUploadLocalPath, t, messageApi]);
+    },
+    [bdpanUploadLocalPath, t, messageApi]
+  );
 
   let contextMenuStyle: React.CSSProperties | undefined;
   if (modalsHook.contextMenu.visible) {
@@ -735,12 +741,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />
 
         {/* Bdpan Upload Dir Picker */}
-        <BdpanDirPicker
-          visible={bdpanUploadPickerVisible}
-          localPath={bdpanUploadLocalPath}
-          onCancel={() => setBdpanUploadPickerVisible(false)}
-          onConfirm={handleBdpanUploadConfirm}
-        />
+        <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
 
         {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
         <TaskPanel workspaceFiles={treeHook.files} />

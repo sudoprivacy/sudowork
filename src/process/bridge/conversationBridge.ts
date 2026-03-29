@@ -11,6 +11,7 @@ import type { TChatConversation } from '@/common/storage';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
+import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
@@ -19,7 +20,6 @@ import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
-import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
@@ -805,7 +805,7 @@ export function initConversationBridge(): void {
         const raw = decodeURIComponent(f.slice('bdpan://'.length));
         const qIdx = raw.indexOf('?');
         const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
-        const rootParam = qIdx >= 0 ? new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '' : '';
+        const rootParam = qIdx >= 0 ? (new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '') : '';
         // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
         const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
         const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
@@ -826,8 +826,12 @@ export function initConversationBridge(): void {
             });
             let stdout = '';
             let stderr = '';
-            child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
-            child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+            child.stdout?.on('data', (d: Buffer) => {
+              stdout += d.toString();
+            });
+            child.stderr?.on('data', (d: Buffer) => {
+              stderr += d.toString();
+            });
             child.on('close', (code) => {
               mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
               let jsonCode: number | undefined;
@@ -836,7 +840,9 @@ export function initConversationBridge(): void {
                 const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
                 jsonCode = json.code;
                 jsonError = json.error || undefined;
-              } catch {}
+              } catch (_err) {
+                // Ignore non-JSON output and fall back to stderr/stdout text.
+              }
               if (jsonCode === 0) {
                 mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
                 resolvedFiles.push(localPath);

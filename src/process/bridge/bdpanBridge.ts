@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { ipcBridge } from '../../common';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Resolves bdpan binary path — respects PATH including ~/.local/bin */
 function getBdpanPath(): string {
@@ -31,8 +31,12 @@ function runBdpan(args: string[]): Promise<{ stdout: string; stderr: string; cod
 
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+    child.stdout.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString();
+    });
     child.on('close', (code) => resolve({ stdout, stderr, code: code ?? 1 }));
     child.on('error', (err) => {
       mainError('Bdpan', `spawn error: ${err.message}`);
@@ -47,12 +51,16 @@ function parseLastJson(text: string): unknown {
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       return JSON.parse(lines[i]);
-    } catch {}
+    } catch (_err) {
+      // Ignore non-JSON lines and keep scanning upward.
+    }
   }
   // Try parsing full text as single JSON blob
   try {
     return JSON.parse(text.trim());
-  } catch {}
+  } catch (_err) {
+    // Ignore invalid JSON and fall through to null.
+  }
   return null;
 }
 
@@ -90,7 +98,7 @@ export function initBdpanBridge(): void {
     if (authUrl) {
       return { success: true, data: { auth_url: String(authUrl) } };
     }
-    const errMsg = (json && !Array.isArray(json) && json['error']) ? String(json['error']) : (stderr || stdout || 'Failed to get auth URL');
+    const errMsg = json && !Array.isArray(json) && json['error'] ? String(json['error']) : stderr || stdout || 'Failed to get auth URL';
     mainError('Bdpan', `loginGetAuthUrl failed: ${errMsg}`);
     return { success: false, data: { error: errMsg } };
   });
@@ -171,9 +179,7 @@ export function initBdpanBridge(): void {
       return { success: false, data: { files: [], error: 'Invalid JSON from bdpan ls' } };
     }
     // bdpan ls returns a top-level array; also handle object wrappers for robustness
-    const rawList: unknown[] = Array.isArray(json)
-      ? json
-      : (((json as Record<string, unknown>)['list'] ?? (json as Record<string, unknown>)['files'] ?? (json as Record<string, unknown>)['data'] ?? []) as unknown[]);
+    const rawList: unknown[] = Array.isArray(json) ? json : (((json as Record<string, unknown>)['list'] ?? (json as Record<string, unknown>)['files'] ?? (json as Record<string, unknown>)['data'] ?? []) as unknown[]);
     const files: BdpanFileEntry[] = rawList.map((item) => {
       const r = item as Record<string, unknown>;
       return {
