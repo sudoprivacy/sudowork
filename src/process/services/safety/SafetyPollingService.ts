@@ -16,8 +16,10 @@ import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
 import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState } from './SecurityHookFile';
-import { initBlacklist, loadBlacklist } from './SafetyBlacklistService';
+import { initBlacklist } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
+import { getNexusClient, CONFIG_DIR } from './SecurityHookFile';
+import { BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 
 /** Storage key for safety hook enabled state */
 const SAFETY_HOOK_ENABLED_KEY = 'safetyHook.enabled';
@@ -84,9 +86,6 @@ export class SafetyPollingService {
   private currentEventFilename: string | null = null;
   private enabled: boolean = true; // Track whether service is enabled
   private initialized: boolean = false;
-  private cachedHasActiveRules: boolean = false; // Cache for blacklist rules check
-  private lastBlacklistCheckTime: number = 0; // Timestamp of last blacklist check
-  private readonly BLACKLIST_CHECK_INTERVAL_MS = 5000; // Re-check blacklist every 5 seconds
 
   private constructor() {}
 
@@ -282,23 +281,22 @@ export class SafetyPollingService {
   }
 
   /**
-   * Check if blacklist has active rules (with caching)
-   * Re-checks every BLACKLIST_CHECK_INTERVAL_MS to pick up config changes
+   * Check if blacklist has active rules by reading directly from Nexus
+   * This ensures consistency with hook.js which also reads from Nexus
    */
   private async hasActiveBlacklistRules(): Promise<boolean> {
-    const now = Date.now();
-    if (now - this.lastBlacklistCheckTime < this.BLACKLIST_CHECK_INTERVAL_MS) {
-      return this.cachedHasActiveRules;
-    }
-
     try {
-      const blacklistConfig = await loadBlacklist();
-      this.cachedHasActiveRules = blacklistConfig?.rules?.some(rule => rule.enabled) ?? false;
-      this.lastBlacklistCheckTime = now;
-      return this.cachedHasActiveRules;
+      const client = getNexusClient();
+      const content = await client.read(BLACKLIST_CONFIG_PATH);
+      if (!content || content.length === 0) {
+        return false;
+      }
+      const configStr = content.toString('utf-8');
+      const config = JSON.parse(configStr);
+      return config?.rules?.some(rule => rule.enabled) ?? false;
     } catch (error) {
-      console.warn('[SafetyPolling] Failed to load blacklist:', error);
-      return this.cachedHasActiveRules; // Return cached value on error
+      // If blacklist file doesn't exist or parse fails, assume no rules
+      return false;
     }
   }
 

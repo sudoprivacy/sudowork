@@ -87,31 +87,40 @@ export function initSafetyBridge(): void {
     }
   });
 
-  // Get blacklist configuration
+  // Get blacklist configuration - read directly from Nexus for consistency
   ipcBridge.safety.getBlacklist.provider(async () => {
     try {
-      const config = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
+      const client = getNexusClient();
+      const content = await client.read(BLACKLIST_CONFIG_PATH);
+      if (!content || content.length === 0) {
+        return { success: true, data: { rules: [] } };
+      }
+      const configStr = content.toString('utf-8');
+      const config = JSON.parse(configStr);
       return { success: true, data: config || { rules: [] } };
     } catch (err) {
+      // If file doesn't exist, return empty config
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes('not found') || errorMsg.includes('FILE_NOT_FOUND')) {
+        return { success: true, data: { rules: [] } };
+      }
       return {
         success: false,
-        msg: err instanceof Error ? err.message : String(err),
+        msg: errorMsg,
       };
     }
   });
 
-  // Set blacklist configuration
+  // Set blacklist configuration - write to Nexus only
   ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: BlacklistConfig }) => {
     try {
-      // Save to local storage
-      await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
-
-      // Sync to Nexus
+      // Sync to Nexus (single source of truth)
       const client = getNexusClient();
       await client.mkdir(CONFIG_DIR, true);
       await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
 
-      // Hook processes will read updated config from Nexus via polling
+      // Also save to local storage for persistence across app restarts
+      await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
 
       return { success: true };
     } catch (err) {

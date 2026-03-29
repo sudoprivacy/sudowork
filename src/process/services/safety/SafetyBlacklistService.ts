@@ -138,9 +138,41 @@ export async function deleteBlacklistRule(ruleId: string): Promise<BlacklistConf
 /**
  * Initialize blacklist on app start
  * Ensures Nexus has the current blacklist config
+ * Priority: Nexus > Local storage (to avoid overwriting existing data)
  */
 export async function initBlacklist(): Promise<void> {
-  const config = await loadBlacklist();
-  await syncBlacklistToNexus(config);
-  console.log('[SafetyBlacklist] Initialized');
+  try {
+    const client = getNexusClient();
+
+    // First check if Nexus already has blacklist config
+    try {
+      const content = await client.read(BLACKLIST_CONFIG_PATH);
+      if (content && content.length > 0) {
+        // Nexus has data, sync to local storage for persistence
+        const configStr = content.toString('utf-8');
+        const nexusConfig = JSON.parse(configStr);
+        await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, nexusConfig);
+        console.log('[SafetyBlacklist] Synced from Nexus to local storage');
+        return;
+      }
+    } catch (err) {
+      // Nexus doesn't have config, check local storage
+    }
+
+    // Nexus doesn't have data, check local storage and sync to Nexus
+    const localConfig = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
+    if (localConfig && localConfig.rules && localConfig.rules.length > 0) {
+      // Local storage has data, sync to Nexus
+      await client.mkdir(CONFIG_DIR, true);
+      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(localConfig, null, 2));
+      console.log('[SafetyBlacklist] Synced from local storage to Nexus');
+    } else {
+      // Neither has data, create empty config in Nexus
+      await client.mkdir(CONFIG_DIR, true);
+      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify({ rules: [] }, null, 2));
+      console.log('[SafetyBlacklist] Initialized empty config in Nexus');
+    }
+  } catch (error) {
+    console.error('[SafetyBlacklist] Failed to initialize:', error);
+  }
 }
