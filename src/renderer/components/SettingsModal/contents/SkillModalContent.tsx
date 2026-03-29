@@ -5,12 +5,14 @@
  */
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ipcBridge } from '@/common';
+import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm } from '@arco-design/web-react';
-import { Download, Search, Delete, Close, Shield, Lightning } from '@icon-park/react';
+import { Download, Search, Delete, Close, Shield, Lightning, UploadOne } from '@icon-park/react';
 import classNames from 'classnames';
-import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +26,7 @@ function metaToSkill(meta: ISkillHubMeta): ISkillHubSkill {
     name: meta.name,
     display_name: meta.display_name,
     description: meta.description,
-    icon: resolveExtensionAssetUrl(meta.icon) || meta.icon,
+    icon: resolveSkillIcon(meta.icon),
     emoji: meta.emoji,
     category: meta.category,
     categories: meta.categories,
@@ -160,16 +162,8 @@ const InstalledSkillCard: React.FC<{
   togglingEnabled: boolean;
   onClick?: () => void;
 }> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick }) => {
-  const displayName =
-    skill.meta?.display_name ||
-    skill.name
-      .split(/[-_]/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  const description = skill.meta?.description;
-  const icon = resolveExtensionAssetUrl(skill.meta?.icon) || skill.meta?.icon;
-  const emoji = skill.meta?.emoji;
-  const canUninstall = skill.isHubInstalled && !skill.isBuiltin;
+  const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+  const canUninstall = !skill.isBuiltin;
   const canToggleEnabled = !!skill.meta && !skill.isBuiltin;
   const hasDetail = !!skill.meta;
   const isEnabled = skill.enabled;
@@ -180,9 +174,9 @@ const InstalledSkillCard: React.FC<{
       {/* Icon + toggle */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-          {icon ? (
-            <img src={icon} alt={displayName} className='w-full h-full object-cover' />
-          ) : emoji ? (
+        {icon ? (
+          <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+        ) : emoji ? (
             <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
           ) : (
             <div className='w-full h-full flex items-center justify-center bg-primary-light'>
@@ -216,7 +210,7 @@ const InstalledSkillCard: React.FC<{
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
-        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}</div>
+        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && skill.version && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}</div>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
@@ -514,6 +508,48 @@ const SkillModalContent: React.FC = () => {
       setInstalledLoading(false);
     }
   }, []);
+
+  const handleImportSkillZip = useCallback(async () => {
+    if (!isElectronDesktop()) return;
+
+    try {
+      const dialogResult = await ipcBridge.dialog.showOpen.invoke({
+        properties: ['openFile'],
+        filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
+      });
+
+      if (!dialogResult.success || dialogResult.data?.canceled || !dialogResult.data?.filePaths?.[0]) {
+        return;
+      }
+
+      const res = await skillHub.importSkillZip.invoke({ zipPath: dialogResult.data.filePaths[0] });
+      if (res.success && res.data) {
+        Message.success(
+          t('settings.skill.importSuccess', {
+            name: res.data.skillName,
+            defaultValue: `已导入技能：${res.data.skillName}`,
+          })
+        );
+        await fetchInstalledSkills();
+        await fetchInstalledList();
+      } else {
+        Message.error(
+          t('settings.skill.importFailed', {
+            msg: res.msg || 'Unknown error',
+            defaultValue: `导入失败: ${res.msg || '未知错误'}`,
+          })
+        );
+      }
+    } catch (err) {
+      console.error('Failed to import skill zip:', err);
+      Message.error(
+        t('settings.skill.importFailed', {
+          msg: String(err),
+          defaultValue: `导入失败: ${String(err)}`,
+        })
+      );
+    }
+  }, [fetchInstalledList, fetchInstalledSkills, t]);
 
   // ---- Fetch latest versions ----
   const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
@@ -893,6 +929,21 @@ const SkillModalContent: React.FC = () => {
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab !== 'store' ? 'opacity-0 pointer-events-none' : '')}>
           <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
+        {activeTab === 'installed' && isElectronDesktop() && (
+          <button
+            type='button'
+            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+            onClick={() => void handleImportSkillZip()}
+          >
+            <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
+              <UploadOne size='13' />
+            </span>
+            <span className='flex items-baseline gap-5px leading-none'>
+              <span className='text-12px font-medium text-t-primary'>{t('common.upload', { defaultValue: '上传' })}</span>
+              <span className='text-11px text-t-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ===== STORE TAB ===== */}

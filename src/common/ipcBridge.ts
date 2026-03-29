@@ -993,6 +993,7 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
+  source_type?: 'hub' | 'upload';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
@@ -1004,7 +1005,7 @@ export interface IInstalledSkillInfo {
   /** Directory name (skill identifier) */
   name: string;
   version: string;
-  /** Whether this skill was installed from the Skill Hub (has _sudowork_meta.json) */
+  /** Whether this skill was installed from the Skill Hub */
   isHubInstalled: boolean;
   /** Whether this is a built-in skill that cannot be uninstalled */
   isBuiltin: boolean;
@@ -1023,6 +1024,8 @@ export const skillHub = {
   fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
   /** Download and install skill from URL, saving full metadata */
   downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
+  /** Import a local skill zip package and synthesize metadata from SKILL.md */
+  importSkillZip: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { zipPath: string }>('skill-hub.import-skill-zip'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill */

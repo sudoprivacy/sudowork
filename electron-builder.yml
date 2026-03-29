@@ -120,6 +120,8 @@ extraResources:
     to: app.ico
   - from: resources/app.png
     to: app.png
+  - from: resources/upload_skill_default.svg
+    to: upload_skill_default.svg
   - from: THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
   # Safety hook for Sudoclaw gateway interception

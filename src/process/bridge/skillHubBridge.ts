@@ -17,6 +17,7 @@ import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
+import { buildSkillDisplayName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -159,6 +160,72 @@ async function reloadSkillRuntime(): Promise<void> {
 
   console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
   await serviceManager.restartOpenClaw();
+}
+
+async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): Promise<{ extractedFiles: string[] }> {
+  const zip = await JSZip.loadAsync(zipBuffer);
+  const { stripPrefix } = resolveZipSkillLayout(zip);
+  const extractedFiles: string[] = [];
+
+  for (const zipEntry of Object.values(zip.files)) {
+    if (zipEntry.dir) continue;
+    if (isUnsafeZipEntryPath(zipEntry.name)) {
+      throw new Error(`Unsafe zip entry path: ${zipEntry.name}`);
+    }
+
+    const normalizedPath = normalizeZipEntryPath(zipEntry.name);
+    let targetPath = normalizedPath;
+
+    if (stripPrefix) {
+      if (!normalizedPath.startsWith(stripPrefix)) {
+        continue;
+      }
+      targetPath = normalizedPath.slice(stripPrefix.length);
+    }
+
+    if (!targetPath) continue;
+
+    const fullPath = path.join(skillDir, targetPath);
+    const fullDir = path.dirname(fullPath);
+    await fs.mkdir(fullDir, { recursive: true });
+
+    const content = await zipEntry.async('nodebuffer');
+    await fs.writeFile(fullPath, content);
+    extractedFiles.push(targetPath);
+  }
+
+  return { extractedFiles };
+}
+
+async function readSkillManifestFromDirectory(skillDir: string, extractedFiles?: string[]): Promise<{
+  skillName: string;
+  displayName: string;
+  description: string;
+  icon: string;
+  emoji: string | null;
+  category: string;
+  homepage: string | null;
+  version: string;
+}> {
+  const skillMdPath = path.join(skillDir, 'SKILL.md');
+  const content = await fs.readFile(skillMdPath, 'utf-8');
+  const frontmatter = parseSkillFrontmatter(content);
+  const fallbackName = path.basename(skillDir);
+  const skillName = frontmatter.name?.trim() || fallbackName;
+  const displayName = frontmatter.displayName?.trim() || buildSkillDisplayName(skillName);
+  const icon = frontmatter.icon?.trim() || resolveSkillIconFromFiles(extractedFiles || (await fs.readdir(skillDir, { withFileTypes: true })).filter((entry) => entry.isFile()).map((entry) => entry.name)) || '';
+  const version = frontmatter.version?.trim() || '';
+
+  return {
+    skillName,
+    displayName,
+    description: frontmatter.description?.trim() || '',
+    icon,
+    emoji: frontmatter.emoji?.trim() || null,
+    category: frontmatter.category?.trim() || '',
+    homepage: frontmatter.homepage?.trim() || null,
+    version,
+  };
 }
 
 /**
@@ -311,8 +378,6 @@ export function initSkillHubBridge(): void {
       const userSkillsDir = getUserSkillsDir();
       await fs.mkdir(userSkillsDir, { recursive: true });
 
-      const zip = await JSZip.loadAsync(zipBuffer);
-      const { stripPrefix } = resolveZipSkillLayout(zip);
       const skillDir = path.join(userSkillsDir, skillName);
 
       await removeExistingInstalledSkillDirs({
@@ -322,35 +387,7 @@ export function initSkillHubBridge(): void {
       });
       await fs.mkdir(skillDir, { recursive: true });
 
-      // Extract files
-      for (const zipEntry of Object.values(zip.files)) {
-        if (zipEntry.dir) continue;
-        if (isUnsafeZipEntryPath(zipEntry.name)) {
-          throw new Error(`Unsafe zip entry path: ${zipEntry.name}`);
-        }
-
-        const normalizedPath = normalizeZipEntryPath(zipEntry.name);
-        let targetPath = normalizedPath;
-
-        if (stripPrefix) {
-          if (!normalizedPath.startsWith(stripPrefix)) {
-            continue;
-          }
-          targetPath = normalizedPath.slice(stripPrefix.length);
-        }
-
-        if (!targetPath) continue;
-
-        const fullPath = path.join(skillDir, targetPath);
-        const fullDir = path.dirname(fullPath);
-
-        // Ensure directory exists
-        await fs.mkdir(fullDir, { recursive: true });
-
-        // Write file
-        const content = await zipEntry.async('nodebuffer');
-        await fs.writeFile(fullPath, content);
-      }
+      await extractSkillZipToDirectory(zipBuffer, skillDir);
 
       // Write version file
       const versionFilePath = path.join(skillDir, VERSION_FILE_NAME);
@@ -371,6 +408,7 @@ export function initSkillHubBridge(): void {
         core_features: skillMeta?.core_features ?? null,
         homepage: skillMeta?.homepage ?? null,
         author_id: skillMeta?.author_id ?? '',
+        source_type: 'hub',
         is_builtin: false,
         enabled: true,
         installed_version: version,
@@ -408,6 +446,95 @@ export function initSkillHubBridge(): void {
     }
   });
 
+  ipcBridge.skillHub.importSkillZip.provider(async ({ zipPath }) => {
+    try {
+      const zipBuffer = await fs.readFile(zipPath);
+      const userSkillsDir = getUserSkillsDir();
+      await fs.mkdir(userSkillsDir, { recursive: true });
+
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-skill-import-'));
+      try {
+        const { extractedFiles } = await extractSkillZipToDirectory(zipBuffer, tempDir);
+
+        const skillMdPath = path.join(tempDir, 'SKILL.md');
+        try {
+          await fs.access(skillMdPath);
+        } catch {
+          return { success: false, msg: 'The zip package must contain SKILL.md at the root or in a single top-level directory' };
+        }
+
+        const manifest = await readSkillManifestFromDirectory(tempDir, extractedFiles);
+        const skillName = manifest.skillName;
+        const builtinDir = path.join(userSkillsDir, '_builtin', skillName);
+        const skillDir = path.join(userSkillsDir, skillName);
+
+        try {
+          await fs.access(builtinDir);
+          return { success: false, msg: `Skill "${skillName}" already exists in builtin skills` };
+        } catch {
+          // builtin skill does not exist
+        }
+
+        try {
+          await fs.access(skillDir);
+          return { success: false, msg: `Skill "${skillName}" already exists in user skills` };
+        } catch {
+          // user skill does not exist
+        }
+        await fs.rename(tempDir, skillDir);
+
+        const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
+        const installedAt = new Date().toISOString();
+        const meta: import('@/common/ipcBridge').ISkillHubMeta = {
+          id: '',
+          name: skillName,
+          display_name: manifest.displayName,
+          description: manifest.description,
+          icon: manifest.icon,
+          emoji: manifest.emoji,
+          category: manifest.category,
+          categories: manifest.category ? [manifest.category] : [],
+          applicable_scenarios: null,
+          core_features: null,
+          homepage: manifest.homepage,
+          author_id: '',
+          source_type: 'upload',
+          is_builtin: false,
+          enabled: true,
+          installed_version: manifest.version,
+          installed_at: installedAt,
+        };
+        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+
+        if (manifest.version) {
+          await fs.writeFile(path.join(skillDir, VERSION_FILE_NAME), manifest.version, 'utf-8');
+        }
+
+        void (async () => {
+          try {
+            await reloadSkillRuntime();
+          } catch (err) {
+            console.warn('[SkillHub] Reload after zip import failed:', err);
+            await WorkerManage.restartOpenClawGateways();
+          }
+        })();
+
+        return {
+          success: true,
+          data: {
+            skillName,
+            installedVersion: manifest.version,
+          },
+        };
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch((): void => undefined);
+      }
+    } catch (error) {
+      console.error('[SkillHub] Failed to import skill zip:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Get installed skills with versions
   ipcBridge.skillHub.getInstalledSkills.provider(async () => {
     try {
@@ -423,7 +550,7 @@ export function initSkillHubBridge(): void {
       // Helper to read a single skill directory
       const readSkill = async (dirName: string, skillDir: string, forceBuiltin = false) => {
         // Read version
-        let version = 'unknown';
+        let version = '';
         try {
           version = (await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8')).trim();
         } catch {
@@ -445,7 +572,7 @@ export function initSkillHubBridge(): void {
         try {
           const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
           meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
-          isHubInstalled = true;
+          isHubInstalled = meta.source_type === 'hub' || meta.source_type === undefined;
           // Use meta.is_builtin if set, otherwise use forceBuiltin
           if (meta.is_builtin !== undefined) {
             isBuiltin = meta.is_builtin === true;
@@ -464,7 +591,7 @@ export function initSkillHubBridge(): void {
 
         return {
           name: meta?.name?.trim() || dirName,
-          version,
+          version: version === 'unknown' ? '' : version,
           isBuiltin,
           isHubInstalled,
           enabled,

@@ -28,6 +28,7 @@ import { allSupportedExts } from '../services/FileService';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
+import { resolveSkillIcon, buildSkillDisplayName } from '@/renderer/utils/skillDisplay';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -313,16 +314,12 @@ const SendBox: React.FC<{
     () =>
       installedSkills.map((skill) => {
         const displayName =
-          skill.meta?.display_name ||
-          skill.name
-            .split(/[-_]/)
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' ');
+          skill.meta?.display_name || buildSkillDisplayName(skill.name);
         return {
           name: skill.name,
           displayName,
           description: skill.meta?.description,
-          icon: skill.meta?.icon,
+          icon: resolveSkillIcon(skill.meta?.icon),
           emoji: skill.meta?.emoji,
           enabled: skill.enabled,
         };

@@ -15,6 +15,7 @@ export function initDialogBridge(): void {
     const dialogOptions = {
       defaultPath: options?.defaultPath,
       properties: options?.properties,
+      filters: options?.filters,
     };
 
     const showDialogPromise = parentWindow ? dialog.showOpenDialog(parentWindow, dialogOptions) : dialog.showOpenDialog(dialogOptions);
