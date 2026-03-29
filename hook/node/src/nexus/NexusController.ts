@@ -3,6 +3,7 @@ import { Nexus } from './Nexus';
 import { randomUUID } from 'node:crypto';
 import { shouldTriggerPopup } from '../blacklist/BlacklistMatcher';
 import type { BlacklistConfig } from '../blacklist/types';
+import { isFastPassEnabled } from '../index';
 
 /** Path to blacklist config in Nexus filesystem */
 const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
@@ -88,6 +89,11 @@ export class NexusController extends Nexus {
   public async control(controller: ControllerSource, payload: Payload) {
     // Skip requests to Nexus server itself
     if (payload.type === 'network' && new URL(payload.data.url).origin === this.serverUrl) {
+      return;
+    }
+
+    // FastPass mode: allow all requests immediately without interception
+    if (isFastPassEnabled()) {
       return;
     }
 

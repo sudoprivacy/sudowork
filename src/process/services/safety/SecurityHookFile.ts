@@ -46,12 +46,14 @@ export async function ensureSecurityHookDirs(): Promise<void> {
 /**
  * Write safety hook enabled state to Nexus filesystem
  * This allows hook.js in Agent CLI processes to detect state changes
+ * @param enabled - Whether safety hook is enabled
+ * @param fastPass - If true, hook.js will immediately allow all requests without waiting for polling
  */
-export async function writeEnabledState(enabled: boolean): Promise<void> {
+export async function writeEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
   try {
     const client = getNexusClient();
-    await client.write(ENABLED_CONFIG_PATH, JSON.stringify({ enabled, timestamp: Date.now() }));
-    console.log(`[SecurityHook] Wrote enabled state: ${enabled}`);
+    await client.write(ENABLED_CONFIG_PATH, JSON.stringify({ enabled, fastPass, timestamp: Date.now() }));
+    console.log(`[SecurityHook] Wrote enabled state: ${enabled}${fastPass ? ' (fastPass)' : ''}`);
   } catch (error) {
     console.error('[SecurityHook] Failed to write enabled state:', error);
   }

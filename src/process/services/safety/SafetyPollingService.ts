@@ -15,7 +15,7 @@
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
-import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState } from './SecurityHookFile';
+import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile } from './SecurityHookFile';
 import { initBlacklist } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
 import { getNexusClient, CONFIG_DIR } from './SecurityHookFile';
@@ -128,12 +128,14 @@ export class SafetyPollingService {
 
   /**
    * Persist enabled state to storage and sync to Nexus filesystem
+   * @param enabled - Whether safety hook is enabled
+   * @param fastPass - If true, hook.js will immediately allow all requests
    */
-  private async persistEnabledState(enabled: boolean): Promise<void> {
+  private async persistEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
     try {
       await ProcessConfig.set(SAFETY_HOOK_ENABLED_KEY, enabled);
       // Sync to Nexus filesystem for Agent CLI processes
-      await writeEnabledState(enabled);
+      await writeEnabledState(enabled, fastPass);
     } catch (err) {
       console.warn('[SafetyPolling] Failed to persist enabled state:', err);
     }
@@ -233,7 +235,8 @@ export class SafetyPollingService {
     this.enabled = false;
     setSafetyHookEnabled(false);
     if (persist) {
-      await this.persistEnabledState(false);
+      // Use fastPass=true to immediately allow all requests in hook.js
+      await this.persistEnabledState(false, true);
     }
     // Clear current event status when stopping
     this.currentStatus = { level: 'none' };
@@ -243,6 +246,42 @@ export class SafetyPollingService {
     // Reset SafetyFileService so it can re-initialize on next start
     // This ensures events during disabled period are marked as processed
     SafetyFileService.reset();
+
+    // Async cleanup: write allow action for pending events, then delete them
+    this.cleanupPendingEvents().catch((err) => {
+      console.warn('[SafetyPolling] Failed to cleanup pending events:', err);
+    });
+  }
+
+  /**
+   * Async cleanup pending events when hook is disabled.
+   * Writes allow action for each pending event, then deletes event files.
+   * This ensures requests waiting for confirmation are released immediately.
+   */
+  private async cleanupPendingEvents(): Promise<void> {
+    try {
+      const eventFilenames = await listEventFilenames();
+      if (eventFilenames.length === 0) {
+        return;
+      }
+
+      console.log(`[SafetyPolling] Cleaning up ${eventFilenames.length} pending events`);
+
+      for (const filename of eventFilenames) {
+        // Check if action already exists (user may have just confirmed)
+        const hasAction = await actionExists(filename);
+        if (!hasAction) {
+          // Write allow action - hook.js will detect it immediately
+          await writeActionFile(filename, { allow: true, reason: 'Safety hook disabled' });
+        }
+        // Delete event file (sudowork is responsible for deleting events)
+        await deleteEventFile(filename);
+      }
+
+      console.log(`[SafetyPolling] Cleaned up ${eventFilenames.length} pending events`);
+    } catch (err) {
+      console.warn('[SafetyPolling] Cleanup pending events failed:', err);
+    }
   }
 
   /**

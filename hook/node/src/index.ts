@@ -26,6 +26,7 @@ let nexusController: NexusController | null = null;
 let statePollingTimer: NodeJS.Timeout | null = null;
 let currentNexusUrl: string = 'http://127.0.0.1:12012';
 let currentStatePollingInterval: number = 3000;
+let fastPassEnabled = false; // When true, allow all requests immediately
 
 /** Path in Nexus filesystem for enabled state sync */
 const ENABLED_CONFIG_PATH = '/safe/config/enabled';
@@ -104,6 +105,14 @@ export function isSafetyHookApplied(): boolean {
 }
 
 /**
+ * Check if fastPass mode is enabled
+ * When true, all requests should be allowed immediately without interception
+ */
+export function isFastPassEnabled(): boolean {
+  return fastPassEnabled;
+}
+
+/**
  * Dispose safety hook interceptors
  */
 export function disposeSafetyHook(): void {
@@ -135,10 +144,19 @@ function startStatePolling(): void {
 
   statePollingTimer = setInterval(async () => {
     try {
-      const enabled = await readEnabledState();
-      if (!enabled && isApplied) {
+      const state = await readEnabledState();
+      fastPassEnabled = state.fastPass;
+
+      if (state.fastPass) {
+        // FastPass mode: allow all requests immediately
+        // If currently applied, dispose interceptors but keep polling
+        if (isApplied) {
+          disposeSafetyHook();
+          console.log('[SafetyHook] FastPass detected, disposed interceptors');
+        }
+      } else if (!state.enabled && isApplied) {
         disposeSafetyHook();
-      } else if (enabled && !isApplied) {
+      } else if (state.enabled && !isApplied) {
         initSafetyHook({
           nexusUrl: currentNexusUrl,
           statePollingInterval: currentStatePollingInterval,
@@ -163,10 +181,11 @@ function stopStatePolling(): void {
 
 /**
  * Read enabled state from Nexus filesystem
+ * Returns both enabled status and fastPass flag
  */
-async function readEnabledState(): Promise<boolean> {
+async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean }> {
   if (!nexusController) {
-    return true; // Default to enabled
+    return { enabled: true, fastPass: false }; // Default to enabled
   }
 
   try {
@@ -176,7 +195,7 @@ async function readEnabledState(): Promise<boolean> {
     // Handle Buffer result
     if (Buffer.isBuffer(result)) {
       const data = JSON.parse(result.toString('utf-8'));
-      return data.enabled === true;
+      return { enabled: data.enabled === true, fastPass: data.fastPass === true };
     }
 
     // Handle object result with content
@@ -185,13 +204,13 @@ async function readEnabledState(): Promise<boolean> {
       const data = Buffer.isBuffer(content)
         ? JSON.parse(content.toString('utf-8'))
         : JSON.parse(String(content));
-      return data.enabled === true;
+      return { enabled: data.enabled === true, fastPass: data.fastPass === true };
     }
 
-    return true; // Default to enabled
+    return { enabled: true, fastPass: false }; // Default to enabled
   } catch (error) {
     // File may not exist yet, default to enabled
-    return true;
+    return { enabled: true, fastPass: false };
   }
 }
 
