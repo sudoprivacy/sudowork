@@ -132,6 +132,12 @@ jobs:
       - name: Run postinstall
         run: bun run postinstall || true
 
+      - name: Install hook dependencies
+        run: cd hook/node && bun install --no-frozen-lockfile
+
+      - name: Build safety hook
+        run: bun run hook:build
+
       - name: Download CLI resources (Node.js, Nexus, Claude Code, OpenClaw)
         shell: bash
         run: |
