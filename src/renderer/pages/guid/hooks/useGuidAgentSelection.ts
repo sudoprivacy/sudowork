@@ -232,6 +232,18 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
           return availableCustomAgentIds.has(agent.id);
         });
 
+        // 对于内置助手，使用 ASSISTANT_PRESETS 中的最新配置更新 presetAgentType
+        // For builtin assistants, update presetAgentType from ASSISTANT_PRESETS
+        for (const agent of list) {
+          if (agent.id.startsWith('builtin-')) {
+            const presetId = agent.id.replace('builtin-', '');
+            const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+            if (preset && preset.presetAgentType) {
+              agent.presetAgentType = preset.presetAgentType;
+            }
+          }
+        }
+
         // Merge extension-contributed assistants (they are preset assistants that don't need
         // to be in availableCustomAgentIds because they use existing backends like gemini/claude)
         for (const ext of extAssistants) {

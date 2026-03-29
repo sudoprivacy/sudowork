@@ -82,7 +82,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   const [editContext, setEditContext] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   // editAgent holds either a built-in PresetAgentType or an extension adapter ID (e.g. "ext-buddy")
-  const [editAgent, setEditAgent] = useState<string>('gemini');
+  const [editAgent, setEditAgent] = useState<string>('sudoclaw');
   const [editSkills, setEditSkills] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -273,6 +273,18 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
         }
       }
 
+      // 对于内置助手，使用 ASSISTANT_PRESETS 中的最新配置更新 presetAgentType
+      // For builtin assistants, update presetAgentType from ASSISTANT_PRESETS
+      for (const agent of mergedAgents) {
+        if (agent.id.startsWith('builtin-')) {
+          const presetId = agent.id.replace('builtin-', '');
+          const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+          if (preset && preset.presetAgentType) {
+            agent.presetAgentType = preset.presetAgentType;
+          }
+        }
+      }
+
       // 仅保留指定的内置助手
       // Keep only allowed builtin assistants
       let allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor'];
@@ -349,7 +361,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditName(assistant.name || '');
     setEditDescription(assistant.description || '');
     setEditAvatar(assistant.avatar || '');
-    setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditAgent(assistant.presetAgentType || 'sudoclaw');
     setPendingSkills([]);
     setDeletePendingSkillName(null);
     setDeleteCustomSkillName(null);
@@ -402,7 +414,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditDescription('');
     setEditContext('');
     setEditAvatar('🤖');
-    setEditAgent('gemini');
+    setEditAgent('sudoclaw');
     setEditSkills('');
     setSelectedSkills([]); // 没有启用的 skills
     setCustomSkills([]); // 没有通过 Add Skills 添加的 skills
@@ -426,7 +438,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     setEditName(`${assistant.nameI18n?.[localeKey] || assistant.name} (Copy)`);
     setEditDescription(assistant.descriptionI18n?.[localeKey] || assistant.description || '');
     setEditAvatar(assistant.avatar || '🤖');
-    setEditAgent(assistant.presetAgentType || 'gemini');
+    setEditAgent(assistant.presetAgentType || 'sudoclaw');
     setPromptViewMode('edit');
     setEditVisible(true);
 
