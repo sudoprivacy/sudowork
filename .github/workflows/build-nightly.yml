@@ -154,7 +154,12 @@ jobs:
             -name "*.AppImage" -o \
             -name "*.zip" \
           \) -print0 | while IFS= read -r -d '' file; do
-            cp -f "$file" nightly-release-assets/
+            base_name=$(basename "$file")
+            extension=".${base_name##*.}"
+            file_stem="${base_name%$extension}"
+            nightly_name="${file_stem}-nightly-${{ steps.meta.outputs.date_utc }}${extension}"
+
+            cp -f "$file" "nightly-release-assets/$nightly_name"
           done
 
           echo "Nightly assets:"
