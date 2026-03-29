@@ -50,6 +50,27 @@ function getLogPath(): string {
   return join(getLogsDir(), LOG_FILE);
 }
 
+function serializeLogData(data: unknown): string {
+  if (data instanceof Error) {
+    const payload = {
+      name: data.name,
+      message: data.message,
+      stack: data.stack,
+    };
+    return ` ${JSON.stringify(payload)}`;
+  }
+
+  if (typeof data === 'object') {
+    try {
+      return ` ${JSON.stringify(data)}`;
+    } catch {
+      return ` ${String(data)}`;
+    }
+  }
+
+  return ` ${String(data)}`;
+}
+
 /**
  * 日志轮转：超过 5MB 后备份
  */
@@ -86,7 +107,7 @@ function formatTimestamp(): string {
  */
 function writeLog(level: LogLevel, tag: string, message: string, data?: unknown): void {
   const timestamp = formatTimestamp();
-  const dataStr = data !== undefined ? ` ${typeof data === 'object' ? JSON.stringify(data) : String(data)}` : '';
+  const dataStr = data !== undefined ? serializeLogData(data) : '';
   const logLine = `[${level}] ${timestamp} [${tag}] ${message}${dataStr}\n`;
 
   // 打印到控制台
