@@ -253,12 +253,10 @@ export class AcpSkillManager {
 
     if (this.initialized) return;
 
-    // 未指定 enabledSkills 时不加载任何可选 skills（非 preset agent 场景）
-    // Skip all optional skills when enabledSkills is not specified (non-preset agent)
-    if (!enabledSkills || enabledSkills.length === 0) {
-      this.initialized = true;
-      return;
-    }
+    // When enabledSkills is undefined (non-preset agent), load ALL installed &
+    // user-enabled workspace skills so that standalone agents like Claude Code
+    // can also use skills such as "browser".
+    // When enabledSkills is an explicit list (preset agent), only load those.
 
     const skillsDir = this.skillsDir;
     if (!existsSync(skillsDir)) {
@@ -278,8 +276,9 @@ export class AcpSkillManager {
         // 跳过内置 skills 目录 / Skip builtin skills directory
         if (skillName === '_builtin') continue;
 
-        // 只加载启用的 skills / Only load enabled skills
-        if (!enabledSkills.includes(skillName)) {
+        // When enabledSkills is an explicit list, only load those;
+        // when undefined, load all user-enabled skills.
+        if (enabledSkills && enabledSkills.length > 0 && !enabledSkills.includes(skillName)) {
           continue;
         }
 
