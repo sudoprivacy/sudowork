@@ -312,7 +312,7 @@ class DynamicNexusService {
     const pythonPath = this.getPythonPath(envDir);
     const executablePath = pythonPath;
 
-    // Use the cluster profile (core + federation) on the fixed localhost port.
+    // Use the cluster profile (lite + federation) for local development.
     const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
 
     const spawnStart = Date.now();
