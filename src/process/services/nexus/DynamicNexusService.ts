@@ -539,7 +539,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find "${envDir}/bin" -maxdepth 1 -type f -print0)
 
-echo "codesign-repair: signed=$SIGNED failed=$FAILED"
+echo "codesign-repair: signed=$$SIGNED failed=$$FAILED"
 `;
 
     try {
