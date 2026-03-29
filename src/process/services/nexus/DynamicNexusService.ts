@@ -312,8 +312,8 @@ class DynamicNexusService {
     const pythonPath = this.getPythonPath(envDir);
     const executablePath = pythonPath;
 
-    // Use the full profile on the fixed localhost port.
-    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=full', '--auth-type', 'none', '--port', String(this._port)];
+    // Use the cluster profile (core + federation) on the fixed localhost port.
+    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
