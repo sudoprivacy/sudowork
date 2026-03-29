@@ -140,7 +140,8 @@ export class SafetyPollingService {
   }
 
   /**
-   * Start polling safety service
+   * Start polling safety service (called by user action)
+   * Forces enabled=true and starts polling
    */
   async start(config: SafetyPollingConfig): Promise<void> {
     // Initialize from storage if not already done
@@ -160,31 +161,54 @@ export class SafetyPollingService {
     setSafetyHookEnabled(true);
     await this.persistEnabledState(true);
 
-    // Initialize file service (async for Nexus SDK)
+    await this.startPolling(config);
+  }
+
+  /**
+   * Startup safety service on app launch
+   * Only starts polling if previously enabled by user
+   */
+  async startup(config: SafetyPollingConfig): Promise<void> {
+    // Initialize from storage to get persisted enabled state
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    // Only start polling if user enabled it before
+    if (!this.enabled) {
+      console.log('[SafetyPolling] Service disabled by user, skipping startup');
+      return;
+    }
+
+    if (this.interval) {
+      this.config = config;
+      return;
+    }
+
+    this.config = config;
+    await this.startPolling(config);
+  }
+
+  /**
+   * Internal method to start the polling loop
+   */
+  private async startPolling(config: SafetyPollingConfig): Promise<void> {
+    // Initialize file service (will mark existing events as processed)
     try {
       await SafetyFileService.init({
         pollingIntervalMs: config.pollingIntervalMs,
       });
+      console.log('[SafetyPolling] SafetyFileService initialized, processedEvents size:', SafetyFileService['processedEvents'].size);
     } catch (err) {
       console.error(`[SafetyPolling] Failed to init SafetyFileService:`, err);
       throw err;
     }
 
-    // Mark all existing events as processed to avoid popup storm on startup
-    try {
-      const existingEvents = await listEventFilenames();
-      const processedSet = SafetyFileService['processedEvents'];
-      existingEvents.forEach(filename => processedSet.add(filename));
-      if (existingEvents.length > 0) {
-        console.log(`[SafetyPolling] Marked ${existingEvents.length} existing events as processed`);
-      }
-    } catch (err) {
-      console.warn('[SafetyPolling] Failed to mark existing events as processed:', err);
-    }
-
     this.interval = setInterval(() => {
       void this.poll();
     }, config.pollingIntervalMs);
+
+    console.log('[SafetyPolling] Polling started, interval:', config.pollingIntervalMs);
 
     // Initial poll
     void this.poll();
@@ -199,20 +223,26 @@ export class SafetyPollingService {
 
   /**
    * Stop polling
+   * @param persist - Whether to persist the disabled state (default: true)
    */
-  async stop(): Promise<void> {
+  async stop(persist: boolean = true): Promise<void> {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
     }
     this.enabled = false;
     setSafetyHookEnabled(false);
-    await this.persistEnabledState(false);
+    if (persist) {
+      await this.persistEnabledState(false);
+    }
     // Clear current event status when stopping
     this.currentStatus = { level: 'none' };
     this.currentEventUuid = null;
     this.currentEventFilename = null;
     this.notifyListeners(this.currentStatus);
+    // Reset SafetyFileService so it can re-initialize on next start
+    // This ensures events during disabled period are marked as processed
+    SafetyFileService.reset();
   }
 
   /**
@@ -318,18 +348,20 @@ export class SafetyPollingService {
    */
   private async poll(): Promise<void> {
     if (!this.config) {
+      console.log('[SafetyPolling] Poll skipped: no config');
       return;
     }
 
     // Skip polling if safety hook is disabled
     if (!this.enabled) {
+      console.log('[SafetyPolling] Poll skipped: disabled');
       return;
     }
 
     // Skip polling if blacklist is empty (no rules to match)
     const hasActiveRules = await this.hasActiveBlacklistRules();
     if (!hasActiveRules) {
-      // No active blacklist rules, skip polling to reduce overhead
+      console.log('[SafetyPolling] Poll skipped: no active blacklist rules');
       return;
     }
 
@@ -349,24 +381,28 @@ export class SafetyPollingService {
       // Find first unprocessed event
       for (const filename of filenames) {
         if (!processedSet.has(filename)) {
+          console.log('[SafetyPolling] Found unprocessed event:', filename);
           const data = await readEventFile(filename);
 
           if (data) {
+            console.log('[SafetyPolling] Event data:', JSON.stringify(data).substring(0, 200));
             this.currentStatus = eventToSafetyStatus(filename, data);
             this.currentEventUuid = filename;
             this.currentEventFilename = filename;
 
             processedSet.add(filename);
+            console.log('[SafetyPolling] Notifying listeners with status:', JSON.stringify(this.currentStatus).substring(0, 200));
             this.notifyListeners(this.currentStatus);
             break;
           } else {
             // If read failed, mark as processed to ignore it in next polls
+            console.log('[SafetyPolling] Event data is null, marking as processed');
             processedSet.add(filename);
           }
         }
       }
     } catch (error) {
-      // Silently ignore poll errors
+      console.error('[SafetyPolling] Poll error:', error);
     }
   }
 }

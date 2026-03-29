@@ -314,10 +314,14 @@ const SecuritySettings: React.FC = () => {
               <Switch checked={hookEnabled} onChange={handleToggleHook} />
             </div>
 
-            {/* 黑名单规则 - 仅在启用时显示 */}
-            {hookEnabled && (
-              <>
-                <div className='border-t border-t-[var(--color-border-2)] pt-16px'>
+            {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
+            <div className='border-t border-t-[var(--color-border-2)] pt-16px'>
+              {!hookEnabled ? (
+                <div className='text-center py-16px text-t-tertiary text-14px'>
+                  安全 Hook 防护已关闭
+                </div>
+              ) : (
+                <>
                   {/* 规则说明 */}
                   <div className='mb-12px'>
                     <span className='text-14px text-t-secondary'>
@@ -396,9 +400,9 @@ const SecuritySettings: React.FC = () => {
                       ]}
                     />
                   )}
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </Card>

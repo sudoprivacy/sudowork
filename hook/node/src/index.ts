@@ -107,8 +107,8 @@ export function isSafetyHookApplied(): boolean {
  * Dispose safety hook interceptors
  */
 export function disposeSafetyHook(): void {
-  // Stop state polling
-  stopStatePolling();
+  // Don't stop state polling - we need it to detect when user re-enables hook
+  // stopStatePolling();
 
   if (networkInterceptor) {
     networkInterceptor.dispose();
@@ -120,7 +120,7 @@ export function disposeSafetyHook(): void {
   }
   nexusController = null;
   isApplied = false;
-  console.log('[SafetyHook] Disposed');
+  console.log('[SafetyHook] Disposed (state polling continues)');
 }
 
 /**

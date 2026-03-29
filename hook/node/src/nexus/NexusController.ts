@@ -7,6 +7,29 @@ import type { BlacklistConfig } from '../blacklist/types';
 /** Path to blacklist config in Nexus filesystem */
 const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
 
+/** Localhost patterns that should always be allowed (system-level whitelist) */
+const LOCALHOST_PATTERNS = [
+  '127.0.0.1',
+  'localhost',
+  '[::1]',      // IPv6 localhost
+  '::1',        // IPv6 localhost
+];
+
+/**
+ * Check if URL is a localhost request (should be allowed without popup)
+ */
+function isLocalhostRequest(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    return LOCALHOST_PATTERNS.some(pattern =>
+      hostname === pattern || hostname === pattern.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Cached blacklist config (updated via polling in index.ts) */
 let cachedBlacklistConfig: BlacklistConfig | null = null;
 
@@ -63,7 +86,13 @@ export class NexusController extends Nexus {
   }
 
   public async control(controller: ControllerSource, payload: Payload) {
+    // Skip requests to Nexus server itself
     if (payload.type === 'network' && new URL(payload.data.url).origin === this.serverUrl) {
+      return;
+    }
+
+    // Allow localhost requests without popup (system-level whitelist)
+    if (payload.type === 'network' && isLocalhostRequest(payload.data.url)) {
       return;
     }
 

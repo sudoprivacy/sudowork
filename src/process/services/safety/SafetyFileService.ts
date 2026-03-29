@@ -38,6 +38,14 @@ export class SafetyFileService {
   }
 
   /**
+   * Reset the service state (called when hook is disabled)
+   */
+  static reset(): void {
+    this.processedEvents.clear();
+    this.initialized = false;
+  }
+
+  /**
    * Mark all existing events as processed to avoid re-processing stale events
    * after app restart
    */

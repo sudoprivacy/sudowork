@@ -67,16 +67,15 @@ export function initSafetyBridge(): void {
   // Enable/disable safety hook service
   ipcBridge.safety.setEnabled.provider(async ({ enabled }) => {
     try {
-      console.log(`[SafetyBridge] Setting safety hook ${enabled ? 'enabled' : 'disabled'}`);
       const service = SafetyPollingService.getInstance();
       if (enabled) {
-        // Stop first if already running, then start
-        console.log('[SafetyBridge] Stopping and starting service...');
-        await service.stop();
+        // Stop first if already running (skip persist since we'll start immediately)
+        console.log('[SafetyBridge] Starting safety hook service...');
+        await service.stop(false);
         await service.start({ pollingIntervalMs: 5000 });
       } else {
-        console.log('[SafetyBridge] Stopping service...');
-        await service.stop();
+        console.log('[SafetyBridge] Stopping safety hook service...');
+        await service.stop(true);
       }
       return { success: true };
     } catch (err) {
