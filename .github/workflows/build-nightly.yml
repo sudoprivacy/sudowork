@@ -42,6 +42,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       branch: ${{ steps.context.outputs.branch }}
+      skip_code_quality: ${{ steps.context.outputs.skip_code_quality }}
 
     steps:
       - name: Resolve build context
@@ -50,12 +51,16 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             BRANCH="${{ inputs.branch }}"
+            SKIP_CODE_QUALITY="${{ inputs.skip_code_quality }}"
           else
             BRANCH="main"
+            SKIP_CODE_QUALITY="true"
           fi
 
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "skip_code_quality=$SKIP_CODE_QUALITY" >> "$GITHUB_OUTPUT"
           echo "Nightly build branch: $BRANCH"
+          echo "Skip code quality: $SKIP_CODE_QUALITY"
 
       - name: Generate build matrix
         id: set-matrix
@@ -101,7 +106,7 @@ jobs:
     with:
       matrix: ${{ needs.prepare-matrix.outputs.matrix }}
       ref: ${{ needs.prepare-matrix.outputs.branch }}
-      skip_code_quality: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_code_quality || false }}
+      skip_code_quality: ${{ fromJSON(needs.prepare-matrix.outputs.skip_code_quality) }}
       append_commit_hash: true
     secrets: inherit
 
