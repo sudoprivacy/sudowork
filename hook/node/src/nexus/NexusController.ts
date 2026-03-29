@@ -106,6 +106,12 @@ export class NexusController extends Nexus {
         allow?: boolean;
         reason?: string;
       };
+
+      // Delete action file after reading
+      this.delete(`/safe/action/${eventID}`).catch(() => {
+        // Ignore delete errors
+      });
+
       if (!actionResult.allow) {
         controller.errorWith(actionResult.reason || 'Security Violation: request was DENIED');
       }

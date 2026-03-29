@@ -73,7 +73,7 @@ export class SafetyFileService {
   }
 
   /**
-   * Write user action result
+   * Write user action result and delete the event file
    */
   static async writeUserResponse(eventUuid: string, allow: boolean, reason?: string): Promise<boolean> {
     const data: ActionFileData = {
@@ -82,7 +82,14 @@ export class SafetyFileService {
     };
 
     const resultPath = await writeActionFile(eventUuid, data);
-    return resultPath !== null;
+    if (resultPath) {
+      // Delete event file immediately after writing action
+      // hook.js will delete the action file after reading it
+      await deleteEventFile(eventUuid);
+      this.processedEvents.delete(eventUuid);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -90,16 +97,5 @@ export class SafetyFileService {
    */
   static markAsProcessed(eventUuid: string): void {
     this.processedEvents.add(eventUuid);
-  }
-
-  /**
-   * Delete processed event file after response is written
-   */
-  static async deleteProcessedEvent(eventUuid: string): Promise<void> {
-    // Delay deletion to give counterparty time to read the response (5 seconds)
-    setTimeout(async () => {
-      await deleteEventFile(eventUuid);
-      this.processedEvents.delete(eventUuid);
-    }, 5000);
   }
 }
