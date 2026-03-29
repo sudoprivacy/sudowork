@@ -267,8 +267,8 @@ class DynamicNexusService {
 
   /**
    * Starts the nexus service (assumes it's installed).
-   * If the port is already occupied by an orphaned nexusd from a previous
-   * session, the old process is killed before a fresh one is spawned.
+   * If the fixed port is already serving a healthy Nexus instance, reuse it.
+   * Otherwise clear the stale listener before spawning a fresh process.
    */
   async start(): Promise<void> {
     if (this._running) return;
@@ -290,11 +290,21 @@ class DynamicNexusService {
     // on subsequent launches.
     await this.repairMacOSLibrarySignatures(envDir);
 
+    const pidFile = path.join(getDataPath(), 'nexusd.pid');
+
     // If the port is already taken, clear it synchronously before spawning a new
     // process. Otherwise the readiness check can latch onto the old listener and
     // report a false-positive startup.
     const portOccupied = await this.isPortInUse(this._port);
     if (portOccupied) {
+      const healthyExistingServer = await this.isHealthyNexusServer(this._port);
+      if (healthyExistingServer) {
+        mainLog('Nexus', `Reusing existing healthy Nexus server on port ${this._port}`);
+        this._running = true;
+        this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
+        return;
+      }
+
       const occupantPids = await this.getPidsOnPort(this._port);
       const pidSummary = occupantPids.length > 0 ? ` (pid=${occupantPids.join(',')})` : '';
       mainWarn('Nexus', `Port ${this._port} already in use${pidSummary} — clearing before restart`);
@@ -306,7 +316,6 @@ class DynamicNexusService {
     // Remove stale PID file if exists (nexusd checks this on startup)
     // On Windows, os.kill(pid, 0) in nexus's _is_nexusd_process() fails with WinError 87,
     // so we need to clean up the PID file before starting a new instance.
-    const pidFile = path.join(getDataPath(), 'nexusd.pid');
     if (fs.existsSync(pidFile)) {
       try {
         fs.unlinkSync(pidFile);
