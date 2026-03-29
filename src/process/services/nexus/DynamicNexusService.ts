@@ -43,6 +43,7 @@ export interface NexusSetupStatus {
 }
 
 export type NexusSetupCallback = (status: NexusSetupStatus) => void;
+export type NexusSetupUnsubscribe = () => void;
 
 class DynamicNexusService {
   private process: import('child_process').ChildProcess | null = null;
@@ -107,8 +108,11 @@ class DynamicNexusService {
   }
 
   /** Subscribe to setup progress events (fires on stage transitions). */
-  onSetupStatus(cb: NexusSetupCallback): void {
+  onSetupStatus(cb: NexusSetupCallback): NexusSetupUnsubscribe {
     this._setupCallbacks.push(cb);
+    return () => {
+      this._setupCallbacks = this._setupCallbacks.filter((registeredCb) => registeredCb !== cb);
+    };
   }
 
   private emitSetup(stage: NexusSetupStage, message: string, percent?: number): void {
@@ -244,6 +248,20 @@ class DynamicNexusService {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.emitSetup('error', `Installation failed: ${errorMsg}`);
       throw err;
+    }
+  }
+
+  /**
+   * Installs Nexus from bundled resources and starts the server.
+   * Keeps setup-event subscription local to the install lifecycle.
+   */
+  async installAndStart(onSetupStatus?: NexusSetupCallback): Promise<void> {
+    const unsubscribe = onSetupStatus ? this.onSetupStatus(onSetupStatus) : null;
+    try {
+      await this.install();
+      await this.start();
+    } finally {
+      unsubscribe?.();
     }
   }
 
