@@ -68,6 +68,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   const [files, setFiles] = useState<BdpanFileEntry[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   const [authCode, setAuthCode] = useState('');
 
@@ -77,6 +78,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
     setStep('file_browser');
     setCurrentPath(dirPath);
     setSelected(new Set());
+    setLastSelectedIndex(null);
     try {
       const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
       if (res?.success) {
@@ -175,17 +177,44 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
     loadFiles(file.path, bdpanRoot ?? undefined);
   };
 
-  const toggleSelect = (file: BdpanFileEntry) => {
+  const handleFileClick = (file: BdpanFileEntry, index: number, e: React.MouseEvent) => {
     if (file.isdir) {
       navigateInto(file);
       return;
     }
-    setSelected((s) => {
-      const next = new Set(s);
-      if (next.has(file.path)) next.delete(file.path);
-      else next.add(file.path);
-      return next;
-    });
+    const selectableFiles = files.filter((f) => !f.isdir);
+    const selectableIndex = selectableFiles.indexOf(file);
+
+    if (e.shiftKey && lastSelectedIndex !== null) {
+      // Range select among files only
+      const allSelectableIndices = files.reduce<number[]>((acc, f, i) => {
+        if (!f.isdir) acc.push(i);
+        return acc;
+      }, []);
+      const lastFileIndex = allSelectableIndices[lastSelectedIndex] ?? index;
+      const lo = Math.min(lastFileIndex, index);
+      const hi = Math.max(lastFileIndex, index);
+      setSelected((s) => {
+        const next = new Set(s);
+        for (let i = lo; i <= hi; i++) {
+          if (!files[i].isdir) next.add(files[i].path);
+        }
+        return next;
+      });
+    } else if (e.metaKey || e.ctrlKey) {
+      // Toggle individual file
+      setSelected((s) => {
+        const next = new Set(s);
+        if (next.has(file.path)) next.delete(file.path);
+        else next.add(file.path);
+        return next;
+      });
+      setLastSelectedIndex(selectableIndex);
+    } else {
+      // Plain click: select only this file
+      setSelected(new Set([file.path]));
+      setLastSelectedIndex(selectableIndex);
+    }
   };
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -308,11 +337,11 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               {t('conversation.bdpan.emptyDir')}
             </div>
           ) : (
-            files.map((file) => (
+            files.map((file, index) => (
               <div
                 key={file.path}
-                className={`flex items-center gap-10px px-16px py-10px cursor-pointer hover:bg-[var(--bg-2)] transition-colors ${selected.has(file.path) ? 'bg-[var(--primary-1)]' : ''}`}
-                onClick={() => toggleSelect(file)}
+                className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`}
+                onClick={(e) => handleFileClick(file, index, e)}
               >
                 {file.isdir ? (
                   <FolderOpen size={18} fill='var(--color-text-3)' />
