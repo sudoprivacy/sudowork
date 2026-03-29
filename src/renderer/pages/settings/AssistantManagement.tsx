@@ -799,8 +799,9 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                   { value: 'codex', label: 'Codex' },
                   { value: 'codebuddy', label: 'CodeBuddy' },
                   { value: 'opencode', label: 'OpenCode' },
+                  { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
                 ]
-                  .filter((opt) => availableBackends.has(opt.value))
+                  .filter((opt) => availableBackends.has(opt.backendId || opt.value))
                   .map((opt) => (
                     <Select.Option key={opt.value} value={opt.value}>
                       {opt.label}

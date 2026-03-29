@@ -267,6 +267,7 @@ class AcpDetector {
         name: 'Sudoclaw',
         cliPath: getSudoclawCliPath() ?? undefined,
         acpArgs: ['gateway'],
+        presetAgentType: 'sudoclaw',
       });
     }
 

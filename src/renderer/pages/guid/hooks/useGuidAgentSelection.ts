@@ -510,13 +510,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   // --- Availability checks ---
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      return availableAgents?.some((agent) => agent.backend === agentType) ?? false;
+      // Sudoclaw preset type maps to openclaw-gateway backend
+      const actualBackend = agentType === 'sudoclaw' ? 'openclaw-gateway' : agentType;
+      return availableAgents?.some((agent) => agent.backend === actualBackend) ?? false;
     },
     [availableAgents]
   );
 
   const getAvailableFallbackAgent = useCallback((): string | null => {
-    const fallbackOrder: PresetAgentType[] = ['claude', 'qwen', 'codebuddy', 'opencode'];
+    const fallbackOrder: PresetAgentType[] = ['claude', 'qwen', 'codebuddy', 'opencode', 'sudoclaw'];
     for (const agentType of fallbackOrder) {
       if (isMainAgentAvailable(agentType)) {
         return agentType;

@@ -18,7 +18,7 @@
  * 预设助手的主 Agent 类型，用于决定创建哪种类型的对话
  * The primary agent type for preset assistants, used to determine which conversation type to create.
  */
-export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini';
+export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | 'sudoclaw';
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -27,7 +27,7 @@ export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'ge
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen', 'sudoclaw'] as const;
 
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;

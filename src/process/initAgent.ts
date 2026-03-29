@@ -121,10 +121,18 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
         expectedIdentityHash,
         switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
       },
+      // Custom agent ID for preset assistant identification
+      customAgentId: extra.customAgentId,
+      // Preset context/rules for preset assistants
+      presetContext: extra.presetContext,
       // Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      // Initial session mode selected on Guid page
+      sessionMode: extra.sessionMode,
+      // Pre-selected model from Guid page
+      currentModelId: extra.currentModelId,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
