@@ -2,8 +2,8 @@
   "welcome": {
     "title": "Hi, what's your plan for today?",
     "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
-    "uploadLocalFile": "Upload Local Files",
-    "uploadBdpanFile": "Upload Baidu Netdisk Files",
+    "downloadLocalFile": "Import Local Files",
+    "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",
     "multiAgentModeEnabled": "Entering multi-agent mode",
@@ -138,7 +138,8 @@
       "addToChat": "Add to chat",
       "addedToChat": "Added to chat",
       "openFailed": "Failed to open",
-      "revealFailed": "Failed to open containing folder"
+      "revealFailed": "Failed to open containing folder",
+      "uploadToBdpan": "Upload to Baidu Netdisk"
     }
   },
   "chat": {
@@ -177,7 +178,19 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "retry": "Retry",
-    "logout": "Logout"
+    "logout": "Logout",
+    "upload": {
+      "title": "Upload to Baidu Netdisk",
+      "localPath": "Local",
+      "uploadTo": "Upload to",
+      "uploadButton": "Upload",
+      "success": "Uploaded to Baidu Netdisk successfully",
+      "failed": "Upload to Baidu Netdisk failed"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

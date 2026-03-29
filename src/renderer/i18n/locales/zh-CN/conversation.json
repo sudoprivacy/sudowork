@@ -2,8 +2,8 @@
   "welcome": {
     "title": "Hi，今天有什么安排？",
     "placeholder": "发消息、上传文件、打开文件夹或创建定时任务...",
-    "uploadLocalFile": "上传本地文件",
-    "uploadBdpanFile": "上传百度网盘文件",
+    "downloadLocalFile": "导入本地文件",
+    "downloadBdpanFile": "导入百度网盘文件",
     "linkFolder": "打开文件夹",
     "newConversation": "新会话",
     "multiAgentModeEnabled": "已进入多智能体模式",
@@ -138,7 +138,8 @@
       "addToChat": "添加到聊天",
       "addedToChat": "已添加到聊天",
       "openFailed": "打开失败",
-      "revealFailed": "无法打开所在目录"
+      "revealFailed": "无法打开所在目录",
+      "uploadToBdpan": "上传至百度网盘"
     }
   },
   "chat": {
@@ -177,7 +178,19 @@
     "cancel": "取消",
     "confirm": "确定",
     "retry": "重试",
-    "logout": "登出"
+    "logout": "登出",
+    "upload": {
+      "title": "上传至百度网盘",
+      "localPath": "本地路径",
+      "uploadTo": "上传到",
+      "uploadButton": "上传",
+      "success": "已成功上传至百度网盘",
+      "failed": "上传至百度网盘失败"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "生成 Skill/规则",

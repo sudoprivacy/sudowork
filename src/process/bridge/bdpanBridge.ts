@@ -133,6 +133,19 @@ export function initBdpanBridge(): void {
     return { success: true, data: { localPath } };
   });
 
+  // ── upload ───────────────────────────────────────────────────────────────────
+  ipcBridge.bdpan.upload.provider(async ({ localPath, remotePath }) => {
+    const { stdout, stderr, code } = await runBdpan(['upload', localPath, remotePath, '--json']);
+    mainLog('Bdpan', `upload exit=${code} stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`);
+    if (code === 0) {
+      return { success: true, data: {} };
+    }
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    const errMsg = (json?.['error'] as string | undefined) || (json?.['message'] as string | undefined) || stderr || stdout || 'bdpan upload failed';
+    mainError('Bdpan', `upload failed: ${errMsg}`);
+    return { success: false, data: { error: errMsg } };
+  });
+
   // ── ls ───────────────────────────────────────────────────────────────────────
   ipcBridge.bdpan.ls.provider(async ({ path: dirPath }) => {
     const { stdout, stderr, code } = await runBdpan(['ls', dirPath, '--json']);

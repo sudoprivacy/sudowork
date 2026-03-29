@@ -103,13 +103,13 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               <Menu.Item key='file'>
                 <div className='flex items-center gap-8px'>
                   <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                  <span>{t('conversation.welcome.uploadLocalFile')}</span>
+                  <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
               </Menu.Item>
               <Menu.Item key='bdpan'>
                 <div className='flex items-center gap-8px'>
                   <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                  <span>{t('conversation.welcome.uploadBdpanFile')}</span>
+                  <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                 </div>
               </Menu.Item>
               <Menu.Item key='workspace'>

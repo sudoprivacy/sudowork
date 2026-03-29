@@ -624,23 +624,27 @@ export function initConversationBridge(): void {
             child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
             child.on('close', (code) => {
               mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
-              // bdpan always exits 0; check JSON code field for success
+              let jsonCode: number | undefined;
+              let jsonError: string | undefined;
               try {
-                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string; data?: { local?: string } };
-                mainLog('ConversationBridge', `bdpan JSON: ${JSON.stringify(json)}`);
-                if (json.code === 0) {
-                  mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
-                  resolvedFiles.push(localPath);
-                } else {
-                  mainError('ConversationBridge', `bdpan download failed: ${json.error ?? stdout}`);
-                }
-              } catch {
-                mainError('ConversationBridge', `bdpan download unexpected output: ${stdout}`);
+                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
+                jsonCode = json.code;
+                jsonError = json.error || undefined;
+              } catch {}
+              if (jsonCode === 0) {
+                mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
+                resolvedFiles.push(localPath);
+                ipcBridge.bdpan.downloadResult.emit({ success: true });
+              } else {
+                const dlErr = jsonError || stderr || stdout || 'bdpan download failed';
+                mainError('ConversationBridge', `bdpan download failed: ${dlErr}`);
+                ipcBridge.bdpan.downloadResult.emit({ success: false, error: dlErr });
               }
               resolve();
             });
             child.on('error', (err) => {
               mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
+              ipcBridge.bdpan.downloadResult.emit({ success: false, error: err.message });
               resolve();
             });
           });
