@@ -59,8 +59,8 @@ class RuntimeInstaller {
       }
     })();
     const fastNexusOk = !hasNexusResource || fs.existsSync(nexusEnvBinPath);
-    const { isBdpanInstalled } = await import('../bdpan/BdpanInstallService');
-    const fastBdpanOk = isBdpanInstalled();
+    const { isBdpanInstalled: checkBdpanInstalled } = await import('../bdpan/BdpanInstallService');
+    const fastBdpanOk = checkBdpanInstalled();
 
     mainLog(
       TAG,
