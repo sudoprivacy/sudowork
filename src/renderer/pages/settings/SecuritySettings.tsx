@@ -204,140 +204,140 @@ const SecuritySettings: React.FC = () => {
   }, []);
 
   return (
-    <div className='p-24px flex flex-col gap-24px'>
+    <div className='p-24px flex flex-col gap-8px'>
       {/* 页面标题 */}
-      <div className='flex flex-col gap-8px'>
-        <h2 className='text-24px font-600 text-t-primary'>安全防护</h2>
-        <p className='text-14px text-t-secondary'>全方位保护您的系统和数据安全</p>
+      <div className='flex flex-col gap-2px'>
+        <h2 className='text-24px font-600 text-t-primary my-0px'>安全防护</h2>
+        <p className='text-13px text-t-secondary my-0px'>全方位保护您的系统和数据安全</p>
       </div>
 
       {/* 电脑环境安全防护 */}
-      <Card className='rd-12px hover:shadow-md transition-shadow'>
-        <div className='flex items-start gap-16px'>
-          <div className='w-56px h-56px rounded-12px bg-[#faad1415] flex items-center justify-center flex-shrink-0'>
-            <Shield theme='outline' size='32' fill='#faad14' />
+      <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
+        <div className='flex items-start gap-4px'>
+          <div className='w-42px h-42px rounded-8px bg-[#faad1415] flex items-center justify-center flex-shrink-0 mt-1px'>
+            <Shield theme='outline' size='24' fill='#faad14' />
           </div>
-          <div className='flex-1'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <h3 className='text-18px font-600 text-t-primary'>电脑环境安全防护</h3>
+          <div className='flex-1 mt--4px'>
+            <div className='flex items-center gap-6px mb-2px'>
+              <h3 className='text-15px font-600 text-t-primary'>电脑环境安全防护</h3>
               <Tag color='orange' size='small' className='rd-4px'>
                 <CheckOne theme='filled' size='12' className='mr-4px' />
                 主动防御
               </Tag>
             </div>
-            <p className='text-14px text-t-secondary mb-16px leading-relaxed'>当智能体调用各类工具时，系统会进行全过程的安全管控。识别并拦截可能破坏系统、窃取数据、尝试提权的高风险行为，保障您的电脑环境安全。</p>
-            <div className='flex items-center justify-end gap-12px'>
-              <Tag color='green' size='small' className='rd-12px px-12px'>
-                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+            <p className='text-13px text-t-secondary my-0px leading-relaxed'>当智能体调用各类工具时，系统会进行全过程的安全管控。识别并拦截可能破坏系统、窃取数据、尝试提权的高风险行为，保障您的电脑环境安全。</p>
+            <div className='flex items-center justify-end gap-10px'>
+              <Tag color='green' size='small' className='rd-12px px-10px'>
+                <span className='w-5px h-5px rd-50% inline-block mr-5px bg-[#52c41a]'></span>
                 保护中
               </Tag>
-              <Switch checked={envProtection} disabled />
+              <Switch checked={envProtection} disabled size='small' />
             </div>
           </div>
         </div>
       </Card>
 
       {/* 用户信息安全保护 */}
-      <Card className='rd-12px hover:shadow-md transition-shadow'>
-        <div className='flex items-start gap-16px'>
-          <div className='w-56px h-56px rounded-12px bg-[#52c41a15] flex items-center justify-center flex-shrink-0'>
-            <Lock theme='outline' size='32' fill='#52c41a' />
+      <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
+        <div className='flex items-start gap-10px'>
+          <div className='w-42px h-42px rounded-8px bg-[#52c41a15] flex items-center justify-center flex-shrink-0 mt-1px'>
+            <Lock theme='outline' size='24' fill='#52c41a' />
           </div>
-          <div className='flex-1'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <h3 className='text-18px font-600 text-t-primary'>用户信息安全保护</h3>
+          <div className='flex-1 mt--4px'>
+            <div className='flex items-center gap-6px mb-2px'>
+              <h3 className='text-15px font-600 text-t-primary'>用户信息安全保护</h3>
               <Tag color='green' size='small' className='rd-4px'>
                 <CheckOne theme='filled' size='12' className='mr-4px' />
                 智能识别
               </Tag>
             </div>
-            <p className='text-14px text-t-secondary mb-16px leading-relaxed'>对输入给智能体的任务、提示词进行智能安全识别，自动检测是否包含个人隐私、敏感密钥、账号凭证等高风险信息，保障用户信息安全。</p>
-            <div className='flex items-center justify-end gap-12px'>
-              <Tag color='green' size='small' className='rd-12px px-12px'>
-                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+            <p className='text-13px text-t-secondary my-0px leading-relaxed'>对输入给智能体的任务、提示词进行智能安全识别，自动检测是否包含个人隐私、敏感密钥、账号凭证等高风险信息，保障用户信息安全。</p>
+            <div className='flex items-center justify-end gap-10px'>
+              <Tag color='green' size='small' className='rd-12px px-10px'>
+                <span className='w-5px h-5px rd-50% inline-block mr-5px bg-[#52c41a]'></span>
                 保护中
               </Tag>
-              <Switch checked={infoProtection} disabled />
+              <Switch checked={infoProtection} disabled size='small' />
             </div>
           </div>
         </div>
       </Card>
 
       {/* Skill 技能安全扫描 */}
-      <Card className='rd-12px hover:shadow-md transition-shadow'>
-        <div className='flex items-start gap-16px'>
-          <div className='w-56px h-56px rounded-12px bg-[#1890ff15] flex items-center justify-center flex-shrink-0'>
-            <Scan theme='outline' size='32' fill='#1890ff' />
+      <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
+        <div className='flex items-start gap-10px'>
+          <div className='w-42px h-42px rounded-8px bg-[#1890ff15] flex items-center justify-center flex-shrink-0 mt-1px'>
+            <Scan theme='outline' size='24' fill='#1890ff' />
           </div>
-          <div className='flex-1'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <h3 className='text-18px font-600 text-t-primary'>Skill 技能安全扫描</h3>
+          <div className='flex-1 mt--4px'>
+            <div className='flex items-center gap-6px mb-2px'>
+              <h3 className='text-15px font-600 text-t-primary'>Skill 技能安全扫描</h3>
               <Tag color='blue' size='small' className='rd-4px'>
                 <CheckOne theme='filled' size='12' className='mr-4px' />
                 多层检测
               </Tag>
             </div>
-            <p className='text-14px text-t-secondary mb-16px leading-relaxed'>所有 Skill 在安装和接入前，系统都会进行多层安全检测，包括来源可信度、代码审查、权限评估等，确保所有接入的技能纯净无害。</p>
-            <div className='flex items-center justify-end gap-12px'>
-              <Tag color='green' size='small' className='rd-12px px-12px'>
-                <span className='w-6px h-6px rd-50% inline-block mr-6px bg-[#52c41a]'></span>
+            <p className='text-13px text-t-secondary my-0px leading-relaxed'>所有 Skill 在安装和接入前，系统都会进行多层安全检测，包括来源可信度、代码审查、权限评估等，确保所有接入的技能纯净无害。</p>
+            <div className='flex items-center justify-end gap-10px'>
+              <Tag color='green' size='small' className='rd-12px px-10px'>
+                <span className='w-5px h-5px rd-50% inline-block mr-5px bg-[#52c41a]'></span>
                 保护中
               </Tag>
-              <Switch checked={skillScan} disabled />
+              <Switch checked={skillScan} disabled size='small' />
             </div>
           </div>
         </div>
       </Card>
 
       {/* 安全 Hook 防护 */}
-      <Card className='rd-12px hover:shadow-md transition-shadow'>
-        <div className='flex items-start gap-16px'>
-          <div className='w-56px h-56px rounded-12px bg-[#722ed115] flex items-center justify-center flex-shrink-0'>
-            <AllApplication theme='outline' size='32' fill='#722ed1' />
+      <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
+        <div className='flex items-start gap-10px'>
+          <div className='w-42px h-42px rounded-8px bg-[#722ed115] flex items-center justify-center flex-shrink-0 mt-1px'>
+            <AllApplication theme='outline' size='24' fill='#722ed1' />
           </div>
-          <div className='flex-1'>
-            <div className='flex items-center gap-8px mb-8px'>
-              <h3 className='text-18px font-600 text-t-primary'>安全 Hook 防护</h3>
+          <div className='flex-1 mt--4px'>
+            <div className='flex items-center gap-6px mb-2px'>
+              <h3 className='text-15px font-600 text-t-primary'>安全 Hook 防护</h3>
               <Tag color='purple' size='small' className='rd-4px'>
                 <CheckOne theme='filled' size='12' className='mr-4px' />
                 实时拦截
               </Tag>
             </div>
-            <p className='text-14px text-t-secondary mb-16px leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
+            <p className='text-13px text-t-secondary my-0px leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
 
             {/* 主开关 */}
-            <div className='flex items-center justify-end gap-12px mb-16px'>
-              <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-12px'>
-                <span className='w-6px h-6px rd-50% inline-block mr-6px' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
+            <div className='flex items-center justify-end gap-10px'>
+              <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-10px'>
+                <span className='w-5px h-5px rd-50% inline-block mr-5px' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
                 {hookEnabled ? '保护中' : '已关闭'}
               </Tag>
-              <Switch checked={hookEnabled} onChange={handleToggleHook} />
+              <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' />
             </div>
 
             {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
-            <div className='border-t border-t-[var(--color-border-2)] pt-16px'>
+            <div className='border-t border-t-[var(--color-border-2)] pt-8px'>
               {!hookEnabled ? (
-                <div className='text-center py-16px text-t-tertiary text-14px'>安全 Hook 防护已关闭</div>
+                <div className='text-center py-8px text-t-tertiary text-13px'>安全 Hook 防护已关闭</div>
               ) : (
                 <>
                   {/* 规则说明 */}
-                  <div className='mb-12px'>
-                    <span className='text-14px text-t-secondary'>
+                  <div className='mb-6px'>
+                    <span className='text-13px text-t-secondary'>
                       当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
                       {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
                     </span>
                   </div>
 
                   {/* Rules section */}
-                  <div className='flex items-center justify-between mb-12px'>
-                    <h4 className='text-16px font-500 text-t-primary'>拦截规则</h4>
+                  <div className='flex items-center justify-between mb-6px'>
+                    <h4 className='text-15px font-500 text-t-primary my-4px'>拦截规则</h4>
                     <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
                       添加规则
                     </Button>
                   </div>
 
                   {blacklistConfig.rules.length === 0 ? (
-                    <div className='text-center py-24px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>暂无拦截规则</div>
+                    <div className='text-center py-10px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>暂无拦截规则</div>
                   ) : (
                     <Table
                       data={blacklistConfig.rules}
