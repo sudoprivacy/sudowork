@@ -36,8 +36,6 @@ const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 
-/** Nexus skills dir (~/.nexus/skills) — loaded by OpenClaw via skills.load.extraDirs */
-const NEXUS_SKILLS_DIR = path.join(os.homedir(), '.nexus', 'skills');
 export const CONFIG_FILENAME = 'sudoclaw.json';
 
 /** Full path to sudoclaw.json config file */
@@ -159,7 +157,7 @@ export function repairOpenClawConfig(): void {
 
     const providers = config.models as { providers?: Record<string, { models?: unknown }> } | undefined;
     if (providers?.providers) {
-      for (const [key, prov] of Object.entries(providers.providers)) {
+      for (const [, prov] of Object.entries(providers.providers)) {
         if (prov && typeof prov === 'object' && !Array.isArray(prov.models)) {
           (prov as { models: string[] }).models = [];
           changed = true;
@@ -198,18 +196,6 @@ export function repairOpenClawConfig(): void {
       }
     }
 
-    // Ensure ~/.nexus/skills is in skills.load.extraDirs for default skill loading
-    const skills = config.skills as { load?: { extraDirs?: string[] } } | undefined;
-    const extraDirs = skills?.load?.extraDirs;
-    if (!Array.isArray(extraDirs) || !extraDirs.includes(NEXUS_SKILLS_DIR)) {
-      if (!config.skills) (config as Record<string, unknown>).skills = {};
-      const s = config.skills as { load?: { extraDirs?: string[] } };
-      if (!s.load) s.load = {};
-      const dirs = Array.isArray(s.load.extraDirs) ? [...s.load.extraDirs] : [];
-      if (!dirs.includes(NEXUS_SKILLS_DIR)) dirs.push(NEXUS_SKILLS_DIR);
-      s.load.extraDirs = dirs;
-      changed = true;
-    }
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('Sudoclaw', 'Repaired sudoclaw.json schema');
@@ -243,9 +229,6 @@ function ensureDefaultConfig(): void {
       },
     },
     gateway: { port: SUDOCLAW_DEFAULT_PORT, mode: 'local' as const, auth: { mode: 'none' as const } },
-    skills: {
-      load: { extraDirs: [NEXUS_SKILLS_DIR] },
-    },
   };
 
   fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });

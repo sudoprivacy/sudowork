@@ -12,11 +12,12 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import { getSkillsDir } from '@/process/initStorage';
+import { clearSkillsCache, getSkillsDir } from '@/process/initStorage';
 import WorkerManage from '@process/WorkerManage';
 import { gatewayRegistry } from '@/agent/openclaw/OpenClawGatewayManager';
 import { SUDOCLAW_DEFAULT_PORT } from '@process/services/sudoclaw/SudoclawInstallService';
 import { toAssetUrl } from '@/extensions/assetProtocol';
+import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -137,6 +138,29 @@ async function resolveInstalledSkillDir(userSkillsDir: string, skillName: string
  */
 function getUserSkillsDir(): string {
   return getSkillsDir();
+}
+
+async function reloadSkillRuntime(): Promise<void> {
+  clearSkillsCache();
+  AcpSkillManager.resetInstance();
+
+  const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
+  if (!gateway) {
+    console.log('[SkillHub] Gateway not running, skipping reload');
+    return;
+  }
+
+  const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
+  if (canHotReload) {
+    gateway.sendReloadSignal();
+    console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    WorkerManage.reloadOpenClawSkills();
+    return;
+  }
+
+  console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
+  await WorkerManage.restartOpenClawGateways();
 }
 
 /**
@@ -350,6 +374,7 @@ export function initSkillHubBridge(): void {
         homepage: skillMeta?.homepage ?? null,
         author_id: skillMeta?.author_id ?? '',
         is_builtin: false,
+        enabled: true,
         installed_version: version,
         installed_at: new Date().toISOString(),
       };
@@ -362,29 +387,9 @@ export function initSkillHubBridge(): void {
       // - On Windows/In-process: full restart required (SIGUSR1 not supported)
       void (async () => {
         try {
-          const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
-
-          if (gateway) {
-            // Check if hot-reload is supported (Unix + subprocess mode)
-            const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
-
-            if (canHotReload) {
-              gateway.sendReloadSignal();
-              console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
-              // Wait a bit for gateway to reload, then reconnect agent connections
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-              WorkerManage.reloadOpenClawSkills();
-            } else {
-              // Windows or in-process: must restart gateway
-              console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
-              await WorkerManage.restartOpenClawGateways();
-            }
-          } else {
-            console.log('[SkillHub] Gateway not running, skipping reload');
-          }
+          await reloadSkillRuntime();
         } catch (err) {
           console.warn('[SkillHub] Reload failed:', err);
-          // Fallback: full restart
           await WorkerManage.restartOpenClawGateways();
         }
       })();
@@ -438,6 +443,7 @@ export function initSkillHubBridge(): void {
         let meta: import('@/common/ipcBridge').ISkillHubMeta | undefined;
         let isHubInstalled = false;
         let isBuiltin = forceBuiltin;
+        let enabled = true;
         try {
           const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
           meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
@@ -446,6 +452,7 @@ export function initSkillHubBridge(): void {
           if (meta.is_builtin !== undefined) {
             isBuiltin = meta.is_builtin === true;
           }
+          enabled = meta.enabled !== false;
           // Use stored version as source of truth
           if (meta.installed_version) version = meta.installed_version;
           // Resolve local icon path if icon is a relative path (e.g., "icon.svg")
@@ -462,6 +469,7 @@ export function initSkillHubBridge(): void {
           version,
           isBuiltin,
           isHubInstalled,
+          enabled,
           meta,
         };
       };
@@ -527,9 +535,52 @@ export function initSkillHubBridge(): void {
       }
 
       await fs.rm(skillDir, { recursive: true, force: true });
+      void (async () => {
+        try {
+          await reloadSkillRuntime();
+        } catch (err) {
+          console.warn('[SkillHub] Reload after uninstall failed:', err);
+          await WorkerManage.restartOpenClawGateways();
+        }
+      })();
       return { success: true };
     } catch (error) {
       console.error('[SkillHub] Failed to uninstall skill:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      const skillDir = await resolveInstalledSkillDir(userSkillsDir, skillName);
+      if (!skillDir) {
+        return { success: false, msg: 'Skill not found' };
+      }
+
+      const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
+      const raw = await fs.readFile(metaFilePath, 'utf-8');
+      const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+
+      if (meta.is_builtin === true) {
+        return { success: false, msg: '内置技能无法禁用' };
+      }
+
+      meta.enabled = enabled;
+      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+
+      void (async () => {
+        try {
+          await reloadSkillRuntime();
+        } catch (err) {
+          console.warn('[SkillHub] Reload after enable toggle failed:', err);
+          await WorkerManage.restartOpenClawGateways();
+        }
+      })();
+
+      return { success: true };
+    } catch (error) {
+      console.error('[SkillHub] Failed to update skill enabled state:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

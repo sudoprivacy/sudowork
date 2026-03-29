@@ -278,11 +278,7 @@ async function startSudoclawGatewayInBackground(): Promise<void> {
     const { OpenClawGatewayManager } = await import('@/agent/openclaw');
     const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig } = await import('./services/sudoclaw/SudoclawInstallService');
 
-    // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts
-    // This guarantees ~/.nexus/skills is always loaded regardless of:
-    // - Platform (Windows/macOS/Linux)
-    // - Whether config was manually modified
-    // - Whether repair was skipped during install check
+    // Ensure sudoclaw.json schema is repaired before gateway starts
     repairOpenClawConfig();
 
     const gatewayManager = new OpenClawGatewayManager({

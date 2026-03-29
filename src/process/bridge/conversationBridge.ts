@@ -5,19 +5,193 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import fs from 'fs/promises';
+import path from 'path';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
+import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
+import { mainLog, mainWarn } from '../utils/mainLogger';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
+
+const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+async function listWorkspaceSkillTargets(): Promise<Map<string, string>> {
+  const startedAt = Date.now();
+  const skillsDir = getSkillsDir();
+  const targets = new Map<string, string>();
+
+  const addSkillDir = async (skillName: string, skillDir: string, forceBuiltin = false): Promise<void> => {
+    try {
+      const stat = await fs.stat(path.join(skillDir, 'SKILL.md'));
+      if (!stat.isFile()) return;
+    } catch {
+      return;
+    }
+
+    let isBuiltin = forceBuiltin;
+    let enabled = true;
+
+    try {
+      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+      const meta = JSON.parse(raw) as { is_builtin?: boolean; enabled?: boolean; name?: string };
+      if (meta.is_builtin !== undefined) {
+        isBuiltin = meta.is_builtin === true;
+      }
+      if (!isBuiltin) {
+        enabled = meta.enabled !== false;
+      }
+      if (typeof meta.name === 'string' && meta.name.trim()) {
+        skillName = meta.name.trim();
+      }
+    } catch {
+      // No metadata file: treat as enabled custom skill unless forced builtin
+    }
+
+    if (!isBuiltin && !enabled) {
+      return;
+    }
+
+    targets.set(skillName, skillDir);
+  };
+
+  try {
+    const builtinDir = path.join(skillsDir, '_builtin');
+    const builtinEntries = await fs.readdir(builtinDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
+    for (const entry of builtinEntries) {
+      if (!entry.isDirectory()) continue;
+      await addSkillDir(entry.name, path.join(builtinDir, entry.name), true);
+    }
+
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === '_builtin') continue;
+      await addSkillDir(entry.name, path.join(skillsDir, entry.name), false);
+    }
+  } catch (error) {
+    mainWarn('ConversationSkillSync', 'Failed to list workspace skill targets', error);
+  }
+
+  mainLog('ConversationSkillSync', 'listWorkspaceSkillTargets completed', {
+    count: targets.size,
+    durationMs: Date.now() - startedAt,
+  });
+  return targets;
+}
+
+async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation)) return;
+  const workspace = conversation.extra.workspace;
+  const startedAt = Date.now();
+
+  const workspaceSkillsDir = path.join(workspace, 'skills');
+  await fs.mkdir(workspaceSkillsDir, { recursive: true });
+
+  const expectedTargets = await listWorkspaceSkillTargets();
+  const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
+  const existingNames = new Set(existingEntries.map((entry) => entry.name));
+  let removedCount = 0;
+  let recreatedCount = 0;
+  let createdCount = 0;
+
+  for (const entry of existingEntries) {
+    const entryPath = path.join(workspaceSkillsDir, entry.name);
+    const expectedTarget = expectedTargets.get(entry.name);
+
+    if (!expectedTarget) {
+      await fs.rm(entryPath, { recursive: true, force: true });
+      removedCount++;
+      continue;
+    }
+
+    try {
+      const stat = await fs.lstat(entryPath);
+      if (!stat.isSymbolicLink()) {
+        await fs.rm(entryPath, { recursive: true, force: true });
+        existingNames.delete(entry.name);
+        recreatedCount++;
+        continue;
+      }
+
+      const linkedTarget = await fs.readlink(entryPath);
+      const resolvedLinkedTarget = path.resolve(path.dirname(entryPath), linkedTarget);
+      if (resolvedLinkedTarget !== path.resolve(expectedTarget)) {
+        await fs.rm(entryPath, { recursive: true, force: true });
+        existingNames.delete(entry.name);
+        recreatedCount++;
+      }
+    } catch {
+      await fs.rm(entryPath, { recursive: true, force: true });
+      existingNames.delete(entry.name);
+      recreatedCount++;
+    }
+  }
+
+  for (const [skillName, targetDir] of expectedTargets) {
+    if (existingNames.has(skillName)) continue;
+    const linkPath = path.join(workspaceSkillsDir, skillName);
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    await fs.symlink(targetDir, linkPath, linkType);
+    createdCount++;
+  }
+
+  mainLog('ConversationSkillSync', 'syncConversationWorkspaceSkills completed', {
+    conversationId: conversation?.id,
+    workspace,
+    expectedCount: expectedTargets.size,
+    existingCount: existingEntries.length,
+    removedCount,
+    recreatedCount,
+    createdCount,
+    durationMs: Date.now() - startedAt,
+  });
+}
+
+function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): void {
+  if (!shouldSyncWorkspaceSkills(conversation)) return;
+  const workspace = conversation.extra.workspace;
+
+  const existingTask = workspaceSkillSyncTasks.get(workspace);
+  if (existingTask) {
+    mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync skipped: task already running', {
+      conversationId: conversation?.id,
+      workspace,
+    });
+    return;
+  }
+
+  mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync queued', {
+    conversationId: conversation?.id,
+    workspace,
+  });
+
+  const task = Promise.resolve()
+    .then(async () => {
+      await syncConversationWorkspaceSkills(conversation);
+    })
+    .catch((error) => {
+      mainWarn('ConversationSkillSync', 'Failed to sync workspace skills', error);
+    })
+    .finally(() => {
+      workspaceSkillSyncTasks.delete(workspace);
+      mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync finished', {
+        conversationId: conversation?.id,
+        workspace,
+      });
+    });
+
+  workspaceSkillSyncTasks.set(workspace, task);
+}
 
 export function initConversationBridge(): void {
   ipcBridge.openclawConversation.getRuntime.provider(async ({ conversation_id }) => {
@@ -243,6 +417,8 @@ export function initConversationBridge(): void {
       throw new Error(result.error || 'Failed to create conversation');
     }
 
+    scheduleConversationWorkspaceSkillSync(result.conversation);
+
     return result.conversation;
   });
 
@@ -359,10 +535,28 @@ export function initConversationBridge(): void {
         }
       }
 
+      scheduleConversationWorkspaceSkillSync(conversation);
+
       return Promise.resolve(conversation);
     } catch (error) {
       console.error('[conversationBridge] Failed to create conversation with conversation:', error);
       return Promise.resolve(conversation);
+    }
+  });
+
+  ipcBridge.conversation.syncWorkspaceSkills.provider(async ({ conversation_id }) => {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(conversation_id);
+      if (!result.success || !result.data) {
+        return { success: false, msg: 'Conversation not found' };
+      }
+
+      scheduleConversationWorkspaceSkillSync(result.data);
+      return { success: true };
+    } catch (error) {
+      console.error('[conversationBridge] Failed to sync workspace skills:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
 

@@ -7,7 +7,7 @@
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Spin, Message, Input, Progress, Modal, Select, Popconfirm } from '@arco-design/web-react';
+import { Button, Spin, Message, Input, Progress, Modal, Popconfirm } from '@arco-design/web-react';
 import { Download, Search, Delete, Close, Shield, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -156,8 +156,10 @@ const InstalledSkillCard: React.FC<{
   skill: IInstalledSkillInfo;
   onUninstall: () => void;
   uninstalling: boolean;
+  onToggleEnabled?: (enabled: boolean) => void;
+  togglingEnabled: boolean;
   onClick?: () => void;
-}> = ({ skill, onUninstall, uninstalling, onClick }) => {
+}> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick }) => {
   const displayName =
     skill.meta?.display_name ||
     skill.name
@@ -168,30 +170,54 @@ const InstalledSkillCard: React.FC<{
   const icon = resolveExtensionAssetUrl(skill.meta?.icon) || skill.meta?.icon;
   const emoji = skill.meta?.emoji;
   const canUninstall = skill.isHubInstalled && !skill.isBuiltin;
+  const canToggleEnabled = !!skill.meta && !skill.isBuiltin;
   const hasDetail = !!skill.meta;
+  const isEnabled = skill.enabled;
+  const { t } = useTranslation();
 
   return (
-    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
-      {/* Icon */}
-      <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
-        {icon ? (
-          <img src={icon} alt={displayName} className='w-full h-full object-cover' />
-        ) : emoji ? (
-          <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
-        ) : (
-          <div className='w-full h-full flex items-center justify-center bg-primary-light'>
-            <Lightning size='22' className='text-primary' />
+    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
+      {/* Icon + toggle */}
+      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+          {icon ? (
+            <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+          ) : emoji ? (
+            <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
+          ) : (
+            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+              <Lightning size='22' className='text-primary' />
+            </div>
+          )}
+        </div>
+        {canToggleEnabled && (
+          <div
+            className='mt-6px w-full flex justify-center'
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <button type='button' className={classNames('h-20px min-w-48px px-6px rd-full border-none flex items-center justify-center gap-4px text-10px font-medium transition-colors cursor-pointer', isEnabled ? 'bg-primary text-white shadow-sm' : 'bg-fill-3 text-t-secondary')} onClick={() => onToggleEnabled?.(!isEnabled)} disabled={togglingEnabled}>
+              {togglingEnabled ? (
+                <Spin size={10} />
+              ) : (
+                <>
+                  <span className={classNames('w-5px h-5px rd-full flex-shrink-0', isEnabled ? 'bg-white/90' : 'bg-t-secondary')} />
+                  <span>{isEnabled ? t('settings.skill.enableToggle', { defaultValue: '启用' }) : t('settings.agentDisabled', { defaultValue: '已禁用' })}</span>
+                </>
+              )}
+            </button>
           </div>
         )}
       </div>
 
       {/* Content */}
       <div className='flex-1 min-w-0 pr-28px'>
-        <div className='flex items-center gap-6px flex-wrap'>
+        <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-          {!skill.isBuiltin && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}
         </div>
-        {description ? <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div> : <div className='text-11px text-t-tertiary mt-3px italic'>{skill.name}</div>}
+        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}</div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
       {/* Uninstall / builtin indicator — stop propagation so card click doesn't fire */}
@@ -436,6 +462,7 @@ const SkillModalContent: React.FC = () => {
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
   const [installProgress, setInstallProgress] = useState(0);
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
+  const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
@@ -684,12 +711,17 @@ const SkillModalContent: React.FC = () => {
     void fetchCategoriesData();
   }, []);
 
+  // Refresh installed skills once when the page opens
+  useEffect(() => {
+    void fetchInstalledList();
+  }, [fetchInstalledList]);
+
   // Load installed list when switching to installed tab
   useEffect(() => {
     if (activeTab === 'installed') {
       void fetchInstalledList();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchInstalledList]);
 
   // ---- Install handler ----
   const handleInstall = useCallback(
@@ -723,6 +755,7 @@ const SkillModalContent: React.FC = () => {
             })
           );
           await fetchInstalledSkills();
+          await fetchInstalledList();
         } else {
           Message.error(
             t('settings.skill.installFailed', {
@@ -739,7 +772,7 @@ const SkillModalContent: React.FC = () => {
         setInstallProgress(0);
       }
     },
-    [skills, latestVersions, fetchInstalledSkills, t]
+    [skills, latestVersions, fetchInstalledSkills, fetchInstalledList, t]
   );
 
   // ---- Uninstall handler ----
@@ -770,6 +803,38 @@ const SkillModalContent: React.FC = () => {
     [fetchInstalledSkills, fetchInstalledList, detailSkill]
   );
 
+  const handleToggleSkillEnabled = useCallback(
+    async (skillName: string, enabled: boolean) => {
+      if (!isElectronDesktop()) return;
+      setTogglingSkillName(skillName);
+      try {
+        const res = await skillHub.setSkillEnabled.invoke({ skillName, enabled });
+        if (res.success) {
+          Message.success(enabled ? t('settings.skill.enableSuccess', { name: skillName, defaultValue: `已启用技能：${skillName}` }) : t('settings.skill.disableSuccess', { name: skillName, defaultValue: `已禁用技能：${skillName}` }));
+          await fetchInstalledList();
+        } else {
+          Message.error(
+            t('settings.skill.toggleEnabledFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `技能状态更新失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to toggle skill enabled state:', err);
+        Message.error(
+          t('settings.skill.toggleEnabledFailed', {
+            msg: String(err),
+            defaultValue: `技能状态更新失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setTogglingSkillName(null);
+      }
+    },
+    [fetchInstalledList, t]
+  );
+
   // ---- Open detail modal ----
   const openDetail = useCallback((skill: ISkillHubSkill) => {
     setDetailSkill(skill);
@@ -783,6 +848,31 @@ const SkillModalContent: React.FC = () => {
   const detailIsHubInstalled = detailSkill ? (installedList.find((s) => s.name === detailSkill.name)?.isHubInstalled ?? false) : false;
   const detailLatestVersion = detailSkill ? latestVersions.get(detailSkill.id) : undefined;
   const detailHasVersion = !!detailLatestVersion;
+  const downloadableInstalledSkills = installedList.filter((skill) => !skill.isBuiltin);
+  const builtinInstalledSkills = installedList.filter((skill) => skill.isBuiltin);
+
+  const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[]) => (
+    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+      {skillList.map((skill) => (
+        <InstalledSkillCard
+          key={skill.name}
+          skill={skill}
+          onUninstall={() => void handleUninstall(skill.name)}
+          uninstalling={uninstallingSkillName === skill.name}
+          onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled)}
+          togglingEnabled={togglingSkillName === skill.name}
+          onClick={
+            skill.meta
+              ? () => {
+                  setInstalledDetailInfo(skill);
+                  setInstalledDetailVisible(true);
+                }
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div ref={containerRef} className='flex flex-col h-full w-full'>
@@ -877,28 +967,6 @@ const SkillModalContent: React.FC = () => {
       {/* ===== INSTALLED TAB ===== */}
       {activeTab === 'installed' && (
         <>
-          {/* Directory info / dropdown */}
-          <div className='flex items-center gap-8px mb-14px flex-shrink-0'>
-            <div className='flex-1 min-w-0'>
-              <Select
-                value='default'
-                size='small'
-                className='w-full'
-                placeholder='选择技能目录'
-                onChange={() => {
-                  // Future: support custom directories
-                }}
-              >
-                <Select.Option value='default'>
-                  <span className='text-12px text-t-secondary'>📁 本地技能目录（默认）</span>
-                </Select.Option>
-              </Select>
-            </div>
-            <Button size='small' onClick={() => void fetchInstalledList()} icon={<span className='text-11px'>↻</span>}>
-              刷新
-            </Button>
-          </div>
-
           {/* Installed grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
             {installedLoading ? (
@@ -908,30 +976,29 @@ const SkillModalContent: React.FC = () => {
             ) : installedList.length === 0 ? (
               <div className='flex flex-col items-center justify-center py-48px gap-8px'>
                 <Lightning size='32' className='text-t-tertiary' />
-                <div className='text-13px text-t-secondary'>暂无已安装的技能</div>
-                <div className='text-12px text-t-tertiary'>前往技能库安装你需要的技能</div>
+                <div className='text-13px text-t-secondary'>{t('settings.skill.noInstalledSkills', { defaultValue: '暂无已安装的技能' })}</div>
+                <div className='text-12px text-t-tertiary'>{t('settings.skill.noInstalledSkillsHint', { defaultValue: '前往技能库安装你需要的技能' })}</div>
                 <Button size='small' type='outline' className='mt-4px' onClick={() => setActiveTab('store')}>
-                  浏览技能库
+                  {t('settings.skill.browseStore', { defaultValue: '浏览技能库' })}
                 </Button>
               </div>
             ) : (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                {installedList.map((skill) => (
-                  <InstalledSkillCard
-                    key={skill.name}
-                    skill={skill}
-                    onUninstall={() => void handleUninstall(skill.name)}
-                    uninstalling={uninstallingSkillName === skill.name}
-                    onClick={
-                      skill.meta
-                        ? () => {
-                            setInstalledDetailInfo(skill);
-                            setInstalledDetailVisible(true);
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
+              <div className='pb-16px space-y-20px'>
+                <section>
+                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                    <div className='text-13px font-medium text-t-primary'>{t('settings.customSkills')}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{downloadableInstalledSkills.length}</span>
+                  </div>
+                  {downloadableInstalledSkills.length > 0 ? renderInstalledSkillGrid(downloadableInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                </section>
+
+                <section>
+                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                    <div className='text-13px font-medium text-t-primary'>{t('settings.builtinSkills')}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
+                  </div>
+                  {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinSkills')}</div>}
+                </section>
               </div>
             )}
           </AionScrollArea>

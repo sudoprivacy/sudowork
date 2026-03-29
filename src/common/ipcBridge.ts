@@ -55,6 +55,7 @@ export const conversation = {
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
+  syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -968,6 +969,7 @@ export interface ISkillHubMeta {
   homepage: string | null;
   author_id: string;
   is_builtin?: boolean;
+  enabled?: boolean;
   installed_version: string;
   installed_at: string;
 }
@@ -981,6 +983,8 @@ export interface IInstalledSkillInfo {
   isHubInstalled: boolean;
   /** Whether this is a built-in skill that cannot be uninstalled */
   isBuiltin: boolean;
+  /** Whether this skill is currently enabled at runtime */
+  enabled: boolean;
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
   meta?: ISkillHubMeta;
 }
@@ -996,6 +1000,8 @@ export const skillHub = {
   downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
+  /** Enable or disable a custom installed skill */
+  setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean }>('skill-hub.set-skill-enabled'),
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
   uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
 };
