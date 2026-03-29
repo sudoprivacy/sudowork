@@ -170,6 +170,18 @@ export class SafetyPollingService {
       throw err;
     }
 
+    // Mark all existing events as processed to avoid popup storm on startup
+    try {
+      const existingEvents = await listEventFilenames();
+      const processedSet = SafetyFileService['processedEvents'];
+      existingEvents.forEach(filename => processedSet.add(filename));
+      if (existingEvents.length > 0) {
+        console.log(`[SafetyPolling] Marked ${existingEvents.length} existing events as processed`);
+      }
+    } catch (err) {
+      console.warn('[SafetyPolling] Failed to mark existing events as processed:', err);
+    }
+
     this.interval = setInterval(() => {
       void this.poll();
     }, config.pollingIntervalMs);
