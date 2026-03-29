@@ -6,16 +6,15 @@
  * Saves to resources/bdpan-installer (or bdpan-installer.exe on Windows)
  * for inclusion as extraResources in the packaged Electron app.
  *
- * Usage: node scripts/download-bdpan.js [--force] [--os <os>] [--arch <arch>]
+ * Usage: node scripts/download-bdpan.js [--force] [<platform> ...] [--all]
  *   --force           Re-download even if file already exists
- *   --os <os>         Target OS: darwin, linux, windows (default: auto-detect)
- *   --arch <arch>     Target arch: amd64, arm64 (default: auto-detect)
+ *   <platform>        e.g. darwin-x64, win32-x64, linux-arm64 (default: current platform)
+ *   --all             Download for all supported platforms
  *
  * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed.
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
@@ -25,22 +24,31 @@ const CDN_BASE = `https://issuecdn.baidupcs.com/issue/netdisk/ai-bdpan/installer
 const CHECKSUM_URL = `${CDN_BASE}/SHA256SUMS`;
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
-const VALID_OS = ['darwin', 'linux', 'windows'];
-const VALID_ARCH = ['amd64', 'arm64'];
+// Platform mappings: key = process.platform-process.arch
+// os/arch: names used in CDN download URL
+// ext: file extension
+const PLATFORMS = {
+  'darwin-x64':  { os: 'darwin',  arch: 'amd64', ext: ''     },
+  'darwin-arm64':{ os: 'darwin',  arch: 'arm64', ext: ''     },
+  'win32-x64':   { os: 'windows', arch: 'amd64', ext: '.exe' },
+  'win32-arm64': { os: 'windows', arch: 'arm64', ext: '.exe' },
+  'linux-x64':   { os: 'linux',   arch: 'amd64', ext: ''     },
+  'linux-arm64': { os: 'linux',   arch: 'arm64', ext: ''     },
+};
 
-function detectOs() {
-  const platform = os.platform();
-  if (platform === 'darwin') return 'darwin';
-  if (platform === 'linux') return 'linux';
-  if (platform === 'win32') return 'windows';
-  throw new Error(`Unsupported OS: ${platform}`);
+function getOutputName(platform) {
+  const { os, ext } = PLATFORMS[platform];
+  const ebArch = platform.split('-')[1]; // x64 or arm64
+  return `bdpan-installer-${os}-${ebArch}${ext}`;
 }
 
-function detectArch() {
-  const arch = os.arch();
-  if (arch === 'x64') return 'amd64';
-  if (arch === 'arm64') return 'arm64';
-  throw new Error(`Unsupported arch: ${arch}`);
+function getOutputPath(platform) {
+  return path.join(RESOURCES_DIR, getOutputName(platform));
+}
+
+function getCdnName(platform) {
+  const { os, arch, ext } = PLATFORMS[platform];
+  return `bdpan-installer-${os}-${arch}${ext}`;
 }
 
 function downloadFile(url, dest) {
@@ -101,22 +109,9 @@ function sha256File(filePath) {
   return hash.digest('hex');
 }
 
-async function downloadBdpan(osName, arch, force) {
-  // CDN uses amd64/arm64; electron-builder ${arch} uses x64/arm64
-  const cdnArch = arch; // amd64 or arm64 (as passed in)
-  const ebArch = arch === 'amd64' ? 'x64' : arch; // x64 or arm64 (matches electron-builder ${arch})
-
-  const cdnName = osName === 'windows'
-    ? `bdpan-installer-${osName}-${cdnArch}.exe`
-    : `bdpan-installer-${osName}-${cdnArch}`;
-
-  // Output filename must match electron-builder.yml extraResources entry:
-  //   bdpan-installer-windows-${arch}.exe  (${arch} = x64 or arm64)
-  //   bdpan-installer-darwin-${arch}
-  const outputName = osName === 'windows'
-    ? `bdpan-installer-windows-${ebArch}.exe`
-    : `bdpan-installer-${osName}-${ebArch}`;
-  const outputFile = path.join(RESOURCES_DIR, outputName);
+async function downloadBdpan(platform, force) {
+  const cdnName = getCdnName(platform);
+  const outputFile = getOutputPath(platform);
 
   if (fs.existsSync(outputFile) && !force) {
     console.log(`Already exists: ${outputFile}  (use --force to re-download)`);
@@ -137,7 +132,7 @@ async function downloadBdpan(osName, arch, force) {
     throw err;
   }
 
-  if (osName !== 'windows') {
+  if (!outputFile.endsWith('.exe')) {
     fs.chmodSync(outputFile, 0o755);
   }
 
@@ -173,46 +168,40 @@ async function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force') || args.includes('-f');
 
-  let osOverride = null;
-  let archOverride = null;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--os=')) {
-      osOverride = args[i].split('=')[1];
-    } else if (args[i] === '--os') {
-      osOverride = args[++i];
-    } else if (args[i].startsWith('--arch=')) {
-      archOverride = args[i].split('=')[1];
-    } else if (args[i] === '--arch') {
-      archOverride = args[++i];
+  // Parse platform arguments
+  let platforms = [];
+  for (const arg of args) {
+    if (arg === '--force' || arg === '-f') continue;
+    if (arg === '--all') {
+      platforms = Object.keys(PLATFORMS);
+    } else if (PLATFORMS[arg]) {
+      platforms.push(arg);
     }
   }
 
-  if (osOverride && !VALID_OS.includes(osOverride)) {
-    console.error(`Invalid --os: ${osOverride}. Valid: ${VALID_OS.join(', ')}`);
-    process.exit(1);
-  }
-  if (archOverride && !VALID_ARCH.includes(archOverride)) {
-    console.error(`Invalid --arch: ${archOverride}. Valid: ${VALID_ARCH.join(', ')}`);
-    process.exit(1);
-  }
-
-  let osName, arch;
-  try {
-    osName = osOverride ?? detectOs();
-    arch = archOverride ?? detectArch();
-  } catch (err) {
-    console.warn(`⚠️  ${err.message}. Skipping bdpan download.`);
-    process.exit(0);
+  // Default: current platform
+  if (platforms.length === 0) {
+    const currentPlatform = `${process.platform}-${process.arch}`;
+    if (PLATFORMS[currentPlatform]) {
+      platforms = [currentPlatform];
+    } else {
+      console.warn(`⚠️  Unsupported platform: ${currentPlatform}. Skipping bdpan download.`);
+      process.exit(0);
+    }
   }
 
-  console.log(`Downloading bdpan installer v${VERSION} for ${osName}/${arch}...`);
+  console.log(`bdpan installer version: ${VERSION}`);
+  console.log(`Platforms: ${platforms.join(', ')}`);
 
-  try {
-    await downloadBdpan(osName, arch, force);
-    console.log('✅ bdpan download completed');
-  } catch (err) {
-    console.error(`❌ Failed to download bdpan: ${err.message}`);
-    // Non-fatal: allow build to continue
+  for (const platform of platforms) {
+    console.log(`\n[${platform}]`);
+    try {
+      await downloadBdpan(platform, force);
+      console.log('✅ bdpan download completed');
+    } catch (err) {
+      console.error(`❌ Failed to download bdpan: ${err.message}`);
+      // Non-fatal: allow build to continue
+    }
   }
 
   process.exit(0);

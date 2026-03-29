@@ -199,6 +199,7 @@
   "fontSizeReset": "恢復預設縮放",
   "lightMode": "淺色",
   "darkMode": "深色",
+  "systemMode": "系統",
   "agent": "代理",
   "tools": "工具",
   "webui": "遠端連線",

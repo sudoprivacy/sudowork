@@ -50,6 +50,7 @@ const AGENT_LOGO_MAP = {
   copilot: GitHubLogo,
   openclaw: OpenClawLogo,
   'openclaw-gateway': OpenClawLogo,
+  sudoclaw: OpenClawLogo,
   vibe: MistralLogo,
   nanobot: NanobotLogo,
   qoder: QoderLogo,

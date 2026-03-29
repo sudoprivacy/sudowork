@@ -25,6 +25,113 @@ const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
+function normalizeZipEntryPath(entryPath: string): string {
+  return path.posix.normalize(entryPath.replaceAll('\\', '/').replace(/^\.\/+/, ''));
+}
+
+function isUnsafeZipEntryPath(entryPath: string): boolean {
+  if (!entryPath || entryPath === '.') {
+    return false;
+  }
+  if (/^[a-zA-Z]:[\\/]/.test(entryPath)) {
+    return true;
+  }
+  if (entryPath.startsWith('/') || entryPath.startsWith('\\')) {
+    return true;
+  }
+  const normalized = normalizeZipEntryPath(entryPath);
+  return normalized === '..' || normalized.startsWith('../');
+}
+
+function resolveZipSkillLayout(zip: JSZip): {
+  stripPrefix: string;
+} {
+  const fileEntries = Object.values(zip.files)
+    .filter((entry) => !entry.dir)
+    .map((entry) => normalizeZipEntryPath(entry.name))
+    .filter(Boolean);
+
+  for (const entryPath of fileEntries) {
+    if (isUnsafeZipEntryPath(entryPath)) {
+      throw new Error(`Unsafe zip entry path: ${entryPath}`);
+    }
+  }
+
+  const skillMdPaths = fileEntries.filter((entryPath) => path.posix.basename(entryPath) === 'SKILL.md');
+
+  if (skillMdPaths.includes('SKILL.md')) {
+    return {
+      stripPrefix: '',
+    };
+  }
+
+  const skillRoots = Array.from(new Set(skillMdPaths.map((entryPath) => path.posix.dirname(entryPath)).filter((entryPath) => entryPath && entryPath !== '.')));
+
+  if (skillRoots.length === 1) {
+    const skillRoot = skillRoots[0];
+    const skillDirName = path.posix.basename(skillRoot);
+    if (!skillDirName || skillDirName === '.' || skillDirName === '..') {
+      throw new Error(`Invalid zip skill root: ${skillRoot}`);
+    }
+    return {
+      stripPrefix: `${skillRoot}/`,
+    };
+  }
+
+  if (skillRoots.length > 1) {
+    throw new Error(`Zip archive contains multiple skill roots: ${skillRoots.join(', ')}`);
+  }
+
+  return {
+    stripPrefix: '',
+  };
+}
+
+async function removeExistingInstalledSkillDirs(params: { userSkillsDir: string; requestedSkillName: string; finalSkillDirName: string }): Promise<void> {
+  const dirsToRemove = new Set<string>([path.join(params.userSkillsDir, params.finalSkillDirName)]);
+
+  if (params.requestedSkillName !== params.finalSkillDirName) {
+    dirsToRemove.add(path.join(params.userSkillsDir, params.requestedSkillName));
+  }
+
+  for (const dir of dirsToRemove) {
+    try {
+      await fs.access(dir);
+      await fs.rm(dir, { recursive: true, force: true });
+    } catch {
+      // Directory doesn't exist, which is fine.
+    }
+  }
+}
+
+async function resolveInstalledSkillDir(userSkillsDir: string, skillName: string): Promise<string | null> {
+  const directDir = path.join(userSkillsDir, skillName);
+  try {
+    await fs.access(directDir);
+    return directDir;
+  } catch {
+    // Fall through to metadata lookup.
+  }
+
+  const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === '_builtin') continue;
+
+    const skillDir = path.join(userSkillsDir, entry.name);
+    try {
+      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+      const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+      if (meta.name === skillName || meta.display_name === skillName) {
+        return skillDir;
+      }
+    } catch {
+      // Ignore non-hub skills or malformed metadata.
+    }
+  }
+
+  return null;
+}
+
 /**
  * Get user skills directory path (same as AcpSkillManager)
  */
@@ -182,40 +289,32 @@ export function initSkillHubBridge(): void {
       const userSkillsDir = getUserSkillsDir();
       await fs.mkdir(userSkillsDir, { recursive: true });
 
-      // Create skill directory (use skillName which should be a valid directory name)
+      const zip = await JSZip.loadAsync(zipBuffer);
+      const { stripPrefix } = resolveZipSkillLayout(zip);
       const skillDir = path.join(userSkillsDir, skillName);
 
-      // Check if skill already exists
-      try {
-        await fs.access(skillDir);
-        // If exists, remove old version first
-        await fs.rm(skillDir, { recursive: true, force: true });
-      } catch {
-        // Directory doesn't exist, which is fine
-      }
-
-      // Create skill directory
+      await removeExistingInstalledSkillDirs({
+        userSkillsDir,
+        requestedSkillName: skillName,
+        finalSkillDirName: skillName,
+      });
       await fs.mkdir(skillDir, { recursive: true });
 
-      // Extract zip
-      const zip = await JSZip.loadAsync(zipBuffer);
-      let rootFolder = '';
-
-      // Check if zip has a single root folder
-      const entries = Object.keys(zip.files);
-      const firstEntry = entries[0];
-      if (firstEntry && firstEntry.endsWith('/')) {
-        rootFolder = firstEntry;
-      }
-
       // Extract files
-      for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+      for (const zipEntry of Object.values(zip.files)) {
         if (zipEntry.dir) continue;
+        if (isUnsafeZipEntryPath(zipEntry.name)) {
+          throw new Error(`Unsafe zip entry path: ${zipEntry.name}`);
+        }
 
-        // Remove root folder prefix if present
-        let targetPath = relativePath;
-        if (rootFolder && relativePath.startsWith(rootFolder)) {
-          targetPath = relativePath.slice(rootFolder.length);
+        const normalizedPath = normalizeZipEntryPath(zipEntry.name);
+        let targetPath = normalizedPath;
+
+        if (stripPrefix) {
+          if (!normalizedPath.startsWith(stripPrefix)) {
+            continue;
+          }
+          targetPath = normalizedPath.slice(stripPrefix.length);
         }
 
         if (!targetPath) continue;
@@ -258,24 +357,33 @@ export function initSkillHubBridge(): void {
 
       console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
-      // Hot-reload Sudoclaw gateway using SIGUSR1 signal (no full restart needed).
-      // This is more stable and faster than restart, as gateway keeps sessions alive.
-      // Fallback to restart if signal fails or gateway doesn't support it.
+      // Reload Sudoclaw gateway to pick up new skills.
+      // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
+      // - On Windows/In-process: full restart required (SIGUSR1 not supported)
       void (async () => {
         try {
           const gateway = gatewayRegistry.get(SUDOCLAW_DEFAULT_PORT);
 
           if (gateway) {
-            gateway.sendReloadSignal();
-            console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
-            // Wait a bit for gateway to reload, then reconnect agent connections
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            WorkerManage.reloadOpenClawSkills();
+            // Check if hot-reload is supported (Unix + subprocess mode)
+            const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
+
+            if (canHotReload) {
+              gateway.sendReloadSignal();
+              console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
+              // Wait a bit for gateway to reload, then reconnect agent connections
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              WorkerManage.reloadOpenClawSkills();
+            } else {
+              // Windows or in-process: must restart gateway
+              console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
+              await WorkerManage.restartOpenClawGateways();
+            }
           } else {
-            console.log('[SkillHub] Gateway not running, skipping hot-reload');
+            console.log('[SkillHub] Gateway not running, skipping reload');
           }
         } catch (err) {
-          console.warn('[SkillHub] SIGUSR1 failed, falling back to restart:', err);
+          console.warn('[SkillHub] Reload failed:', err);
           // Fallback: full restart
           await WorkerManage.restartOpenClawGateways();
         }
@@ -310,7 +418,7 @@ export function initSkillHubBridge(): void {
       }
 
       // Helper to read a single skill directory
-      const readSkill = async (skillName: string, skillDir: string, forceBuiltin = false) => {
+      const readSkill = async (dirName: string, skillDir: string, forceBuiltin = false) => {
         // Read version
         let version = 'unknown';
         try {
@@ -349,7 +457,13 @@ export function initSkillHubBridge(): void {
           // No meta file → locally created skill (not builtin, not hub-installed)
         }
 
-        return { name: skillName, version, isBuiltin, isHubInstalled, meta };
+        return {
+          name: meta?.name?.trim() || dirName,
+          version,
+          isBuiltin,
+          isHubInstalled,
+          meta,
+        };
       };
 
       // 1. First, read skills from _builtin directory (all are builtin)
@@ -389,7 +503,10 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
     try {
       const userSkillsDir = getUserSkillsDir();
-      const skillDir = path.join(userSkillsDir, skillName);
+      const skillDir = await resolveInstalledSkillDir(userSkillsDir, skillName);
+      if (!skillDir) {
+        return { success: false, msg: 'Skill not found' };
+      }
 
       // Safety check: must be within user skills dir
       const resolvedSkillDir = path.resolve(skillDir);

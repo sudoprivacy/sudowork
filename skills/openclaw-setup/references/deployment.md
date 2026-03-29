@@ -1,4 +1,4 @@
-# OpenClaw 部署指南
+# SudoClaw 部署指南
 
 ## 运行新手引导向导（推荐）
 
@@ -12,8 +12,8 @@ openclaw onboard --install-daemon
 
 - **Gateway 模式**：本地（local）或远程（remote）
 - **模型认证**：Anthropic API 密钥（推荐）、OpenAI OAuth、或其他提供商
-- **工作区位置**：默认 `~/.openclaw/workspace`
-- **Gateway 设置**：端口（默认 18789）、绑定地址、认证令牌
+- **工作区位置**：默认 `~/.nexus/sudoclaw/workspace`
+- **Gateway 设置**：端口（默认 17863）、绑定地址、认证令牌
 - **渠道配置**：WhatsApp、Telegram、Discord、Slack 等
 - **服务安装**：后台服务（launchd/systemd）
 
@@ -22,7 +22,7 @@ openclaw onboard --install-daemon
 如果只想先测试，不安装服务：
 
 ```bash
-openclaw gateway --port 18789 --verbose
+openclaw gateway --port 17863 --verbose
 ```
 
 ## 检查 Gateway 状态
@@ -41,8 +41,8 @@ launchctl list | grep openclaw
 systemctl --user status openclaw-gateway
 
 # 或检查端口
-ss -ltnp | grep 18789  # Linux
-lsof -i :18789        # macOS
+ss -ltnp | grep 17863  # Linux
+lsof -i :17863        # macOS
 ```
 
 ## 服务管理
@@ -56,7 +56,7 @@ launchctl list | grep openclaw
 # 启动服务
 launchctl load ~/Library/LaunchAgents/com.openclaw.gateway.plist
 
-# 或使用 OpenClaw 命令
+# 或使用 SudoClaw 命令
 openclaw gateway install
 ```
 
@@ -93,4 +93,4 @@ systemctl --user enable openclaw-gateway
 3. 配置 `gateway.remote.url` 和认证
 4. 使用 SSH 隧道或 Tailscale 连接
 
-参考文档：https://docs.openclaw.ai/gateway/remote
+参考文档：https://docs.sudoclaw.ai/gateway/remote

@@ -38,56 +38,6 @@ const mkdirSync = (path: string) => {
   return _mkdirSync(path, { recursive: true });
 };
 
-/**
- * 迁移老版本数据从temp目录到userData/config目录
- */
-const migrateLegacyData = async () => {
-  const oldDir = getTempPath(); // 老的temp目录
-  const newDir = getConfigPath(); // 新的userData/config目录
-
-  try {
-    // 检查新目录是否为空（不存在或者存在但无内容）
-    const isNewDirEmpty =
-      !existsSync(newDir) ||
-      (() => {
-        try {
-          return existsSync(newDir) && readdirSync(newDir).length === 0;
-        } catch (error) {
-          console.warn('[Sudowork] Warning: Could not read new directory during migration check:', error);
-          return false; // 假设非空以避免迁移覆盖
-        }
-      })();
-
-    // 检查迁移条件：老目录存在且新目录为空
-    if (existsSync(oldDir) && isNewDirEmpty) {
-      // 创建目标目录
-      mkdirSync(newDir);
-
-      // 复制所有文件和文件夹
-      await copyDirectoryRecursively(oldDir, newDir);
-
-      // 验证迁移是否成功
-      const isVerified = await verifyDirectoryFiles(oldDir, newDir);
-      if (isVerified) {
-        // 确保不会删除相同的目录
-        if (path.resolve(oldDir) !== path.resolve(newDir)) {
-          try {
-            await fs.rm(oldDir, { recursive: true });
-          } catch (cleanupError) {
-            console.warn('[Sudowork] 原目录清理失败，请手动删除:', oldDir, cleanupError);
-          }
-        }
-      }
-
-      return true;
-    }
-  } catch (error) {
-    console.error('[Sudowork] 数据迁移失败:', error);
-  }
-
-  return false;
-};
-
 const WriteFile = (path: string, data: string) => {
   return fs.writeFile(path, data);
 };
@@ -251,6 +201,7 @@ const envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORA
 const dirConfig = envFile.getSync('nexus.dir');
 
 const cacheDir = dirConfig?.cacheDir || getHomePage();
+const dataDir = getDataPath(); // ~/.nexus
 
 const configFile = JsonFileBuilder<IConfigStorageRefer>(path.join(cacheDir, STORAGE_PATH.config));
 type ConversationHistoryData = Record<string, TMessage[]>;
@@ -306,7 +257,7 @@ const chatMessageFile = conversationHistoryProxy(_chatMessageFile, cacheDir);
  * Get assistant rules directory path
  */
 const getAssistantsDir = () => {
-  return path.join(cacheDir, STORAGE_PATH.assistants);
+  return path.join(dataDir, 'assistants');
 };
 
 /**
@@ -314,7 +265,7 @@ const getAssistantsDir = () => {
  * Get skills scripts directory path
  */
 const getSkillsDir = () => {
-  return path.join(cacheDir, STORAGE_PATH.skills);
+  return path.join(dataDir, 'skills');
 };
 
 /**
@@ -345,12 +296,22 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   // 需要复制的情况：
   // 1. 版本更新了
   // 2. 目标目录不存在（用户手动删除了）
+  // 3. 有助手规则文件缺失（新增了预设助手）
   // Conditions that require copy:
   // 1. Version updated
   // 2. Target directories don't exist (user manually deleted)
+  // 3. Some assistant rule files are missing (new preset added)
   const skillsDirExists = existsSync(skillsDir);
   const assistantsDirExists = existsSync(assistantsDir);
-  const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists;
+  const hasAllAssistantRules =
+    assistantsDirExists &&
+    ASSISTANT_PRESETS.every((preset) => {
+      if (Object.keys(preset.ruleFiles).length === 0) return true;
+      const firstLocale = Object.keys(preset.ruleFiles)[0];
+      const targetFileName = `builtin-${preset.id}.${firstLocale}.md`;
+      return existsSync(path.join(assistantsDir, targetFileName));
+    });
+  const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists || !hasAllAssistantRules;
 
   if (!needsCopy) {
     console.log(`[Sudowork] Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
@@ -533,7 +494,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
     // 从预设配置中读取默认启用的技能列表（不包含 cron，因为它是内置 skill，自动注入）
     // Read default enabled skills from preset config (excluding cron, which is builtin and auto-injected)
     const defaultEnabledSkills = preset.defaultEnabledSkills;
-    const enabledByDefault = preset.id === 'cowork' || preset.id === 'openclaw-setup' || preset.id === 'star-office-helper' || preset.id === 'story-roleplay' || preset.id === 'moltbook' || preset.id === 'beautiful-mermaid' || preset.id === 'qa-tester';
+    const enabledByDefault = preset.id === 'cowork' || preset.id === 'openclaw-setup' || preset.id === 'star-office-helper' || preset.id === 'story-roleplay' || preset.id === 'moltbook' || preset.id === 'beautiful-mermaid' || preset.id === 'doctor' || preset.id === 'jiansheku';
 
     assistants.push({
       id: `builtin-${preset.id}`,
@@ -553,6 +514,8 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
       enabledSkills: defaultEnabledSkills,
       // 复制快捷提示词 / Copy quick prompts
       promptsI18n: preset.promptsI18n,
+      // API Key 配置字段 / API Key configuration fields
+      apiKeyFields: preset.apiKeyFields,
     });
   }
 
@@ -632,11 +595,6 @@ const cleanupOrphanedHealthCheckConversations = () => {
 const initStorage = async () => {
   console.log('[Sudowork] Starting storage initialization...');
   const startTime = Date.now();
-
-  // 1. 先执行数据迁移（在任何目录创建之前）
-  const migrateStart = Date.now();
-  await migrateLegacyData();
-  perfLog('initStorage.migrateLegacyData', Date.now() - migrateStart);
 
   // 2. 创建必要的目录（迁移后再创建，确保迁移能正常进行）
   // Use ensureDirectory to handle cases where a regular file blocks the path (#841)

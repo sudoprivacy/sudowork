@@ -35,6 +35,8 @@ import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
+import { initSudoworkServerBridge } from './sudoworkServerBridge';
+import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 
 /**
@@ -73,6 +75,8 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initSudoclawBridge();
+  initSudoworkServerBridge();
+  initSafetyBridge();
   initBdpanBridge();
 }
 

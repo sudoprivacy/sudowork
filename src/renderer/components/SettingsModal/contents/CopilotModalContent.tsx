@@ -20,8 +20,8 @@ const { Title, Text } = Typography;
 const DEFAULT_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 const API_TYPE_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai-responses', label: 'OpenAI' },
+  { value: 'anthropic-messages', label: 'Anthropic' },
   { value: 'google-generative-ai', label: 'Google Generative AI' },
   { value: 'custom', label: 'Custom' },
 ];
@@ -190,7 +190,24 @@ const CopilotModalContent: React.FC = () => {
       const patch = buildPatchFromForm();
       const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
       if (res?.success) {
-        Message.success(t('common.saveSuccess', { defaultValue: 'Saved' }));
+        // Prompt user to restart Gateway
+        Modal.confirm({
+          title: '配置已保存',
+          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+          okText: '重启 Gateway',
+          cancelText: '稍后重启',
+          onOk: async () => {
+            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+            if (restartRes?.success) {
+              Message.success('Gateway 重启中...');
+              setTimeout(() => {
+                void loadConfig();
+              }, 3000);
+            } else {
+              Message.error(restartRes?.msg || '重启失败');
+            }
+          },
+        });
       } else {
         Message.error(res?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
       }
@@ -199,7 +216,7 @@ const CopilotModalContent: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [buildPatchFromForm, t]);
+  }, [buildPatchFromForm, t, loadConfig]);
 
   const handleAddProvider = useCallback(() => {
     setProviders((prev) => {
@@ -279,60 +296,64 @@ const CopilotModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleTestGateway = useCallback(async () => {
+  const handleRefreshRuntime = async () => {
+    setRuntimeLoading(true);
     setTestStatus('testing');
     setTestError(null);
     try {
+      await loadConfig();
+      // Test connection after refreshing status
       const res = await ipcBridge.sudoclaw.testGateway.invoke();
-      if (!res?.success || !res.data) {
-        setTestStatus('error');
-        setTestError({ error: res?.msg || 'Unknown error' });
-        return;
-      }
-      const { success, error, stdout, stderr } = res.data;
-      if (success) {
+      if (res?.success && res.data?.success) {
         setTestStatus('ok');
         setTestError(null);
-        // Refresh status after successful test to update "isConnected"
-        void loadConfig();
       } else {
         setTestStatus('error');
-        setTestError({ error, stdout, stderr });
+        setTestError({ error: res?.data?.error || 'Connection failed' });
       }
     } catch (err) {
       setTestStatus('error');
       setTestError({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setRuntimeLoading(false);
     }
-  }, []);
-
-  const handleRefreshRuntime = async () => {
-    await loadConfig();
-    Message.success('状态已刷新');
   };
 
   const restartGateway = async () => {
     try {
-      if (status?.gatewayRunning) {
-        Modal.confirm({
-          title: '重启 Sudoclaw Gateway',
-          content: '确定要重启 Sudoclaw Gateway 吗？这可能会中断正在进行的对话。',
-          okText: '确定',
-          cancelText: '取消',
-          onOk: async () => {
-            const res = await ipcBridge.sudoclaw.restartGateway.invoke();
-            if (res?.success) {
-              Message.success('重启命令已发送，请稍候...');
-              setTimeout(() => {
-                void loadConfig();
-              }, 5000);
-            } else {
-              Message.error(res?.msg || '重启失败');
-            }
-          },
-        });
-      } else {
-        Message.info('Sudoclaw Gateway 未运行，无需重启');
-      }
+      const isRunning = testStatus === 'ok';
+      Modal.confirm({
+        title: isRunning ? '重启 Sudoclaw Gateway' : '启动 Sudoclaw Gateway',
+        content: isRunning ? '确定要重启 Sudoclaw Gateway 吗？这可能会中断正在进行的对话。' : 'Sudoclaw Gateway 未运行，是否立即启动？',
+        okText: '确定',
+        cancelText: '取消',
+        onOk: async () => {
+          const res = await ipcBridge.sudoclaw.restartGateway.invoke();
+          if (res?.success) {
+            Message.success(isRunning ? 'Gateway 重启中...' : 'Gateway 启动中...');
+            // Refresh status and test connection after restart
+            setTestStatus('testing');
+            setTimeout(async () => {
+              await loadConfig();
+              try {
+                const testRes = await ipcBridge.sudoclaw.testGateway.invoke();
+                if (testRes?.success && testRes.data?.success) {
+                  setTestStatus('ok');
+                  setTestError(null);
+                } else {
+                  setTestStatus('error');
+                  setTestError({ error: testRes?.data?.error || 'Connection failed' });
+                }
+              } catch (err) {
+                setTestStatus('error');
+                setTestError({ error: err instanceof Error ? err.message : String(err) });
+              }
+            }, 3000);
+          } else {
+            Message.error(res?.msg || '重启失败');
+          }
+        },
+      });
     } catch (error) {
       Message.error('重启失败');
     }
@@ -342,7 +363,7 @@ const CopilotModalContent: React.FC = () => {
     setConfigLoading(true);
     try {
       const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
-      const configFilePath = `${homeDir}/.nexus/.sudoclaw/openclaw.json`;
+      const configFilePath = `${homeDir}/.nexus/sudoclaw/sudoclaw.json`;
       setConfigPath(configFilePath);
 
       const res = await ipcBridge.sudoclaw.getConfig.invoke();
@@ -365,9 +386,25 @@ const CopilotModalContent: React.FC = () => {
       const parsed = JSON.parse(configContent);
       const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: parsed });
       if (res?.success) {
-        Message.success('配置已保存并应用');
         setEditConfigVisible(false);
-        await loadConfig();
+        // Prompt user to restart Gateway
+        Modal.confirm({
+          title: '配置已保存',
+          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+          okText: '重启 Gateway',
+          cancelText: '稍后重启',
+          onOk: async () => {
+            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+            if (restartRes?.success) {
+              Message.success('Gateway 重启中...');
+              setTimeout(() => {
+                void loadConfig();
+              }, 3000);
+            } else {
+              Message.error(restartRes?.msg || '重启失败');
+            }
+          },
+        });
       } else {
         Message.error(res?.msg || '保存配置失败');
       }
@@ -379,7 +416,28 @@ const CopilotModalContent: React.FC = () => {
   };
 
   useEffect(() => {
-    void loadConfig();
+    // Initial load with connection test
+    setTestStatus('testing');
+    void loadConfig()
+      .then(async () => {
+        try {
+          const res = await ipcBridge.sudoclaw.testGateway.invoke();
+          if (res?.success && res.data?.success) {
+            setTestStatus('ok');
+          } else {
+            setTestStatus('error');
+            setTestError({ error: res?.data?.error || 'Connection failed' });
+          }
+        } catch (err) {
+          setTestStatus('error');
+          setTestError({ error: err instanceof Error ? err.message : String(err) });
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load config:', err);
+        setTestStatus('error');
+        setTestError({ error: err instanceof Error ? err.message : String(err) });
+      });
   }, [loadConfig]);
 
   if (loading) {
@@ -405,9 +463,19 @@ const CopilotModalContent: React.FC = () => {
             </Text>
           </div>
           <Space>
-            {isConnected && (
+            {testStatus === 'testing' && (
+              <Tag color='blue' size='large'>
+                测试中...
+              </Tag>
+            )}
+            {testStatus === 'ok' && (
               <Tag color='green' size='large'>
                 已连接
+              </Tag>
+            )}
+            {testStatus === 'error' && (
+              <Tag color='red' size='large'>
+                未连接
               </Tag>
             )}
             <Button type='primary' icon={<Refresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>
@@ -416,14 +484,27 @@ const CopilotModalContent: React.FC = () => {
           </Space>
         </div>
 
-        {!isConnected && (
+        {testStatus === 'error' && (
+          <Alert
+            type='error'
+            className='mb-24px'
+            content={
+              <div>
+                <div className='font-500 mb-4px'>Sudoclaw 连接失败</div>
+                <div className='text-13px'>{testError?.error || '请确保 Sudoclaw 已安装并运行。'}</div>
+              </div>
+            }
+          />
+        )}
+
+        {testStatus === 'ok' && !isConnected && (
           <Alert
             type='warning'
             className='mb-24px'
             content={
               <div>
-                <div className='font-500 mb-4px'>Sudoclaw 未连接</div>
-                <div className='text-13px'>请确保 Sudoclaw 已安装并运行。</div>
+                <div className='font-500 mb-4px'>Sudoclaw 状态异常</div>
+                <div className='text-13px'>Gateway 运行中但会话未建立，请尝试重启 Gateway。</div>
               </div>
             }
           />
@@ -436,122 +517,11 @@ const CopilotModalContent: React.FC = () => {
           <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? iconColors.success : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
         </div>
 
-        <div className='mb-24px p-12px rd-8px bg-t-fill-2'>
-          <div className='flex items-center justify-between mb-8px'>
-            <span className='text-14px font-600 text-t-primary'>{t('settings.openclaw_testGateway', { defaultValue: 'Sudoclaw 连接测试' })}</span>
-            <div className='flex items-center gap-8px'>
-              <span className={`text-12px ${testStatus === 'ok' ? 'color-green-6' : testStatus === 'error' ? 'color-red-6' : testStatus === 'testing' ? 'color-blue-6' : 'text-t-tertiary'}`}>
-                {testStatus === 'ok' && t('settings.openclaw_testStatusOk', { defaultValue: '连接正常' })}
-                {testStatus === 'error' && t('settings.openclaw_testStatusError', { defaultValue: '连接失败' })}
-                {testStatus === 'testing' && t('settings.openclaw_testStatusTesting', { defaultValue: '测试中...' })}
-                {testStatus === 'idle' && t('settings.openclaw_testStatusIdle', { defaultValue: '未测试' })}
-              </span>
-              <Button type='outline' size='small' loading={testStatus === 'testing'} onClick={handleTestGateway} disabled={!status?.installed}>
-                {t('settings.openclaw_testButton', { defaultValue: '测试连接' })}
-              </Button>
-            </div>
-          </div>
-          {testError && (
-            <div className='mt-8px p-8px rd-4px bg-red-1 color-red-6 text-12px font-mono overflow-x-auto max-h-120px overflow-y-auto'>
-              {testError.error && <div className='font-600 mb-4px'>{testError.error}</div>}
-              {testError.stderr && <pre className='mt-2px whitespace-pre-wrap break-words'>{testError.stderr}</pre>}
-              {testError.stdout && <pre className='mt-2px whitespace-pre-wrap break-words'>{testError.stdout}</pre>}
-            </div>
-          )}
-        </div>
-
-        <Card title='🚀 模型与供应商配置' className='mb-24px rd-12px'>
-          <Form form={form} layout='vertical'>
-            <Form.Item label={t('settings.openclaw_modelsMode')} field='modelsMode'>
-              <Select>
-                <Select.Option value='merge'>{t('settings.openclaw_modelsModeMerge')}</Select.Option>
-                <Select.Option value='replace'>{t('settings.openclaw_modelsModeReplace')}</Select.Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item label={t('settings.openclaw_primaryModel')} field='primaryModel'>
-              <Input placeholder='sudorouter/gemini-3-flash-preview' allowClear />
-            </Form.Item>
-
-            <div className='flex items-center justify-between mb-8px'>
-              <span className='text-14px font-600 text-t-primary'>{t('settings.openclaw_providers')}</span>
-              <Button type='text' size='small' icon={<Plus size={14} />} onClick={handleAddProvider}>
-                {t('settings.openclaw_addProvider')}
-              </Button>
-            </div>
-
-            {providers.length > 0 && (
-              <Collapse defaultActiveKey={providers.map((_, i) => String(i))} className='mb-16px'>
-                {providers.map((entry, idx) => (
-                  <Collapse.Item
-                    key={idx}
-                    header={
-                      <div className='flex items-center justify-between w-full pr-8px'>
-                        <span className='font-500'>{entry.key || t('settings.openclaw_providerName')}</span>
-                        <Popconfirm content={t('settings.openclaw_deleteProviderConfirm')} onOk={() => handleRemoveProvider(idx)}>
-                          <Button type='text' size='mini' icon={<Delete size={14} />} className='color-red-5' />
-                        </Popconfirm>
-                      </div>
-                    }
-                    name={String(idx)}
-                  >
-                    <div className='flex flex-col gap-12px'>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_providerName')}</div>
-                        <Input placeholder={t('settings.openclaw_providerNamePlaceholder')} value={entry.key} onChange={(v) => handleProviderKeyChange(idx, v)} />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_baseUrl')}</div>
-                        <Input placeholder='https://api.openai.com/v1' value={entry.provider.baseUrl || ''} onChange={(v) => handleProviderChange(idx, 'baseUrl', v)} />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>API Key</div>
-                        <Input.Password placeholder='sk-...' value={entry.provider.apiKey || ''} onChange={(v) => handleProviderChange(idx, 'apiKey', v)} autoComplete='off' />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_apiType')}</div>
-                        <Select placeholder={t('settings.openclaw_apiType')} value={entry.provider.api || undefined} onChange={(v) => handleProviderChange(idx, 'api', v || '')} allowClear className='w-full'>
-                          {API_TYPE_OPTIONS.map((o) => (
-                            <Select.Option key={o.value} value={o.value}>
-                              {o.label}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </div>
-                      <div>
-                        <div className='flex items-center justify-between mb-4px'>
-                          <span className='text-12px text-t-secondary'>{t('settings.openclaw_providerModels')}</span>
-                          <Button type='text' size='mini' icon={<Plus size={12} />} onClick={() => handleAddModel(idx)}>
-                            {t('settings.openclaw_addModel')}
-                          </Button>
-                        </div>
-                        {(entry.provider.models || []).map((m, mi) => (
-                          <div key={mi} className='flex gap-8px mb-8px'>
-                            <Input placeholder='model-id' value={m.id} onChange={(v) => handleModelChange(idx, mi, 'id', v)} className='flex-1' />
-                            <Input placeholder={t('settings.modelName')} value={m.name || ''} onChange={(v) => handleModelChange(idx, mi, 'name', v)} className='flex-1' />
-                            <Button type='text' size='mini' icon={<Delete size={12} />} onClick={() => handleRemoveModel(idx, mi)} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </Collapse.Item>
-                ))}
-              </Collapse>
-            )}
-
-            <div className='flex justify-end'>
-              <Button type='primary' loading={saving} onClick={() => void saveConfig()}>
-                {t('common.save', { defaultValue: 'Save' })}
-              </Button>
-            </div>
-          </Form>
-        </Card>
-
         <Card title='📝 配置文件' className='rd-12px'>
           <div className='flex items-center justify-between'>
             <div className='flex-1'>
               <div className='text-14px text-t-primary font-500'>Sudoclaw 配置文件</div>
-              <Tooltip content='~/.nexus/.sudoclaw/openclaw.json'>
+              <Tooltip content='~/.nexus/sudoclaw/sudoclaw.json'>
                 <div className='text-12px text-t-tertiary mt-2px'>直接编辑配置文件</div>
               </Tooltip>
             </div>
@@ -568,7 +538,7 @@ const CopilotModalContent: React.FC = () => {
       </div>
 
       {editConfigVisible && (
-        <Modal title='编辑 OpenClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
+        <Modal title='编辑 SudoClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
           <div className='flex flex-col gap-8px'>
             <Tooltip content={configPath}>
               <Text type='secondary' className='text-12px'>

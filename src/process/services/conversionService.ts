@@ -288,35 +288,52 @@ class ConversionService {
 
   /**
    * Markdown -> Word (.docx)
+   * 将 Markdown 转换为 Word 文档并保存到工作区
+   * Converts Markdown to Word and saves to workspace
+   */
+  public async markdownToWordAndSave(markdown: string, conversationId: string, fileName?: string): Promise<ConversionResult<string>> {
+    try {
+      const { getDatabase } = await import('../database/export');
+      const db = getDatabase();
+      const convResult = db.getConversation(conversationId);
+
+      if (!convResult.success || !convResult.data) {
+        return { success: false, error: 'Conversation not found in database' };
+      }
+
+      const workspace = convResult.data.extra?.workspace;
+      if (!workspace) {
+        return { success: false, error: 'Workspace not found for this conversation' };
+      }
+
+      const exportsDir = path.join(workspace, 'exports');
+      await fs.mkdir(exportsDir, { recursive: true });
+
+      const name = fileName || `AI_Response_${Date.now()}.docx`;
+      const targetPath = path.join(exportsDir, name);
+
+      const { documentConverter } = await import('../../common/document/DocumentConverter');
+      const arrayBuffer = await documentConverter.markdownToWord(markdown);
+      await fs.writeFile(targetPath, Buffer.from(arrayBuffer));
+
+      return { success: true, data: targetPath };
+    } catch (error) {
+      console.error('[ConversionService] markdownToWordAndSave failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Markdown -> Word (.docx)
    * 将 Markdown 转换为 Word 文档
-   * Note: This is a basic implementation. For complex markdown, we might need a better parser.
-   * 注意：这是一个基础实现。对于复杂的 Markdown，可能需要更好的解析器。
+   * Note: This is an improved implementation using a proper Markdown parser via DocumentConverter.
+   * 注意：这是一个改进的实现，通过 DocumentConverter 使用合适的 Markdown 解析器。
    */
   public async markdownToWord(markdown: string, targetPath: string): Promise<ConversionResult<void>> {
     try {
-      // Simple implementation: split by newlines and create paragraphs
-      // 简单实现：按行分割并创建段落
-      // TODO: Use a proper Markdown parser to generate Docx structure
-      // TODO: 使用合适的 Markdown 解析器生成 Docx 结构
-      const lines = markdown.split('\n');
-      const children = lines.map(
-        (line) =>
-          new Paragraph({
-            children: [new TextRun(line)],
-          })
-      );
-
-      const doc = new DocxDocument({
-        sections: [
-          {
-            properties: {},
-            children: children,
-          },
-        ],
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-      await fs.writeFile(targetPath, buffer);
+      const { documentConverter } = await import('../../common/document/DocumentConverter');
+      const arrayBuffer = await documentConverter.markdownToWord(markdown);
+      await fs.writeFile(targetPath, Buffer.from(arrayBuffer));
       return { success: true };
     } catch (error) {
       console.error('[ConversionService] markdownToWord failed:', error);

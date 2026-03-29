@@ -19,11 +19,24 @@ import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
+import { app } from 'electron';
 
 const execFile = promisify(execFileCb);
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
+
+/**
+ * Get path to hook.js for child process injection.
+ * The hook will intercept file and network operations for safety checks.
+ */
+function getHookJsPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook.js');
+  }
+  return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
+}
 
 // ── Environment helpers ─────────────────────────────────────────────
 
@@ -31,6 +44,8 @@ export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
  * Prepare a clean environment for ACP backends.
  * Removes Electron-injected NODE_OPTIONS, npm lifecycle vars, and other
  * env vars that interfere with child Node.js processes.
+ *
+ * Also injects safety hook via NODE_OPTIONS if safety hook is enabled.
  */
 export function prepareCleanEnv(): Record<string, string | undefined> {
   const cleanEnv = getEnhancedEnv();
@@ -49,6 +64,15 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
       delete cleanEnv[key];
     }
   }
+
+  // Inject safety hook via NODE_OPTIONS if enabled
+  if (isSafetyHookEnabled()) {
+    const hookJsPath = getHookJsPath();
+    const hookOption = `-r ${hookJsPath}`;
+    cleanEnv.NODE_OPTIONS = hookOption;
+    console.log(`[ACP] Injecting safety hook via NODE_OPTIONS: ${hookOption}`);
+  }
+
   return cleanEnv;
 }
 

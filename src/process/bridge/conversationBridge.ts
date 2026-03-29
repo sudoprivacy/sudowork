@@ -16,7 +16,7 @@ import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage } from '../task/agentUtils';
+import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import WorkerManage from '../WorkerManage';
@@ -115,9 +115,9 @@ export function initConversationBridge(): void {
         success: true,
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -129,9 +129,9 @@ export function initConversationBridge(): void {
         msg: error instanceof Error ? error.message : String(error),
         data: {
           gatewayRunning: false,
-          gatewayPort: 18789,
+          gatewayPort: 17863,
           gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:18789',
+          gatewayUrl: 'ws://localhost:17863',
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -158,7 +158,7 @@ export function initConversationBridge(): void {
       }
 
       // Try to get gateway status
-      let gatewayPort = 18789;
+      let gatewayPort = 17863;
       let gatewayHost = 'localhost';
       let workspace: string | undefined;
       let agentName: string | undefined;
@@ -169,7 +169,7 @@ export function initConversationBridge(): void {
         const { readFile } = await import('node:fs/promises');
         const { join } = await import('node:path');
         const { homedir } = await import('node:os');
-        const configPath = join(homedir(), '.openclaw', 'openclaw.json');
+        const configPath = join(homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
         const configContent = await readFile(configPath, 'utf-8');
         const config = JSON.parse(configContent);
 
@@ -497,6 +497,20 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Get the last emitted connection status for any agent type (openclaw or acp)
+  // Uses cache-only lookup (getTaskById) — no side effects, no bootstrapping
+  ipcBridge.conversation.getConnectionStatus.provider(async ({ conversation_id }) => {
+    try {
+      const task = WorkerManage.getTaskById(conversation_id) as OpenClawAgent | AcpAgent | undefined;
+      if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
+        return { success: true, data: { status: null } };
+      }
+      return { success: true, data: { status: (task as any).lastConnectionStatus as string | null } };
+    } catch {
+      return { success: true, data: { status: null } };
+    }
+  });
+
   // Abort controller for workspace reads: each new request aborts the previous one
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;
@@ -659,6 +673,21 @@ export function initConversationBridge(): void {
 
     const workspaceFiles = await copyFilesToDirectory(workspace, filesToProcess, false);
 
+    // Get conversation to access presetContext and enabledSkills for preset assistants
+    // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
+    let presetContext: string | undefined;
+    let enabledSkills: string[] | undefined;
+    try {
+      const db = getDatabase();
+      const convResult = db.getConversation(conversation_id);
+      if (convResult.success && convResult.data) {
+        presetContext = convResult.data.extra?.presetContext;
+        enabledSkills = convResult.data.extra?.enabledSkills;
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       // Build the unified payload for both ACP and OpenClaw agents
       const payload: { content: string; agentContent?: string; files: string[]; msg_id: string } = {
@@ -667,14 +696,22 @@ export function initConversationBridge(): void {
         msg_id: other.msg_id,
       };
 
-      // OpenClaw-specific: inject skill content and workspace hints into agentContent
+      // OpenClaw-specific: inject preset rules, skills content and workspace hints into agentContent
       if (task.type === 'openclaw-gateway') {
         let agentContent = other.input;
-        if (other.injectSkills?.length) {
-          agentContent = await prepareFirstMessage(other.input, { enabledSkills: other.injectSkills });
+
+        // Inject preset context and enabled skills for preset assistants
+        // 为预设助手注入 presetContext 和 enabledSkills
+        const skillsToInject = other.injectSkills?.length ? other.injectSkills : enabledSkills;
+        if (presetContext || skillsToInject?.length) {
+          agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
+            presetContext,
+            enabledSkills: skillsToInject,
+          });
           const skillsDir = getSkillsDir();
           agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
         }
+
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
           const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
           agentContent = hint + agentContent;

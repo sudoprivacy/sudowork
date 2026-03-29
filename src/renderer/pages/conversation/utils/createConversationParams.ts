@@ -67,9 +67,14 @@ export function getConversationTypeForBackend(backend: string): ICreateConversat
 /**
  * Determine the conversation type from a preset assistant's presetAgentType.
  * ACP-routed types include claude, codebuddy, opencode, qwen, codex.
+ * Sudoclaw uses openclaw-gateway type.
  */
 export function getConversationTypeForPreset(presetAgentType: string): ICreateConversationParams['type'] {
-  // All preset agent types route through ACP
+  // Sudoclaw uses OpenClaw Gateway (WebSocket), not ACP CLI
+  if (presetAgentType === 'sudoclaw') {
+    return 'openclaw-gateway';
+  }
+  // All other preset agent types route through ACP
   return 'acp';
 }
 
@@ -125,7 +130,8 @@ export async function buildPresetAssistantParams(agent: AvailableAgent, workspac
     enabledSkills,
     presetAssistantId: customAgentId,
     presetContext,
-    backend: presetAgentType as AcpBackend,
+    // Sudoclaw preset type maps to openclaw-gateway backend
+    backend: (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackend,
   };
 
   const model = {} as TProviderWithModel;

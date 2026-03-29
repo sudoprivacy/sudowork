@@ -17,6 +17,28 @@ export type AssistantPreset = {
    * 此助手默认启用的技能列表（来自 skills/ 目录的技能名称）
    */
   defaultEnabledSkills?: string[];
+  /**
+   * Default agent mode for this assistant (e.g., 'yolo' for auto-approve).
+   * Applied when creating a new conversation — user can override via mode selector.
+   */
+  defaultMode?: string;
+  /**
+   * Gemini CLI model config overrides (temperature, thinkingBudget, etc).
+   * Written to .gemini/settings.json in the conversation workspace before CLI starts.
+   * See: node_modules/@office-ai/aioncli-core/dist/docs/cli/generation-settings.md
+   */
+  modelConfigs?: Record<string, unknown>;
+  /**
+   * API Key fields for Settings UI. Values are injected as env vars when spawning.
+   */
+  apiKeyFields?: Array<{
+    key: string;
+    label: string;
+    type: 'text' | 'password' | 'select' | 'number' | 'boolean';
+    required?: boolean;
+    options?: string[];
+    default?: string | number | boolean;
+  }>;
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -26,7 +48,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'star-office-helper',
     avatar: '📺',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/star-office-helper',
     ruleFiles: {
       'en-US': 'star-office-helper.md',
@@ -49,7 +71,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'openclaw-setup',
     avatar: '🦞',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/openclaw-setup',
     ruleFiles: {
       'en-US': 'openclaw-setup.md',
@@ -72,7 +94,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'cowork',
     avatar: 'cowork.svg',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/cowork',
     ruleFiles: {
       'en-US': 'cowork.md',
@@ -99,7 +121,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'pptx-generator',
     avatar: '📊',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/pptx-generator',
     ruleFiles: {
       'en-US': 'pptx-generator.md',
@@ -121,7 +143,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'pdf-to-ppt',
     avatar: '📄',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/pdf-to-ppt',
     ruleFiles: {
       'en-US': 'pdf-to-ppt.md',
@@ -143,7 +165,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'game-3d',
     avatar: '🎮',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/game-3d',
     ruleFiles: {
       'en-US': 'game-3d.md',
@@ -165,7 +187,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'ui-ux-pro-max',
     avatar: '🎨',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/ui-ux-pro-max',
     ruleFiles: {
       'en-US': 'ui-ux-pro-max.md',
@@ -187,7 +209,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'planning-with-files',
     avatar: '📋',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/planning-with-files',
     ruleFiles: {
       'en-US': 'planning-with-files.md',
@@ -209,7 +231,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'human-3-coach',
     avatar: '🧭',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/human-3-coach',
     ruleFiles: {
       'en-US': 'human-3-coach.md',
@@ -231,7 +253,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'social-job-publisher',
     avatar: '📣',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/social-job-publisher',
     ruleFiles: {
       'en-US': 'social-job-publisher.md',
@@ -258,7 +280,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'moltbook',
     avatar: '🦞',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/moltbook',
     ruleFiles: {
       'en-US': 'moltbook.md',
@@ -285,7 +307,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'beautiful-mermaid',
     avatar: '📈',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/beautiful-mermaid',
     ruleFiles: {
       'en-US': 'beautiful-mermaid.md',
@@ -308,7 +330,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'copilot',
     avatar: '🧭',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/copilot',
     ruleFiles: {
       'en-US': 'copilot.md',
@@ -330,7 +352,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'story-roleplay',
     avatar: '📖',
-    presetAgentType: 'claude',
+    presetAgentType: 'sudoclaw',
     resourceDir: 'assistant/story-roleplay',
     ruleFiles: {
       'en-US': 'story-roleplay.md',
@@ -351,26 +373,67 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
-    id: 'qa-tester',
-    avatar: '🧪',
-    presetAgentType: 'gemini',
-    resourceDir: 'assistant/qa-tester',
+    id: 'doctor',
+    avatar: '🩺',
+    presetAgentType: 'sudoclaw',
+    resourceDir: 'assistant/doctor',
     ruleFiles: {
-      'en-US': 'qa-tester.md',
-      'zh-CN': 'qa-tester.md',
+      'en-US': 'doctor.md',
+      'zh-CN': 'doctor.md',
     },
     defaultEnabledSkills: ['browser'],
+    defaultMode: 'yolo',
+    modelConfigs: {
+      overrides: [
+        {
+          match: {},
+          modelConfig: {
+            generateContentConfig: {
+              temperature: 0.2,
+              thinkingConfig: { thinkingBudget: 8192 },
+            },
+          },
+        },
+      ],
+    },
     nameI18n: {
-      'en-US': 'QA Tester',
-      'zh-CN': 'QA 测试员',
+      'en-US': 'Doctor',
+      'zh-CN': '诊断医生',
     },
     descriptionI18n: {
-      'en-US': 'Self-test this app by operating its own UI via browser automation. Takes screenshots, verifies behavior, reports issues.',
-      'zh-CN': '通过浏览器自动化操作自身 UI 进行自测。截图验证行为，报告问题。',
+      'en-US': 'Self-diagnose this app by exploring its UI via browser automation. Deep-thinking, methodical testing with automated bug filing.',
+      'zh-CN': '通过浏览器自动化探索自身 UI 进行自我诊断。深度思考、系统化测试，自动提交 bug。',
     },
     promptsI18n: {
-      'en-US': ['Test the /model command — list models, switch, verify', 'Explore the app UI and look for any bugs', 'Test creating a new conversation and sending a message'],
-      'zh-CN': ['测试 /model 命令 — 列出模型、切换、验证', '探索应用 UI，寻找 bug', '测试新建会话并发送消息'],
+      'en-US': ['Explore the app UI and look for any bugs', 'Test the security protection page toggles', 'Test creating a new conversation and sending a message'],
+      'zh-CN': ['探索应用 UI，寻找 bug', '测试安全防护页面的开关功能', '测试新建会话并发送消息'],
+    },
+  },
+  {
+    id: 'jiansheku',
+    avatar: '🏗️',
+    presetAgentType: 'sudoclaw',
+    resourceDir: 'assistant/jiansheku',
+    ruleFiles: {
+      'en-US': 'jiansheku.md',
+      'zh-CN': 'jiansheku.md',
+    },
+    defaultEnabledSkills: ['jiansheku'],
+    apiKeyFields: [
+      { key: 'JIANSHEKU_APP_KEY', label: 'AppKey', type: 'password', required: true },
+      { key: 'JIANSHEKU_APP_SECRET', label: 'AppSecret', type: 'password', required: true },
+    ],
+    nameI18n: {
+      'en-US': 'Jiansheku Bot',
+      'zh-CN': '建设库助手',
+    },
+    descriptionI18n: {
+      'en-US': 'Query Chinese construction industry data: company info, qualifications, project performance, bidding records, and risk assessments.',
+      'zh-CN': '查询建设行业企业信息、资质、业绩、招投标、风险等数据，支持93个API端点。',
+    },
+    promptsI18n: {
+      'en-US': ['Look up basic info for 中建三局集团有限公司', 'Find companies with special-grade construction qualifications in Guangdong', 'Run a risk scan on 中国建筑第二工程局有限公司'],
+      'zh-CN': ['查询中建三局集团有限公司的工商基本信息', '查找广东省拥有建筑工程施工总承包特级资质的企业', '对中国建筑第二工程局有限公司进行风险扫描'],
     },
   },
 ];

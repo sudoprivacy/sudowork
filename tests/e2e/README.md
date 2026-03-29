@@ -2,31 +2,68 @@
 
 Screenshot-driven E2E tests for Sudowork, powered by ai-dev-browser.
 
+Aligned with [human-browser-primitives](https://github.com/sudoprivacy/human-browser-primitives) spec.
+
 ## Architecture
 
 ```
-ops/    — Sudowork UI primitives (pure script, no AI, no tokens)
-cases/  — Test cases in YAML (reference ops only)
-runner.py — Executes cases, reports results
+human-browser-primitives/spec.md    ← W3C core primitive definitions
+ops-spec.yaml                       ← app-specific convenience param extensions
+generate.py                         ← reads both specs → generates code
+
+primitives/                          ← AUTO-GENERATED, DO NOT EDIT
+  key_down.py, pointer_move.py ...   #   pure W3C implementations, core params only
+
+ops/                                 ← AUTO-GENERATED, DO NOT EDIT
+  key_down.py, pointer_move.py ...   #   thin wrappers: core + convenience params
+
+utils.py                            ← hand-written resolver functions
+run_op.py                           ← CLI entry point
+runner.py                           ← YAML test case executor
 ```
 
-## Rules
+## Primitives (from spec)
 
-1. `ops/` must NOT call AI. They are deterministic scripts.
-2. AI is used ONLY via `screenshot_and_judge` op — for visual verification.
-3. When you need a new UI interaction, add an op to `ops/`, not inline code in YAML.
-4. Prefer human-like interaction (CDP events) over DOM manipulation (js_exec).
-   Use js_exec only when CDP can't reach the element.
+### Input
+| Primitive | Core Params | Convenience Params |
+|---|---|---|
+| `key_down` | `value` | *(React fallback auto-detected)* |
+| `key_up` | `value` | |
+| `pointer_down` | `button` | `text`, `selector` |
+| `pointer_up` | `button` | |
+| `pointer_move` | `x`, `y`, `duration`, `origin` | `text`, `selector` |
+| `scroll` | `x`, `y`, `delta_x`, `delta_y` | |
+| `pause` | `duration` (ms) | |
+
+### Observation
+| Primitive | Core Params | Convenience Params |
+|---|---|---|
+| `screenshot` | | `path` |
+| `get_text` | `element` | `shadow_dom` |
+| `get_attribute` | `element`, `name` | |
+| `is_displayed` | `element` | |
 
 ## Usage
 
 ```bash
-# 1. Start Sudowork with CDP enabled
-NEXUS_CDP_PORT=9232 node scripts/launch-dev.js
+# Single primitive
+python tests/e2e/run_op.py --port 9230 --op pointer_move --text "技能商店"
+python tests/e2e/run_op.py --port 9230 --op pointer_down
+python tests/e2e/run_op.py --port 9230 --op pointer_up
+python tests/e2e/run_op.py --port 9230 --op key_down --value Enter
+python tests/e2e/run_op.py --port 9230 --op key_up --value Enter
+python tests/e2e/run_op.py --port 9230 --op screenshot --path out.png
 
-# 2. Run all tests
-python tests/e2e/runner.py --port 9232
+# Regenerate from specs
+python tests/e2e/generate.py
 
-# 3. Run specific case
-python tests/e2e/runner.py --port 9232 --case model-command
+# Run test cases
+python tests/e2e/runner.py --port 9230 --case model-command
 ```
+
+## Rules
+
+1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.
+2. To change a primitive: edit `human-browser-primitives/spec.md` → `generate.py`.
+3. To change convenience params: edit `ops-spec.yaml` → `generate.py`.
+4. To change resolver logic: edit `utils.py` (only hand-written code).

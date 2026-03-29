@@ -20,6 +20,7 @@ export interface IOpenClawModelsResponse {
   data: Array<{
     model_id: string;
     model_ratio: number;
+    isPrimary?: boolean;
   }>;
   success: boolean;
 }
@@ -53,6 +54,7 @@ export const conversation = {
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
+  getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -427,6 +429,8 @@ export const preview = {
 
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
+  /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
+  saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
@@ -482,8 +486,8 @@ export const libreOffice = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
-// Sudoclaw config (~/.nexus/.sudoclaw) / OpenClaw 配置
-// Matches openclaw.json schema: models.providers, agents.defaults, etc.
+// Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
+// Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
 export type SudoclawProviderModel = { id: string; name?: string };
 export type SudoclawProvider = {
   baseUrl?: string;
@@ -510,7 +514,7 @@ export type SudoclawTestGatewayResult = {
 };
 
 export const sudoclaw = {
-  /** Get Sudoclaw config from ~/.nexus/.sudoclaw/openclaw.json */
+  /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
   getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
   /** Save Sudoclaw config */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
@@ -574,8 +578,6 @@ export const init = {
 export type NexusInstallPhase = 'checking' | 'downloading' | 'extracting' | 'unpacking' | 'starting' | 'ready' | 'error';
 
 export const nexus = {
-  /** Ping the Nexus server to verify it is running */
-  ping: bridge.buildProvider<IBridgeResponse<{ message: string; timestamp: number; port: number }>, void>('nexus.ping'),
   /** Get the current status of the Nexus server */
   getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number; setupStage: string; installed: boolean }>, void>('nexus.get-status'),
   /** Check if Nexus is installed */
@@ -586,8 +588,6 @@ export const nexus = {
   installProgress: bridge.buildEmitter<{ phase: NexusInstallPhase; message: string; percent?: number }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
-  /** Install Nexus server from local file */
-  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
 };
 
 // Deep link protocol handling / 深度链接协议处理
@@ -1061,4 +1061,35 @@ export const channel = {
     accountId?: string;
     message?: string;
   }>('channel.wechat-qr-login'),
+};
+
+export interface ISudoworkServerConfig {
+  baseUrl: string;
+  enterpriseCode?: string;
+}
+
+export const sudoworkServer = {
+  getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
+  updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
+};
+
+// ==================== Safety Hook API ====================
+
+import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
+
+export const safety = {
+  /** Get current safety status */
+  getStatus: bridge.buildProvider<IBridgeResponse<SafetyStatus>, void>('safety.get-status'),
+  /** Get service enabled status */
+  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('safety.get-enabled'),
+  /** User confirmation action (allow/deny) */
+  confirm: bridge.buildProvider<IBridgeResponse, { allow: boolean; reason?: string }>('safety.confirm'),
+  /** Enable/disable safety hook service */
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
+  /** Safety status change event (Main -> Renderer) */
+  onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
+  /** Get blacklist configuration */
+  getBlacklist: bridge.buildProvider<IBridgeResponse<BlacklistConfig>, void>('safety.get-blacklist'),
+  /** Set blacklist configuration */
+  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
 };

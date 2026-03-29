@@ -12,13 +12,14 @@ import net from 'node:net';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { app } from 'electron';
 
 interface GatewayManagerConfig {
   /** Gateway port (default: 17863 for Sudoclaw) */
   port?: number;
   /** Custom environment variables */
   customEnv?: Record<string, string>;
-  /** OpenClaw state dir (e.g. ~/.sudoclaw) — set cwd to package/ for reliable module resolution */
+  /** OpenClaw state dir (e.g. ~/.nexus/sudoclaw) — set cwd to package/ for reliable module resolution */
   stateDir?: string;
   /** Force subprocess (disables in-process); needed to restart gateway on device token mismatch */
   forceSubprocessGateway?: boolean;
@@ -34,6 +35,18 @@ interface GatewayManagerEvents {
 
 /** Registry of running Sudoclaw gateway managers (port -> manager) for external restart (e.g. after skill install) */
 export const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
+
+/**
+ * Get path to hook.js for gateway safety interception.
+ * The hook will self-regulate by polling /safe/config/enabled from Nexus.
+ */
+function getHookJsPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook.js');
+  }
+  // Development mode: use app.getAppPath() to get project root
+  return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
+}
 
 /**
  * Restart the Sudoclaw gateway on the given port. Used after Skill Hub install so new skills load immediately.
@@ -147,13 +160,16 @@ export class OpenClawGatewayManager extends EventEmitter {
   }
 
   private canUseInProcess(): boolean {
+    // Always use subprocess mode for safety hook to work properly.
+    // In-process mode runs gateway in Electron main process, where
+    // @mswjs/interceptors cannot intercept network requests.
+    // Force subprocess so gateway runs in isolated Node.js process.
     if (this.forceSubprocessGateway) return false;
     if (!this.stateDir) return false;
-    const pkgRoot = path.join(this.stateDir, 'cli', 'package');
-    const entryPath = path.join(pkgRoot, 'openclaw.mjs');
-    const hasEntry = fs.existsSync(entryPath);
-    const hasDist = fs.existsSync(path.join(pkgRoot, 'dist', 'entry.mjs')) || fs.existsSync(path.join(pkgRoot, 'dist', 'entry.js'));
-    return hasEntry && hasDist;
+
+    // Safety hook requires subprocess mode - in-process mode doesn't support
+    // network interception due to Electron's net module vs Node.js http module
+    return false;
   }
 
   private async doStartInProcess(): Promise<number> {
@@ -162,10 +178,24 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origArgv = [...process.argv];
     const origCwd = process.cwd();
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
+    const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
 
     process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
+    process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
+
+    // Load safety hook before gateway entry (for in-process mode)
+    // Hook will self-regulate by polling /safe/config/enabled from Nexus
+    const hookJsPath = getHookJsPath();
+    if (fs.existsSync(hookJsPath)) {
+      try {
+        console.log('[OpenClawGatewayManager] Loading safety hook for in-process gateway:', hookJsPath);
+        await import(pathToFileURL(hookJsPath).href);
+      } catch (err) {
+        console.warn('[OpenClawGatewayManager] Failed to load safety hook:', err);
+      }
+    }
 
     try {
       console.log('[OpenClawGatewayManager] Starting gateway in-process (no extra Dock icon)');
@@ -186,6 +216,8 @@ export class OpenClawGatewayManager extends EventEmitter {
       process.chdir(origCwd);
       if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
       else delete process.env.OPENCLAW_STATE_DIR;
+      if (origConfigPath !== undefined) process.env.OPENCLAW_CONFIG_PATH = origConfigPath;
+      else delete process.env.OPENCLAW_CONFIG_PATH;
     }
   }
 
@@ -215,11 +247,29 @@ export class OpenClawGatewayManager extends EventEmitter {
         return;
       }
 
-      if (this.stateDir) env.OPENCLAW_STATE_DIR = this.stateDir;
+      if (this.stateDir) {
+        env.OPENCLAW_STATE_DIR = this.stateDir;
+        env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
+      }
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
-      console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${launcherPath} ${args.join(' ')}`);
 
-      this.process = spawn(bundledNode, [launcherPath, ...args], {
+      // Inject safety hook for Sudoclaw gateway process
+      // Hook will self-regulate by polling /safe/config/enabled from Nexus
+      const hookJsPath = getHookJsPath();
+      const hookExists = fs.existsSync(hookJsPath);
+      const nodeArgs = hookExists ? ['-r', hookJsPath, launcherPath] : [launcherPath];
+
+      if (hookExists) {
+        console.log('[OpenClawGatewayManager] Injecting safety hook:', hookJsPath);
+        // Also set NODE_OPTIONS so child processes (agents) inherit the hook
+        // The hook will self-regulate by polling /safe/config/enabled from Nexus
+        env.NODE_OPTIONS = `-r ${hookJsPath}`;
+      } else {
+        console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
+      }
+      console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${nodeArgs.join(' ')} ${args.join(' ')}`);
+
+      this.process = spawn(bundledNode, [...nodeArgs, ...args], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
         shell: isWindows,
@@ -358,6 +408,14 @@ export class OpenClawGatewayManager extends EventEmitter {
    */
   get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.port}`;
+  }
+
+  /**
+   * Check if gateway is running in-process (vs subprocess).
+   * In-process mode cannot receive SIGUSR1 for hot-reload.
+   */
+  isInProcess(): boolean {
+    return this.inProcess;
   }
 
   /**

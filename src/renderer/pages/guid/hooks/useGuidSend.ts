@@ -96,9 +96,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-    // OpenClaw Gateway path
-    if (selectedAgent === 'openclaw-gateway') {
+    // OpenClaw Gateway path (sudoclaw backend or preset with sudoclaw agent type)
+    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'sudoclaw') {
       const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+
+      // For sudoclaw preset, find the openclaw-gateway agent info
+      const actualAgentInfo = finalEffectiveAgentType === 'sudoclaw' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
 
       try {
         const conversation = await ipcBridge.conversation.create.invoke({
@@ -109,19 +112,24 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             defaultFiles: files,
             workspace: finalWorkspace,
             customWorkspace: isCustomWorkspace,
-            backend: openclawAgentInfo?.backend,
-            cliPath: openclawAgentInfo?.cliPath,
-            agentName: openclawAgentInfo?.name,
+            backend: actualAgentInfo?.backend,
+            cliPath: actualAgentInfo?.cliPath,
+            agentName: actualAgentInfo?.name,
+            customAgentId: isPreset ? agentInfo?.customAgentId : undefined,
             runtimeValidation: {
               expectedWorkspace: finalWorkspace,
-              expectedBackend: openclawAgentInfo?.backend,
-              expectedAgentName: openclawAgentInfo?.name,
-              expectedCliPath: openclawAgentInfo?.cliPath,
+              expectedBackend: actualAgentInfo?.backend,
+              expectedAgentName: actualAgentInfo?.name,
+              expectedCliPath: actualAgentInfo?.cliPath,
               expectedModel: currentModel?.useModel,
               switchedAt: Date.now(),
             },
             enabledSkills: isPreset ? enabledSkills : undefined,
-            presetAssistantId: isPreset ? openclawAgentInfo?.customAgentId : undefined,
+            // Use original agentInfo's customAgentId for preset assistant
+            presetAssistantId: isPreset ? agentInfo?.customAgentId || openclawAgentInfo?.customAgentId : undefined,
+            presetContext: isPreset ? presetRules : undefined,
+            sessionMode: selectedMode,
+            currentModelId: selectedAcpModel || undefined,
           },
         });
 

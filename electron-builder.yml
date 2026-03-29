@@ -122,6 +122,9 @@ extraResources:
     to: app.png
   - from: THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
+  # Safety hook for Sudoclaw gateway interception
+  - from: hook/node/dist/hook.js
+    to: hook.js
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz

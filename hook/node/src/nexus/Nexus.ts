@@ -89,6 +89,10 @@ export class Nexus {
     return !!((await this.callRPC('exists', { path })) as { exists?: boolean })?.exists;
   }
 
+  public async delete(path: string): Promise<void> {
+    await this.callRPC('delete', { path });
+  }
+
   public async readUntilExists(path: string, timeout?: number): Promise<Buffer> {
     const start = Date.now();
     while (!((timeout && Date.now() - start > timeout) || (await this.exists(path)))) {

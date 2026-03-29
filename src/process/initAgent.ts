@@ -73,7 +73,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
 
 export function getSudoclawWorkspaceRoot(): string {
   try {
-    const configPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
+    const configPath = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
     const raw = fsSync.readFileSync(configPath, 'utf-8');
     const cfg = JSON.parse(raw);
     const configured = cfg?.agents?.defaults?.workspace;
@@ -88,8 +88,8 @@ export function getSudoclawWorkspaceRoot(): string {
 
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  // Use workspace root from openclaw.json so the agent's working dir matches the UI workspace panel.
-  // Falls back to getSystemDir().workDir if openclaw.json is missing or has no workspace configured.
+  // Use workspace root from sudoclaw.json so the agent's working dir matches the UI workspace panel.
+  // Falls back to getSystemDir().workDir if sudoclaw.json is missing or has no workspace configured.
   const tempName = `sudoclaw-temp-${Date.now()}`;
   let resolvedWorkspace = extra.workspace;
   if (!resolvedWorkspace) {
@@ -121,10 +121,18 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
         expectedIdentityHash,
         switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
       },
+      // Custom agent ID for preset assistant identification
+      customAgentId: extra.customAgentId,
+      // Preset context/rules for preset assistants
+      presetContext: extra.presetContext,
       // Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      // Initial session mode selected on Guid page
+      sessionMode: extra.sessionMode,
+      // Pre-selected model from Guid page
+      currentModelId: extra.currentModelId,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),

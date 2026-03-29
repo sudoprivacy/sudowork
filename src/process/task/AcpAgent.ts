@@ -25,7 +25,10 @@ import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionReques
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
+import * as fs from 'node:fs';
+import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -79,6 +82,7 @@ export interface AcpAgentData {
   acpSessionUpdatedAt?: number;
   sessionMode?: string;
   currentModelId?: string;
+  presetAssistantId?: string;
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -97,6 +101,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
   private pendingNavigationTools = new Set<string>();
   private statusMessageId: string | null = null;
+  private _lastConnectionStatus: string | null = null;
 
   // Model tracking
   private userModelOverride: string | null = null;
@@ -123,6 +128,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     agentName?: string;
     acpSessionId?: string;
     acpSessionUpdatedAt?: number;
+    presetAssistantId?: string;
   };
 
   constructor(data: AcpAgentData) {
@@ -146,6 +152,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       agentName: data.agentName,
       acpSessionId: data.acpSessionId,
       acpSessionUpdatedAt: data.acpSessionUpdatedAt,
+      presetAssistantId: data.presetAssistantId,
     };
 
     this.setupConnectionHandlers();
@@ -256,6 +263,37 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         customEnv,
         yoloMode,
       };
+
+      // Write preset modelConfigs to .gemini/settings.json for Gemini backend
+      // The Gemini CLI reads this file from the workspace directory on startup
+      if (this.extra.backend === 'gemini' && this.extra.presetAssistantId?.startsWith('builtin-')) {
+        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
+        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+        if (preset?.modelConfigs && this.extra.workspace) {
+          try {
+            const geminiDir = nodePath.join(this.extra.workspace, '.gemini');
+            if (!fs.existsSync(geminiDir)) {
+              fs.mkdirSync(geminiDir, { recursive: true });
+            }
+            const settingsPath = nodePath.join(geminiDir, 'settings.json');
+            fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
+            mainLog('[AcpAgent]', `Wrote Gemini model config to ${settingsPath}`);
+          } catch (error) {
+            mainWarn('[AcpAgent]', 'Failed to write Gemini model config:', error);
+          }
+        }
+      }
+
+      // Write preset rules as GEMINI.md for Gemini backend system instruction
+      if (this.extra.backend === 'gemini' && this.extra.workspace && this.options.presetContext) {
+        try {
+          const geminiMdPath = nodePath.join(this.extra.workspace, 'GEMINI.md');
+          fs.writeFileSync(geminiMdPath, this.options.presetContext);
+          mainLog('[AcpAgent]', `Wrote GEMINI.md to ${geminiMdPath}`);
+        } catch (error) {
+          mainWarn('[AcpAgent]', 'Failed to write GEMINI.md:', error);
+        }
+      }
 
       // Connect
       await this.connect();
@@ -1337,7 +1375,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Message Emission Helpers ==========
 
+  get lastConnectionStatus(): string | null {
+    return this._lastConnectionStatus;
+  }
+
   private emitStatusMessage(status: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error'): void {
+    this._lastConnectionStatus = status;
+
     if (!this.statusMessageId) {
       this.statusMessageId = uuid();
     }

@@ -6,14 +6,16 @@
 
 import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { ipcBridge } from '@/common';
 import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy } from '@icon-park/react';
+import { Copy, FileWord } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { copyText } from '@/renderer/utils/clipboard';
 import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { emitter } from '@/renderer/utils/emitter';
 import CollapsibleContent from '../components/CollapsibleContent';
 import FilePreview from '../components/FilePreview';
 import HorizontalFileList from '../components/HorizontalFileList';
@@ -63,12 +65,40 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     return rawContent;
   }, [message.content.content]);
 
-  const { text, files } = parseFileMarker(contentToRender);
+  const { text: rawText, files } = parseFileMarker(contentToRender);
+  const text = rawText.trimEnd();
   const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
+  const [converting, setConverting] = useState(false);
   const isUserMessage = message.position === 'right';
+
+  const handleConvertToWord = useCallback(async () => {
+    if (converting) return;
+    setConverting(true);
+    try {
+      const res = await ipcBridge.document.saveAsDocx.invoke({
+        markdown: text,
+        conversationId: message.conversation_id,
+      });
+
+      if (res?.success && res.data) {
+        Message.success(t('messages.convertSuccess', { defaultValue: 'Converted to Word successfully' }));
+        // 自动刷新工作区 (通过 emitter)
+        emitter.emit('chat.history.refresh');
+        // 可选：打开文件夹定位文件
+        void ipcBridge.shell.showItemInFolder.invoke(res.data);
+      } else {
+        Message.error(res?.msg || t('messages.convertFailed', { defaultValue: 'Failed to convert to Word' }));
+      }
+    } catch (error) {
+      console.error('Failed to convert to Word:', error);
+      Message.error(t('messages.convertFailed', { defaultValue: 'Failed to convert to Word' }));
+    } finally {
+      setConverting(false);
+    }
+  }, [text, message.conversation_id, t, converting]);
 
   // 过滤空内容，避免渲染空DOM
   if (!message.content.content || (typeof message.content.content === 'string' && !message.content.content.trim())) {
@@ -97,11 +127,19 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     </Tooltip>
   );
 
+  const transToWordButton = (
+    <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
+      <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto' onClick={handleConvertToWord} style={{ lineHeight: 0 }}>
+        <FileWord theme='outline' size='16' fill={converting ? iconColors.disabled : iconColors.secondary} />
+      </div>
+    </Tooltip>
+  );
+
   const cronMeta = message.content.cronMeta;
 
   return (
     <>
-      <div className={classNames('min-w-0 flex flex-col group', isUserMessage ? 'items-end' : 'items-start')}>
+      <div className={classNames('min-w-0 flex flex-col', isUserMessage ? 'items-end' : 'items-start')}>
         {cronMeta && <MessageCronBadge meta={cronMeta} />}
         {visibleFiles.length > 0 && (
           <div className={classNames('mt-6px', { 'self-end': isUserMessage })}>
@@ -135,12 +173,13 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           )}
         </div>
         <div
-          className={classNames('h-32px flex items-center mt-4px', {
+          className={classNames('h-24px flex items-center mt-4px', {
             'justify-end': isUserMessage,
             'justify-start': !isUserMessage,
           })}
         >
           {copyButton}
+          {transToWordButton}
         </div>
       </div>
       {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% transform -translate-x-50% z-9999 w-max max-w-[80%]' style={{ boxShadow: '0px 2px 12px rgba(0,0,0,0.12)' }} closable={false} />}

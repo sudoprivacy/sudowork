@@ -84,6 +84,14 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
+  /**
+   * @deprecated Server URL is now hardcoded in src/common/sudoworkServer.ts.
+   * This config key is kept for backward compatibility but is no longer used.
+   */
+  'sudowork.server'?: {
+    baseUrl: string;
+    enterpriseCode?: string;
+  };
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;
@@ -128,6 +136,10 @@ export interface IConfigStorageRefer {
     customAgentId?: string;
     name?: string;
   };
+  // Safety hook enabled state / 安全 Hook 启用状态
+  'safetyHook.enabled'?: boolean;
+  // Safety hook blacklist configuration / 安全 Hook 黑名单配置
+  'safetyHook.blacklist'?: import('./safetyTypes').BlacklistConfig;
 }
 
 export interface IEnvStorageRefer {
@@ -218,7 +230,7 @@ export type TChatConversation =
             password?: string;
             useExternalGateway?: boolean;
             cliPath?: string;
-            /** OpenClaw state directory (e.g. ~/.sudoclaw) */
+            /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw) */
             stateDir?: string;
           };
           /** Session key for resume */

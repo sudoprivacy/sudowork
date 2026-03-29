@@ -124,7 +124,7 @@ await import('./openclaw.mjs');
   const unixWrapper = `#!/bin/sh
 # openclaw wrapper — managed by Sudowork (Sudoclaw)
 CLI="\$(dirname "\$0")/../launcher.mjs"
-STATE_DIR="\${HOME}/.nexus/.sudoclaw"
+STATE_DIR="\${HOME}/.nexus/sudoclaw"
 BUNDLED_NODE="\${HOME}/.nexus/node/bin/node"
 
 if [ ! -x "\$BUNDLED_NODE" ]; then
@@ -133,14 +133,15 @@ if [ ! -x "\$BUNDLED_NODE" ]; then
   exit 1
 fi
 
-exec env OPENCLAW_STATE_DIR="\$STATE_DIR" "\$BUNDLED_NODE" "\$CLI" "\$@"
+exec env OPENCLAW_STATE_DIR="\$STATE_DIR" OPENCLAW_CONFIG_PATH="\$STATE_DIR/sudoclaw.json" "\$BUNDLED_NODE" "\$CLI" "\$@"
 `;
   fs.writeFileSync(path.join(binDir, 'openclaw'), unixWrapper, { mode: 0o755 });
 
   // Windows wrapper (batch file)
   const windowsWrapper = `@echo off
 set "CLI=%~dp0..\\launcher.mjs"
-set "OPENCLAW_STATE_DIR=%USERPROFILE%\\.nexus\\.sudoclaw"
+set "OPENCLAW_STATE_DIR=%USERPROFILE%\\.nexus\\sudoclaw"
+set "OPENCLAW_CONFIG_PATH=%USERPROFILE%\\.nexus\\sudoclaw\\sudoclaw.json"
 set "BUNDLED_NODE=%USERPROFILE%\\.nexus\\node\\node.exe"
 
 if not exist "%BUNDLED_NODE%" (

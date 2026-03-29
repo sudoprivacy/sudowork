@@ -73,7 +73,9 @@ bridge.adapter({
     // 1. 发送到所有 Electron BrowserWindow / Send to all Electron BrowserWindows
     for (let i = 0, len = adapterWindowList.length; i < len; i++) {
       const win = adapterWindowList[i];
-      win.webContents.send(ADAPTER_BRIDGE_EVENT_KEY, JSON.stringify({ name, data }));
+      if (!win.isDestroyed()) {
+        win.webContents.send(ADAPTER_BRIDGE_EVENT_KEY, JSON.stringify({ name, data }));
+      }
     }
     // 2. 同时广播到所有 WebSocket 客户端 / Also broadcast to all WebSocket clients
     for (const broadcast of webSocketBroadcasters) {

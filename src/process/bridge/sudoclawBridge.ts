@@ -13,10 +13,9 @@ import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
-import { OpenClawGatewayManager } from '@/agent/openclaw';
 import * as net from 'node:net';
 
-const CONFIG_FILENAME = 'openclaw.json';
+const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 
@@ -204,40 +203,59 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.testGateway.provider(async () => {
     const testPort = SUDOCLAW_DEFAULT_PORT;
-    const manager = new OpenClawGatewayManager({
-      port: testPort,
-      stateDir: SUDOCLAW_DIR,
-      customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR },
-      forceSubprocessGateway: true,
+    const host = '127.0.0.1';
+
+    // Check if gateway is already running
+    const isRunning = await new Promise<boolean>((resolve) => {
+      const socket = net.createConnection({ host, port: testPort });
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.setTimeout(1000);
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(false);
+      });
     });
 
-    let stdout = '';
-    let stderr = '';
-    manager.on('stdout', (d) => {
-      stdout += d;
-    });
-    manager.on('stderr', (d) => {
-      stderr += d;
-    });
-
-    try {
-      const port = await manager.start();
-      // Test successful - shut down immediately as requested
-      await manager.stop();
-      return { success: true, data: { success: true, port, stdout, stderr } };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await manager.stop().catch(() => {});
-      return {
-        success: true,
-        data: { success: false, error: msg, stdout, stderr },
-      };
+    if (isRunning) {
+      console.log('[SudoclawBridge] Gateway running, connection test passed');
+      return { success: true, data: { success: true, port: testPort, stdout: 'Connection OK', stderr: '' } };
+    } else {
+      console.log('[SudoclawBridge] Gateway not running');
+      return { success: true, data: { success: false, error: 'Gateway is not running. Please start Sudoclaw first.', stdout: '', stderr: '' } };
     }
   });
 
   ipcBridge.sudoclaw.restartGateway.provider(async () => {
     try {
-      await WorkerManage.restartOpenClawGateways();
+      // Repair config before restart to ensure correct settings
+      const { repairOpenClawConfig } = await import('../services/sudoclaw/SudoclawInstallService');
+      repairOpenClawConfig();
+
+      // Check if there are running gateway tasks
+      const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
+
+      if (openclawTasks.length > 0) {
+        // Restart existing gateways
+        await WorkerManage.restartOpenClawGateways();
+      } else {
+        // No running gateway - start a new one
+        console.log('[SudoclawBridge] No running gateway, starting new one...');
+        const { OpenClawGatewayManager } = await import('@/agent/openclaw');
+        const gatewayManager = new OpenClawGatewayManager({
+          port: SUDOCLAW_DEFAULT_PORT,
+          stateDir: SUDOCLAW_DIR,
+          customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: path.join(SUDOCLAW_DIR, CONFIG_FILENAME) },
+          forceSubprocessGateway: true,
+        });
+        await gatewayManager.start();
+      }
       return { success: true };
     } catch (err) {
       console.error('[SudoclawBridge] Restart gateway failed:', err);
@@ -308,7 +326,7 @@ export function initSudoclawBridge(): void {
       console.log('[SudoclawBridge] Starting WeChat plugin installation...');
       ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'installing', message: '正在安装微信插件...' });
 
-      // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/.sudoclaw/
+      // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/sudoclaw/
       const sudoclawBinDir = path.join(SUDOCLAW_DIR, 'bin');
       const env: Record<string, string> = {
         ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined) as [string, string][]),

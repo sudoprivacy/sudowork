@@ -1,16 +1,16 @@
 import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
-import { IconHome, IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
+import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
-import { useThemeContext } from './context/ThemeContext';
 import { isElectronDesktop } from './utils/platform';
+import { useAuth } from './context/AuthContext';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -23,21 +23,20 @@ interface SiderProps {
 const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
-  const location = useLocation();
-  const { pathname, search, hash } = location;
+  const { pathname, search, hash } = useLocation();
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { theme, setTheme } = useThemeContext();
+  const { logout, user: currentUser } = useAuth();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
-  // 模拟用户信息（实际应从配置或存储中获取）
+  // 从 AuthContext 获取实际用户信息
   const userInfo = {
-    email: 'user@example.com',
-    name: 'User',
+    email: currentUser?.phone || '',
+    name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };
 
@@ -82,9 +81,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     setIsBatchMode((prev) => !prev);
   };
 
-  const handleQuickThemeToggle = () => {
-    void setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
@@ -215,7 +211,14 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   </div>
                 </Menu.Item>
                 <Menu.Item key='logout'>
-                  <div className='flex items-center gap-8px text-[rgb(var(--danger-6))]'>
+                  <div
+                    className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
+                    onClick={async () => {
+                      await logout();
+                      Message.success('已退出登录');
+                      void navigate('/login', { replace: true });
+                    }}
+                  >
                     <Logout theme='outline' size='18' />
                     <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
                   </div>
@@ -243,17 +246,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         ) : (
           /* 设置页面 - 主题切换 + 返回按钮 */
           <div className='flex flex-col gap-2px'>
-            {/* 主题切换 */}
-            <Tooltip {...siderTooltipProps} content={theme === 'dark' ? t('settings.lightMode') : t('settings.darkMode')} position='right'>
-              <div onClick={handleQuickThemeToggle} className={classNames('flex items-center py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center px-4px w-40px h-40px' : 'justify-start gap-10px px-16px')}>
-                {theme === 'dark' ? <IconSunFill style={{ fontSize: 18, color: 'rgb(var(--primary-6))' }} /> : <IconMoonFill style={{ fontSize: 18, color: 'rgb(var(--primary-6))' }} />}
-                {!collapsed && (
-                  <span className='text-t-primary'>
-                    {t('settings.theme')} · {theme === 'dark' ? t('settings.darkMode') : t('settings.lightMode')}
-                  </span>
-                )}
-              </div>
-            </Tooltip>
             {/* 返回按钮 */}
             <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>

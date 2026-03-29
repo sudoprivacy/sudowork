@@ -202,6 +202,7 @@
   "fontSizeReset": "恢复默认缩放",
   "lightMode": "浅色",
   "darkMode": "深色",
+  "systemMode": "系统",
   "agent": "对话Agent",
   "tools": "工具",
   "skill": "技能",
@@ -689,5 +690,7 @@
   "openclaw.failedToLoadStatus": "加载状态失败",
   "openclaw.gatewayUrlRequired": "请输入 Gateway URL",
   "openclaw.workspaceOpened": "工作区已打开",
-  "openclaw.failedToOpenWorkspace": "打开工作区失败"
+  "openclaw.failedToOpenWorkspace": "打开工作区失败",
+  "profile": "用户中心",
+  "memberManagement": "成员管理"
 }
