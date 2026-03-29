@@ -596,7 +596,7 @@ export function initConversationBridge(): void {
     for (const f of filesToProcess) {
       if (f.startsWith('bdpan://')) {
         // Parse bdpan:///<path>?root=<root>
-        const raw = f.slice('bdpan://'.length);
+        const raw = decodeURIComponent(f.slice('bdpan://'.length));
         const qIdx = raw.indexOf('?');
         const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
         const rootParam = qIdx >= 0 ? new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '' : '';

@@ -11,9 +11,11 @@ import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Tag } from '@arco-design/web-react';
-import { Plus, Shield } from '@icon-park/react';
+import { Button, Dropdown, Menu, Tag } from '@arco-design/web-react';
+import { Plus, Shield, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FilePreview from '@/renderer/components/FilePreview';
@@ -605,6 +607,8 @@ const AcpSendBox: React.FC<{
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
+  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
 
   useAddEventListener('acp.selected.file', setAtPath);
   useAddEventListener('acp.selected.file.append', (items: Array<string | FileOrFolderItem>) => {
@@ -642,7 +646,39 @@ const AcpSendBox: React.FC<{
         lockMultiLine={true}
         tools={
           <div className='flex items-center gap-4px'>
-            <Button type='secondary' shape='circle' icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} onClick={openFileSelector} />
+            <Dropdown
+              trigger='hover'
+              onVisibleChange={setIsPlusDropdownOpen}
+              droplist={
+                <Menu
+                  className='min-w-200px'
+                  onClickMenuItem={(key) => {
+                    if (key === 'file') {
+                      openFileSelector();
+                    } else if (key === 'bdpan') {
+                      setBdpanSelectorVisible(true);
+                    }
+                  }}
+                >
+                  <Menu.Item key='file'>
+                    <div className='flex items-center gap-8px'>
+                      <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                      <span>{t('conversation.welcome.uploadLocalFile')}</span>
+                    </div>
+                  </Menu.Item>
+                  <Menu.Item key='bdpan'>
+                    <div className='flex items-center gap-8px'>
+                      <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                      <span>{t('conversation.welcome.uploadBdpanFile')}</span>
+                    </div>
+                  </Menu.Item>
+                </Menu>
+              }
+            >
+              <span>
+                <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+              </span>
+            </Dropdown>
             <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
@@ -716,6 +752,14 @@ const AcpSendBox: React.FC<{
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
       ></SendBox>
+      <BdpanFileSelector
+        visible={bdpanSelectorVisible}
+        onCancel={() => setBdpanSelectorVisible(false)}
+        onConfirm={(paths) => {
+          setBdpanSelectorVisible(false);
+          appendSelectedFiles(paths);
+        }}
+      />
     </div>
   );
 };

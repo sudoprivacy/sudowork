@@ -165,7 +165,8 @@ export interface BdpanFileEntry {
 
 export const bdpan = {
   whoami: bridge.buildProvider<IBridgeResponse<{ authenticated: boolean; has_valid_token: boolean; username?: string; error?: string }>, void>('bdpan.whoami'),
-  loginInteractive: bridge.buildProvider<IBridgeResponse<{ type: string; message?: string }>, void>('bdpan.loginInteractive'),
+  loginGetAuthUrl: bridge.buildProvider<IBridgeResponse<{ auth_url?: string; error?: string }>, void>('bdpan.loginGetAuthUrl'),
+  loginSetCode: bridge.buildProvider<IBridgeResponse<{ type: string; message?: string }>, { code: string }>('bdpan.loginSetCode'),
   ls: bridge.buildProvider<IBridgeResponse<{ files: BdpanFileEntry[]; error?: string }>, { path: string }>('bdpan.ls'),
   logout: bridge.buildProvider<IBridgeResponse<{ success: boolean }>, void>('bdpan.logout'),
   download: bridge.buildProvider<IBridgeResponse<{ localPath: string }>, { remotePath: string; destDir: string }>('bdpan.download'),

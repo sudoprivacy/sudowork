@@ -78,62 +78,37 @@ export function initBdpanBridge(): void {
     };
   });
 
-  // ── loginInteractive ─────────────────────────────────────────────────────────
-  // Spawns bdpan login, intercepts the auth URL to open in system browser,
-  // then sends the auth code via stdin and waits for final result.
-  ipcBridge.bdpan.loginInteractive.provider(async () => {
-    return new Promise((resolve) => {
-      const bin = getBdpanPath();
-      const child = spawn(bin, ['login', '--accept-disclaimer', '--json'], {
-        env: { ...process.env, HOME: os.homedir() },
-      });
+  // ── loginGetAuthUrl ──────────────────────────────────────────────────────────
+  // Step 1: get the OAuth auth URL from bdpan
+  ipcBridge.bdpan.loginGetAuthUrl.provider(async () => {
+    const { stdout, stderr, code } = await runBdpan(['login', '--accept-disclaimer', '--get-auth-url', '--json']);
+    mainLog('Bdpan', `loginGetAuthUrl exit=${code} stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`);
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    mainLog('Bdpan', `loginGetAuthUrl parsed json=${JSON.stringify(json)}`);
+    // auth_url is nested under json.data; error is at top level (empty string means no error)
+    const authUrl = json && !Array.isArray(json) && (json['data'] as Record<string, unknown>)?.['auth_url'];
+    if (authUrl) {
+      return { success: true, data: { auth_url: String(authUrl) } };
+    }
+    const errMsg = (json && !Array.isArray(json) && json['error']) ? String(json['error']) : (stderr || stdout || 'Failed to get auth URL');
+    mainError('Bdpan', `loginGetAuthUrl failed: ${errMsg}`);
+    return { success: false, data: { error: errMsg } };
+  });
 
-      let stdout = '';
-      let resolved = false;
-
-      const done = (result: { success: boolean; data: { type: string; message?: string } }) => {
-        if (!resolved) {
-          resolved = true;
-          resolve(result);
-        }
-      };
-
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdout += text;
-        mainLog('Bdpan', `login stdout: ${text.trim()}`);
-
-        // Check for success/error JSON in line
-        for (const line of text.split('\n').filter(Boolean)) {
-          const json = parseLastJson(line) as Record<string, unknown> | null;
-          if (json && !Array.isArray(json) && (json['message'] === '登录成功' || json['authenticated'] === true || json['success'] === true)) {
-            done({ success: true, data: { type: 'success' } });
-          } else if (json && !Array.isArray(json) && json['error']) {
-            done({ success: false, data: { type: 'error', message: String(json['error']) } });
-          } else if (line.includes('登录成功') || line.includes('授权成功')) {
-            done({ success: true, data: { type: 'success' } });
-          }
-        }
-      });
-
-      child.stderr.on('data', (chunk: Buffer) => {
-        mainWarn('Bdpan', `login stderr: ${chunk.toString().trim()}`);
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          done({ success: true, data: { type: 'success' } });
-        } else {
-          const json = parseLastJson(stdout) as Record<string, unknown> | null;
-          const errMsg = json && !Array.isArray(json) && json['error'] ? String(json['error']) : null;
-          done({ success: false, data: { type: 'error', message: errMsg ?? '' } });
-        }
-      });
-
-      child.on('error', (err) => {
-        done({ success: false, data: { type: 'error', message: err.message } });
-      });
-    });
+  // ── loginSetCode ─────────────────────────────────────────────────────────────
+  // Step 2: submit the auth code the user retrieved from browser
+  ipcBridge.bdpan.loginSetCode.provider(async ({ code }) => {
+    const { stdout, stderr, code: exitCode } = await runBdpan(['login', '--set-code', code, '--json']);
+    mainLog('Bdpan', `loginSetCode exit=${exitCode} stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`);
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    // Success: exit 0 AND no non-empty error field
+    const errField = json && !Array.isArray(json) ? String(json['error'] ?? '') : '';
+    if (exitCode === 0 && !errField) {
+      return { success: true, data: { type: 'success' } };
+    }
+    const errMsg = errField || stderr || stdout || 'Login failed';
+    mainError('Bdpan', `loginSetCode failed: ${errMsg}`);
+    return { success: false, data: { type: 'error', message: errMsg } };
   });
 
   // ── logout ───────────────────────────────────────────────────────────────────
@@ -147,9 +122,11 @@ export function initBdpanBridge(): void {
   ipcBridge.bdpan.download.provider(async ({ remotePath, destDir }) => {
     const filename = remotePath.split('/').filter(Boolean).pop() ?? 'bdpan_file';
     const localPath = path.join(destDir, filename);
-    const { stdout, stderr, code } = await runBdpan(['download', remotePath, localPath, '--json']);
-    if (code !== 0) {
-      mainError('Bdpan', `download failed: ${stderr || stdout}`);
+    const { stdout, stderr } = await runBdpan(['download', remotePath, localPath, '--json']);
+    const json = parseLastJson(stdout) as Record<string, unknown> | null;
+    if (!json || json['code'] !== 0) {
+      const errMsg = (json?.['error'] as string | undefined) || stderr || stdout || 'bdpan download failed';
+      mainError('Bdpan', `download failed: ${errMsg}`);
       return { success: false, data: { localPath: '' } };
     }
     mainLog('Bdpan', `downloaded ${remotePath} → ${localPath}`);

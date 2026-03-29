@@ -7,12 +7,12 @@
 import { ipcBridge } from '@/common';
 import type { BdpanFileEntry } from '@/common/ipcBridge';
 import AionModal from '@/renderer/components/base/AionModal';
-import { Button, Message, Spin } from '@arco-design/web-react';
+import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Close, FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-type Step = 'checking' | 'waiting_auth' | 'file_browser' | 'error';
+type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';
 
 interface Props {
   visible: boolean;
@@ -69,8 +69,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Track whether loginInteractive is running
-  const loginPending = useRef(false);
+  const [authCode, setAuthCode] = useState('');
 
   // ── Load files ───────────────────────────────────────────────────────────────
   const loadFiles = useCallback(async (dirPath: string, root?: string) => {
@@ -123,40 +122,47 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
     }
   }, [loadFiles]);
 
-  // ── Step: login ─────────────────────────────────────────────────────────────
+  // ── Step 1: get auth URL and open browser ────────────────────────────────────
   const startLogin = async () => {
-    if (loginPending.current) return;
-    loginPending.current = true;
-    setStep('waiting_auth');
-
-    // Fire the interactive login in the background (long-running, may not resolve promptly)
-    ipcBridge.bdpan.loginInteractive.invoke().catch(() => {});
-
-    // Poll whoami until authenticated or timeout (~90s)
-    const POLL_INTERVAL = 2000;
-    const MAX_POLLS = 45;
-    let polls = 0;
-    const poll = async (): Promise<void> => {
-      if (!loginPending.current) return; // cancelled (e.g. modal closed)
-      polls++;
-      try {
-        const whoami = await ipcBridge.bdpan.whoami.invoke();
-        if (whoami?.success && whoami.data?.authenticated && whoami.data?.has_valid_token) {
-          loginPending.current = false;
-          setUsername(whoami.data.username);
-          await loadFiles('/');
-          return;
-        }
-      } catch {}
-      if (polls >= MAX_POLLS) {
-        loginPending.current = false;
+    setStep('getting_auth_url');
+    setAuthCode('');
+    setErrorMsg('');
+    try {
+      const res = await ipcBridge.bdpan.loginGetAuthUrl.invoke();
+      if (!res?.success || !res.data?.auth_url) {
         setStep('error');
-        setErrorMsg(t('conversation.bdpan.loginTimeout'));
+        setErrorMsg(res?.data?.error ?? t('conversation.bdpan.loginFailed'));
         return;
       }
-      setTimeout(poll, POLL_INTERVAL);
-    };
-    setTimeout(poll, POLL_INTERVAL);
+      // Auto-open the auth URL in system default browser
+      ipcBridge.shell.openExternal.invoke(res.data.auth_url).catch(() => {});
+      setStep('enter_code');
+    } catch (err) {
+      setStep('error');
+      setErrorMsg(String(err));
+    }
+  };
+
+  // ── Step 2: submit the auth code user retrieved from browser ─────────────────
+  const submitAuthCode = async () => {
+    const trimmed = authCode.trim();
+    if (trimmed.length !== 32) return;
+    setStep('submitting_code');
+    try {
+      const res = await ipcBridge.bdpan.loginSetCode.invoke({ code: trimmed });
+      if (res?.success) {
+        // Fetch username via whoami then go to file browser
+        const whoami = await ipcBridge.bdpan.whoami.invoke();
+        setUsername(whoami?.data?.username);
+        await loadFiles('/');
+      } else {
+        setErrorMsg(res?.data?.message ?? t('conversation.bdpan.loginFailed'));
+        setStep('error');
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+      setStep('error');
+    }
   };
 
   const logout = async () => {
@@ -185,14 +191,12 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      loginPending.current = false;
       setUsername(undefined);
       setBdpanRoot(null);
       setFiles([]);
       setSelected(new Set());
+      setAuthCode('');
       checkAuth();
-    } else {
-      loginPending.current = false; // stop any in-flight poll when modal closes
     }
   }, [visible]);
 
@@ -207,11 +211,38 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       );
     }
 
-    if (step === 'waiting_auth') {
+    if (step === 'getting_auth_url') {
       return (
         <div className='flex flex-col items-center justify-center h-300px gap-12px'>
           <Spin size={32} />
-          <span className='text-t-secondary text-14px'>{t('conversation.bdpan.waitingAuth')}</span>
+          <span className='text-t-secondary text-14px'>{t('conversation.bdpan.gettingAuthUrl')}</span>
+        </div>
+      );
+    }
+
+    if (step === 'enter_code' || step === 'submitting_code') {
+      return (
+        <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
+          <div className='flex items-center gap-8px'>
+            <span className='text-t-primary text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
+            <Input
+              style={{ width: 160 }}
+              maxLength={32}
+              placeholder={t('conversation.bdpan.authCodePlaceholder')}
+              value={authCode}
+              onChange={setAuthCode}
+              onPressEnter={submitAuthCode}
+              disabled={step === 'submitting_code'}
+            />
+            <Button
+              type='primary'
+              loading={step === 'submitting_code'}
+              disabled={authCode.trim().length !== 32}
+              onClick={submitAuthCode}
+            >
+              {t('conversation.bdpan.authCodeSubmit')}
+            </Button>
+          </div>
         </div>
       );
     }
@@ -223,7 +254,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
           {errorMsg && <p className='text-t-secondary text-12px text-center m-0'>{errorMsg}</p>}
           <div className='flex gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
-            <Button type='primary' onClick={checkAuth}>{t('conversation.bdpan.retry')}</Button>
+            <Button type='primary' onClick={startLogin}>{t('conversation.bdpan.retry')}</Button>
           </div>
         </div>
       );
