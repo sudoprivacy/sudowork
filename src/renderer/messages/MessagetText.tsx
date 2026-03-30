@@ -9,13 +9,16 @@ import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { ipcBridge } from '@/common';
 import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Message, Tooltip, Tag } from '@arco-design/web-react';
-import { Copy, FileWord, Lightning } from '@icon-park/react';
+import { Copy, FileWord, Lightning, CloseSmall } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { copyText } from '@/renderer/utils/clipboard';
 import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { emitter } from '@/renderer/utils/emitter';
+import { getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
+import { skillHub } from '@/common/ipcBridge';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import CollapsibleContent from '../components/CollapsibleContent';
 import FilePreview from '../components/FilePreview';
 import HorizontalFileList from '../components/HorizontalFileList';
@@ -74,6 +77,23 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   const [converting, setConverting] = useState(false);
   const isUserMessage = message.position === 'right';
   const skills = message.content.skills || [];
+
+  // 获取已安装的技能信息用于显示
+  const [installedSkills, setInstalledSkills] = useState<any[]>([]);
+  useEffect(() => {
+    if (!isElectronDesktop() || skills.length === 0) return;
+    const fetchInstalledSkills = async () => {
+      try {
+        const res = await skillHub.getInstalledSkills.invoke();
+        if (res.success && res.data) {
+          setInstalledSkills(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch installed skills:', err);
+      }
+    };
+    void fetchInstalledSkills();
+  }, [skills.length]);
 
   const handleConvertToWord = useCallback(async () => {
     if (converting) return;
@@ -178,21 +198,26 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
             <div className='flex items-center gap-4px text-10px text-t-secondary mb-4px'>
               <Lightning size='10' className='text-primary' />
-              <span>{t('messages.skills.usedSkills', { defaultValue: '使用技能' })}</span>
+              <span>当前使用技能</span>
             </div>
-            <div className='flex flex-wrap gap-4px'>
-              {skills.map((skillName) => (
-                <Tag
-                  key={skillName}
-                  className='text-11px bg-primary-light b-1 b-solid b-border-2 rd-4px'
-                  style={{
-                    backgroundColor: 'var(--color-primary-light-1)',
-                    borderColor: 'var(--color-primary-light-2)',
-                  }}
-                >
-                  {skillName}
-                </Tag>
-              ))}
+            <div className='flex flex-wrap gap-6px'>
+              {skills.map((skillName) => {
+                const skillInfo = installedSkills.find((s) => s.name === skillName);
+                const { displayName, emoji } = getInstalledSkillDisplay(skillInfo || { name: skillName, version: '' });
+                return (
+                  <Tag
+                    key={skillName}
+                    className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                    style={{
+                      backgroundColor: 'var(--color-primary-light-1)',
+                      borderColor: 'var(--color-primary-light-2)',
+                    }}
+                  >
+                    <span className='mr-4px'>{emoji || '⚡'}</span>
+                    {displayName}
+                  </Tag>
+                );
+              })}
             </div>
           </div>
         )}

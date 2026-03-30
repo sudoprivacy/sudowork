@@ -498,7 +498,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         sessionStorage.setItem(processedKey, 'true');
         setAiProcessing(true);
         aiProcessingRef.current = true;
-        const { input, files = [] } = JSON.parse(stored) as { input: string; files?: string[] };
+        const { input, files = [], skills = [] } = JSON.parse(stored) as { input: string; files?: string[]; skills?: string[] };
         const msg_id = `initial_${conversation_id}_${Date.now()}`;
         const loading_id = uuid();
         const initialDisplayMessage = buildDisplayMessage(input, files, workspacePath);
@@ -509,12 +509,12 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
           conversation_id,
           type: 'text',
           position: 'right',
-          content: { content: initialDisplayMessage },
+          content: { content: initialDisplayMessage, skills: skills.length > 0 ? skills : undefined },
           createdAt: Date.now(),
         };
         addOrUpdateMessage(userMessage, true);
 
-        await ipcBridge.openclawConversation.sendMessage.invoke({ input: initialDisplayMessage, msg_id, conversation_id, files, loading_id });
+        await ipcBridge.openclawConversation.sendMessage.invoke({ input: initialDisplayMessage, msg_id, conversation_id, files, loading_id, skills: skills.length > 0 ? skills : undefined });
         void checkAndUpdateTitle(conversation_id, input);
         emitter.emit('chat.history.refresh');
         sessionStorage.removeItem(storageKey);

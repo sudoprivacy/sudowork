@@ -240,10 +240,16 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         processedContent = `${fileRefs} ${processedContent}`;
       }
 
+      // Process skills - append as metadata comment for Sudoclaw to parse
+      if (data.skills && data.skills.length > 0) {
+        processedContent = `[Skills: ${data.skills.join(', ')}]\n\n${processedContent}`;
+      }
+
       // Send chat message
       await this.connection!.chatSend({
         sessionKey: this.connection!.sessionKey!,
         message: processedContent,
+        skills: data.skills,
       });
 
       return { success: true, data: null } as AcpResult;

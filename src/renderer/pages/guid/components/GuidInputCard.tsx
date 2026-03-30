@@ -7,9 +7,9 @@
 import FilePreview from '@/renderer/components/FilePreview';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
-import { Input, Tooltip } from '@arco-design/web-react';
+import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import { IconClose } from '@arco-design/web-react/icon';
-import { FolderOpen } from '@icon-park/react';
+import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,13 @@ type GuidInputCardProps = {
   mentionSelectorBadge: React.ReactNode;
   mentionDropdown: React.ReactNode;
 
+  // Skill selector state
+  skillSelectorOpen?: boolean;
+  skillSelectorMenu?: React.ReactNode;
+  selectedSkills?: string[];
+  onRemoveSkill?: (skillName: string) => void;
+  getSkillDisplayName?: (skillName: string) => { displayName: string; emoji: string };
+
   // Files
   files: string[];
   onRemoveFile: (path: string) => void;
@@ -50,7 +57,7 @@ type GuidInputCardProps = {
   actionRow: React.ReactNode;
 };
 
-const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, files, onRemoveFile, dir, onClearDir, actionRow }) => {
+const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -64,7 +71,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
 
   return (
     <div
-      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -86,10 +93,47 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       {...dragHandlers}
     >
       {mentionSelectorBadge}
+      {/* 已选技能标签 */}
+      {selectedSkills && selectedSkills.length > 0 && (
+        <div className='flex flex-col gap-6px mb-8px'>
+          <div className='flex items-center gap-4px text-11px text-t-secondary'>
+            <Lightning size='12' className='text-primary' />
+            <span>当前使用技能</span>
+          </div>
+          <div className='flex flex-wrap gap-6px'>
+            {selectedSkills.map((skillName) => {
+              const skillInfo = getSkillDisplayName?.(skillName);
+              const displayName = skillInfo?.displayName || skillName;
+              const emoji = skillInfo?.emoji || '⚡';
+              return (
+                <Tag
+                  key={skillName}
+                  closable
+                  closeIcon={<CloseSmall theme='outline' size='12' />}
+                  onClose={() => onRemoveSkill?.(skillName)}
+                  className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                  style={{
+                    backgroundColor: 'var(--color-primary-light-1)',
+                    borderColor: 'var(--color-primary-light-2)',
+                  }}
+                >
+                  <span className='mr-4px'>{emoji}</span>
+                  {displayName}
+                </Tag>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} {...compositionHandlers} onKeyDown={handleKeyDown} />
       {mentionOpen && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
           {mentionDropdown}
+        </div>
+      )}
+      {skillSelectorOpen && skillSelectorMenu && (
+        <div className='absolute z-50' style={{ left: 16, top: 44 }}>
+          {skillSelectorMenu}
         </div>
       )}
       {files.length > 0 && (

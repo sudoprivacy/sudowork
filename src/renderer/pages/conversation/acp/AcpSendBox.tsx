@@ -483,7 +483,7 @@ const AcpSendBox: React.FC<{
     const sendInitialMessage = async () => {
       try {
         const initialMessage = JSON.parse(storedMessage);
-        const { input, files } = initialMessage;
+        const { input, files, skills = [] } = initialMessage;
 
         // ACP: 不使用 buildDisplayMessage，直接传原始 input
         // 文件引用由后端 ACP agent 负责添加（使用复制后的实际路径）
@@ -499,6 +499,7 @@ const AcpSendBox: React.FC<{
           msg_id,
           conversation_id,
           files,
+          skills: skills.length > 0 ? skills : undefined,
         });
 
         if (result && result.success === true) {
