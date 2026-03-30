@@ -15,6 +15,7 @@
 import type { Nexus } from '@/common/nexus';
 import { getNexusRpcClient } from '@/common/nexus';
 import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileData, EventType, RiskLevel, NetworkEventData, FileEventData } from '@/common/safetyTypes';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Nexus security hook directory paths */
 export const EVENT_DIR = '/safe/event';
@@ -53,9 +54,9 @@ export async function writeEnabledState(enabled: boolean, fastPass: boolean = fa
   try {
     const client = getNexusClient();
     await client.write(ENABLED_CONFIG_PATH, JSON.stringify({ enabled, fastPass, timestamp: Date.now() }));
-    console.log(`[SecurityHook] Wrote enabled state: ${enabled}${fastPass ? ' (fastPass)' : ''}`);
+    mainLog('SecurityHook', `Wrote enabled state: ${enabled}${fastPass ? ' (fastPass)' : ''}`);
   } catch (error) {
-    console.error('[SecurityHook] Failed to write enabled state:', error);
+    mainError('SecurityHook', 'Failed to write enabled state:', error);
   }
 }
 
@@ -115,7 +116,7 @@ export async function readEventFile(eventUuidOrPath: string): Promise<EventFileD
 
     return null;
   } catch (error) {
-    console.error('[SecurityHook] Failed to read event file:', error);
+    mainError('SecurityHook', 'Failed to read event file:', error);
     return null;
   }
 }
@@ -130,7 +131,7 @@ export async function writeActionFile(eventUuid: string, data: ActionFileData): 
     await client.write(filePath, JSON.stringify(data, null, 2));
     return filePath;
   } catch (error) {
-    console.error('[SecurityHook] Failed to write action file:', error);
+    mainError('SecurityHook', 'Failed to write action file:', error);
     return null;
   }
 }
@@ -170,7 +171,7 @@ async function listFilenames(dirPath: string): Promise<string[]> {
       return (path || name).split('/').pop() || name;
     });
   } catch (error) {
-    console.error(`[SecurityHook] Failed to list filenames in ${dirPath}:`, error);
+    mainError('SecurityHook', `Failed to list filenames in ${dirPath}:`, error);
     return [];
   }
 }
@@ -195,7 +196,7 @@ export async function listEventFiles(): Promise<Array<{ filename: string; filePa
 
     return files;
   } catch (error) {
-    console.error('[SecurityHook] Failed to list event files:', error);
+    mainError('SecurityHook', 'Failed to list event files:', error);
     return [];
   }
 }
@@ -210,7 +211,7 @@ export async function deleteEventFile(eventUuid: string): Promise<boolean> {
     await client.delete(filePath);
     return true;
   } catch (error) {
-    console.error('[SecurityHook] Failed to delete event file:', error);
+    mainError('SecurityHook', 'Failed to delete event file:', error);
     return false;
   }
 }
@@ -223,7 +224,7 @@ export async function fileExists(filePath: string): Promise<boolean> {
     const client = getNexusClient();
     return await client.exists(filePath);
   } catch (error) {
-    console.error('[SecurityHook] Failed to check file existence:', error);
+    mainError('SecurityHook', 'Failed to check file existence:', error);
     return false;
   }
 }

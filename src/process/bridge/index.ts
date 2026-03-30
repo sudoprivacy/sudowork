@@ -13,6 +13,7 @@ import { initChannelBridge } from './channelBridge';
 import { initConversationBridge } from './conversationBridge';
 import { initCronBridge } from './cronBridge';
 import { initDatabaseBridge } from './databaseBridge';
+import { mainError } from '@process/utils/mainLogger';
 import { initDialogBridge } from './dialogBridge';
 import { initDocumentBridge } from './documentBridge';
 import { initFileWatchBridge } from './fileWatchBridge';
@@ -89,7 +90,7 @@ export async function initializeAcpDetector(): Promise<void> {
   try {
     await acpDetector.initialize();
   } catch (error) {
-    console.error('[ACP] Failed to initialize detector:', error);
+    mainError('ACP', 'Failed to initialize detector:', error);
   }
 }
 

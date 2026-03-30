@@ -408,7 +408,7 @@ export function initConversationBridge(): void {
       // Filter by workspace
       return allConversations.filter((item) => item.extra?.workspace === currentConversation.extra.workspace);
     } catch (error) {
-      console.error('[conversationBridge] Failed to get associate conversations:', error);
+      mainError('conversationBridge', 'Failed to get associate conversations:', error);
       return [];
     }
   });
@@ -423,7 +423,7 @@ export function initConversationBridge(): void {
       const db = getDatabase();
       const result = db.createConversation(conversation);
       if (!result.success) {
-        console.error('[conversationBridge] Failed to create conversation in database:', result.error);
+        mainError('conversationBridge', 'Failed to create conversation in database:', result.error);
       }
 
       // Migrate messages if sourceConversationId is provided / 如果提供了源会话ID，则迁移消息
@@ -459,18 +459,18 @@ export function initConversationBridge(): void {
           if (sourceMessages.total === newMessages.total) {
             const deleteResult = db.deleteConversation(sourceConversationId);
             if (deleteResult.success) {
-              console.log(`[conversationBridge] Successfully migrated and deleted source conversation ${sourceConversationId}`);
+              mainLog('conversationBridge', `Successfully migrated and deleted source conversation ${sourceConversationId}`);
             } else {
-              console.error(`[conversationBridge] Failed to delete source conversation ${sourceConversationId}: ${deleteResult.error}`);
+              mainError('conversationBridge', `Failed to delete source conversation ${sourceConversationId}: ${deleteResult.error}`);
             }
           } else {
-            console.error('[conversationBridge] Migration integrity check failed: Message counts do not match.', {
+            mainError('conversationBridge', 'Migration integrity check failed: Message counts do not match.', {
               source: sourceMessages.total,
               new: newMessages.total,
             });
           }
         } catch (msgError) {
-          console.error('[conversationBridge] Failed to copy messages during migration:', msgError);
+          mainError('conversationBridge', 'Failed to copy messages during migration:', msgError);
         }
       }
 
@@ -478,7 +478,7 @@ export function initConversationBridge(): void {
 
       return Promise.resolve(conversation);
     } catch (error) {
-      console.error('[conversationBridge] Failed to create conversation with conversation:', error);
+      mainError('conversationBridge', 'Failed to create conversation with conversation:', error);
       return Promise.resolve(conversation);
     }
   });
@@ -494,7 +494,7 @@ export function initConversationBridge(): void {
       scheduleConversationWorkspaceSkillSync(result.data);
       return { success: true };
     } catch (error) {
-      console.error('[conversationBridge] Failed to sync workspace skills:', error);
+      mainError('conversationBridge', 'Failed to sync workspace skills:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -519,7 +519,7 @@ export function initConversationBridge(): void {
           ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
         }
       } catch (cronError) {
-        console.warn('[conversationBridge] Failed to cleanup cron jobs:', cronError);
+        mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
       }
 
       // If source is not 'aionui' (e.g., telegram), cleanup channel resources
@@ -529,23 +529,23 @@ export function initConversationBridge(): void {
           const channelManager = getChannelManager();
           if (channelManager.isInitialized()) {
             await channelManager.cleanupConversation(id);
-            console.log(`[conversationBridge] Cleaned up channel resources for ${source} conversation ${id}`);
+            mainLog('conversationBridge', `Cleaned up channel resources for ${source} conversation ${id}`);
           }
         } catch (cleanupError) {
-          console.warn('[conversationBridge] Failed to cleanup channel resources:', cleanupError);
+          mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
         }
       }
 
       // Delete conversation from database (will cascade delete messages due to foreign key)
       const result = db.deleteConversation(id);
       if (!result.success) {
-        console.error('[conversationBridge] Failed to delete conversation from database:', result.error);
+        mainError('conversationBridge', 'Failed to delete conversation from database:', result.error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('[conversationBridge] Failed to remove conversation:', error);
+      mainError('conversationBridge', 'Failed to remove conversation:', error);
       return false;
     }
   });
@@ -582,7 +582,7 @@ export function initConversationBridge(): void {
 
       return result.success;
     } catch (error) {
-      console.error('[conversationBridge] Failed to update conversation:', error);
+      mainError('conversationBridge', 'Failed to update conversation:', error);
       return false;
     }
   });
@@ -621,7 +621,7 @@ export function initConversationBridge(): void {
 
       return undefined;
     } catch (error) {
-      console.error('[conversationBridge] Failed to get conversation:', error);
+      mainError('conversationBridge', 'Failed to get conversation:', error);
       return undefined;
     }
   });
@@ -709,28 +709,28 @@ export function initConversationBridge(): void {
 
   // 通用 sendMessage 实现 - 自动根据 conversation 类型分发
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
-    console.log(`[conversationBridge] sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
+    mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
     let task: AcpAgent | OpenClawAgent | undefined;
     try {
       task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
     } catch (err) {
-      console.log(`[conversationBridge] sendMessage: failed to get/build task: ${conversation_id}`, err);
+      mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
     }
 
     if (!task) {
-      console.log(`[conversationBridge] sendMessage: conversation not found: ${conversation_id}`);
+      mainLog('conversationBridge', `sendMessage: conversation not found: ${conversation_id}`);
       return { success: false, msg: 'conversation not found' };
     }
-    console.log(`[conversationBridge] sendMessage: found task type=${task.type}, status=${task.status}`);
+    mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
 
     // 复制文件到工作空间（所有 agents 统一处理）
     let filesToProcess = files ?? [];
     const openclawTask = task as OpenClawAgent;
     if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
       filesToProcess = [openclawTask.workspace];
-      console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
+      mainLog('conversationBridge', `OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
     }
 
     // Download bdpan:// files to workspace before copying

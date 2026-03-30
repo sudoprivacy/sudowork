@@ -9,6 +9,7 @@ import type { IWebUIStatus } from '@/common/ipcBridge';
 import { AuthService } from '@/webserver/auth/service/AuthService';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { AUTH_CONFIG, SERVER_CONFIG } from '@/webserver/config/constants';
+import { mainError } from '@process/utils/mainLogger';
 
 /**
  * WebUI 服务层 - 封装所有 WebUI 相关的业务逻辑
@@ -78,7 +79,7 @@ export class WebuiService {
     try {
       return await handler();
     } catch (error) {
-      console.error(`[WebUI Service] ${context} error:`, error);
+      mainError('WebUI Service', `${context} error:`, error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : `${context} failed`,

@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import semver from 'semver';
 import { autoUpdaterService } from '../services/autoUpdaterService';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -484,7 +485,7 @@ export function initUpdateBridge(): void {
       if (fs.existsSync(targetPath)) {
         const stats = fs.statSync(targetPath);
         if (stats.size > 0) {
-          console.log(`[Update] File already exists: ${targetPath}`);
+          mainLog('Update', `File already exists: ${targetPath}`);
           return Promise.resolve({ success: true, data: { downloadId: 'cached', filePath: targetPath } });
         }
       }
@@ -548,7 +549,7 @@ export function initUpdateBridge(): void {
     try {
       autoUpdaterService.quitAndInstall();
     } catch (err: unknown) {
-      console.error('quitAndInstall failed:', err);
+      mainError('Update', 'quitAndInstall failed:', err);
     }
   });
 

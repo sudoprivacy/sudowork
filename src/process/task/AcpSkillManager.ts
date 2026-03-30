@@ -13,6 +13,7 @@
  */
 
 import fs from 'fs/promises';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import path from 'path';
 import { existsSync } from 'fs';
 import { getSkillsDir, getBuiltinSkillsDir, isUserSkillEnabled } from '../initStorage';
@@ -148,7 +149,7 @@ export class AcpSkillManager {
 
     const builtinDir = this.builtinSkillsDir;
     if (!existsSync(builtinDir)) {
-      console.log(`[AcpSkillManager] Builtin skills directory not found: ${builtinDir}`);
+      mainLog('AcpSkillManager', `Builtin skills directory not found: ${builtinDir}`);
       this.builtinInitialized = true;
       return;
     }
@@ -176,13 +177,13 @@ export class AcpSkillManager {
 
           this.builtinSkills.set(skillName, skillDef);
         } catch (error) {
-          console.warn(`[AcpSkillManager] Failed to load builtin skill ${skillName}:`, error);
+          mainWarn('AcpSkillManager', `Failed to load builtin skill ${skillName}:`, error);
         }
       }
 
-      console.log(`[AcpSkillManager] Discovered ${this.builtinSkills.size} builtin skills`);
+      mainLog('AcpSkillManager', `Discovered ${this.builtinSkills.size} builtin skills`);
     } catch (error) {
-      console.error(`[AcpSkillManager] Failed to discover builtin skills:`, error);
+      mainError('AcpSkillManager', `Failed to discover builtin skills:`, error);
     }
 
     this.builtinInitialized = true;
@@ -217,7 +218,7 @@ export class AcpSkillManager {
 
         // 避免与内置/可选 skills 冲突 / Avoid conflicts with builtin/optional skills
         if (this.builtinSkills.has(extSkill.name) || this.skills.has(extSkill.name)) {
-          console.warn(`[AcpSkillManager] Extension skill "${extSkill.name}" conflicts with existing skill, skipping`);
+          mainWarn('AcpSkillManager', `Extension skill "${extSkill.name}" conflicts with existing skill, skipping`);
           continue;
         }
 
@@ -231,10 +232,10 @@ export class AcpSkillManager {
       }
 
       if (this.extensionSkills.size > 0) {
-        console.log(`[AcpSkillManager] Loaded ${this.extensionSkills.size} extension skills`);
+        mainLog('AcpSkillManager', `Loaded ${this.extensionSkills.size} extension skills`);
       }
     } catch (error) {
-      console.warn('[AcpSkillManager] Failed to load extension skills:', error);
+      mainWarn('AcpSkillManager', 'Failed to load extension skills:', error);
     }
 
     this.extensionInitialized = true;
@@ -260,7 +261,7 @@ export class AcpSkillManager {
 
     const skillsDir = this.skillsDir;
     if (!existsSync(skillsDir)) {
-      console.warn(`[AcpSkillManager] Skills directory not found: ${skillsDir}`);
+      mainWarn('AcpSkillManager', `Skills directory not found: ${skillsDir}`);
       this.initialized = true;
       return;
     }
@@ -302,13 +303,13 @@ export class AcpSkillManager {
 
           this.skills.set(skillName, skillDef);
         } catch (error) {
-          console.warn(`[AcpSkillManager] Failed to load skill ${skillName}:`, error);
+          mainWarn('AcpSkillManager', `Failed to load skill ${skillName}:`, error);
         }
       }
 
-      console.log(`[AcpSkillManager] Discovered ${this.skills.size} optional skills`);
+      mainLog('AcpSkillManager', `Discovered ${this.skills.size} optional skills`);
     } catch (error) {
-      console.error(`[AcpSkillManager] Failed to discover skills:`, error);
+      mainError('AcpSkillManager', `Failed to discover skills:`, error);
     }
 
     this.initialized = true;
@@ -396,7 +397,7 @@ export class AcpSkillManager {
         const content = await fs.readFile(skill.location, 'utf-8');
         skill.body = extractBody(content);
       } catch (error) {
-        console.warn(`[AcpSkillManager] Failed to load skill body for ${name}:`, error);
+        mainWarn('AcpSkillManager', `Failed to load skill body for ${name}:`, error);
         skill.body = '';
       }
     }

@@ -16,6 +16,7 @@ import { ProcessConfig } from '@/process/initStorage';
 import type { BlacklistConfig, BlacklistRule } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
 import { getNexusClient, CONFIG_DIR } from './SecurityHookFile';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Path in Nexus filesystem for blacklist config */
 export const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
@@ -44,7 +45,7 @@ export async function loadBlacklist(): Promise<BlacklistConfig> {
       };
     }
   } catch (error) {
-    console.error('[SafetyBlacklist] Failed to load from storage:', error);
+    mainError('SafetyBlacklist', 'Failed to load from storage:', error);
   }
   return { ...DEFAULT_BLACKLIST_CONFIG };
 }
@@ -57,7 +58,7 @@ export async function saveBlacklist(config: BlacklistConfig): Promise<boolean> {
     await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
     return true;
   } catch (error) {
-    console.error('[SafetyBlacklist] Failed to save to storage:', error);
+    mainError('SafetyBlacklist', 'Failed to save to storage:', error);
     return false;
   }
 }
@@ -71,10 +72,10 @@ export async function syncBlacklistToNexus(config: BlacklistConfig): Promise<boo
     const client = getNexusClient();
     await client.mkdir(CONFIG_DIR, true);
     await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
-    console.log('[SafetyBlacklist] Synced to Nexus:', BLACKLIST_CONFIG_PATH);
+    mainLog('SafetyBlacklist', 'Synced to Nexus:', BLACKLIST_CONFIG_PATH);
     return true;
   } catch (error) {
-    console.error('[SafetyBlacklist] Failed to sync to Nexus:', error);
+    mainError('SafetyBlacklist', 'Failed to sync to Nexus:', error);
     throw error;
   }
 }
@@ -152,7 +153,7 @@ export async function initBlacklist(): Promise<void> {
         const configStr = content.toString('utf-8');
         const nexusConfig = JSON.parse(configStr);
         await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, nexusConfig);
-        console.log('[SafetyBlacklist] Synced from Nexus to local storage');
+        mainLog('SafetyBlacklist', 'Synced from Nexus to local storage');
         return;
       }
     } catch (err) {
@@ -165,14 +166,14 @@ export async function initBlacklist(): Promise<void> {
       // Local storage has data, sync to Nexus
       await client.mkdir(CONFIG_DIR, true);
       await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(localConfig, null, 2));
-      console.log('[SafetyBlacklist] Synced from local storage to Nexus');
+      mainLog('SafetyBlacklist', 'Synced from local storage to Nexus');
     } else {
       // Neither has data, create empty config in Nexus
       await client.mkdir(CONFIG_DIR, true);
       await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify({ rules: [] }, null, 2));
-      console.log('[SafetyBlacklist] Initialized empty config in Nexus');
+      mainLog('SafetyBlacklist', 'Initialized empty config in Nexus');
     }
   } catch (error) {
-    console.error('[SafetyBlacklist] Failed to initialize:', error);
+    mainError('SafetyBlacklist', 'Failed to initialize:', error);
   }
 }

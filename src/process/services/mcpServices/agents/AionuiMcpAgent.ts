@@ -8,6 +8,7 @@ import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '../../../../common/storage';
 import { ProcessConfig } from '../../../initStorage';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /**
  * Sudowork 本地 MCP 代理实现
@@ -54,7 +55,7 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
         return supportedTypes.includes(server.transport.type);
       });
     } catch (error) {
-      console.warn('[AionuiMcpAgent] Failed to detect MCP servers:', error);
+      mainWarn('AionuiMcpAgent', 'Failed to detect MCP servers:', error);
       return [];
     }
   }
@@ -86,7 +87,7 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
             updatedAt: Date.now(),
           });
         } else {
-          console.warn(`[AionuiMcpAgent] Skipping ${server.name}: unsupported transport type ${server.transport.type}`);
+          mainWarn('AionuiMcpAgent', `Skipping ${server.name}: unsupported transport type ${server.transport.type}`);
         }
       });
 
@@ -94,10 +95,10 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
       const mergedServers = Array.from(serverMap.values());
       await ProcessConfig.set('mcp.config', mergedServers);
 
-      console.log('[AionuiMcpAgent] Installed MCP servers:', mcpServers.map((s) => s.name).join(', '));
+      mainLog('AionuiMcpAgent', 'Installed MCP servers:', mcpServers.map((s) => s.name).join(', '));
       return { success: true };
     } catch (error) {
-      console.error('[AionuiMcpAgent] Failed to install MCP servers:', error);
+      mainError('AionuiMcpAgent', 'Failed to install MCP servers:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
@@ -114,7 +115,7 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
    * 不应该在 remove 流程中修改配置，避免与前端的配置管理产生冲突
    */
   removeMcpServer(mcpServerName: string): Promise<McpOperationResult> {
-    console.log(`[AionuiMcpAgent] Skip removing '${mcpServerName}' - config managed by renderer`);
+    mainLog('AionuiMcpAgent', `Skip removing '${mcpServerName}' - config managed by renderer`);
     return Promise.resolve({ success: true });
   }
 }

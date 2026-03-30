@@ -9,6 +9,7 @@ import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '@/common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -95,7 +96,7 @@ export class CodexMcpAgent extends AbstractMcpAgent {
             });
             tools = testResult.tools || [];
           } catch (error) {
-            console.warn(`[CodexMcpAgent] Failed to get tools for ${name}:`, error);
+            mainWarn('CodexMcpAgent', `Failed to get tools for ${name}:`, error);
           }
 
           mcpServers.push({
@@ -129,10 +130,10 @@ export class CodexMcpAgent extends AbstractMcpAgent {
           });
         }
 
-        console.log(`[CodexMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+        mainLog('CodexMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
         return mcpServers;
       } catch (error) {
-        console.warn('[CodexMcpAgent] Failed to get Codex MCP config:', error);
+        mainWarn('CodexMcpAgent', 'Failed to get Codex MCP config:', error);
         return [];
       }
     };
@@ -162,9 +163,9 @@ export class CodexMcpAgent extends AbstractMcpAgent {
 
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
-              console.log(`[CodexMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('CodexMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Codex:`, error);
+              mainWarn('CodexMcpAgent', `Failed to add MCP ${server.name} to Codex:`, error);
               // 继续处理其他服务器，不要因为一个失败就停止
             }
           } else if (server.transport.type === 'http' || server.transport.type === 'streamable_http') {
@@ -179,7 +180,7 @@ export class CodexMcpAgent extends AbstractMcpAgent {
               if (authHeader) {
                 // Codex expects --bearer-token-env-var, not direct token
                 // For now, just log a warning
-                console.warn(`[CodexMcpAgent] ${server.name}: Codex CLI uses --bearer-token-env-var for auth, manual header not supported`);
+                mainWarn('CodexMcpAgent', `${server.name}: Codex CLI uses --bearer-token-env-var for auth, manual header not supported`);
               }
             }
 
@@ -187,12 +188,12 @@ export class CodexMcpAgent extends AbstractMcpAgent {
 
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
-              console.log(`[CodexMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('CodexMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Codex:`, error);
+              mainWarn('CodexMcpAgent', `Failed to add MCP ${server.name} to Codex:`, error);
             }
           } else {
-            console.warn(`Skipping ${server.name}: Codex CLI does not support ${server.transport.type} transport type`);
+            mainWarn('CodexMcpAgent', `Skipping ${server.name}: Codex CLI does not support ${server.transport.type} transport type`);
           }
         }
         return { success: true };
@@ -219,11 +220,11 @@ export class CodexMcpAgent extends AbstractMcpAgent {
 
           // 检查输出确认删除成功
           if (result.stdout && (result.stdout.includes('removed') || result.stdout.includes('Removed'))) {
-            console.log(`[CodexMcpAgent] Removed MCP server: ${mcpServerName}`);
+            mainLog('CodexMcpAgent', `Removed MCP server: ${mcpServerName}`);
             return { success: true };
           } else if (result.stdout && (result.stdout.includes('not found') || result.stdout.includes('No such server'))) {
             // 服务器不存在，也认为成功
-            console.log(`[CodexMcpAgent] MCP server '${mcpServerName}' not found, nothing to remove`);
+            mainLog('CodexMcpAgent', `MCP server '${mcpServerName}' not found, nothing to remove`);
             return { success: true };
           } else {
             // 其他情况认为成功（向后兼容）

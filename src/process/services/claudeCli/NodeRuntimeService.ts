@@ -21,6 +21,7 @@ import * as path from 'path';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import type { ICliStatus } from '@/common/ipcBridge';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 const execAsync = promisify(exec);
 
@@ -92,7 +93,7 @@ async function extractZip(archivePath: string, targetDir: string): Promise<void>
 
   const psCommand = `Expand-Archive -Path '${escapedArchive}' -DestinationPath '${escapedTarget}' -Force`;
 
-  console.log('[NodeRuntime] Extracting with PowerShell:', psCommand);
+  mainLog('NodeRuntime', 'Extracting with PowerShell:', psCommand);
 
   await execFileAsync('powershell', ['-NoProfile', '-Command', psCommand]);
 }
@@ -107,36 +108,36 @@ export async function installNode(): Promise<boolean> {
 
   // Already installed
   if (fs.existsSync(nodePath)) {
-    console.log('[NodeRuntime] Node.js already installed at:', nodePath);
+    mainLog('NodeRuntime', 'Node.js already installed at:', nodePath);
     return true;
   }
 
   // Find bundled resource
   const resourcePath = getBundledResourcePath();
   if (!resourcePath) {
-    console.warn('[NodeRuntime] Bundled Node.js resource not found');
+    mainWarn('NodeRuntime', 'Bundled Node.js resource not found');
     return false;
   }
 
-  console.log('[NodeRuntime] Installing Node.js', NODE_VERSION);
-  console.log('[NodeRuntime] Resource:', resourcePath);
-  console.log('[NodeRuntime] Target:', nodeDir);
-  console.log('[NodeRuntime] Expected binary:', nodePath);
+  mainLog('NodeRuntime', 'Installing Node.js', NODE_VERSION);
+  mainLog('NodeRuntime', 'Resource:', resourcePath);
+  mainLog('NodeRuntime', 'Target:', nodeDir);
+  mainLog('NodeRuntime', 'Expected binary:', nodePath);
 
   fs.mkdirSync(nodeDir, { recursive: true });
 
   try {
     // Extract
     if (process.platform === 'win32') {
-      console.log('[NodeRuntime] Using Windows zip extraction');
+      mainLog('NodeRuntime', 'Using Windows zip extraction');
       await extractZip(resourcePath, nodeDir);
     } else {
-      console.log('[NodeRuntime] Using tar.gz extraction');
+      mainLog('NodeRuntime', 'Using tar.gz extraction');
       await extractTarGz(resourcePath, nodeDir);
     }
 
     // List extracted contents for debugging
-    console.log('[NodeRuntime] Extracted contents:', fs.readdirSync(nodeDir));
+    mainLog('NodeRuntime', 'Extracted contents:', fs.readdirSync(nodeDir));
 
     // Verify
     if (!fs.existsSync(nodePath)) {
@@ -163,10 +164,10 @@ export async function installNode(): Promise<boolean> {
       fs.chmodSync(nodePath, 0o755);
     }
 
-    console.log('[NodeRuntime] Node.js installed successfully');
+    mainLog('NodeRuntime', 'Node.js installed successfully');
     return true;
   } catch (err) {
-    console.error('[NodeRuntime] Installation failed:', err);
+    mainError('NodeRuntime', 'Installation failed:', err);
     return false;
   }
 }

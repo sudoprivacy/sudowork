@@ -13,13 +13,14 @@ import { toAssetUrl } from '@/extensions/assetProtocol';
 import * as path from 'path';
 import type { IChannelPluginStatus, IChannelUser, IChannelPairingRequest, IChannelSession } from '@/channels/types';
 import { hasPluginCredentials, rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /**
  * Initialize Channel IPC Bridge
  * Handles communication between renderer (Settings UI) and main process (Channel system)
  */
 export function initChannelBridge(): void {
-  console.log('[ChannelBridge] Initializing...');
+  mainLog('ChannelBridge', 'Initializing...');
 
   // ==================== Plugin Management ====================
 
@@ -38,7 +39,7 @@ export function initChannelBridge(): void {
           dbPlugins = result.data;
         }
       } catch (dbError) {
-        console.warn('[ChannelBridge] getChannelPlugins failed, proceeding with builtin-only list:', dbError);
+        mainWarn('ChannelBridge', 'getChannelPlugins failed, proceeding with builtin-only list:', dbError);
       }
 
       // Pre-fetch extension plugin metadata (lazy, cached by registry)
@@ -152,7 +153,7 @@ export function initChannelBridge(): void {
 
       return { success: true, data: Array.from(statusMap.values()) };
     } catch (error: any) {
-      console.error('[ChannelBridge] getPluginStatus error:', error);
+      mainError('ChannelBridge', 'getPluginStatus error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -171,7 +172,7 @@ export function initChannelBridge(): void {
 
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] enablePlugin error:', error);
+      mainError('ChannelBridge', 'enablePlugin error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -190,7 +191,7 @@ export function initChannelBridge(): void {
 
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] disablePlugin error:', error);
+      mainError('ChannelBridge', 'disablePlugin error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -204,7 +205,7 @@ export function initChannelBridge(): void {
       const result = await manager.testPlugin(pluginId, token, extraConfig);
       return { success: true, data: result };
     } catch (error: any) {
-      console.error('[ChannelBridge] testPlugin error:', error);
+      mainError('ChannelBridge', 'testPlugin error:', error);
       return { success: false, data: { success: false, error: error.message } };
     }
   });
@@ -225,7 +226,7 @@ export function initChannelBridge(): void {
 
       return { success: true, data: result.data };
     } catch (error: any) {
-      console.error('[ChannelBridge] getPendingPairings error:', error);
+      mainError('ChannelBridge', 'getPendingPairings error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -243,10 +244,10 @@ export function initChannelBridge(): void {
         return { success: false, msg: result.error };
       }
 
-      console.log(`[ChannelBridge] Approved pairing for code ${code}`);
+      mainLog('ChannelBridge', `Approved pairing for code ${code}`);
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] approvePairing error:', error);
+      mainError('ChannelBridge', 'approvePairing error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -264,10 +265,10 @@ export function initChannelBridge(): void {
         return { success: false, msg: result.error };
       }
 
-      console.log(`[ChannelBridge] Rejected pairing code ${code}`);
+      mainLog('ChannelBridge', `Rejected pairing code ${code}`);
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] rejectPairing error:', error);
+      mainError('ChannelBridge', 'rejectPairing error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -288,7 +289,7 @@ export function initChannelBridge(): void {
 
       return { success: true, data: result.data };
     } catch (error: any) {
-      console.error('[ChannelBridge] getAuthorizedUsers error:', error);
+      mainError('ChannelBridge', 'getAuthorizedUsers error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -307,10 +308,10 @@ export function initChannelBridge(): void {
         return { success: false, msg: result.error };
       }
 
-      console.log(`[ChannelBridge] Revoked user ${userId}`);
+      mainLog('ChannelBridge', `Revoked user ${userId}`);
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] revokeUser error:', error);
+      mainError('ChannelBridge', 'revokeUser error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -331,7 +332,7 @@ export function initChannelBridge(): void {
 
       return { success: true, data: result.data };
     } catch (error: any) {
-      console.error('[ChannelBridge] getActiveSessions error:', error);
+      mainError('ChannelBridge', 'getActiveSessions error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -350,7 +351,7 @@ export function initChannelBridge(): void {
       }
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] syncChannelSettings error:', error);
+      mainError('ChannelBridge', 'syncChannelSettings error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -433,7 +434,7 @@ export function initChannelBridge(): void {
           }
         } catch (pollError: any) {
           if (signal.aborted) return { success: true };
-          console.warn('[ChannelBridge] WeChat QR poll error:', pollError);
+          mainWarn('ChannelBridge', 'WeChat QR poll error:', pollError);
           // Continue polling on transient errors
         }
       }
@@ -446,7 +447,7 @@ export function initChannelBridge(): void {
       wechatQrLoginAbort = null;
       return { success: true };
     } catch (error: any) {
-      console.error('[ChannelBridge] wechatStartQrLogin error:', error);
+      mainError('ChannelBridge', 'wechatStartQrLogin error:', error);
       channel.wechatQrLogin.emit({
         phase: 'error',
         message: error.message || 'Failed to start QR login',
@@ -467,5 +468,5 @@ export function initChannelBridge(): void {
     return { success: true };
   });
 
-  console.log('[ChannelBridge] Initialized');
+  mainLog('ChannelBridge', 'Initialized');
 }
