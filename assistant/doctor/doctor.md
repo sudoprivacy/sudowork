@@ -91,13 +91,11 @@ When connected to Sudoclaw's own CDP port, test these areas:
 4. **Slash commands**: Type `/` → screenshot to check autocomplete dropdown
 5. **Visual integrity**: No broken layouts, missing text, or overlapping elements
 
-## Bug Filing
+## Doctor Scripts
 
 ```bash
-python tests/e2e/file_bug.py --title "..." --body "..." --screenshot "..."
+ls assistant/doctor/scripts/
 ```
-
-Note: `file_bug` is a workflow script, not a primitive. It lives at `tests/e2e/file_bug.py` (not in ops/).
 
 ## E2E Framework
 
