@@ -255,6 +255,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         mainWarn('[AcpAgent]', 'Custom backend specified but customAgentId is missing');
       }
 
+      // For doctor preset: force ai-dev-browser tools through the ops wrapper (run_op.py)
+      // so the doctor uses the e2e primitives layer instead of raw ai-dev-browser CLI
+      if (this.extra.presetAssistantId?.startsWith('builtin-')) {
+        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
+        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+        if (preset?.defaultEnabledSkills?.includes('browser')) {
+          customEnv = { ...customEnv, AI_DEV_BROWSER_USE_OPS: 'tests/e2e/run_op.py' };
+        }
+      }
+
       // Store resolved config for connection
       this.extra = {
         ...this.extra,
