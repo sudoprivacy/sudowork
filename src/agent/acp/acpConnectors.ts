@@ -238,8 +238,9 @@ export function spawnNpxBackend(backend: string, npxPackage: string, npxCommand:
 }
 
 /** Prepare clean env + resolve npx for Claude ACP bridge. */
-function prepareClaude(): NpxPrepareResult {
+function prepareClaude(customEnv?: Record<string, string>): NpxPrepareResult {
   const cleanEnv = prepareCleanEnv();
+  if (customEnv) Object.assign(cleanEnv, customEnv);
   ensureMinNodeVersion(cleanEnv, 20, 10, 'Claude ACP bridge');
   return { cleanEnv, npxCommand: resolveNpxPath(cleanEnv) };
 }
@@ -395,8 +396,8 @@ async function connectNpxBackend(config: {
 // ── Exported per-backend connect functions ───────────────────────────
 
 /** Connect to Claude ACP bridge via npx. */
-export function connectClaude(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
-  return connectNpxBackend({ backend: 'claude', npxPackage: CLAUDE_ACP_NPX_PACKAGE, prepareFn: prepareClaude, workingDir, ...hooks });
+export function connectClaude(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {
+  return connectNpxBackend({ backend: 'claude', npxPackage: CLAUDE_ACP_NPX_PACKAGE, prepareFn: () => prepareClaude(customEnv), workingDir, ...hooks });
 }
 
 /** Connect to Codex ACP bridge via npx. */

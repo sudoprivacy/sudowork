@@ -176,7 +176,7 @@ export class AcpConnection {
 
     switch (backend) {
       case 'claude':
-        await connectClaude(workingDir, npxHooks);
+        await connectClaude(workingDir, npxHooks, customEnv);
         break;
 
       case 'codebuddy':
