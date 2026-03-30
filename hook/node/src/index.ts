@@ -325,9 +325,11 @@ if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
   const isNpmProcess = mainScript.includes('npm-cli.js') || mainScript.includes('npx-cli.js') ||
     mainScript.endsWith('/npm') || mainScript.endsWith('/npx');
   // ACP bridge processes use stdio for JSON-RPC — hook's network interception
-  // and polling would interfere with the protocol stream
-  const isAcpBridge = mainScript.includes('claude-agent-acp') || mainScript.includes('codex-agent-acp') ||
-    mainScript.includes('codebuddy-agent-acp') || mainScript.includes('agent-acp');
+  // and polling would interfere with the protocol stream.
+  // Detection by argv is unreliable on Windows (shell: true), so we also
+  // check for SUDOWORK_ACP_CHILD env var set by acpConnectors.ts.
+  const isAcpBridge = mainScript.includes('agent-acp') ||
+    process.env.SUDOWORK_ACP_CHILD === '1';
   if (isNpmProcess || isAcpBridge) {
     // Do not intercept npm/npx or ACP bridge processes — let them run unimpeded
   } else {
