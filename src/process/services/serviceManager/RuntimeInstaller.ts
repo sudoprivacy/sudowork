@@ -53,9 +53,10 @@ class RuntimeInstaller {
     const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
     const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
-    const nexusEnvBinPath = isWin32
-      ? path.join(os.homedir(), '.nexus', 'nexus_env', 'Scripts', 'nexusd.exe')
-      : path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
+    // On Windows the nexusd binary is in Scripts\ (not bin/) and named nexusd.exe
+    const nexusEnvBinDir = isWin32 ? 'Scripts' : 'bin';
+    const nexusEnvBinName = isWin32 ? 'nexusd.exe' : 'nexusd';
+    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', nexusEnvBinDir, nexusEnvBinName);
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
       try {
