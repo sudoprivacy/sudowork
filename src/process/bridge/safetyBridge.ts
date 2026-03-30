@@ -125,6 +125,12 @@ export function initSafetyBridge(): void {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error('[SafetyBridge] Failed to set blacklist:', errorMsg);
+
+      // Check if it's a Nexus connection error
+      if (errorMsg.includes('fetch failed') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('network') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNRESET')) {
+        return { success: false, msg: `Nexus连接异常: ${errorMsg}` };
+      }
+
       return { success: false, msg: errorMsg };
     }
   });

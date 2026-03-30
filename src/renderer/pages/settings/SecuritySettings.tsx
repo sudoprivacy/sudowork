@@ -133,7 +133,12 @@ const SecuritySettings: React.FC = () => {
       }
     } catch (err) {
       console.error('[SecuritySettings] Failed to save rule:', err);
-      Message.error('保存规则失败');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
+        Message.error(`Nexus连接异常: ${errMsg}`);
+      } else {
+        Message.error(`保存规则失败: ${errMsg}`);
+      }
     }
   }, [ruleForm, editingRule, blacklistConfig]);
 
@@ -153,7 +158,12 @@ const SecuritySettings: React.FC = () => {
         }
       } catch (err) {
         console.error('[SecuritySettings] Failed to delete rule:', err);
-        Message.error('删除规则失败');
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
+          Message.error(`Nexus连接异常: ${errMsg}`);
+        } else {
+          Message.error(`删除规则失败: ${errMsg}`);
+        }
       }
     },
     [blacklistConfig]
@@ -174,6 +184,12 @@ const SecuritySettings: React.FC = () => {
         }
       } catch (err) {
         console.error('[SecuritySettings] Failed to toggle rule:', err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
+          Message.error(`Nexus连接异常: ${errMsg}`);
+        } else {
+          Message.error(`切换规则失败: ${errMsg}`);
+        }
       }
     },
     [blacklistConfig]
