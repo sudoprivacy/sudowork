@@ -65,6 +65,9 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     }
   }
 
+  // Default ai-dev-browser to headless when run by agents
+  cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
+
   // Inject safety hook via NODE_OPTIONS if enabled
   if (isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
