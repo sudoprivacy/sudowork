@@ -212,7 +212,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
-        setInstalledSkills(res.data);
+        // Only show skills that are enabled (builtin skills are always enabled)
+        setInstalledSkills(res.data.filter((s) => s.isBuiltin || s.enabled !== false));
       }
     } catch (error) {
       console.error('Failed to load installed skills:', error);
