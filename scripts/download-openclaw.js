@@ -12,6 +12,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
@@ -26,7 +27,7 @@ if (fs.existsSync(OUTPUT) && !FORCE) {
 
 fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 
-const KNOWN_GOOD_VERSION = '2026.3.11';
+const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
 let version;
 if (VERSION_PIN === 'latest') {
   const info = JSON.parse(execSync('npm show openclaw --json --registry=https://registry.npmjs.org').toString());

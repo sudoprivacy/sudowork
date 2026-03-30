@@ -578,7 +578,7 @@ export type NexusInstallPhase = 'checking' | 'downloading' | 'extracting' | 'unp
 
 export const nexus = {
   /** Get the current status of the Nexus server */
-  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number; setupStage: string; installed: boolean }>, void>('nexus.get-status'),
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number; setupStage: string; installed: boolean; version?: string }>, void>('nexus.get-status'),
   /** Check if Nexus is installed */
   checkInstalled: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('nexus.check-installed'),
   /** Install Nexus server */

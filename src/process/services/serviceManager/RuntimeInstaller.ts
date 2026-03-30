@@ -65,25 +65,39 @@ class RuntimeInstaller {
     mainLog(TAG, `Fast check: Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}, Bdpan=${fastBdpanOk} (hasNexusResource=${hasNexusResource})`);
 
     if (fastNodeOk && fastSudoclawOk && fastNexusOk && fastBdpanOk) {
-      mainLog(TAG, 'All runtimes already installed, skipping installation');
-      initStatusManager.setStatus('ready', '初始化完成', 100);
-      return true;
+      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+      const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
+      const nexusVersionState = hasNexusResource ? await dynamicNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
+      const sudoclawVersionState = getSudoclawVersionState();
+
+      if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
+        mainLog(TAG, 'All runtimes already installed, skipping installation');
+        initStatusManager.setStatus('ready', '初始化完成', 100);
+        return true;
+      }
+
+      mainLog(TAG, `Nexus version mismatch detected during fast check: installed=${nexusVersionState.installedVersion} bundled=${nexusVersionState.bundledVersion}`);
+      if (sudoclawVersionState.needsUpgrade) {
+        mainLog(TAG, `Sudoclaw version mismatch detected during fast check: installed=${sudoclawVersionState.installedVersion} bundled=${sudoclawVersionState.bundledVersion}`);
+      }
     }
     // ── End fast check ──────────────────────────────────────────────────────
 
     // At least one component appears to be missing — do full async check
     mainLog(TAG, 'Checking runtime dependencies...');
-    const [{ dynamicNexusService }, { ensureSudoclawInstalled, getSudoclawCliPath }, { isBdpanInstalled, ensureBdpanInstalled }] = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../bdpan/BdpanInstallService')]);
+    const [{ dynamicNexusService }, { ensureSudoclawInstalled, getSudoclawCliPath, getSudoclawVersionState }, { isBdpanInstalled, ensureBdpanInstalled }] = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../bdpan/BdpanInstallService')]);
 
     const nodeInstalled = isNodeInstalled();
     const sudoclawInstalled = getSudoclawCliPath() !== null;
     const nexusInstalled = await dynamicNexusService.checkInstalled();
     const bdpanInstalled = isBdpanInstalled();
+    const sudoclawVersionState = getSudoclawVersionState();
+    const nexusVersionState = hasNexusResource ? await dynamicNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
 
-    mainLog(TAG, `Full check: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, Bdpan=${bdpanInstalled}`);
+    mainLog(TAG, `Full check: Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, Bdpan=${bdpanInstalled}, SudoclawUpgrade=${sudoclawVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
-    if (nodeInstalled && sudoclawInstalled && nexusInstalled && bdpanInstalled) {
+    if (nodeInstalled && sudoclawInstalled && nexusInstalled && bdpanInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
       mainLog(TAG, 'All runtimes confirmed installed');
       initStatusManager.setStatus('ready', '初始化完成', 100);
       return true;
@@ -100,8 +114,8 @@ class RuntimeInstaller {
     const hasBdpanResource = fs.existsSync(path.join(resDir, bdpanResName));
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
-    const willInstallSudoclaw = !sudoclawInstalled && hasSudoclawResource;
-    const willInstallNexus = !nexusInstalled && hasNexusResource;
+    const willInstallSudoclaw = hasSudoclawResource && (!sudoclawInstalled || sudoclawVersionState.needsUpgrade);
+    const willInstallNexus = hasNexusResource && (!nexusInstalled || nexusVersionState.needsUpgrade);
     const willInstallBdpan = !bdpanInstalled && hasBdpanResource;
 
     if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus && !willInstallBdpan) {
@@ -130,9 +144,13 @@ class RuntimeInstaller {
     // Sudoclaw (progress: 30-60%)
     if (willInstallSudoclaw) {
       try {
-        mainLog(TAG, 'Installing Sudoclaw...');
+        if (sudoclawVersionState.needsUpgrade) {
+          mainLog(TAG, `Upgrading Sudoclaw to bundled version ${sudoclawVersionState.bundledVersion} from ${sudoclawVersionState.installedVersion}...`);
+        } else {
+          mainLog(TAG, 'Installing Sudoclaw...');
+        }
         initStatusManager.setStatus('installing', '组件安装中', 30);
-        const sudoclawResult = await ensureSudoclawInstalled();
+        const sudoclawResult = await ensureSudoclawInstalled({ forceReinstall: sudoclawVersionState.needsUpgrade });
         if (!sudoclawResult.installed) {
           mainError(TAG, 'Sudoclaw install failed - missing required files after extraction');
           initStatusManager.setStatus('error', '安装失败', 0, 'Sudoclaw install incomplete, please reinstall the app');
@@ -149,7 +167,11 @@ class RuntimeInstaller {
     // Nexus (progress: 60-85%)
     if (willInstallNexus) {
       try {
-        mainLog(TAG, 'Installing Nexus...');
+        if (nexusVersionState.needsUpgrade) {
+          mainLog(TAG, `Upgrading Nexus to bundled version ${nexusVersionState.bundledVersion} from ${nexusVersionState.installedVersion}...`);
+        } else {
+          mainLog(TAG, 'Installing Nexus...');
+        }
         initStatusManager.setStatus('installing', '组件安装中', 60);
         await dynamicNexusService.install();
         mainLog(TAG, 'Nexus installed successfully, starting...');

@@ -2,14 +2,16 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { app } from 'electron';
-import { spawn, exec } from 'child_process';
+import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import runtimeVersions from '@/shared/runtime-versions.json';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Marker filename written inside the extracted env to record the app version it was unpacked for.
 const CONDA_READY_MARKER = '.nexus-conda-ready';
@@ -106,6 +108,66 @@ class DynamicNexusService {
 
   get setupStage(): NexusSetupStage {
     return this._setupStage;
+  }
+
+  getBundledVersion(): string | undefined {
+    const value = runtimeVersions.nexus;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private normalizeVersion(value?: string): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const matched = trimmed.match(/(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)/);
+    return matched?.[1] || trimmed.replace(/^v/i, '');
+  }
+
+  async getVersionState(): Promise<{ installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }> {
+    const bundledPath = this.getBundledNexusPath();
+    const bundledVersion = this.normalizeVersion(this.getBundledVersion());
+    const installedVersion = this.normalizeVersion(await this.getInstalledVersion());
+
+    if (!bundledPath || !bundledVersion || !installedVersion) {
+      return {
+        installedVersion,
+        bundledVersion,
+        needsUpgrade: false,
+      };
+    }
+
+    return {
+      installedVersion,
+      bundledVersion,
+      needsUpgrade: installedVersion !== bundledVersion,
+    };
+  }
+
+  async getInstalledVersion(): Promise<string | undefined> {
+    const envDir = this.getCondaEnvDir();
+    const pythonPath = this.getPythonPath(envDir);
+    const nexusdPath = this.getNexusdPath(envDir);
+
+    if (!fs.existsSync(pythonPath) || !fs.existsSync(nexusdPath)) {
+      return undefined;
+    }
+
+    try {
+      const { stdout, stderr } = await execFileAsync(pythonPath, [nexusdPath, '--version'], {
+        timeout: 10_000,
+      });
+      const raw = `${stdout}\n${stderr}`.trim();
+      if (!raw) return undefined;
+      const firstLine = raw
+        .split('\n')
+        .map((line) => line.trim())
+        .find(Boolean);
+      if (!firstLine) return undefined;
+      return this.normalizeVersion(firstLine);
+    } catch (error) {
+      mainWarn('Nexus', `Failed to get nexusd version: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
   }
 
   /** Subscribe to setup progress events (fires on stage transitions). */

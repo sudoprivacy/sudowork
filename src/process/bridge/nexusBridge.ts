@@ -9,6 +9,7 @@ export function initNexusBridge(): void {
     // always reflects reality, even when the internal _running flag is stale
     // (e.g. child process exited but nexusd is still serving, or vice-versa).
     const running = await dynamicNexusService.checkActualRunning();
+    const version = installed ? await dynamicNexusService.getInstalledVersion() : undefined;
     return {
       success: true,
       data: {
@@ -16,6 +17,7 @@ export function initNexusBridge(): void {
         port: dynamicNexusService.port,
         setupStage: dynamicNexusService.setupStage,
         installed,
+        version,
       },
     };
   });

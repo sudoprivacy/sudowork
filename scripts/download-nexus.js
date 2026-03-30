@@ -13,11 +13,13 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT_FILE = path.join(RESOURCES_DIR, 'nexus.tar.gz');
 
-const BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download/v0.9.16';
+const NEXUS_VERSION = runtimeVersions.nexus;
+const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
 // Platform mappings (nexus uses x86_64 naming convention for x64)
 const PLATFORMS = {

@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 import * as net from 'node:net';
@@ -133,6 +133,7 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.getStatus.provider(async () => {
     try {
       const installed = getSudoclawCliPath() !== null;
+      const version = installed ? getSudoclawInstalledVersion() : undefined;
       const config = readConfig();
 
       // First, check if gateway port is listening
@@ -168,6 +169,7 @@ export function initSudoclawBridge(): void {
         workspace: (config?.agents as any)?.defaults?.workspace || SUDOCLAW_DIR + '/workspace',
         agentName: (config?.agents as any)?.defaults?.agentName || '小宇',
         model: (config?.agents as any)?.defaults?.model?.primary || null,
+        version,
       };
 
       // Try to enhance with runtime status from active tasks

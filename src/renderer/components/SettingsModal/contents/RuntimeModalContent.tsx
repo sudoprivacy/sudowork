@@ -8,8 +8,8 @@ import { Button, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import packageJson from '../../../../../package.json';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 
@@ -26,7 +26,6 @@ interface ToolRow {
   nexusPort?: number;
   nexusRunning?: boolean;
   nexusInstalled?: boolean;
-  appVersion?: string;
   loadState: LoadState;
   installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | string;
   installPercent?: number;
@@ -36,6 +35,14 @@ interface ToolRow {
   onUninstall?: () => Promise<void>;
   onStart?: () => Promise<void>;
   onStop?: () => Promise<void>;
+}
+
+interface RuntimeAction {
+  key: string;
+  label: string;
+  type: 'primary' | 'secondary' | 'outline';
+  status?: 'warning';
+  onClick: () => Promise<void>;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -88,6 +95,69 @@ function isInstalled(record: ToolRow): boolean {
   return !!record.status?.installed;
 }
 
+function getRuntimeActions(record: ToolRow, t: (key: string, opts?: Record<string, unknown>) => string): RuntimeAction[] {
+  const installed = isInstalled(record);
+  const loading = record.loadState !== 'idle';
+  const source = record.status?.source;
+  const canUninstall = source === 'managed';
+  const actions: RuntimeAction[] = [];
+
+  if (record.onStart && record.onStop && installed) {
+    const isRunning = (record.key === 'sudoclaw' && record.sudoclawGatewayRunning) || (record.key === 'nexus' && record.nexusRunning);
+    if (isRunning) {
+      actions.push({
+        key: 'stop',
+        label: t('settings.runtimeSettings.button.stop'),
+        type: 'outline',
+        status: 'warning',
+        onClick: record.onStop,
+      });
+    } else {
+      actions.push({
+        key: 'start',
+        label: t('settings.runtimeSettings.button.start'),
+        type: 'secondary',
+        onClick: record.onStart,
+      });
+    }
+  }
+
+  if (!installed && record.onInstall) {
+    actions.unshift({
+      key: 'install',
+      label: t('settings.runtimeSettings.button.install'),
+      type: 'primary',
+      onClick: record.onInstall,
+    });
+  } else if (installed && record.onUninstall && canUninstall) {
+    actions.push({
+      key: 'uninstall',
+      label: t('settings.runtimeSettings.button.uninstall'),
+      type: 'outline',
+      status: 'warning',
+      onClick: record.onUninstall,
+    });
+  } else if (installed && record.onInstall && !record.onUninstall) {
+    actions.push({
+      key: 'reinstall',
+      label: t('settings.runtimeSettings.button.reinstall'),
+      type: 'outline',
+      onClick: record.onInstall,
+    });
+  }
+
+  if (record.onRefresh && (installed || loading || actions.length === 0)) {
+    actions.push({
+      key: 'refresh',
+      label: t('settings.runtimeSettings.button.refresh'),
+      type: 'outline',
+      onClick: record.onRefresh,
+    });
+  }
+
+  return actions;
+}
+
 // ── main component ────────────────────────────────────────────────────────────
 
 const RuntimeModalContent: React.FC = () => {
@@ -115,9 +185,12 @@ const RuntimeModalContent: React.FC = () => {
   const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
 
   const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
+  const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
   const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
   const [sudoclawPhase, setSudoclawPhase] = useState<'extracting' | 'installing' | 'configuring' | undefined>(undefined);
+
+  const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
   const refreshNode = useCallback(async () => {
     setNodeLoad('loading');
@@ -265,9 +338,11 @@ const RuntimeModalContent: React.FC = () => {
     const res = await sudoclawIpc.getStatus.invoke();
     if (res?.success && res.data) {
       setSudoclawInstalled(res.data.installed);
+      setSudoclawVersion(res.data.version);
       setSudoclawGatewayRunning(!!res.data.gatewayRunning);
     } else {
       setSudoclawInstalled(false);
+      setSudoclawVersion(undefined);
       setSudoclawGatewayRunning(false);
     }
   }, []);
@@ -350,10 +425,12 @@ const RuntimeModalContent: React.FC = () => {
       setNexusRunning(res.data.running);
       setNexusPort(res.data.port);
       setNexusInstalled(res.data.installed);
+      setNexusVersion(res.data.version);
     } else {
       setNexusRunning(false);
       setNexusPort(undefined);
       setNexusInstalled(false);
+      setNexusVersion(undefined);
     }
   }, []);
 
@@ -445,7 +522,7 @@ const RuntimeModalContent: React.FC = () => {
         if (res.data.percent != null) setLibreOfficePercent(res.data.percent);
       }
     });
-  }, []);
+  }, [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshSudoclaw]);
 
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
   useEffect(() => {
@@ -526,10 +603,10 @@ const RuntimeModalContent: React.FC = () => {
     },
     {
       key: 'sudoclaw',
-      displayName: 'Sudoclaw (OpenClaw)',
+      displayName: 'Sudoclaw',
       command: 'openclaw',
-      badge: 'OC',
-      status: sudoclawInstalled ? { installed: true, source: 'managed', version: packageJson.version } : null,
+      badge: 'SC',
+      status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
       sudoclawGatewayRunning,
       loadState: sudoclawLoad,
       installPhase: sudoclawPhase,
@@ -544,11 +621,10 @@ const RuntimeModalContent: React.FC = () => {
       displayName: 'Nexus Server',
       command: 'nexusd',
       badge: 'NX',
-      status: nexusInstalled ? { installed: true, source: 'managed', version: packageJson.version } : null,
+      status: nexusInstalled ? { installed: true, source: 'managed', version: nexusVersion } : null,
       nexusPort,
       nexusRunning,
       nexusInstalled,
-      appVersion: packageJson.version,
       loadState: nexusLoad,
       installPhase: nexusPhase,
       installPercent: nexusPercent,
@@ -561,109 +637,71 @@ const RuntimeModalContent: React.FC = () => {
   ];
 
   const badgeColors: Record<string, string> = {
-    node: 'bg-cyan-1 color-cyan-6',
-    claude: 'bg-orange-1 color-orange-6',
-    libreoffice: 'bg-green-1 color-green-6',
-    sudoclaw: 'bg-purple-1 color-purple-6',
-    nexus: 'bg-orange-1 color-orange-6',
+    node: 'bg-cyan-1 color-cyan-6 border border-cyan-3',
+    claude: 'bg-orange-1 color-orange-6 border border-orange-3',
+    libreoffice: 'bg-green-1 color-green-6 border border-green-3',
+    sudoclaw: 'bg-purple-1 color-purple-6 border border-purple-3',
+    nexus: 'bg-gold-1 color-gold-6 border border-gold-3',
   };
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <div className={classNames('flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-24px', isPageMode && 'px-0 overflow-visible')}>
-        <div className='flex flex-col max-w-540px mx-auto gap-12px'>
-          {/* Section header */}
-          <div className='mb-4px'>
-            <h3 className='text-15px font-600 text-t-primary m-0 leading-snug'>{t('settings.runtimeSettings.title')}</h3>
-            <p className='text-12px text-t-secondary m-0 mt-4px'>{t('settings.runtimeSettings.description')}</p>
-          </div>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+        <div className={classNames('space-y-16px px-24px', isPageMode && 'px-0')}>
+          <div className='max-w-820px mx-auto bg-2 rd-16px border border-border-2 px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
+            <div className='flex flex-col gap-4px'>
+              <h3 className='text-17px md:text-18px font-600 text-t-primary m-0 leading-24px'>{t('settings.runtimeSettings.title')}</h3>
+              <p className='text-13px md:text-14px text-t-secondary m-0 leading-22px'>{t('settings.runtimeSettings.description')}</p>
+            </div>
 
-          {/* Card list */}
-          {tableData.map((record) => {
-            const { dotColor, statusText } = getStatusInfo(record, t);
-            const version = record.key === 'nexus' ? `v${record.appVersion}` : record.status?.version;
-            const loading = record.loadState !== 'idle';
-            const installed = isInstalled(record);
-            const source = record.status?.source;
-            const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
-            // Can only uninstall managed; system (e.g. Homebrew) can't be uninstalled from here
-            const canUninstall = source === 'managed';
+            <div className='mt-16px flex flex-col divide-y divide-border-2'>
+              {tableData.map((record) => {
+                const { dotColor, statusText } = getStatusInfo(record, t);
+                const version = record.status?.version;
+                const loading = record.loadState !== 'idle';
+                const installed = isInstalled(record);
+                const source = record.status?.source;
+                const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
+                const actions = getRuntimeActions(record, t);
 
-            return (
-              <div key={record.key} className='rd-12px bg-fill-1 hover:bg-fill-2 px-16px py-12px flex items-center gap-12px transition-colors'>
-                {/* Badge */}
-                <div className={classNames('w-40px h-40px rd-10px flex items-center justify-center flex-shrink-0 text-11px font-700', badgeColors[record.key] || 'bg-blue-1 color-blue-6')}>{record.badge}</div>
+                return (
+                  <div key={record.key} className='py-16px first:pt-0 last:pb-0'>
+                    <div className='flex flex-col gap-14px md:flex-row md:items-center md:justify-between md:gap-20px'>
+                      <div className='flex items-start gap-12px min-w-0 flex-1'>
+                        <div className={classNames('w-44px h-44px rd-12px flex items-center justify-center flex-shrink-0 text-11px md:text-12px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.badge}</div>
 
-                {/* Info */}
-                <div className='flex flex-col gap-2px flex-1 min-w-0'>
-                  <span className='text-13px font-600 text-t-primary leading-none'>{record.displayName}</span>
-                  <div className='flex items-center gap-6px'>
-                    <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
-                    <span className='text-11px font-500 text-t-secondary'>{statusText}</span>
-                    {version && <span className='px-6px py-1px rd-20px text-10px font-500 bg-fill-2 text-t-secondary font-mono whitespace-nowrap'>{version}</span>}
-                    {/* Source badge */}
-                    {sourceLabel && installed && <span className='px-6px py-1px rd-20px text-10px font-500 bg-blue-1 color-blue-6 whitespace-nowrap'>{sourceLabel}</span>}
+                        <div className='min-w-0 flex-1 space-y-8px'>
+                          <div className='flex flex-col gap-8px lg:flex-row lg:items-center lg:gap-10px'>
+                            <span className='text-15px md:text-16px font-600 text-t-primary leading-22px md:leading-24px'>{record.displayName}</span>
+                            {record.key !== 'sudoclaw' && <span className='w-fit px-8px py-2px rd-999px text-11px md:text-12px font-mono bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>}
+                          </div>
+
+                          <div className='flex flex-wrap items-center gap-8px'>
+                            <span className='inline-flex items-center gap-6px px-8px py-3px rd-999px bg-fill-1 text-12px md:text-13px text-t-secondary border border-border-2'>
+                              <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
+                              <span className='leading-none font-500'>{statusText}</span>
+                            </span>
+                            {version && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
+                            {sourceLabel && installed && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className='flex flex-wrap items-center gap-8px md:justify-end md:max-w-280px'>
+                        {actions.map((action) => (
+                          <Button key={`${record.key}-${action.key}`} type={action.type === 'primary' ? 'primary' : 'outline'} size='small' status={action.status} disabled={loading} onClick={action.onClick} className={classNames('min-w-84px !rd-8px !text-12px md:!text-13px !font-500', action.type === 'secondary' && '!border-[var(--color-primary-light-3)] !text-[var(--color-primary-6)] !bg-[var(--color-primary-light-1)] hover:!bg-[var(--color-primary-light-2)]', action.type === 'outline' && action.status !== 'warning' && '!bg-transparent')}>
+                            {action.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                {/* Actions */}
-                <div className='flex items-center gap-6px flex-shrink-0'>
-                  {/* Start/Stop buttons — for sudoclaw and nexus when installed */}
-                  {record.onStart &&
-                    record.onStop &&
-                    (() => {
-                      const isRunning = (record.key === 'sudoclaw' && record.sudoclawGatewayRunning) || (record.key === 'nexus' && record.nexusRunning);
-                      return isRunning ? (
-                        <Button type='outline' size='mini' status='warning' disabled={loading} onClick={record.onStop} style={{ fontSize: 11 }}>
-                          {t('settings.runtimeSettings.button.stop')}
-                        </Button>
-                      ) : installed ? (
-                        <Button type='outline' size='mini' disabled={loading} onClick={record.onStart} style={{ fontSize: 11 }}>
-                          {t('settings.runtimeSettings.button.start')}
-                        </Button>
-                      ) : null;
-                    })()}
-
-                  {record.onUninstall ? (
-                    /* Install / Uninstall — only show install when not installed */
-                    !installed ? (
-                      <Button type='primary' size='mini' disabled={loading} onClick={record.onInstall} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.install')}
-                      </Button>
-                    ) : canUninstall ? (
-                      <Button type='outline' size='mini' status='warning' disabled={loading} onClick={record.onUninstall} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.uninstall')}
-                      </Button>
-                    ) : (
-                      <Button type='outline' size='mini' disabled={loading} onClick={record.onRefresh} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.refresh')}
-                      </Button>
-                    )
-                  ) : (
-                    <>
-                      {/* Install / Reinstall */}
-                      {!installed ? (
-                        <Button type='primary' size='mini' disabled={loading} onClick={record.onInstall} style={{ fontSize: 11 }}>
-                          {t('settings.runtimeSettings.button.install')}
-                        </Button>
-                      ) : (
-                        <Button type='outline' size='mini' disabled={loading} onClick={record.onInstall} style={{ fontSize: 11 }}>
-                          {t('settings.runtimeSettings.button.reinstall')}
-                        </Button>
-                      )}
-
-                      {/* Refresh */}
-                      <Button type='outline' size='mini' disabled={loading} onClick={record.onRefresh} style={{ fontSize: 11 }}>
-                        {t('settings.runtimeSettings.button.refresh')}
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      </AionScrollArea>
     </div>
   );
 };

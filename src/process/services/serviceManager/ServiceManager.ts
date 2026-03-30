@@ -58,6 +58,11 @@ class ServiceManager {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       if (await dynamicNexusService.checkInstalled()) {
+        const versionState = await dynamicNexusService.getVersionState();
+        if (versionState.needsUpgrade) {
+          mainLog('ServiceManager', `Upgrading Nexus before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
+          await dynamicNexusService.install();
+        }
         mainLog('ServiceManager', 'Starting Nexus service...');
         await dynamicNexusService.start();
       } else {
@@ -94,7 +99,16 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
+
+      const versionState = getSudoclawVersionState();
+      if (versionState.needsUpgrade) {
+        mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
+        const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
+        if (!installResult.installed) {
+          throw new Error('Sudoclaw upgrade failed before gateway start');
+        }
+      }
 
       // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts.
       // This guarantees ~/.nexus/skills is always loaded regardless of platform,

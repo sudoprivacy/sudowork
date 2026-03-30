@@ -18,6 +18,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import runtimeVersions from '@/shared/runtime-versions.json';
 
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -103,6 +104,52 @@ function resolvePackageRoot(): string | null {
   const flatPkg = path.join(SUDOCLAW_CLI_DIR, 'package.json');
   if (fs.existsSync(flatPkg)) return SUDOCLAW_CLI_DIR;
   return null;
+}
+
+export function getSudoclawInstalledVersion(): string | undefined {
+  const pkgRoot = resolvePackageRoot();
+  if (!pkgRoot) return undefined;
+
+  try {
+    const pkgJsonPath = path.join(pkgRoot, 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) return undefined;
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as { version?: unknown };
+    return typeof pkg.version === 'string' && pkg.version.trim() ? pkg.version.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function getSudoclawBundledVersion(): string | undefined {
+  const value = runtimeVersions.sudoclaw;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeVersion(value?: string): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.replace(/^v/i, '');
+}
+
+export function getSudoclawVersionState(): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
+  const bundledPath = getBundledOpenclawPath();
+  const installedVersion = normalizeVersion(getSudoclawInstalledVersion());
+  const bundledVersion = normalizeVersion(getSudoclawBundledVersion());
+
+  if (!bundledPath || !installedVersion || !bundledVersion) {
+    return {
+      installedVersion,
+      bundledVersion,
+      needsUpgrade: false,
+    };
+  }
+
+  return {
+    installedVersion,
+    bundledVersion,
+    needsUpgrade: installedVersion !== bundledVersion,
+  };
 }
 
 /** Check if launcher.mjs exists in package (created at pack time) */
@@ -301,7 +348,8 @@ function getBundledOpenclawPath(): string | null {
  * - ~/.nexus/sudoclaw/cli/package/... (extracted from openclaw.tgz)
  * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
  */
-export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; cliPath: string | null }> {
+export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean }): Promise<{ installed: boolean; cliPath: string | null }> {
+  const forceReinstall = options?.forceReinstall === true;
   migrateLegacySudoclaw();
   migrateConfigFilename();
   repairOpenClawConfig();
@@ -309,7 +357,7 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   const pkgRoot = resolvePackageRoot();
 
   // Check if already fully installed with all required files (tgz includes launcher and bin)
-  if (pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
+  if (!forceReinstall && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
     if (checkPlatformDependencies(pkgRoot)) {
       mainLog('Sudoclaw', 'Already installed');
       const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
@@ -321,9 +369,9 @@ export async function ensureSudoclawInstalled(): Promise<{ installed: boolean; c
   try {
     fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
 
-    // Re-extract if existing install is incomplete
-    if (pkgRoot) {
-      mainLog('Sudoclaw', 'Re-extracting (incomplete install)...');
+    // Re-extract if existing install is incomplete or version upgrade is required
+    if (pkgRoot || forceReinstall) {
+      mainLog('Sudoclaw', forceReinstall ? 'Re-extracting (version upgrade)...' : 'Re-extracting (incomplete install)...');
       fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
       fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
     }
