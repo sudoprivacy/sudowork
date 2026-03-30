@@ -5,12 +5,9 @@
 # Source: WebDriver §15.4.2 — Pointer actions
 
 from primitives.pointer_down import pointer_down as _core
-from utils import resolve_by_selector
 
 
-async def pointer_down(tab, button: int = 0, selector: str = None) -> dict:
+async def pointer_down(tab, button: int = 0) -> dict:
     """WebDriver §15.4.2 — Pointer actions."""
-    if selector is not None:
-        x, y = await resolve_by_selector(tab, selector)
     result = await _core(tab, button=button)
     return result

@@ -5,12 +5,9 @@
 # Source: WebDriver §15.4.2 — Pointer actions
 
 from primitives.pointer_move import pointer_move as _core
-from utils import resolve_by_selector
 
 
-async def pointer_move(tab, x: int = None, y: int = None, duration: int = 0, origin: str = "viewport", selector: str = None) -> dict:
+async def pointer_move(tab, x: int, y: int, duration: int = 0, origin: str = "viewport") -> dict:
     """WebDriver §15.4.2 — Pointer actions."""
-    if selector is not None:
-        x, y = await resolve_by_selector(tab, selector)
     result = await _core(tab, x=x, y=y, duration=duration, origin=origin)
     return result

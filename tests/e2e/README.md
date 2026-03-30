@@ -29,9 +29,9 @@ runner.py                           ← YAML test case executor
 |---|---|---|
 | `key_down` | `value` | *(React fallback auto-detected)* |
 | `key_up` | `value` | |
-| `pointer_down` | `button` | `text`, `selector` |
+| `pointer_down` | `button` | |
 | `pointer_up` | `button` | |
-| `pointer_move` | `x`, `y`, `duration`, `origin` | `text`, `selector` |
+| `pointer_move` | `x`, `y`, `duration`, `origin` | |
 | `scroll` | `x`, `y`, `delta_x`, `delta_y` | |
 | `pause` | `duration` (ms) | |
 
@@ -47,7 +47,7 @@ runner.py                           ← YAML test case executor
 
 ```bash
 # Single primitive
-python tests/e2e/run_op.py --port 9230 --op pointer_move --text "技能商店"
+python tests/e2e/run_op.py --port 9230 --op pointer_move --x 80 --y 117
 python tests/e2e/run_op.py --port 9230 --op pointer_down
 python tests/e2e/run_op.py --port 9230 --op pointer_up
 python tests/e2e/run_op.py --port 9230 --op key_down --value Enter

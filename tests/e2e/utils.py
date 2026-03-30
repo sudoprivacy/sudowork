@@ -11,24 +11,6 @@ from ai_dev_browser.core.page import js_exec
 
 
 
-async def resolve_by_selector(tab, selector: str) -> tuple[int, int]:
-    """Find element by CSS selector, return center (x, y) coordinates."""
-    r = await js_exec(tab, """JSON.stringify((() => {
-        const el = document.querySelector(%s);
-        if (el && el.offsetHeight > 0) {
-            const rect = el.getBoundingClientRect();
-            return {x: Math.round(rect.left + rect.width/2),
-                    y: Math.round(rect.top + rect.height/2)};
-        }
-        return null;
-    })())""" % repr(selector))
-
-    coords = json.loads(r.get("result", "null"))
-    if not coords:
-        raise ValueError(f"Element '{selector}' not found or not visible")
-    return coords["x"], coords["y"]
-
-
 async def react_key_fallback(tab, value: str) -> dict:
     """Fall back to React-compatible text injection when key events don't work.
 
