@@ -211,7 +211,7 @@ export const fs = {
   >('copy-files-to-workspace'), // 复制文件到工作空间 (Copy files into workspace)
   removeEntry: bridge.buildProvider<IBridgeResponse, { path: string }>('remove-entry'), // 删除文件或文件夹
   renameEntry: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { path: string; newName: string }>('rename-entry'), // 重命名文件或文件夹
-  readBuiltinRule: bridge.buildProvider<string, { fileName: string }>('read-builtin-rule'), // 读取内置 rules 文件
+  readBuiltinRule: bridge.buildProvider<string, { fileName: string; resourceDir?: string }>('read-builtin-rule'), // 读取内置 rules 文件
   readBuiltinSkill: bridge.buildProvider<string, { fileName: string }>('read-builtin-skill'), // 读取内置 skills 文件
   // 助手规则文件操作 / Assistant rule file operations
   readAssistantRule: bridge.buildProvider<string, { assistantId: string; locale?: string }>('read-assistant-rule'), // 读取助手规则文件

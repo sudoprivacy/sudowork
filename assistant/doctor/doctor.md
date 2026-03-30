@@ -91,12 +91,6 @@ When connected to Sudoclaw's own CDP port, test these areas:
 4. **Slash commands**: Type `/` → screenshot to check autocomplete dropdown
 5. **Visual integrity**: No broken layouts, missing text, or overlapping elements
 
-## Doctor Scripts
-
-```bash
-ls assistant/doctor/scripts/
-```
-
 ## E2E Framework
 
 ```

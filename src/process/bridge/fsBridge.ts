@@ -744,9 +744,35 @@ export function initFsBridge(): void {
   });
 
   // 读取内置 rules 文件 / Read built-in rules file from app resources
-  ipcBridge.fs.readBuiltinRule.provider(async ({ fileName }) => {
+  ipcBridge.fs.readBuiltinRule.provider(async ({ fileName, resourceDir }) => {
     try {
-      return await readBuiltinResource('rules', fileName);
+      let content = await readBuiltinResource('rules', fileName);
+
+      // Auto-append scripts listing from the assistant's resourceDir
+      if (resourceDir) {
+        try {
+          const scriptsDir = path.join(resourceDir, 'scripts');
+          // Try relative to app root (dev) or resources dir (packaged)
+          const candidates = [
+            path.join(process.cwd(), scriptsDir),
+            path.join(app.getAppPath(), scriptsDir),
+            path.join(app.getAppPath(), '..', scriptsDir),
+          ];
+          for (const dir of candidates) {
+            try {
+              const entries = await fs.readdir(dir);
+              const scripts = entries.filter((e: string) => e.endsWith('.py') || e.endsWith('.sh'));
+              if (scripts.length > 0) {
+                const relDir = scriptsDir;
+                content += `\n\n## Available Scripts\n\nRun \`--help\` on any script for usage.\n\n\`\`\`\n${scripts.map((s: string) => `python ${relDir}/${s}`).join('\n')}\n\`\`\`\n`;
+              }
+              break;
+            } catch { /* try next */ }
+          }
+        } catch { /* no scripts — skip */ }
+      }
+
+      return content;
     } catch (error) {
       console.error('Failed to read builtin rule:', error);
       throw error;
