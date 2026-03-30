@@ -5,6 +5,13 @@
  */
 
 import type { BlacklistRule, BlacklistConfig, BlacklistMatchType, RiskLevel } from './types';
+import type { Payload } from '../nexus/NexusController';
+
+type MatchResult = {
+  matched: boolean;
+  rule?: BlacklistRule;
+  riskLevel?: RiskLevel;
+};
 
 /**
  * Extract domain from URL
@@ -73,10 +80,7 @@ export function matchPattern(value: string, pattern: string, matchType: Blacklis
 /**
  * Match a network URL against network blacklist rules
  */
-export function matchNetworkRule(
-  url: string,
-  rules: BlacklistRule[]
-): { matched: boolean; rule?: BlacklistRule; riskLevel?: RiskLevel } {
+export function matchNetworkRule(url: string, rules: BlacklistRule[]): MatchResult {
   const domain = extractDomain(url);
   const ip = extractIP(url);
 
@@ -111,7 +115,7 @@ export function matchNetworkRule(
 
       // 4. Match against hostname only (domain + port, without path)
       const hostname = urlWithoutProtocol.split('/')[0];
-      if (matchPattern(hostname, normalizedPattern, 'wildcard')) {
+      if (hostname && matchPattern(hostname, normalizedPattern, 'wildcard')) {
         return { matched: true, rule, riskLevel: rule.riskLevel };
       }
     } else {
@@ -139,11 +143,7 @@ export function matchNetworkRule(
 /**
  * Match a file path against file blacklist rules
  */
-export function matchFileRule(
-  filePath: string,
-  flags: string[],
-  rules: BlacklistRule[]
-): { matched: boolean; rule?: BlacklistRule; riskLevel?: RiskLevel } {
+export function matchFileRule(filePath: string, flags: string[], rules: BlacklistRule[]): MatchResult {
   // Normalize path
   const normalizedPath = filePath.replace(/\\/g, '/');
 
@@ -177,6 +177,25 @@ export function matchFileRule(
   return { matched: false };
 }
 
+export function matchProcessRule(command: string, rules: BlacklistRule[]): MatchResult {
+  // Normalize path
+  const normalizedPath = command.replace(/\\/g, '/');
+
+  for (const rule of rules) {
+    if (!rule.enabled || rule.type !== 'process') continue;
+
+    // Normalize rule pattern
+    const normalizedPattern = rule.pattern.replace(/\\/g, '/');
+
+    // For wildcard patterns, match the path
+    if (matchPattern(normalizedPath, normalizedPattern, rule.matchType)) {
+      return { matched: true, rule, riskLevel: rule.riskLevel };
+    }
+  }
+
+  return { matched: false };
+}
+
 /**
  * Check if a request should trigger safety popup based on blacklist config
  *
@@ -184,38 +203,29 @@ export function matchFileRule(
  * - If request matches a blacklist rule -> trigger popup
  * - If no rule matches -> allow without popup
  */
-export function shouldTriggerPopup(
-  type: 'network' | 'file',
-  data: { url?: string; path?: string; flags?: string[] },
-  config: BlacklistConfig | null
-): { shouldTrigger: boolean; rule?: BlacklistRule; riskLevel?: RiskLevel } {
+export function shouldTriggerPopup(payload: Payload, config: BlacklistConfig | null): MatchResult {
+  const notMatched: MatchResult = { matched: false };
   // If no config, don't intercept (allow all)
   if (!config) {
-    return { shouldTrigger: false };
+    return notMatched;
   }
 
   // Filter rules by type and enabled status
-  const relevantRules = config.rules.filter((r) => r.type === type && r.enabled);
+  const relevantRules = config.rules.filter((r) => r.type === payload.type && r.enabled);
 
   // If no relevant rules, don't intercept
   if (relevantRules.length === 0) {
-    return { shouldTrigger: false };
+    return notMatched;
   }
 
-  if (type === 'network' && data.url) {
-    const result = matchNetworkRule(data.url, relevantRules);
-    if (result.matched) {
-      return { shouldTrigger: true, rule: result.rule, riskLevel: result.riskLevel };
-    }
+  switch (payload.type) {
+    case 'network':
+      return matchNetworkRule(payload.data.url, relevantRules);
+    case 'file':
+      return matchFileRule(payload.data.path, payload.data.flags, relevantRules);
+    case 'process':
+      return matchProcessRule(payload.data.command, relevantRules);
+    default:
+      return notMatched;
   }
-
-  if (type === 'file' && data.path && data.flags) {
-    const result = matchFileRule(data.path, data.flags, relevantRules);
-    if (result.matched) {
-      return { shouldTrigger: true, rule: result.rule, riskLevel: result.riskLevel };
-    }
-  }
-
-  // No rule matched - allow without popup
-  return { shouldTrigger: false };
 }
