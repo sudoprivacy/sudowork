@@ -178,11 +178,15 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           </div>
         )}
         <div
-          className={classNames('min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px md:max-w-780px', {
-            'bg-aou-2 p-8px': isUserMessage || cronMeta,
-            'w-full': !(isUserMessage || cronMeta),
+          className={classNames('min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px md:max-w-780px p-8px border border-solid transition-colors duration-200', {
+            // 用户消息使用 OpenClaw 风格的粉色调
+            'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
+            // 助手消息使用 OpenClaw 风格的白色/深灰色调
+            'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
           })}
-          style={isUserMessage || cronMeta ? { borderRadius: '8px 0 8px 8px' } : undefined}
+          style={{
+            borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
+          }}
         >
           {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
           {json ? (
