@@ -100,7 +100,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   }
 
   isApplied = true;
-  console.log(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
+  console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
   // Start polling for enabled state changes (for Agent CLI processes without parentPort)
   if (!process.parentPort) {
@@ -143,7 +143,7 @@ export function disposeSafetyHook(): void {
   }
   nexusController = null;
   isApplied = false;
-  console.log('[SafetyHook] Disposed (state polling continues)');
+  console.error('[SafetyHook] Disposed (state polling continues)');
 }
 
 /**
@@ -154,7 +154,7 @@ function startStatePolling(): void {
     return; // Already polling
   }
 
-  console.log(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
+  console.error(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
 
   statePollingTimer = setInterval(async () => {
     try {
@@ -166,7 +166,7 @@ function startStatePolling(): void {
         // If currently applied, dispose interceptors but keep polling
         if (isApplied) {
           disposeSafetyHook();
-          console.log('[SafetyHook] FastPass detected, disposed interceptors');
+          console.error('[SafetyHook] FastPass detected, disposed interceptors');
         }
       } else if (!state.enabled && isApplied) {
         disposeSafetyHook();
@@ -189,7 +189,7 @@ function stopStatePolling(): void {
   if (statePollingTimer) {
     clearInterval(statePollingTimer);
     statePollingTimer = null;
-    console.log('[SafetyHook] Stopped state polling');
+    console.error('[SafetyHook] Stopped state polling');
   }
 }
 
@@ -261,14 +261,14 @@ async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
  * Start polling for blacklist config changes from Nexus filesystem
  */
 function startBlacklistPolling(): void {
-  console.log(`[SafetyHook] Starting blacklist config polling`);
+  console.error(`[SafetyHook] Starting blacklist config polling`);
 
   // Initial load
   readBlacklistConfig()
     .then((config) => {
       if (config) {
         updateBlacklistConfig(config);
-        console.log(`[SafetyHook] Loaded blacklist config: rules=${config.rules?.length || 0}`);
+        console.error(`[SafetyHook] Loaded blacklist config: rules=${config.rules?.length || 0}`);
       }
     })
     .catch(() => {});
@@ -290,7 +290,7 @@ function startBlacklistPolling(): void {
  * Handle safety hook toggle message from parent process
  */
 function handleSafetyHookToggle(enabled: boolean): void {
-  console.log(`[SafetyHook] Received toggle: enabled=${enabled}, current isApplied=${isApplied}`);
+  console.error(`[SafetyHook] Received toggle: enabled=${enabled}, current isApplied=${isApplied}`);
 
   if (enabled && !isApplied) {
     initSafetyHook();
@@ -309,7 +309,7 @@ if (process.parentPort) {
       // Receive blacklist config update from main process
       if (data?.config) {
         updateBlacklistConfig(data.config);
-        console.log(`[SafetyHook] Received blacklist update via parentPort: rules=${data.config.rules?.length || 0}`);
+        console.error(`[SafetyHook] Received blacklist update via parentPort: rules=${data.config.rules?.length || 0}`);
       }
     }
   });
