@@ -11,6 +11,7 @@ import { AuthService } from '@/webserver/auth/service/AuthService';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { AUTH_CONFIG, SERVER_CONFIG } from '@/webserver/config/constants';
 import { WebuiService } from './services/WebuiService';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 // 预加载 webserver 模块避免启动时延迟 / Preload webserver module to avoid startup delay
 import { startWebServerWithInstance } from '@/webserver/index';
 import { cleanupWebAdapter } from '@/webserver/adapter';
@@ -120,7 +121,7 @@ export async function verifyQRTokenDirect(qrToken: string, clientIP?: string): P
 
     // P0 安全修复：检查本地网络限制 / P0 Security fix: Check local network restriction
     if (tokenData.allowLocalOnly && clientIP && !isLocalIP(clientIP)) {
-      console.warn(`[WebUI Bridge] QR token rejected: non-local IP ${clientIP} attempted to use local-only token`);
+      mainWarn('WebUI Bridge', `QR token rejected: non-local IP ${clientIP} attempted to use local-only token`);
       return {
         success: false,
         msg: 'QR login is only allowed from local network',
@@ -156,7 +157,7 @@ export async function verifyQRTokenDirect(qrToken: string, clientIP?: string): P
       },
     };
   } catch (error) {
-    console.error('[WebUI Bridge] Verify QR token error:', error);
+    mainError('WebUI Bridge', 'Verify QR token error:', error);
     return {
       success: false,
       msg: error instanceof Error ? error.message : 'Failed to verify QR token',
@@ -222,7 +223,7 @@ export function initWebuiBridge(): void {
           });
           cleanupWebAdapter();
         } catch (err) {
-          console.warn('[WebUI Bridge] Error stopping previous server:', err);
+          mainWarn('WebUI Bridge', 'Error stopping previous server:', err);
         }
         webServerInstance = null;
       }
@@ -260,7 +261,7 @@ export function initWebuiBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[WebUI Bridge] Start error:', error);
+      mainError('WebUI Bridge', 'Start error:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Failed to start WebUI',
@@ -305,7 +306,7 @@ export function initWebuiBridge(): void {
 
       return { success: true };
     } catch (error) {
-      console.error('[WebUI Bridge] Stop error:', error);
+      mainError('WebUI Bridge', 'Stop error:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Failed to stop WebUI',
@@ -383,7 +384,7 @@ export function initWebuiBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[WebUI Bridge] Generate QR token error:', error);
+      mainError('WebUI Bridge', 'Generate QR token error:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Failed to generate QR token',
@@ -450,7 +451,7 @@ export function initWebuiBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[WebUI Bridge] Verify QR token error:', error);
+      mainError('WebUI Bridge', 'Verify QR token error:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Failed to verify QR token',
@@ -525,7 +526,7 @@ export function initWebuiBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[WebUI Bridge] Direct IPC: Generate QR token error:', error);
+      mainError('WebUI Bridge', 'Direct IPC: Generate QR token error:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Failed to generate QR token',

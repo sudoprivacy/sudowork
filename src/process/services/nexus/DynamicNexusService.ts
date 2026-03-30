@@ -115,6 +115,29 @@ class DynamicNexusService {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
+  /**
+   * Returns the nexus runtime version string used as the content of marker files.
+   * Falls back to the app version if runtime-versions.json has no nexus entry.
+   */
+  private getNexusVersion(): string {
+    return this.getBundledVersion() ?? app.getVersion();
+  }
+
+  /**
+   * Returns true when a marker file exists AND its content matches the current
+   * nexus runtime version. A version mismatch (upgrade scenario) is treated the
+   * same as an absent file so that setup steps re-run automatically.
+   */
+  private isMarkerCurrent(markerPath: string): boolean {
+    if (!fs.existsSync(markerPath)) return false;
+    try {
+      const content = fs.readFileSync(markerPath, 'utf-8').trim();
+      return content === this.getNexusVersion();
+    } catch {
+      return false;
+    }
+  }
+
   private normalizeVersion(value?: string): string | undefined {
     if (!value) return undefined;
     const trimmed = value.trim();
@@ -291,9 +314,9 @@ class DynamicNexusService {
         }
         if (!this.isWindows) fs.chmodSync(nexusdBin, 0o755);
 
-        // Write version marker
+        // Write version marker (nexus runtime version so upgrades invalidate it)
         const markerFile = path.join(envDir, CONDA_READY_MARKER);
-        fs.writeFileSync(markerFile, app.getVersion());
+        fs.writeFileSync(markerFile, this.getNexusVersion());
 
         this.emitSetup('idle', 'Nexus installation completed successfully');
         mainLog('Nexus', 'Installation completed');
@@ -612,16 +635,10 @@ class DynamicNexusService {
 
   /**
    * Probes whether nexusd is actually reachable on its port.
-   * Falls back to a port check when the internal _running flag is false
-   * (e.g. child exited but an orphaned process is still serving).
+   * "Running" must mean the HTTP health endpoint responds with status=healthy;
+   * a live child-process reference alone is not sufficient.
    */
   async checkActualRunning(): Promise<boolean> {
-    // Check if the process is actually running by verifying the process object exists
-    // and hasn't exited, which is more reliable than port checking
-    if (this.process && !this.process.killed && this._running) {
-      return true;
-    }
-
     const port = this._port > 0 ? this._port : NEXUS_DEFAULT_PORT;
     const healthy = await this.isHealthyNexusServer(port);
     if (healthy) {
@@ -656,8 +673,8 @@ class DynamicNexusService {
     if (process.platform !== 'darwin') return;
 
     const repairMarker = path.join(envDir, CODESIGN_REPAIR_MARKER);
-    if (!force && fs.existsSync(repairMarker)) {
-      mainLog('Nexus', 'macOS codesign repair already done — skipping');
+    if (!force && this.isMarkerCurrent(repairMarker)) {
+      mainLog('Nexus', 'macOS codesign repair already done for this nexus version — skipping');
       return;
     }
 
@@ -699,7 +716,7 @@ echo "codesign-repair: signed=$$SIGNED failed=$$FAILED"
       const { stdout, stderr } = await execAsync(script, { shell: '/bin/bash', timeout: 180000 });
       if (stdout.trim()) mainLog('Nexus', stdout.trim());
       if (stderr.trim()) mainWarn('Nexus', stderr.trim());
-      fs.writeFileSync(repairMarker, app.getVersion());
+      fs.writeFileSync(repairMarker, this.getNexusVersion());
       mainLog('Nexus', 'macOS codesign repair complete');
     } catch (err) {
       mainWarn('Nexus', `macOS codesign repair encountered errors (non-fatal): ${err}`);

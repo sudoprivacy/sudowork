@@ -12,7 +12,7 @@ _last_pointer = [0, 0]
 async def pointer_move(tab, x: int, y: int, duration: int = 0, origin: str = "viewport") -> dict:
     """WebDriver §15.4.2 — Pointer actions."""
     await tab.send(cdp_input.dispatch_mouse_event(
-        "mouseMoved", x=x, y=y,
+        "mouseMoved", x=float(x), y=float(y),
     ))
     _last_pointer[0] = x
     _last_pointer[1] = y

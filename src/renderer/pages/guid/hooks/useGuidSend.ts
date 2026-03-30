@@ -9,7 +9,7 @@ import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
 import { type TFunction } from 'i18next';
@@ -25,6 +25,7 @@ export type GuidSendDeps = {
   dir: string;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedSkills?: string[];
 
   // Agent state
   selectedAgent: AcpBackend | 'custom';
@@ -68,7 +69,7 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, navigate, closeAllTabs, openTab, t } = deps;
+  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, navigate, closeAllTabs, openTab, t } = deps;
 
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
@@ -150,6 +151,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
         };
         sessionStorage.setItem(`openclaw_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -193,18 +195,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetContext: isPreset ? presetRules : undefined,
             enabledSkills: isPreset ? enabledSkills : undefined,
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
-            sessionMode: (() => {
-              // If preset has defaultMode (e.g. doctor's 'yolo'), map it to the correct ACP session mode
-              if (isPreset && selectedMode === 'default') {
-                const presetId = agentInfo?.customAgentId?.replace('builtin-', '') || '';
-                const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-                if (preset?.defaultMode === 'yolo') {
-                  const yoloMap: Record<string, string> = { claude: 'bypassPermissions', gemini: 'yolo', codex: 'yolo' };
-                  return yoloMap[acpBackend || ''] || 'yolo';
-                }
-              }
-              return selectedMode;
-            })(),
+            sessionMode: isPreset
+              ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode)
+              : selectedMode,
             currentModelId: selectedAcpModel || undefined,
           },
         });
@@ -225,6 +218,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
         };
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 

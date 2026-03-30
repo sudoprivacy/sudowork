@@ -6,6 +6,7 @@
 
 import type { ConversionResult, ExcelWorkbookData, PPTJsonData, PPTSlideData } from '@/common/types/conversion';
 import { DOMParser } from '@xmldom/xmldom';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
 import { BrowserWindow } from 'electron';
 import fs from 'fs/promises';
@@ -47,7 +48,7 @@ class ConversionService {
       const markdown = this.turndownService.turndown(html);
       return { success: true, data: markdown };
     } catch (error) {
-      console.error('[ConversionService] wordToMarkdown failed:', error);
+      mainError('ConversionService', 'wordToMarkdown failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -122,7 +123,7 @@ class ConversionService {
 
       // Log warnings for debugging
       if (messages && messages.length > 0) {
-        console.log('[ConversionService] wordToHtml conversion messages:', messages);
+        mainLog('ConversionService', 'wordToHtml conversion messages:', messages);
       }
 
       // Wrap HTML in a complete document with styling
@@ -281,7 +282,7 @@ class ConversionService {
 
       return { success: true, data: fullHtml };
     } catch (error) {
-      console.error('[ConversionService] wordToHtml failed:', error);
+      mainError('ConversionService', 'wordToHtml failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -318,7 +319,7 @@ class ConversionService {
 
       return { success: true, data: targetPath };
     } catch (error) {
-      console.error('[ConversionService] markdownToWordAndSave failed:', error);
+      mainError('ConversionService', 'markdownToWordAndSave failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -336,7 +337,7 @@ class ConversionService {
       await fs.writeFile(targetPath, Buffer.from(arrayBuffer));
       return { success: true };
     } catch (error) {
-      console.error('[ConversionService] markdownToWord failed:', error);
+      mainError('ConversionService', 'markdownToWord failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -376,7 +377,7 @@ class ConversionService {
 
       return { success: true, data: { sheets } };
     } catch (error) {
-      console.error('[ConversionService] excelToJson failed:', error);
+      mainError('ConversionService', 'excelToJson failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -401,7 +402,7 @@ class ConversionService {
       await fs.writeFile(targetPath, buffer);
       return { success: true };
     } catch (error) {
-      console.error('[ConversionService] jsonToExcel failed:', error);
+      mainError('ConversionService', 'jsonToExcel failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -430,7 +431,7 @@ class ConversionService {
         return { success: false, error: 'Empty or corrupt PPTX file' };
       }
 
-      console.log('[ConversionService] PPTX ZIP entries:', Array.from(zipEntries.keys()));
+      mainLog('ConversionService', 'PPTX ZIP entries:', Array.from(zipEntries.keys()));
 
       // Extract media resources from ppt/media/*
       const mediaResources: Record<string, string> = {};
@@ -466,7 +467,7 @@ class ConversionService {
         }
       }
 
-      console.log('[ConversionService] Total media resources extracted:', Object.keys(mediaResources).length);
+      mainLog('ConversionService', 'Total media resources extracted:', Object.keys(mediaResources).length);
 
       // Extract slides from ppt/slides/*.xml
       const slides: PPTSlideData[] = [];
@@ -495,7 +496,7 @@ class ConversionService {
         slide.slideNumber = index + 1;
       });
 
-      console.log('[ConversionService] Total slides extracted:', slides.length);
+      mainLog('ConversionService', 'Total slides extracted:', slides.length);
 
       // Build raw data object
       const rawData: Record<string, any> = {
@@ -511,7 +512,7 @@ class ConversionService {
         },
       };
     } catch (error) {
-      console.error('[ConversionService] pptToJson failed:', error);
+      mainError('ConversionService', 'pptToJson failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -715,7 +716,7 @@ class ConversionService {
 
       return result;
     } catch (error) {
-      console.warn('[ConversionService] extractExcelImages failed:', error);
+      mainWarn('ConversionService', 'extractExcelImages failed:', error);
       return {};
     }
   }
@@ -956,7 +957,7 @@ class ConversionService {
       await fs.writeFile(targetPath, data);
       return { success: true };
     } catch (error) {
-      console.error('[ConversionService] htmlToPdf failed:', error);
+      mainError('ConversionService', 'htmlToPdf failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     } finally {
       if (win) {
@@ -994,7 +995,7 @@ class ConversionService {
       const html = `<pre style="white-space: pre-wrap; font-family: monospace;">${markdown}</pre>`;
       return await this.htmlToPdf(html, targetPath);
     } catch (error) {
-      console.error('[ConversionService] markdownToPdf failed:', error);
+      mainError('ConversionService', 'markdownToPdf failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -1043,7 +1044,7 @@ class ConversionService {
         await fs.copyFile(filePath, tempFile);
         sourcePath = tempFile;
         baseName = 'input'; // Use ASCII name for the output PDF as well
-        console.log('[ConversionService] Copied file to temp path for macOS Unicode compatibility:', tempFile);
+        mainLog('ConversionService', 'Copied file to temp path for macOS Unicode compatibility:', tempFile);
       }
 
       // Queue the conversion to prevent concurrent LibreOffice processes
@@ -1059,7 +1060,7 @@ class ConversionService {
         });
       });
     } catch (error) {
-      console.error('[ConversionService] libreOfficeToPdf failed:', error);
+      mainError('ConversionService', 'libreOfficeToPdf failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
       // Provide more specific error messages
@@ -1100,21 +1101,21 @@ class ConversionService {
 
     const command = `"${libreOfficePath}" --headless --norestore --nofirststartwizard --convert-to pdf:${pdfFilter} --outdir "${tempDir}" "${sourcePath}"`;
 
-    console.log('[ConversionService] Executing LibreOffice command:', command);
+    mainLog('ConversionService', 'Executing LibreOffice command:', command);
 
     const { stdout, stderr } = await execAsync(command, {
       timeout: 120000, // 2 minute timeout
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
 
-    console.log('[ConversionService] LibreOffice stdout:', stdout || '(empty)');
+    mainLog('ConversionService', 'LibreOffice stdout:', stdout || '(empty)');
     if (stderr) {
-      console.log('[ConversionService] LibreOffice stderr:', stderr);
+      mainLog('ConversionService', 'LibreOffice stderr:', stderr);
     }
 
     // List files in output directory for debugging
     const files = await fs.readdir(tempDir);
-    console.log('[ConversionService] Files in output directory:', files);
+    mainLog('ConversionService', 'Files in output directory:', files);
 
     // Find the generated PDF file
     const pdfPath = path.join(tempDir, baseName + '.pdf');
@@ -1124,13 +1125,13 @@ class ConversionService {
       await fs.access(pdfPath);
       // Resolve to real path to handle macOS /var vs /private/var symlink
       const resolvedPdfPath = await fs.realpath(pdfPath);
-      console.log('[ConversionService] LibreOffice PDF created:', pdfPath, '->', resolvedPdfPath);
+      mainLog('ConversionService', `LibreOffice PDF created: ${pdfPath} -> ${resolvedPdfPath}`);
       return { success: true, data: resolvedPdfPath };
     } catch {
       // If exact match fails, try to find any PDF in output dir
       const pdfFile = files.find((f) => f.toLowerCase().endsWith('.pdf'));
       if (pdfFile) {
-        console.log('[ConversionService] Found PDF with different name:', pdfFile);
+        mainLog('ConversionService', 'Found PDF with different name:', pdfFile);
         const foundPath = path.join(tempDir, pdfFile);
         const resolvedPdfPath = await fs.realpath(foundPath);
         return { success: true, data: resolvedPdfPath };
@@ -1151,7 +1152,7 @@ class ConversionService {
     try {
       const { stdout } = await execAsync('soffice --version');
       if (stdout) {
-        console.log('[ConversionService] LibreOffice found in PATH:', stdout.trim());
+        mainLog('ConversionService', 'LibreOffice found in PATH:', stdout.trim());
         return 'soffice';
       }
     } catch {
@@ -1176,14 +1177,14 @@ class ConversionService {
     for (const libPath of commonPaths) {
       try {
         await fs.access(libPath);
-        console.log('[ConversionService] LibreOffice found at:', libPath);
+        mainLog('ConversionService', 'LibreOffice found at:', libPath);
         return libPath;
       } catch {
         // Try next path
       }
     }
 
-    console.warn('[ConversionService] LibreOffice not found');
+    mainWarn('ConversionService', 'LibreOffice not found');
     return null;
   }
 

@@ -9,6 +9,7 @@ import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '../../../../common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -40,9 +41,9 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           if (attempt === 1) {
-            console.log('[GeminiMcpAgent] Starting MCP detection...');
+            mainLog('GeminiMcpAgent', 'Starting MCP detection...');
           } else {
-            console.log(`[GeminiMcpAgent] Retrying detection (attempt ${attempt}/${maxRetries})...`);
+            mainLog('GeminiMcpAgent', `Retrying detection (attempt ${attempt}/${maxRetries})...`);
             // 如果不是第一次尝试，添加短暂延迟避免与其他操作冲突
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
@@ -52,7 +53,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
 
           // 如果没有配置任何MCP服务器，返回空数组
           if (result.includes('No MCP servers configured') || !result.trim()) {
-            console.log('[GeminiMcpAgent] No MCP servers configured');
+            mainLog('GeminiMcpAgent', 'No MCP servers configured');
             return [];
           }
 
@@ -105,7 +106,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
                   const testResult = await this.testMcpConnection(transportObj);
                   tools = testResult.tools || [];
                 } catch (error) {
-                  console.warn(`[GeminiMcpAgent] Failed to get tools for ${name.trim()}:`, error);
+                  mainWarn('GeminiMcpAgent', `Failed to get tools for ${name.trim()}:`, error);
                 }
               }
 
@@ -143,7 +144,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
             }
           }
 
-          console.log(`[GeminiMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+          mainLog('GeminiMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
 
           // 验证结果：如果输出包含"Configured MCP servers:"但没检测到任何服务器，可能被截断
           const hasConfigHeader = result.includes('Configured MCP servers:');
@@ -157,7 +158,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
           return mcpServers;
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
-          console.warn(`[GeminiMcpAgent] Detection attempt ${attempt} failed:`, lastError.message);
+          mainWarn('GeminiMcpAgent', `Detection attempt ${attempt} failed:`, lastError.message);
 
           // 如果还有重试机会，继续下一次尝试
           if (attempt < maxRetries) {
@@ -167,7 +168,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
       }
 
       // 所有重试都失败了
-      console.warn('[GeminiMcpAgent] All detection attempts failed. Last error:', lastError);
+      mainWarn('GeminiMcpAgent', 'All detection attempts failed. Last error:', lastError);
       return [];
     };
 
@@ -198,9 +199,9 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
 
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
-              console.log(`[GeminiMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('GeminiMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Gemini:`, error);
+              mainWarn('GeminiMcpAgent', `Failed to add MCP ${server.name} to Gemini:`, error);
               // 继续处理其他服务器
             }
           } else if (server.transport.type === 'sse' || server.transport.type === 'http' || server.transport.type === 'streamable_http') {
@@ -217,9 +218,9 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
 
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
-              console.log(`[GeminiMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('GeminiMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Gemini:`, error);
+              mainWarn('GeminiMcpAgent', `Failed to add MCP ${server.name} to Gemini:`, error);
             }
           }
         }
@@ -246,7 +247,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
           const result = await safeExec(removeCommand, { timeout: 5000, ...getExecEnv() });
 
           if (result.stdout && result.stdout.includes('removed')) {
-            console.log(`[GeminiMcpAgent] Removed MCP server: ${mcpServerName}`);
+            mainLog('GeminiMcpAgent', `Removed MCP server: ${mcpServerName}`);
             return { success: true };
           } else if (result.stdout && result.stdout.includes('not found')) {
             // 尝试 project scope
@@ -261,7 +262,7 @@ export class GeminiMcpAgent extends AbstractMcpAgent {
             const result = await safeExec(removeCommand, { timeout: 5000, ...getExecEnv() });
 
             if (result.stdout && result.stdout.includes('removed')) {
-              console.log(`[GeminiMcpAgent] Removed MCP server from project: ${mcpServerName}`);
+              mainLog('GeminiMcpAgent', `Removed MCP server from project: ${mcpServerName}`);
               return { success: true };
             } else {
               // 服务器不存在，也认为成功

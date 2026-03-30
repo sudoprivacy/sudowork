@@ -1,8 +1,8 @@
 name: "doctor self-diagnosis"
-description: "Claude Code explores SudoWork's own UI: switches between all available agents in the conversation page, verifying each one activates correctly"
+description: "Doctor (Claude Code + yolo) freely explores SudoWork UI within a time budget, then we judge whatever it accomplished"
 
 steps:
-  # ── Phase 1: Go to new conversation (clean state) ──
+  # ── Phase 1: Clean state ──
   - op: mouse_click
     text: "新会话"
   - op: pause
@@ -12,48 +12,49 @@ steps:
   - op: judge
     expect: "新会话 Sudoclaw Claude Code"
 
-  # ── Phase 2: Select Claude Code agent ──
+  # ── Phase 2: Select doctor preset (routes to Claude Code backend) ──
   - op: mouse_click
-    selector: "img[alt='claude logo']"
+    text: "诊断医生"
   - op: pause
     duration: 2000
   - op: screenshot
-    path: "screenshots/doctor-01-claude-selected.png"
-  - op: judge
-    expect: "Claude Code 发消息"
+    path: "screenshots/doctor-01-selected.png"
 
-  # ── Phase 3: Send task — ask to test agent switching ──
+  # ── Phase 3: Send bounded task ──
   - op: type_text
-    text: "请在这个应用里测试 agent 切换功能。先用 screenshot 看看当前新会话页面有哪些 agent 可选，然后逐个点击每个 agent 图标，每次切换后 screenshot 确认切换成功了。最后给我总结哪些 agent 切换成功、哪些失败。"
+    text: "你有 7 分钟做一次快速自检。请在新会话页面测试 agent 切换：截图看有哪些 agent，逐个点击切换并截图验证。7 分钟后会被中断，请合理安排时间，留时间写总结。"
   - op: press_key
     key: "Enter"
     wait: 3
 
-  # ── Phase 4: Auto-approve permissions & wait ──
-  - op: pause
-    duration: 10000
-  - op: press_key
-    key: "Enter"
-    wait: 2
-  - op: press_key
-    key: "Enter"
-    wait: 2
-  - op: press_key
-    key: "Enter"
-    wait: 2
-  - op: press_key
-    key: "Enter"
-    wait: 2
-  - op: press_key
-    key: "Enter"
-    wait: 2
-
+  # ── Phase 4: Let doctor work for 7 minutes ──
   - op: wait_for_response
-    timeout: 300
+    timeout: 420
 
+  # ── Phase 5: Navigate back to doctor conversation before warning ──
+  # Doctor may have navigated away (e.g. to guid page for agent switching test).
+  # Click the doctor conversation in sidebar to return.
+  - op: mouse_click
+    text: "你有 7 分钟做一次快速自"
+  - op: pause
+    duration: 2000
+
+  # ── Phase 6: Warn before stopping ──
+  - op: type_text
+    text: "时间到了，请立即停止当前操作，输出你的诊断总结报告。你有 30 秒。"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 30
+
+  # ── Phase 7: Force stop ──
+  - op: stop_conversation
+  - op: pause
+    duration: 3000
+
+  # ── Phase 8: Judge ──
   - op: screenshot
     path: "screenshots/doctor-02-result.png"
-
-  # ── Phase 5: Verify Claude Code completed the task ──
   - op: judge
-    expect: "agent 切换 screenshot Sudoclaw Claude"
+    expect: "screenshot agent 切换 Sudoclaw Claude"

@@ -11,11 +11,14 @@ import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc } from '@/common/ipcBridge';
-import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 
 // ── types ────────────────────────────────────────────────────────────────────
 
 type LoadState = 'idle' | 'loading' | 'installing';
+type RefreshOptions = {
+  silent?: boolean;
+};
 
 interface ToolRow {
   key: string;
@@ -188,12 +191,14 @@ const RuntimeModalContent: React.FC = () => {
   const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
   const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
-  const [sudoclawPhase, setSudoclawPhase] = useState<'extracting' | 'installing' | 'configuring' | undefined>(undefined);
+  const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
-  const refreshNode = useCallback(async () => {
-    setNodeLoad('loading');
+  const refreshNode = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setNodeLoad('loading');
+    }
     try {
       const res = await nodeRuntimeIpc.checkInstalled.invoke();
       if (res?.success && res.data) {
@@ -204,7 +209,9 @@ const RuntimeModalContent: React.FC = () => {
     } catch {
       setNodeStatus({ installed: false, source: 'managed' });
     } finally {
-      setNodeLoad('idle');
+      if (!options?.silent) {
+        setNodeLoad('idle');
+      }
     }
   }, []);
 
@@ -242,13 +249,17 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshNode, t]);
 
-  const refreshClaude = useCallback(async () => {
-    setClaudeLoad('loading');
+  const refreshClaude = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setClaudeLoad('loading');
+    }
     try {
       const res = await claudeCliIpc.checkInstalled.invoke();
       if (res?.success && res.data) setClaudeStatus(res.data);
     } finally {
-      setClaudeLoad('idle');
+      if (!options?.silent) {
+        setClaudeLoad('idle');
+      }
     }
   }, []);
 
@@ -288,13 +299,17 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshClaude, t]);
 
-  const refreshLibreOffice = useCallback(async () => {
-    setLibreOfficeLoad('loading');
+  const refreshLibreOffice = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setLibreOfficeLoad('loading');
+    }
     try {
       const res = await libreOfficeIpc.checkInstalled.invoke();
       if (res?.success && res.data) setLibreOfficeStatus(res.data);
     } finally {
-      setLibreOfficeLoad('idle');
+      if (!options?.silent) {
+        setLibreOfficeLoad('idle');
+      }
     }
   }, []);
 
@@ -508,13 +523,22 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshNexus, t]);
 
+  const refreshRuntimePage = useCallback(
+    async (options?: RefreshOptions) => {
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshSudoclaw(), refreshNexus(), refreshLibreOffice(options)]);
+    },
+    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshSudoclaw]
+  );
+
   // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
-    void refreshNode();
-    void refreshClaude();
-    void refreshSudoclaw();
-    void refreshNexus();
-    void refreshLibreOffice();
+    void refreshRuntimePage();
+    void sudoclawIpc.getInstallState.invoke().then((res) => {
+      if (res?.success && res.data?.installing) {
+        setSudoclawLoad('installing');
+        if (res.data.phase) setSudoclawPhase(res.data.phase);
+      }
+    });
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
       if (res?.success && res.data?.installing) {
         setLibreOfficeLoad('installing');
@@ -522,7 +546,17 @@ const RuntimeModalContent: React.FC = () => {
         if (res.data.percent != null) setLibreOfficePercent(res.data.percent);
       }
     });
-  }, [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshSudoclaw]);
+  }, [refreshRuntimePage]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshRuntimePage({ silent: true });
+    }, 3000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshRuntimePage]);
 
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
   useEffect(() => {
@@ -535,9 +569,11 @@ const RuntimeModalContent: React.FC = () => {
       setClaudePhase(phase);
     });
     const unsubSudoclawProgress = sudoclawIpc.installProgress.on(({ phase }) => {
+      setSudoclawLoad('installing');
       setSudoclawPhase(phase);
     });
     const unsubSudoclawResult = sudoclawIpc.installResult.on(() => {
+      setSudoclawLoad('idle');
       setSudoclawPhase(undefined);
       void refreshSudoclaw();
     });

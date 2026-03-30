@@ -17,6 +17,52 @@
   overflow-x: hidden;
 }
 
+/* Window Controls Positioning */
+.app-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.app-window-controls__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.app-window-controls__button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.app-window-controls__button--close:hover {
+  background: #e81123 !important;
+  color: white !important;
+}
+
+[data-theme='dark'] .app-window-controls__button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .app-window-controls__button--close:hover {
+  background: #f1707a !important;
+  color: white !important;
+}
+
 /* Dark mode background - darker gradient */
 [data-theme='dark'] .login-page {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);

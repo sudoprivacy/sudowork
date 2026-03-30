@@ -9,7 +9,11 @@ import { Phone, Protect, Key, User } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import WindowControls from '../../components/WindowControls';
 import './LoginPage.css';
+
+// 运行时判断 / Runtime check
+const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -163,8 +167,15 @@ const LoginPage: React.FC = () => {
         setTimeout(() => navigate('/guid', { replace: true }), 300);
       } else {
         Message.error(regResult.message || '注册失败');
-        // 注册失败可能是因为 token 过期，清除它
-        setSavedRegisterToken(null);
+
+        // 区分错误类型：仅 token 过期时清除，邀请码错误保留 token 允许重试
+        const errorMsg = regResult.message || '';
+        const isTokenExpired = errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效');
+
+        if (isTokenExpired) {
+          setSavedRegisterToken(null);
+          Message.warning('注册凭证已过期，请重新获取验证码');
+        }
       }
       setLoading(false);
       return;
@@ -201,6 +212,11 @@ const LoginPage: React.FC = () => {
             setTimeout(() => navigate('/guid', { replace: true }), 300);
           } else {
             Message.error(regResult.message || '注册失败');
+            // 仅在 token 过期错误时清除，邀请码错误保留 token 允许重试
+            const errorMsg = regResult.message || '';
+            if (errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效')) {
+              setSavedRegisterToken(null);
+            }
           }
         } else {
           // 登录模式：提示用户切换到注册标签
@@ -277,6 +293,9 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className='login-page'>
+      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
+      {isDesktopRuntime && <WindowControls />}
+
       {/* 装饰性背景 */}
       <div className='login-page__background'>
         <div className='login-page__background-circle login-page__background-circle--lg' />

@@ -5,10 +5,10 @@ description: "AI-native browser. Explore websites, discover page structure, take
 
 # Browser
 
-Start by discovering available tools:
+Each tool is a Python module: `python3 -m ai_dev_browser.tools.<name> --help`.
+
+List all available tools:
 
 ```bash
-ls $(python -c "import ai_dev_browser.tools, os; print(os.path.dirname(ai_dev_browser.tools.__file__))")
+python3 -c "import ai_dev_browser.tools as t, pkgutil; print('\n'.join(m.name for m in pkgutil.iter_modules(t.__path__) if not m.name.startswith('_')))"
 ```
-
-Each tool maps 1:1 to a Python function, so a sequence of tool calls translates directly into a Python script.

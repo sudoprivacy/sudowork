@@ -175,6 +175,7 @@ CLAUDE.md
 
 # Local design docs and screenshots
 desdoc/
+screenshots/
 
 # E2E test artifacts (Playwright)
 tests/e2e/screenshots/

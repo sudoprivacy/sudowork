@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
@@ -237,7 +238,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
         for (const agent of list) {
           if (agent.id.startsWith('builtin-')) {
             const presetId = agent.id.replace('builtin-', '');
-            const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+            const preset = getPresetById(presetId);
             if (preset && preset.presetAgentType) {
               agent.presetAgentType = preset.presetAgentType;
             }
@@ -461,7 +462,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       // Fallback for builtin assistants
       if (customAgentId.startsWith('builtin-')) {
         const presetId = customAgentId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+        const preset = getPresetById(presetId);
         if (preset) {
           if (!rules && preset.ruleFiles) {
             try {

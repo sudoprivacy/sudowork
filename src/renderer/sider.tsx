@@ -100,7 +100,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   return (
     <div className='size-full flex flex-col'>
       {/* Main content area */}
-      <div className='flex-1 min-h-0 overflow-hidden'>
+      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-hide'>
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
@@ -149,26 +149,31 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-16px flex flex-col gap-1px'>
-              {functionMenus.map((menu) => (
-                <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
-                  <div
-                    className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0')}
-                    onClick={() => {
-                      cleanupSiderTooltips();
-                      blurActiveElement();
-                      handleFunctionMenuClick(menu.id);
-                      if (onSessionClick) {
-                        onSessionClick();
-                      }
-                    }}
-                  >
-                    <div className='w-20px h-20px flex items-center justify-center text-t-secondary shrink-0'>
-                      <menu.icon theme='outline' size='20' className='block leading-none' />
+              {functionMenus.map((menu) => {
+                const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
+                return (
+                  <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
+                    <div
+                      className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0', {
+                        '!bg-aou-2': isSelected,
+                      })}
+                      onClick={() => {
+                        cleanupSiderTooltips();
+                        blurActiveElement();
+                        handleFunctionMenuClick(menu.id);
+                        if (onSessionClick) {
+                          onSessionClick();
+                        }
+                      }}
+                    >
+                      <div className={classNames('w-20px h-20px flex items-center justify-center shrink-0', isSelected ? 'text-aou-6' : 'text-t-secondary')}>
+                        <menu.icon theme='outline' size='20' className='block leading-none' />
+                      </div>
+                      {!collapsed && <span className={classNames('flex-1 text-14px leading-24px whitespace-nowrap overflow-hidden text-ellipsis', isSelected ? 'text-aou-6 font-medium' : 'text-t-primary')}>{menu.label}</span>}
                     </div>
-                    {!collapsed && <span className='flex-1 text-14px text-t-primary leading-24px whitespace-nowrap overflow-hidden text-ellipsis'>{menu.label}</span>}
-                  </div>
-                </Tooltip>
-              ))}
+                  </Tooltip>
+                );
+              })}
             </div>
 
             {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}

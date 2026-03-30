@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from "@/common/presets/presetResolver";
 import type { TChatConversation } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
@@ -94,7 +94,7 @@ function normalizeAvatar(avatar: string | undefined): { logo: string; isEmoji: b
  * Build assistant info from preset
  */
 function buildPresetInfo(presetId: string, locale: string): PresetAssistantInfo | null {
-  const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+  const preset = getPresetById(presetId);
   if (!preset) return null;
 
   const name = preset.nameI18n[locale] || preset.nameI18n['en-US'] || preset.id;

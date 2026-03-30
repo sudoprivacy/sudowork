@@ -13,6 +13,7 @@ import { powerSaveBlocker } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
 import { copyFilesToDirectory } from '../../utils';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { cronBusyGuard } from './CronBusyGuard';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
@@ -61,7 +62,7 @@ class CronService {
       this.initialized = true;
       this.updatePowerBlocker();
     } catch (error) {
-      console.error('[CronService] Initialization failed:', error);
+      mainError('CronService', 'Initialization failed:', error);
       throw error;
     }
   }
@@ -115,7 +116,7 @@ class CronService {
       const db = getDatabase();
       db.updateConversation(params.conversationId, { modifyTime: now });
     } catch (err) {
-      console.warn('[CronService] Failed to update conversation modifyTime:', err);
+      mainWarn('CronService', 'Failed to update conversation modifyTime:', err);
     }
 
     // Start timer
@@ -405,13 +406,13 @@ class CronService {
         const db = getDatabase();
         db.updateConversation(conversationId, {});
       } catch (err) {
-        console.warn('[CronService] Failed to update conversation modifyTime after execution:', err);
+        mainWarn('CronService', 'Failed to update conversation modifyTime after execution:', err);
       }
     } catch (error) {
       // Error
       job.state.lastStatus = 'error';
       job.state.lastError = error instanceof Error ? error.message : String(error);
-      console.error(`[CronService] Job ${job.id} failed:`, error);
+      mainError('CronService', `Job ${job.id} failed:`, error);
     }
 
     // Update next run time
@@ -463,7 +464,7 @@ class CronService {
   async handleSystemResume(): Promise<void> {
     if (!this.initialized) return;
 
-    console.log('[CronService] System resumed, checking for missed jobs...');
+    mainLog('CronService', 'System resumed, checking for missed jobs...');
     const now = Date.now();
     const jobs = cronStore.listEnabled();
 
@@ -474,7 +475,7 @@ class CronService {
       // Check if job was missed during sleep
       const nextRunAt = job.state.nextRunAtMs;
       if (nextRunAt && nextRunAt <= now) {
-        console.log(`[CronService] Missed job "${job.name}" (was due at ${new Date(nextRunAt).toISOString()})`);
+        mainLog('CronService', `Missed job "${job.name}" (was due at ${new Date(nextRunAt).toISOString()})`);
 
         // Update job state to reflect missed execution
         job.state.lastStatus = 'missed';
@@ -539,16 +540,16 @@ class CronService {
     if (hasEnabledJobs && this.powerSaveBlockerId === null) {
       try {
         this.powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-        console.log('[CronService] PowerSaveBlocker started (prevent-app-suspension)');
+        mainLog('CronService', 'PowerSaveBlocker started (prevent-app-suspension)');
       } catch (error) {
-        console.warn('[CronService] Failed to start powerSaveBlocker:', error);
+        mainWarn('CronService', 'Failed to start powerSaveBlocker:', error);
       }
     } else if (!hasEnabledJobs && this.powerSaveBlockerId !== null) {
       try {
         powerSaveBlocker.stop(this.powerSaveBlockerId);
-        console.log('[CronService] PowerSaveBlocker stopped (no active jobs)');
+        mainLog('CronService', 'PowerSaveBlocker stopped (no active jobs)');
       } catch (error) {
-        console.warn('[CronService] Failed to stop powerSaveBlocker:', error);
+        mainWarn('CronService', 'Failed to stop powerSaveBlocker:', error);
       }
       this.powerSaveBlockerId = null;
     }

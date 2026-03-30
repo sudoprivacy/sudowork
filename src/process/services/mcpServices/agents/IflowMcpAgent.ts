@@ -9,6 +9,7 @@ import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '../../../../common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -91,7 +92,7 @@ export class IflowMcpAgent extends AbstractMcpAgent {
               const testResult = await this.testMcpConnection(transportObj);
               tools = testResult.tools || [];
             } catch (error) {
-              console.warn(`[IflowMcpAgent] Failed to get tools for ${name.trim()}:`, error);
+              mainWarn('IflowMcpAgent', `Failed to get tools for ${name.trim()}:`, error);
               // 如果获取tools失败，继续使用空数组
             }
           }
@@ -130,10 +131,10 @@ export class IflowMcpAgent extends AbstractMcpAgent {
         }
       }
 
-      console.log(`[IflowMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+      mainLog('IflowMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
       return mcpServers;
     } catch (error) {
-      console.warn('[IflowMcpAgent] Failed to get iFlow CLI MCP config:', error);
+      mainWarn('IflowMcpAgent', 'Failed to get iFlow CLI MCP config:', error);
       return [];
     }
   }
@@ -205,7 +206,7 @@ export class IflowMcpAgent extends AbstractMcpAgent {
             // 执行添加命令
             await safeExec(addCommand, { timeout: 10000, ...getExecEnv() });
           } catch (error) {
-            console.warn(`Failed to add MCP server ${server.name} to iFlow:`, error);
+            mainWarn('IflowMcpAgent', `Failed to add MCP server ${server.name} to iFlow:`, error);
             // 继续处理其他服务器，不要因为一个失败就停止整个过程
           }
         }

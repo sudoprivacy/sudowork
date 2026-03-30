@@ -112,9 +112,16 @@ export const PRESET_THEMES: ICssTheme[] = [
   --info: #165dff;
 
   /* Message & UI Component Colors - 消息和组件色 */
-  --message-user-bg: #e9efff;
-  --message-tips-bg: #f0f4ff;
-  --workspace-btn-bg: #eff0f1;
+  --message-user-bg: #ffe8e8; /* 用户消息背景（淡粉色 - OpenClaw 风格，更深） */
+  --message-user-text: #1d2129; /* 用户消息文字 */
+  --message-user-border: #ffd0d0; /* 用户消息边框 */
+  --message-user-hover: #fff0f0; /* 用户消息悬停背景 */
+  --message-assistant-bg: #ffffff; /* 助手消息背景（纯白色） */
+  --message-assistant-text: #1d2129; /* 助手消息文字 */
+  --message-assistant-border: #e8e8e8; /* 助手消息边框 */
+  --message-assistant-hover: #f8f8f8; /* 助手消息悬停背景 */
+  --message-tips-bg: #f0f4ff; /* 提示信息背景（浅蓝） */
+  --workspace-btn-bg: #eff0f1; /* 工作区按钮背景 */
 }
 
 /* Dark Mode Overrides - 深色模式覆盖 */
@@ -200,9 +207,16 @@ export const PRESET_THEMES: ICssTheme[] = [
   --info: #4d9fff;
 
   /* Message & UI Component Colors - Dark Mode */
-  --message-user-bg: #1e2a3a;
-  --message-tips-bg: #1a2333;
-  --workspace-btn-bg: #1f1f1f;
+  --message-user-bg: #4a1f2a; /* 用户消息背景（深红色 - OpenClaw 风格，更深） */
+  --message-user-text: #ffffff; /* 用户消息文字（白色） */
+  --message-user-border: #652a3a; /* 用户消息边框 */
+  --message-user-hover: #552530; /* 用户消息悬停背景 */
+  --message-assistant-bg: #1a2028; /* 助手消息背景（深蓝灰色 - OpenClaw 风格，更深） */
+  --message-assistant-text: #f0f0f0; /* 助手消息文字（浅色） */
+  --message-assistant-border: #28303d; /* 助手消息边框 */
+  --message-assistant-hover: #222832; /* 助手消息悬停背景 */
+  --message-tips-bg: #1a2333; /* 提示信息背景（深蓝灰） */
+  --workspace-btn-bg: #1f1f1f; /* 工作区按钮背景 */
 }`,
     createdAt: Date.now(),
     updatedAt: Date.now(),

@@ -5,6 +5,8 @@ import { FileController, type FileFlag } from './file/FileController';
 import { BatchInterceptor, type RequestController } from '@mswjs/interceptors';
 import NodeInterceptors from '@mswjs/interceptors/presets/node';
 import type { BlacklistConfig } from './blacklist/types';
+import { ProcessInterceptor } from './process/ProcessInterceptor';
+import type { ProcessController } from './process/ProcessController';
 
 export interface SafetyHookOptions {
   /** Nexus server URL, defaults to http://127.0.0.1:12012 */
@@ -13,6 +15,8 @@ export interface SafetyHookOptions {
   enableNetwork?: boolean;
   /** Enable file interception, defaults to true */
   enableFile?: boolean;
+  /** Enable process interception, defaults to true */
+  enableProcess?: boolean;
   /** Timeout in milliseconds for waiting user confirmation, defaults to 600000 (10 minutes) */
   timeout?: number;
   /** Polling interval for enabled state check (ms), defaults to 3000 */
@@ -21,6 +25,7 @@ export interface SafetyHookOptions {
 
 let networkInterceptor: BatchInterceptor | null = null;
 let fileInterceptor: FileInterceptor | null = null;
+let processInterceptor: ProcessInterceptor | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
 let statePollingTimer: NodeJS.Timeout | null = null;
@@ -47,6 +52,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   const nexusUrl = options.nexusUrl || 'http://127.0.0.1:12012';
   const enableNetwork = options.enableNetwork !== false;
   const enableFile = options.enableFile !== false;
+  const enableProcess = options.enableProcess !== false;
   const timeout = options.timeout || 600_000;
   const statePollingInterval = options.statePollingInterval || 3000;
 
@@ -85,8 +91,16 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     });
   }
 
+  if (enableProcess) {
+    processInterceptor = new ProcessInterceptor();
+    processInterceptor.apply();
+    processInterceptor.on('process', async ({ command, args, controller }: { command: string; args: string[]; controller: ProcessController }) => {
+      await nexusController!.control(controller, { type: 'process', data: { command, args } });
+    });
+  }
+
   isApplied = true;
-  console.log(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
+  console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
   // Start polling for enabled state changes (for Agent CLI processes without parentPort)
   if (!process.parentPort) {
@@ -129,7 +143,7 @@ export function disposeSafetyHook(): void {
   }
   nexusController = null;
   isApplied = false;
-  console.log('[SafetyHook] Disposed (state polling continues)');
+  console.error('[SafetyHook] Disposed (state polling continues)');
 }
 
 /**
@@ -140,7 +154,7 @@ function startStatePolling(): void {
     return; // Already polling
   }
 
-  console.log(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
+  console.error(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
 
   statePollingTimer = setInterval(async () => {
     try {
@@ -152,7 +166,7 @@ function startStatePolling(): void {
         // If currently applied, dispose interceptors but keep polling
         if (isApplied) {
           disposeSafetyHook();
-          console.log('[SafetyHook] FastPass detected, disposed interceptors');
+          console.error('[SafetyHook] FastPass detected, disposed interceptors');
         }
       } else if (!state.enabled && isApplied) {
         disposeSafetyHook();
@@ -175,7 +189,7 @@ function stopStatePolling(): void {
   if (statePollingTimer) {
     clearInterval(statePollingTimer);
     statePollingTimer = null;
-    console.log('[SafetyHook] Stopped state polling');
+    console.error('[SafetyHook] Stopped state polling');
   }
 }
 
@@ -247,14 +261,14 @@ async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
  * Start polling for blacklist config changes from Nexus filesystem
  */
 function startBlacklistPolling(): void {
-  console.log(`[SafetyHook] Starting blacklist config polling`);
+  console.error(`[SafetyHook] Starting blacklist config polling`);
 
   // Initial load
   readBlacklistConfig()
     .then((config) => {
       if (config) {
         updateBlacklistConfig(config);
-        console.log(`[SafetyHook] Loaded blacklist config: rules=${config.rules?.length || 0}`);
+        console.error(`[SafetyHook] Loaded blacklist config: rules=${config.rules?.length || 0}`);
       }
     })
     .catch(() => {});
@@ -276,7 +290,7 @@ function startBlacklistPolling(): void {
  * Handle safety hook toggle message from parent process
  */
 function handleSafetyHookToggle(enabled: boolean): void {
-  console.log(`[SafetyHook] Received toggle: enabled=${enabled}, current isApplied=${isApplied}`);
+  console.error(`[SafetyHook] Received toggle: enabled=${enabled}, current isApplied=${isApplied}`);
 
   if (enabled && !isApplied) {
     initSafetyHook();
@@ -295,7 +309,7 @@ if (process.parentPort) {
       // Receive blacklist config update from main process
       if (data?.config) {
         updateBlacklistConfig(data.config);
-        console.log(`[SafetyHook] Received blacklist update via parentPort: rules=${data.config.rules?.length || 0}`);
+        console.error(`[SafetyHook] Received blacklist update via parentPort: rules=${data.config.rules?.length || 0}`);
       }
     }
   });
@@ -310,8 +324,14 @@ if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
   const mainScript = process.argv[1] || '';
   const isNpmProcess = mainScript.includes('npm-cli.js') || mainScript.includes('npx-cli.js') ||
     mainScript.endsWith('/npm') || mainScript.endsWith('/npx');
-  if (isNpmProcess) {
-    // Do not intercept npm/npx — let them run unimpeded
+  // ACP bridge processes use stdio for JSON-RPC — hook's network interception
+  // and polling would interfere with the protocol stream.
+  // Detection by argv is unreliable on Windows (shell: true), so we also
+  // check for SUDOWORK_ACP_CHILD env var set by acpConnectors.ts.
+  const isAcpBridge = mainScript.includes('agent-acp') ||
+    process.env.SUDOWORK_ACP_CHILD === '1';
+  if (isNpmProcess || isAcpBridge) {
+    // Do not intercept npm/npx or ACP bridge processes — let them run unimpeded
   } else {
     initSafetyHook();
   }

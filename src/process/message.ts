@@ -9,6 +9,7 @@ import { composeMessage } from '@/common/chatLib';
 import type { AcpBackend } from '@/types/acpTypes';
 import { getDatabase } from './database/export';
 import { ProcessChat } from './initStorage';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 
 const Cache = new Map<string, ConversationManageWithDB>();
 
@@ -100,14 +101,14 @@ async function ensureConversationExists(db: ReturnType<typeof getDatabase>, conv
   const conversation = (history || []).find((c) => c.id === conversation_id);
 
   if (!conversation) {
-    console.error(`[Message] Conversation ${conversation_id} not found in file storage either`);
+    mainError('Message', `Conversation ${conversation_id} not found in file storage either`);
     return;
   }
 
   // Create conversation in database
   const result = db.createConversation(conversation);
   if (!result.success) {
-    console.error(`[Message] Failed to create conversation in database:`, result.error);
+    mainError('Message', `Failed to create conversation in database:`, result.error);
   }
 }
 
@@ -118,12 +119,12 @@ async function ensureConversationExists(db: ReturnType<typeof getDatabase>, conv
 export const addOrUpdateMessage = (conversation_id: string, message: TMessage, backend?: AcpBackend): void => {
   // Validate message
   if (!message) {
-    console.error('[Message] Cannot add or update undefined message');
+    mainError('Message', 'Cannot add or update undefined message');
     return;
   }
 
   if (!message.id) {
-    console.error('[Message] Message missing required id field:', message);
+    mainError('Message', 'Message missing required id field:', message);
     return;
   }
 
@@ -150,7 +151,7 @@ export const executePendingCallbacks = (): void => {
       try {
         callback();
       } catch (error) {
-        console.error('[Message] Error in pending callback:', error);
+        mainError('Message', 'Error in pending callback:', error);
       }
     }
   }
@@ -160,5 +161,5 @@ export const executePendingCallbacks = (): void => {
  * @deprecated This function is no longer needed with direct database operations
  */
 export const nextTickToLocalRunning = (_fn: (list: TMessage[]) => TMessage[]): void => {
-  console.warn('[Message] nextTickToLocalRunning is deprecated with database storage');
+  mainWarn('Message', 'nextTickToLocalRunning is deprecated with database storage');
 };

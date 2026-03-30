@@ -13,6 +13,7 @@ import { runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
@@ -29,7 +30,7 @@ export class AionUIDatabase {
 
   constructor() {
     const finalPath = path.join(getDataPath(), 'sudowork.db');
-    console.log(`[Database] Initializing database at: ${finalPath}`);
+    mainLog('Database', `Initializing database at: ${finalPath}`);
 
     const dir = path.dirname(finalPath);
     ensureDirectory(dir);
@@ -38,7 +39,7 @@ export class AionUIDatabase {
       this.db = new BetterSqlite3(finalPath);
       this.initialize();
     } catch (error) {
-      console.error('[Database] Failed to initialize, attempting recovery...', error);
+      mainError('Database', 'Failed to initialize, attempting recovery...', error);
       // 尝试恢复：关闭并重新创建数据库
       // Try to recover by closing and recreating database
       try {
@@ -56,16 +57,16 @@ export class AionUIDatabase {
         const backupPath = `${finalPath}.backup.${Date.now()}`;
         try {
           fs.renameSync(finalPath, backupPath);
-          console.log(`[Database] Backed up corrupted database to: ${backupPath}`);
+          mainLog('Database', `Backed up corrupted database to: ${backupPath}`);
         } catch (e) {
-          console.error('[Database] Failed to backup corrupted database:', e);
+          mainError('Database', 'Failed to backup corrupted database:', e);
           // 备份失败则尝试直接删除
           // If backup fails, try to delete instead
           try {
             fs.unlinkSync(finalPath);
-            console.log(`[Database] Deleted corrupted database file`);
+            mainLog('Database', `Deleted corrupted database file`);
           } catch (e2) {
-            console.error('[Database] Failed to delete corrupted database:', e2);
+            mainError('Database', 'Failed to delete corrupted database:', e2);
             throw new Error('Database is corrupted and cannot be recovered. Please manually delete: ' + finalPath);
           }
         }
@@ -91,7 +92,7 @@ export class AionUIDatabase {
 
       this.ensureSystemUser();
     } catch (error) {
-      console.error('[Database] Initialization failed:', error);
+      mainError('Database', 'Initialization failed:', error);
       throw error;
     }
   }
@@ -525,7 +526,7 @@ export class AionUIDatabase {
         hasMore: (page + 1) * pageSize < countResult.count,
       };
     } catch (error: any) {
-      console.error('[Database] Get conversations error:', error);
+      mainError('Database', 'Get conversations error:', error);
       return {
         data: [],
         total: 0,
@@ -649,7 +650,7 @@ export class AionUIDatabase {
         hasMore: (page + 1) * pageSize < countResult.count,
       };
     } catch (error: any) {
-      console.error('[Database] Get messages error:', error);
+      mainError('Database', 'Get messages error:', error);
       return {
         data: [],
         total: 0,
@@ -1133,7 +1134,7 @@ export class AionUIDatabase {
    */
   vacuum(): void {
     this.db.exec('VACUUM');
-    console.log('[Database] Vacuum completed');
+    mainLog('Database', 'Vacuum completed');
   }
 }
 

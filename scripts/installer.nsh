@@ -1,5 +1,6 @@
 ; Sudowork Custom NSIS Script
-; Installs runtime components (Node.js, Sudoclaw, Nexus) during setup
+; Installs runtime components (Node.js, bdpan) during setup
+; Note: Nexus and Sudoclaw are installed at application startup with version detection
 
 !include "x64.nsh"
 !include "LogicLib.nsh"
@@ -21,14 +22,14 @@
   ; Create directory structure
   CreateDirectory "$R1"
   CreateDirectory "$R1\node"
-  CreateDirectory "$R1\sudoclaw\cli"
-  CreateDirectory "$R1\sudoclaw\bin"
-  CreateDirectory "$R1\nexus_env"
 
   ; Show installation progress header
   DetailPrint "=========================================="
   DetailPrint "Installing Runtime Components ($R4)"
   DetailPrint "Target: $R1"
+  DetailPrint "=========================================="
+  DetailPrint "Note: Nexus and Sudoclaw will be installed at first launch"
+  DetailPrint "with version detection and incremental upgrade support."
   DetailPrint "=========================================="
 
   ; ========== [1/4] Node.js Runtime ==========

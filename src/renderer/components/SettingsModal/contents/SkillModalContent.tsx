@@ -16,6 +16,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 // ==================== Helpers ====================
 
@@ -259,6 +260,8 @@ const SkillDetailModal: React.FC<{
   onDownload: () => void;
   onUninstall: () => void;
   uninstalling: boolean;
+  /** Callback when "Go Use" button is clicked */
+  onGoUse?: () => void;
   /**
    * When true, skip the remote API fetch for detail.
    * Use this when opening from the installed tab where all data is
@@ -267,7 +270,7 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, skipApiFetch = false, hideActions = false }) => {
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, skipApiFetch = false, hideActions = false }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -390,7 +393,7 @@ const SkillDetailModal: React.FC<{
           <div className='flex gap-8px items-center'>
             {isInstalled ? (
               <>
-                <Button type='primary' long size='large' className='flex-1' onClick={onClose}>
+                <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                   {t('settings.skill.goUse', { defaultValue: '去使用' })}
                 </Button>
                 {canUninstall &&
@@ -445,6 +448,7 @@ const SkillModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const navigate = useNavigate();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'store' | 'installed'>('store');
@@ -940,6 +944,15 @@ const SkillModalContent: React.FC = () => {
     setDetailVisible(true);
   }, []);
 
+  // ---- Handle "Go Use" button click ----
+  const handleGoUse = useCallback(() => {
+    if (!detailSkill) return;
+    // Close the modal first
+    setDetailVisible(false);
+    // Navigate to guid page with skill parameter
+    void navigate(`/guid?skill=${encodeURIComponent(detailSkill.name)}`);
+  }, [detailSkill, navigate]);
+
   // ==================== Render ====================
 
   const detailIsInstalled = detailSkill ? installedSkills.has(detailSkill.name) : false;
@@ -1116,7 +1129,7 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} />
+      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} onGoUse={handleGoUse} />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json, no action buttons */}
       <SkillDetailModal

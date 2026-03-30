@@ -24,6 +24,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -165,7 +166,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         this.connection.sessionKey = result.key;
         return;
       } catch (err) {
-        console.warn('[OpenClawAgent] Failed to resume session, using default:', err);
+        mainWarn('OpenClawAgent', 'Failed to resume session, using default:', err);
       }
     }
 
@@ -174,12 +175,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       const resetResult = await this.connection.sessionsReset({ key: defaultKey, reason: 'new' });
       this.connection.sessionKey = resetResult.key;
     } catch (err) {
-      console.warn('[OpenClawAgent] Failed to reset session, trying plain resolve:', err);
+      mainWarn('OpenClawAgent', 'Failed to reset session, trying plain resolve:', err);
       try {
         const result = await this.connection.sessionsResolve({ key: defaultKey });
         this.connection.sessionKey = result.key;
       } catch (resolveErr) {
-        console.warn('[OpenClawAgent] Failed to resolve default session, falling back:', resolveErr);
+        mainWarn('OpenClawAgent', 'Failed to resolve default session, falling back:', resolveErr);
         this.connection.sessionKey = defaultKey;
       }
     }
@@ -240,10 +241,16 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         processedContent = `${fileRefs} ${processedContent}`;
       }
 
+      // Process skills - append as metadata comment for Sudoclaw to parse
+      if (data.skills && data.skills.length > 0) {
+        processedContent = `[Skills: ${data.skills.join(', ')}]\n\n${processedContent}`;
+      }
+
       // Send chat message
       await this.connection!.chatSend({
         sessionKey: this.connection!.sessionKey!,
         message: processedContent,
+        skills: data.skills,
       });
 
       return { success: true, data: null } as AcpResult;
@@ -278,7 +285,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
       } catch (err) {
-        console.warn('[OpenClawAgent] chatAbort failed:', err);
+        mainWarn('OpenClawAgent', 'chatAbort failed:', err);
       }
     }
   }
@@ -432,7 +439,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         break;
 
       default:
-        console.warn('[OpenClawAgent] handleChatEvent: unknown state:', (event as { state: unknown }).state);
+        mainWarn('OpenClawAgent', 'handleChatEvent: unknown state:', (event as { state: unknown }).state);
     }
   }
 
@@ -551,7 +558,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       }
 
       default:
-        console.warn('[OpenClawAgent] Unhandled agent stream:', event.stream, event);
+        mainWarn('OpenClawAgent', `Unhandled agent stream: ${event.stream}`, event);
     }
   }
 
@@ -576,7 +583,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingPermissions.set(requestId, {
       resolve: (_response) => {},
       reject: (error) => {
-        console.error('[OpenClawAgent] Permission error:', error);
+        mainError('OpenClawAgent', 'Permission error:', error);
       },
     });
 
@@ -614,7 +621,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleConnectError(err: Error): void {
-    console.error('[OpenClawAgent] Connection error:', err);
+    mainError('OpenClawAgent', 'Connection error:', err);
     this.emitErrorMessage(`Connection error: ${err.message}`);
   }
 
@@ -693,7 +700,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         }
       })
       .catch((err: unknown) => {
-        console.warn('[OpenClawAgent] chat.history fallback failed:', err);
+        mainWarn('OpenClawAgent', 'chat.history fallback failed:', err);
       })
       .finally(() => {
         this.handleEndTurn();
@@ -860,7 +867,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
       }
     } catch (error) {
-      console.error('[OpenClawAgent] Failed to save session key:', error);
+      mainError('OpenClawAgent', 'Failed to save session key:', error);
     }
   }
 

@@ -23,6 +23,11 @@ export type AssistantPreset = {
    */
   defaultMode?: string;
   /**
+   * Path to an ops entry point script (e.g. 'tests/e2e/run_op.py').
+   * When set, direct ai-dev-browser CLI calls are redirected through this wrapper.
+   */
+  opsEntryPoint?: string;
+  /**
    * Gemini CLI model config overrides (temperature, thinkingBudget, etc).
    * Written to .gemini/settings.json in the conversation workspace before CLI starts.
    * See: node_modules/@office-ai/aioncli-core/dist/docs/cli/generation-settings.md
@@ -383,6 +388,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
     defaultEnabledSkills: ['browser'],
     defaultMode: 'yolo',
+    opsEntryPoint: 'tests/e2e/run_op.py',
     modelConfigs: {
       overrides: [
         {
