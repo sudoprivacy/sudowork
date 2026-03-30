@@ -635,16 +635,10 @@ class DynamicNexusService {
 
   /**
    * Probes whether nexusd is actually reachable on its port.
-   * Falls back to a port check when the internal _running flag is false
-   * (e.g. child exited but an orphaned process is still serving).
+   * "Running" must mean the HTTP health endpoint responds with status=healthy;
+   * a live child-process reference alone is not sufficient.
    */
   async checkActualRunning(): Promise<boolean> {
-    // Check if the process is actually running by verifying the process object exists
-    // and hasn't exited, which is more reliable than port checking
-    if (this.process && !this.process.killed && this._running) {
-      return true;
-    }
-
     const port = this._port > 0 ? this._port : NEXUS_DEFAULT_PORT;
     const healthy = await this.isHealthyNexusServer(port);
     if (healthy) {

@@ -466,6 +466,7 @@ export const nodeRuntime = {
 
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
+export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';
 
 export const libreOffice = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('libreoffice.check-installed'),
@@ -544,10 +545,12 @@ export const sudoclaw = {
   /** Install Sudoclaw manually from About page */
   install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.uninstall'),
+  /** Returns the current install state so the UI can restore progress after navigation */
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ISudoclawInstallPhase; percent?: number }>, void>('sudoclaw.get-install-state'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
   /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'extracting' | 'installing' | 'configuring'; percent?: number }>('sudoclaw.install-progress'),
+  installProgress: bridge.buildEmitter<{ phase: ISudoclawInstallPhase; percent?: number }>('sudoclaw.install-progress'),
   /** Install WeChat plugin to Sudoclaw via npx CLI */
   installWechatPlugin: bridge.buildProvider<IBridgeResponse<{ output: string }>, void>('sudoclaw.install-wechat-plugin'),
   /** Get WeChat plugin installation status */

@@ -5,9 +5,7 @@ import { serviceManager } from '../services/serviceManager';
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
     const installed = await dynamicNexusService.checkInstalled();
-    // Use actual process check (by PID/child process object) so the "About" page
-    // always reflects reality, even when the internal _running flag is stale
-    // (e.g. child process exited but nexusd is still serving, or vice-versa).
+    // Treat Nexus as running only when /health returns a healthy response.
     const running = await dynamicNexusService.checkActualRunning();
     const version = installed ? await dynamicNexusService.getInstalledVersion() : undefined;
     return {
