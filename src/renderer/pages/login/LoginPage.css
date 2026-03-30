@@ -4,15 +4,17 @@
   -webkit-app-region: drag;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   min-height: 100vh;
+  padding: 24px 16px;
   font-family:
     -apple-system,
     PingFang SC,
     Microsoft YaHei;
   background: linear-gradient(135deg, var(--aou-5) 0%, var(--aou-7) 100%);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Dark mode background - darker gradient */
@@ -94,9 +96,10 @@ body.login-page-active {
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 20px 50px -12px rgba(0, 0, 0, 0.25);
-  padding: 40px 32px 36px;
+  padding: 32px 28px 28px;
   animation: login-slide-up 0.5s ease-out;
   border: 1px solid var(--border-base);
+  margin: auto 0;
 }
 
 [data-theme='dark'] .login-page__card {
@@ -454,9 +457,12 @@ body.login-page-active {
 }
 
 @media (max-width: 600px) {
+  .login-page {
+    padding: 16px 12px;
+  }
+
   .login-page__card {
-    margin: 16px;
-    padding: 32px 24px;
+    padding: 24px 20px 20px;
     border-radius: 20px;
   }
 

@@ -37,11 +37,28 @@ const LoginPage: React.FC = () => {
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  // 保存注册凭证，避免重复验证验证码
+  const [savedRegisterToken, setSavedRegisterToken] = useState<string | null>(null);
 
   // 固定企业码
   const ENTERPRISE_CODE = 'sudo';
 
   const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string; type?: string } | null>(null);
+
+  // 允许页面滚动（覆盖 index.html 的 overflow: hidden）
+  useEffect(() => {
+    const root = document.getElementById('root');
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalRootOverflow = root?.style.overflow;
+
+    document.body.style.overflow = 'auto';
+    if (root) root.style.overflow = 'auto';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -53,6 +70,14 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     setCountdown(0);
   }, []);
+
+  // 手机号变化时清除 register_token（token 绑定特定手机号）
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    if (savedRegisterToken) {
+      setSavedRegisterToken(null);
+    }
+  };
 
   // 倒计时定时器
   useEffect(() => {
@@ -78,6 +103,9 @@ const LoginPage: React.FC = () => {
       Message.error('请输入正确的 11 位手机号');
       return;
     }
+
+    // 发送新验证码时清除旧的 register_token
+    setSavedRegisterToken(null);
 
     setLoading(true);
     try {
@@ -122,6 +150,27 @@ const LoginPage: React.FC = () => {
     }
 
     setLoading(true);
+
+    // 注册模式下，如果已有 register_token，直接注册
+    if (mode === 'register' && savedRegisterToken) {
+      const regResult = await register({
+        register_token: savedRegisterToken,
+        nickname: nickname.trim(),
+        invitation_code: invitationCode.trim(),
+      });
+
+      if (regResult.success) {
+        setTimeout(() => navigate('/guid', { replace: true }), 300);
+      } else {
+        Message.error(regResult.message || '注册失败');
+        // 注册失败可能是因为 token 过期，清除它
+        setSavedRegisterToken(null);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // 否则先验证验证码
     const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE });
 
     if (result.success) {
@@ -137,8 +186,11 @@ const LoginPage: React.FC = () => {
       const registerToken = (result as any).register_token;
 
       if (needRegister && registerToken) {
+        // 保存 register_token 供后续使用
+        setSavedRegisterToken(registerToken);
+
         if (mode === 'register') {
-          // In register mode: proceed with registration inline
+          // 注册模式：直接完成注册
           const regResult = await register({
             register_token: registerToken,
             nickname: nickname.trim(),
@@ -151,7 +203,7 @@ const LoginPage: React.FC = () => {
             Message.error(regResult.message || '注册失败');
           }
         } else {
-          // In login mode: prompt user to switch to register tab
+          // 登录模式：提示用户切换到注册标签
           Message.info('该手机号未注册，请切换到注册标签完成注册');
           setMode('register');
         }
@@ -254,7 +306,7 @@ const LoginPage: React.FC = () => {
         <div className='flex flex-col gap-20px mt-24px'>
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={phone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>

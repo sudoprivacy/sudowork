@@ -21,6 +21,21 @@ const RegisterPage: React.FC = () => {
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 允许页面滚动（覆盖 index.html 的 overflow: hidden）
+  useEffect(() => {
+    const root = document.getElementById('root');
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalRootOverflow = root?.style.overflow;
+
+    document.body.style.overflow = 'auto';
+    if (root) root.style.overflow = 'auto';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
