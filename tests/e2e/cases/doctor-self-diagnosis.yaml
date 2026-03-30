@@ -22,7 +22,7 @@ steps:
 
   # ── Phase 3: Send bounded task ──
   - op: type_text
-    text: "你有 5 分钟做一次快速自检。请在新会话页面测试 agent 切换：截图看有哪些 agent，逐个点击切换并截图验证。最后给总结报告。5 分钟后会被中断，请合理安排时间。"
+    text: "你有 5 分钟做一次快速自检。请在新会话页面测试 agent 切换：截图看有哪些 agent，逐个点击切换并截图验证。5 分钟后会被中断，请合理安排时间，留时间写总结。"
   - op: press_key
     key: "Enter"
     wait: 3
@@ -31,12 +31,21 @@ steps:
   - op: wait_for_response
     timeout: 300
 
-  # ── Phase 5: Force stop if still running ──
+  # ── Phase 5: Warn before stopping ──
+  - op: type_text
+    text: "时间到了，请立即停止当前操作，输出你的诊断总结报告。你有 30 秒。"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 30
+
+  # ── Phase 6: Force stop ──
   - op: stop_conversation
   - op: pause
     duration: 3000
 
-  # ── Phase 6: Judge whatever was accomplished ──
+  # ── Phase 7: Judge ──
   - op: screenshot
     path: "screenshots/doctor-02-result.png"
   - op: judge
