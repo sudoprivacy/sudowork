@@ -16,9 +16,16 @@ import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 import * as net from 'node:net';
 
+interface InstallState {
+  installing: boolean;
+  phase?: 'extracting' | 'installing' | 'configuring';
+  percent?: number;
+}
+
 const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
+let installState: InstallState = { installing: false };
 
 function readConfig(): SudoclawConfig | null {
   try {
@@ -207,6 +214,10 @@ export function initSudoclawBridge(): void {
     }
   });
 
+  ipcBridge.sudoclaw.getInstallState.provider(async () => {
+    return { success: true, data: installState };
+  });
+
   ipcBridge.sudoclaw.testGateway.provider(async () => {
     const testPort = SUDOCLAW_DEFAULT_PORT;
     const host = '127.0.0.1';
@@ -292,11 +303,13 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.install.provider(async () => {
     return new Promise((resolve) => {
       void (async () => {
+        installState = { installing: true };
         try {
           mainLog('SudoclawBridge', 'Starting Sudoclaw installation...');
 
           // Run installation with progress callback
           await installSudoclawManually((phase, percent) => {
+            installState = { installing: true, phase, percent };
             ipcBridge.sudoclaw.installProgress.emit({ phase, percent });
           });
 
@@ -317,6 +330,8 @@ export function initSudoclawBridge(): void {
           setTimeout(() => {
             ipcBridge.sudoclaw.installResult.emit({ success: false, msg: errorMsg });
           }, 100);
+        } finally {
+          installState = { installing: false };
         }
       })();
     });

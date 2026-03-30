@@ -115,18 +115,9 @@ export class NexusController extends Nexus {
       return;
     }
 
-    const type = payload.type;
-    let data: { url?: string; path?: string; flags?: string[] } = {};
+    const result = shouldTriggerPopup(payload, blacklistConfig);
 
-    if (type === 'network') {
-      data = { url: payload.data.url };
-    } else if (type === 'file') {
-      data = { path: payload.data.path, flags: payload.data.flags };
-    }
-
-    const result = shouldTriggerPopup(type, data, blacklistConfig);
-
-    if (!result.shouldTrigger) {
+    if (!result.matched) {
       // Not in blacklist, allow immediately without popup
       return;
     }
@@ -172,5 +163,12 @@ export type Payload =
         method: string;
         headers: Record<string, unknown>;
         body: string;
+      };
+    }
+  | {
+      type: 'process';
+      data: {
+        command: string;
+        args: string[];
       };
     };

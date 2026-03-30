@@ -18,7 +18,7 @@ export interface BlacklistRule {
   /** Whether this rule is active */
   enabled: boolean;
   /** Rule type: network (domain/IP) or file (path) */
-  type: 'network' | 'file';
+  type: 'network' | 'file' | 'process';
   /** Pattern to match (domain, IP, or file path) */
   pattern: string;
   /** How to interpret the pattern */

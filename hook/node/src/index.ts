@@ -5,6 +5,8 @@ import { FileController, type FileFlag } from './file/FileController';
 import { BatchInterceptor, type RequestController } from '@mswjs/interceptors';
 import NodeInterceptors from '@mswjs/interceptors/presets/node';
 import type { BlacklistConfig } from './blacklist/types';
+import { ProcessInterceptor } from './process/ProcessInterceptor';
+import type { ProcessController } from './process/ProcessController';
 
 export interface SafetyHookOptions {
   /** Nexus server URL, defaults to http://127.0.0.1:12012 */
@@ -13,6 +15,8 @@ export interface SafetyHookOptions {
   enableNetwork?: boolean;
   /** Enable file interception, defaults to true */
   enableFile?: boolean;
+  /** Enable process interception, defaults to true */
+  enableProcess?: boolean;
   /** Timeout in milliseconds for waiting user confirmation, defaults to 600000 (10 minutes) */
   timeout?: number;
   /** Polling interval for enabled state check (ms), defaults to 3000 */
@@ -21,6 +25,7 @@ export interface SafetyHookOptions {
 
 let networkInterceptor: BatchInterceptor | null = null;
 let fileInterceptor: FileInterceptor | null = null;
+let processInterceptor: ProcessInterceptor | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
 let statePollingTimer: NodeJS.Timeout | null = null;
@@ -47,6 +52,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   const nexusUrl = options.nexusUrl || 'http://127.0.0.1:12012';
   const enableNetwork = options.enableNetwork !== false;
   const enableFile = options.enableFile !== false;
+  const enableProcess = options.enableProcess !== false;
   const timeout = options.timeout || 600_000;
   const statePollingInterval = options.statePollingInterval || 3000;
 
@@ -82,6 +88,14 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     fileInterceptor.apply();
     fileInterceptor.on('file', async ({ path, flags, controller }: { path: string; flags: FileFlag[]; controller: FileController }) => {
       await nexusController!.control(controller, { type: 'file', data: { path, flags } });
+    });
+  }
+
+  if (enableProcess) {
+    processInterceptor = new ProcessInterceptor();
+    processInterceptor.apply();
+    processInterceptor.on('process', async ({ command, args, controller }: { command: string; args: string[]; controller: ProcessController }) => {
+      await nexusController!.control(controller, { type: 'process', data: { command, args } });
     });
   }
 

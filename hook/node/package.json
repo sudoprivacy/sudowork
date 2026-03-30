@@ -6,7 +6,8 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --outfile=./dist/hook.js --format=esm",
     "example_file": "node -r ./dist/hook.js examples/file.js",
-    "example_network": "node -r ./dist/hook.js examples/network.js"
+    "example_network": "node -r ./dist/hook.js examples/network.js",
+    "example_process": "node -r ./dist/hook.js examples/process.js"
   },
   "keywords": [],
   "author": {
