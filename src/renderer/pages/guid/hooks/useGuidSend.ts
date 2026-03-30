@@ -9,7 +9,7 @@ import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
 import { type TFunction } from 'i18next';
@@ -195,18 +195,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetContext: isPreset ? presetRules : undefined,
             enabledSkills: isPreset ? enabledSkills : undefined,
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
-            sessionMode: (() => {
-              // If preset has defaultMode (e.g. doctor's 'yolo'), map it to the correct ACP session mode
-              if (isPreset && selectedMode === 'default') {
-                const presetId = agentInfo?.customAgentId?.replace('builtin-', '') || '';
-                const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-                if (preset?.defaultMode === 'yolo') {
-                  const yoloMap: Record<string, string> = { claude: 'bypassPermissions', gemini: 'yolo', codex: 'yolo' };
-                  return yoloMap[acpBackend || ''] || 'yolo';
-                }
-              }
-              return selectedMode;
-            })(),
+            sessionMode: isPreset
+              ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode)
+              : selectedMode,
             currentModelId: selectedAcpModel || undefined,
           },
         });

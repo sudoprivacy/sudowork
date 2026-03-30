@@ -10,35 +10,6 @@ import json
 from ai_dev_browser.core.page import js_exec
 
 
-async def resolve_by_text(tab, text: str) -> tuple[int, int]:
-    """Find element by visible text, return center (x, y) coordinates."""
-    r = await js_exec(tab, """JSON.stringify((() => {
-        const all = document.querySelectorAll('*');
-        for (const el of all) {
-            const own = Array.from(el.childNodes)
-                .filter(n => n.nodeType === 3)
-                .map(n => n.textContent.trim()).join('');
-            if (own === %s && el.offsetHeight > 0) {
-                const rect = el.getBoundingClientRect();
-                return {x: Math.round(rect.left + rect.width/2),
-                        y: Math.round(rect.top + rect.height/2)};
-            }
-        }
-        for (const el of all) {
-            if (el.textContent?.trim() === %s && el.children.length < 3 && el.offsetHeight > 0) {
-                const rect = el.getBoundingClientRect();
-                return {x: Math.round(rect.left + rect.width/2),
-                        y: Math.round(rect.top + rect.height/2)};
-            }
-        }
-        return null;
-    })())""" % (repr(text), repr(text)))
-
-    coords = json.loads(r.get("result", "null"))
-    if not coords:
-        raise ValueError(f"Element with text '{text}' not found or not visible")
-    return coords["x"], coords["y"]
-
 
 async def resolve_by_selector(tab, selector: str) -> tuple[int, int]:
     """Find element by CSS selector, return center (x, y) coordinates."""

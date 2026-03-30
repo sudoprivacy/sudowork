@@ -36,6 +36,8 @@ const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
 /** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
+const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
+const BUNDLED_OPENCLAW_MANIFEST_NAME = 'openclaw.manifest.json';
 
 export const CONFIG_FILENAME = 'sudoclaw.json';
 
@@ -106,18 +108,102 @@ function resolvePackageRoot(): string | null {
   return null;
 }
 
-export function getSudoclawInstalledVersion(): string | undefined {
-  const pkgRoot = resolvePackageRoot();
-  if (!pkgRoot) return undefined;
+type SudoclawInstallManifest = {
+  version: string;
+  platform: NodeJS.Platform;
+  arch: string;
+  daveyBinding?: string;
+  generatedAt?: string;
+};
+
+function readJsonFile<T>(filePath: string): T | null {
+  if (!fs.existsSync(filePath)) return null;
 
   try {
-    const pkgJsonPath = path.join(pkgRoot, 'package.json');
-    if (!fs.existsSync(pkgJsonPath)) return undefined;
-    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as { version?: unknown };
-    return typeof pkg.version === 'string' && pkg.version.trim() ? pkg.version.trim() : undefined;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
   } catch {
-    return undefined;
+    return null;
   }
+}
+
+function isValidInstallManifest(value: unknown): value is SudoclawInstallManifest {
+  if (!value || typeof value !== 'object') return false;
+  const manifest = value as Partial<SudoclawInstallManifest>;
+  return typeof manifest.version === 'string' && typeof manifest.platform === 'string' && typeof manifest.arch === 'string';
+}
+
+function readSudoclawInstallManifest(): SudoclawInstallManifest | null {
+  const manifest = readJsonFile<unknown>(SUDOCLAW_INSTALL_MANIFEST_PATH);
+  return isValidInstallManifest(manifest) ? manifest : null;
+}
+
+function getBundledOpenclawManifestPath(): string | null {
+  if (app.isPackaged) {
+    const packagedPath = path.join(process.resourcesPath, BUNDLED_OPENCLAW_MANIFEST_NAME);
+    if (fs.existsSync(packagedPath)) return packagedPath;
+  }
+
+  const devPath = path.join(app.getAppPath(), 'resources', BUNDLED_OPENCLAW_MANIFEST_NAME);
+  if (fs.existsSync(devPath)) return devPath;
+
+  return null;
+}
+
+function getExpectedSudoclawInstallManifest(): SudoclawInstallManifest | null {
+  const bundledManifestPath = getBundledOpenclawManifestPath();
+  const bundledManifest = bundledManifestPath ? readJsonFile<unknown>(bundledManifestPath) : null;
+  if (isValidInstallManifest(bundledManifest)) {
+    return bundledManifest;
+  }
+
+  const bundledVersion = getSudoclawBundledVersion();
+  if (!bundledVersion) return null;
+
+  return {
+    version: bundledVersion,
+    platform: process.platform,
+    arch: process.arch,
+  };
+}
+
+function isSudoclawInstallManifestCurrent(): boolean {
+  const installed = readSudoclawInstallManifest();
+  const expected = getExpectedSudoclawInstallManifest();
+  if (!installed || !expected) return false;
+
+  return installed.version === expected.version && installed.platform === expected.platform && installed.arch === expected.arch;
+}
+
+function writeSudoclawInstallManifest(): void {
+  const manifest = getExpectedSudoclawInstallManifest();
+  if (!manifest) return;
+
+  try {
+    fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
+    fs.writeFileSync(SUDOCLAW_INSTALL_MANIFEST_PATH, JSON.stringify(manifest, null, 2), 'utf-8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `Failed to write install manifest: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export function getSudoclawInstalledVersion(): string | undefined {
+  const pkgRoot = resolvePackageRoot();
+  if (pkgRoot) {
+    try {
+      const pkgJsonPath = path.join(pkgRoot, 'package.json');
+      if (fs.existsSync(pkgJsonPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as { version?: unknown };
+        if (typeof pkg.version === 'string' && pkg.version.trim()) {
+          return pkg.version.trim();
+        }
+      }
+    } catch {
+      // fall back to install manifest below
+    }
+  }
+
+  const manifestVersion = normalizeVersion(readSudoclawInstallManifest()?.version);
+  return manifestVersion;
 }
 
 export function getSudoclawBundledVersion(): string | undefined {
@@ -352,13 +438,18 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   const forceReinstall = options?.forceReinstall === true;
   migrateLegacySudoclaw();
   migrateConfigFilename();
+  ensureDefaultConfig();
   repairOpenClawConfig();
+  fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
 
   const pkgRoot = resolvePackageRoot();
 
   // Check if already fully installed with all required files (tgz includes launcher and bin)
   if (!forceReinstall && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
     if (checkPlatformDependencies(pkgRoot)) {
+      if (!isSudoclawInstallManifestCurrent()) {
+        writeSudoclawInstallManifest();
+      }
       mainLog('Sudoclaw', 'Already installed');
       const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
       return { installed: true, cliPath: path.join(pkgRoot, 'bin', binName) };
@@ -406,6 +497,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureDefaultConfig();
     repairOpenClawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
     const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';

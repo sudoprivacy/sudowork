@@ -81,6 +81,9 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   }
 
   // Inject safety hook via NODE_OPTIONS if enabled
+  // Also set SUDOWORK_ACP_CHILD=1 so the hook skips in ACP bridge child processes
+  // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC)
+  cleanEnv.SUDOWORK_ACP_CHILD = '1';
   if (isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
     const hookOption = `-r ${hookJsPath}`;

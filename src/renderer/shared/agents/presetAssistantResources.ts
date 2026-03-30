@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from "@/common/presets/presetResolver";
 import { ConfigStorage } from '@/common/storage';
 
 export type PresetAssistantResourceDeps = {
@@ -72,7 +72,7 @@ export async function loadPresetAssistantResources(options: LoadPresetAssistantR
 
   if (customAgentId.startsWith('builtin-')) {
     const presetId = customAgentId.replace('builtin-', '');
-    const preset = ASSISTANT_PRESETS.find((item) => item.id === presetId);
+    const preset = getPresetById(presetId);
 
     if (preset) {
       if (!rules && preset.ruleFiles) {

@@ -29,11 +29,6 @@ primitives:
 
   pointer_down:
     convenience_params:
-      text:
-        type: string
-        description: "Find element by visible text, move pointer there first"
-        resolver: "utils.resolve_by_text"
-        resolves_to: [x, y]
       selector:
         type: string
         description: "Find element by CSS selector, move pointer there first"
@@ -44,11 +39,6 @@ primitives:
 
   pointer_move:
     convenience_params:
-      text:
-        type: string
-        description: "Find element by visible text, resolve to x, y"
-        resolver: "utils.resolve_by_text"
-        resolves_to: [x, y]
       selector:
         type: string
         description: "Find element by CSS selector, resolve to x, y"
