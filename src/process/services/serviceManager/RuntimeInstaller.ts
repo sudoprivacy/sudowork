@@ -8,6 +8,7 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -15,7 +16,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 const TAG = 'RuntimeInstaller';
 
 /**
- * Ensures all required runtimes (Node.js, Sudoclaw, Nexus, Bdpan) are installed.
+ * Ensures all required runtimes (Git, Node.js, Sudoclaw, Nexus, Bdpan) are installed.
  *
  * Extracted from ServiceManager so that runtime installation is decoupled
  * from service lifecycle management.
@@ -29,14 +30,7 @@ class RuntimeInstaller {
   async ensureAll(): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
 
-    // On Windows runtimes are installed by the NSIS installer.
-    if (isWin32) {
-      mainLog(TAG, 'Skipping runtime installation on Windows (installed by NSIS)');
-      initStatusManager.setStatus('ready', '初始化完成', 100);
-      return true;
-    }
-
-    // ── Fast synchronous pre-check (no awaits, only fs.existsSync) ──────────
+    // ── Fast synchronous pre-check (no awaits, only sync fs / spawnSync) ────
     // Running before the first `await` means this executes synchronously in the
     // same event-loop tick as `void serviceManager.startup()`, so
     // initStatusManager is set to 'ready' before the renderer can poll
@@ -44,12 +38,24 @@ class RuntimeInstaller {
     // subsequent launches.
     const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
 
+    // Git fast check (synchronous)
+    const gitResult = spawnSync('git', ['--version'], {
+      timeout: 3_000,
+      encoding: 'utf-8',
+      windowsHide: true,
+    });
+    const fastGitOk = gitResult.status === 0;
+    const fastGitVersion: string | null = fastGitOk && gitResult.stdout ? gitResult.stdout.trim() : null;
+
     const fastNodeOk = isNodeInstalled();
 
-    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', 'openclaw');
+    const sudoclawBinName = isWin32 ? 'openclaw.cmd' : 'openclaw';
+    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
     const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
-    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
+    const nexusEnvBinPath = isWin32
+      ? path.join(os.homedir(), '.nexus', 'nexus_env', 'Scripts', 'nexusd.exe')
+      : path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
       try {
@@ -62,9 +68,9 @@ class RuntimeInstaller {
     const { isBdpanInstalled: checkBdpanInstalled } = await import('../bdpan/BdpanInstallService');
     const fastBdpanOk = checkBdpanInstalled();
 
-    mainLog(TAG, `Fast check: Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}, Bdpan=${fastBdpanOk} (hasNexusResource=${hasNexusResource})`);
+    mainLog(TAG, `Fast check: Git=${fastGitOk}, Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}, Bdpan=${fastBdpanOk} (hasNexusResource=${hasNexusResource})`);
 
-    if (fastNodeOk && fastSudoclawOk && fastNexusOk && fastBdpanOk) {
+    if (fastGitOk && fastNodeOk && fastSudoclawOk && fastNexusOk && fastBdpanOk) {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
       const nexusVersionState = hasNexusResource ? await dynamicNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
@@ -72,18 +78,45 @@ class RuntimeInstaller {
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
+        if (fastGitVersion) initStatusManager.addLog(`Git: ${fastGitVersion}`);
         initStatusManager.setStatus('ready', '初始化完成', 100);
         return true;
       }
 
-      mainLog(TAG, `Nexus version mismatch detected during fast check: installed=${nexusVersionState.installedVersion} bundled=${nexusVersionState.bundledVersion}`);
-      if (sudoclawVersionState.needsUpgrade) {
-        mainLog(TAG, `Sudoclaw version mismatch detected during fast check: installed=${sudoclawVersionState.installedVersion} bundled=${sudoclawVersionState.bundledVersion}`);
-      }
+      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudoclaw=${sudoclawVersionState.needsUpgrade ? `${sudoclawVersionState.installedVersion}→${sudoclawVersionState.bundledVersion}` : 'ok'}`);
     }
     // ── End fast check ──────────────────────────────────────────────────────
 
-    // At least one component appears to be missing — do full async check
+    // ── Git check / install (all platforms) ─────────────────────────────────
+    mainLog(TAG, 'Checking git...');
+    const { ensureGitInstalled } = await import('../git/GitInstallService');
+
+    if (!fastGitOk) {
+      initStatusManager.setStatus('installing', '安装 Git 环境...', 1);
+      initStatusManager.setStep('git', 'Git 未安装，正在在线安装...');
+      initStatusManager.addLog('未检测到 Git，开始在线安装...');
+      const gitOk = await ensureGitInstalled((msg) => {
+        initStatusManager.setDetail(msg);
+        initStatusManager.addLog(msg);
+      });
+      if (!gitOk) {
+        mainWarn(TAG, 'Git installation failed (non-critical, continuing startup)');
+        initStatusManager.addLog('⚠ Git 安装失败，部分 AI 功能可能受限');
+      } else {
+        initStatusManager.addLog('✓ Git 环境就绪');
+      }
+    } else {
+      initStatusManager.addLog(`✓ Git: ${fastGitVersion}`);
+    }
+
+    // On Windows runtimes are installed by the NSIS installer.
+    if (isWin32) {
+      mainLog(TAG, 'Skipping runtime installation on Windows (installed by NSIS)');
+      initStatusManager.setStatus('ready', '初始化完成', 100);
+      return true;
+    }
+
+    // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
     const [{ dynamicNexusService }, { ensureSudoclawInstalled, getSudoclawCliPath, getSudoclawVersionState }, { isBdpanInstalled, ensureBdpanInstalled }] = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../bdpan/BdpanInstallService')]);
 
@@ -108,9 +141,9 @@ class RuntimeInstaller {
     const nodeResName = `node-${process.platform}-${process.arch}.tar.gz`;
     const hasNodeResource = fs.existsSync(path.join(resDir, nodeResName));
     const hasSudoclawResource = fs.existsSync(path.join(resDir, 'openclaw.tgz'));
-    const bdpanPlatformOs = isWin32 ? 'windows' : process.platform;
+    const bdpanPlatformOs = process.platform;
     const bdpanPlatformArch = process.arch === 'x64' ? 'x64' : process.arch;
-    const bdpanResName = `bdpan-installer-${bdpanPlatformOs}-${bdpanPlatformArch}${isWin32 ? '.exe' : ''}`;
+    const bdpanResName = `bdpan-installer-${bdpanPlatformOs}-${bdpanPlatformArch}`;
     const hasBdpanResource = fs.existsSync(path.join(resDir, bdpanResName));
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
@@ -131,8 +164,11 @@ class RuntimeInstaller {
       try {
         mainLog(TAG, 'Installing Node.js runtime...');
         initStatusManager.setStatus('installing', '组件安装中', 10);
+        initStatusManager.setStep('node', '正在安装 Node.js 运行时...');
+        initStatusManager.addLog('开始安装 Node.js 运行时...');
         const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
         await ensureNodeInstalled();
+        initStatusManager.addLog('✓ Node.js 运行时安装完成');
         mainLog(TAG, 'Node.js runtime installed successfully');
       } catch (err) {
         mainError(TAG, 'Node.js runtime install failed', err);
@@ -144,18 +180,21 @@ class RuntimeInstaller {
     // Sudoclaw (progress: 30-60%)
     if (willInstallSudoclaw) {
       try {
-        if (sudoclawVersionState.needsUpgrade) {
-          mainLog(TAG, `Upgrading Sudoclaw to bundled version ${sudoclawVersionState.bundledVersion} from ${sudoclawVersionState.installedVersion}...`);
-        } else {
-          mainLog(TAG, 'Installing Sudoclaw...');
-        }
+        const isUpgrade = sudoclawVersionState.needsUpgrade;
+        const action = isUpgrade
+          ? `升级 Sudoclaw ${sudoclawVersionState.installedVersion} → ${sudoclawVersionState.bundledVersion}`
+          : '安装 Sudoclaw';
+        mainLog(TAG, action);
         initStatusManager.setStatus('installing', '组件安装中', 30);
-        const sudoclawResult = await ensureSudoclawInstalled({ forceReinstall: sudoclawVersionState.needsUpgrade });
+        initStatusManager.setStep('sudoclaw', `${action}...`);
+        initStatusManager.addLog(`开始${action}...`);
+        const sudoclawResult = await ensureSudoclawInstalled({ forceReinstall: isUpgrade });
         if (!sudoclawResult.installed) {
           mainError(TAG, 'Sudoclaw install failed - missing required files after extraction');
           initStatusManager.setStatus('error', '安装失败', 0, 'Sudoclaw install incomplete, please reinstall the app');
           return false;
         }
+        initStatusManager.addLog('✓ Sudoclaw 安装完成');
         mainLog(TAG, 'Sudoclaw installed successfully');
       } catch (err) {
         mainError(TAG, 'Sudoclaw install failed', err);
@@ -167,18 +206,34 @@ class RuntimeInstaller {
     // Nexus (progress: 60-85%)
     if (willInstallNexus) {
       try {
-        if (nexusVersionState.needsUpgrade) {
-          mainLog(TAG, `Upgrading Nexus to bundled version ${nexusVersionState.bundledVersion} from ${nexusVersionState.installedVersion}...`);
-        } else {
-          mainLog(TAG, 'Installing Nexus...');
-        }
+        const isUpgrade = nexusVersionState.needsUpgrade;
+        const action = isUpgrade
+          ? `升级 Nexus ${nexusVersionState.installedVersion} → ${nexusVersionState.bundledVersion}`
+          : '安装 Nexus';
+        mainLog(TAG, action);
         initStatusManager.setStatus('installing', '组件安装中', 60);
-        await dynamicNexusService.install();
-        mainLog(TAG, 'Nexus installed successfully, starting...');
-        await dynamicNexusService.start();
-        mainLog(TAG, 'Nexus started successfully');
+        initStatusManager.setStep('nexus', `${action}...`);
+        initStatusManager.addLog(`开始${action}...`);
+
+        // Subscribe to Nexus setup progress and forward to the UI log
+        const unsubNexus = dynamicNexusService.onSetupStatus((nexusStatus) => {
+          initStatusManager.setDetail(nexusStatus.message);
+          initStatusManager.addLog(`[Nexus] ${nexusStatus.message}`);
+        });
+
+        try {
+          await dynamicNexusService.install();
+          initStatusManager.addLog('✓ Nexus 解压完成，正在启动服务...');
+          mainLog(TAG, 'Nexus installed successfully, starting...');
+          await dynamicNexusService.start();
+          initStatusManager.addLog('✓ Nexus 服务已启动');
+          mainLog(TAG, 'Nexus started successfully');
+        } finally {
+          unsubNexus();
+        }
       } catch (err) {
         mainError(TAG, 'Nexus install/start failed', err);
+        initStatusManager.addLog(`⚠ Nexus 安装失败: ${err instanceof Error ? err.message : String(err)}`);
         // Not critical, continue
       }
     }
@@ -188,14 +243,19 @@ class RuntimeInstaller {
       try {
         mainLog(TAG, 'Installing Bdpan...');
         initStatusManager.setStatus('installing', '组件安装中', 85);
+        initStatusManager.setStep('bdpan', '正在安装 bdpan CLI...');
+        initStatusManager.addLog('开始安装 bdpan CLI...');
         const ok = await ensureBdpanInstalled();
         if (!ok) {
           mainWarn(TAG, 'Bdpan install did not complete successfully');
+          initStatusManager.addLog('⚠ bdpan 安装未完成');
         } else {
+          initStatusManager.addLog('✓ bdpan CLI 安装完成');
           mainLog(TAG, 'Bdpan installed successfully');
         }
       } catch (err) {
         mainWarn(TAG, `Bdpan install failed: ${err instanceof Error ? err.message : String(err)}`);
+        initStatusManager.addLog(`⚠ bdpan 安装失败: ${err instanceof Error ? err.message : String(err)}`);
         // Optional component - continue startup.
       }
     }

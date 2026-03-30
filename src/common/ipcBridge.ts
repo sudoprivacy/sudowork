@@ -567,6 +567,12 @@ export interface InitStatus {
   message: string;
   progress: number;
   error?: string;
+  /** Current installation step id: 'git' | 'node' | 'sudoclaw' | 'nexus' | 'bdpan' */
+  step?: string;
+  /** Detail message for current step */
+  detail?: string;
+  /** Recent log entries (last 100) */
+  logs?: string[];
 }
 
 export const init = {
