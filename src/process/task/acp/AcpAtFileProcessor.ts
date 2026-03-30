@@ -7,6 +7,7 @@
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { mainWarn } from '@process/utils/mainLogger';
 
 /**
  * Process @ file references in the message content.
@@ -49,7 +50,7 @@ export async function processAtFileReferences(content: string, workspace: string
         const fileContent = await fs.readFile(resolvedPath, 'utf-8');
         resolvedFiles.set(atPath, fileContent);
       } catch (error) {
-        console.warn(`[AcpAgent] Skipping binary file ${atPath} (will be handled by CLI)`);
+        mainWarn('AcpAgent', `Skipping binary file ${atPath} (will be handled by CLI)`);
       }
     }
   }

@@ -6,7 +6,7 @@
 
 import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
-import { openExternalUrl } from '@/renderer/utils/platform';
+import { openExternalUrl, isElectronDesktop } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
@@ -37,7 +37,6 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { skillHub } from '@/common/ipcBridge';
-import { isElectronDesktop } from '@/renderer/utils/platform';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {

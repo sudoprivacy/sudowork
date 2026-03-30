@@ -16,7 +16,7 @@ import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../c
 import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
 import { getDatabase } from './database/export';
 import type { AcpBackendConfig } from '@/types/acpTypes';
-import { perfLog } from './utils/mainLogger';
+import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -111,13 +111,13 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
 
       // 验证文件内容不为空且不是损坏的base64
       if (result.trim() === '') {
-        console.warn(`[Storage] Empty file detected: ${path}`);
+        mainWarn('Storage', `Empty file detected: ${path}`);
         return {} as S;
       }
 
       const decoded = decode(result);
       if (!decoded || decoded.trim() === '') {
-        console.warn(`[Storage] Empty or corrupted content after decode: ${path}`);
+        mainWarn('Storage', `Empty or corrupted content after decode: ${path}`);
         return {} as S;
       }
 
@@ -125,7 +125,7 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
 
       // 额外验证：如果是聊天历史文件且解析结果为空对象，警告用户
       if (path.includes('chat.txt') && Object.keys(parsed).length === 0) {
-        console.warn(`[Storage] Chat history file appears to be empty: ${path}`);
+        mainWarn('Storage', `Chat history file appears to be empty: ${path}`);
       }
 
       return parsed;
@@ -314,11 +314,11 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists || !hasAllAssistantRules;
 
   if (!needsCopy) {
-    console.log(`[Sudowork] Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
+    mainLog('Sudowork', `Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
     return;
   }
 
-  console.log(`[Sudowork] Copying builtin resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
+  mainLog('Sudowork', `Copying builtin resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
 
   // 开发模式下使用项目根目录，生产模式使用 app.getAppPath()
   // In development, use project root. In production, use app.getAppPath()
@@ -345,7 +345,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       }
     }
 
-    console.warn(`[Sudowork] Could not find builtin ${dirPath} directory, tried:`, candidates);
+    mainWarn('Sudowork', `Could not find builtin ${dirPath} directory, tried:`, candidates);
     return candidates[0];
   };
 
@@ -366,7 +366,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       // Copy builtin skills to user directory (overwrite existing files)
       await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: true });
     } catch (error) {
-      console.warn(`[Sudowork] Failed to copy skills directory:`, error);
+      mainWarn('Sudowork', `Failed to copy skills directory:`, error);
     }
   }
 
@@ -396,7 +396,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceRulesPath)) {
-            console.warn(`[Sudowork] Source rule file not found: ${sourceRulesPath}`);
+            mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
             continue;
           }
 
@@ -409,7 +409,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           await fs.writeFile(targetPath, content, 'utf-8');
         } catch (error) {
           // 忽略缺失的语言文件 / Ignore missing locale files
-          console.warn(`[Sudowork] Failed to copy rule file ${ruleFile}:`, error);
+          mainWarn('Sudowork', `Failed to copy rule file ${ruleFile}:`, error);
         }
       }
     } else {
@@ -441,7 +441,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceSkillsPath)) {
-            console.warn(`[Sudowork] Source skill file not found: ${sourceSkillsPath}`);
+            mainWarn('Sudowork', `Source skill file not found: ${sourceSkillsPath}`);
             continue;
           }
 
@@ -454,7 +454,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           await fs.writeFile(targetPath, content, 'utf-8');
         } catch (error) {
           // 忽略缺失的技能文件 / Ignore missing skill files
-          console.warn(`[Sudowork] Failed to copy skill file ${skillFile}:`, error);
+          mainWarn('Sudowork', `Failed to copy skill file ${skillFile}:`, error);
         }
       }
     } else {
@@ -480,7 +480,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   // 保存当前版本号，下次启动时跳过复制
   // Save current version to skip copy on next startup
   await configFile.set('system.lastBuiltinResourcesVersion', currentVersion);
-  console.log(`[Sudowork] Builtin resources copied successfully (v${currentVersion})`);
+  mainLog('Sudowork', `Builtin resources copied successfully (v${currentVersion})`);
 };
 
 /**
@@ -585,15 +585,15 @@ const cleanupOrphanedHealthCheckConversations = () => {
     });
 
     if (deletedCount > 0) {
-      console.log(`[Sudowork] Cleaned up ${deletedCount} orphaned health-check conversation(s) on startup`);
+      mainLog('Sudowork', `Cleaned up ${deletedCount} orphaned health-check conversation(s) on startup`);
     }
   } catch (error) {
-    console.warn('[Sudowork] Failed to cleanup orphaned health-check conversations:', error);
+    mainWarn('Sudowork', 'Failed to cleanup orphaned health-check conversations:', error);
   }
 };
 
 const initStorage = async () => {
-  console.log('[Sudowork] Starting storage initialization...');
+  mainLog('Sudowork', 'Starting storage initialization...');
   const startTime = Date.now();
 
   // 2. 创建必要的目录（迁移后再创建，确保迁移能正常进行）
@@ -615,10 +615,10 @@ const initStorage = async () => {
     if (!existingMcpConfig || !Array.isArray(existingMcpConfig) || existingMcpConfig.length === 0) {
       const defaultServers = getDefaultMcpServers();
       await configFile.set('mcp.config', defaultServers);
-      console.log('[Sudowork] Default MCP servers initialized');
+      mainLog('Sudowork', 'Default MCP servers initialized');
     }
   } catch (error) {
-    console.error('[Sudowork] Failed to initialize default MCP servers:', error);
+    mainError('Sudowork', 'Failed to initialize default MCP servers:', error);
   }
   // 5. 初始化内置助手（Assistants）
   try {
@@ -724,7 +724,7 @@ const initStorage = async () => {
       await configFile.set(PROMPTS_I18N_MIGRATION_KEY, true);
     }
   } catch (error) {
-    console.error('[Sudowork] Failed to initialize builtin assistants:', error);
+    mainError('Sudowork', 'Failed to initialize builtin assistants:', error);
   }
 
   // 6. 初始化数据库（better-sqlite3）
@@ -733,7 +733,7 @@ const initStorage = async () => {
     getDatabase();
     cleanupOrphanedHealthCheckConversations();
   } catch (error) {
-    console.error('[InitStorage] Database initialization failed, falling back to file-based storage:', error);
+    mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
   }
   perfLog('initStorage.database', Date.now() - dbStart);
 
@@ -840,7 +840,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
         skillContents.push(`## Skill: ${skillName}\n${content}`);
       }
     } catch (error) {
-      console.warn(`[Sudowork] Failed to load skill ${skillName}:`, error);
+      mainWarn('Sudowork', `Failed to load skill ${skillName}:`, error);
     }
   }
 

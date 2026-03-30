@@ -6,6 +6,7 @@
 
 import i18n from 'i18next';
 import { ConfigStorage } from '@/common/storage';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
 
 // Static imports – Vite bundles these into the main-process output so they
@@ -47,7 +48,7 @@ const initPromise = (async (): Promise<void> => {
   try {
     const { app } = await import('electron');
     const systemLocale = app.getLocale();
-    console.log('[Main Process] Detected system locale:', systemLocale);
+    mainLog('Main Process', 'Detected system locale:', systemLocale);
     detectedLanguage = normalizeLanguageCode(systemLocale);
   } catch {
     // Ignore detection errors, use default
@@ -69,10 +70,10 @@ const initPromise = (async (): Promise<void> => {
 
   if (targetLanguage && targetLanguage !== DEFAULT_LANGUAGE) {
     await ensureAndSwitch(i18n, targetLanguage, getLocaleModules);
-    console.log('[Main Process] Switched to language:', targetLanguage);
+    mainLog('Main Process', 'Switched to language:', targetLanguage);
   }
 })().catch((error) => {
-  console.error('[Main Process] Failed to initialize i18n:', error);
+  mainError('Main Process', 'Failed to initialize i18n:', error);
 });
 
 /**

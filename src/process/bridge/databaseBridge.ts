@@ -9,6 +9,7 @@ import { getDatabase } from '@process/database';
 import { ProcessChat } from '../initStorage';
 import type { TChatConversation } from '@/common/storage';
 import { migrateConversationToDatabase } from './migrationUtils';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 
 export function initDatabaseBridge(): void {
   // Get conversation messages from database
@@ -18,7 +19,7 @@ export function initDatabaseBridge(): void {
       const result = db.getConversationMessages(conversation_id, page, pageSize);
       return Promise.resolve(result.data || []);
     } catch (error) {
-      console.error('[DatabaseBridge] Error getting conversation messages:', error);
+      mainError('DatabaseBridge', 'Error getting conversation messages:', error);
       return Promise.resolve([]);
     }
   });
@@ -35,7 +36,7 @@ export function initDatabaseBridge(): void {
       try {
         fileConversations = (await ProcessChat.get('chat.history')) || [];
       } catch (error) {
-        console.warn('[DatabaseBridge] No file-based conversations found:', error);
+        mainWarn('DatabaseBridge', 'No file-based conversations found:', error);
       }
 
       // Use database conversations as the primary source while backfilling missing ones from file storage
@@ -60,7 +61,7 @@ export function initDatabaseBridge(): void {
       allConversations.sort((a, b) => (b.modifyTime || b.createTime || 0) - (a.modifyTime || a.createTime || 0));
       return allConversations;
     } catch (error) {
-      console.error('[DatabaseBridge] Error getting user conversations:', error);
+      mainError('DatabaseBridge', 'Error getting user conversations:', error);
       return [];
     }
   });

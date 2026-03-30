@@ -10,6 +10,7 @@ import { ProcessConfig } from '@/process/initStorage';
 import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -130,7 +131,7 @@ export class CliInstallService {
   async install(): Promise<void> {
     // Ensure Node.js is installed first (required for CLI wrappers)
     if (this.cfg.useBundledNode) {
-      console.log(`[CLI] Ensuring Node.js is installed for ${this.cfg.label}...`);
+      mainLog('CLI', `Ensuring Node.js is installed for ${this.cfg.label}...`);
       const nodeInstalled = await ensureNodeInstalled();
       if (!nodeInstalled) {
         throw new Error('Failed to install Node.js runtime. Please restart the application.');
@@ -149,7 +150,7 @@ export class CliInstallService {
       throw new Error(`${this.cfg.label} bundled resource not found. Please reinstall the application.`);
     }
 
-    console.log(`[CLI] Using bundled ${this.cfg.label} from ${bundledPath}...`);
+    mainLog('CLI', `Using bundled ${this.cfg.label} from ${bundledPath}...`);
 
     // Report progress: extracting
     this.cfg.onProgress?.('extracting', 0);
@@ -356,9 +357,9 @@ export class CliInstallService {
 
       try {
         const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand]);
-        console.log(`[CLI] Windows PATH update: ${stdout.trim()}`);
+        mainLog('CLI', `Windows PATH update: ${stdout.trim()}`);
       } catch (err) {
-        console.error('[CLI] Failed to update Windows PATH via PowerShell:', err);
+        mainError('CLI', 'Failed to update Windows PATH via PowerShell:', err);
         // Fallback to notifying user or trying setx (though setx is risky)
       }
       return;
@@ -434,7 +435,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
 
       try {
         await svc.install();
-        console.log(`[CLI] ${svc.label} installed successfully`);
+        mainLog('CLI', `${svc.label} installed successfully`);
         new Notification({
           title: `${svc.label} 安装成功`,
           body: `重新开一个终端，执行 ${svc.commandName} 即可使用`,
@@ -442,7 +443,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         ipcBridge.claudeCli.installResult.emit({ success: true });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[CLI] Failed to install ${svc.label}:`, err);
+        mainError('CLI', `Failed to install ${svc.label}:`, err);
         new Notification({
           title: `${svc.label} 安装失败`,
           body: msg,

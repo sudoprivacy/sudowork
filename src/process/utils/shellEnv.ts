@@ -17,6 +17,7 @@ import { execFile, execFileSync } from 'child_process';
 import { accessSync, existsSync, readdirSync } from 'fs';
 import os from 'os';
 import path from 'path';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
@@ -61,14 +62,14 @@ function loadShellEnvironment(): Record<string, string> {
 
   // Skip on Windows - shell config loading not needed
   if (process.platform === 'win32') {
-    if (PERF_LOG) console.log(`[ShellEnv] connect: shell env skipped (Windows) ${Date.now() - startTime}ms`);
+    if (PERF_LOG) mainLog('ShellEnv', `connect: shell env skipped (Windows) ${Date.now() - startTime}ms`);
     return cachedShellEnv;
   }
 
   try {
     const shell = process.env.SHELL || '/bin/bash';
     if (!path.isAbsolute(shell)) {
-      console.warn('[ShellEnv] SHELL is not an absolute path, skipping shell env loading:', shell);
+      mainWarn('ShellEnv', 'SHELL is not an absolute path, skipping shell env loading:', shell);
       return cachedShellEnv;
     }
     // Use -i (interactive) and -l (login) to load all shell configs
@@ -93,14 +94,14 @@ function loadShellEnvironment(): Record<string, string> {
     }
 
     if (PERF_LOG && cachedShellEnv.PATH) {
-      console.log('[ShellEnv] Loaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
+      mainLog('ShellEnv', 'Loaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
     }
   } catch (error) {
     // Silent fail - shell environment loading is best-effort
-    console.warn('[ShellEnv] Failed to load shell environment:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to load shell environment:', error instanceof Error ? error.message : String(error));
   }
 
-  if (PERF_LOG) console.log(`[ShellEnv] connect: shell env loaded ${Date.now() - startTime}ms`);
+  if (PERF_LOG) mainLog('ShellEnv', `connect: shell env loaded ${Date.now() - startTime}ms`);
   return cachedShellEnv;
 }
 
@@ -126,7 +127,7 @@ export async function loadShellEnvironmentAsync(): Promise<Record<string, string
   try {
     const shell = process.env.SHELL || '/bin/bash';
     if (!path.isAbsolute(shell)) {
-      console.warn('[ShellEnv] SHELL is not an absolute path, skipping async shell env loading:', shell);
+      mainWarn('ShellEnv', 'SHELL is not an absolute path, skipping async shell env loading:', shell);
       cachedShellEnv = {};
       return cachedShellEnv;
     }
@@ -162,12 +163,12 @@ export async function loadShellEnvironmentAsync(): Promise<Record<string, string
     cachedShellEnv = env;
 
     if (PERF_LOG && cachedShellEnv.PATH) {
-      console.log('[ShellEnv] Preloaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
+      mainLog('ShellEnv', 'Preloaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
     }
-    if (PERF_LOG) console.log(`[ShellEnv] preload: shell env async loaded ${Date.now() - startTime}ms`);
+    if (PERF_LOG) mainLog('ShellEnv', `preload: shell env async loaded ${Date.now() - startTime}ms`);
   } catch (error) {
     cachedShellEnv = {};
-    console.warn('[ShellEnv] Failed to async load shell environment:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to async load shell environment:', error instanceof Error ? error.message : String(error));
   }
 
   return cachedShellEnv;
@@ -411,7 +412,7 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
     if (majorVersion >= 7) {
       return npxCandidate;
     }
-    console.warn(`[ShellEnv] npx at ${npxCandidate} is v${versionOutput} (too old), falling back to PATH lookup`);
+    mainWarn('ShellEnv', `npx at ${npxCandidate} is v${versionOutput} (too old), falling back to PATH lookup`);
   } catch {
     // which/node/npx resolution failed
   }
@@ -446,10 +447,10 @@ export function loadFullShellEnvironment(): Record<string, string> {
     cachedFullShellEnv = parseEnvOutput(output);
     const varCount = Object.keys(cachedFullShellEnv).length;
     const shellPath = cachedFullShellEnv.PATH || '(empty)';
-    console.log(`[ShellEnv] Full shell env loaded: ${varCount} vars, shell=${shell}`);
-    console.log(`[ShellEnv] Shell PATH (first 200 chars): ${shellPath.substring(0, 200)}`);
+    mainLog('ShellEnv', `Full shell env loaded: ${varCount} vars, shell=${shell}`);
+    mainLog('ShellEnv', `Shell PATH (first 200 chars): ${shellPath.substring(0, 200)}`);
   } catch (error) {
-    console.warn('[ShellEnv] Failed to load full shell env:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to load full shell env:', error instanceof Error ? error.message : String(error));
   }
   return cachedFullShellEnv;
 }

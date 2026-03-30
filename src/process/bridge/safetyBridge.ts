@@ -13,6 +13,7 @@
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getNexusClient, CONFIG_DIR } from '../services/safety/SecurityHookFile';
 import type { BlacklistConfig } from '@/common/safetyTypes';
 
@@ -70,11 +71,11 @@ export function initSafetyBridge(): void {
       const service = SafetyPollingService.getInstance();
       if (enabled) {
         // Stop first if already running (skip persist since we'll start immediately)
-        console.log('[SafetyBridge] Starting safety hook service...');
+        mainLog('SafetyBridge', 'Starting safety hook service...');
         await service.stop(false);
         await service.start({ pollingIntervalMs: 5000 });
       } else {
-        console.log('[SafetyBridge] Stopping safety hook service...');
+        mainLog('SafetyBridge', 'Stopping safety hook service...');
         await service.stop(true);
       }
       return { success: true };
@@ -124,7 +125,7 @@ export function initSafetyBridge(): void {
       return { success: true };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('[SafetyBridge] Failed to set blacklist:', errorMsg);
+      mainError('SafetyBridge', 'Failed to set blacklist:', errorMsg);
 
       // Check if it's a Nexus connection error
       if (errorMsg.includes('fetch failed') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('network') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNRESET')) {

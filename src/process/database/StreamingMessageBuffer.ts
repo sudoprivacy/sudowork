@@ -6,6 +6,7 @@
 
 import type { TMessage } from '@/common/chatLib';
 import { getDatabase } from './index';
+import { mainError } from '@process/utils/mainLogger';
 
 /**
  * 流式消息缓冲管理器
@@ -154,7 +155,7 @@ export class StreamingMessageBuffer {
         this.buffers.delete(messageId);
       }
     } catch (error) {
-      console.error(`[StreamingBuffer] Failed to flush buffer for ${messageId}:`, error);
+      mainError('StreamingBuffer', `Failed to flush buffer for ${messageId}:`, error);
     }
   }
 }
