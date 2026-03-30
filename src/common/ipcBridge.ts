@@ -1122,3 +1122,14 @@ export const safety = {
   /** Set blacklist configuration */
   setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
 };
+
+// ==================== Health Monitor API ====================
+
+export const healthMonitor = {
+  /** Get health monitor status */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('health-monitor.get-status'),
+  /** Enable health monitor */
+  enable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.enable'),
+  /** Disable health monitor */
+  disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
+};

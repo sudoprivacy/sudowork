@@ -34,6 +34,10 @@ class ServiceManager {
     void this.startOpenClaw();
     void this.startNexus().catch(() => {});
     void this.startSafetyPolling();
+
+    // Start health monitor for auto-healing components
+    const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
+    void componentHealthMonitor.start();
   }
 
   // ────────────────────────────────────────────────────────────────────────────

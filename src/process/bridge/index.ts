@@ -40,6 +40,7 @@ import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
+import { initHealthMonitorBridge } from './healthMonitorBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -81,6 +82,7 @@ export function initAllBridges(): void {
   initSudoworkServerBridge();
   initSafetyBridge();
   initBdpanBridge();
+  initHealthMonitorBridge();
 }
 
 /**
