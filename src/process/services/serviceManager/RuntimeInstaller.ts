@@ -29,13 +29,6 @@ class RuntimeInstaller {
   async ensureAll(): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
 
-    // On Windows runtimes are installed by the NSIS installer.
-    if (isWin32) {
-      mainLog(TAG, 'Skipping runtime installation on Windows (installed by NSIS)');
-      initStatusManager.setStatus('ready', '初始化完成', 100);
-      return true;
-    }
-
     // ── Fast synchronous pre-check (no awaits, only fs.existsSync) ──────────
     // Running before the first `await` means this executes synchronously in the
     // same event-loop tick as `void serviceManager.startup()`, so
@@ -46,10 +39,15 @@ class RuntimeInstaller {
 
     const fastNodeOk = isNodeInstalled();
 
-    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', 'openclaw');
+    // On Windows the Sudoclaw bin wrapper is openclaw.cmd, not openclaw
+    const sudoclawBinName = isWin32 ? 'openclaw.cmd' : 'openclaw';
+    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
     const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
-    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', 'bin', 'nexusd');
+    // On Windows the nexusd binary is in Scripts\ (not bin/) and named nexusd.exe
+    const nexusEnvBinDir = isWin32 ? 'Scripts' : 'bin';
+    const nexusEnvBinName = isWin32 ? 'nexusd.exe' : 'nexusd';
+    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', nexusEnvBinDir, nexusEnvBinName);
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
       try {
