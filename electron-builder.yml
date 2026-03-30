@@ -144,6 +144,9 @@ win:
   icon: resources/app.ico  # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   extraResources:
+    # 7-Zip (standalone 7za.exe) for extraction
+    - from: resources/7za-${arch}.exe
+      to: 7za.exe
     # Node.js runtime for Windows (zip format)
     - from: resources/node-win32-${arch}.zip
       to: node-win32-${arch}.zip
