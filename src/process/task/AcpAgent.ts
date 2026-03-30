@@ -1100,6 +1100,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
       const requestId = data.toolCall.toolCallId;
 
+      // In yolo/bypassPermissions mode, auto-approve all permission requests
+      if (this.yoloMode) {
+        resolve({ optionId: 'allow_always' });
+        return;
+      }
+
       const approvalKey = createAcpApprovalKey(data.toolCall);
       if (this.approvalStore.isApprovedForSession(approvalKey)) {
         resolve({ optionId: 'allow_always' });
