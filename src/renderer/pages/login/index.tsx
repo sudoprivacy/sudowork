@@ -163,8 +163,15 @@ const LoginPage: React.FC = () => {
         setTimeout(() => navigate('/guid', { replace: true }), 300);
       } else {
         Message.error(regResult.message || '注册失败');
-        // 注册失败可能是因为 token 过期，清除它
-        setSavedRegisterToken(null);
+
+        // 区分错误类型：仅 token 过期时清除，邀请码错误保留 token 允许重试
+        const errorMsg = regResult.message || '';
+        const isTokenExpired = errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效');
+
+        if (isTokenExpired) {
+          setSavedRegisterToken(null);
+          Message.warning('注册凭证已过期，请重新获取验证码');
+        }
       }
       setLoading(false);
       return;
@@ -201,6 +208,11 @@ const LoginPage: React.FC = () => {
             setTimeout(() => navigate('/guid', { replace: true }), 300);
           } else {
             Message.error(regResult.message || '注册失败');
+            // 仅在 token 过期错误时清除，邀请码错误保留 token 允许重试
+            const errorMsg = regResult.message || '';
+            if (errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效')) {
+              setSavedRegisterToken(null);
+            }
           }
         } else {
           // 登录模式：提示用户切换到注册标签
