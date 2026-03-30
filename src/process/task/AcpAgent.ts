@@ -28,7 +28,7 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -255,30 +255,18 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         mainWarn('[AcpAgent]', 'Custom backend specified but customAgentId is missing');
       }
 
-      // For presets that have their own ops layer (e.g. doctor uses tests/e2e/run_op.py),
-      // redirect direct ai-dev-browser CLI calls to the ops wrapper.
-      if (this.extra.presetAssistantId?.startsWith('builtin-')) {
-        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.opsEntryPoint) {
-          let port: number | string = 9230;
-          try { port = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
-          customEnv = {
-            ...customEnv,
-            AI_DEV_BROWSER_REDIRECT: `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${port} --op <tool_name> [args]`,
-          };
-        }
-
-        // Auto-append scripts/ listing to presetContext
-        if (preset?.resourceDir && this.options.presetContext) {
-          try {
-            const scriptsDir = nodePath.join(preset.resourceDir, 'scripts');
-            const entries = fs.readdirSync(scriptsDir).filter((e: string) => e.endsWith('.py') || e.endsWith('.sh'));
-            if (entries.length > 0) {
-              this.options.presetContext += `\n\n## Available Scripts\n\n\`\`\`\n${entries.map((s: string) => `python ${scriptsDir}/${s} --help`).join('\n')}\n\`\`\`\n`;
-            }
-          } catch { /* no scripts dir */ }
-        }
+      // Apply preset-specific runtime configuration (env vars, scripts, model configs)
+      let cdpPort = 9230;
+      try { cdpPort = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
+      const presetResult = applyPresetRuntime({
+        presetAssistantId: this.extra.presetAssistantId,
+        backend: this.extra.backend,
+        workspace: this.extra.workspace,
+        cdpPort,
+      });
+      customEnv = { ...customEnv, ...presetResult.envOverrides };
+      if (presetResult.contextAppendix && this.options.presetContext) {
+        this.options.presetContext += presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
@@ -289,26 +277,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         customEnv,
         yoloMode,
       };
-
-      // Write preset modelConfigs to .gemini/settings.json for Gemini backend
-      // The Gemini CLI reads this file from the workspace directory on startup
-      if (this.extra.backend === 'gemini' && this.extra.presetAssistantId?.startsWith('builtin-')) {
-        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.modelConfigs && this.extra.workspace) {
-          try {
-            const geminiDir = nodePath.join(this.extra.workspace, '.gemini');
-            if (!fs.existsSync(geminiDir)) {
-              fs.mkdirSync(geminiDir, { recursive: true });
-            }
-            const settingsPath = nodePath.join(geminiDir, 'settings.json');
-            fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
-            mainLog('[AcpAgent]', `Wrote Gemini model config to ${settingsPath}`);
-          } catch (error) {
-            mainWarn('[AcpAgent]', 'Failed to write Gemini model config:', error);
-          }
-        }
-      }
 
       // Write preset rules as GEMINI.md for Gemini backend system instruction
       if (this.extra.backend === 'gemini' && this.extra.workspace && this.options.presetContext) {

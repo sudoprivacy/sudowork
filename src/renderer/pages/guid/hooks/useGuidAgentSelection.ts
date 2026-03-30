@@ -467,7 +467,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
             try {
               const ruleFile = preset.ruleFiles[localeKey] || preset.ruleFiles['en-US'];
               if (ruleFile) {
-                rules = await ipcBridge.fs.readBuiltinRule.invoke({ fileName: ruleFile, resourceDir: preset.resourceDir });
+                rules = await ipcBridge.fs.readBuiltinRule.invoke({ fileName: ruleFile });
               }
             } catch (e) {
               console.warn(`Failed to load builtin rules for ${customAgentId}:`, e);
