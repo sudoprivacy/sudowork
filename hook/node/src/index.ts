@@ -324,8 +324,12 @@ if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
   const mainScript = process.argv[1] || '';
   const isNpmProcess = mainScript.includes('npm-cli.js') || mainScript.includes('npx-cli.js') ||
     mainScript.endsWith('/npm') || mainScript.endsWith('/npx');
-  if (isNpmProcess) {
-    // Do not intercept npm/npx — let them run unimpeded
+  // ACP bridge processes use stdio for JSON-RPC — hook's network interception
+  // and polling would interfere with the protocol stream
+  const isAcpBridge = mainScript.includes('claude-agent-acp') || mainScript.includes('codex-agent-acp') ||
+    mainScript.includes('codebuddy-agent-acp') || mainScript.includes('agent-acp');
+  if (isNpmProcess || isAcpBridge) {
+    // Do not intercept npm/npx or ACP bridge processes — let them run unimpeded
   } else {
     initSafetyHook();
   }
