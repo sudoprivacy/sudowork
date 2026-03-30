@@ -28,9 +28,7 @@ All primitives are aligned with [W3C WebDriver Actions API](https://w3c.github.i
 - `key_up --value <key>` — Release a key
 
 **Input — Pointer**:
-- `pointer_move --x <n> --y <n>` — Move pointer to coordinates
-- `pointer_move --text "<visible text>"` — Move pointer to element (convenience)
-- `pointer_move --selector "<css>"` — Move pointer to element (convenience)
+- `pointer_move --x <n> --y <n>` — Move pointer to coordinates (use screenshot to determine coordinates)
 - `pointer_down` — Press mouse button (default: left)
 - `pointer_down --button 2` — Press right button
 - `pointer_up` — Release mouse button
@@ -48,12 +46,14 @@ All primitives are aligned with [W3C WebDriver Actions API](https://w3c.github.i
 ### Example: Click a sidebar item
 
 ```bash
-# Move pointer to element, press, release — 3 primitives = 1 click
-python tests/e2e/run_op.py --port 9230 --op pointer_move --text "安全防护"
+# 1. Screenshot to see the UI and determine coordinates
+python tests/e2e/run_op.py --port 9230 --op screenshot --path before.png
+# 2. From the screenshot, identify the target element's coordinates
+# 3. Move pointer, press, release — 3 primitives = 1 click
+python tests/e2e/run_op.py --port 9230 --op pointer_move --x 80 --y 173
 python tests/e2e/run_op.py --port 9230 --op pointer_down
 python tests/e2e/run_op.py --port 9230 --op pointer_up
-
-# Verify
+# 4. Verify
 python tests/e2e/run_op.py --port 9230 --op screenshot
 ```
 

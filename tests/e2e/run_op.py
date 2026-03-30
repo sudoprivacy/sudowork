@@ -6,12 +6,12 @@ Used by Doctor (and any shell-based agent) to invoke ops without
 importing Python modules directly.
 
 Usage:
-    python tests/e2e/run_op.py --port 9230 --op screenshot
-    python tests/e2e/run_op.py --port 9230 --op click_element --text "技能商店"
-    python tests/e2e/run_op.py --port 9230 --op send_message --text "hello"
-    python tests/e2e/run_op.py --port 9230 --op type_text --text "/model"
-    python tests/e2e/run_op.py --port 9230 --op file_bug --title "bug title" --body "description"
-    python tests/e2e/run_op.py --port 9230 --op stop_conversation
+    python tests/e2e/run_op.py --port 9230 --op screenshot --path out.png
+    python tests/e2e/run_op.py --port 9230 --op pointer_move --x 80 --y 173
+    python tests/e2e/run_op.py --port 9230 --op pointer_down
+    python tests/e2e/run_op.py --port 9230 --op pointer_up
+    python tests/e2e/run_op.py --port 9230 --op key_down --value Enter
+    python tests/e2e/run_op.py --port 9230 --op get_text
     python tests/e2e/run_op.py --list   # List all available ops
 """
 
