@@ -45,9 +45,10 @@ export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResu
 
   // 1. opsEntryPoint → AI_DEV_BROWSER_REDIRECT env var
   if (preset.opsEntryPoint) {
-    const absOpsPath = path.resolve(preset.opsEntryPoint);
+    // Use forward slashes for cross-platform bash compatibility
+    const absOpsPath = path.resolve(preset.opsEntryPoint).replace(/\\/g, '/');
     result.envOverrides.AI_DEV_BROWSER_REDIRECT =
-      `Direct tool access is disabled for this assistant. Use: python ${absOpsPath} --port ${ctx.cdpPort} --op <tool_name> [args]`;
+      `Direct tool access is disabled for this assistant. Use: python "${absOpsPath}" --port ${ctx.cdpPort} --op <tool_name> [args]`;
   }
 
   // 2. resourceDir/scripts/ → auto-append to context, plus resolved ops path
@@ -55,8 +56,8 @@ export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResu
     result.contextAppendix = discoverScripts(preset);
   }
   if (preset.opsEntryPoint) {
-    const absOpsPath = path.resolve(preset.opsEntryPoint);
-    result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython ${absOpsPath} --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
+    const absOpsPath = path.resolve(preset.opsEntryPoint).replace(/\\/g, '/');
+    result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython "${absOpsPath}" --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
   }
 
   // 3. modelConfigs → .gemini/settings.json
