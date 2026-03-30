@@ -261,7 +261,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         const presetId = this.extra.presetAssistantId.replace('builtin-', '');
         const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
         if (preset?.opsEntryPoint) {
-          const port = cdpPort || 9230;
+          let port: number | string = 9230;
+          try { port = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
           customEnv = {
             ...customEnv,
             AI_DEV_BROWSER_REDIRECT: `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${port} --op <tool_name> [args]`,

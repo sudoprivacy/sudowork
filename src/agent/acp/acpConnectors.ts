@@ -67,9 +67,16 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
 
   // Default ai-dev-browser to headless and point it to SudoWork's CDP port
   cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
-  const { cdpPort } = require('@/utils/configureChromium');
-  if (cdpPort) {
-    cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
+  try {
+    const { cdpPort } = require('@/utils/configureChromium');
+    if (cdpPort) {
+      cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
+      cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
+    }
+  } catch {
+    // Fallback: use default CDP port
+    cleanEnv.AI_DEV_BROWSER_PORT = '9230';
+    cleanEnv.NEXUS_CDP_PORT = '9230';
   }
 
   // Inject safety hook via NODE_OPTIONS if enabled
