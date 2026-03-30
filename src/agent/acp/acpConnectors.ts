@@ -65,8 +65,12 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     }
   }
 
-  // Default ai-dev-browser to headless when run by agents
+  // Default ai-dev-browser to headless and point it to SudoWork's CDP port
   cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
+  const { cdpPort } = require('@/utils/configureChromium');
+  if (cdpPort) {
+    cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
+  }
 
   // Inject safety hook via NODE_OPTIONS if enabled
   if (isSafetyHookEnabled()) {
