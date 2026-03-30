@@ -15,6 +15,7 @@ import { GeminiMcpAgent } from './agents/GeminiMcpAgent';
 import { AionuiMcpAgent } from './agents/AionuiMcpAgent';
 import { CodexMcpAgent } from './agents/CodexMcpAgent';
 import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncResult, McpSource } from './McpProtocol';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /**
  * MCP服务 - 负责协调各个Agent的MCP操作协议
@@ -132,7 +133,7 @@ export class McpService {
           cliPath: 'gemini',
         },
       ];
-      console.log('[McpService] Added native Gemini CLI to agent list');
+      mainLog('McpService', 'Added native Gemini CLI to agent list');
       return allAgents;
     } catch {
       return agents;
@@ -162,18 +163,18 @@ export class McpService {
           // 跳过 fork 的 Gemini（backend='gemini' 且 cliPath=undefined）
           // fork 的 Gemini 的 MCP 配置应该由 AionuiMcpAgent 管理
           if (agent.backend === 'gemini' && !agent.cliPath) {
-            console.log(`[McpService] Skipping fork Gemini (ACP only, MCP managed by AionuiMcpAgent)`);
+            mainLog('McpService', `Skipping fork Gemini (ACP only, MCP managed by AionuiMcpAgent)`);
             return null;
           }
 
           const agentInstance = this.getAgent(agent.backend);
           if (!agentInstance) {
-            console.warn(`[McpService] No agent instance for backend: ${agent.backend}`);
+            mainWarn('McpService', `No agent instance for backend: ${agent.backend}`);
             return null;
           }
 
           const servers = await agentInstance.detectMcpServers(agent.cliPath);
-          console.log(`[McpService] Detected ${servers.length} MCP servers for ${agent.backend} (cliPath: ${agent.cliPath || 'default'})`);
+          mainLog('McpService', `Detected ${servers.length} MCP servers for ${agent.backend} (cliPath: ${agent.cliPath || 'default'})`);
 
           if (servers.length > 0) {
             return {
@@ -183,7 +184,7 @@ export class McpService {
           }
           return null;
         } catch (error) {
-          console.warn(`[McpService] Failed to detect MCP servers for ${agent.backend}:`, error);
+          mainWarn('McpService', `Failed to detect MCP servers for ${agent.backend}:`, error);
           return null;
         }
       });
@@ -244,7 +245,7 @@ export class McpService {
           // Use getAgentForConfig to correctly distinguish fork Gemini from native Gemini
           const agentInstance = this.getAgentForConfig(agent);
           if (!agentInstance) {
-            console.warn(`[McpService] Skipping MCP sync for unsupported backend: ${agent.backend}`);
+            mainWarn('McpService', `Skipping MCP sync for unsupported backend: ${agent.backend}`);
             return {
               agent: agent.name,
               success: true,
@@ -297,7 +298,7 @@ export class McpService {
           // Use getAgentForConfig to correctly distinguish fork Gemini from native Gemini
           const agentInstance = this.getAgentForConfig(agent);
           if (!agentInstance) {
-            console.warn(`[McpService] Skipping MCP removal for unsupported backend: ${agent.backend}`);
+            mainWarn('McpService', `Skipping MCP removal for unsupported backend: ${agent.backend}`);
             return {
               agent: `${agent.backend}:${agent.name}`,
               success: true,

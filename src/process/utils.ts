@@ -10,6 +10,7 @@ import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 export const getTempPath = () => {
   const rootPath = app.getPath('temp');
   return path.join(rootPath, 'nexus');
@@ -300,7 +301,7 @@ export async function verifyDirectoryFiles(dir1: string, dir2: string): Promise<
 
     return true;
   } catch (error) {
-    console.warn('[Sudowork] Error verifying directory files:', error);
+    mainWarn('Sudowork', 'Error verifying directory files:', error);
     return false;
   }
 }
@@ -336,7 +337,7 @@ async function expandPathsToFiles(paths: string[]): Promise<string[]> {
         result.push(absolutePath);
       }
     } catch (error) {
-      console.warn(`[Sudowork] Cannot expand path ${absolutePath}, skipping:`, error);
+      mainWarn('Sudowork', `Cannot expand path ${absolutePath}, skipping:`, error);
     }
   }
   return result;
@@ -360,8 +361,8 @@ export const copyFilesToDirectory = async (dir: string, files?: string[], skipCl
     try {
       await fs.access(absoluteFilePath);
     } catch (error) {
-      console.warn(`[Sudowork] Source file does not exist, skipping: ${absoluteFilePath}`);
-      console.warn(`[Sudowork] Original path: ${file}`);
+      mainWarn('Sudowork', `Source file does not exist, skipping: ${absoluteFilePath}`);
+      mainWarn('Sudowork', `Original path: ${file}`);
       // 跳过不存在的文件，而不是抛出错误
       continue;
     }
@@ -392,7 +393,7 @@ export const copyFilesToDirectory = async (dir: string, files?: string[], skipCl
       await fs.copyFile(absoluteFilePath, destPath);
       copiedFiles.push(destPath);
     } catch (error) {
-      console.error(`[Sudowork] Failed to copy file from ${absoluteFilePath} to ${destPath}:`, error);
+      mainError('Sudowork', `Failed to copy file from ${absoluteFilePath} to ${destPath}:`, error);
       // 继续处理其他文件，而不是完全失败
     }
 
@@ -401,7 +402,7 @@ export const copyFilesToDirectory = async (dir: string, files?: string[], skipCl
       try {
         await fs.unlink(absoluteFilePath);
       } catch (error) {
-        console.warn(`Failed to cleanup temp file ${absoluteFilePath}:`, error);
+        mainWarn('Sudowork', `Failed to cleanup temp file ${absoluteFilePath}:`, error);
       }
     }
   }

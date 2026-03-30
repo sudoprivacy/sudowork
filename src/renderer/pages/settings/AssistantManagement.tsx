@@ -21,6 +21,7 @@
 import { ipcBridge, skillHub } from '@/common';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from '@/common/presets/presetResolver';
 import { ConfigStorage } from '@/common/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
@@ -280,7 +281,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
       for (const agent of mergedAgents) {
         if (agent.id.startsWith('builtin-')) {
           const presetId = agent.id.replace('builtin-', '');
-          const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+          const preset = getPresetById(presetId);
           if (preset && preset.presetAgentType) {
             agent.presetAgentType = preset.presetAgentType;
           }

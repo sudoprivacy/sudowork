@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { mainWarn } from '@process/utils/mainLogger';
 
 interface OpenClawChannelAccount {
   enabled: boolean;
@@ -86,7 +87,7 @@ function readOpenClawConfig(): OpenClawConfig | null {
     const content = fs.readFileSync(configPath, 'utf8');
     return JSON.parse(content) as OpenClawConfig;
   } catch (error) {
-    console.warn('[OpenClawConflictDetector] Failed to read OpenClaw config:', error);
+    mainWarn('OpenClawConflictDetector', 'Failed to read OpenClaw config:', error);
     return null;
   }
 }
@@ -108,7 +109,7 @@ export function detectLarkConflict(aionuiAppId: string): ConflictInfo | null {
   // Check all accounts
   for (const [accountName, account] of Object.entries(feishu.accounts)) {
     if (account.enabled && account.appId === aionuiAppId) {
-      console.warn(`[OpenClawConflictDetector] Lark conflict detected: OpenClaw account "${accountName}" uses same appId: ${aionuiAppId}`);
+      mainWarn('OpenClawConflictDetector', `Lark conflict detected: OpenClaw account "${accountName}" uses same appId: ${aionuiAppId}`);
       return {
         platform: 'lark',
         openclawEnabled: true,
@@ -136,7 +137,7 @@ export function detectTelegramConflict(aionuiBotToken: string): ConflictInfo | n
   }
 
   if (telegram.botToken === aionuiBotToken) {
-    console.warn(`[OpenClawConflictDetector] Telegram conflict detected: OpenClaw uses same bot token`);
+    mainWarn('OpenClawConflictDetector', `Telegram conflict detected: OpenClaw uses same bot token`);
     return {
       platform: 'telegram',
       openclawEnabled: true,

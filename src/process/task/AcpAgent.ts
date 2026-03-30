@@ -28,7 +28,7 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -255,19 +255,18 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         mainWarn('[AcpAgent]', 'Custom backend specified but customAgentId is missing');
       }
 
-      // For presets that have their own ops layer (e.g. doctor uses tests/e2e/run_op.py),
-      // redirect direct ai-dev-browser CLI calls to the ops wrapper.
-      if (this.extra.presetAssistantId?.startsWith('builtin-')) {
-        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.opsEntryPoint) {
-          let port: number | string = 9230;
-          try { port = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
-          customEnv = {
-            ...customEnv,
-            AI_DEV_BROWSER_REDIRECT: `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${port} --op <tool_name> [args]`,
-          };
-        }
+      // Apply preset-specific runtime configuration (env vars, scripts, model configs)
+      let cdpPort = 9230;
+      try { cdpPort = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
+      const presetResult = applyPresetRuntime({
+        presetAssistantId: this.extra.presetAssistantId,
+        backend: this.extra.backend,
+        workspace: this.extra.workspace,
+        cdpPort,
+      });
+      customEnv = { ...customEnv, ...presetResult.envOverrides };
+      if (presetResult.contextAppendix && this.options.presetContext) {
+        this.options.presetContext += presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
@@ -278,26 +277,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         customEnv,
         yoloMode,
       };
-
-      // Write preset modelConfigs to .gemini/settings.json for Gemini backend
-      // The Gemini CLI reads this file from the workspace directory on startup
-      if (this.extra.backend === 'gemini' && this.extra.presetAssistantId?.startsWith('builtin-')) {
-        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.modelConfigs && this.extra.workspace) {
-          try {
-            const geminiDir = nodePath.join(this.extra.workspace, '.gemini');
-            if (!fs.existsSync(geminiDir)) {
-              fs.mkdirSync(geminiDir, { recursive: true });
-            }
-            const settingsPath = nodePath.join(geminiDir, 'settings.json');
-            fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
-            mainLog('[AcpAgent]', `Wrote Gemini model config to ${settingsPath}`);
-          } catch (error) {
-            mainWarn('[AcpAgent]', 'Failed to write Gemini model config:', error);
-          }
-        }
-      }
 
       // Write preset rules as GEMINI.md for Gemini backend system instruction
       if (this.extra.backend === 'gemini' && this.extra.workspace && this.options.presetContext) {
@@ -377,7 +356,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         try {
           await tryConnect();
         } catch (firstError) {
-          console.warn('[ACP] First connect attempt failed, retrying once:', firstError instanceof Error ? firstError.message : String(firstError));
+          mainWarn('ACP', 'First connect attempt failed, retrying once:', firstError instanceof Error ? firstError.message : String(firstError));
           await this.connection.disconnect();
           await new Promise((resolve) => setTimeout(resolve, 300));
           await tryConnect();
@@ -387,18 +366,18 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           clearTimeout(connectTimeoutId);
         }
       }
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: connection.connect() completed ${Date.now() - connectStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: connection.connect() completed ${Date.now() - connectStart}ms`);
 
       this.emitStatusMessage('connected');
 
       const authStart = Date.now();
       await this.performAuthentication();
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: authentication completed ${Date.now() - authStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: authentication completed ${Date.now() - authStart}ms`);
 
       if (!this.connection.hasActiveSession) {
         const sessionStart = Date.now();
         await this.createOrResumeSession();
-        if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: session created ${Date.now() - sessionStart}ms`);
+        if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: session created ${Date.now() - sessionStart}ms`);
       }
 
       // YOLO mode
@@ -414,7 +393,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             const modeStart = Date.now();
             await this.connection.setSessionMode(sessionMode);
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: session mode set ${Date.now() - modeStart}ms`);
+            if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: session mode set ${Date.now() - modeStart}ms`);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`[ACP] Failed to enable ${this.extra.backend} YOLO mode (${sessionMode}): ${errorMessage}`);
@@ -429,10 +408,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             const modelStart = Date.now();
             await this.connection.setModel(configuredModel);
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: model set ${Date.now() - modelStart}ms`);
+            if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: model set ${Date.now() - modelStart}ms`);
           } catch (error) {
             const errMsg = error instanceof Error ? error.message : String(error);
-            console.warn(`[ACP] Failed to set model from settings: ${errMsg}`);
+            mainWarn('ACP', `Failed to set model from settings: ${errMsg}`);
             if (errMsg.includes('model_not_found') || errMsg.includes('无可用渠道')) {
               this.emitErrorMessage(`Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`);
             }
@@ -442,9 +421,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       this.emitModelInfoEvent();
       this.emitStatusMessage('session_active');
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: total ${Date.now() - startTotal}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: total ${Date.now() - startTotal}ms`);
     } catch (error) {
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: failed after ${Date.now() - startTotal}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: failed after ${Date.now() - startTotal}ms`);
       this.emitStatusMessage('error');
       throw error;
     }
@@ -472,7 +451,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         }
         return;
       } catch (resumeError) {
-        console.warn(`[AcpAgent] Failed to resume session ${resumeSessionId}, creating fresh session:`, resumeError instanceof Error ? resumeError.message : String(resumeError));
+        mainWarn('AcpAgent', `Failed to resume session ${resumeSessionId}, creating fresh session:`, resumeError instanceof Error ? resumeError.message : String(resumeError));
       }
     }
 
@@ -547,7 +526,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       await new Promise<void>((resolve, reject) => {
         loginProcess.on('close', (code) => {
           if (code === 0) {
-            console.log(`${backend} authentication refreshed`);
+            mainLog('AcpAgent', `${backend} authentication refreshed`);
             resolve();
           } else {
             reject(new Error(`${backend} login failed with code ${code}`));
@@ -556,7 +535,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         loginProcess.on('error', reject);
       });
     } catch (error) {
-      console.warn(`${backend} auth refresh failed, will try to connect anyway:`, error);
+      mainWarn('AcpAgent', `${backend} auth refresh failed, will try to connect anyway:`, error);
     }
   }
 
@@ -608,7 +587,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       const initStart = Date.now();
       await this.initAgent(this.options);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: initAgent completed ${Date.now() - initStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: initAgent completed ${Date.now() - initStart}ms`);
 
       // Guard against stale agent after CLI crash
       if (!this.connection.isConnected) {
@@ -639,7 +618,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
         const agentSendStart = Date.now();
         const result = await this.sendToConnection(contentToSend, data.msg_id);
-        if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
+        if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
         }
@@ -647,7 +626,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
       const agentSendStart = Date.now();
       const result = await this.sendToConnection(data.content, data.msg_id);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       return result;
     } catch (e) {
       this.streamTextBuffer.flushAll();
@@ -693,9 +672,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         try {
           this.bootstrap = undefined;
           await this.initAgent(this.options);
-          if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: auto-reconnect completed ${Date.now() - reconnectStart}ms`);
+          if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect completed ${Date.now() - reconnectStart}ms`);
         } catch (reconnectError) {
-          if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
+          if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
           const errorMsg = reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
           return {
             success: false,
@@ -722,7 +701,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             await this.connection.setModel(this.userModelOverride);
           } catch (err) {
-            console.warn(`[ACP] Pre-prompt model re-assert failed: ${err instanceof Error ? err.message : String(err)}`);
+            mainWarn('ACP', `Pre-prompt model re-assert failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -736,7 +715,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       const promptStart = Date.now();
       await this.connection.sendPrompt(processedContent);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
       this.statusMessageId = null;
       return { success: true, data: null };
@@ -1000,7 +979,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     try {
       await this.bootstrap;
     } catch (error) {
-      console.warn('[AcpAgent] Agent initialization failed while loading ACP slash commands:', error);
+      mainWarn('AcpAgent', 'Agent initialization failed while loading ACP slash commands:', error);
       return this.getAcpSlashCommands();
     }
 
@@ -1323,7 +1302,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     const totalDuration = Date.now() - pipelineStart;
     if (totalDuration > 10) {
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: onStreamEvent pipeline ${totalDuration}ms type=${message.type}`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `stream: onStreamEvent pipeline ${totalDuration}ms type=${message.type}`);
     }
   }
 

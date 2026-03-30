@@ -14,6 +14,7 @@
 
 import { ensureSecurityHookDirs, listEventFiles, writeActionFile, deleteEventFile, eventToSafetyStatus } from './SecurityHookFile';
 import type { SafetyStatus, EventFileData, ActionFileData } from '@/common/safetyTypes';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 export interface SafetyFileConfig {
   pollingIntervalMs: number;
@@ -56,10 +57,10 @@ export class SafetyFileService {
         this.processedEvents.add(event.filename);
       }
       if (events.length > 0) {
-        console.log(`[SafetyFileService] Marked ${events.length} existing events as processed (skipping stale events)`);
+        mainLog('SafetyFileService', `Marked ${events.length} existing events as processed (skipping stale events)`);
       }
     } catch (error) {
-      console.warn('[SafetyFileService] Failed to mark existing events:', error);
+      mainWarn('SafetyFileService', 'Failed to mark existing events:', error);
     }
   }
 

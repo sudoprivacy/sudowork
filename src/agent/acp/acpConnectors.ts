@@ -68,6 +68,7 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   // Default ai-dev-browser to headless and point it to SudoWork's CDP port
   cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { cdpPort } = require('@/utils/configureChromium');
     if (cdpPort) {
       cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
@@ -80,6 +81,9 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   }
 
   // Inject safety hook via NODE_OPTIONS if enabled
+  // Also set SUDOWORK_ACP_CHILD=1 so the hook skips in ACP bridge child processes
+  // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC)
+  cleanEnv.SUDOWORK_ACP_CHILD = '1';
   if (isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
     const hookOption = `-r ${hookJsPath}`;

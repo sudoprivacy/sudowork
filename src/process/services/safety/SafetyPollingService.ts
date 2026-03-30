@@ -18,6 +18,7 @@ import { SafetyFileService } from './SafetyFileService';
 import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile, getNexusClient, CONFIG_DIR } from './SecurityHookFile';
 import { initBlacklist, BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /** Storage key for safety hook enabled state */
 const SAFETY_HOOK_ENABLED_KEY = 'safetyHook.enabled';
@@ -56,7 +57,7 @@ export function setSafetyHookEnabled(enabled: boolean): void {
       try {
         listener(enabled);
       } catch (error) {
-        console.error('[SafetyPolling] Error in enabled change listener:', error);
+        mainError('SafetyPolling', 'Error in enabled change listener:', error);
       }
     });
   }
@@ -108,7 +109,7 @@ export class SafetyPollingService {
       // Sync to Nexus filesystem for Agent CLI processes
       await writeEnabledState(this.enabled);
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to load enabled state:', err);
+      mainWarn('SafetyPolling', 'Failed to load enabled state:', err);
       this.enabled = true;
       setSafetyHookEnabled(true);
       await writeEnabledState(true);
@@ -118,7 +119,7 @@ export class SafetyPollingService {
     try {
       await initBlacklist();
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to init blacklist:', err);
+      mainWarn('SafetyPolling', 'Failed to init blacklist:', err);
     }
 
     this.initialized = true;
@@ -135,7 +136,7 @@ export class SafetyPollingService {
       // Sync to Nexus filesystem for Agent CLI processes
       await writeEnabledState(enabled, fastPass);
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to persist enabled state:', err);
+      mainWarn('SafetyPolling', 'Failed to persist enabled state:', err);
     }
   }
 
@@ -176,7 +177,7 @@ export class SafetyPollingService {
 
     // Only start polling if user enabled it before
     if (!this.enabled) {
-      console.log('[SafetyPolling] Service disabled by user, skipping startup');
+      mainLog('SafetyPolling', 'Service disabled by user, skipping startup');
       return;
     }
 
@@ -198,9 +199,9 @@ export class SafetyPollingService {
       await SafetyFileService.init({
         pollingIntervalMs: config.pollingIntervalMs,
       });
-      console.log('[SafetyPolling] SafetyFileService initialized, processedEvents size:', SafetyFileService['processedEvents'].size);
+      mainLog('SafetyPolling', 'SafetyFileService initialized, processedEvents size:', SafetyFileService['processedEvents'].size);
     } catch (err) {
-      console.error(`[SafetyPolling] Failed to init SafetyFileService:`, err);
+      mainError('SafetyPolling', `Failed to init SafetyFileService:`, err);
       throw err;
     }
 
@@ -208,7 +209,7 @@ export class SafetyPollingService {
       void this.poll();
     }, config.pollingIntervalMs);
 
-    console.log('[SafetyPolling] Polling started, interval:', config.pollingIntervalMs);
+    mainLog('SafetyPolling', 'Polling started, interval:', config.pollingIntervalMs);
 
     // Initial poll
     void this.poll();
@@ -247,7 +248,7 @@ export class SafetyPollingService {
 
     // Async cleanup: write allow action for pending events, then delete them
     this.cleanupPendingEvents().catch((err) => {
-      console.warn('[SafetyPolling] Failed to cleanup pending events:', err);
+      mainWarn('SafetyPolling', 'Failed to cleanup pending events:', err);
     });
   }
 
@@ -263,7 +264,7 @@ export class SafetyPollingService {
         return;
       }
 
-      console.log(`[SafetyPolling] Cleaning up ${eventFilenames.length} pending events`);
+      mainLog('SafetyPolling', `Cleaning up ${eventFilenames.length} pending events`);
 
       for (const filename of eventFilenames) {
         // Check if action already exists (user may have just confirmed)
@@ -276,9 +277,9 @@ export class SafetyPollingService {
         await deleteEventFile(filename);
       }
 
-      console.log(`[SafetyPolling] Cleaned up ${eventFilenames.length} pending events`);
+      mainLog('SafetyPolling', `Cleaned up ${eventFilenames.length} pending events`);
     } catch (err) {
-      console.warn('[SafetyPolling] Cleanup pending events failed:', err);
+      mainWarn('SafetyPolling', 'Cleanup pending events failed:', err);
     }
   }
 
@@ -308,7 +309,7 @@ export class SafetyPollingService {
    */
   async handleUserConfirmation(allow: boolean, reason?: string): Promise<boolean> {
     if (!this.currentEventUuid) {
-      console.warn('[SafetyPolling] No event to confirm');
+      mainWarn('SafetyPolling', 'No event to confirm');
       return false;
     }
 
@@ -347,7 +348,7 @@ export class SafetyPollingService {
       try {
         listener(status);
       } catch (error) {
-        console.error('[SafetyPolling] Error in listener:', error);
+        mainError('SafetyPolling', 'Error in listener:', error);
       }
     });
 
@@ -355,7 +356,7 @@ export class SafetyPollingService {
     try {
       ipcBridge.safety.onStatusChange.emit(status);
     } catch (err) {
-      console.error('[SafetyPolling] IPC emit failed:', err);
+      mainError('SafetyPolling', 'IPC emit failed:', err);
     }
   }
 
@@ -427,13 +428,13 @@ export class SafetyPollingService {
             break;
           } else {
             // If read failed, mark as processed to ignore it in next polls
-            console.warn('[SafetyPolling] Failed to read event file:', filename);
+            mainWarn('SafetyPolling', 'Failed to read event file:', filename);
             processedSet.add(filename);
           }
         }
       }
     } catch (error) {
-      console.error('[SafetyPolling] Poll error:', error);
+      mainError('SafetyPolling', 'Poll error:', error);
     }
   }
 }

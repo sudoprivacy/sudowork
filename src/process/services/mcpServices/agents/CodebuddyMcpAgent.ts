@@ -11,6 +11,7 @@ import type { IMcpServer } from '../../../../common/storage';
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
 import { safeExecFile } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /**
  * CodeBuddy MCP server entry in ~/.codebuddy/mcp.json
@@ -117,7 +118,7 @@ export class CodebuddyMcpAgent extends AbstractMcpAgent {
               const testResult = await this.testMcpConnection(transportObj);
               tools = testResult.tools || [];
             } catch (error) {
-              console.warn(`[CodebuddyMcpAgent] Failed to get tools for ${name}:`, error);
+              mainWarn('CodebuddyMcpAgent', `Failed to get tools for ${name}:`, error);
             }
           }
 
@@ -135,10 +136,10 @@ export class CodebuddyMcpAgent extends AbstractMcpAgent {
           });
         }
 
-        console.log(`[CodebuddyMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+        mainLog('CodebuddyMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
         return mcpServers;
       } catch (error) {
-        console.warn('[CodebuddyMcpAgent] Failed to detect MCP servers:', error);
+        mainWarn('CodebuddyMcpAgent', 'Failed to detect MCP servers:', error);
         return [];
       }
     };
@@ -216,9 +217,9 @@ export class CodebuddyMcpAgent extends AbstractMcpAgent {
                 env: { ...process.env, NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' },
               });
             }
-            console.log(`[CodebuddyMcpAgent] Added MCP server: ${server.name}`);
+            mainLog('CodebuddyMcpAgent', `Added MCP server: ${server.name}`);
           } catch (error) {
-            console.warn(`Failed to add MCP ${server.name} to CodeBuddy:`, error);
+            mainWarn('CodebuddyMcpAgent', `Failed to add MCP ${server.name} to CodeBuddy:`, error);
           }
         }
         return { success: true };
@@ -247,7 +248,7 @@ export class CodebuddyMcpAgent extends AbstractMcpAgent {
             });
 
             if (result.stdout && result.stdout.includes('removed')) {
-              console.log(`[CodebuddyMcpAgent] Removed MCP server from ${scope} scope: ${mcpServerName}`);
+              mainLog('CodebuddyMcpAgent', `Removed MCP server from ${scope} scope: ${mcpServerName}`);
               return { success: true };
             }
           } catch (error) {
@@ -255,11 +256,11 @@ export class CodebuddyMcpAgent extends AbstractMcpAgent {
             if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
               continue;
             }
-            console.warn(`[CodebuddyMcpAgent] Failed to remove from ${scope} scope:`, errorMessage);
+            mainWarn('CodebuddyMcpAgent', `Failed to remove from ${scope} scope:`, errorMessage);
           }
         }
 
-        console.log(`[CodebuddyMcpAgent] MCP server ${mcpServerName} not found in any scope (may already be removed)`);
+        mainLog('CodebuddyMcpAgent', `MCP server ${mcpServerName} not found in any scope (may already be removed)`);
         return { success: true };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };

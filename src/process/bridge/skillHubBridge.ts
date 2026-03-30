@@ -18,6 +18,7 @@ import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { buildSkillDisplayName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
@@ -207,19 +208,19 @@ async function reloadSkillRuntime(): Promise<void> {
 
   const gateway = serviceManager.getGateway();
   if (!gateway) {
-    console.log('[SkillHub] Gateway not running, skipping reload');
+    mainLog('SkillHub', 'Gateway not running, skipping reload');
     return;
   }
 
   const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
   if (canHotReload) {
     serviceManager.sendReloadSignal();
-    console.log('[SkillHub] Sent SIGUSR1 to gateway for hot-reload');
+    mainLog('SkillHub', 'Sent SIGUSR1 to gateway for hot-reload');
     await new Promise((resolve) => setTimeout(resolve, 2000));
     return;
   }
 
-  console.log('[SkillHub] Hot-reload not supported, restarting gateway...');
+  mainLog('SkillHub', 'Hot-reload not supported, restarting gateway...');
   await serviceManager.restartOpenClaw();
 }
 
@@ -381,12 +382,12 @@ async function verifyChecksum(buffer: Buffer, expectedChecksum: string): Promise
  * Fetches skills, categories, and skill details from the external Skill Hub service.
  */
 export function initSkillHubBridge(): void {
-  console.log('[SkillHub] Initializing SkillHub bridge...');
+  mainLog('SkillHub', 'Initializing SkillHub bridge...');
 
   // Fetch skills list from Skill Hub API with cursor-based pagination
   ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '' }) => {
     try {
-      console.log('[SkillHub] Fetching skills with params:', { cursor, limit, query, category });
+      mainLog('SkillHub', 'Fetching skills with params:', { cursor, limit, query, category });
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
@@ -396,11 +397,11 @@ export function initSkillHubBridge(): void {
         headers: { Authorization: AUTHORIZATION },
       });
       const result = await response.json();
-      console.log('[SkillHub] Skills response:', result);
+      mainLog('SkillHub', 'Skills response:', result);
       // API returns { success, message, data: { skills, next_cursor, has_more } }
       return { success: true, data: result.data };
     } catch (error) {
-      console.error('[SkillHub] Failed to fetch skills:', error);
+      mainError('SkillHub', 'Failed to fetch skills:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -408,15 +409,15 @@ export function initSkillHubBridge(): void {
   // Fetch skill categories from Skill Hub API
   ipcBridge.skillHub.fetchCategories.provider(async () => {
     try {
-      console.log('[SkillHub] Fetching categories');
+      mainLog('SkillHub', 'Fetching categories');
       const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
-      console.log('[SkillHub] Categories response:', data);
+      mainLog('SkillHub', 'Categories response:', data);
       return { success: true, data: data.data || [] };
     } catch (error) {
-      console.error('[SkillHub] Failed to fetch categories:', error);
+      mainError('SkillHub', 'Failed to fetch categories:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -424,15 +425,15 @@ export function initSkillHubBridge(): void {
   // Fetch skill detail from Skill Hub API
   ipcBridge.skillHub.fetchSkillDetail.provider(async ({ skillId }) => {
     try {
-      console.log('[SkillHub] Fetching skill detail:', skillId);
+      mainLog('SkillHub', 'Fetching skill detail:', skillId);
       const response = await fetch(`${SKILL_HUB_BASE_URL}/${skillId}`, {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
-      console.log('[SkillHub] Skill detail response:', data);
+      mainLog('SkillHub', 'Skill detail response:', data);
       return { success: true, data: data.data };
     } catch (error) {
-      console.error('[SkillHub] Failed to fetch skill detail:', error);
+      mainError('SkillHub', 'Failed to fetch skill detail:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -440,18 +441,18 @@ export function initSkillHubBridge(): void {
   // Download and install skill
   ipcBridge.skillHub.downloadAndInstallSkill.provider(async ({ skillName, displayName, sourceUrl, version, checksum, skillMeta }) => {
     try {
-      console.log('[SkillHub] Downloading skill:', skillName, 'version:', version);
+      mainLog('SkillHub', `Downloading skill: ${skillName} version: ${version}`);
 
       // Download zip file
       const zipBuffer = await downloadFile(sourceUrl, (percent) => {
-        console.log(`[SkillHub] Download progress: ${percent}%`);
+        mainLog('SkillHub', `Download progress: ${percent}%`);
       });
 
       // Verify checksum if provided
       if (checksum) {
         const isValid = await verifyChecksum(zipBuffer, checksum);
         if (!isValid) {
-          console.warn('[SkillHub] Checksum verification failed, but continuing anyway');
+          mainWarn('SkillHub', 'Checksum verification failed, but continuing anyway');
         }
       }
 
@@ -497,7 +498,7 @@ export function initSkillHubBridge(): void {
       };
       await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-      console.log(`[SkillHub] Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
+      mainLog('SkillHub', `Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
 
       // Reload Sudoclaw gateway to pick up new skills.
       // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
@@ -506,7 +507,7 @@ export function initSkillHubBridge(): void {
         try {
           await reloadSkillRuntime();
         } catch (err) {
-          console.warn('[SkillHub] Reload failed:', err);
+          mainWarn('SkillHub', 'Reload failed:', err);
           await WorkerManage.restartOpenClawGateways();
         }
       })();
@@ -519,7 +520,7 @@ export function initSkillHubBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[SkillHub] Failed to install skill:', error);
+      mainError('SkillHub', 'Failed to install skill:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : String(error),
@@ -534,7 +535,7 @@ export function initSkillHubBridge(): void {
       if (checksum) {
         const isValid = await verifyChecksum(zipBuffer, checksum);
         if (!isValid) {
-          console.warn('[SkillHub] Zip checksum verification failed, but continuing local download');
+          mainWarn('SkillHub', 'Zip checksum verification failed, but continuing local download');
         }
       }
 
@@ -552,7 +553,7 @@ export function initSkillHubBridge(): void {
         },
       };
     } catch (error) {
-      console.error('[SkillHub] Failed to download skill zip:', error);
+      mainError('SkillHub', 'Failed to download skill zip:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : String(error),
@@ -640,7 +641,7 @@ export function initSkillHubBridge(): void {
           try {
             await reloadSkillRuntime();
           } catch (err) {
-            console.warn('[SkillHub] Reload after zip import failed:', err);
+            mainWarn('SkillHub', 'Reload after zip import failed:', err);
             await WorkerManage.restartOpenClawGateways();
           }
         })();
@@ -656,7 +657,7 @@ export function initSkillHubBridge(): void {
         await fs.rm(tempDir, { recursive: true, force: true }).catch((): void => undefined);
       }
     } catch (error) {
-      console.error('[SkillHub] Failed to import skill zip:', error);
+      mainError('SkillHub', 'Failed to import skill zip:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -755,7 +756,7 @@ export function initSkillHubBridge(): void {
 
       return { success: true, data: skills };
     } catch (error) {
-      console.error('[SkillHub] Failed to get installed skills:', error);
+      mainError('SkillHub', 'Failed to get installed skills:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -792,13 +793,13 @@ export function initSkillHubBridge(): void {
         try {
           await reloadSkillRuntime();
         } catch (err) {
-          console.warn('[SkillHub] Reload after uninstall failed:', err);
+          mainWarn('SkillHub', 'Reload after uninstall failed:', err);
           await WorkerManage.restartOpenClawGateways();
         }
       })();
       return { success: true };
     } catch (error) {
-      console.error('[SkillHub] Failed to uninstall skill:', error);
+      mainError('SkillHub', 'Failed to uninstall skill:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -826,14 +827,14 @@ export function initSkillHubBridge(): void {
         try {
           await reloadSkillRuntime();
         } catch (err) {
-          console.warn('[SkillHub] Reload after enable toggle failed:', err);
+          mainWarn('SkillHub', 'Reload after enable toggle failed:', err);
           await WorkerManage.restartOpenClawGateways();
         }
       })();
 
       return { success: true };
     } catch (error) {
-      console.error('[SkillHub] Failed to update skill enabled state:', error);
+      mainError('SkillHub', 'Failed to update skill enabled state:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

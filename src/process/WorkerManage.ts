@@ -10,6 +10,7 @@ import OpenClawAgent from './task/OpenClawAgent';
 import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const taskList: {
   id: string;
@@ -79,13 +80,13 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
 };
 
 const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationOptions): Promise<AgentBaseTask<unknown>> => {
-  console.log(`[WorkerManage] getTaskByIdRollbackBuild: id=${id}, options=${JSON.stringify(options)}`);
+  mainLog('WorkerManage', `getTaskByIdRollbackBuild: id=${id}, options=${JSON.stringify(options)}`);
 
   // If not skipping cache, check for existing task
   if (!options?.skipCache) {
     const task = taskList.find((item) => item.id === id)?.task;
     if (task) {
-      console.log(`[WorkerManage] Found existing task in memory for: ${id}`);
+      mainLog('WorkerManage', `Found existing task in memory for: ${id}`);
       return Promise.resolve(task);
     }
   }
@@ -93,10 +94,10 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
   // Try to load from database first
   const db = getDatabase();
   const dbResult = db.getConversation(id);
-  console.log(`[WorkerManage] Database lookup result: success=${dbResult.success}, hasData=${!!dbResult.data}`);
+  mainLog('WorkerManage', `Database lookup result: success=${dbResult.success}, hasData=${!!dbResult.data}`);
 
   if (dbResult.success && dbResult.data) {
-    console.log(`[WorkerManage] Building conversation from database: ${id}`);
+    mainLog('WorkerManage', `Building conversation from database: ${id}`);
     return buildConversation(dbResult.data, options);
   }
 
@@ -104,11 +105,11 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
   const list = (await ProcessChat.get('chat.history')) as TChatConversation[] | undefined;
   const conversation = list?.find((item) => item.id === id);
   if (conversation) {
-    console.log(`[WorkerManage] Building conversation from file storage: ${id}`);
+    mainLog('WorkerManage', `Building conversation from file storage: ${id}`);
     return buildConversation(conversation, options);
   }
 
-  console.error('[WorkerManage] Conversation not found in database or file storage:', id);
+  mainError('WorkerManage', 'Conversation not found in database or file storage:', id);
   return Promise.reject(new Error('Conversation not found'));
 };
 
@@ -163,10 +164,10 @@ const reconnectOpenClawAgents = (): void => {
     agent
       .restartGateway()
       .then(() => {
-        console.log('[WorkerManage] Reconnected OpenClaw agent for', id);
+        mainLog('WorkerManage', 'Reconnected OpenClaw agent for', id);
       })
       .catch((err) => {
-        console.error('[WorkerManage] Failed to reconnect OpenClaw agent for', id, ':', err);
+        mainError('WorkerManage', `Failed to reconnect OpenClaw agent for ${id}`, err);
       });
   }
 };

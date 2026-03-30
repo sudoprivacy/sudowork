@@ -9,6 +9,7 @@ import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '@/common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -85,7 +86,7 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
                 const testResult = await this.testMcpConnection(transportObj);
                 tools = testResult.tools || [];
               } catch (error) {
-                console.warn(`[ClaudeMcpAgent] Failed to get tools for ${name.trim()}:`, error);
+                mainWarn('ClaudeMcpAgent', `Failed to get tools for ${name.trim()}:`, error);
                 // 如果获取tools失败，继续使用空数组
               }
             }
@@ -117,10 +118,10 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
           }
         }
 
-        console.log(`[ClaudeMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+        mainLog('ClaudeMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
         return mcpServers;
       } catch (error) {
-        console.warn('[ClaudeMcpAgent] Failed to detect MCP servers:', error);
+        mainWarn('ClaudeMcpAgent', 'Failed to detect MCP servers:', error);
         return [];
       }
     };
@@ -168,9 +169,9 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
                 timeout: 5000,
                 ...getExecEnv(),
               });
-              console.log(`[ClaudeMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('ClaudeMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Claude Code:`, error);
+              mainWarn('ClaudeMcpAgent', `Failed to add MCP ${server.name} to Claude Code:`, error);
               // 继续处理其他服务器，不要因为一个失败就停止
             }
           } else if (server.transport.type === 'sse' || server.transport.type === 'http' || server.transport.type === 'streamable_http') {
@@ -192,9 +193,9 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
                 timeout: 5000,
                 ...getExecEnv(),
               });
-              console.log(`[ClaudeMcpAgent] Added MCP server: ${server.name}`);
+              mainLog('ClaudeMcpAgent', `Added MCP server: ${server.name}`);
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Claude Code:`, error);
+              mainWarn('ClaudeMcpAgent', `Failed to add MCP ${server.name} to Claude Code:`, error);
             }
           }
         }
@@ -229,7 +230,7 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
 
             // 检查是否成功删除
             if (result.stdout && result.stdout.includes('removed')) {
-              console.log(`[ClaudeMcpAgent] Removed MCP server from ${scope} scope: ${mcpServerName}`);
+              mainLog('ClaudeMcpAgent', `Removed MCP server from ${scope} scope: ${mcpServerName}`);
               return { success: true };
             }
 
@@ -244,12 +245,12 @@ export class ClaudeMcpAgent extends AbstractMcpAgent {
             }
 
             // 其他错误，记录但继续尝试
-            console.warn(`[ClaudeMcpAgent] Failed to remove from ${scope} scope:`, errorMessage);
+            mainWarn('ClaudeMcpAgent', `Failed to remove from ${scope} scope:`, errorMessage);
           }
         }
 
         // 如果所有作用域都尝试完了，认为删除成功（服务器可能本来就不存在）
-        console.log(`[ClaudeMcpAgent] MCP server ${mcpServerName} not found in any scope (may already be removed)`);
+        mainLog('ClaudeMcpAgent', `MCP server ${mcpServerName} not found in any scope (may already be removed)`);
         return { success: true };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
