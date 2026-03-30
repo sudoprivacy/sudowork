@@ -268,6 +268,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             AI_DEV_BROWSER_REDIRECT: `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${port} --op <tool_name> [args]`,
           };
         }
+
+        // Auto-append scripts/ listing to presetContext
+        if (preset?.resourceDir && this.options.presetContext) {
+          try {
+            const scriptsDir = nodePath.join(preset.resourceDir, 'scripts');
+            const entries = fs.readdirSync(scriptsDir).filter((e: string) => e.endsWith('.py') || e.endsWith('.sh'));
+            if (entries.length > 0) {
+              this.options.presetContext += `\n\n## Available Scripts\n\n\`\`\`\n${entries.map((s: string) => `python ${scriptsDir}/${s} --help`).join('\n')}\n\`\`\`\n`;
+            }
+          } catch { /* no scripts dir */ }
+        }
       }
 
       // Store resolved config for connection
