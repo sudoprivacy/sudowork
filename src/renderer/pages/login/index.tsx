@@ -9,7 +9,11 @@ import { Phone, Protect, Key, User } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import WindowControls from '../../components/WindowControls';
 import './LoginPage.css';
+
+// 运行时判断 / Runtime check
+const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -289,6 +293,9 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className='login-page'>
+      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
+      {isDesktopRuntime && <WindowControls />}
+
       {/* 装饰性背景 */}
       <div className='login-page__background'>
         <div className='login-page__background-circle login-page__background-circle--lg' />
