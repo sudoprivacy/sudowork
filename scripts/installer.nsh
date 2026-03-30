@@ -52,6 +52,9 @@
     Goto sudoclaw_done
   sudoclaw_ok:
     DetailPrint "Sudoclaw extracted successfully"
+    IfFileExists "$INSTDIR\resources\openclaw.manifest.json" 0 +3
+    DetailPrint "Writing Sudoclaw install manifest..."
+    CopyFiles /SILENT "$INSTDIR\resources\openclaw.manifest.json" "$R1\sudoclaw\install-manifest.json"
     ; Move bin from package/bin to ~/.nexus/sudoclaw/bin
     IfFileExists "$R1\sudoclaw\cli\package\bin\openclaw.cmd" 0 sudoclaw_done
     DetailPrint "Setting up Sudoclaw CLI wrappers..."

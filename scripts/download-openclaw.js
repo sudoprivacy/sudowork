@@ -12,22 +12,146 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const tar = require('tar');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
+const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
 const FORCE = process.argv.includes('--force');
 const versionArg = process.argv.find((a) => a.startsWith('--version='));
 const VERSION_PIN = versionArg ? versionArg.split('=')[1] : null;
+const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
 
-if (fs.existsSync(OUTPUT) && !FORCE) {
-  console.log(`[openclaw] Already exists: ${OUTPUT}  (use --force to re-download)`);
-  process.exit(0);
-}
+const PRUNE_DIR_NAMES = new Set([
+  '.github',
+  '.husky',
+  '.idea',
+  '.vscode',
+  '__tests__',
+  'coverage',
+  'docs',
+  'doc',
+  'example',
+  'examples',
+  'powered-test',
+  'test',
+  'tests',
+]);
+
+const PRUNE_FILE_PATTERNS = [
+  /^readme(?:$|\.)/i,
+  /^changelog(?:$|\.)/i,
+  /^history(?:$|\.)/i,
+  /^changes(?:$|\.)/i,
+  /^contributing(?:$|\.)/i,
+  /^funding(?:$|\.)/i,
+  /^security(?:$|\.)/i,
+  /^authors?(?:$|\.)/i,
+  /^contributors?(?:$|\.)/i,
+  /\.map$/i,
+  /\.tsbuildinfo$/i,
+];
 
 fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 
-const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
+function getDaveyBindingDirName() {
+  const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const suffix = platform === 'win32' ? 'msvc' : platform === 'linux' ? 'gnu' : '';
+  return `davey-${platform}-${arch}${suffix ? `-${suffix}` : ''}`;
+}
+
+function shouldPruneFile(name) {
+  return PRUNE_FILE_PATTERNS.some((pattern) => pattern.test(name));
+}
+
+function removePath(targetPath, stats) {
+  if (!fs.existsSync(targetPath)) return;
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  stats.removed += 1;
+}
+
+function pruneDirectoryTree(rootDir, stats) {
+  if (!fs.existsSync(rootDir)) return;
+
+  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
+    const fullPath = path.join(rootDir, entry.name);
+    const normalized = entry.name.toLowerCase();
+
+    if (entry.isDirectory()) {
+      if (PRUNE_DIR_NAMES.has(normalized)) {
+        removePath(fullPath, stats);
+        continue;
+      }
+      pruneDirectoryTree(fullPath, stats);
+      continue;
+    }
+
+    if (entry.isFile() && shouldPruneFile(entry.name)) {
+      removePath(fullPath, stats);
+    }
+  }
+}
+
+function pruneOpenClawPackage(pkgDir) {
+  console.log('[openclaw] Pruning unnecessary files for faster Windows extraction...');
+  const stats = { removed: 0 };
+
+  removePath(path.join(pkgDir, 'node_modules', '.bin'), stats);
+  pruneDirectoryTree(pkgDir, stats);
+
+  const snazzahDir = path.join(pkgDir, 'node_modules', '@snazzah');
+  const keepBinding = getDaveyBindingDirName();
+  if (fs.existsSync(snazzahDir)) {
+    for (const entry of fs.readdirSync(snazzahDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (!entry.name.startsWith('davey-')) continue;
+      if (entry.name === keepBinding) continue;
+      removePath(path.join(snazzahDir, entry.name), stats);
+    }
+  }
+
+  console.log(`[openclaw] Pruned ${stats.removed} unnecessary entries`);
+}
+
+function writeOpenClawManifest(version) {
+  const manifest = {
+    version,
+    platform: process.platform,
+    arch: process.arch,
+    daveyBinding: `@snazzah/${getDaveyBindingDirName()}`,
+    generatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(OUTPUT_MANIFEST, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+  console.log(`[openclaw] Wrote manifest to ${OUTPUT_MANIFEST}`);
+}
+
+function getVersionFromArchive(archivePath) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-manifest-'));
+
+  try {
+    tar.x({
+      file: archivePath,
+      cwd: tmpDir,
+      sync: true,
+      filter: (entryPath) => entryPath === 'package/package.json',
+    });
+
+    const pkgJsonPath = path.join(tmpDir, 'package', 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) return null;
+
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+    return typeof pkg.version === 'string' && pkg.version.trim() ? pkg.version.trim() : null;
+  } catch (error) {
+    console.warn(`[openclaw] Failed to read version from existing archive: ${error.message}`);
+    return null;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 let version;
 if (VERSION_PIN === 'latest') {
   const info = JSON.parse(execSync('npm show openclaw --json --registry=https://registry.npmjs.org').toString());
@@ -39,6 +163,19 @@ if (VERSION_PIN === 'latest') {
 } else {
   version = KNOWN_GOOD_VERSION;
   console.log(`[openclaw] Using known-good version: ${version} (2026.3.13 has dist/ bug)`);
+}
+
+if (fs.existsSync(OUTPUT) && !FORCE) {
+  if (!fs.existsSync(OUTPUT_MANIFEST)) {
+    const archivedVersion = getVersionFromArchive(OUTPUT);
+    if (archivedVersion) {
+      writeOpenClawManifest(archivedVersion);
+    } else {
+      console.warn('[openclaw] Existing archive version is unknown, skipping manifest generation');
+    }
+  }
+  console.log(`[openclaw] Already exists: ${OUTPUT}  (use --force to re-download)`);
+  process.exit(0);
 }
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
@@ -154,6 +291,9 @@ if not exist "%BUNDLED_NODE%" (
 "%BUNDLED_NODE%" "%CLI%" %*
 `;
   fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
+
+  pruneOpenClawPackage(pkgDir);
+  writeOpenClawManifest(version);
 
   // Create final tarball - run from extractDir to avoid path issues
   console.log('[openclaw] Creating final tarball...');
