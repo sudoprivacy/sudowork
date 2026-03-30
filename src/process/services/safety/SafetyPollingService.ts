@@ -385,20 +385,17 @@ export class SafetyPollingService {
    */
   private async poll(): Promise<void> {
     if (!this.config) {
-      console.log('[SafetyPolling] Poll skipped: no config');
       return;
     }
 
     // Skip polling if safety hook is disabled
     if (!this.enabled) {
-      console.log('[SafetyPolling] Poll skipped: disabled');
       return;
     }
 
     // Skip polling if blacklist is empty (no rules to match)
     const hasActiveRules = await this.hasActiveBlacklistRules();
     if (!hasActiveRules) {
-      console.log('[SafetyPolling] Poll skipped: no active blacklist rules');
       return;
     }
 
@@ -418,22 +415,19 @@ export class SafetyPollingService {
       // Find first unprocessed event
       for (const filename of filenames) {
         if (!processedSet.has(filename)) {
-          console.log('[SafetyPolling] Found unprocessed event:', filename);
           const data = await readEventFile(filename);
 
           if (data) {
-            console.log('[SafetyPolling] Event data:', JSON.stringify(data).substring(0, 200));
             this.currentStatus = eventToSafetyStatus(filename, data);
             this.currentEventUuid = filename;
             this.currentEventFilename = filename;
 
             processedSet.add(filename);
-            console.log('[SafetyPolling] Notifying listeners with status:', JSON.stringify(this.currentStatus).substring(0, 200));
             this.notifyListeners(this.currentStatus);
             break;
           } else {
             // If read failed, mark as processed to ignore it in next polls
-            console.log('[SafetyPolling] Event data is null, marking as processed');
+            console.warn('[SafetyPolling] Failed to read event file:', filename);
             processedSet.add(filename);
           }
         }
