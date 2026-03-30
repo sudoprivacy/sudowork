@@ -255,13 +255,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         mainWarn('[AcpAgent]', 'Custom backend specified but customAgentId is missing');
       }
 
-      // For doctor preset: force ai-dev-browser tools through the ops wrapper (run_op.py)
-      // so the doctor uses the e2e primitives layer instead of raw ai-dev-browser CLI
+      // For presets that have their own ops layer (e.g. doctor uses tests/e2e/run_op.py),
+      // redirect direct ai-dev-browser CLI calls to the ops wrapper.
       if (this.extra.presetAssistantId?.startsWith('builtin-')) {
         const presetId = this.extra.presetAssistantId.replace('builtin-', '');
         const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.defaultEnabledSkills?.includes('browser')) {
-          customEnv = { ...customEnv, AI_DEV_BROWSER_USE_OPS: 'tests/e2e/run_op.py' };
+        if (preset?.opsEntryPoint) {
+          const port = cdpPort || 9230;
+          customEnv = {
+            ...customEnv,
+            AI_DEV_BROWSER_REDIRECT: `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${port} --op <tool_name> [args]`,
+          };
         }
       }
 
