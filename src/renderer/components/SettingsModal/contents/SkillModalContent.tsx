@@ -6,11 +6,11 @@
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ipcBridge } from '@/common';
-import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
+import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm } from '@arco-design/web-react';
-import { Download, Search, Delete, Close, Shield, Lightning, UploadOne } from '@icon-park/react';
+import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
@@ -20,14 +20,17 @@ import { useTranslation } from 'react-i18next';
 // ==================== Helpers ====================
 
 /** Build a synthetic ISkillHubSkill from locally-stored hub metadata */
-function metaToSkill(meta: ISkillHubMeta): ISkillHubSkill {
+function installedInfoToSkill(skillInfo: IInstalledSkillInfo): ISkillHubSkill {
+  const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skillInfo);
+  const meta = skillInfo.meta as ISkillHubMeta;
+
   return {
     id: meta.id,
     name: meta.name,
-    display_name: meta.display_name,
-    description: meta.description,
-    icon: resolveSkillIcon(meta.icon),
-    emoji: meta.emoji,
+    display_name: displayName,
+    description: description || '',
+    icon: icon || resolveSkillIcon(meta.icon),
+    emoji: emoji || meta.emoji,
     category: meta.category,
     categories: meta.categories,
     applicable_scenarios: meta.applicable_scenarios,
@@ -116,36 +119,35 @@ const SkillCard: React.FC<{
   onInstall: (e: React.MouseEvent) => void;
   onClick: () => void;
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick }) => {
+  const { t } = useTranslation();
+
   return (
-    <div className='bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
-      <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        {isInstalled && <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
+      </div>
 
       {/* Content */}
-      <div className='flex-1 min-w-0 pr-28px'>
-        <div className='flex items-center gap-6px flex-wrap'>
-          <span className='font-medium text-13px text-t-primary truncate max-w-full'>{skill.display_name}</span>
-          {isInstalled && <span className='px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>已添加</span>}
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-6px pr-58px min-w-0'>
+          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{skill.display_name}</span>
         </div>
         <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
-      <div
-        className='absolute top-10px right-10px'
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!isInstalled && hasVersion) onInstall(e);
-        }}
-      >
+      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
         {installing ? (
           <div className='w-52px'>
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : !isInstalled && hasVersion ? (
-          <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-primary cursor-pointer transition-colors'>
-            <Download size='15' />
-          </div>
+          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
+            <Install size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.install', { defaultValue: '安装' })}</span>
+          </button>
         ) : null}
       </div>
     </div>
@@ -163,6 +165,7 @@ const InstalledSkillCard: React.FC<{
   onClick?: () => void;
 }> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick }) => {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+  const displayVersion = normalizeSkillVersion(skill.version);
   const canUninstall = !skill.isBuiltin;
   const canToggleEnabled = !!skill.meta && !skill.isBuiltin;
   const hasDetail = !!skill.meta;
@@ -174,9 +177,9 @@ const InstalledSkillCard: React.FC<{
       {/* Icon + toggle */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-        {icon ? (
-          <img src={icon} alt={displayName} className='w-full h-full object-cover' />
-        ) : emoji ? (
+          {icon ? (
+            <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+          ) : emoji ? (
             <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
           ) : (
             <div className='w-full h-full flex items-center justify-center bg-primary-light'>
@@ -210,7 +213,7 @@ const InstalledSkillCard: React.FC<{
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
-        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && skill.version && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{skill.version}</span>}</div>
+        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}</div>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
@@ -250,8 +253,10 @@ const SkillDetailModal: React.FC<{
   hasVersion: boolean;
   latestVersionInfo?: SkillLatestVersion;
   installing: boolean;
+  downloading: boolean;
   installProgress: number;
   onInstall: () => void;
+  onDownload: () => void;
   onUninstall: () => void;
   uninstalling: boolean;
   /**
@@ -262,7 +267,7 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, installProgress, onInstall, onUninstall, uninstalling, skipApiFetch = false, hideActions = false }) => {
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, skipApiFetch = false, hideActions = false }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -406,12 +411,20 @@ const SkillDetailModal: React.FC<{
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : hasVersion ? (
-              <Button type='primary' long size='large' onClick={onInstall}>
-                <span className='flex items-center gap-6px justify-center'>
-                  <Download size='15' />
-                  {t('settings.skill.install', { defaultValue: '安装技能' })}
-                </span>
-              </Button>
+              <>
+                <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
+                  <span className='flex items-center gap-6px justify-center'>
+                    <Install size='15' />
+                    {t('settings.skill.install', { defaultValue: '安装技能' })}
+                  </span>
+                </Button>
+                <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
+                  <span className='flex items-center gap-6px justify-center'>
+                    <Download size='15' />
+                    {t('common.download', { defaultValue: '下载' })}
+                  </span>
+                </Button>
+              </>
             ) : null}
           </div>
 
@@ -454,6 +467,7 @@ const SkillModalContent: React.FC = () => {
   const [installedSkills, setInstalledSkills] = useState<Map<string, string>>(new Map());
   const [latestVersions, setLatestVersions] = useState<Map<string, SkillLatestVersion>>(new Map());
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
+  const [downloadingSkillId, setDownloadingSkillId] = useState<string | null>(null);
   const [installProgress, setInstallProgress] = useState(0);
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
   const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
@@ -811,6 +825,55 @@ const SkillModalContent: React.FC = () => {
     [skills, latestVersions, fetchInstalledSkills, fetchInstalledList, t]
   );
 
+  const handleDownloadZip = useCallback(
+    async (skillId: string) => {
+      const skill = skills.find((s) => s.id === skillId);
+      const versionInfo = latestVersions.get(skillId);
+      if (!skill || !versionInfo) return;
+
+      if (!isElectronDesktop()) {
+        window.open(versionInfo.sourceUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      setDownloadingSkillId(skillId);
+      try {
+        const res = await skillHub.downloadSkillZip.invoke({
+          skillName: skill.name,
+          version: versionInfo.version,
+          sourceUrl: versionInfo.sourceUrl,
+          checksum: versionInfo.checksum,
+        });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.downloadSuccess', {
+              name: skill.display_name,
+              defaultValue: `已下载 ${skill.display_name} 到本地`,
+            })
+          );
+        } else {
+          Message.error(
+            t('settings.skill.downloadFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `下载失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to download skill zip:', err);
+        Message.error(
+          t('settings.skill.downloadFailed', {
+            msg: String(err),
+            defaultValue: `下载失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setDownloadingSkillId(null);
+      }
+    },
+    [skills, latestVersions, t]
+  );
+
   // ---- Uninstall handler ----
   const handleUninstall = useCallback(
     async (skillName: string) => {
@@ -930,11 +993,7 @@ const SkillModalContent: React.FC = () => {
           <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
-          <button
-            type='button'
-            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
-            onClick={() => void handleImportSkillZip()}
-          >
+          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleImportSkillZip()}>
             <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <UploadOne size='13' />
             </span>
@@ -1057,11 +1116,11 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} />
+      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json, no action buttons */}
       <SkillDetailModal
-        skill={installedDetailInfo?.meta ? metaToSkill(installedDetailInfo.meta) : null}
+        skill={installedDetailInfo?.meta ? installedInfoToSkill(installedDetailInfo) : null}
         visible={installedDetailVisible}
         onClose={() => {
           setInstalledDetailVisible(false);
@@ -1072,8 +1131,10 @@ const SkillModalContent: React.FC = () => {
         hasVersion={false}
         latestVersionInfo={undefined}
         installing={false}
+        downloading={false}
         installProgress={0}
         onInstall={() => {}}
+        onDownload={() => {}}
         onUninstall={() => {}}
         uninstalling={false}
         skipApiFetch

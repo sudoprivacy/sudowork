@@ -965,6 +965,10 @@ export interface ISkillInstallResult {
   installedVersion: string;
 }
 
+export interface ISkillDownloadResult {
+  filePath: string;
+}
+
 export interface ISkillHubDetail {
   skill: ISkillHubSkill;
   versions: ISkillHubVersion[];
@@ -1024,6 +1028,8 @@ export const skillHub = {
   fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
   /** Download and install skill from URL, saving full metadata */
   downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
+  /** Download skill zip to local Downloads folder */
+  downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
   /** Import a local skill zip package and synthesize metadata from SKILL.md */
   importSkillZip: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { zipPath: string }>('skill-hub.import-skill-zip'),
   /** Get installed skills with rich metadata */

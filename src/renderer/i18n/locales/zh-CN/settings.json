@@ -711,6 +711,8 @@
   "skill.fetchFailed": "获取技能列表失败",
   "skill.installSuccess": "成功安装 {{name}} v{{version}}",
   "skill.installFailed": "安装失败: {{msg}}",
+  "skill.downloadSuccess": "已下载 {{name}} 到本地",
+  "skill.downloadFailed": "下载失败: {{msg}}",
   "skill.desktopOnly": "技能安装仅在桌面端可用",
   "openclaw.gatewayUrl": "Gateway URL",
   "openclaw.gatewayUrlDesc": "OpenClaw Gateway API 端点（例如 http://localhost:8888）",

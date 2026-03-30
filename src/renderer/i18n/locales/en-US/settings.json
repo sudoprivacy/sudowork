@@ -710,6 +710,8 @@
   "skill.fetchFailed": "Failed to fetch skills",
   "skill.installSuccess": "Successfully installed {{name}} v{{version}}",
   "skill.installFailed": "Installation failed: {{msg}}",
+  "skill.downloadSuccess": "Downloaded {{name}} locally",
+  "skill.downloadFailed": "Download failed: {{msg}}",
   "skill.desktopOnly": "Skill installation is only available in desktop app",
 
   "openclaw.gatewayUrl": "Gateway URL",

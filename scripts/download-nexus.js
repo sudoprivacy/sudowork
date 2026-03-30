@@ -17,7 +17,7 @@ const https = require('https');
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT_FILE = path.join(RESOURCES_DIR, 'nexus.tar.gz');
 
-const BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download/v0.9.13';
+const BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download/v0.9.16';
 
 // Platform mappings (nexus uses x86_64 naming convention for x64)
 const PLATFORMS = {

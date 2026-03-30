@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -25,6 +26,66 @@ const AUTHORIZATION = 'sud0@sudo';
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
+type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
+
+function normalizeInstalledSkillVersion(version: string | undefined | null): string {
+  const normalized = (version || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const lower = normalized.toLowerCase();
+  if (lower === 'unknown' || lower === 'unkown') {
+    return '';
+  }
+
+  return normalized;
+}
+
+function getUploadSkillDefaultIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, UPLOAD_SKILL_DEFAULT_ICON_FILE);
+  }
+
+  const appPath = app.getAppPath();
+  const candidates = [path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE)];
+
+  const existing = candidates.find((candidate) => fsSync.existsSync(candidate));
+  return existing || candidates[0];
+}
+
+function sanitizeSkillDownloadFileName(fileName: string): string {
+  const normalized = Array.from(fileName.trim())
+    .map((char) => {
+      const code = char.charCodeAt(0);
+      if (code <= 31 || '<>:"/\\|?*'.includes(char)) {
+        return '-';
+      }
+      return char;
+    })
+    .join('');
+  return normalized || 'skill.zip';
+}
+
+function ensureUniqueFilePath(filePath: string): string {
+  if (!fsSync.existsSync(filePath)) {
+    return filePath;
+  }
+
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath);
+  const base = path.basename(filePath, ext);
+
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = path.join(dir, `${base} (${index})${ext}`);
+    if (!fsSync.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return path.join(dir, `${base}-${Date.now()}${ext}`);
+}
 
 function normalizeZipEntryPath(entryPath: string): string {
   return path.posix.normalize(entryPath.replaceAll('\\', '/').replace(/^\.\/+/, ''));
@@ -197,7 +258,10 @@ async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): 
   return { extractedFiles };
 }
 
-async function readSkillManifestFromDirectory(skillDir: string, extractedFiles?: string[]): Promise<{
+async function readSkillManifestFromDirectory(
+  skillDir: string,
+  extractedFiles?: string[]
+): Promise<{
   skillName: string;
   displayName: string;
   description: string;
@@ -226,6 +290,23 @@ async function readSkillManifestFromDirectory(skillDir: string, extractedFiles?:
     homepage: frontmatter.homepage?.trim() || null,
     version,
   };
+}
+
+async function readSkillHubMetaFromDirectory(skillDir: string): Promise<SkillHubMeta | null> {
+  try {
+    const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+    return JSON.parse(raw) as SkillHubMeta;
+  } catch {
+    return null;
+  }
+}
+
+async function readInstalledVersionFromDirectory(skillDir: string): Promise<string> {
+  try {
+    return normalizeInstalledSkillVersion(await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8'));
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -446,6 +527,39 @@ export function initSkillHubBridge(): void {
     }
   });
 
+  ipcBridge.skillHub.downloadSkillZip.provider(async ({ skillName, version, sourceUrl, checksum }) => {
+    try {
+      const zipBuffer = await downloadFile(sourceUrl);
+
+      if (checksum) {
+        const isValid = await verifyChecksum(zipBuffer, checksum);
+        if (!isValid) {
+          console.warn('[SkillHub] Zip checksum verification failed, but continuing local download');
+        }
+      }
+
+      const downloadsDir = app.getPath('downloads');
+      await fs.mkdir(downloadsDir, { recursive: true });
+
+      const baseName = sanitizeSkillDownloadFileName(`${skillName}-${version || 'latest'}.zip`);
+      const filePath = ensureUniqueFilePath(path.join(downloadsDir, baseName));
+      await fs.writeFile(filePath, zipBuffer);
+
+      return {
+        success: true,
+        data: {
+          filePath,
+        },
+      };
+    } catch (error) {
+      console.error('[SkillHub] Failed to download skill zip:', error);
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
   ipcBridge.skillHub.importSkillZip.provider(async ({ zipPath }) => {
     try {
       const zipBuffer = await fs.readFile(zipPath);
@@ -455,16 +569,28 @@ export function initSkillHubBridge(): void {
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-skill-import-'));
       try {
         const { extractedFiles } = await extractSkillZipToDirectory(zipBuffer, tempDir);
-
+        const importedMeta = await readSkillHubMetaFromDirectory(tempDir);
         const skillMdPath = path.join(tempDir, 'SKILL.md');
+        let manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>> | null = null;
+
         try {
           await fs.access(skillMdPath);
+          manifest = await readSkillManifestFromDirectory(tempDir, extractedFiles);
         } catch {
-          return { success: false, msg: 'The zip package must contain SKILL.md at the root or in a single top-level directory' };
+          if (!importedMeta) {
+            return { success: false, msg: 'The zip package must contain SKILL.md or _sudowork_meta.json at the root or in a single top-level directory' };
+          }
         }
 
-        const manifest = await readSkillManifestFromDirectory(tempDir, extractedFiles);
-        const skillName = manifest.skillName;
+        const detectedIcon = resolveSkillIconFromFiles(extractedFiles);
+        const installedVersion = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest?.version || (await readInstalledVersionFromDirectory(tempDir));
+        const skillName = importedMeta?.name?.trim() || manifest?.skillName;
+        const categories = importedMeta?.categories?.filter(Boolean) || [];
+
+        if (!skillName) {
+          return { success: false, msg: 'Unable to determine skill name from _sudowork_meta.json or SKILL.md' };
+        }
+
         const builtinDir = path.join(userSkillsDir, '_builtin', skillName);
         const skillDir = path.join(userSkillsDir, skillName);
 
@@ -485,29 +611,29 @@ export function initSkillHubBridge(): void {
 
         const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
         const installedAt = new Date().toISOString();
-        const meta: import('@/common/ipcBridge').ISkillHubMeta = {
-          id: '',
+        const meta: SkillHubMeta = {
+          id: importedMeta?.id?.trim() || '',
           name: skillName,
-          display_name: manifest.displayName,
-          description: manifest.description,
-          icon: manifest.icon,
-          emoji: manifest.emoji,
-          category: manifest.category,
-          categories: manifest.category ? [manifest.category] : [],
-          applicable_scenarios: null,
-          core_features: null,
-          homepage: manifest.homepage,
-          author_id: '',
+          display_name: importedMeta?.display_name?.trim() || manifest?.displayName || buildSkillDisplayName(skillName),
+          description: importedMeta?.description?.trim() || manifest?.description || '',
+          icon: importedMeta?.icon?.trim() || manifest?.icon || detectedIcon || UPLOAD_SKILL_DEFAULT_ICON_FILE,
+          emoji: importedMeta?.emoji?.trim() || manifest?.emoji || null,
+          category: importedMeta?.category?.trim() || manifest?.category || '',
+          categories: categories.length > 0 ? categories : importedMeta?.category?.trim() ? [importedMeta.category.trim()] : manifest?.category ? [manifest.category] : [],
+          applicable_scenarios: importedMeta?.applicable_scenarios ?? null,
+          core_features: importedMeta?.core_features ?? null,
+          homepage: importedMeta?.homepage?.trim() || manifest?.homepage || null,
+          author_id: importedMeta?.author_id?.trim() || '',
           source_type: 'upload',
           is_builtin: false,
           enabled: true,
-          installed_version: manifest.version,
+          installed_version: installedVersion,
           installed_at: installedAt,
         };
         await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-        if (manifest.version) {
-          await fs.writeFile(path.join(skillDir, VERSION_FILE_NAME), manifest.version, 'utf-8');
+        if (installedVersion) {
+          await fs.writeFile(path.join(skillDir, VERSION_FILE_NAME), installedVersion, 'utf-8');
         }
 
         void (async () => {
@@ -523,7 +649,7 @@ export function initSkillHubBridge(): void {
           success: true,
           data: {
             skillName,
-            installedVersion: manifest.version,
+            installedVersion,
           },
         };
       } finally {
@@ -552,13 +678,13 @@ export function initSkillHubBridge(): void {
         // Read version
         let version = '';
         try {
-          version = (await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8')).trim();
+          version = normalizeInstalledSkillVersion(await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8'));
         } catch {
           // fallback: try SKILL.md frontmatter
           try {
             const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
             const m = content.match(/^version:\s*(.+)$/m);
-            if (m) version = m[1].trim();
+            if (m) version = normalizeInstalledSkillVersion(m[1]);
           } catch {
             /* ignore */
           }
@@ -579,9 +705,11 @@ export function initSkillHubBridge(): void {
           }
           enabled = meta.enabled !== false;
           // Use stored version as source of truth
-          if (meta.installed_version) version = meta.installed_version;
+          version = normalizeInstalledSkillVersion(meta.installed_version) || version;
           // Resolve local icon path if icon is a relative path (e.g., "icon.svg")
-          if (meta.icon && !meta.icon.startsWith('http') && !meta.icon.startsWith('/')) {
+          if (meta.icon === UPLOAD_SKILL_DEFAULT_ICON_FILE && meta.source_type === 'upload') {
+            meta.icon = toAssetUrl(getUploadSkillDefaultIconPath());
+          } else if (meta.icon && !meta.icon.startsWith('http') && !meta.icon.startsWith('/') && !meta.icon.startsWith('aion-asset://') && !meta.icon.startsWith('data:')) {
             const iconAbsPath = path.join(skillDir, meta.icon);
             meta.icon = toAssetUrl(iconAbsPath);
           }
@@ -591,7 +719,7 @@ export function initSkillHubBridge(): void {
 
         return {
           name: meta?.name?.trim() || dirName,
-          version: version === 'unknown' ? '' : version,
+          version,
           isBuiltin,
           isHubInstalled,
           enabled,

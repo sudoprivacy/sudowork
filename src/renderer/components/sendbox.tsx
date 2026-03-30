@@ -313,8 +313,7 @@ const SendBox: React.FC<{
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(
     () =>
       installedSkills.map((skill) => {
-        const displayName =
-          skill.meta?.display_name || buildSkillDisplayName(skill.name);
+        const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
         return {
           name: skill.name,
           displayName,

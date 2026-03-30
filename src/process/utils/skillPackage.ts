@@ -18,7 +18,10 @@ export type ParsedSkillFrontmatter = {
 };
 
 function stripQuotes(value: string): string {
-  return value.trim().replace(/^['"]|['"]$/g, '').trim();
+  return value
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
 }
 
 function matchFrontmatterValue(frontmatter: string, key: string): string | undefined {

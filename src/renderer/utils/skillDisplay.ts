@@ -22,6 +22,20 @@ export function resolveSkillIcon(icon?: string | null, fallbackToDefault = true)
   return resolved || (fallbackToDefault ? defaultSkillIcon : '');
 }
 
+export function normalizeSkillVersion(version?: string | null): string {
+  const normalized = (version || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const lower = normalized.toLowerCase();
+  if (lower === 'unknown' || lower === 'unkown') {
+    return '';
+  }
+
+  return normalized;
+}
+
 export function getInstalledSkillDisplay(skill: Pick<IInstalledSkillInfo, 'name' | 'meta'>): {
   displayName: string;
   description?: string;
