@@ -61,20 +61,20 @@ CDP_IMPLEMENTATIONS = {
     "pointer_down": {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
         "body": textwrap.dedent("""\
+            _btn = cdp_input.MouseButton("left") if button == 0 else cdp_input.MouseButton("right") if button == 2 else cdp_input.MouseButton("middle")
             await tab.send(cdp_input.dispatch_mouse_event(
-                "mousePressed", x=_last_pointer[0], y=_last_pointer[1],
-                button=cdp_input.MouseButton("left") if button == 0 else cdp_input.MouseButton("right") if button == 2 else cdp_input.MouseButton("middle"),
-                click_count=1,
+                "mousePressed", x=float(_last_pointer[0]), y=float(_last_pointer[1]),
+                button=_btn, click_count=1,
             ))
             return {"pressed": True, "button": button}"""),
     },
     "pointer_up": {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
         "body": textwrap.dedent("""\
+            _btn = cdp_input.MouseButton("left") if button == 0 else cdp_input.MouseButton("right") if button == 2 else cdp_input.MouseButton("middle")
             await tab.send(cdp_input.dispatch_mouse_event(
-                "mouseReleased", x=_last_pointer[0], y=_last_pointer[1],
-                button=cdp_input.MouseButton("left") if button == 0 else cdp_input.MouseButton("right") if button == 2 else cdp_input.MouseButton("middle"),
-                click_count=1,
+                "mouseReleased", x=float(_last_pointer[0]), y=float(_last_pointer[1]),
+                button=_btn, click_count=1,
             ))
             return {"released": True, "button": button}"""),
     },
@@ -82,7 +82,7 @@ CDP_IMPLEMENTATIONS = {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
         "body": textwrap.dedent("""\
             await tab.send(cdp_input.dispatch_mouse_event(
-                "mouseMoved", x=x, y=y,
+                "mouseMoved", x=float(x), y=float(y),
             ))
             _last_pointer[0] = x
             _last_pointer[1] = y
@@ -92,7 +92,7 @@ CDP_IMPLEMENTATIONS = {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
         "body": textwrap.dedent("""\
             await tab.send(cdp_input.dispatch_mouse_event(
-                "mouseWheel", x=x, y=y, delta_x=delta_x, delta_y=delta_y,
+                "mouseWheel", x=float(x), y=float(y), delta_x=float(delta_x), delta_y=float(delta_y),
             ))
             return {"scrolled": True, "x": x, "y": y, "delta_x": delta_x, "delta_y": delta_y}"""),
     },
@@ -103,10 +103,9 @@ CDP_IMPLEMENTATIONS = {
             return {"paused": True, "duration": duration}"""),
     },
     "screenshot": {
-        "imports": "from ai_dev_browser.core.page import js_exec\nimport base64",
+        "imports": "from ai_dev_browser.cdp import page as cdp_page\nimport base64",
         "body": textwrap.dedent("""\
-            r = await tab.send({"method": "Page.captureScreenshot", "params": {"format": "png"}})
-            data = r.get("result", {}).get("data", "")
+            data = await tab.send(cdp_page.capture_screenshot(format_='png'))
             return {"screenshot": True, "data_length": len(data), "base64": data}"""),
     },
     "get_text": {
