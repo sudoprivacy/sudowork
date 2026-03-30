@@ -45,13 +45,18 @@ export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResu
 
   // 1. opsEntryPoint → AI_DEV_BROWSER_REDIRECT env var
   if (preset.opsEntryPoint) {
+    const absOpsPath = path.resolve(preset.opsEntryPoint);
     result.envOverrides.AI_DEV_BROWSER_REDIRECT =
-      `Direct tool access is disabled for this assistant. Use: python ${preset.opsEntryPoint} --port ${ctx.cdpPort} --op <tool_name> [args]`;
+      `Direct tool access is disabled for this assistant. Use: python ${absOpsPath} --port ${ctx.cdpPort} --op <tool_name> [args]`;
   }
 
-  // 2. resourceDir/scripts/ → auto-append to context
+  // 2. resourceDir/scripts/ → auto-append to context, plus resolved ops path
   if (preset.resourceDir) {
     result.contextAppendix = discoverScripts(preset);
+  }
+  if (preset.opsEntryPoint) {
+    const absOpsPath = path.resolve(preset.opsEntryPoint);
+    result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython ${absOpsPath} --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
   }
 
   // 3. modelConfigs → .gemini/settings.json
@@ -62,14 +67,14 @@ export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResu
   return result;
 }
 
-/** Scan resourceDir/scripts/ and return markdown listing. */
+/** Scan resourceDir/scripts/ and return markdown listing with absolute paths. */
 function discoverScripts(preset: AssistantPreset): string {
   if (!preset.resourceDir) return '';
   try {
-    const scriptsDir = path.join(preset.resourceDir, 'scripts');
+    const scriptsDir = path.resolve(preset.resourceDir, 'scripts');
     const entries = fs.readdirSync(scriptsDir).filter((e) => e.endsWith('.py') || e.endsWith('.sh'));
     if (entries.length > 0) {
-      const lines = entries.map((s) => `python ${scriptsDir}/${s} --help`);
+      const lines = entries.map((s) => `python ${path.join(scriptsDir, s)} --help`);
       return `\n\n## Available Scripts\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n`;
     }
   } catch {
