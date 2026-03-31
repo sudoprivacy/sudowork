@@ -12,6 +12,7 @@
  * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
  */
 
+import { execFileSync } from 'child_process';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -19,6 +20,12 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+
+type SudoclawInstallResult = {
+  installed: boolean;
+  cliPath: string | null;
+  error?: string;
+};
 
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -33,6 +40,8 @@ export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', 'sudoclaw');
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
+const SUDOCLAW_CLI_STAGING_DIR = path.join(SUDOCLAW_DIR, 'cli.new');
+const SUDOCLAW_CLI_BACKUP_DIR = path.join(SUDOCLAW_DIR, 'cli.old');
 /** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
@@ -105,14 +114,18 @@ function checkPlatformDependencies(pkgRoot: string): boolean {
 }
 
 /** Resolve OpenClaw package root after npm pack extract (package/ at top level) */
-function resolvePackageRoot(): string | null {
-  const packageDir = path.join(SUDOCLAW_CLI_DIR, 'package');
+function resolvePackageRootFrom(cliDir: string): string | null {
+  const packageDir = path.join(cliDir, 'package');
   const pkgJson = path.join(packageDir, 'package.json');
   if (fs.existsSync(pkgJson)) return packageDir;
   // Fallback: maybe extracted flat
-  const flatPkg = path.join(SUDOCLAW_CLI_DIR, 'package.json');
-  if (fs.existsSync(flatPkg)) return SUDOCLAW_CLI_DIR;
+  const flatPkg = path.join(cliDir, 'package.json');
+  if (fs.existsSync(flatPkg)) return cliDir;
   return null;
+}
+
+function resolvePackageRoot(): string | null {
+  return resolvePackageRootFrom(SUDOCLAW_CLI_DIR);
 }
 
 type SudoclawInstallManifest = {
@@ -243,6 +256,125 @@ export function getSudoclawVersionState(): { installedVersion?: string; bundledV
     bundledVersion,
     needsUpgrade: installedVersion !== bundledVersion,
   };
+}
+
+function formatInstallError(message: string, err?: unknown): string {
+  if (err instanceof Error && err.message) {
+    return `${message}: ${err.message}`;
+  }
+  if (typeof err === 'string' && err.trim()) {
+    return `${message}: ${err}`;
+  }
+  return message;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function removeDirIfExists(targetPath: string): void {
+  if (fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
+}
+
+function getPidsListeningOnPort(port: number): number[] {
+  if (process.platform !== 'win32') {
+    return [];
+  }
+
+  try {
+    const stdout = execFileSync('cmd.exe', ['/c', 'netstat -ano -p tcp'], {
+      encoding: 'utf-8',
+      windowsHide: true,
+    });
+    const matches = stdout
+      .split(/\r?\n/)
+      .filter((line) => line.includes(`:${port}`) && line.includes('LISTENING'))
+      .map((line) => line.trim().split(/\s+/).pop())
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    return [...new Set(matches)];
+  } catch {
+    return [];
+  }
+}
+
+function killWindowsProcessTree(pid: number): void {
+  try {
+    execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } catch {
+    // Best effort only.
+  }
+}
+
+function cleanupSudoclawWindowsLocks(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  for (const pid of getPidsListeningOnPort(SUDOCLAW_DEFAULT_PORT)) {
+    mainWarn('Sudoclaw', `Killing process tree on port ${SUDOCLAW_DEFAULT_PORT} (pid=${pid}) before directory switch`);
+    killWindowsProcessTree(pid);
+  }
+
+  try {
+    const script = ["$patterns = @('.nexus\\\\sudoclaw\\\\cli', 'launcher.mjs gateway', 'openclaw.mjs gateway')", 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Where-Object {', '  $cmd = $_.CommandLine', '  foreach ($pattern in $patterns) { if ($cmd -like "*${pattern}*") { return $true } }', '  return $false', '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'].join('; ');
+    execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } catch {
+    // Best effort only.
+  }
+}
+
+async function switchCliDirectory(stagingDir: string): Promise<void> {
+  const maxAttempts = process.platform === 'win32' ? 5 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
+
+      if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
+        fs.renameSync(SUDOCLAW_CLI_DIR, SUDOCLAW_CLI_BACKUP_DIR);
+      }
+
+      fs.renameSync(stagingDir, SUDOCLAW_CLI_DIR);
+
+      try {
+        removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
+      } catch (cleanupErr) {
+        mainWarn('Sudoclaw', `Failed to remove backup directory after switch: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
+      }
+      return;
+    } catch (err) {
+      lastError = err;
+
+      if (!fs.existsSync(SUDOCLAW_CLI_DIR) && fs.existsSync(SUDOCLAW_CLI_BACKUP_DIR)) {
+        try {
+          fs.renameSync(SUDOCLAW_CLI_BACKUP_DIR, SUDOCLAW_CLI_DIR);
+        } catch {
+          // Leave backup in place for manual recovery.
+        }
+      }
+
+      if (attempt === maxAttempts || process.platform !== 'win32') {
+        throw err;
+      }
+
+      mainWarn('Sudoclaw', `CLI directory switch failed on attempt ${attempt}/${maxAttempts}: ${err instanceof Error ? err.message : String(err)}`);
+      cleanupSudoclawWindowsLocks();
+      await wait(attempt * 500);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 /** Check if launcher.mjs exists in package (created at pack time) */
@@ -433,7 +565,7 @@ function getBundledOpenclawPath(): string | null {
  * - ~/.nexus/sudoclaw/cli/package/... (extracted from openclaw.tgz)
  * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
  */
-export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<{ installed: boolean; cliPath: string | null }> {
+export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<SudoclawInstallResult> {
   const forceReinstall = options?.forceReinstall === true;
   migrateLegacySudoclaw();
   migrateConfigFilename();
@@ -457,40 +589,54 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   }
 
   try {
-    fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
+    fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
+    removeDirIfExists(SUDOCLAW_CLI_STAGING_DIR);
+    removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
+    fs.mkdirSync(SUDOCLAW_CLI_STAGING_DIR, { recursive: true });
 
     // Re-extract if existing install is incomplete or version upgrade is required
     if (pkgRoot || forceReinstall) {
-      mainLog('Sudoclaw', forceReinstall ? 'Re-extracting (version upgrade)...' : 'Re-extracting (incomplete install)...');
-      fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
-      fs.mkdirSync(SUDOCLAW_CLI_DIR, { recursive: true });
+      mainLog('Sudoclaw', forceReinstall ? 'Extracting staged Sudoclaw update...' : 'Extracting staged Sudoclaw install...');
     }
 
     // Use bundled resource only (no OSS fallback)
     const bundledPath = getBundledOpenclawPath();
     if (!bundledPath) {
-      mainError('Sudoclaw', 'Bundled OpenClaw resource not found');
-      return { installed: false, cliPath: null };
+      const error = 'Bundled OpenClaw resource not found';
+      mainError('Sudoclaw', error);
+      return { installed: false, cliPath: null, error };
     }
 
     mainLog('Sudoclaw', `Using bundled OpenClaw from ${bundledPath}...`);
 
     try {
-      await extractTarGzWithProgress(bundledPath, SUDOCLAW_CLI_DIR, options?.onProgress);
+      await extractTarGzWithProgress(bundledPath, SUDOCLAW_CLI_STAGING_DIR, options?.onProgress);
     } catch (err) {
-      mainError('Sudoclaw', 'Failed to extract', err);
-      return { installed: false, cliPath: null };
+      const error = formatInstallError('Failed to extract bundled OpenClaw archive', err);
+      mainError('Sudoclaw', error, err);
+      return { installed: false, cliPath: null, error };
     }
 
-    const newPkgRoot = resolvePackageRoot();
+    const newPkgRoot = resolvePackageRootFrom(SUDOCLAW_CLI_STAGING_DIR);
     if (!newPkgRoot || !hasDistEntry(newPkgRoot) || !hasLauncher(newPkgRoot) || !hasBinWrapper(newPkgRoot)) {
-      mainError('Sudoclaw', 'Extracted package missing required files');
-      return { installed: false, cliPath: null };
+      const error = 'Extracted OpenClaw package is missing required files';
+      mainError('Sudoclaw', error);
+      return { installed: false, cliPath: null, error };
     }
 
     if (!checkPlatformDependencies(newPkgRoot)) {
-      mainError('Sudoclaw', 'Platform dependencies check failed after extraction');
-      return { installed: false, cliPath: null };
+      const error = `Platform dependencies missing after extraction (${getDaveyBindingName()}, chalk)`;
+      mainError('Sudoclaw', error);
+      return { installed: false, cliPath: null, error };
+    }
+
+    await switchCliDirectory(SUDOCLAW_CLI_STAGING_DIR);
+
+    const activePkgRoot = resolvePackageRoot();
+    if (!activePkgRoot) {
+      const error = 'Activated Sudoclaw package could not be resolved after directory switch';
+      mainError('Sudoclaw', error);
+      return { installed: false, cliPath: null, error };
     }
 
     ensureDefaultConfig();
@@ -500,10 +646,17 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
     const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-    return { installed: true, cliPath: path.join(newPkgRoot, 'bin', binName) };
+    return { installed: true, cliPath: path.join(activePkgRoot, 'bin', binName) };
   } catch (err) {
-    mainError('Sudoclaw', 'Install failed', err);
-    return { installed: false, cliPath: null };
+    const error = formatInstallError('Sudoclaw install failed', err);
+    mainError('Sudoclaw', error, err);
+    return { installed: false, cliPath: null, error };
+  } finally {
+    try {
+      removeDirIfExists(SUDOCLAW_CLI_STAGING_DIR);
+    } catch {
+      // Ignore staging cleanup errors.
+    }
   }
 }
 
@@ -555,5 +708,5 @@ export async function installSudoclawManually(onProgress?: (phase: 'extracting' 
     return true;
   }
 
-  throw new Error('Failed to install Sudoclaw. Please check the logs for details.');
+  throw new Error(result.error ?? 'Failed to install Sudoclaw. Please check the logs for details.');
 }

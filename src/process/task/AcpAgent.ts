@@ -258,7 +258,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       let cdpPort = 9230;
-      try { cdpPort = require('@/utils/configureChromium').cdpPort || 9230; } catch { /* use default */ }
+      try {
+        cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+      } catch {
+        /* use default */
+      }
       const presetResult = applyPresetRuntime({
         presetAssistantId: this.extra.presetAssistantId,
         backend: this.extra.backend,

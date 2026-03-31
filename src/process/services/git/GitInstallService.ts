@@ -128,7 +128,12 @@ function _downloadFile(url: string, dest: string, onProgress?: (pct: number) => 
       const req = https.get(urlStr, { timeout: 30_000 }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           const loc = res.headers.location;
-          if (loc) { file.close(); fs.unlink(dest, () => {}); fetch(loc); return; }
+          if (loc) {
+            file.close();
+            fs.unlink(dest, () => {});
+            fetch(loc);
+            return;
+          }
         }
         if (res.statusCode !== 200) {
           file.close();
@@ -146,11 +151,24 @@ function _downloadFile(url: string, dest: string, onProgress?: (pct: number) => 
         });
 
         res.pipe(file);
-        file.on('finish', () => { file.close(); resolve(); });
-        file.on('error', (err) => { fs.unlink(dest, () => {}); reject(err); });
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+        file.on('error', (err) => {
+          fs.unlink(dest, () => {});
+          reject(err);
+        });
       });
-      req.on('error', (err) => { file.close(); fs.unlink(dest, () => {}); reject(err); });
-      req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+      req.on('error', (err) => {
+        file.close();
+        fs.unlink(dest, () => {});
+        reject(err);
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Download timed out'));
+      });
     };
 
     fetch(url);
@@ -174,10 +192,7 @@ async function _installGitWindows(onProgress?: (msg: string) => void): Promise<b
     mainLog(TAG, `Installing Git from ${installerPath}`);
 
     // /VERYSILENT /NORESTART — no UI, no reboot prompt
-    await execAsync(
-      `"${installerPath}" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /COMPONENTS="icons,ext\\reg\\shellhere,assoc,assoc_sh"`,
-      { timeout: 300_000 },
-    );
+    await execAsync(`"${installerPath}" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /COMPONENTS="icons,ext\\reg\\shellhere,assoc,assoc_sh"`, { timeout: 300_000 });
 
     mainLog(TAG, 'Git for Windows installer completed');
     return true;
@@ -185,7 +200,9 @@ async function _installGitWindows(onProgress?: (msg: string) => void): Promise<b
     mainError(TAG, 'Git for Windows installation failed', err);
     return false;
   } finally {
-    try { if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath); } catch {}
+    try {
+      if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
+    } catch {}
   }
 }
 

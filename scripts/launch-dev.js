@@ -7,9 +7,10 @@
  *   node scripts/launch-dev.js stop    # graceful shutdown via CDP
  */
 
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const http = require('http');
 const net = require('net');
+const path = require('path');
 
 // ── CLI ──
 
@@ -109,6 +110,7 @@ async function stop() {
 // ── start ──
 
 function start() {
+  const passthroughArgs = process.argv.slice(3);
   const cleanEnv = { ...process.env };
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
 
@@ -142,14 +144,26 @@ function start() {
 
   console.log(`Launching electron-vite dev (renderer: ${vitePort}, CDP: ${cdpPort})...`);
 
-  try {
-    execSync('npx electron-vite dev', {
-      stdio: 'inherit',
-      env: cleanEnv,
-      cwd: __dirname + '/..',
-    });
-  } catch (e) {
-    process.exit(e.status || 1);
+  const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const devArgs = ['electron-vite', 'dev'];
+  if (passthroughArgs.length > 0) {
+    devArgs.push('--', ...passthroughArgs);
+  }
+
+  const result = spawnSync(npxCommand, devArgs, {
+    stdio: 'inherit',
+    env: cleanEnv,
+    cwd: path.join(__dirname, '..'),
+    shell: process.platform === 'win32',
+  });
+
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(1);
+  }
+
+  if (typeof result.status === 'number' && result.status !== 0) {
+    process.exit(result.status);
   }
 }
 

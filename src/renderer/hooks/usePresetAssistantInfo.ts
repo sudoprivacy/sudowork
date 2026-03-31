@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getPresetById } from "@/common/presets/presetResolver";
+import { getPresetById } from '@/common/presets/presetResolver';
 import type { TChatConversation } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';

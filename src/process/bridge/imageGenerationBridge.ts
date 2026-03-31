@@ -91,7 +91,10 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
 
   // 3. Fall back: any model.config provider with sudorouter.ai baseUrl
   const providers = (await ProcessConfig.get('model.config').catch((): null => null)) || [];
-  console.log('[ImageGen] model.config providers:', providers.map((p) => ({ baseUrl: p.baseUrl, hasKey: !!p.apiKey })));
+  console.log(
+    '[ImageGen] model.config providers:',
+    providers.map((p) => ({ baseUrl: p.baseUrl, hasKey: !!p.apiKey }))
+  );
   for (const provider of providers) {
     if (provider.baseUrl?.includes('sudorouter.ai') && provider.apiKey) {
       const baseUrl = provider.baseUrl.replace(/\/+$/, '');
@@ -205,7 +208,6 @@ export async function callImagesEdits(baseUrl: string, apiKey: string, model: st
 
   throw new Error('Image edit returned no image data');
 }
-
 
 export function initImageGenerationBridge(): void {
   ipcBridge.tools.generateImage.provider(async ({ prompt, conversation_id, workspace, size = '1024x1024', n = 1 }) => {

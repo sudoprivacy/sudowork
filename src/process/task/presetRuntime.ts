@@ -47,8 +47,7 @@ export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResu
   if (preset.opsEntryPoint) {
     // Use forward slashes for cross-platform bash compatibility
     const absOpsPath = path.resolve(preset.opsEntryPoint).replace(/\\/g, '/');
-    result.envOverrides.AI_DEV_BROWSER_REDIRECT =
-      `Direct tool access is disabled for this assistant. Use: python "${absOpsPath}" --port ${ctx.cdpPort} --op <tool_name> [args]`;
+    result.envOverrides.AI_DEV_BROWSER_REDIRECT = `Direct tool access is disabled for this assistant. Use: python "${absOpsPath}" --port ${ctx.cdpPort} --op <tool_name> [args]`;
   }
 
   // 2. resourceDir/scripts/ → auto-append to context, plus resolved ops path

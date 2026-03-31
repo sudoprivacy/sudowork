@@ -16,6 +16,10 @@ interface ComponentStatus {
   actionType?: 'install' | 'start';
 }
 
+function isSudoclawReadyStatus(status?: string): boolean {
+  return status === 'live' || status === 'healthy' || status === 'ok';
+}
+
 /**
  * 自动组件健康监控服务
  *
@@ -175,11 +179,19 @@ class ComponentHealthMonitor {
 
     // 检查网关是否运行
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch('http://localhost:17863/health', { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const running = res.ok;
+      const response = await fetch('http://localhost:17863/health', {
+        signal: AbortSignal.timeout(2000),
+      });
+      const body = await response.text();
+      let payload: { status?: string } | undefined;
+      if (body) {
+        try {
+          payload = JSON.parse(body) as { status?: string };
+        } catch {
+          // Fall back to HTTP status when the endpoint does not return JSON.
+        }
+      }
+      const running = isSudoclawReadyStatus(payload?.status) || (payload?.status === undefined && response.ok);
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Sudoclaw health check failed: ${err instanceof Error ? err.message : String(err)}`);

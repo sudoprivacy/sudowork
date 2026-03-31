@@ -58,15 +58,7 @@ const LocalImageView: React.FC<{
       </span>
     );
 
-  return (
-    <Image
-      src={url}
-      alt={alt}
-      className={className}
-      style={{ ...style, cursor: 'pointer' }}
-      preview
-    />
-  );
+  return <Image src={url} alt={alt} className={className} style={{ ...style, cursor: 'pointer' }} preview />;
 };
 
 LocalImageView.Provider = LocalImageProvider;

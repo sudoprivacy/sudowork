@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { getPresetById } from "@/common/presets/presetResolver";
+import { getPresetById } from '@/common/presets/presetResolver';
 import { ConfigStorage } from '@/common/storage';
 
 export type PresetAssistantResourceDeps = {
