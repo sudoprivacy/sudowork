@@ -300,25 +300,30 @@ jobs:
           echo "🔐 Configuring coscmd..."
           coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -r $COS_REGION
 
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
           IS_DEV="${{ steps.version.outputs.is_dev }}"
 
-          # Determine upload path
+          # Fixed upload path: latest directory (overwrite on each release)
           if [ "$IS_DEV" = "true" ]; then
-            COS_PATH="sudowork/dev/$TAG_NAME"
+            COS_PATH="sudowork/dev/latest"
           else
-            COS_PATH="sudowork/release/$TAG_NAME"
+            COS_PATH="sudowork/release/latest"
           fi
 
           echo "📤 Uploading build artifacts to COS..."
           echo "Target path: $COS_PATH"
 
-          # Upload all release assets to COS
+          # Upload all release assets to COS with standardized naming
           for file in release-assets/**/*; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
-              echo "  Uploading: $filename"
-              coscmd upload "$file" "$COS_PATH/$filename" || echo "⚠️ Failed to upload $filename"
+
+              # Convert versioned filename to latest format
+              # e.g., Sudowork-0.1.2-darwin-arm64.dmg -> Sudowork-latest-darwin-arm64.dmg
+              # e.g., Sudowork-0.1.2-win32-x64.exe -> Sudowork-latest-win32-x64.exe
+              latest_name=$(echo "$filename" | sed 's/[0-9]\+\.[0-9]\+\.[0-9]\+/latest/')
+
+              echo "  Uploading: $filename -> $latest_name"
+              coscmd upload "$file" "$COS_PATH/$latest_name" || echo "⚠️ Failed to upload $filename"
             fi
           done
 
