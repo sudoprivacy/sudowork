@@ -29,7 +29,7 @@ class ComponentHealthMonitor {
   private readonly CHECK_INTERVAL_MS = 4000;
   private readonly BACKOFF_INTERVAL_MS = 30000;
 
-  private readonly COMPONENTS = ['git', 'node', 'sudoclaw', 'nexus', 'bdpan'] as const;
+  private readonly COMPONENTS = ['git', 'node', 'claude', 'sudoclaw', 'nexus', 'bdpan'] as const;
 
   /**
    * 启动健康监控
@@ -116,6 +116,8 @@ class ComponentHealthMonitor {
         return this.checkNodeHealth();
       case 'sudoclaw':
         return this.checkSudoclawHealth();
+      case 'claude':
+        return this.checkClaudeHealth();
       case 'nexus':
         return this.checkNexusHealth();
       case 'bdpan':
@@ -145,6 +147,19 @@ class ComponentHealthMonitor {
     const { isNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
     const installed = isNodeInstalled();
     return { installed, needsAction: !installed };
+  }
+
+  /**
+   * 检查 Claude CLI 状态
+   */
+  private async checkClaudeHealth(): Promise<ComponentStatus> {
+    const { claudeCliService } = await import('../claudeCli/CliInstallService');
+    if (!claudeCliService.hasTgzResource()) {
+      return { installed: true, needsAction: false };
+    }
+
+    const status = await claudeCliService.checkInstalled();
+    return { installed: status.installed, needsAction: !status.installed, actionType: 'install' };
   }
 
   /**
@@ -239,6 +254,12 @@ class ComponentHealthMonitor {
           const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
           await ensureNodeInstalled();
           return true;
+        }
+        case 'claude': {
+          const { claudeCliService } = await import('../claudeCli/CliInstallService');
+          await claudeCliService.install();
+          const status = await claudeCliService.checkInstalled();
+          return status.installed;
         }
         case 'sudoclaw': {
           const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');

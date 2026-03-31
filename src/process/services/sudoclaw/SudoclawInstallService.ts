@@ -16,9 +16,9 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as tar from 'tar';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 /** Legacy path for migration from ~/.sudoclaw */
 const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
@@ -434,7 +434,7 @@ function getBundledOpenclawPath(): string | null {
  * - ~/.nexus/sudoclaw/cli/package/... (extracted from openclaw.tgz)
  * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
  */
-export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean }): Promise<{ installed: boolean; cliPath: string | null }> {
+export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<{ installed: boolean; cliPath: string | null }> {
   const forceReinstall = options?.forceReinstall === true;
   migrateLegacySudoclaw();
   migrateConfigFilename();
@@ -477,7 +477,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     mainLog('Sudoclaw', `Using bundled OpenClaw from ${bundledPath}...`);
 
     try {
-      await tar.x({ file: bundledPath, cwd: SUDOCLAW_CLI_DIR });
+      await extractTarGzWithProgress(bundledPath, SUDOCLAW_CLI_DIR, options?.onProgress);
     } catch (err) {
       mainError('Sudoclaw', 'Failed to extract', err);
       return { installed: false, cliPath: null };
@@ -545,7 +545,11 @@ export async function installSudoclawManually(onProgress?: (phase: 'extracting' 
 
   // Perform installation
   onProgress?.('extracting', 10);
-  const result = await ensureSudoclawInstalled();
+  const result = await ensureSudoclawInstalled({
+    onProgress: (percent) => {
+      onProgress?.('extracting', percent);
+    },
+  });
 
   if (result.installed) {
     onProgress?.('configuring', 100);

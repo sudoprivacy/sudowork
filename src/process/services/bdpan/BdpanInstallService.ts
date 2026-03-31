@@ -21,7 +21,7 @@ function getInstallerName(): string | null {
   const arch = getBundledArch();
   if (process.platform === 'darwin') return `bdpan-installer-darwin-${arch}`;
   if (process.platform === 'linux') return `bdpan-installer-linux-${arch}`;
-  // Windows is handled by NSIS installer
+  if (process.platform === 'win32') return `bdpan-installer-windows-${arch}.exe`;
   return null;
 }
 
@@ -60,12 +60,6 @@ export async function ensureBdpanInstalled(): Promise<boolean> {
   if (isBdpanInstalled()) {
     mainLog('Bdpan', 'Already installed');
     return true;
-  }
-
-  // Windows is handled by NSIS installer
-  if (process.platform === 'win32') {
-    mainLog('Bdpan', 'Skipping (Windows installs via NSIS)');
-    return false;
   }
 
   const installerPath = getBundledInstallerPath();

@@ -5,10 +5,10 @@ import { app } from 'electron';
 import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
-import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -108,6 +108,10 @@ class DynamicNexusService {
 
   get setupStage(): NexusSetupStage {
     return this._setupStage;
+  }
+
+  hasBundledResource(): boolean {
+    return this.getBundledNexusPath() !== null;
   }
 
   getBundledVersion(): string | undefined {
@@ -283,8 +287,10 @@ class DynamicNexusService {
       try {
         // Extract
         fs.mkdirSync(envDir, { recursive: true });
-        this.emitSetup('extracting', 'Extracting Nexus environment...');
-        await tar.x({ file: tempTarGzPath, cwd: envDir });
+        this.emitSetup('extracting', 'Extracting Nexus environment...', 0);
+        await extractTarGzWithProgress(tempTarGzPath, envDir, (percent) => {
+          this.emitSetup('extracting', `Extracting Nexus environment... ${percent}%`, percent);
+        });
 
         // Run conda-unpack to fix hardcoded paths
         const condaUnpack = this.getCondaUnpackPath(envDir);

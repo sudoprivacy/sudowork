@@ -7,10 +7,10 @@ import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
-import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -31,6 +31,8 @@ interface CliConfig {
   /** Progress callback during installation */
   onProgress?: (phase: 'downloading' | 'extracting' | 'configuring', percent?: number) => void;
 }
+
+type InstallProgressCallback = (phase: 'downloading' | 'extracting' | 'configuring', percent?: number) => void;
 
 // Use getDataPath() to get ~/.nexus (CLI-safe symlink on macOS)
 const getNexusDir = (): string => getDataPath();
@@ -128,7 +130,9 @@ export class CliInstallService {
     }
   }
 
-  async install(): Promise<void> {
+  async install(onProgress?: InstallProgressCallback): Promise<void> {
+    const emitProgress = onProgress ?? this.cfg.onProgress;
+
     // Ensure Node.js is installed first (required for CLI wrappers)
     if (this.cfg.useBundledNode) {
       mainLog('CLI', `Ensuring Node.js is installed for ${this.cfg.label}...`);
@@ -153,20 +157,18 @@ export class CliInstallService {
     mainLog('CLI', `Using bundled ${this.cfg.label} from ${bundledPath}...`);
 
     // Report progress: extracting
-    this.cfg.onProgress?.('extracting', 0);
+    emitProgress?.('extracting', 0);
 
     try {
-      // Use node-tar for cross-platform reliability (no dependency on system 'tar')
-      await tar.x({
-        file: bundledPath,
-        cwd: this.installDir,
+      await extractTarGzWithProgress(bundledPath, this.installDir, (percent) => {
+        emitProgress?.('extracting', percent);
       });
     } catch (err) {
       throw new Error(`Failed to extract ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Report progress: configuring
-    this.cfg.onProgress?.('configuring', 50);
+    emitProgress?.('configuring', 50);
 
     const entryFile = this.resolveEntryFile();
     if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
@@ -180,7 +182,7 @@ export class CliInstallService {
     await this.updateShellConfig();
 
     // Report progress: done
-    this.cfg.onProgress?.('configuring', 100);
+    emitProgress?.('configuring', 100);
   }
 
   async uninstall(): Promise<void> {

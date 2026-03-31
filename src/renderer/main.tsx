@@ -14,10 +14,24 @@ import InitLoading from './components/InitLoading';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
-  const { isReady: initReady } = useInit();
+  const { status, isReady: initReady, hasResolvedInitialStatus } = useInit();
+
+  if (!hasResolvedInitialStatus) {
+    return null;
+  }
 
   // Show loading while runtime is initializing
   if (!initReady) {
+    const isCoreStartupOnly =
+      status.phase === 'installing' &&
+      !status.retry &&
+      !status.error &&
+      (status.message === '正在启动核心服务...' ||
+        status.message === '正在校验组件状态...');
+
+    if (isCoreStartupOnly) {
+      return <InitLoading variant="startup" />;
+    }
     return <InitLoading />;
   }
 

@@ -13,15 +13,15 @@
  * Node.js is bundled at build time via `bun run node:download`.
  */
 
-import { exec, execFile } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import type { ICliStatus } from '@/common/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { extractTarGzWithProgress, extractZipWithProgress, type ArchiveProgressCallback } from '../archiveProgress';
 
 const execAsync = promisify(exec);
 
@@ -76,33 +76,20 @@ function getBundledResourcePath(): string | null {
 }
 
 /** Extract tar.gz file */
-async function extractTarGz(archivePath: string, targetDir: string): Promise<void> {
-  await tar.x({
-    file: archivePath,
-    cwd: targetDir,
-  });
+async function extractTarGz(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+  await extractTarGzWithProgress(archivePath, targetDir, onProgress);
 }
 
 /** Extract zip file (Windows) using PowerShell */
-async function extractZip(archivePath: string, targetDir: string): Promise<void> {
-  const execFileAsync = promisify(execFile);
-
-  // Escape paths for PowerShell (single quotes handle most special characters)
-  const escapedArchive = archivePath.replace(/'/g, "''");
-  const escapedTarget = targetDir.replace(/'/g, "''");
-
-  const psCommand = `Expand-Archive -Path '${escapedArchive}' -DestinationPath '${escapedTarget}' -Force`;
-
-  mainLog('NodeRuntime', 'Extracting with PowerShell:', psCommand);
-
-  await execFileAsync('powershell', ['-NoProfile', '-Command', psCommand]);
+async function extractZip(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+  await extractZipWithProgress(archivePath, targetDir, onProgress);
 }
 
 /**
  * Install bundled Node.js from packaged resources.
  * Returns true if installation was successful.
  */
-export async function installNode(): Promise<boolean> {
+export async function installNode(onProgress?: ArchiveProgressCallback): Promise<boolean> {
   const nodeDir = getNodeDir();
   const nodePath = getNodeBinaryPath();
 
@@ -130,10 +117,10 @@ export async function installNode(): Promise<boolean> {
     // Extract
     if (process.platform === 'win32') {
       mainLog('NodeRuntime', 'Using Windows zip extraction');
-      await extractZip(resourcePath, nodeDir);
+      await extractZip(resourcePath, nodeDir, onProgress);
     } else {
       mainLog('NodeRuntime', 'Using tar.gz extraction');
-      await extractTarGz(resourcePath, nodeDir);
+      await extractTarGz(resourcePath, nodeDir, onProgress);
     }
 
     // List extracted contents for debugging
@@ -176,11 +163,11 @@ export async function installNode(): Promise<boolean> {
  * Ensure Node.js is installed (install if not).
  * Call this at app startup.
  */
-export async function ensureNodeInstalled(): Promise<boolean> {
+export async function ensureNodeInstalled(onProgress?: ArchiveProgressCallback): Promise<boolean> {
   if (isNodeInstalled()) {
     return true;
   }
-  return installNode();
+  return installNode(onProgress);
 }
 
 /**

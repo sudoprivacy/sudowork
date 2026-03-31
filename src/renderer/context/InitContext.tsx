@@ -10,6 +10,7 @@ import { init, type InitStatus } from '@/common/ipcBridge';
 interface InitContextValue {
   status: InitStatus;
   isReady: boolean;
+  hasResolvedInitialStatus: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -21,6 +22,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const isElectron = typeof window !== 'undefined' && (!!(window as any).electronAPI || /Electron/i.test(navigator.userAgent));
 
   const [status, setStatus] = useState<InitStatus>(isElectron ? { phase: 'pending', message: '准备初始化...', progress: 0 } : { phase: 'ready', message: '初始化完成', progress: 100 });
+  const [hasResolvedInitialStatus, setHasResolvedInitialStatus] = useState(!isElectron);
 
   const refetch = useCallback(async () => {
     let retries = 0;
@@ -32,6 +34,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const result = await init.getStatus.invoke();
         if (result.success) {
           setStatus(result.data);
+          setHasResolvedInitialStatus(true);
           return true;
         }
       } catch (err) {
@@ -63,6 +66,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     // Subscribe to status changes
     const unsubscribe = init.onStatusChange.on((newStatus: InitStatus) => {
       setStatus(newStatus);
+      setHasResolvedInitialStatus(true);
     });
 
     return unsubscribe;
@@ -70,7 +74,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const isReady = status.phase === 'ready';
 
-  return <InitContext.Provider value={{ status, isReady, refetch }}>{children}</InitContext.Provider>;
+  return <InitContext.Provider value={{ status, isReady, hasResolvedInitialStatus, refetch }}>{children}</InitContext.Provider>;
 };
 
 export function useInit(): InitContextValue {

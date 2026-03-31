@@ -561,18 +561,33 @@ export const sudoclaw = {
 
 // Initialization status for runtime dependencies
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
+export type InitStepStatus = 'pending' | 'active' | 'done' | 'error';
+
+export interface InitRetryStatus {
+  attempt: number;
+  maxAttempts: number;
+  nextRetryAt: number;
+}
 
 export interface InitStatus {
   phase: InitPhase;
   message: string;
   progress: number;
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'sudoclaw' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
   step?: string;
   /** Detail message for current step */
   detail?: string;
+  /** Per-step progress values (0-100) */
+  stepProgress?: Partial<Record<string, number>>;
+  /** Per-step detail messages for concurrent install/start flows. */
+  stepDetails?: Partial<Record<string, string>>;
+  /** Per-step state values for concurrent install/start flows. */
+  stepStates?: Partial<Record<string, InitStepStatus>>;
   /** Recent log entries (last 100) */
   logs?: string[];
+  /** Automatic retry countdown for startup/install failures. */
+  retry?: InitRetryStatus;
 }
 
 export const init = {
