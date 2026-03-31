@@ -1,0 +1,11 @@
+steps:
+  - op: click_element
+    selector: ".conversation-item"
+    wait: 1
+  - op: type_text
+    selector: "textarea"
+    text: "/"
+    wait: 1
+  - op: check_element
+    js: "document.querySelector('.arco-select-dropdown-list')?.innerText.includes('/model')"
+    expect: true

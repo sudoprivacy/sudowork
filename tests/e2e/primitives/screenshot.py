@@ -4,10 +4,9 @@
 # Spec: https://github.com/sudoprivacy/human-browser-primitives
 # Source: WebDriver §18.1 — Take Screenshot
 
-from ai_dev_browser.cdp import page as cdp_page
-import base64
+from ai_dev_browser.core.page import screenshot as _take_screenshot
 
-async def screenshot(tab) -> dict:
+async def screenshot(tab, path: str = None) -> dict:
     """WebDriver §18.1 — Take Screenshot."""
-    data = await tab.send(cdp_page.capture_screenshot(format_='png'))
-    return {"screenshot": True, "data_length": len(data), "base64": data}
+    result = await _take_screenshot(tab, path=path, css_scale=True)
+    return {"screenshot": True, **result}

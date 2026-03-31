@@ -36,8 +36,9 @@ HEADER = '''\
 # Source: {source}
 '''
 
-# CDP implementation for each primitive
-CDP_IMPLEMENTATIONS = {
+# Implementation for each primitive
+# Uses ai-dev-browser core API where available, CDP through tab.send() for low-level motor actions
+IMPLEMENTATIONS = {
     "key_down": {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
         "body": textwrap.dedent("""\
@@ -79,14 +80,17 @@ CDP_IMPLEMENTATIONS = {
             return {"released": True, "button": button}"""),
     },
     "pointer_move": {
-        "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
+        "imports": "",
         "body": textwrap.dedent("""\
-            await tab.send(cdp_input.dispatch_mouse_event(
-                "mouseMoved", x=float(x), y=float(y),
-            ))
-            _last_pointer[0] = x
-            _last_pointer[1] = y
+            await tab.mouse_move(float(x), float(y), steps=1)
             return {"moved": True, "x": x, "y": y}"""),
+    },
+    "click": {
+        "imports": "",
+        "body": textwrap.dedent("""\
+            _btn_name = "left" if button == 0 else "right" if button == 2 else "middle"
+            await tab.mouse_click(float(x), float(y), button=_btn_name)
+            return {"clicked": True, "x": x, "y": y, "button": button}"""),
     },
     "scroll": {
         "imports": "from ai_dev_browser.cdp import input_ as cdp_input",
@@ -103,10 +107,10 @@ CDP_IMPLEMENTATIONS = {
             return {"paused": True, "duration": duration}"""),
     },
     "screenshot": {
-        "imports": "from ai_dev_browser.cdp import page as cdp_page\nimport base64",
+        "imports": "from ai_dev_browser.core.page import screenshot as _take_screenshot",
         "body": textwrap.dedent("""\
-            data = await tab.send(cdp_page.capture_screenshot(format_='png'))
-            return {"screenshot": True, "data_length": len(data), "base64": data}"""),
+            result = await _take_screenshot(tab, path=path, css_scale=True)
+            return {"screenshot": True, **result}"""),
     },
     "get_text": {
         "imports": "from ai_dev_browser.core.page import js_exec",
@@ -166,8 +170,13 @@ CORE_PARAMS = {
         ("delta_y", "int", True, "Vertical scroll amount"),
         ("duration", "int", False, "Scroll time in ms", "0"),
     ],
+    "click": [
+        ("x", "int", True, "Click X in CSS pixels"),
+        ("y", "int", True, "Click Y in CSS pixels"),
+        ("button", "int", False, "Button: 0=left, 2=right", "0"),
+    ],
     "pause": [("duration", "int", True, "Time in milliseconds")],
-    "screenshot": [],
+    "screenshot": [("path", "str", False, "Save screenshot to this file path", "None")],
     "get_text": [("element", "str", False, "CSS selector for element (default: whole page)", "None")],
     "get_attribute": [
         ("element", "str", True, "CSS selector for element"),
@@ -183,6 +192,7 @@ W3C_SOURCES = {
     "pointer_down": "WebDriver §15.4.2 — Pointer actions",
     "pointer_up": "WebDriver §15.4.2 — Pointer actions",
     "pointer_move": "WebDriver §15.4.2 — Pointer actions",
+    "click": "WebDriver §12.5.1 — Element Click",
     "scroll": "WebDriver §15.4.4 — Wheel actions",
     "pause": "WebDriver §15.4.5 — Null actions",
     "screenshot": "WebDriver §18.1 — Take Screenshot",
@@ -222,7 +232,7 @@ def _build_param_str(params):
 def generate_primitive(name: str) -> str:
     """Generate a primitives/*.py file."""
     source = W3C_SOURCES.get(name, "Unknown")
-    impl = CDP_IMPLEMENTATIONS[name]
+    impl = IMPLEMENTATIONS[name]
     params = CORE_PARAMS[name]
 
     lines = [HEADER.format(source=source)]

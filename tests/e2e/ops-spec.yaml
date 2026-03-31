@@ -33,6 +33,10 @@ primitives:
 
   pointer_move: {}
 
+  # --- Element Interaction (§12.5) ---
+
+  click: {}
+
   # --- Wheel ---
 
   scroll: {}
@@ -43,12 +47,7 @@ primitives:
 
   # --- Observation ---
 
-  screenshot:
-    convenience_params:
-      path:
-        type: string
-        description: "Save screenshot to this file path"
-        default: null
+  screenshot: {}
 
   get_text:
     convenience_params:

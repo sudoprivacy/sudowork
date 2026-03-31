@@ -28,10 +28,13 @@ All primitives are aligned with [W3C WebDriver Actions API](https://w3c.github.i
 - `key_up --value <key>` — Release a key
 
 **Input — Pointer**:
-- `pointer_move --x <n> --y <n>` — Move pointer to coordinates (use screenshot to determine coordinates)
-- `pointer_down` — Press mouse button (default: left)
-- `pointer_down --button 2` — Press right button
-- `pointer_up` — Release mouse button
+- `pointer_move --x <n> --y <n>` — Move pointer to coordinates
+- `pointer_down` — Press mouse button (default: left, used for drag)
+- `pointer_up` — Release mouse button (used for drag)
+
+**Input — Element Interaction (§12.5)**:
+- `click --x <n> --y <n>` — Click at coordinates (preferred over pointer_down+pointer_up)
+- `click --x <n> --y <n> --button 2` — Right-click
 
 **Input — Other**:
 - `scroll --x <n> --y <n> --delta_x <n> --delta_y <n>` — Scroll
@@ -49,10 +52,8 @@ All primitives are aligned with [W3C WebDriver Actions API](https://w3c.github.i
 # 1. Screenshot to see the UI and determine coordinates
 python tests/e2e/run_op.py --port 9230 --op screenshot --path before.png
 # 2. From the screenshot, identify the target element's coordinates
-# 3. Move pointer, press, release — 3 primitives = 1 click
-python tests/e2e/run_op.py --port 9230 --op pointer_move --x 80 --y 173
-python tests/e2e/run_op.py --port 9230 --op pointer_down
-python tests/e2e/run_op.py --port 9230 --op pointer_up
+# 3. Click (single primitive — correct timing guaranteed)
+python tests/e2e/run_op.py --port 9230 --op click --x 125 --y 188
 # 4. Verify
 python tests/e2e/run_op.py --port 9230 --op screenshot
 ```
