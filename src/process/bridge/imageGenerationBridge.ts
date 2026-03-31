@@ -14,6 +14,33 @@ import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 
 /**
+ * Detect image MIME type and file extension from magic bytes.
+ */
+function detectMimeType(buffer: Buffer | Uint8Array): { mime: string; ext: string } {
+  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return { mime: 'image/png', ext: 'png' };
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { mime: 'image/jpeg', ext: 'jpg' };
+  }
+  if (buffer.length >= 12 && buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+    return { mime: 'image/webp', ext: 'webp' };
+  }
+  if (buffer.length >= 4 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
+    return { mime: 'image/gif', ext: 'gif' };
+  }
+  return { mime: 'image/png', ext: 'png' };
+}
+
+/**
+ * Detect MIME type from a raw base64 string (no data: prefix).
+ */
+function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
+  const decoded = Buffer.from(b64.slice(0, 24), 'base64');
+  return detectMimeType(decoded);
+}
+
+/**
  * Resolve baseUrl and apiKey for image generation.
  * Priority:
  * 1. User-configured imageGenerationModel (switch must be on)
@@ -81,19 +108,21 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
  * Save an image URL (data: or remote) to saveDir and return { imgUrl, relativePath }.
  */
 export async function saveImageResult(imageUrl: string, saveDir: string): Promise<{ imgUrl: string; relativePath: string }> {
-  const fileName = `image_${Date.now()}.png`;
   await fs.mkdir(saveDir, { recursive: true });
-  const filePath = path.join(saveDir, fileName);
 
+  let imageBuffer: Buffer;
   if (!imageUrl.startsWith('data:')) {
     const imageResp = await fetch(imageUrl);
-    const imageBuffer = Buffer.from(await imageResp.arrayBuffer());
-    await fs.writeFile(filePath, imageBuffer);
+    imageBuffer = Buffer.from(await imageResp.arrayBuffer());
   } else {
-    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
-    const imageBuffer = Buffer.from(base64Data, 'base64');
-    await fs.writeFile(filePath, imageBuffer);
+    const base64Data = imageUrl.replace(/^data:image\/[\w+]+;base64,/, '');
+    imageBuffer = Buffer.from(base64Data, 'base64');
   }
+
+  const { ext } = detectMimeType(imageBuffer);
+  const fileName = `image_${Date.now()}.${ext}`;
+  const filePath = path.join(saveDir, fileName);
+  await fs.writeFile(filePath, imageBuffer);
 
   return { imgUrl: filePath, relativePath: fileName };
 }
@@ -125,7 +154,8 @@ export async function callImagesGenerations(baseUrl: string, apiKey: string, mod
   const item = json?.data?.[0];
   if (item?.b64_json) {
     console.log('[ImageGen] got b64_json, length:', item.b64_json.length);
-    return `data:image/png;base64,${item.b64_json}`;
+    const { mime } = detectMimeTypeFromBase64(item.b64_json);
+    return `data:${mime};base64,${item.b64_json}`;
   }
   if (item?.url) {
     console.log('[ImageGen] got url:', item.url.slice(0, 80));
@@ -138,13 +168,13 @@ export async function callImagesGenerations(baseUrl: string, apiKey: string, mod
 /**
  * Call /images/edits and return a data URL or remote URL of the edited image.
  */
-export async function callImageEdits(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string, size: string, n: number): Promise<string> {
+export async function callImagesEdits(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string, size: string, n: number): Promise<string> {
   const endpoint = `${baseUrl}/images/edits`;
   console.log('[ImageGen] POST', endpoint, 'model:', model, 'prompt:', prompt.slice(0, 80));
 
   const formData = new FormData();
   const imageBuffer = await fs.readFile(imagePath);
-  const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
+  const imageBlob = new Blob([imageBuffer], { type: detectMimeType(imageBuffer).mime });
   formData.append('image', imageBlob, path.basename(imagePath));
   formData.append('prompt', prompt);
   formData.append('model', model);
@@ -167,7 +197,10 @@ export async function callImageEdits(baseUrl: string, apiKey: string, model: str
 
   const json = (await response.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
   const item = json?.data?.[0];
-  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
+  if (item?.b64_json) {
+    const { mime } = detectMimeTypeFromBase64(item.b64_json);
+    return `data:${mime};base64,${item.b64_json}`;
+  }
   if (item?.url) return item.url;
 
   throw new Error('Image edit returned no image data');

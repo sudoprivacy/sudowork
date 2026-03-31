@@ -25,7 +25,7 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
-import { resolveImageConfig, callImagesGenerations, callImageEdits, saveImageResult } from '../bridge/imageGenerationBridge';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult } from '../bridge/imageGenerationBridge';
 import * as nodePath from 'node:path';
 
 export interface OpenClawAgentData {
@@ -329,7 +329,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
           const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
           const prompt = editMatch[4].trim();
-          const imageUrl = await callImageEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+          const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
           imageUrls = [imageUrl];
         } else {
           // gen/generate or bare prompt (backwards compat)

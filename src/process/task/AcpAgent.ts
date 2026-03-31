@@ -42,7 +42,7 @@ import { extractTextFromMessage, processCronInMessage } from './MessageMiddlewar
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
-import { resolveImageConfig, callImagesGenerations, callImageEdits, saveImageResult } from '../bridge/imageGenerationBridge';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult } from '../bridge/imageGenerationBridge';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -1696,7 +1696,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
           const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
           const prompt = editMatch[4].trim();
-          const imageUrl = await callImageEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+          const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
           imageUrls = [imageUrl];
         } else {
           // gen/generate or bare prompt (backwards compat)
