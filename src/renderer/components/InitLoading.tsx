@@ -5,6 +5,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInit } from '../context/InitContext';
 
 // ── Step definitions ─────────────────────────────────────────────────────────
@@ -107,7 +108,8 @@ type InitLoadingProps = {
 };
 
 const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
-  const { status } = useInit();
+  const { t } = useTranslation();
+  const { status, skipInitScreen } = useInit();
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
@@ -188,13 +190,15 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px' }}>正在启动核心服务</div>
           <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>{getHeaderMessage(status.message, isReady, isError)}</div>
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: '8px',
-              marginBottom: '16px',
-              WebkitAppRegion: 'no-drag',
-            }}
+            style={
+              {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: '8px',
+                marginBottom: '16px',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties
+            }
           >
             {PRIMARY_STEPS.map((step) => {
               const stepStatus = deriveStepStatusFromMaps(step.id, status.stepStates as Partial<Record<string, StepStatus>> | undefined, status.step, status.phase);
@@ -239,20 +243,22 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           </div>
           {retryMessage && (
             <div
-              style={{
-                marginBottom: '14px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '5px 10px',
-                borderRadius: '999px',
-                border: '1px solid rgba(251, 191, 36, 0.26)',
-                backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                color: '#fde68a',
-                fontSize: '12px',
-                fontWeight: '600',
-                WebkitAppRegion: 'no-drag',
-              }}
+              style={
+                {
+                  marginBottom: '14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 10px',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(251, 191, 36, 0.26)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                  color: '#fde68a',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  WebkitAppRegion: 'no-drag',
+                } as React.CSSProperties
+              }
             >
               <span>自动重试</span>
               <span style={{ color: '#fef3c7', fontVariantNumeric: 'tabular-nums' }}>{retryMessage}</span>
@@ -275,19 +281,21 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
     return (
       <div
         key={step.id}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          minHeight: isPrimary ? '118px' : '80px',
-          padding: isPrimary ? '11px 14px 10px' : '9px 11px 8px',
-          borderRadius: isPrimary ? '20px' : '16px',
-          border: surfaceBorder,
-          background: isPrimary ? 'linear-gradient(135deg, rgba(17, 36, 64, 0.96), rgba(16, 29, 50, 0.88))' : 'linear-gradient(180deg, rgba(17, 30, 48, 0.86), rgba(12, 22, 36, 0.86))',
-          boxShadow: isPrimary ? '0 12px 28px rgba(3, 8, 18, 0.22)' : '0 7px 16px rgba(3, 8, 18, 0.14)',
-          gap: isPrimary ? '7px' : '5px',
-          WebkitAppRegion: 'no-drag',
-        }}
+        style={
+          {
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            minHeight: isPrimary ? '118px' : '80px',
+            padding: isPrimary ? '11px 14px 10px' : '9px 11px 8px',
+            borderRadius: isPrimary ? '20px' : '16px',
+            border: surfaceBorder,
+            background: isPrimary ? 'linear-gradient(135deg, rgba(17, 36, 64, 0.96), rgba(16, 29, 50, 0.88))' : 'linear-gradient(180deg, rgba(17, 30, 48, 0.86), rgba(12, 22, 36, 0.86))',
+            boxShadow: isPrimary ? '0 12px 28px rgba(3, 8, 18, 0.22)' : '0 7px 16px rgba(3, 8, 18, 0.14)',
+            gap: isPrimary ? '7px' : '5px',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties
+        }
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -505,28 +513,30 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
 
           <div
             ref={logsContainerRef}
-            style={{
-              height: '72px',
-              minHeight: '72px',
-              maxHeight: '96px',
-              overflowY: 'auto',
-              backgroundColor: 'rgba(8, 15, 24, 0.72)',
-              border: '1px solid rgba(71, 85, 105, 0.18)',
-              borderRadius: '14px',
-              padding: '10px 12px',
-              fontSize: '10px',
-              lineHeight: '1.5',
-              color: '#e2e8f0',
-              fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace',
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#334155 transparent',
-              flexShrink: 0,
-              marginBottom: '0',
-              WebkitAppRegion: 'no-drag',
-              userSelect: 'text',
-              WebkitUserSelect: 'text',
-              cursor: 'text',
-            }}
+            style={
+              {
+                height: '72px',
+                minHeight: '72px',
+                maxHeight: '96px',
+                overflowY: 'auto',
+                backgroundColor: 'rgba(8, 15, 24, 0.72)',
+                border: '1px solid rgba(71, 85, 105, 0.18)',
+                borderRadius: '14px',
+                padding: '10px 12px',
+                fontSize: '10px',
+                lineHeight: '1.5',
+                color: '#e2e8f0',
+                fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#334155 transparent',
+                flexShrink: 0,
+                marginBottom: '0',
+                WebkitAppRegion: 'no-drag',
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
+                cursor: 'text',
+              } as React.CSSProperties
+            }
           >
             {logs.length > 0 ? (
               logs.map((log, i) => {
@@ -567,6 +577,48 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             }
           >
             {status.error}
+          </div>
+        )}
+
+        {status.phase !== 'ready' && (
+          <div
+            style={
+              {
+                marginTop: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                padding: '14px 16px',
+                borderRadius: '14px',
+                border: '1px solid rgba(71, 85, 105, 0.18)',
+                background: 'rgba(8, 15, 24, 0.64)',
+                flexShrink: 0,
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties
+            }
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>{t('common.skip')}</div>
+              <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>{t('common.setupContinuesInBackground')}</div>
+            </div>
+            <button
+              type='button'
+              onClick={skipInitScreen}
+              style={{
+                border: '1px solid rgba(96, 165, 250, 0.35)',
+                borderRadius: '10px',
+                background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
+                color: '#dbeafe',
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '9px 16px',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {t('common.skip')}
+            </button>
           </div>
         )}
       </div>

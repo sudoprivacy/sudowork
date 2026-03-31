@@ -57,6 +57,8 @@
   "goToSettings": "Go to Settings",
   "forward": "Forward",
   "more": "More",
+  "skip": "Skip",
+  "setupContinuesInBackground": "Enter the app now. Runtime setup will continue in the background.",
   "refresh": "Refresh",
   "tray.showWindow": "Show Sudowork",
   "tray.quit": "Quit"

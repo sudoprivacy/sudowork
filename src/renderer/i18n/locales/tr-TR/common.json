@@ -54,6 +54,8 @@
   "goToSettings": "Ayarlara Git",
   "forward": "İleri",
   "more": "Daha Fazla",
+  "skip": "Atla",
+  "setupContinuesInBackground": "Uygulamaya şimdi girin. Çalışma zamanı kurulumu arka planda devam edecek.",
   "refresh": "Yenile",
   "tray.showWindow": "Sudowork'ü Göster",
   "tray.quit": "Çıkış"

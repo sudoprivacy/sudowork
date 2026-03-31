@@ -14,13 +14,13 @@ import Sider from './sider';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
-  const { status, isReady: initReady, hasResolvedInitialStatus } = useInit();
+  const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
 
   if (!hasResolvedInitialStatus) {
     return null;
   }
 
-  if (!initReady) {
+  if (!initReady && !isInitScreenSkipped) {
     return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 

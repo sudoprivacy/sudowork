@@ -54,6 +54,8 @@
   "goToSettings": "設定に移動",
   "forward": "進む",
   "more": "その他",
+  "skip": "スキップ",
+  "setupContinuesInBackground": "先にアプリへ入り、実行環境のセットアップはバックグラウンドで続行します。",
   "refresh": "更新",
   "tray.showWindow": "Sudowork を表示",
   "tray.quit": "終了"

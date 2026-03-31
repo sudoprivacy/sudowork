@@ -54,6 +54,8 @@
   "goToSettings": "설정으로 이동",
   "forward": "앞으로",
   "more": "더보기",
+  "skip": "건너뛰기",
+  "setupContinuesInBackground": "먼저 앱으로 들어가고, 런타임 설치는 백그라운드에서 계속됩니다.",
   "refresh": "새로고침",
   "tray.showWindow": "Sudowork 표시",
   "tray.quit": "종료"

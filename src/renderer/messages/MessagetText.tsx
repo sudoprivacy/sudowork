@@ -7,7 +7,7 @@
 import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Tag, Tooltip } from '@arco-design/web-react';
+import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useEffect } from 'react';
