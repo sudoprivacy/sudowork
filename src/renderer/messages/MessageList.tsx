@@ -48,7 +48,7 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[] };
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string };
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
@@ -182,7 +182,7 @@ const MessageList: React.FC<{ className?: string }> = () => {
 
     const flushTurnActions = () => {
       if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts });
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, conversationId: conversationContext?.conversationId });
         turnTexts = [];
         lastAiTextId = '';
       }
@@ -328,8 +328,8 @@ const MessageList: React.FC<{ className?: string }> = () => {
     }
     if ('type' in item && item.type === 'turn_actions') {
       return (
-        <div key={item.id} className='min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} />
+        <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
         </div>
       );
     }
