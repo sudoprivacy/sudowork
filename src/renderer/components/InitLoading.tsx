@@ -186,9 +186,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
         >
           <div style={{ fontSize: '34px', color: '#60a5fa', marginBottom: '10px', lineHeight: 1 }}>{SPINNER[spinnerFrame]}</div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px' }}>正在启动核心服务</div>
-          <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>
-            {getHeaderMessage(status.message, isReady, isError)}
-          </div>
+          <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>{getHeaderMessage(status.message, isReady, isError)}</div>
           <div
             style={{
               display: 'grid',
@@ -272,14 +270,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
     const detail = status.stepDetails?.[step.id] ?? (status.step === step.id ? status.detail : step.description);
     const progressColor = stepStatus === 'error' ? '#f87171' : stepStatus === 'done' ? '#3b82f6' : '#60a5fa';
     const isPrimary = variant === 'primary';
-    const surfaceBorder =
-      stepStatus === 'active'
-        ? '1px solid rgba(59, 130, 246, 0.42)'
-        : stepStatus === 'done'
-          ? '1px solid rgba(96, 165, 250, 0.22)'
-          : stepStatus === 'error'
-            ? '1px solid rgba(248, 113, 113, 0.3)'
-            : '1px solid rgba(71, 85, 105, 0.22)';
+    const surfaceBorder = stepStatus === 'active' ? '1px solid rgba(59, 130, 246, 0.42)' : stepStatus === 'done' ? '1px solid rgba(96, 165, 250, 0.22)' : stepStatus === 'error' ? '1px solid rgba(248, 113, 113, 0.3)' : '1px solid rgba(71, 85, 105, 0.22)';
 
     return (
       <div
@@ -292,9 +283,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           padding: isPrimary ? '11px 14px 10px' : '9px 11px 8px',
           borderRadius: isPrimary ? '20px' : '16px',
           border: surfaceBorder,
-          background: isPrimary
-            ? 'linear-gradient(135deg, rgba(17, 36, 64, 0.96), rgba(16, 29, 50, 0.88))'
-            : 'linear-gradient(180deg, rgba(17, 30, 48, 0.86), rgba(12, 22, 36, 0.86))',
+          background: isPrimary ? 'linear-gradient(135deg, rgba(17, 36, 64, 0.96), rgba(16, 29, 50, 0.88))' : 'linear-gradient(180deg, rgba(17, 30, 48, 0.86), rgba(12, 22, 36, 0.86))',
           boxShadow: isPrimary ? '0 12px 28px rgba(3, 8, 18, 0.22)' : '0 7px 16px rgba(3, 8, 18, 0.14)',
           gap: isPrimary ? '7px' : '5px',
           WebkitAppRegion: 'no-drag',
@@ -370,9 +359,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 width: `${progress}%`,
                 height: '100%',
                 borderRadius: '999px',
-                background: `linear-gradient(90deg, ${progressColor}, ${
-                  stepStatus === 'done' ? '#2563eb' : stepStatus === 'error' ? '#ef4444' : '#3b82f6'
-                })`,
+                background: `linear-gradient(90deg, ${progressColor}, ${stepStatus === 'done' ? '#2563eb' : stepStatus === 'error' ? '#ef4444' : '#3b82f6'})`,
                 transition: 'width 0.25s ease, background 0.25s ease',
               }}
             />
@@ -536,6 +523,9 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               flexShrink: 0,
               marginBottom: '0',
               WebkitAppRegion: 'no-drag',
+              userSelect: 'text',
+              WebkitUserSelect: 'text',
+              cursor: 'text',
             }}
           >
             {logs.length > 0 ? (
@@ -545,7 +535,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 const isErrorLog = log.includes('✗') || log.toLowerCase().includes('error') || log.toLowerCase().includes('失败');
                 const color = isErrorLog ? '#ef4444' : isWarn ? '#f59e0b' : isSuccess ? '#4ade80' : '#cbd5e1';
                 return (
-                  <div key={i} style={{ color, marginBottom: '1px', wordBreak: 'break-all' }}>
+                  <div key={i} style={{ color, marginBottom: '1px', wordBreak: 'break-all', userSelect: 'text', WebkitUserSelect: 'text' }}>
                     {log}
                   </div>
                 );
