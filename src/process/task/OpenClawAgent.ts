@@ -792,16 +792,28 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Stream & Signal Emission (merged from Manager) ==========
 
-  /** Replace openclaw with sudoclaw in user-facing message content */
+  /**
+   * Replace OpenClaw variants with SudoClaw in user-facing message content.
+   * Maintains case mapping: OpenClaw → SudoClaw, openClaw → sudoClaw, Openclaw → Sudoclaw, openclaw → sudoclaw
+   */
   private sanitizeDisplayText(msg: IResponseMessage): void {
+    const replaceBrandName = (text: string): string => {
+      return text.replace(/\b(OpenClaw|openClaw|Openclaw|openclaw)\b/g, (match) => {
+        if (match === 'OpenClaw') return 'SudoClaw';
+        if (match === 'openClaw') return 'sudoClaw';
+        if (match === 'Openclaw') return 'Sudoclaw';
+        return 'sudoclaw'; // openclaw
+      });
+    };
+
     if (msg.type === 'error' && typeof msg.data === 'string') {
-      (msg as { data: string }).data = msg.data.replace(/\bopenclaw\b/g, 'sudoclaw');
+      (msg as { data: string }).data = replaceBrandName(msg.data);
     } else if ((msg.type === 'content' || msg.type === 'user_content') && msg.data) {
       const d = msg.data as string | { content?: string };
       if (typeof d === 'string') {
-        (msg as { data: string }).data = d.replace(/\bopenclaw\b/g, 'sudoclaw');
+        (msg as { data: string }).data = replaceBrandName(d);
       } else if (d && typeof (d as { content?: string }).content === 'string') {
-        (d as { content: string }).content = (d as { content: string }).content.replace(/\bopenclaw\b/g, 'sudoclaw');
+        (d as { content: string }).content = replaceBrandName((d as { content: string }).content);
       }
     }
   }
