@@ -6,12 +6,9 @@
 
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
+import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
-type SudoclawHealthPayload = {
-  status?: string;
-  [key: string]: unknown;
-};
 
 type SudoclawHealthCheckResult = {
   healthy: boolean;
@@ -20,10 +17,6 @@ type SudoclawHealthCheckResult = {
   payload?: SudoclawHealthPayload;
   error?: string;
 };
-
-function isSudoclawReadyStatus(status?: string): boolean {
-  return status === 'live' || status === 'healthy' || status === 'ok';
-}
 
 /**
  * Centralised service lifecycle manager.
@@ -479,15 +472,17 @@ class ServiceManager {
 
       if (body) {
         try {
-          payload = JSON.parse(body) as SudoclawHealthPayload;
+          const parsed = JSON.parse(body) as unknown;
+          if (isSudoclawHealthPayload(parsed)) {
+            payload = parsed;
+          }
         } catch {
           // Keep raw body for diagnostics; some builds may not return JSON.
         }
       }
 
-      const healthy = isSudoclawReadyStatus(payload?.status) || (payload?.status === undefined && response.ok);
       return {
-        healthy,
+        healthy: response.ok && payload !== undefined,
         statusCode: response.status,
         body: body.slice(0, 1000),
         payload,

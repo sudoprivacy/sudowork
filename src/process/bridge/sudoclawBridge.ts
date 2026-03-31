@@ -12,9 +12,9 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
+import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
-import * as net from 'node:net';
 
 interface InstallState {
   installing: boolean;
@@ -143,25 +143,9 @@ export function initSudoclawBridge(): void {
       const version = installed ? getSudoclawInstalledVersion() : undefined;
       const config = readConfig();
 
-      // First, check if gateway port is listening
       const port = SUDOCLAW_DEFAULT_PORT;
       const host = '127.0.0.1';
-      const isGatewayRunning = await new Promise<boolean>((resolve) => {
-        const socket = net.createConnection({ host, port });
-        socket.on('connect', () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.on('error', () => {
-          socket.destroy();
-          resolve(false);
-        });
-        socket.setTimeout(500);
-        socket.on('timeout', () => {
-          socket.destroy();
-          resolve(false);
-        });
-      });
+      const isGatewayRunning = await checkSudoclawHealth(host, port, 1000);
 
       const data: any = {
         installed,
@@ -192,7 +176,7 @@ export function initSudoclawBridge(): void {
             data.gatewayHost = diagnostics.gatewayHost || host;
             data.gatewayUrl = `ws://${data.gatewayHost}:${data.gatewayPort}`;
             // Runtime task diagnostics are supplemental only.
-            // Actual "running" state must come from the live port probe above,
+            // Actual "running" state must come from the live /health probe above,
             // otherwise a stale task object can make the UI show "running"
             // after the gateway has already stopped.
             data.isConnected = isGatewayRunning && (diagnostics.isConnected ?? false);
@@ -222,23 +206,7 @@ export function initSudoclawBridge(): void {
     const testPort = SUDOCLAW_DEFAULT_PORT;
     const host = '127.0.0.1';
 
-    // Check if gateway is already running
-    const isRunning = await new Promise<boolean>((resolve) => {
-      const socket = net.createConnection({ host, port: testPort });
-      socket.on('connect', () => {
-        socket.destroy();
-        resolve(true);
-      });
-      socket.on('error', () => {
-        socket.destroy();
-        resolve(false);
-      });
-      socket.setTimeout(1000);
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve(false);
-      });
-    });
+    const isRunning = await checkSudoclawHealth(host, testPort, 1000);
 
     if (isRunning) {
       mainLog('SudoclawBridge', 'Gateway running, connection test passed');
