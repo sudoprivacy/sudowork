@@ -9,8 +9,10 @@
 
 const { execSync, spawnSync } = require('child_process');
 const http = require('http');
-const net = require('net');
+const fs = require('fs');
 const path = require('path');
+const runtimeVersions = require('../src/shared/runtime-versions.json');
+const { normalizeVersion, readLocalDevRuntimeVersions } = require('./dev-runtime-state');
 
 // ── CLI ──
 
@@ -51,7 +53,71 @@ function httpGet(url, timeout = 2000) {
       res.on('end', () => resolve(data));
     });
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('timeout'));
+    });
+  });
+}
+
+function isStateCurrent(entry, expectedVersion) {
+  if (!entry || typeof entry !== 'object') return false;
+
+  return (
+    normalizeVersion(entry.version) === normalizeVersion(expectedVersion) &&
+    entry.platform === process.platform &&
+    entry.arch === process.arch
+  );
+}
+
+function ensureBundledRuntimeAsset({ name, archivePath, expectedVersion, downloadScript }) {
+  const archiveExists = fs.existsSync(archivePath);
+  const state = readLocalDevRuntimeVersions();
+  const entry = state[name];
+  const stateCurrent = isStateCurrent(entry, expectedVersion);
+
+  if (archiveExists && stateCurrent) {
+    return;
+  }
+
+  const reason = !archiveExists
+    ? 'archive missing'
+    : entry
+      ? `version/platform mismatch (expected ${process.platform}-${process.arch}@${expectedVersion})`
+      : 'local version state missing';
+
+  console.log(`[dev-runtime] Refreshing ${name}: ${reason}`);
+
+  const result = spawnSync('node', [downloadScript, '--force'], {
+    stdio: 'inherit',
+    cwd: path.join(__dirname, '..'),
+    shell: process.platform === 'win32',
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (typeof result.status === 'number' && result.status !== 0) {
+    throw new Error(`Failed to refresh ${name} resource`);
+  }
+}
+
+function ensureDevRuntimeResources() {
+  const resourcesDir = path.join(__dirname, '..', 'resources');
+
+  ensureBundledRuntimeAsset({
+    name: 'openclaw',
+    archivePath: path.join(resourcesDir, 'openclaw.tgz'),
+    expectedVersion: runtimeVersions.sudoclaw,
+    downloadScript: path.join('scripts', 'download-openclaw.js'),
+  });
+
+  ensureBundledRuntimeAsset({
+    name: 'nexus',
+    archivePath: path.join(resourcesDir, 'nexus.tar.gz'),
+    expectedVersion: runtimeVersions.nexus,
+    downloadScript: path.join('scripts', 'download-nexus.js'),
   });
 }
 
@@ -113,6 +179,8 @@ function start() {
   const passthroughArgs = process.argv.slice(3);
   const cleanEnv = { ...process.env };
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
+
+  ensureDevRuntimeResources();
 
   // Auto-detect Vite renderer port
   const preferredVite = 5173;

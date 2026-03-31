@@ -199,7 +199,6 @@ export async function callImagesEdits(baseUrl: string, apiKey: string, model: st
   throw new Error('Image edit returned no image data');
 }
 
-
 /**
  * Resolve the current chat model from sudoclaw.json (agents.defaults.model.primary).
  * Returns null if not configured.

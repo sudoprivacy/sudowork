@@ -847,7 +847,7 @@ export class AcpConnection {
       }
     }
 
-    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => b.type === 'image' ? `image(${b.mimeType}, ${(b.data?.length ?? 0)} b64 chars)` : `text(${(b.text?.length ?? 0)} chars)`).join(', ')}]`);
+    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]`);
 
     return await this.sendRequest('session/prompt', {
       sessionId: this.sessionId,

@@ -145,7 +145,17 @@ const useAcpMessage = (conversation_id: string) => {
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
 
-      const transformedMessage = transformMessage(message);
+      let transformedMessage: TMessage | undefined;
+      try {
+        transformedMessage = transformMessage(message);
+      } catch (error) {
+        console.warn('[AcpSendBox] Ignoring unsupported response message', {
+          conversation_id,
+          type: message.type,
+          error,
+        });
+        return;
+      }
       switch (message.type) {
         case 'thought':
           // Auto-recover running state if thought arrives after finish

@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const tar = require('tar');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
+const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
@@ -83,8 +84,14 @@ if (VERSION_PIN === 'latest') {
 }
 
 if (fs.existsSync(OUTPUT) && !FORCE) {
+  const archivedVersion = getVersionFromArchive(OUTPUT);
+  if (archivedVersion) {
+    updateLocalDevRuntimeVersion('openclaw', archivedVersion);
+  } else {
+    clearLocalDevRuntimeVersion('openclaw');
+  }
+
   if (!fs.existsSync(OUTPUT_MANIFEST)) {
-    const archivedVersion = getVersionFromArchive(OUTPUT);
     if (archivedVersion) {
       writeOpenClawManifest(archivedVersion);
     } else {
@@ -225,7 +232,12 @@ if not exist "%BUNDLED_NODE%" (
     execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
   }
 
+  updateLocalDevRuntimeVersion('openclaw', version);
+
 } finally {
+  if (!fs.existsSync(OUTPUT)) {
+    clearLocalDevRuntimeVersion('openclaw');
+  }
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 

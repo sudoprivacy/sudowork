@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
+const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT_FILE = path.join(RESOURCES_DIR, 'nexus.tar.gz');
@@ -116,6 +117,7 @@ async function downloadNexus(platform, force = false) {
 
   try {
     await downloadFile(url, OUTPUT_FILE);
+    updateLocalDevRuntimeVersion('nexus', NEXUS_VERSION);
     console.log(`Saved to: ${OUTPUT_FILE}`);
     return true;
   } catch (err) {
@@ -123,6 +125,7 @@ async function downloadNexus(platform, force = false) {
     try {
       fs.unlinkSync(OUTPUT_FILE);
     } catch {}
+    clearLocalDevRuntimeVersion('nexus');
 
     if (err.message === 'NOT_FOUND') {
       console.warn(`\n⚠️  Nexus binary not available for platform ${platform}`);
@@ -182,6 +185,7 @@ async function main() {
     // Create empty placeholder file so electron-builder doesn't fail
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
     fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+    clearLocalDevRuntimeVersion('nexus');
     // Exit 0 to allow build to continue
   }
 
@@ -195,6 +199,7 @@ main().catch((err) => {
   try {
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
     fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+    clearLocalDevRuntimeVersion('nexus');
   } catch {}
   // Exit 0 to allow build to continue
   process.exit(0);

@@ -256,6 +256,19 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         return;
       }
 
+      const safeTransformMessage = (): TMessage | undefined => {
+        try {
+          return transformMessage(message);
+        } catch (error) {
+          console.warn('[OpenClawSendBox] Ignoring unsupported response message', {
+            conversation_id,
+            type: message.type,
+            error,
+          });
+          return undefined;
+        }
+      };
+
       // Cancel pending finish timeout if new message arrives
       if (finishTimeoutRef.current && message.type !== 'finish') {
         clearTimeout(finishTimeoutRef.current);
@@ -300,7 +313,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
             aiProcessingRef.current = true;
           }
           setThought({ subject: '', description: '' });
-          const transformedMessage = transformMessage(message);
+          const transformedMessage = safeTransformMessage();
           if (transformedMessage) {
             addOrUpdateMessage(transformedMessage);
           }
@@ -314,7 +327,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         }
         default: {
           setThought({ subject: '', description: '' });
-          const transformedMessage = transformMessage(message);
+          const transformedMessage = safeTransformMessage();
           if (transformedMessage) {
             addOrUpdateMessage(transformedMessage);
           }
