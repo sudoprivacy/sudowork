@@ -12,154 +12,11 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
-// ── types ────────────────────────────────────────────────────────────────────
-
-type LoadState = 'idle' | 'loading' | 'installing';
 type RefreshOptions = {
   silent?: boolean;
 };
-
-interface ToolRow {
-  key: string;
-  displayName: string;
-  command: string;
-  badge: string;
-  status: ICliStatus | null;
-  nexusPort?: number;
-  nexusRunning?: boolean;
-  nexusInstalled?: boolean;
-  loadState: LoadState;
-  installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | string;
-  installPercent?: number;
-  sudoclawGatewayRunning?: boolean;
-  onRefresh: () => Promise<void>;
-  onInstall?: () => Promise<void>;
-  onUninstall?: () => Promise<void>;
-  onStart?: () => Promise<void>;
-  onStop?: () => Promise<void>;
-}
-
-interface RuntimeAction {
-  key: string;
-  label: string;
-  type: 'primary' | 'secondary' | 'outline';
-  status?: 'warning';
-  onClick: () => Promise<void>;
-}
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-function getStatusInfo(record: ToolRow, t: (key: string, opts?: Record<string, unknown>) => string) {
-  let dotColor = 'bg-gray-4'; // gray
-  let statusText = t('settings.runtimeSettings.status.notInstalled');
-
-  if (record.loadState === 'installing') {
-    dotColor = 'bg-blue-5'; // blue
-    const phase = record.installPhase ?? 'installing';
-    const phaseKey = `settings.runtimeSettings.phase.${phase}`;
-    const percent = record.installPercent != null ? `${record.installPercent}%` : '';
-    statusText = t(phaseKey, { percent, defaultValue: t('settings.runtimeSettings.phase.installing') });
-  } else if (record.key === 'nexus') {
-    if (record.nexusRunning) {
-      dotColor = 'bg-green-5';
-      statusText = t('settings.runtimeSettings.status.running', { port: record.nexusPort });
-    } else if (record.nexusInstalled) {
-      dotColor = 'bg-gray-4';
-      statusText = t('settings.runtimeSettings.status.notRunning');
-    } else {
-      dotColor = 'bg-gray-4';
-      statusText = t('settings.runtimeSettings.status.notInstalled');
-    }
-  } else if (record.key === 'sudoclaw') {
-    if (record.sudoclawGatewayRunning) {
-      dotColor = 'bg-green-5';
-      statusText = t('settings.runtimeSettings.status.running', { port: '' }).replace(' :', '');
-    } else if (record.status?.installed) {
-      dotColor = 'bg-gray-4';
-      statusText = t('settings.runtimeSettings.status.notRunning');
-    } else {
-      dotColor = 'bg-gray-4';
-      statusText = t('settings.runtimeSettings.status.notInstalled');
-    }
-  } else if (record.status === null) {
-    dotColor = 'bg-gray-4';
-    statusText = t('settings.runtimeSettings.status.checking');
-  } else if (record.status.installed) {
-    dotColor = 'bg-green-5';
-    statusText = t('settings.runtimeSettings.status.installed');
-  }
-
-  return { dotColor, statusText };
-}
-
-function isInstalled(record: ToolRow): boolean {
-  if (record.key === 'nexus') return !!record.nexusInstalled;
-  return !!record.status?.installed;
-}
-
-function getRuntimeActions(record: ToolRow, t: (key: string, opts?: Record<string, unknown>) => string): RuntimeAction[] {
-  const installed = isInstalled(record);
-  const loading = record.loadState !== 'idle';
-  const source = record.status?.source;
-  const canUninstall = source === 'managed';
-  const actions: RuntimeAction[] = [];
-
-  if (record.onStart && record.onStop && installed) {
-    const isRunning = (record.key === 'sudoclaw' && record.sudoclawGatewayRunning) || (record.key === 'nexus' && record.nexusRunning);
-    if (isRunning) {
-      actions.push({
-        key: 'stop',
-        label: t('settings.runtimeSettings.button.stop'),
-        type: 'outline',
-        status: 'warning',
-        onClick: record.onStop,
-      });
-    } else {
-      actions.push({
-        key: 'start',
-        label: t('settings.runtimeSettings.button.start'),
-        type: 'secondary',
-        onClick: record.onStart,
-      });
-    }
-  }
-
-  if (!installed && record.onInstall) {
-    actions.unshift({
-      key: 'install',
-      label: t('settings.runtimeSettings.button.install'),
-      type: 'primary',
-      onClick: record.onInstall,
-    });
-  } else if (installed && record.onUninstall && canUninstall) {
-    actions.push({
-      key: 'uninstall',
-      label: t('settings.runtimeSettings.button.uninstall'),
-      type: 'outline',
-      status: 'warning',
-      onClick: record.onUninstall,
-    });
-  } else if (installed && record.onInstall && !record.onUninstall) {
-    actions.push({
-      key: 'reinstall',
-      label: t('settings.runtimeSettings.button.reinstall'),
-      type: 'outline',
-      onClick: record.onInstall,
-    });
-  }
-
-  if (record.onRefresh && (installed || loading || actions.length === 0)) {
-    actions.push({
-      key: 'refresh',
-      label: t('settings.runtimeSettings.button.refresh'),
-      type: 'outline',
-      onClick: record.onRefresh,
-    });
-  }
-
-  return actions;
-}
 
 // ── main component ────────────────────────────────────────────────────────────
 
@@ -189,6 +46,7 @@ const RuntimeModalContent: React.FC = () => {
 
   const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
   const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
+  const [sudoclawGatewayPort, setSudoclawGatewayPort] = useState<number | undefined>(undefined);
   const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
   const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
@@ -354,10 +212,12 @@ const RuntimeModalContent: React.FC = () => {
     if (res?.success && res.data) {
       setSudoclawInstalled(res.data.installed);
       setSudoclawVersion(res.data.version);
+      setSudoclawGatewayPort(res.data.gatewayPort);
       setSudoclawGatewayRunning(!!res.data.gatewayRunning);
     } else {
       setSudoclawInstalled(false);
       setSudoclawVersion(undefined);
+      setSudoclawGatewayPort(undefined);
       setSudoclawGatewayRunning(false);
     }
   }, []);
@@ -411,24 +271,6 @@ const RuntimeModalContent: React.FC = () => {
       }
     } catch (e) {
       Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.startFailed', { name: 'Sudoclaw' }));
-    } finally {
-      setSudoclawLoad('idle');
-    }
-  }, [refreshSudoclaw, t]);
-
-  const stopSudoclawGateway = useCallback(async () => {
-    setSudoclawLoad('loading');
-    try {
-      const res = await sudoclawIpc.stopGateway.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.stopSuccess', { name: 'Sudoclaw' }));
-        await new Promise((r) => setTimeout(r, 1000));
-        await refreshSudoclaw();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.stopFailed', { name: 'Sudoclaw' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.stopFailed', { name: 'Sudoclaw' }));
     } finally {
       setSudoclawLoad('idle');
     }
@@ -500,24 +342,6 @@ const RuntimeModalContent: React.FC = () => {
       }
     } catch (e) {
       Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.startFailed', { name: 'Nexus' }));
-    } finally {
-      setNexusLoad('idle');
-    }
-  }, [refreshNexus, t]);
-
-  const stopNexus = useCallback(async () => {
-    setNexusLoad('loading');
-    try {
-      const res = await nexusIpc.stop.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.stopSuccess', { name: 'Nexus' }));
-        await new Promise((r) => setTimeout(r, 1000));
-        await refreshNexus();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.stopFailed', { name: 'Nexus' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.stopFailed', { name: 'Nexus' }));
     } finally {
       setNexusLoad('idle');
     }
@@ -643,6 +467,7 @@ const RuntimeModalContent: React.FC = () => {
       command: 'openclaw',
       badge: 'SC',
       status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
+      sudoclawGatewayPort,
       sudoclawGatewayRunning,
       loadState: sudoclawLoad,
       installPhase: sudoclawPhase,
@@ -650,7 +475,6 @@ const RuntimeModalContent: React.FC = () => {
       onInstall: installSudoclaw,
       onUninstall: uninstallSudoclaw,
       onStart: startSudoclawGateway,
-      onStop: stopSudoclawGateway,
     },
     {
       key: 'nexus',
@@ -668,7 +492,6 @@ const RuntimeModalContent: React.FC = () => {
       onInstall: installNexus,
       onUninstall: uninstallNexus,
       onStart: startNexus,
-      onStop: stopNexus,
     },
   ];
 
