@@ -227,6 +227,7 @@ const MessageList: React.FC<{ className?: string }> = () => {
           let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
           const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
           if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
+          cleaned = cleaned.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
           if (cleaned.trim()) {
             turnTexts.push(cleaned);
             lastAiTextId = message.id;

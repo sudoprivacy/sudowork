@@ -690,18 +690,24 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
+      const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
+
       const conversation = convResult.data;
+      if (conversation.type === 'openclaw-gateway') {
+        return { success: true, data: { commands: [imageCommand] } };
+      }
+
       if (conversation.type !== 'acp') {
         return { success: true, data: { commands: [] } };
       }
 
       const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
-        return { success: true, data: { commands: [] } };
+        return { success: true, data: { commands: [imageCommand] } };
       }
 
       const commands = await task.loadAcpSlashCommands();
-      return { success: true, data: { commands } };
+      return { success: true, data: { commands: [imageCommand, ...commands] } };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }

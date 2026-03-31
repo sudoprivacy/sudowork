@@ -29,6 +29,13 @@ const useConfigModelListWithImage = () => {
         // AntigravityTools 平台：添加常用图像模型
         // AntigravityTools platform: add common image models
         platform.model = platform.model.concat(['gemini-3-pro-image-1x1']);
+      } else if (platform.baseUrl && platform.baseUrl.includes('sudorouter.ai')) {
+        // SudoRouter 平台：添加图像生成模型
+        // SudoRouter platform: add image generation model
+        const hasSudorouterImage = platform.model.some((m) => m.includes('gemini-2.5-flash-image'));
+        if (!hasSudorouterImage) {
+          platform.model = platform.model.concat(['gemini-2.5-flash-image']);
+        }
       }
 
       return platform;

@@ -144,7 +144,6 @@ export interface ChatSendParams {
   attachments?: unknown[];
   timeoutMs?: number;
   idempotencyKey: string;
-  skills?: string[];
 }
 
 export interface ChatAbortParams {

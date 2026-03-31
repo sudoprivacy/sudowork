@@ -41,6 +41,7 @@ import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
+import { initImageGenerationBridge } from './imageGenerationBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -83,6 +84,7 @@ export function initAllBridges(): void {
   initSafetyBridge();
   initBdpanBridge();
   initHealthMonitorBridge();
+  initImageGenerationBridge();
 }
 
 /**

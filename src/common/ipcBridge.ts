@@ -1106,6 +1106,16 @@ export const sudoworkServer = {
 
 import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 
+// ==================== Tools API ====================
+
+export const tools = {
+  /** Generate image via /v1/images/generations API */
+  generateImage: bridge.buildProvider<
+    IBridgeResponse<{ img_url: string; relative_path: string }>,
+    { prompt: string; conversation_id: string; workspace: string; size?: string; n?: number }
+  >('tools.generate-image'),
+};
+
 export const safety = {
   /** Get current safety status */
   getStatus: bridge.buildProvider<IBridgeResponse<SafetyStatus>, void>('safety.get-status'),

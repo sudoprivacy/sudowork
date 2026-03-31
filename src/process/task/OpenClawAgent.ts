@@ -25,6 +25,8 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
+import { resolveImageConfig, callImagesGenerations, callImageEdits, saveImageResult } from '../bridge/imageGenerationBridge';
+import * as nodePath from 'node:path';
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -224,6 +226,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       this.agentAssistantFallbackText = '';
       this.adapter.resetMessageTracking();
 
+      // Intercept /image <prompt> slash command
+      const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
+      if (imageMatch !== null) {
+        return await this.handleImageCommand(imageMatch[1].trim());
+      }
+
       // On the first message, prepend a workspace directive so the agent uses the
       // per-conversation workspace dir for all file operations and bash commands.
       let processedContent = data.agentContent || data.content;
@@ -250,7 +258,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       await this.connection!.chatSend({
         sessionKey: this.connection!.sessionKey!,
         message: processedContent,
-        skills: data.skills,
       });
 
       return { success: true, data: null } as AcpResult;
@@ -288,6 +295,82 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
       }
     }
+  }
+
+  private async handleImageCommand(args: string): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    const saveDir = this.workspace || '.';
+
+    ipcBridge.openclawConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+
+    try {
+      const config = await resolveImageConfig();
+      if (!config) {
+        ipcBridge.openclawConversation.responseStream.emit({
+          type: 'content',
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+        });
+      } else {
+        // Parse sub-command: gen/generate, edit
+        // edit supports quoted path: /image edit "my file.png" <prompt>
+        const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+        const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+
+        let imageUrls: string[];
+
+        if (editMatch) {
+          const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+          const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+          const prompt = editMatch[4].trim();
+          const imageUrl = await callImageEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+          imageUrls = [imageUrl];
+        } else {
+          // gen/generate or bare prompt (backwards compat)
+          const prompt = genMatch ? genMatch[1].trim() : args;
+          const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+          imageUrls = [imageUrl];
+        }
+
+        const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+        const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+        const contentMsg = {
+          type: 'content' as const,
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: imgContent,
+        };
+        ipcBridge.openclawConversation.responseStream.emit(contentMsg);
+        ipcBridge.conversation.responseStream.emit(contentMsg);
+        const tMessage = transformMessage(contentMsg);
+        if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[OpenClawAgent]', `Image command failed: ${msg}`);
+      ipcBridge.openclawConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: `图像生成失败: ${msg}`,
+      });
+    }
+
+    ipcBridge.openclawConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.status = 'finished';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
   }
 
   kill() {

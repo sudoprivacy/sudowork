@@ -624,7 +624,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
               img: ({ node: _node, ...props }) => {
                 if (isLocalFilePath(props.src || '')) {
                   const src = decodeURIComponent(props.src || '');
-                  return <LocalImageView src={src} alt={props.alt || ''} className={props.className} />;
+                  return <LocalImageView src={src} alt={props.alt || ''} className={props.className} style={{ width: '40%', borderRadius: '8px' }} />;
                 }
                 return <img {...props} />;
               },

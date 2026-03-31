@@ -337,9 +337,9 @@ const ImageDisplay: React.FC<{
     <Image
       src={imageUrl}
       alt={relativePath || 'Generated image'}
-      width={197}
       style={{
-        maxHeight: '320px',
+        width: '40%',
+        maxHeight: '60vw',
         objectFit: 'contain',
         borderRadius: '8px',
         cursor: 'pointer',
@@ -350,7 +350,7 @@ const ImageDisplay: React.FC<{
   return (
     <>
       {messageContext}
-      <div className='flex flex-col gap-8px my-8px' style={{ maxWidth: '197px' }}>
+      <div className='flex flex-col gap-8px my-8px' style={{ width: '40%' }}>
         {/* 图片预览 Image preview - 如果已在 PreviewGroup 中则直接渲染，否则包裹 PreviewGroup */}
         {inPreviewGroup ? imageElement : <Image.PreviewGroup>{imageElement}</Image.PreviewGroup>}
         {/* 操作按钮 Action buttons */}
@@ -373,8 +373,8 @@ const ToolResultDisplay: React.FC<{
 }> = ({ content, collapsed }) => {
   const { resultDisplay, name } = content;
 
-  // 图片生成特殊处理 Special handling for image generation
-  if (name === 'ImageGeneration' && typeof resultDisplay === 'object') {
+  // 图片生成/编辑特殊处理 Special handling for image generation/edit
+  if ((name === 'ImageGeneration' || name === 'ImageEdit') && typeof resultDisplay === 'object') {
     const result = resultDisplay as ImageGenerationResult;
     // 如果有 img_url 才显示图片，否则显示错误信息
     if (result.img_url) {
@@ -478,8 +478,8 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
           }
         }
 
-        // ImageGeneration 特殊处理：单独展示图片，不用 Alert 包裹 Special handling for ImageGeneration: display image separately without Alert wrapper
-        if (name === 'ImageGeneration' && typeof resultDisplay === 'object') {
+        // ImageGeneration/ImageEdit 特殊处理：单独展示图片，不用 Alert 包裹 Special handling for ImageGeneration/ImageEdit: display image separately without Alert wrapper
+        if ((name === 'ImageGeneration' || name === 'ImageEdit') && typeof resultDisplay === 'object') {
           const result = resultDisplay as ImageGenerationResult;
           if (result.img_url) {
             return <ImageDisplay key={callId} imgUrl={result.img_url} relativePath={result.relative_path} />;

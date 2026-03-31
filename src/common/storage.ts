@@ -354,6 +354,12 @@ export interface IProvider {
 
 export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };
 
+/** Default base URL for SudoRouter image generation */
+export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
+
+/** Default model used for image generation via SudoRouter */
+export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
+
 // MCP Server Configuration Types
 export type McpTransportType = 'stdio' | 'sse' | 'http';
 
