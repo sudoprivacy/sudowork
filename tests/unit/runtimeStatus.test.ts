@@ -73,7 +73,7 @@ describe('runtimeStatus helpers', () => {
     });
   });
 
-  it('removes stop action for running services and keeps refresh only', () => {
+  it('shows uninstall for running services and removes stop action', () => {
     const record = createRecord({
       key: 'nexus',
       status: { installed: true, source: 'managed', version: '0.9.0' },
@@ -84,7 +84,10 @@ describe('runtimeStatus helpers', () => {
       onStart: async () => {},
     });
 
-    expect(getRuntimeActionDescriptors(record)).toEqual([{ key: 'refresh', type: 'outline' }]);
+    expect(getRuntimeActionDescriptors(record)).toEqual([
+      { key: 'uninstall', status: 'warning', type: 'outline' },
+      { key: 'refresh', type: 'outline' },
+    ]);
   });
 
   it('shows start for installed but not running services', () => {
@@ -114,5 +117,15 @@ describe('runtimeStatus helpers', () => {
       { key: 'install', type: 'primary' },
       { key: 'refresh', type: 'outline' },
     ]);
+  });
+
+  it('does not show uninstall for managed node runtime', () => {
+    const record = createRecord({
+      status: { installed: true, source: 'managed', version: '22.0.0' },
+      onInstall: async () => {},
+      onUninstall: async () => {},
+    });
+
+    expect(getRuntimeActionDescriptors(record)).toEqual([{ key: 'refresh', type: 'outline' }]);
   });
 });

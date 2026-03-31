@@ -121,7 +121,7 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
 export function getRuntimeActionDescriptors(record: ToolRow): RuntimeActionDescriptor[] {
   const installed = isInstalled(record);
   const source = record.status?.source;
-  const canUninstall = source === 'managed';
+  const canUninstall = record.key !== 'node' && source === 'managed';
   const supportsStart = !!record.onStart;
   const resolvedStatus = resolveRuntimeStatus(record);
 
@@ -137,8 +137,14 @@ export function getRuntimeActionDescriptors(record: ToolRow): RuntimeActionDescr
       actions.push({ key: 'refresh', type: 'outline' });
       return actions;
     }
-    case 'running':
-      return [{ key: 'refresh', type: 'outline' }];
+    case 'running': {
+      const actions: RuntimeActionDescriptor[] = [];
+      if (installed && record.onUninstall && canUninstall) {
+        actions.push({ key: 'uninstall', type: 'outline', status: 'warning' });
+      }
+      actions.push({ key: 'refresh', type: 'outline' });
+      return actions;
+    }
     case 'installed': {
       const actions: RuntimeActionDescriptor[] = [];
 

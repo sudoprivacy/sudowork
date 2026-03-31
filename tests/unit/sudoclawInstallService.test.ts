@@ -180,4 +180,87 @@ describe('SudoclawInstallService', () => {
       arch: 'x64',
     });
   });
+
+  it('preserves custom workspace while repairing config', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const customWorkspace = path.join(homeDir, 'my-workspace');
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: {
+            defaults: {
+              workspace: customWorkspace,
+            },
+          },
+          gateway: {
+            port: 18789,
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    expect(JSON.parse(fs.readFileSync(configPath, 'utf-8'))).toMatchObject({
+      agents: {
+        defaults: {
+          workspace: customWorkspace,
+        },
+      },
+      gateway: {
+        port: 17863,
+        mode: 'local',
+        auth: {
+          mode: 'none',
+        },
+      },
+    });
+  });
+
+  it('does not delete legacy dir when new sudoclaw dir already exists', async () => {
+    const newPkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
+    fs.mkdirSync(path.join(newPkgRoot, 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(newPkgRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(newPkgRoot, 'node_modules', 'chalk'), { recursive: true });
+    fs.mkdirSync(path.join(newPkgRoot, 'node_modules', '@snazzah', 'davey-win32-x64-msvc'), { recursive: true });
+    fs.writeFileSync(path.join(newPkgRoot, 'package.json'), JSON.stringify({ version: bundledVersion }, null, 2));
+    fs.writeFileSync(path.join(newPkgRoot, 'dist', 'entry.mjs'), 'export {};');
+    fs.writeFileSync(path.join(newPkgRoot, 'launcher.mjs'), 'export {};');
+    fs.writeFileSync(path.join(newPkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+
+    const legacyDir = path.join(homeDir, '.sudoclaw');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, 'legacy.txt'), 'keep me');
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    const result = await module.ensureSudoclawInstalled();
+
+    expect(result.installed).toBe(true);
+    expect(fs.existsSync(path.join(legacyDir, 'legacy.txt'))).toBe(true);
+  });
+
+  it('removes only cli files during uninstall helper', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    const cliDir = path.join(sudoclawDir, 'cli');
+    const workspaceDir = path.join(sudoclawDir, 'workspace');
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.mkdirSync(cliDir, { recursive: true });
+    fs.mkdirSync(workspaceDir, { recursive: true });
+    fs.writeFileSync(path.join(cliDir, 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(workspaceDir, 'note.txt'), 'workspace');
+    fs.writeFileSync(configPath, JSON.stringify({ foo: 'bar' }, null, 2));
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.removeSudoclawCli();
+
+    expect(fs.existsSync(cliDir)).toBe(false);
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+    expect(fs.existsSync(configPath)).toBe(true);
+  });
 });

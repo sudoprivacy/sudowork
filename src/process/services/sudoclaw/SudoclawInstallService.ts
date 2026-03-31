@@ -44,6 +44,13 @@ export const CONFIG_FILENAME = 'sudoclaw.json';
 /** Full path to sudoclaw.json config file */
 export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 
+/** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
+export function removeSudoclawCli(): void {
+  if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
+    fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
+  }
+}
+
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
 function hasDistEntry(pkgRoot: string): boolean {
   const entryMjs = path.join(pkgRoot, 'dist', 'entry.mjs');
@@ -266,7 +273,7 @@ function migrateConfigFilename(): void {
   }
 }
 
-/** Repair sudoclaw.json schema — add models array to providers, remove unrecognized keys, fix workspace path to ensure isolation from system OpenClaw */
+/** Repair sudoclaw.json schema — add models array to providers and fill missing defaults without overwriting user workspace choices. */
 export function repairOpenClawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
@@ -275,16 +282,14 @@ export function repairOpenClawConfig(): void {
     const config = JSON.parse(raw) as Record<string, unknown>;
     let changed = false;
 
-    // CRITICAL: Force workspace to Sudoclaw directory to ensure complete isolation from system OpenClaw
-    // This prevents Sudoclaw from accidentally using ~/.openclaw workspace
+    // Preserve user-selected workspaces. Only backfill when the field is absent/invalid.
     const agents = config.agents as { defaults?: { workspace?: string } } | undefined;
     if (agents?.defaults) {
       const currentWorkspace = agents.defaults.workspace;
-      if (typeof currentWorkspace !== 'string' || !currentWorkspace.includes(SUDOCLAW_DIR)) {
-        // Workspace points outside ~/.nexus/sudoclaw - force reset to isolated directory
+      if (typeof currentWorkspace !== 'string' || !currentWorkspace.trim()) {
         agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
         changed = true;
-        mainLog('Sudoclaw', `Fixed workspace path to isolated directory: ${SUDOCLAW_WORKSPACE_DIR}`);
+        mainLog('Sudoclaw', `Filled missing workspace path: ${SUDOCLAW_WORKSPACE_DIR}`);
       }
     }
 
@@ -386,13 +391,7 @@ function migrateLegacySudoclaw(): void {
 function migrateLegacyDir(legacyDir: string, label: string): void {
   if (!fs.existsSync(legacyDir)) return;
   if (fs.existsSync(SUDOCLAW_DIR)) {
-    // New already exists, remove legacy to avoid confusion
-    try {
-      fs.rmSync(legacyDir, { recursive: true, force: true });
-      mainLog('Sudoclaw', `Removed legacy ${label} (already migrated)`);
-    } catch {
-      // ignore
-    }
+    mainLog('Sudoclaw', `Skipped migrating ${label} because ~/.nexus/sudoclaw already exists`);
     return;
   }
   try {

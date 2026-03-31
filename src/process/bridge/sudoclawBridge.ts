@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 import * as net from 'node:net';
@@ -292,7 +292,7 @@ export function initSudoclawBridge(): void {
     }
     try {
       if (fs.existsSync(SUDOCLAW_DIR)) {
-        fs.rmSync(SUDOCLAW_DIR, { recursive: true, force: true });
+        removeSudoclawCli();
       }
       return { success: true };
     } catch (err) {
