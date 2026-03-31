@@ -292,7 +292,7 @@ class RuntimeInstaller {
 
     const gitTask: Promise<TaskResult> = (async () => {
       if (fastGitOk) {
-        return { step: 'git', ok: true, required: true };
+        return { step: 'git', ok: true, required: false };
       }
 
       try {
@@ -306,17 +306,17 @@ class RuntimeInstaller {
           const error = 'Git 安装未完成';
           markStepError('git', error, 10);
           initStatusManager.addLog(`⚠ ${error}`);
-          return { step: 'git', ok: false, required: true, error };
+          return { step: 'git', ok: false, required: false, error };
         }
         markStepDone('git', 'Git 环境已就绪');
         initStatusManager.addLog('✓ Git 环境就绪');
-        return { step: 'git', ok: true, required: true };
+        return { step: 'git', ok: true, required: false };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         mainError(TAG, 'Git installation failed', err);
         markStepError('git', `Git 安装失败: ${error}`, 10);
         initStatusManager.addLog(`⚠ Git 安装失败: ${error}`);
-        return { step: 'git', ok: false, required: true, error };
+        return { step: 'git', ok: false, required: false, error };
       }
     })();
 
