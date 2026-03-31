@@ -559,6 +559,20 @@ export interface AcpNotification {
   params?: Record<string, unknown> | unknown[];
 }
 
+// Prompt content block types for sending multimodal messages
+export interface AcpTextContentBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface AcpImageContentBlock {
+  type: 'image';
+  data: string; // base64-encoded
+  mimeType: string; // e.g. 'image/png'
+}
+
+export type AcpPromptContentBlock = AcpTextContentBlock | AcpImageContentBlock;
+
 // 所有会话更新的基础接口 / Base interface for all session updates
 export interface BaseSessionUpdate {
   sessionId: string;

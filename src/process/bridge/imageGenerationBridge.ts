@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { DEFAULT_IMAGE_BASE_URL, DEFAULT_IMAGE_MODEL } from '../../common/storage';
+import { detectImageMimeType } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
@@ -15,21 +16,10 @@ const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 
 /**
  * Detect image MIME type and file extension from magic bytes.
+ * Falls back to image/png for unknown formats (used in image generation context where input is always an image).
  */
 function detectMimeType(buffer: Buffer | Uint8Array): { mime: string; ext: string } {
-  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
-    return { mime: 'image/png', ext: 'png' };
-  }
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return { mime: 'image/jpeg', ext: 'jpg' };
-  }
-  if (buffer.length >= 12 && buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
-    return { mime: 'image/webp', ext: 'webp' };
-  }
-  if (buffer.length >= 4 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
-    return { mime: 'image/gif', ext: 'gif' };
-  }
-  return { mime: 'image/png', ext: 'png' };
+  return detectImageMimeType(buffer) ?? { mime: 'image/png', ext: 'png' };
 }
 
 /**
@@ -47,7 +37,7 @@ function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
  * 2. sudorouter provider in sudoclaw.json
  * 3. Any model.config provider whose baseUrl contains sudorouter.ai
  */
-function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
+export function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
   try {
     const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
     const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };
@@ -207,6 +197,79 @@ export async function callImagesEdits(baseUrl: string, apiKey: string, model: st
   if (item?.url) return item.url;
 
   throw new Error('Image edit returned no image data');
+}
+
+
+/**
+ * Resolve the current chat model from sudoclaw.json (agents.defaults.model.primary).
+ * Returns null if not configured.
+ */
+export function resolveChatModel(): string | null {
+  try {
+    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw) as { agents?: { defaults?: { model?: { primary?: string } } } };
+    let model = config?.agents?.defaults?.model?.primary;
+    if (!model) return null;
+    // Strip provider prefix (e.g. "sudorouter-gemini-3-pro/gemini-3-pro" → "gemini-3-pro")
+    if (model.includes('/')) {
+      model = model.split('/').pop()!;
+    }
+    return model;
+  } catch (e) {
+    console.log('[ImageAnalyze] sudoclaw.json read failed:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+/**
+ * Call /chat/completions with an image for analysis/understanding.
+ */
+export async function callChatCompletionsWithImage(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string): Promise<string> {
+  const endpoint = `${baseUrl}/chat/completions`;
+  console.log('[ImageAnalyze] POST', endpoint, 'model:', model, 'image:', imagePath);
+  console.log('[ImageAnalyze] prompt:', prompt.slice(0, 80));
+
+  const imageBuffer = await fs.readFile(imagePath);
+  const { mime } = detectMimeType(imageBuffer);
+  const b64 = imageBuffer.toString('base64');
+  console.log('[ImageAnalyze] image size:', imageBuffer.length, 'mime:', mime);
+
+  const body = JSON.stringify({
+    model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
+        ],
+      },
+    ],
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body,
+  });
+
+  console.log('[ImageAnalyze] response status:', response.status);
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => response.statusText);
+    console.log('[ImageAnalyze] error body:', errText.slice(0, 200));
+    throw new Error(`Image analysis API error ${response.status}: ${errText}`);
+  }
+
+  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const content = json?.choices?.[0]?.message?.content;
+  console.log('[ImageAnalyze] response content length:', content?.length ?? 0);
+
+  if (!content) {
+    throw new Error('Image analysis returned no content');
+  }
+
+  return content;
 }
 
 export function initImageGenerationBridge(): void {

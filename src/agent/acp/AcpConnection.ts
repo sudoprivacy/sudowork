@@ -831,7 +831,7 @@ export class AcpConnection {
     return defaultPath;
   }
 
-  async sendPrompt(prompt: string): Promise<AcpResponse> {
+  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResponse> {
     if (!this.sessionId) {
       throw new Error('No active ACP session');
     }
@@ -840,9 +840,18 @@ export class AcpConnection {
     this.firstChunkReceived = false;
     if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: prompt sent to ${this.backend}`);
 
+    const promptBlocks: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [{ type: 'text', text: prompt }];
+    if (images && images.length > 0) {
+      for (const img of images) {
+        promptBlocks.push({ type: 'image', data: img.data, mimeType: img.mimeType });
+      }
+    }
+
+    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => b.type === 'image' ? `image(${b.mimeType}, ${(b.data?.length ?? 0)} b64 chars)` : `text(${(b.text?.length ?? 0)} chars)`).join(', ')}]`);
+
     return await this.sendRequest('session/prompt', {
       sessionId: this.sessionId,
-      prompt: [{ type: 'text', text: prompt }],
+      prompt: promptBlocks,
     });
   }
 

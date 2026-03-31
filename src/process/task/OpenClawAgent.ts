@@ -25,7 +25,7 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
-import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult } from '../bridge/imageGenerationBridge';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import * as nodePath from 'node:path';
 
 export interface OpenClawAgentData {
@@ -309,47 +309,78 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     });
 
     try {
-      const config = await resolveImageConfig();
-      if (!config) {
-        ipcBridge.openclawConversation.responseStream.emit({
-          type: 'content',
-          conversation_id: this.conversation_id,
-          msg_id: responseMsgId,
-          data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
-        });
-      } else {
-        // Parse sub-command: gen/generate, edit
-        // edit supports quoted path: /image edit "my file.png" <prompt>
-        const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
-        const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+      // Parse sub-command: analyze, edit, gen/generate
+      const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-        let imageUrls: string[];
+      if (analyzeMatch) {
+        // Image analysis: use chat model + /chat/completions
+        const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
+        const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+        const prompt = analyzeMatch[4].trim();
 
-        if (editMatch) {
-          const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
-          const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
-          const prompt = editMatch[4].trim();
-          const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
-          imageUrls = [imageUrl];
+        const creds = readSudorouterCredentials();
+        const chatModel = resolveChatModel();
+        if (!creds || !chatModel) {
+          ipcBridge.openclawConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+          });
         } else {
-          // gen/generate or bare prompt (backwards compat)
-          const prompt = genMatch ? genMatch[1].trim() : args;
-          const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
-          imageUrls = [imageUrl];
+          const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: analysisResult,
+          };
+          ipcBridge.openclawConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
         }
+      } else {
+        // Image generation/edit: use image model
+        const config = await resolveImageConfig();
+        if (!config) {
+          ipcBridge.openclawConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+          });
+        } else {
+          const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+          const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-        const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
-        const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
-        const contentMsg = {
-          type: 'content' as const,
-          conversation_id: this.conversation_id,
-          msg_id: responseMsgId,
-          data: imgContent,
-        };
-        ipcBridge.openclawConversation.responseStream.emit(contentMsg);
-        ipcBridge.conversation.responseStream.emit(contentMsg);
-        const tMessage = transformMessage(contentMsg);
-        if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+          let imageUrls: string[];
+
+          if (editMatch) {
+            const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+            const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+            const prompt = editMatch[4].trim();
+            const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          } else {
+            const prompt = genMatch ? genMatch[1].trim() : args;
+            const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          }
+
+          const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+          const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: imgContent,
+          };
+          ipcBridge.openclawConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+        }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -358,7 +389,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         type: 'content',
         conversation_id: this.conversation_id,
         msg_id: responseMsgId,
-        data: `图像生成失败: ${msg}`,
+        data: `图像处理失败: ${msg}`,
       });
     }
 
