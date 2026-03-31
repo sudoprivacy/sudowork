@@ -33,40 +33,40 @@ echo "[analyze_image] BASE_URL=$BASE_URL" >&2
 echo "[analyze_image] MODEL=$MODEL" >&2
 echo "[analyze_image] File size: $(wc -c < "$IMAGE_PATH") bytes" >&2
 
-# Detect MIME type from magic bytes
-MIME_TYPE=$(python3 -c "
-import sys
-with open(sys.argv[1], 'rb') as f:
-    h = f.read(12)
-if h[:4] == b'\x89PNG':
-    print('image/png')
-elif h[:3] == b'\xff\xd8\xff':
-    print('image/jpeg')
-elif h[:4] == b'RIFF' and h[8:12] == b'WEBP':
-    print('image/webp')
-elif h[:4] == b'GIF8':
-    print('image/gif')
-else:
-    print('image/png')
-" "$IMAGE_PATH")
-
-# Base64-encode the image
-B64_IMAGE=$(base64 < "$IMAGE_PATH" | tr -d '\n')
-echo "[analyze_image] MIME_TYPE=$MIME_TYPE" >&2
-echo "[analyze_image] Base64 length: ${#B64_IMAGE}" >&2
-
 ENDPOINT="${BASE_URL}/chat/completions"
 
 echo "[analyze_image] Endpoint: $ENDPOINT" >&2
 echo "[analyze_image] Prompt: $PROMPT" >&2
 
-# Build JSON payload via python and pipe to curl to avoid shell arg size limits
+# Build JSON payload via python (reads image file directly to avoid arg size limits)
+# and pipe to curl
 RESPONSE=$(python3 -c "
-import json, sys
-prompt = sys.argv[1]
-mime = sys.argv[2]
-b64 = sys.argv[3]
-model = sys.argv[4]
+import json, sys, base64
+
+image_path = sys.argv[1]
+prompt = sys.argv[2]
+model = sys.argv[3]
+
+with open(image_path, 'rb') as f:
+    h = f.read(12)
+    f.seek(0)
+    image_data = f.read()
+
+# Detect MIME type from magic bytes
+if h[:4] == b'\x89PNG':
+    mime = 'image/png'
+elif h[:3] == b'\xff\xd8\xff':
+    mime = 'image/jpeg'
+elif h[:4] == b'RIFF' and h[8:12] == b'WEBP':
+    mime = 'image/webp'
+elif h[:4] == b'GIF8':
+    mime = 'image/gif'
+else:
+    mime = 'image/png'
+
+b64 = base64.b64encode(image_data).decode('ascii')
+print(f'[analyze_image] MIME={mime}, b64_len={len(b64)}', file=sys.stderr)
+
 payload = {
     'model': model,
     'messages': [{
@@ -78,7 +78,7 @@ payload = {
     }]
 }
 sys.stdout.write(json.dumps(payload))
-" "$PROMPT" "$MIME_TYPE" "$B64_IMAGE" "$MODEL" | \
+" "$IMAGE_PATH" "$PROMPT" "$MODEL" | \
   curl -s -X POST "$ENDPOINT" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $API_KEY" \
