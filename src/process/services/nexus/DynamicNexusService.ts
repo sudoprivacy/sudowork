@@ -180,7 +180,10 @@ class DynamicNexusService {
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(pythonPath, [nexusdPath, '--version'], {
+      const executable = this.isWindows ? nexusdPath : pythonPath;
+      const args = this.isWindows ? ['--version'] : [nexusdPath, '--version'];
+
+      const { stdout, stderr } = await execFileAsync(executable, args, {
         timeout: 10_000,
       });
       const raw = `${stdout}\n${stderr}`.trim();
@@ -262,6 +265,10 @@ class DynamicNexusService {
     if (this._running) {
       throw new Error('Nexus is already running, please stop it first');
     }
+
+    // Clear any stale PID file during installation or upgrade to prevent nexusd
+    // from encountering WinError 11 when checking PIDs from old environments.
+    this.deletePidFile();
 
     const platformKey = `${os.platform()}-${os.arch()}`;
     const envDir = this.getCondaEnvDir();
@@ -399,12 +406,22 @@ class DynamicNexusService {
       throw new Error(`Port ${this._port} is still in use after pre-start PID stop${pidSummary}`);
     }
 
-    // Use the python interpreter from the extracted conda env to run nexusd.
+    // Use the python interpreter from the extracted conda env to run nexusd on Unix.
+    // On Windows, run nexusd.exe directly.
     const pythonPath = this.getPythonPath(envDir);
-    const executablePath = pythonPath;
+    const executablePath = this.isWindows ? nexusdBin : pythonPath;
 
     // Use the cluster profile (lite + federation) for local development.
-    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
+    const spawnArgs = [
+      ...(this.isWindows ? [] : [nexusdBin]),
+      '--host',
+      'localhost',
+      '--profile=minimal',
+      '--auth-type',
+      'none',
+      '--port',
+      String(this._port),
+    ];
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
