@@ -59,7 +59,7 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
     return (
       <div
         data-message-id={message.id}
-        className={classNames('min-w-0 flex items-start message-item [&>div]:max-w-full px-8px m-t-10px max-w-full md:max-w-780px mx-auto', message.type, {
+        className={classNames('min-w-0 flex items-start message-item [&>div]:max-w-full px-8px m-t-10px max-w-full md:max-w-780px mx-auto group', message.type, {
           'justify-center': message.position === 'center',
           'justify-end': message.position === 'right',
           'justify-start': message.position === 'left',

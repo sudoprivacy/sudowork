@@ -191,9 +191,10 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           </div>
         )}
         <div
-          className={classNames('h-24px flex items-center mt-4px', {
+          className={classNames('h-24px flex items-center mt-4px transition-opacity duration-200', {
             'justify-end': isUserMessage,
             'justify-start': !isUserMessage,
+            'opacity-0 group-hover:opacity-100': isUserMessage,
           })}
         >
           {isUserMessage && copyButton}
