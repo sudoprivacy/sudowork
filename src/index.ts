@@ -325,6 +325,31 @@ let mainWindow: BrowserWindow;
 let tray: Tray | null = null;
 let isQuitting = false;
 let closeToTrayEnabled = false;
+let quitCleanupInProgress = false;
+let quitCleanupCompleted = false;
+let quitCleanupTimeout: NodeJS.Timeout | null = null;
+const QUIT_CLEANUP_TIMEOUT_MS = 10_000;
+
+function finishAppQuit(force = false): void {
+  if (quitCleanupCompleted) {
+    return;
+  }
+
+  quitCleanupCompleted = true;
+  quitCleanupInProgress = false;
+
+  if (quitCleanupTimeout) {
+    clearTimeout(quitCleanupTimeout);
+    quitCleanupTimeout = null;
+  }
+
+  if (force) {
+    app.exit(0);
+    return;
+  }
+
+  app.quit();
+}
 
 /**
  * 获取托盘图标 / Get tray icon
@@ -900,30 +925,49 @@ app.on('activate', () => {
   }
 });
 
-app.on('before-quit', async () => {
+app.on('before-quit', (event) => {
+  if (quitCleanupCompleted) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (quitCleanupInProgress) {
+    return;
+  }
+
+  quitCleanupInProgress = true;
   console.log('[Sudowork] before-quit');
   isQuitting = true;
   isExplicitQuit = true;
   destroyTray();
+  quitCleanupTimeout = setTimeout(() => {
+    console.error(`[Sudowork] Quit cleanup timed out after ${QUIT_CLEANUP_TIMEOUT_MS}ms, forcing exit`);
+    finishAppQuit(true);
+  }, QUIT_CLEANUP_TIMEOUT_MS);
 
-  // Clean up work processes (per-conversation agents)
-  WorkerManage.clear();
+  void (async () => {
+    // Clean up work processes (per-conversation agents)
+    WorkerManage.clear();
 
-  // Stop all managed services (Nexus, OpenClaw gateway)
-  try {
-    const { serviceManager } = await import('./process/services/serviceManager');
-    await serviceManager.shutdown();
-  } catch {
-    // Ignore cleanup errors
-  }
+    // Stop all managed services (Nexus, OpenClaw gateway)
+    try {
+      const { serviceManager } = await import('./process/services/serviceManager');
+      await serviceManager.shutdown();
+    } catch {
+      // Ignore cleanup errors
+    }
 
-  // Shutdown Channel subsystem
-  try {
-    const { getChannelManager } = await import('@/channels');
-    await getChannelManager().shutdown();
-  } catch (error) {
-    console.error('[App] Failed to shutdown ChannelManager:', error);
-  }
+    // Shutdown Channel subsystem
+    try {
+      const { getChannelManager } = await import('@/channels');
+      await getChannelManager().shutdown();
+    } catch (error) {
+      console.error('[App] Failed to shutdown ChannelManager:', error);
+    } finally {
+      finishAppQuit();
+    }
+  })();
 });
 
 app.on('will-quit', () => {});

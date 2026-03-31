@@ -10,6 +10,7 @@
 
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
 export type InitStepStatus = 'pending' | 'active' | 'done' | 'error';
+export type InitDisplayMode = 'full' | 'startup';
 
 export interface InitRetryStatus {
   attempt: number;
@@ -21,6 +22,8 @@ export interface InitStatus {
   phase: InitPhase;
   message: string;
   progress: number; // 0-100
+  /** Which loading UI should be rendered. */
+  displayMode?: InitDisplayMode;
   error?: string;
   /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
   step?: string;
@@ -39,7 +42,7 @@ export interface InitStatus {
 }
 
 class InitStatusManager {
-  private status: InitStatus = { phase: 'pending', message: '准备初始化...', progress: 0 };
+  private status: InitStatus = { phase: 'pending', message: '准备初始化...', progress: 0, displayMode: 'full' };
   private listeners: Set<(status: InitStatus) => void> = new Set();
 
   getStatus(): InitStatus {
@@ -48,6 +51,15 @@ class InitStatusManager {
 
   setStatus(phase: InitPhase, message: string, progress: number = 0, error?: string): void {
     this.status = { ...this.status, phase, message, progress, error };
+    this.notifyListeners();
+  }
+
+  setDisplayMode(displayMode: InitDisplayMode): void {
+    if (this.status.displayMode === displayMode) {
+      return;
+    }
+
+    this.status = { ...this.status, displayMode };
     this.notifyListeners();
   }
 

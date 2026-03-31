@@ -5,12 +5,12 @@
  */
 
 import React from 'react';
+import InitLoading from './components/InitLoading';
+import { useAuth } from './context/AuthContext';
+import { useInit } from './context/InitContext';
 import Layout from './layout';
 import Router from './router';
 import Sider from './sider';
-import { useAuth } from './context/AuthContext';
-import { useInit } from './context/InitContext';
-import InitLoading from './components/InitLoading';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
@@ -20,19 +20,8 @@ const Main = () => {
     return null;
   }
 
-  // Show loading while runtime is initializing
   if (!initReady) {
-    const isCoreStartupOnly =
-      status.phase === 'installing' &&
-      !status.retry &&
-      !status.error &&
-      (status.message === '正在启动核心服务...' ||
-        status.message === '正在校验组件状态...');
-
-    if (isCoreStartupOnly) {
-      return <InitLoading variant="startup" />;
-    }
-    return <InitLoading />;
+    return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 
   if (!authReady) {

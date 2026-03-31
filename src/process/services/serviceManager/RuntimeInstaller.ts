@@ -12,6 +12,7 @@ import { spawnSync } from 'child_process';
 import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 
 const TAG = 'RuntimeInstaller';
 
@@ -27,10 +28,7 @@ class RuntimeInstaller {
    * Returns true if startup should proceed to service starts,
    * false if a critical install failure occurred.
    */
-  async ensureAll(options?: {
-    startSudoclaw?: () => Promise<void>;
-    startNexus?: () => Promise<void>;
-  }): Promise<boolean> {
+  async ensureAll(options?: { startSudoclaw?: () => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
 
     // ── Fast synchronous pre-check (no awaits, only sync fs / spawnSync) ────
@@ -89,28 +87,12 @@ class RuntimeInstaller {
         initStatusManager.setStepProgress('claude', 100, 'Claude Code CLI 已就绪');
       }
       if (fastSudoclawOk) {
-        initStatusManager.setStepState(
-          'sudoclaw',
-          options?.startSudoclaw ? 'pending' : 'done',
-          options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪'
-        );
-        initStatusManager.setStepProgress(
-          'sudoclaw',
-          options?.startSudoclaw ? 88 : 100,
-          options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪'
-        );
+        initStatusManager.setStepState('sudoclaw', options?.startSudoclaw ? 'pending' : 'done', options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪');
+        initStatusManager.setStepProgress('sudoclaw', options?.startSudoclaw ? 88 : 100, options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪');
       }
       if (fastNexusOk) {
-        initStatusManager.setStepState(
-          'nexus',
-          options?.startNexus && hasNexusResource ? 'pending' : 'done',
-          options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪'
-        );
-        initStatusManager.setStepProgress(
-          'nexus',
-          options?.startNexus && hasNexusResource ? 88 : 100,
-          options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪'
-        );
+        initStatusManager.setStepState('nexus', options?.startNexus && hasNexusResource ? 'pending' : 'done', options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
+        initStatusManager.setStepProgress('nexus', options?.startNexus && hasNexusResource ? 88 : 100, options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
       }
       if (fastBdpanOk) {
         initStatusManager.setStepState('bdpan', 'done', 'bdpan CLI 已就绪');
@@ -151,6 +133,7 @@ class RuntimeInstaller {
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
+        initStatusManager.setDisplayMode('startup');
         markFastInstalledSteps();
         if (fastGitVersion) initStatusManager.addLog(`Git: ${fastGitVersion}`);
         return startCriticalServices();
@@ -184,6 +167,7 @@ class RuntimeInstaller {
     // Full check may confirm everything is fine (fast check had a false negative)
     if (nodeInstalled && claudeInstalled && sudoclawInstalled && nexusInstalled && bdpanInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
       mainLog(TAG, 'All runtimes confirmed installed');
+      initStatusManager.setDisplayMode('startup');
       return startCriticalServices();
     }
 
@@ -206,6 +190,7 @@ class RuntimeInstaller {
     const willInstallBdpan = !bdpanInstalled && hasBdpanResource;
 
     if (!fastGitOk || willInstallNode || willInstallClaude || willInstallSudoclaw || willInstallNexus || willInstallBdpan) {
+      initStatusManager.setDisplayMode('full');
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
@@ -449,7 +434,7 @@ class RuntimeInstaller {
           },
         });
         if (!result.installed) {
-          const error = 'Sudoclaw 安装未完成';
+          const error = result.error ?? 'Sudoclaw 安装未完成';
           mainError(TAG, error);
           markStepError('sudoclaw', error);
           initStatusManager.addLog(`⚠ ${error}`);
@@ -505,9 +490,18 @@ class RuntimeInstaller {
         markStepActive('nexus', '准备安装 Nexus...', 0);
         initStatusManager.addLog(`开始${action}...`);
 
+        let lastLoggedSetupStatus: NexusSetupLogSnapshot | null = null;
         const unsubNexus = dynamicNexusService.onSetupStatus((nexusStatus) => {
-          const progress = capInstallProgress(nexusStatus.percent ?? 0, 88);
+          const currentProgress = initStatusManager.getStatus().stepProgress?.nexus ?? 0;
+          const progress = getNexusStepProgressFromSetupStatus(nexusStatus, currentProgress);
+          const state = getNexusStepStateFromSetupStatus(nexusStatus);
+          initStatusManager.setStepState('nexus', state, nexusStatus.message);
           initStatusManager.setStepProgress('nexus', progress, nexusStatus.message);
+
+          if (shouldLogNexusSetupStatus(lastLoggedSetupStatus, nexusStatus)) {
+            initStatusManager.addLog(`[Nexus] ${nexusStatus.message}`);
+            lastLoggedSetupStatus = createNexusSetupLogSnapshot(nexusStatus);
+          }
         });
 
         try {

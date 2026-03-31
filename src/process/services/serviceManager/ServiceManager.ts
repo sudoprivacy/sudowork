@@ -4,10 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mainLog, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
+type SudoclawHealthPayload = {
+  status?: string;
+  [key: string]: unknown;
+};
+
+type SudoclawHealthCheckResult = {
+  healthy: boolean;
+  statusCode?: number;
+  body?: string;
+  payload?: SudoclawHealthPayload;
+  error?: string;
+};
+
+function isSudoclawReadyStatus(status?: string): boolean {
+  return status === 'live' || status === 'healthy' || status === 'ok';
+}
 
 /**
  * Centralised service lifecycle manager.
@@ -32,6 +48,22 @@ class ServiceManager {
   // Deferred promise resolved when the gateway is ready (or failed).
   private gatewayReadyResolve: ((value: { host: string; port: number } | null) => void) | null = null;
   private gatewayReadyPromise: Promise<{ host: string; port: number } | null> | null = null;
+
+  private buildSudoclawStartDiagnostics(lastHealth: SudoclawHealthCheckResult): {
+    launchCommand: ReturnType<OpenClawGateway['getLastLaunchCommand']>;
+    lastHealth: SudoclawHealthCheckResult;
+    recentStdout: string;
+    recentStderr: string;
+  } {
+    const launchCommand = this.gateway?.getLastLaunchCommand();
+    const recentOutput = this.gateway?.getRecentOutput();
+    return {
+      launchCommand,
+      lastHealth,
+      recentStdout: recentOutput?.stdout || '',
+      recentStderr: recentOutput?.stderr || '',
+    };
+  }
 
   // ────────────────────────────────────────────────────────────────────────────
   //  startup — fire-and-forget from process/index.ts
@@ -155,10 +187,7 @@ class ServiceManager {
     }
   }
 
-  private async startNexusWithRecovery(options: {
-    allowReinstall: boolean;
-    postReinstallAttempts: number;
-  }): Promise<void> {
+  private async startNexusWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number }): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
     if (!dynamicNexusService.hasBundledResource()) {
@@ -173,20 +202,14 @@ class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
-          initStatusManager.setStepState(
-            'nexus',
-            'active',
-            phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`
-          );
+          initStatusManager.setStepState('nexus', 'active', phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
           await this.startNexusOnce();
           return;
         } catch (err) {
           lastError = err;
           mainError('ServiceManager', `Nexus startup attempt ${attempt}/${attempts} failed`, err);
-          initStatusManager.addLog(
-            `⚠ Nexus 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`
-          );
+          initStatusManager.addLog(`⚠ Nexus 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`);
           await dynamicNexusService.stop().catch(() => {});
           await this.killProcessesOnPort(12012, 'Nexus');
         }
@@ -208,7 +231,18 @@ class ServiceManager {
       initStatusManager.addLog('⚠ Nexus 启动多次失败，开始强制重装...');
       await dynamicNexusService.stop().catch(() => {});
       await this.killProcessesOnPort(12012, 'Nexus');
-      await dynamicNexusService.install();
+      const unsubscribe = dynamicNexusService.onSetupStatus((nexusStatus) => {
+        initStatusManager.setStepState('nexus', nexusStatus.stage === 'error' ? 'error' : 'active', nexusStatus.message);
+        if (typeof nexusStatus.percent === 'number') {
+          initStatusManager.setStepProgress('nexus', Math.min(88, Math.max(0, nexusStatus.percent)), nexusStatus.message);
+        }
+        initStatusManager.addLog(`[Nexus] ${nexusStatus.message}`);
+      });
+      try {
+        await dynamicNexusService.install();
+      } finally {
+        unsubscribe();
+      }
       await startAttempts(options.postReinstallAttempts, 'reinstall');
     }
   }
@@ -232,8 +266,15 @@ class ServiceManager {
         await dynamicNexusService.install();
       }
       mainLog('ServiceManager', 'Starting Nexus service...');
+      const launchCommand = dynamicNexusService.getStartCommandPreview();
+      initStatusManager.addLog(`[Nexus] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
+      initStatusManager.addLog('[Nexus] Starting Nexus service...');
       await dynamicNexusService.start();
+      initStatusManager.addLog(`[Nexus] Nexus process started, verifying health on port ${dynamicNexusService.port}...`);
       const healthy = await dynamicNexusService.checkActualRunning();
+      if (healthy) {
+        initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
+      }
       if (!healthy) {
         throw new Error('Nexus /health 检查未通过');
       }
@@ -278,10 +319,7 @@ class ServiceManager {
     }
   }
 
-  private async startOpenClawWithRecovery(options: {
-    allowReinstall: boolean;
-    postReinstallAttempts: number;
-  }): Promise<void> {
+  private async startOpenClawWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number }): Promise<void> {
     const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
 
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
@@ -290,22 +328,14 @@ class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(17863, 'Sudoclaw');
-          initStatusManager.setStepState(
-            'sudoclaw',
-            'active',
-            phase === 'reinstall'
-              ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
-              : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
-          );
+          initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
           await this.startOpenClawOnce(this.SUDOCLAW_START_TIMEOUT_MS);
           return;
         } catch (err) {
           lastError = err;
           mainError('ServiceManager', `Sudoclaw startup attempt ${attempt}/${attempts} failed`, err);
-          initStatusManager.addLog(
-            `⚠ Sudoclaw 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`
-          );
+          initStatusManager.addLog(`⚠ Sudoclaw 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`);
           await this.stopOpenClaw();
         }
       }
@@ -327,7 +357,7 @@ class ServiceManager {
       await this.stopOpenClaw();
       const reinstallResult = await ensureSudoclawInstalled({ forceReinstall: true });
       if (!reinstallResult.installed) {
-        throw new Error('Sudoclaw 强制重装失败');
+        throw new Error(reinstallResult.error ?? 'Sudoclaw 强制重装失败');
       }
       await startAttempts(options.postReinstallAttempts, 'reinstall');
     }
@@ -350,7 +380,7 @@ class ServiceManager {
         mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
         const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
         if (!installResult.installed) {
-          throw new Error('Sudoclaw upgrade failed before gateway start');
+          throw new Error(installResult.error ?? 'Sudoclaw upgrade failed before gateway start');
         }
       }
 
@@ -366,6 +396,10 @@ class ServiceManager {
         forceSubprocessGateway: true,
       });
       await this.gateway.start();
+      const launchCommand = this.gateway.getLastLaunchCommand();
+      if (launchCommand) {
+        initStatusManager.addLog(`[Sudoclaw] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
+      }
       await this.waitForSudoclawHealthy(SUDOCLAW_DEFAULT_PORT, timeoutMs);
       initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
       mainLog('ServiceManager', 'Sudoclaw gateway started successfully');
@@ -406,32 +440,63 @@ class ServiceManager {
 
   private async waitForSudoclawHealthy(port: number, timeoutMs = 30_000): Promise<void> {
     const start = Date.now();
+    let lastHealth: SudoclawHealthCheckResult = { healthy: false, error: 'health check not attempted' };
+
     while (Date.now() - start < timeoutMs) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1_000);
-        const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (response.ok) {
-          return;
-        }
-      } catch {
-        // ignore until timeout
+      lastHealth = await this.checkSudoclawHealth(port);
+      if (lastHealth.healthy) {
+        return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      if (lastHealth.statusCode !== undefined || lastHealth.error) {
+        mainLog('ServiceManager', 'Sudoclaw /health probe pending', {
+          statusCode: lastHealth.statusCode,
+          body: lastHealth.body,
+          error: lastHealth.error,
+        });
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
-    throw new Error(`Sudoclaw gateway did not become healthy within ${timeoutMs}ms`);
+
+    const diagnostics = this.buildSudoclawStartDiagnostics(lastHealth);
+    mainWarn('ServiceManager', 'Sudoclaw health check timed out', diagnostics);
+    throw new Error(`Sudoclaw gateway did not become healthy within ${timeoutMs}ms. diagnostics=${JSON.stringify(diagnostics)}`);
   }
 
   private async isSudoclawHealthy(port: number): Promise<boolean> {
+    const health = await this.checkSudoclawHealth(port);
+    return health.healthy;
+  }
+
+  private async checkSudoclawHealth(port: number): Promise<SudoclawHealthCheckResult> {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1_000);
-      const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch {
-      return false;
+      const response = await fetch(`http://127.0.0.1:${port}/health`, {
+        signal: AbortSignal.timeout(1_500),
+      });
+      const body = await response.text();
+      let payload: SudoclawHealthPayload | undefined;
+
+      if (body) {
+        try {
+          payload = JSON.parse(body) as SudoclawHealthPayload;
+        } catch {
+          // Keep raw body for diagnostics; some builds may not return JSON.
+        }
+      }
+
+      const healthy = isSudoclawReadyStatus(payload?.status) || (payload?.status === undefined && response.ok);
+      return {
+        healthy,
+        statusCode: response.status,
+        body: body.slice(0, 1000),
+        payload,
+      };
+    } catch (err) {
+      return {
+        healthy: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
@@ -477,7 +542,11 @@ class ServiceManager {
         }
       } else {
         const { stdout } = await execAsync(`lsof -ti tcp:${port}`).catch(() => ({ stdout: '' }));
-        for (const pid of stdout.trim().split('\n').map((item) => item.trim()).filter(Boolean)) {
+        for (const pid of stdout
+          .trim()
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean)) {
           await execAsync(`kill -9 ${pid}`).catch(() => {});
         }
       }

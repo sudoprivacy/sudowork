@@ -573,6 +573,8 @@ export interface InitStatus {
   phase: InitPhase;
   message: string;
   progress: number;
+  /** Which loading UI should be rendered. */
+  displayMode?: 'full' | 'startup';
   error?: string;
   /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
   step?: string;
@@ -1125,10 +1127,7 @@ import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 
 export const tools = {
   /** Generate image via /v1/images/generations API */
-  generateImage: bridge.buildProvider<
-    IBridgeResponse<{ img_url: string; relative_path: string }>,
-    { prompt: string; conversation_id: string; workspace: string; size?: string; n?: number }
-  >('tools.generate-image'),
+  generateImage: bridge.buildProvider<IBridgeResponse<{ img_url: string; relative_path: string }>, { prompt: string; conversation_id: string; workspace: string; size?: string; n?: number }>('tools.generate-image'),
 };
 
 export const safety = {
