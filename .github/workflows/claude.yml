@@ -48,9 +48,14 @@ jobs:
 
           additional_permissions: |
             actions: read
+            contents: write
+            pull_requests: write
 
           claude_args: >-
+            --model claude-opus-4-6
             --allowedTools
+            "Bash(gh pr create:*)"
+            "Bash(gh pr view:*)"
             "Bash(bun:*)"
             "Bash(python3:*)"
             "Bash(curl:*)"
@@ -60,4 +65,3 @@ jobs:
             "Bash(ps:*)"
             --system-prompt
             "When working on a pull request, always update the PR description to include a clear summary of changes."
-
