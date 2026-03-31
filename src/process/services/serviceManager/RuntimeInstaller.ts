@@ -533,10 +533,10 @@ class RuntimeInstaller {
 
     const bdpanTask: Promise<TaskResult> = (async () => {
       if (bdpanInstalled) {
-        return { step: 'bdpan', ok: true, required: true };
+        return { step: 'bdpan', ok: true, required: false };
       }
       if (!willInstallBdpan) {
-        return { step: 'bdpan', ok: false, required: true, error: '未找到 bdpan CLI 安装资源' };
+        return { step: 'bdpan', ok: false, required: false, error: '未找到 bdpan CLI 安装资源' };
       }
 
       try {
@@ -549,17 +549,17 @@ class RuntimeInstaller {
           mainWarn(TAG, error);
           markStepError('bdpan', error, 20);
           initStatusManager.addLog(`⚠ ${error}`);
-          return { step: 'bdpan', ok: false, required: true, error };
+          return { step: 'bdpan', ok: false, required: false, error };
         }
         markStepDone('bdpan', 'bdpan CLI 已安装');
         initStatusManager.addLog('✓ bdpan CLI 安装完成');
-        return { step: 'bdpan', ok: true, required: true };
+        return { step: 'bdpan', ok: true, required: false };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         mainWarn(TAG, `Bdpan install failed: ${error}`);
         markStepError('bdpan', `bdpan CLI 安装失败: ${error}`, 20);
         initStatusManager.addLog(`⚠ bdpan CLI 安装失败: ${error}`);
-        return { step: 'bdpan', ok: false, required: true, error };
+        return { step: 'bdpan', ok: false, required: false, error };
       }
     })();
 

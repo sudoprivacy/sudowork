@@ -573,7 +573,8 @@ class ServiceManager {
       { name: 'Claude Code CLI', ok: claudeStatus.installed },
       { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
       { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
-      { name: 'bdpan', ok: isBdpanInstalled() },
+      // bdpan is optional (required: false in RuntimeInstaller), skip readiness check
+      { name: 'bdpan', ok: true },
     ];
 
     const failed = readinessChecks.filter((item) => !item.ok);
