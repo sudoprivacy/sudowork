@@ -2,6 +2,10 @@ name: "doctor self-diagnosis"
 description: "Doctor (Claude Code + yolo) freely explores SudoWork UI within a time budget, then we judge whatever it accomplished"
 
 steps:
+  # ── Phase 0: Wait for app startup to complete ──
+  - op: wait_for_app_ready
+    timeout: 300
+
   # ── Phase 1: Clean state ──
   - op: mouse_click
     text: "新会话"
@@ -32,8 +36,6 @@ steps:
     timeout: 420
 
   # ── Phase 5: Navigate back to doctor conversation before warning ──
-  # Doctor may have navigated away (e.g. to guid page for agent switching test).
-  # Click the doctor conversation in sidebar to return.
   - op: mouse_click
     text: "你有 7 分钟做一次快速自"
   - op: pause
