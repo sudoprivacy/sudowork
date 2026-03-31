@@ -20,7 +20,7 @@ const CONDA_READY_MARKER = '.nexus-conda-ready';
 // for this installation, so start() skips it on subsequent launches.
 const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
 
-const WAIT_PORT_TIMEOUT_NORMAL_MS = 30 * 1000; // 30 seconds
+const WAIT_PORT_TIMEOUT_NORMAL_MS = 90 * 1000; // 90 seconds (cluster profile with federation/raft needs more startup time)
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
