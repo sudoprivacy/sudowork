@@ -106,6 +106,17 @@ async function handleLoginSuccess(data: any, setUser: (user: AuthUser) => void, 
   localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
   setReady(true);
 
+  // 保存用户手机号到配置文件供 skill 读取
+  // Save user phone to config file for skill access
+  if (isDesktopRuntime && authData.phone) {
+    try {
+      await ipcBridge.sudoworkAuth.saveUserPhone.invoke({ phone: authData.phone });
+      console.log('[Auth] User phone saved to config');
+    } catch (error) {
+      console.error('[Auth] Failed to save user phone:', error);
+    }
+  }
+
   // 自动配置 Sudoclaw
   if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
     try {
@@ -173,6 +184,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser(parsed);
         setStatus('authenticated');
         setReady(true);
+
+        // 从 localStorage 恢复登录状态时，也保存手机号到文件
+        // Save phone to file when restoring auth from localStorage
+        if (isDesktopRuntime && parsed.phone) {
+          ipcBridge.sudoworkAuth.saveUserPhone.invoke({ phone: parsed.phone }).catch((error) => {
+            console.error('[Auth] Failed to save user phone on restore:', error);
+          });
+        }
         return;
       } catch (e) {
         localStorage.removeItem('sudowork_auth_v1');
@@ -287,7 +306,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const logout = useCallback(async () => {
     localStorage.removeItem('sudowork_auth_v1');
+
+    // 清除用户手机号文件
+    // Clear user phone file on logout
     if (isDesktopRuntime) {
+      try {
+        await ipcBridge.sudoworkAuth.clearUserPhone.invoke();
+      } catch (error) {
+        console.error('[Auth] Failed to clear user phone:', error);
+      }
+
       setUser(null);
       setStatus('unauthenticated');
       setReady(true);

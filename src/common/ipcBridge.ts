@@ -1157,3 +1157,18 @@ export const healthMonitor = {
   /** Disable health monitor */
   disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
 };
+
+// ==================== User Phone Storage API ====================
+// Store user phone (RSA encrypted) for skill access
+// Skill reads encrypted content and sends to server for decryption
+
+export const sudoworkAuth = {
+  /** Save user phone to config file (RSA encrypted with public key) */
+  saveUserPhone: bridge.buildProvider<IBridgeResponse, { phone: string }>('sudowork-auth.save-user-phone'),
+  /** Get stored user phone (encrypted) from config file */
+  getUserPhone: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-phone'),
+  /** Clear stored user phone on logout */
+  clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
+  /** Get public key for encryption */
+  getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
+};

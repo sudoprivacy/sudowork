@@ -7,6 +7,10 @@
 import { AuthType, clearCachedCredentialFile, Config, getOauthInfoWithCache, loginWithOauth, Storage } from '@office-ai/aioncli-core';
 import { ipcBridge } from '../../common';
 import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
+import * as path from 'node:path';
+import * as crypto from 'node:crypto';
+import { getDataPath } from '../utils';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
 
 export function initAuthBridge(): void {
@@ -121,5 +125,78 @@ export function initAuthBridge(): void {
 
   ipcBridge.googleAuth.logout.provider(async () => {
     return await clearCachedCredentialFile();
+  });
+
+  // ==================== User Phone RSA Encryption Storage ====================
+  // Store user phone encrypted with fixed RSA public key for skill access
+  // Skill reads encrypted content and sends to server for decryption with private key
+
+  const USER_PHONE_FILE = 'user_phone.enc';
+
+  // Fixed RSA public key for encryption
+  // 对应的私钥需要线下提供给服务方
+  const RSA_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAweYioQLeKt9MLVlhwQH6
+9f87z77P2qD5CBdztSk8nZwNN/WXAkLvkFEqr896HbUED7e2jgbsDfAvwvD+mENr
+c5eFSCRScc/6wilJX4s96Nrwhm4p4DmqJhMZR84K913Z8S1MeDahFTmhn0JbRjg2
+NhFWy+oSbXPkaySB0/FE5U9KI+bDpz1Ouw3ttkGW0BfLVKdk667rbaKP7Un/wxP1
+f2abKv0cSeZGnrJH30YUHBLNNeCSEB/uKTvlQIBkrW+JBZ1s58TQvkUvlaxh5tNF
+qxFOgqau0zyl/3tAReinbkAVaewKJuER7lBNkfG/4lTtIwmCSvQC3wwOohwsEWcF
+WQIDAQAB
+-----END PUBLIC KEY-----`;
+
+  ipcBridge.sudoworkAuth.getPublicKey.provider(async () => {
+    return { success: true, data: RSA_PUBLIC_KEY };
+  });
+
+  ipcBridge.sudoworkAuth.saveUserPhone.provider(async ({ phone }) => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_PHONE_FILE);
+
+      // Encrypt phone with fixed RSA public key
+      const encrypted = crypto.publicEncrypt(
+        {
+          key: RSA_PUBLIC_KEY,
+          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: 'sha256',
+        },
+        Buffer.from(phone, 'utf-8')
+      );
+
+      // Save as base64
+      await fsPromises.writeFile(filePath, encrypted.toString('base64'), 'utf-8');
+      mainLog('Sudowork Auth', 'User phone encrypted and saved');
+      return { success: true };
+    } catch (error) {
+      mainError('Sudowork Auth', 'Failed to save user phone:', error);
+      return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.getUserPhone.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_PHONE_FILE);
+      const encrypted = await fsPromises.readFile(filePath, 'utf-8');
+      // Return encrypted content (base64) - skill should send this to server for decryption
+      return { success: true, data: encrypted.trim() };
+    } catch (error) {
+      // File doesn't exist or read error
+      return { success: true, data: null };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.clearUserPhone.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_PHONE_FILE);
+      await fsPromises.unlink(filePath);
+      mainLog('Sudowork Auth', 'User phone file deleted');
+      return { success: true };
+    } catch (error) {
+      // File doesn't exist, that's fine
+      return { success: true };
+    }
   });
 }
