@@ -195,8 +195,10 @@ class RuntimeInstaller {
     }
 
     if (!willInstallNode && !willInstallClaude && !willInstallSudoclaw && !willInstallNexus && !willInstallBdpan && fastGitOk) {
-      mainWarn(TAG, 'Some components missing but no installation resources found, marking ready');
-      return true;
+      mainWarn(TAG, 'Some components missing but no installation resources found, starting services');
+      initStatusManager.setDisplayMode('startup');
+      markFastInstalledSteps();
+      return startCriticalServices();
     }
 
     type RuntimeStepId = 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan';
