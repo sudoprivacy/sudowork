@@ -35,6 +35,9 @@ class ServiceManager {
   private startupNexusReinstallAttempted = false;
   private readonly STARTUP_RETRY_LIMIT = 3;
   private readonly STARTUP_RETRY_DELAY_MS = 10_000;
+  private readonly STARTUP_READINESS_TIMEOUT_MS = 15_000;
+  private readonly STARTUP_ONLY_READINESS_TIMEOUT_MS = 90_000;
+  private readonly STARTUP_READINESS_POLL_MS = 500;
   private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_START_ATTEMPTS = 3;
@@ -103,7 +106,12 @@ class ServiceManager {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       initStatusManager.setStatus('error', '初始化失败', 0, message);
-      this.scheduleStartupRetry(message);
+      if (initStatusManager.getStatus().displayMode === 'startup') {
+        initStatusManager.clearRetry();
+        initStatusManager.setDetail('核心服务启动失败，请检查日志或端口占用后重启应用。');
+      } else {
+        this.scheduleStartupRetry(message);
+      }
       mainError('ServiceManager', 'Startup readiness verification failed', err);
     } finally {
       this.startupInProgress = false;
@@ -169,6 +177,12 @@ class ServiceManager {
   }
 
   private async startNexusForStartup(): Promise<void> {
+    if (initStatusManager.getStatus().displayMode === 'startup') {
+      await this.preparePortForStart(12012, 'Nexus');
+      await this.startNexusOnce();
+      return;
+    }
+
     try {
       await this.startNexusWithRecovery({
         allowReinstall: !this.startupNexusReinstallAttempted,
@@ -265,14 +279,10 @@ class ServiceManager {
       initStatusManager.addLog(`[Nexus] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
       initStatusManager.addLog('[Nexus] Starting Nexus service...');
       await dynamicNexusService.start();
-      initStatusManager.addLog(`[Nexus] Nexus process started, verifying health on port ${dynamicNexusService.port}...`);
-      const healthy = await dynamicNexusService.checkActualRunning();
-      if (healthy) {
-        initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
-      }
-      if (!healthy) {
-        throw new Error('Nexus /health 检查未通过');
-      }
+      // start() already waits until /health reports healthy before resolving.
+      // Do not immediately probe again here; a duplicate one-shot check can race
+      // with post-start stabilization and incorrectly flip the UI back to failed.
+      initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
@@ -301,6 +311,12 @@ class ServiceManager {
   }
 
   private async startOpenClawForStartup(timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
+    if (initStatusManager.getStatus().displayMode === 'startup') {
+      await this.preparePortForStart(17863, 'Sudoclaw');
+      await this.startOpenClawOnce(timeoutMs);
+      return;
+    }
+
     try {
       await this.startOpenClawWithRecovery({
         allowReinstall: !this.startupSudoclawReinstallAttempted,
@@ -559,35 +575,68 @@ class ServiceManager {
   }
 
   private async verifyStartupReadiness(): Promise<void> {
-    const readinessModules = await Promise.all([import('../git/GitInstallService'), import('../claudeCli/NodeRuntimeService'), import('../claudeCli/CliInstallService'), import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService'), import('../bdpan/BdpanInstallService')]);
-    const [gitModule, nodeModule, claudeModule, sudoclawModule, nexusModule, bdpanModule] = readinessModules;
-    const { getGitVersion } = gitModule;
-    const { isNodeInstalled } = nodeModule;
-    const { claudeCliService } = claudeModule;
+    const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
+    const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
+    const [sudoclawModule, nexusModule] = serviceModules;
     const { getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
     const { dynamicNexusService } = nexusModule;
-    const { isBdpanInstalled } = bdpanModule;
+    const deadline = Date.now() + (startupOnlyChecks ? this.STARTUP_ONLY_READINESS_TIMEOUT_MS : this.STARTUP_READINESS_TIMEOUT_MS);
+    let lastFailedNames: string[] = [];
 
-    const gitVersionPromise = getGitVersion();
-    const claudeStatusPromise = claudeCliService.hasTgzResource() ? claudeCliService.checkInstalled() : Promise.resolve({ installed: true });
-    const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
-    const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
-    const [gitVersion, claudeStatus, sudoclawHealthy, nexusHealthy] = await Promise.all([gitVersionPromise, claudeStatusPromise, sudoclawHealthyPromise, nexusHealthyPromise]);
+    let getGitVersion: (() => Promise<string | null>) | null = null;
+    let isNodeInstalled: (() => boolean) | null = null;
+    let checkClaudeInstalled: (() => Promise<boolean>) | null = null;
 
-    const readinessChecks = [
-      { name: 'Git', ok: Boolean(gitVersion) },
-      { name: 'Node.js', ok: isNodeInstalled() },
-      { name: 'Claude Code CLI', ok: claudeStatus.installed },
-      { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
-      { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
-      // bdpan is optional (required: false in RuntimeInstaller), skip readiness check
-      { name: 'bdpan', ok: true },
-    ];
-
-    const failed = readinessChecks.filter((item) => !item.ok);
-    if (failed.length > 0) {
-      throw new Error(`以下组件尚未就绪: ${failed.map((item) => item.name).join('、')}`);
+    if (!startupOnlyChecks) {
+      const readinessModules = await Promise.all([import('../git/GitInstallService'), import('../claudeCli/NodeRuntimeService'), import('../claudeCli/CliInstallService')]);
+      const [gitModule, nodeModule, claudeModule] = readinessModules;
+      getGitVersion = gitModule.getGitVersion;
+      isNodeInstalled = nodeModule.isNodeInstalled;
+      checkClaudeInstalled = async () => {
+        if (!claudeModule.claudeCliService.hasTgzResource()) {
+          return true;
+        }
+        const status = await claudeModule.claudeCliService.checkInstalled();
+        return status.installed;
+      };
     }
+
+    while (Date.now() < deadline) {
+      const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
+      const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
+      const gitVersionPromise = getGitVersion ? getGitVersion() : Promise.resolve(null);
+      const nodeInstalledPromise = isNodeInstalled ? Promise.resolve(isNodeInstalled()) : Promise.resolve(true);
+      const claudeInstalledPromise = checkClaudeInstalled ? checkClaudeInstalled() : Promise.resolve(true);
+      const [gitVersion, nodeInstalled, claudeInstalled, sudoclawHealthy, nexusHealthy] = await Promise.all([gitVersionPromise, nodeInstalledPromise, claudeInstalledPromise, sudoclawHealthyPromise, nexusHealthyPromise]);
+
+      const readinessChecks = [
+        { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
+        { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
+        ...(startupOnlyChecks
+          ? []
+          : [
+              { name: 'Git', ok: Boolean(gitVersion) },
+              { name: 'Node.js', ok: nodeInstalled },
+              { name: 'Claude Code CLI', ok: claudeInstalled },
+              // bdpan is optional (required: false in RuntimeInstaller), skip readiness check
+              { name: 'bdpan', ok: true },
+            ]),
+      ];
+
+      const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
+      if (failed.length === 0) {
+        return;
+      }
+
+      if (failed.join('、') !== lastFailedNames.join('、')) {
+        initStatusManager.addLog(`⚠ 组件已启动，等待服务稳定中：${failed.join('、')}`);
+        lastFailedNames = failed;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, this.STARTUP_READINESS_POLL_MS));
+    }
+
+    throw new Error(`以下组件尚未就绪: ${lastFailedNames.join('、') || '未知组件'}`);
   }
 
   async stopOpenClaw(): Promise<void> {

@@ -13,6 +13,7 @@ import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
+import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -69,10 +70,6 @@ class RuntimeInstaller {
     const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
     const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
 
-    // On Windows the nexusd binary is in Scripts\ (not bin/) and named nexusd.exe
-    const nexusEnvBinDir = isWin32 ? 'Scripts' : 'bin';
-    const nexusEnvBinName = isWin32 ? 'nexusd.exe' : 'nexusd';
-    const nexusEnvBinPath = path.join(os.homedir(), '.nexus', 'nexus_env', nexusEnvBinDir, nexusEnvBinName);
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
       try {
@@ -81,7 +78,7 @@ class RuntimeInstaller {
         return false;
       }
     })();
-    const fastNexusOk = !hasNexusResource || fs.existsSync(nexusEnvBinPath);
+    const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
     const [{ isBdpanInstalled: checkBdpanInstalled }, { claudeCliService }] = await Promise.all([import('../bdpan/BdpanInstallService'), import('../claudeCli/CliInstallService')]);
     const fastBdpanOk = checkBdpanInstalled();
     const hasClaudeResource = claudeCliService.hasTgzResource();
@@ -141,9 +138,8 @@ class RuntimeInstaller {
     };
 
     if (fastGitOk && fastNodeOk && fastClaudeOk && fastSudoclawOk && fastNexusOk && fastBdpanOk) {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
-      const nexusVersionState = hasNexusResource ? await dynamicNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
+      const nexusVersionState = hasNexusResource ? await installedNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
       const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {

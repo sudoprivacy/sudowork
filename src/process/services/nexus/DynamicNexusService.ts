@@ -205,6 +205,29 @@ class DynamicNexusService {
     }
   }
 
+  private getCondaReadyMarkerPath(envDir: string = this.getCondaEnvDir()): string {
+    return path.join(envDir, CONDA_READY_MARKER);
+  }
+
+  /**
+   * Returns true only when the extracted runtime exists and its install marker
+   * matches the bundled/runtime version. This avoids treating a partially
+   * extracted env as ready during startup.
+   */
+  checkInstalledSync(): boolean {
+    if (!this.getBundledNexusPath()) {
+      return true;
+    }
+
+    const envDir = this.getCondaEnvDir();
+    const nexusdBin = this.getNexusdPath(envDir);
+    if (!fs.existsSync(nexusdBin)) {
+      return false;
+    }
+
+    return this.isMarkerCurrent(this.getCondaReadyMarkerPath(envDir));
+  }
+
   /** Subscribe to setup progress events (fires on stage transitions). */
   onSetupStatus(cb: NexusSetupCallback): NexusSetupUnsubscribe {
     this._setupCallbacks.push(cb);
@@ -222,17 +245,11 @@ class DynamicNexusService {
   /**
    * Checks if nexus is already installed locally.
    * Returns true if no bundled resource is available (Nexus is optional — skip silently).
-   * Only checks for the nexusd executable (consistent with Node/Sudoclaw pattern).
+   * Requires both the nexusd executable and the current install marker so a
+   * partial extraction is not mistaken for a completed install.
    */
   async checkInstalled(): Promise<boolean> {
-    // No bundle available → Nexus is not required for this build, treat as "installed"
-    if (!this.getBundledNexusPath()) {
-      return true;
-    }
-
-    const envDir = this.getCondaEnvDir();
-    const nexusdBin = this.getNexusdPath(envDir);
-    return fs.existsSync(nexusdBin);
+    return this.checkInstalledSync();
   }
 
   /**

@@ -241,30 +241,39 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               );
             })}
           </div>
-          {retryMessage && (
-            <div
-              style={
-                {
-                  marginBottom: '14px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '5px 10px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(251, 191, 36, 0.26)',
-                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                  color: '#fde68a',
+          <div
+            style={
+              {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                marginTop: '6px',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties
+            }
+          >
+            <div style={{ fontSize: '12px', color: '#8ca0bb', textAlign: 'left', flex: 1 }}>{t('common.setupContinuesInBackground')}</div>
+            {status.phase !== 'ready' && (
+              <button
+                type='button'
+                onClick={skipInitScreen}
+                style={{
+                  border: '1px solid rgba(96, 165, 250, 0.35)',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
+                  color: '#dbeafe',
                   fontSize: '12px',
-                  fontWeight: '600',
-                  WebkitAppRegion: 'no-drag',
-                } as React.CSSProperties
-              }
-            >
-              <span>自动重试</span>
-              <span style={{ color: '#fef3c7', fontVariantNumeric: 'tabular-nums' }}>{retryMessage}</span>
-            </div>
-          )}
-          <div style={{ fontSize: '12px', color: '#8ca0bb' }}>启动完成后自动进入系统</div>
+                  fontWeight: 700,
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {t('common.skip')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
