@@ -555,11 +555,71 @@ brew install sudowork
 
 ### Contributing
 
-1. Fork this project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Release Workflow
+
+### Development
+
+* Work on the `dev` branch
+* Commit changes normally
+* Each commit may trigger a build and generate a **pre-release artifact** (internal use only)
+
+### Nightly Build
+
+* Nightly CI runs on `dev` branch
+* Generates a tag:
+
+  ```
+  nightly-<date>-<commit>
+  ```
+* Publishes a **GitHub Pre-release** for QA testing
+* QA validates functionality from nightly builds
+
+### Candidate (RC)
+
+* Select a stable nightly build
+* Create a release candidate tag:
+
+  ```
+  vX.Y.Z-rc
+  ```
+* Run full regression testing
+* Require manual approval before promotion
+
+### Release
+
+* Merge `dev` into `main`
+* Create official version tag:
+
+  ```
+  vX.Y.Z
+  ```
+* Automatically:
+
+  * Create `release-vX.Y` branch
+  * Publish GitHub Release
+  * Upload artifacts to production storage (e.g. COS)
+  * Deploy to production
+
+### Hotfix
+
+* Create fixes on `release-vX.Y` branch
+* Tag patch version:
+
+  ```
+  vX.Y.(Z+1)
+  ```
+* Publish release
+* Sync changes back to:
+
+  * `main`
+  * `dev`
+
+### Notes
+
+* **Pre-release** is used for internal testing only (dev / nightly)
+* **Release** is production-ready and externally consumable
+* Multiple hotfixes can be developed in parallel
+* All production artifacts must come from tagged releases
 
 ---
 
