@@ -80,16 +80,16 @@ IMPLEMENTATIONS = {
             return {"released": True, "button": button}"""),
     },
     "pointer_move": {
-        "imports": "",
+        "imports": "from ai_dev_browser.core.mouse import mouse_move as _mouse_move",
         "body": textwrap.dedent("""\
-            await tab.mouse_move(float(x), float(y), steps=1)
+            await _mouse_move(tab, float(x), float(y), screenshot=screenshot, steps=1)
             return {"moved": True, "x": x, "y": y}"""),
     },
     "click": {
-        "imports": "",
+        "imports": "from ai_dev_browser.core.mouse import mouse_click as _mouse_click",
         "body": textwrap.dedent("""\
             _btn_name = "left" if button == 0 else "right" if button == 2 else "middle"
-            await tab.mouse_click(float(x), float(y), button=_btn_name)
+            await _mouse_click(tab, float(x), float(y), screenshot=screenshot, button=_btn_name)
             return {"clicked": True, "x": x, "y": y, "button": button}"""),
     },
     "scroll": {
@@ -161,10 +161,11 @@ CORE_PARAMS = {
     "pointer_down": [("button", "int", False, "Button: 0=left, 1=middle, 2=right", "0")],
     "pointer_up": [("button", "int", False, "Button: 0=left, 1=middle, 2=right", "0")],
     "pointer_move": [
-        ("x", "int", True, "Target X in CSS pixels"),
-        ("y", "int", True, "Target Y in CSS pixels"),
+        ("x", "int", True, "Target X coordinate"),
+        ("y", "int", True, "Target Y coordinate"),
         ("duration", "int", False, "Movement time in ms", "0"),
         ("origin", "str", False, 'Reference: "viewport" or "pointer"', '"viewport"'),
+        ("screenshot", "str", False, "Screenshot path for coordinate scaling", "None"),
     ],
     "scroll": [
         ("x", "int", True, "Scroll origin X"),
@@ -174,9 +175,10 @@ CORE_PARAMS = {
         ("duration", "int", False, "Scroll time in ms", "0"),
     ],
     "click": [
-        ("x", "int", True, "Click X in CSS pixels"),
-        ("y", "int", True, "Click Y in CSS pixels"),
+        ("x", "int", True, "Click X coordinate"),
+        ("y", "int", True, "Click Y coordinate"),
         ("button", "int", False, "Button: 0=left, 2=right", "0"),
+        ("screenshot", "str", False, "Screenshot path for coordinate scaling", "None"),
     ],
     "pause": [("duration", "int", True, "Time in milliseconds")],
     "screenshot": [("path", "str", False, "Save screenshot to this file path", "None")],
@@ -219,6 +221,7 @@ _last_pointer = [0, 0]
 """
 
 
+
 def _build_param_str(params):
     """Build function signature params string."""
     parts = ["tab"]
@@ -242,7 +245,7 @@ def generate_primitive(name: str) -> str:
     lines.append(impl["imports"])
     lines.append("")
 
-    # Add key codes / pointer state if needed
+    # Add shared state snippets
     if name in ("key_down", "key_up"):
         lines.append(KEY_CODES_SNIPPET)
     if name in ("pointer_down", "pointer_up", "pointer_move"):
@@ -380,6 +383,7 @@ def main():
     (PRIMITIVES_DIR / "__init__.py").write_text(
         "# AUTO-GENERATED — DO NOT EDIT\n"
     )
+
 
     # Generate primitives
     generated_primitives = []

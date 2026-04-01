@@ -7,7 +7,7 @@
 from primitives.pointer_move import pointer_move as _core
 
 
-async def pointer_move(tab, x: int, y: int, duration: int = 0, origin: str = "viewport") -> dict:
+async def pointer_move(tab, x: int, y: int, duration: int = 0, origin: str = "viewport", screenshot: str = None) -> dict:
     """WebDriver §15.4.2 — Pointer actions."""
-    result = await _core(tab, x=x, y=y, duration=duration, origin=origin)
+    result = await _core(tab, x=x, y=y, duration=duration, origin=origin, screenshot=screenshot)
     return result

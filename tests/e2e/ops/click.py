@@ -7,7 +7,7 @@
 from primitives.click import click as _core
 
 
-async def click(tab, x: int, y: int, button: int = 0) -> dict:
+async def click(tab, x: int, y: int, button: int = 0, screenshot: str = None) -> dict:
     """WebDriver §12.5.1 — Element Click."""
-    result = await _core(tab, x=x, y=y, button=button)
+    result = await _core(tab, x=x, y=y, button=button, screenshot=screenshot)
     return result
