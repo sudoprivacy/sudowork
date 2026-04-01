@@ -130,19 +130,22 @@ IMPLEMENTATIONS = {
             return {"text": r.get("result", "")}"""),
     },
     "get_attribute": {
-        "imports": "from ai_dev_browser.core.page import js_exec",
+        "imports": "from ai_dev_browser.core.page import js_exec\nimport json as _json",
         "body": textwrap.dedent("""\
+            _sel = _json.dumps(element)
+            _attr = _json.dumps(name)
             r = await js_exec(tab, f\"\"\"(() => {{
-                const el = document.querySelector('{element}');
-                return el ? el.getAttribute('{name}') : null;
+                const el = document.querySelector({_sel});
+                return el ? el.getAttribute({_attr}) : null;
             }})()\"\"\")
             return {"value": r.get("result")}"""),
     },
     "is_displayed": {
-        "imports": "from ai_dev_browser.core.page import js_exec",
+        "imports": "from ai_dev_browser.core.page import js_exec\nimport json as _json",
         "body": textwrap.dedent("""\
+            _sel = _json.dumps(element)
             r = await js_exec(tab, f\"\"\"(() => {{
-                const el = document.querySelector('{element}');
+                const el = document.querySelector({_sel});
                 if (!el) return false;
                 const style = window.getComputedStyle(el);
                 return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;

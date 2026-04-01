@@ -5,11 +5,13 @@
 # Source: WebDriver §12.4.8 — Is Element Displayed
 
 from ai_dev_browser.core.page import js_exec
+import json as _json
 
 async def is_displayed(tab, element: str) -> dict:
     """WebDriver §12.4.8 — Is Element Displayed."""
+    _sel = _json.dumps(element)
     r = await js_exec(tab, f"""(() => {{
-        const el = document.querySelector('{element}');
+        const el = document.querySelector({_sel});
         if (!el) return false;
         const style = window.getComputedStyle(el);
         return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;

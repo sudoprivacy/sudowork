@@ -5,11 +5,14 @@
 # Source: WebDriver §12.4.2 — Get Element Attribute
 
 from ai_dev_browser.core.page import js_exec
+import json as _json
 
 async def get_attribute(tab, element: str, name: str) -> dict:
     """WebDriver §12.4.2 — Get Element Attribute."""
+    _sel = _json.dumps(element)
+    _attr = _json.dumps(name)
     r = await js_exec(tab, f"""(() => {{
-        const el = document.querySelector('{element}');
-        return el ? el.getAttribute('{name}') : null;
+        const el = document.querySelector({_sel});
+        return el ? el.getAttribute({_attr}) : null;
     }})()""")
     return {"value": r.get("result")}
