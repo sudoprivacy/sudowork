@@ -253,6 +253,25 @@ export class OpenClawGatewayManager extends EventEmitter {
         env.OPENCLAW_STATE_DIR = this.stateDir;
         env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
+
+      // Inject sudorouter credentials so skills (e.g. image-analysis) can access them
+      // Read directly from sudoclaw.json to avoid cross-layer import issues
+      try {
+        const configPath = this.stateDir ? path.join(this.stateDir, 'sudoclaw.json') : '';
+        if (configPath && fs.existsSync(configPath)) {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+          const sr = config?.models?.providers?.sudorouter;
+          if (sr?.apiKey) {
+            env.SUDOROUTER_BASE_URL = (sr.baseUrl || 'https://hk.sudorouter.ai/v1').replace(/\/+$/, '');
+            env.SUDOROUTER_API_KEY = sr.apiKey;
+            console.log('[OpenClawGatewayManager] Injected SUDOROUTER env vars, baseUrl:', env.SUDOROUTER_BASE_URL);
+          }
+          // CHAT_MODEL is not injected here — it would go stale if user changes model mid-session.
+          // Scripts read the current model from sudoclaw.json via OPENCLAW_CONFIG_PATH instead.
+        }
+      } catch (e) {
+        console.warn('[OpenClawGatewayManager] Failed to read sudoclaw.json for env injection:', e);
+      }
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
 

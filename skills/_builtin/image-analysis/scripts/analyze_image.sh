@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sudowork built-in image analysis script
 # Usage: analyze_image.sh <image_path> [prompt]
-# Requires env vars: SUDOROUTER_BASE_URL, SUDOROUTER_API_KEY, SUDOROUTER_MODEL
+# Requires env vars: SUDOROUTER_BASE_URL, SUDOROUTER_API_KEY, OPENCLAW_CONFIG_PATH (optional)
 
 set -euo pipefail
 
@@ -26,7 +26,22 @@ fi
 
 BASE_URL="${SUDOROUTER_BASE_URL}"
 API_KEY="${SUDOROUTER_API_KEY}"
-MODEL="${SUDOROUTER_MODEL:-gemini-2.5-flash}"
+# Resolve model: CHAT_MODEL env var > sudoclaw.json config > default
+if [ -n "${CHAT_MODEL:-}" ]; then
+  MODEL="$CHAT_MODEL"
+elif [ -n "${OPENCLAW_CONFIG_PATH:-}" ] && [ -f "$OPENCLAW_CONFIG_PATH" ]; then
+  MODEL=$(python3 -c "
+import json, sys
+try:
+    c = json.load(open(sys.argv[1]))
+    m = c.get('agents',{}).get('defaults',{}).get('model',{}).get('primary','')
+    print(m.split('/')[-1] if '/' in m else m)
+except: pass
+" "$OPENCLAW_CONFIG_PATH" 2>/dev/null)
+  MODEL="${MODEL:-gemini-2.5-flash}"
+else
+  MODEL="gemini-2.5-flash"
+fi
 
 echo "[analyze_image] IMAGE_PATH=$IMAGE_PATH" >&2
 echo "[analyze_image] BASE_URL=$BASE_URL" >&2

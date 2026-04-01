@@ -34,13 +34,15 @@ Get the image from the user's message or workspace context.
 ### Step 2: Run the image analysis script
 
 ```bash
-bash "$(dirname "$0")/scripts/analyze_image.sh" "<image_path>" "<question or prompt>"
+CURR_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")" && pwd)"
+bash $CURR_DIR/scripts/analyze_image.sh "<image_path>" "<question or prompt>"
 ```
 
 The script requires the following env vars to be set:
 - `SUDOROUTER_BASE_URL` — API base URL
 - `SUDOROUTER_API_KEY` — API key
-- `SUDOROUTER_MODEL` (optional) — chat model to use (defaults to gemini-2.5-flash)
+
+The model is auto-detected from `sudoclaw.json` (via `OPENCLAW_CONFIG_PATH`), falling back to `gemini-2.5-flash`.
 
 The script prints the analysis result (LLM response) on success, or an error message on failure.
 
