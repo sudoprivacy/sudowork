@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Config, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit, Cloudy } from '@icon-park/react';
+import { AlarmClock, Communication, Computer, Config, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit, Cloudy } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -46,6 +46,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
       { id: 'copilot', label: 'Copilot', icon: <Cloudy theme='outline' size='16' />, path: 'copilot' },
       { id: 'openclaw', label: t('settings.openclaw', { defaultValue: 'Sudoclaw' }), icon: <Config theme='outline' size='16' />, path: 'openclaw' },
+      { id: 'cron', label: t('cron.scheduledTasks', { defaultValue: 'Scheduled Tasks' }), icon: <AlarmClock theme='outline' size='16' />, path: 'cron' },
       { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
       { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
     ];

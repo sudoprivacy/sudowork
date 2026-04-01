@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronJob } from '@/common/ipcBridge';
+import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
 
 /**
  * Format schedule for display - use human-readable description
@@ -30,4 +30,86 @@ export function getJobStatusFlags(job: ICronJob): { hasError: boolean; isPaused:
     hasError: job.state.lastStatus === 'error',
     isPaused: !job.enabled,
   };
+}
+
+/**
+ * Frequency presets for human-friendly schedule selection
+ */
+export type FrequencyPreset = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly';
+
+export const FREQUENCY_PRESETS: FrequencyPreset[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
+
+export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+
+/**
+ * Convert frequency preset + options to a CronSchedule
+ */
+export function frequencyToSchedule(
+  preset: FrequencyPreset,
+  options?: { hour?: number; minute?: number; weekday?: string }
+): ICronSchedule | null {
+  const hour = options?.hour ?? 9;
+  const minute = options?.minute ?? 0;
+  const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+  switch (preset) {
+    case 'manual':
+      return null;
+    case 'hourly':
+      return { kind: 'cron', expr: '0 * * * *', description: `每小时整点` };
+    case 'daily':
+      return { kind: 'cron', expr: `${minute} ${hour} * * *`, description: `每天 ${timeStr}` };
+    case 'weekdays':
+      return { kind: 'cron', expr: `${minute} ${hour} * * MON-FRI`, description: `工作日 ${timeStr}` };
+    case 'weekly': {
+      const day = options?.weekday ?? 'MON';
+      return { kind: 'cron', expr: `${minute} ${hour} * * ${day}`, description: `每周${weekdayLabel(day)} ${timeStr}` };
+    }
+  }
+}
+
+/**
+ * Try to parse an existing CronSchedule back into a frequency preset
+ */
+export function scheduleToFrequency(schedule: ICronSchedule): {
+  preset: FrequencyPreset;
+  hour: number;
+  minute: number;
+  weekday: string;
+} {
+  if (schedule.kind !== 'cron') {
+    return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
+  }
+
+  const parts = schedule.expr.split(' ');
+  if (parts.length !== 5) {
+    return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
+  }
+
+  const [min, hr, , , dow] = parts;
+  const minute = parseInt(min) || 0;
+  const hour = parseInt(hr) || 9;
+
+  if (min === '0' && hr === '*') {
+    return { preset: 'hourly', hour: 0, minute: 0, weekday: 'MON' };
+  }
+  if (dow === '*') {
+    return { preset: 'daily', hour, minute, weekday: 'MON' };
+  }
+  if (dow === 'MON-FRI') {
+    return { preset: 'weekdays', hour, minute, weekday: 'MON' };
+  }
+  // Single weekday
+  if (WEEKDAYS.includes(dow as any)) {
+    return { preset: 'weekly', hour, minute, weekday: dow };
+  }
+
+  return { preset: 'daily', hour, minute, weekday: 'MON' };
+}
+
+function weekdayLabel(day: string): string {
+  const map: Record<string, string> = {
+    SUN: '日', MON: '一', TUE: '二', WED: '三', THU: '四', FRI: '五', SAT: '六',
+  };
+  return map[day] || day;
 }

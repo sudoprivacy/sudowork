@@ -2,7 +2,7 @@ import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { AlarmClock, Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import OpenClawLogo from '@/renderer/assets/logos/openclaw.svg';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,7 +13,7 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'runtime', 'system', 'about'] as const;
+const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'cron', 'webui', 'runtime', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
@@ -109,6 +109,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       security: { id: 'security', label: '安全防护', icon: <Shield />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
       copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config />, path: 'copilot' },
+      cron: { id: 'cron', label: t('cron.scheduledTasks', { defaultValue: 'Scheduled Tasks' }), icon: <AlarmClock />, path: 'cron' },
       webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
