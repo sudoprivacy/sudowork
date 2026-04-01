@@ -145,7 +145,9 @@ async function discoverBuiltinSkillNames(): Promise<string[]> {
         try {
           await fs.access(path.join(builtinDir, entry.name, 'SKILL.md'));
           names.push(entry.name);
-        } catch { /* no SKILL.md, skip */ }
+        } catch {
+          /* no SKILL.md, skip */
+        }
       }
     }
     return names;
@@ -867,7 +869,7 @@ export function initConversationBridge(): void {
         // Inject preset context and full skills content (OpenClaw's LLM can't read files on its own)
         // 注入预设上下文和完整技能内容（OpenClaw 的 LLM 无法自行读取文件）
         const builtinSkillNames = await discoverBuiltinSkillNames();
-        const userSkills = other.skills?.length ? other.skills : (enabledSkills || []);
+        const userSkills = other.skills?.length ? other.skills : enabledSkills || [];
         const allSkills = [...new Set([...builtinSkillNames, ...userSkills])];
         agentContent = await prepareFirstMessage(agentContent, {
           presetContext,

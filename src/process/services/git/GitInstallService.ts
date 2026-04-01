@@ -10,8 +10,7 @@
  * Cross-platform git detection and online installation.
  * - Windows:        Downloads the official Git for Windows installer from GitHub Releases
  *                   and runs it silently. Architecture-aware (x64 / arm64).
- * - macOS:          Triggers `xcode-select --install` (installs git via CLT), falls back
- *                   to `brew install git` if Homebrew is present.
+ * - macOS:          Uses `brew install git` when Homebrew is available.
  * - Linux:          Tries common package managers in order: apt-get → dnf → yum → pacman → zypper.
  *
  * All installation steps are non-fatal: failures are logged and the caller receives
@@ -31,10 +30,9 @@ const TAG = 'GitInstall';
 
 // ── Git for Windows download URLs ────────────────────────────────────────────
 const GIT_WIN_VERSION = '2.47.1';
-const GIT_WIN_BASE = `https://github.com/git-for-windows/git/releases/download/v${GIT_WIN_VERSION}.windows.1`;
 const GIT_WIN_URLS: Record<string, string> = {
-  x64: `${GIT_WIN_BASE}/Git-${GIT_WIN_VERSION}-64-bit.exe`,
-  arm64: `${GIT_WIN_BASE}/Git-${GIT_WIN_VERSION}-arm64.exe`,
+  x64: `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-64-bit.exe`,
+  arm64: `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-arm64.exe`,
 };
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -202,24 +200,13 @@ async function _installGitWindows(onProgress?: (msg: string) => void): Promise<b
   } finally {
     try {
       if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
-    } catch {}
+    } catch (err) {
+      mainWarn(TAG, `Failed to remove temporary Git installer: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
 
 async function _installGitMacOS(onProgress?: (msg: string) => void): Promise<boolean> {
-  // Option 1: xcode-select --install (triggers a system dialog)
-  try {
-    onProgress?.('正在通过 Xcode Command Line Tools 安装 Git...');
-    mainLog(TAG, 'Running: xcode-select --install');
-    await execAsync('xcode-select --install 2>&1 || true', { timeout: 10_000 });
-    // Short wait — if CLT was already queued, git might appear quickly
-    await new Promise((r) => setTimeout(r, 3_000));
-    if (await isGitInstalled()) return true;
-  } catch {
-    // Expected when dialog is shown or already installed
-  }
-
-  // Option 2: Homebrew fallback
   try {
     const { stdout } = await execAsync('which brew 2>/dev/null || true', { timeout: 5_000 });
     if (stdout.trim()) {
@@ -228,10 +215,11 @@ async function _installGitMacOS(onProgress?: (msg: string) => void): Promise<boo
       await execAsync('brew install git', { timeout: 180_000 });
       return await isGitInstalled();
     }
-  } catch {
-    // Homebrew not available
+  } catch (err) {
+    mainWarn(TAG, `brew install git failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  onProgress?.('macOS 仅支持通过 Homebrew 自动安装 Git，请先安装 Homebrew');
   return false;
 }
 

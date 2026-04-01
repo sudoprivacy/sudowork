@@ -20,8 +20,6 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
 const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
 const FORCE = process.argv.includes('--force');
-const versionArg = process.argv.find((a) => a.startsWith('--version='));
-const VERSION_PIN = versionArg ? versionArg.split('=')[1] : null;
 const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
 const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org/';
 
@@ -71,18 +69,7 @@ function getVersionFromArchive(archivePath) {
   }
 }
 
-let version;
-if (VERSION_PIN === 'latest') {
-  const info = JSON.parse(execSync(`npm show openclaw --json --registry=${NPM_REGISTRY}`).toString());
-  version = info.version;
-  console.log(`[openclaw] Downloading openclaw@${version} (latest) from ${NPM_REGISTRY}...`);
-} else if (VERSION_PIN) {
-  version = VERSION_PIN;
-  console.log(`[openclaw] Using version: ${version}`);
-} else {
-  version = KNOWN_GOOD_VERSION;
-  console.log(`[openclaw] Using known-good version: ${version} (2026.3.13 has dist/ bug)`);
-}
+let version = KNOWN_GOOD_VERSION;
 
 if (fs.existsSync(OUTPUT) && !FORCE) {
   const archivedVersion = getVersionFromArchive(OUTPUT);
