@@ -239,7 +239,14 @@ jobs:
           }
 
           Write-Host "Using installer: $($installer.FullName)"
-          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -NoNewWindow
+          $proc = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -PassThru -NoNewWindow
+          if (-not $proc.WaitForExit(300000)) {
+            $proc.Kill()
+            throw "Silent install timed out after 5 minutes"
+          }
+          if ($proc.ExitCode -ne 0) {
+            throw "Silent install failed with exit code $($proc.ExitCode)"
+          }
 
           $candidates = @(
             "$env:LOCALAPPDATA\\Programs\\Sudowork\\Sudowork.exe",
