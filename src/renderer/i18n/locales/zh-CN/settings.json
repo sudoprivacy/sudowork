@@ -750,5 +750,30 @@
   "openclaw.workspaceOpened": "工作区已打开",
   "openclaw.failedToOpenWorkspace": "打开工作区失败",
   "profile": "用户中心",
-  "memberManagement": "成员管理"
+  "memberManagement": "成员管理",
+  "recharge": {
+    "title": "充值积分",
+    "selectPackage": "选择套餐",
+    "selectPayment": "支付方式",
+    "alipay": "支付宝",
+    "wechat": "微信支付",
+    "paying": "等待支付",
+    "success": "充值成功",
+    "failed": "充值失败",
+    "scanToPay": "请使用{{method}}扫码支付",
+    "orderAmount": "订单金额",
+    "pointsToGet": "获得积分",
+    "cancelOrder": "取消订单",
+    "orderExpired": "订单已过期",
+    "orderCancelled": "订单已取消",
+    "retryPayment": "重新下单",
+    "history": "充值记录",
+    "noOrders": "暂无充值记录",
+    "loadPackagesFailed": "加载套餐失败",
+    "createOrderFailed": "创建订单失败",
+    "waitingPayment": "等待支付...",
+    "expireAt": "过期时间",
+    "createOrder": "创建订单",
+    "successDesc": "积分已到账，请查收"
+  }
 }
