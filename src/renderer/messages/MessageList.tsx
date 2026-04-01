@@ -53,9 +53,9 @@ type IMessageVO =
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
 
-const MessageItem: React.FC<{ message: TMessage }> = React.memo(
+const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = React.memo(
   HOC((props) => {
-    const { message } = props as { message: TMessage };
+    const { message, isStreaming } = props as { message: TMessage; isStreaming?: boolean };
     return (
       <div
         data-message-id={message.id}
@@ -68,11 +68,11 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
         {props.children}
       </div>
     );
-  })(({ message }) => {
+  })(({ message, isStreaming }) => {
     const { t } = useTranslation();
     switch (message.type) {
       case 'text':
-        return <MessageText message={message}></MessageText>;
+        return <MessageText message={message} isStreaming={isStreaming}></MessageText>;
       case 'tips':
         return <MessageTips message={message}></MessageTips>;
       case 'tool_call':
@@ -98,10 +98,20 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
         return <div>{t('messages.unknownMessageType', { type: (message as any).type })}</div>;
     }
   }),
-  (prev, next) => prev.message.id === next.message.id && prev.message.content === next.message.content && prev.message.position === next.message.position && prev.message.type === next.message.type
+  (prev, next) => 
+    prev.message.id === next.message.id && 
+    prev.message.content === next.message.content && 
+    prev.message.position === next.message.position && 
+    prev.message.type === next.message.type &&
+    prev.isStreaming === next.isStreaming
 );
 
-const MessageList: React.FC<{ className?: string }> = () => {
+interface MessageListProps {
+  className?: string;
+  aiProcessing?: boolean; // AI processing state
+}
+
+const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = false }) => {
   const list = useMessageList();
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
@@ -186,6 +196,33 @@ const MessageList: React.FC<{ className?: string }> = () => {
       setContextMenu({ x: e.clientX, y: e.clientY, items });
     }
   };
+
+  // Find the last AI text message for streaming effect
+  // Only highlight if it's the most recent message (no user messages after it)
+  // 找到最后一条正在流式的 AI 文本消息
+  // 只有当它是最新的消息（后面没有用户消息）时才闪烁
+  const lastAiMessageId = React.useMemo(() => {
+    if (!aiProcessing) return null;
+    
+    let lastAiId: string | null = null;
+    let hasUserMessageAfter = false;
+    
+    // Iterate from end to find the last AI message and check if there's a user message after it
+    // 从后向前遍历，找到最后一条 AI 消息并检查后面是否有用户消息
+    for (let i = list.length - 1; i >= 0; i--) {
+      const msg = list[i];
+      if (msg.position === 'right') {
+        // Found a user message
+        hasUserMessageAfter = true;
+      } else if (msg.type === 'text' && msg.position === 'left' && !hasUserMessageAfter) {
+        // Found an AI message with no user messages after it
+        lastAiId = msg.id;
+        break;
+      }
+    }
+    
+    return lastAiId;
+  }, [list, aiProcessing]);
 
   // Pre-process message list to group Codex turn_diff messages and add turn-level copy actions
   const processedList = useMemo(() => {
@@ -348,7 +385,7 @@ const MessageList: React.FC<{ className?: string }> = () => {
         </div>
       );
     }
-    return <MessageItem message={item as TMessage} key={(item as TMessage).id}></MessageItem>;
+    return <MessageItem message={item as TMessage} key={(item as TMessage).id} isStreaming={(item as TMessage).id === lastAiMessageId}></MessageItem>;
   };
 
   return (

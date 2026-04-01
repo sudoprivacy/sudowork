@@ -31,6 +31,7 @@ import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
+import { AIProcessingContext } from './OpenClawChat';
 
 interface OpenClawDraftData {
   _type: 'openclaw-gateway';
@@ -92,7 +93,11 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+const OpenClawSendBox: React.FC<{ 
+  conversation_id: string; 
+  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
+}> = ({ conversation_id, onAiProcessingChange }) => {
+  const aiProcessingContext = React.useContext(AIProcessingContext);
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -110,6 +115,19 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   // Use ref to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
   const aiProcessingRef = useRef(aiProcessing);
+
+  // Sync local aiProcessing state to parent via onAiProcessingChange
+  React.useEffect(() => {
+    if (onAiProcessingChange) {
+      onAiProcessingChange(aiProcessing);
+    }
+  }, [aiProcessing, onAiProcessingChange]);
+
+  // Reset aiProcessing when conversation changes
+  // 切换会话时重置 aiProcessing 状态
+  React.useEffect(() => {
+    setAiProcessing(false);
+  }, [conversation_id]);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)

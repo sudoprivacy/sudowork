@@ -55,7 +55,7 @@ const useFormatContent = (content: string) => {
   }, [content]);
 };
 
-const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
+const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = ({ message, isStreaming = false }) => {
   // Filter think tags from content before rendering
   // 在渲染前过滤 think 标签
   const contentToRender = useMemo(() => {
@@ -148,6 +148,8 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
             'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
             // 助手消息使用 OpenClaw 风格的白色/深灰色调
             'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
+            // 流式输出时添加红色闪烁边框
+            'streaming-message': isStreaming && !isUserMessage,
           })}
           style={{
             borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
