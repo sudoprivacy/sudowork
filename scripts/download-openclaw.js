@@ -23,7 +23,7 @@ const FORCE = process.argv.includes('--force');
 const versionArg = process.argv.find((a) => a.startsWith('--version='));
 const VERSION_PIN = versionArg ? versionArg.split('=')[1] : null;
 const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
-const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://mirrors.cloud.tencent.com/npm/';
+const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org/';
 
 fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 
@@ -128,7 +128,7 @@ try {
   const hasDist = fs.existsSync(distEntry) || fs.existsSync(distEntryJs);
 
   // Install dependencies
-  const npmTimeout = process.platform === 'win32' ? 600_000 : 300_000;
+  const npmTimeout = 1_200_000;
   console.log(`[openclaw] Installing dependencies (npm, flat structure, registry: ${NPM_REGISTRY}, timeout: ${npmTimeout / 1000}s)...`);
   try {
     execSync(`npm install --omit=dev --legacy-peer-deps --registry=${NPM_REGISTRY}`, {
