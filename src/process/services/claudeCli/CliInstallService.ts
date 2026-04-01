@@ -84,20 +84,19 @@ export class CliInstallService {
   }
 
   async checkInstalled(): Promise<ICliStatus> {
-    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
-    const managedBin = path.join(getBinDir(), binName);
-    const entryFile = this.resolveEntryFile();
+    const managedBin = this.getManagedBinPath();
 
-    // Always prefer managed; fall back to system
-    if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile)) {
-      return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() };
+    // Always prefer Sudowork-managed binaries before PATH detection.
+    if (fs.existsSync(managedBin)) {
+      return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() ?? (await this.getVersionFromPath(managedBin)) };
     }
 
     try {
       const cmd = process.platform === 'win32' ? `where ${this.cfg.name}` : `which ${this.cfg.name}`;
       const { stdout } = await execAsync(cmd);
       const paths = stdout.trim().split(/\r?\n/);
-      const systemPath = paths.find((p) => !p.startsWith(getBinDir()));
+      const normalizedManagedBin = path.normalize(managedBin);
+      const systemPath = paths.find((candidate) => path.normalize(candidate) !== normalizedManagedBin);
       if (systemPath) {
         return { installed: true, path: systemPath, source: 'system', version: await this.getVersionFromPath(systemPath) };
       }
@@ -117,6 +116,11 @@ export class CliInstallService {
     } catch {
       return undefined;
     }
+  }
+
+  private getManagedBinPath(): string {
+    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
+    return path.join(getBinDir(), binName);
   }
 
   /** Run `<binPath> --version` to get version for system-installed binaries */

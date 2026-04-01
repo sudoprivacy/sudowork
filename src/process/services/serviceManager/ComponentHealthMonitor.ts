@@ -19,7 +19,7 @@ interface ComponentStatus {
 /**
  * 自动组件健康监控服务
  *
- * 每隔 4 秒检测所有运行时组件的健康状态，自动执行安装或启动操作
+ * 每隔 4 秒检测核心服务的健康状态，自动执行安装或启动操作
  */
 class ComponentHealthMonitor {
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -29,7 +29,7 @@ class ComponentHealthMonitor {
   private readonly CHECK_INTERVAL_MS = 4000;
   private readonly BACKOFF_INTERVAL_MS = 30000;
 
-  private readonly COMPONENTS = ['git', 'node', 'claude', 'sudoclaw', 'nexus', 'bdpan'] as const;
+  private readonly COMPONENTS = ['sudoclaw', 'nexus'] as const;
 
   /**
    * 启动健康监控
@@ -110,56 +110,13 @@ class ComponentHealthMonitor {
    */
   private async checkComponentHealth(component: string): Promise<ComponentStatus> {
     switch (component) {
-      case 'git':
-        return this.checkGitHealth();
-      case 'node':
-        return this.checkNodeHealth();
       case 'sudoclaw':
         return this.checkSudoclawHealth();
-      case 'claude':
-        return this.checkClaudeHealth();
       case 'nexus':
         return this.checkNexusHealth();
-      case 'bdpan':
-        return this.checkBdpanHealth();
       default:
         return { installed: false, needsAction: false };
     }
-  }
-
-  /**
-   * 检查 Git 状态
-   */
-  private async checkGitHealth(): Promise<ComponentStatus> {
-    const { spawnSync } = await import('child_process');
-    const result = spawnSync('git', ['--version'], {
-      timeout: 3000,
-      encoding: 'utf-8',
-    });
-    const installed = result.status === 0 && !!result.stdout;
-    return { installed, needsAction: false }; // Git 不自动安装，避免网络问题
-  }
-
-  /**
-   * 检查 Node.js 状态
-   */
-  private async checkNodeHealth(): Promise<ComponentStatus> {
-    const { isNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
-    const installed = isNodeInstalled();
-    return { installed, needsAction: !installed };
-  }
-
-  /**
-   * 检查 Claude CLI 状态
-   */
-  private async checkClaudeHealth(): Promise<ComponentStatus> {
-    const { claudeCliService } = await import('../claudeCli/CliInstallService');
-    if (!claudeCliService.hasTgzResource()) {
-      return { installed: true, needsAction: false };
-    }
-
-    const status = await claudeCliService.checkInstalled();
-    return { installed: status.installed, needsAction: !status.installed, actionType: 'install' };
   }
 
   /**
@@ -209,15 +166,6 @@ class ComponentHealthMonitor {
   }
 
   /**
-   * 检查 Bdpan 状态
-   */
-  private async checkBdpanHealth(): Promise<ComponentStatus> {
-    const { isBdpanInstalled } = await import('../bdpan/BdpanInstallService');
-    const installed = isBdpanInstalled();
-    return { installed, needsAction: !installed };
-  }
-
-  /**
    * 自愈组件
    */
   private async healComponent(component: string, status: ComponentStatus): Promise<boolean> {
@@ -242,21 +190,6 @@ class ComponentHealthMonitor {
   private async installComponent(component: string): Promise<boolean> {
     try {
       switch (component) {
-        case 'git': {
-          const { ensureGitInstalled } = await import('../git/GitInstallService');
-          return await ensureGitInstalled();
-        }
-        case 'node': {
-          const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
-          await ensureNodeInstalled();
-          return true;
-        }
-        case 'claude': {
-          const { claudeCliService } = await import('../claudeCli/CliInstallService');
-          await claudeCliService.install();
-          const status = await claudeCliService.checkInstalled();
-          return status.installed;
-        }
         case 'sudoclaw': {
           const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
           const result = await ensureSudoclawInstalled({ forceReinstall: false });
@@ -266,10 +199,6 @@ class ComponentHealthMonitor {
           const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
           await dynamicNexusService.install();
           return true;
-        }
-        case 'bdpan': {
-          const { ensureBdpanInstalled } = await import('../bdpan/BdpanInstallService');
-          return await ensureBdpanInstalled();
         }
         default:
           return false;
