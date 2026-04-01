@@ -101,8 +101,8 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
     const rawBase = json ? JSON.stringify(data, null, 2) : text;
     // Strip markdown image syntax ![alt](path) → path
     const baseText = rawBase.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
-    const fileList = visibleFiles.length ? `Files:\n${visibleFiles.map((path) => `- ${path}`).join('\n')}\n\n` : '';
-    const textToCopy = fileList + baseText;
+    // Only copy message content, exclude files and skills
+    const textToCopy = baseText;
     copyText(textToCopy)
       .then(() => {
         setShowCopyAlert(true);

@@ -149,7 +149,22 @@ const MessageList: React.FC<{ className?: string }> = () => {
               // Extract content from message based on its type
               let textToCopy = '';
               if (messageObj.type === 'text') {
-                textToCopy = messageObj.content.content;
+                // For text messages, extract only the text content (exclude files, skills, etc.)
+                let rawContent = messageObj.content.content;
+                // Strip think tags if present
+                if (typeof rawContent === 'string' && hasThinkTags(rawContent)) {
+                  rawContent = stripThinkTags(rawContent);
+                }
+                // Strip file marker and file list
+                if (typeof rawContent === 'string') {
+                  const markerIdx = rawContent.indexOf(NEXUS_FILES_MARKER);
+                  if (markerIdx !== -1) {
+                    rawContent = rawContent.slice(0, markerIdx).trimEnd();
+                  }
+                  // Strip markdown image syntax ![alt](path) → path
+                  rawContent = rawContent.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
+                }
+                textToCopy = rawContent;
               } else {
                 // For other types, maybe stringify content
                 textToCopy = JSON.stringify(messageObj.content, null, 2);
