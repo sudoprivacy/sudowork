@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as http from 'node:http';
+
 export interface SudoclawHealthPayload {
   ok: true;
   status: 'live';
@@ -17,16 +19,38 @@ export function isSudoclawHealthPayload(value: unknown): value is SudoclawHealth
 }
 
 export async function checkSudoclawHealth(host: string, port: number, timeoutMs = 1000): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const response = await fetch(`http://${host}:${port}/health`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!response.ok) return false;
+  return await new Promise<boolean>((resolve) => {
+    const req = http.get(
+      {
+        host,
+        port,
+        path: '/health',
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            resolve(false);
+            return;
+          }
 
-    const payload = (await response.json()) as unknown;
-    return isSudoclawHealthPayload(payload);
-  } catch {
-    return false;
-  }
+          try {
+            const payload = JSON.parse(body) as unknown;
+            resolve(isSudoclawHealthPayload(payload));
+          } catch {
+            resolve(false);
+          }
+        });
+      }
+    );
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
 }

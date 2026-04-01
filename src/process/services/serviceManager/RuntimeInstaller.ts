@@ -24,8 +24,6 @@ const TAG = 'RuntimeInstaller';
  * from service lifecycle management.
  */
 class RuntimeInstaller {
-  static readonly SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS = 90_000;
-
   private getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState: () => { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
     if (!app.isPackaged) {
       const versionState = getSudoclawVersionState();
@@ -460,7 +458,7 @@ class RuntimeInstaller {
         }
         markStepActive('sudoclaw', 'Sudoclaw 文件已就绪，正在启动服务...', 92);
         initStatusManager.addLog('✓ Sudoclaw 安装完成，开始启动服务...');
-        await options.startSudoclaw(RuntimeInstaller.SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS);
+        await options.startSudoclaw();
         return { step: 'sudoclaw', ok: true, required: true };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);

@@ -5,6 +5,7 @@
  */
 
 import { app } from 'electron';
+import * as http from 'node:http';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
@@ -29,17 +30,9 @@ type SudoclawHealthCheckResult = {
 class ServiceManager {
   private gateway: OpenClawGateway | null = null;
   private startupInProgress = false;
-  private startupRetryTimer: NodeJS.Timeout | null = null;
-  private startupRetryCount = 0;
-  private startupSudoclawReinstallAttempted = false;
-  private startupNexusReinstallAttempted = false;
-  private readonly STARTUP_RETRY_LIMIT = 3;
-  private readonly STARTUP_RETRY_DELAY_MS = 10_000;
-  private readonly STARTUP_READINESS_TIMEOUT_MS = 15_000;
-  private readonly STARTUP_ONLY_READINESS_TIMEOUT_MS = 90_000;
+  private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
   private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
-  private readonly SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_START_ATTEMPTS = 3;
   private readonly NEXUS_START_ATTEMPTS = 3;
 
@@ -61,6 +54,16 @@ class ServiceManager {
       recentStdout: recentOutput?.stdout || '',
       recentStderr: recentOutput?.stderr || '',
     };
+  }
+
+  private isRetryableStartupExitError(error: unknown, component: 'sudoclaw' | 'nexus'): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (component === 'nexus') {
+      return message.includes('nexusd exited before becoming ready');
+    }
+
+    return message.includes('Sudoclaw gateway exited before becoming healthy') || message.includes('Gateway exited with code');
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -91,13 +94,6 @@ class ServiceManager {
       await this.verifyStartupReadiness();
       initStatusManager.setStatus('ready', '初始化完成', 100);
       initStatusManager.clearRetry();
-      this.startupRetryCount = 0;
-      this.startupSudoclawReinstallAttempted = false;
-      this.startupNexusReinstallAttempted = false;
-      if (this.startupRetryTimer) {
-        clearTimeout(this.startupRetryTimer);
-        this.startupRetryTimer = null;
-      }
       void this.startSafetyPolling();
 
       // Start health monitor for auto-healing components
@@ -106,52 +102,13 @@ class ServiceManager {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       initStatusManager.setStatus('error', '初始化失败', 0, message);
-      if (initStatusManager.getStatus().displayMode === 'startup') {
-        initStatusManager.clearRetry();
-        initStatusManager.setDetail('核心服务启动失败，请检查日志或端口占用后重启应用。');
-      } else {
-        this.scheduleStartupRetry(message);
-      }
+      initStatusManager.clearRetry();
+      initStatusManager.setDetail('核心服务启动失败，请手动点击重试或重装。');
+      initStatusManager.addLog(`⚠ 启动失败：${message}`);
       mainError('ServiceManager', 'Startup readiness verification failed', err);
     } finally {
       this.startupInProgress = false;
     }
-  }
-
-  private scheduleStartupRetry(reason: string): void {
-    if (this.startupRetryTimer) {
-      clearTimeout(this.startupRetryTimer);
-      this.startupRetryTimer = null;
-    }
-
-    if (this.startupRetryCount >= this.STARTUP_RETRY_LIMIT) {
-      initStatusManager.clearRetry();
-      initStatusManager.setDetail('自动重试次数已达上限，请检查磁盘空间或环境后重启应用。');
-      initStatusManager.addLog(`✗ 已达到最大自动重试次数（${this.STARTUP_RETRY_LIMIT} 次）`);
-      return;
-    }
-
-    this.startupRetryCount += 1;
-    const delay = this.STARTUP_RETRY_DELAY_MS;
-    const retrySeconds = Math.ceil(delay / 1000);
-    const retryLabel = `第 ${this.startupRetryCount}/${this.STARTUP_RETRY_LIMIT} 次`;
-    const nextRetryAt = Date.now() + delay;
-
-    initStatusManager.setDetail(`安装或启动失败，将在 ${retrySeconds} 秒后自动重试（${retryLabel}）...`);
-    initStatusManager.setRetry({
-      attempt: this.startupRetryCount,
-      maxAttempts: this.STARTUP_RETRY_LIMIT,
-      nextRetryAt,
-    });
-    initStatusManager.addLog(`⚠ 启动失败：${reason}`);
-    initStatusManager.addLog(`↻ 将在 ${retrySeconds} 秒后自动重试（${retryLabel}）`);
-
-    this.startupRetryTimer = setTimeout(() => {
-      this.startupRetryTimer = null;
-      initStatusManager.clearRetry();
-      initStatusManager.addLog(`↻ 开始自动重试启动（${retryLabel}）...`);
-      void this.startup();
-    }, delay);
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -183,20 +140,10 @@ class ServiceManager {
       return;
     }
 
-    try {
-      await this.startNexusWithRecovery({
-        allowReinstall: !this.startupNexusReinstallAttempted,
-        postReinstallAttempts: 1,
-      });
-    } catch (err) {
-      if (!this.startupNexusReinstallAttempted) {
-        this.startupNexusReinstallAttempted = true;
-      }
-      throw err;
-    }
+    await this.startNexusWithRetries();
   }
 
-  private async startNexusWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number }): Promise<void> {
+  private async startNexusWithRetries(): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
     if (!dynamicNexusService.hasBundledResource()) {
@@ -219,6 +166,13 @@ class ServiceManager {
           lastError = err;
           mainError('ServiceManager', `Nexus startup attempt ${attempt}/${attempts} failed`, err);
           initStatusManager.addLog(`⚠ Nexus 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`);
+
+          const shouldRetry = this.isRetryableStartupExitError(err, 'nexus') && attempt < attempts;
+          if (!shouldRetry) {
+            throw err;
+          }
+
+          initStatusManager.addLog(`↻ Nexus 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
           await dynamicNexusService.stop().catch(() => {});
           await this.killProcessesOnPort(12012, 'Nexus');
         }
@@ -227,33 +181,7 @@ class ServiceManager {
       throw lastError instanceof Error ? lastError : new Error(String(lastError));
     };
 
-    try {
-      await startAttempts(this.NEXUS_START_ATTEMPTS, 'normal');
-      return;
-    } catch (err) {
-      if (!options.allowReinstall) {
-        throw err;
-      }
-      this.startupNexusReinstallAttempted = true;
-      initStatusManager.setStepState('nexus', 'active', 'Nexus 启动多次失败，正在强制重装...');
-      initStatusManager.setStepProgress('nexus', 55, 'Nexus 启动多次失败，正在强制重装...');
-      initStatusManager.addLog('⚠ Nexus 启动多次失败，开始强制重装...');
-      await dynamicNexusService.stop().catch(() => {});
-      await this.killProcessesOnPort(12012, 'Nexus');
-      const unsubscribe = dynamicNexusService.onSetupStatus((nexusStatus) => {
-        initStatusManager.setStepState('nexus', nexusStatus.stage === 'error' ? 'error' : 'active', nexusStatus.message);
-        if (typeof nexusStatus.percent === 'number') {
-          initStatusManager.setStepProgress('nexus', Math.min(88, Math.max(0, nexusStatus.percent)), nexusStatus.message);
-        }
-        initStatusManager.addLog(`[Nexus] ${nexusStatus.message}`);
-      });
-      try {
-        await dynamicNexusService.install();
-      } finally {
-        unsubscribe();
-      }
-      await startAttempts(options.postReinstallAttempts, 'reinstall');
-    }
+    await startAttempts(this.NEXUS_START_ATTEMPTS, 'normal');
   }
 
   private async startNexusOnce(): Promise<void> {
@@ -307,34 +235,20 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startOpenClaw(): Promise<void> {
-    await this.startOpenClawOnce(this.SUDOCLAW_START_TIMEOUT_MS);
+    await this.startOpenClawOnce();
   }
 
-  private async startOpenClawForStartup(timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
+  private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
     if (initStatusManager.getStatus().displayMode === 'startup') {
       await this.preparePortForStart(17863, 'Sudoclaw');
-      await this.startOpenClawOnce(timeoutMs);
+      await this.startOpenClawOnce();
       return;
     }
 
-    try {
-      await this.startOpenClawWithRecovery({
-        allowReinstall: !this.startupSudoclawReinstallAttempted,
-        postReinstallAttempts: this.SUDOCLAW_START_ATTEMPTS,
-        timeoutMs,
-      });
-    } catch (err) {
-      if (!this.startupSudoclawReinstallAttempted) {
-        this.startupSudoclawReinstallAttempted = true;
-      }
-      throw err;
-    }
+    await this.startOpenClawWithRetries();
   }
 
-  private async startOpenClawWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number; timeoutMs?: number }): Promise<void> {
-    const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
-    const startupTimeoutMs = options.timeoutMs ?? this.SUDOCLAW_START_TIMEOUT_MS;
-
+  private async startOpenClawWithRetries(): Promise<void> {
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
@@ -343,12 +257,19 @@ class ServiceManager {
           await this.preparePortForStart(17863, 'Sudoclaw');
           initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
-          await this.startOpenClawOnce(startupTimeoutMs);
+          await this.startOpenClawOnce();
           return;
         } catch (err) {
           lastError = err;
           mainError('ServiceManager', `Sudoclaw startup attempt ${attempt}/${attempts} failed`, err);
           initStatusManager.addLog(`⚠ Sudoclaw 启动失败（第 ${attempt}/${attempts} 次）: ${err instanceof Error ? err.message : String(err)}`);
+
+          const shouldRetry = this.isRetryableStartupExitError(err, 'sudoclaw') && attempt < attempts;
+          if (!shouldRetry) {
+            throw err;
+          }
+
+          initStatusManager.addLog(`↻ Sudoclaw 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
           await this.stopOpenClaw();
         }
       }
@@ -356,30 +277,10 @@ class ServiceManager {
       throw lastError instanceof Error ? lastError : new Error(String(lastError));
     };
 
-    try {
-      await startAttempts(this.SUDOCLAW_START_ATTEMPTS, 'normal');
-      return;
-    } catch (err) {
-      if (!options.allowReinstall) {
-        throw err;
-      }
-      this.startupSudoclawReinstallAttempted = true;
-      initStatusManager.setStepState('sudoclaw', 'active', 'Sudoclaw 启动多次失败，正在强制重装...');
-      initStatusManager.setStepProgress('sudoclaw', 55, 'Sudoclaw 启动多次失败，正在强制重装...');
-      initStatusManager.addLog('⚠ Sudoclaw 启动多次失败，开始强制重装...');
-      await this.stopOpenClaw();
-      const reinstallResult = await ensureSudoclawInstalled({ forceReinstall: true });
-      if (!reinstallResult.installed) {
-        throw new Error(reinstallResult.error ?? 'Sudoclaw 强制重装失败');
-      }
-      if (startupTimeoutMs >= this.SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS) {
-        initStatusManager.addLog(`ℹ 首次安装/重装后的 Sudoclaw 启动等待时间已放宽至 ${startupTimeoutMs / 1000} 秒`);
-      }
-      await startAttempts(options.postReinstallAttempts, 'reinstall');
-    }
+    await startAttempts(this.SUDOCLAW_START_ATTEMPTS, 'normal');
   }
 
-  private async startOpenClawOnce(timeoutMs: number): Promise<void> {
+  private async startOpenClawOnce(): Promise<void> {
     // Create a deferred promise so agents can await gateway readiness.
     this.gatewayReadyPromise = new Promise<{ host: string; port: number } | null>((resolve) => {
       this.gatewayReadyResolve = resolve;
@@ -416,7 +317,7 @@ class ServiceManager {
       if (launchCommand) {
         initStatusManager.addLog(`[Sudoclaw] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
       }
-      await this.waitForSudoclawHealthy(SUDOCLAW_DEFAULT_PORT, timeoutMs);
+      await this.waitForSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
       initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
       mainLog('ServiceManager', 'Sudoclaw gateway started successfully');
       this.gatewayReadyResolve?.({ host: 'localhost', port: SUDOCLAW_DEFAULT_PORT });
@@ -454,11 +355,15 @@ class ServiceManager {
     initStatusManager.addLog('✓ Sudoclaw 启动前已确认 Node.js 环境正常');
   }
 
-  private async waitForSudoclawHealthy(port: number, timeoutMs = 30_000): Promise<void> {
-    const start = Date.now();
+  private async waitForSudoclawHealthy(port: number, timeoutMs?: number): Promise<void> {
+    const deadline = timeoutMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + timeoutMs;
     let lastHealth: SudoclawHealthCheckResult = { healthy: false, error: 'health check not attempted' };
 
-    while (Date.now() - start < timeoutMs) {
+    while (Date.now() < deadline) {
+      if (this.gateway && !this.gateway.isRunning) {
+        throw new Error('Sudoclaw gateway exited before becoming healthy');
+      }
+
       lastHealth = await this.checkSudoclawHealth(port);
       if (lastHealth.healthy) {
         return;
@@ -486,36 +391,57 @@ class ServiceManager {
   }
 
   private async checkSudoclawHealth(port: number): Promise<SudoclawHealthCheckResult> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`, {
-        signal: AbortSignal.timeout(1_500),
-      });
-      const body = await response.text();
-      let payload: SudoclawHealthPayload | undefined;
+    return await new Promise<SudoclawHealthCheckResult>((resolve) => {
+      const req = http.get(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/health',
+          timeout: 1_500,
+        },
+        (res) => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => (body += chunk));
+          res.on('end', () => {
+            let payload: SudoclawHealthPayload | undefined;
 
-      if (body) {
-        try {
-          const parsed = JSON.parse(body) as unknown;
-          if (isSudoclawHealthPayload(parsed)) {
-            payload = parsed;
-          }
-        } catch {
-          // Keep raw body for diagnostics; some builds may not return JSON.
+            if (body) {
+              try {
+                const parsed = JSON.parse(body) as unknown;
+                if (isSudoclawHealthPayload(parsed)) {
+                  payload = parsed;
+                }
+              } catch {
+                // Keep raw body for diagnostics; some builds may not return JSON.
+              }
+            }
+
+            resolve({
+              healthy: res.statusCode === 200 && payload !== undefined,
+              statusCode: res.statusCode,
+              body: body.slice(0, 1000),
+              payload,
+            });
+          });
         }
-      }
+      );
 
-      return {
-        healthy: response.ok && payload !== undefined,
-        statusCode: response.status,
-        body: body.slice(0, 1000),
-        payload,
-      };
-    } catch (err) {
-      return {
-        healthy: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
+      req.on('error', (err) => {
+        resolve({
+          healthy: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({
+          healthy: false,
+          error: 'timeout',
+        });
+      });
+    });
   }
 
   private async preparePortForStart(port: number, label: 'Sudoclaw' | 'Nexus'): Promise<void> {
@@ -580,7 +506,7 @@ class ServiceManager {
     const [sudoclawModule, nexusModule] = serviceModules;
     const { getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
     const { dynamicNexusService } = nexusModule;
-    const deadline = Date.now() + (startupOnlyChecks ? this.STARTUP_ONLY_READINESS_TIMEOUT_MS : this.STARTUP_READINESS_TIMEOUT_MS);
+    const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
     let getGitVersion: (() => Promise<string | null>) | null = null;

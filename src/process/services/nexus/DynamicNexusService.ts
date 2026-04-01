@@ -20,7 +20,6 @@ const CONDA_READY_MARKER = '.nexus-conda-ready';
 // for this installation, so start() skips it on subsequent launches.
 const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
 
-const WAIT_PORT_TIMEOUT_NORMAL_MS = 90 * 1000; // 90 seconds (cluster profile with federation/raft needs more startup time)
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
@@ -84,6 +83,20 @@ class DynamicNexusService {
       return path.join(envDir, binDir, 'conda-unpack.exe');
     }
     return path.join(envDir, binDir, 'conda-unpack');
+  }
+
+  private getCondaUnpackScriptPath(envDir: string): string | null {
+    const binDir = this.getBinDir();
+    const candidates = this.isWindows ? ['conda-unpack-script.py', 'conda-unpack.py'] : ['conda-unpack'];
+
+    for (const candidate of candidates) {
+      const candidatePath = path.join(envDir, binDir, candidate);
+      if (fs.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -209,6 +222,56 @@ class DynamicNexusService {
     return path.join(envDir, CONDA_READY_MARKER);
   }
 
+  private formatCommandError(error: unknown): string {
+    if (!(error instanceof Error)) {
+      return String(error);
+    }
+
+    const execError = error as Error & { code?: number | string; stdout?: string; stderr?: string };
+    const details = [execError.message, execError.code !== undefined ? `code=${String(execError.code)}` : null, execError.stdout?.trim() ? `stdout=${execError.stdout.trim()}` : null, execError.stderr?.trim() ? `stderr=${execError.stderr.trim()}` : null].filter(Boolean);
+
+    return details.join(' | ');
+  }
+
+  private async runCondaUnpack(envDir: string): Promise<void> {
+    const pythonPath = this.getPythonPath(envDir);
+    const condaUnpack = this.getCondaUnpackPath(envDir);
+    const condaUnpackScript = this.getCondaUnpackScriptPath(envDir);
+
+    if (condaUnpackScript) {
+      mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpackScript}`);
+      try {
+        await execFileAsync(pythonPath, [condaUnpackScript]);
+        return;
+      } catch (error) {
+        throw new Error(`conda-unpack script failed: ${this.formatCommandError(error)}`);
+      }
+    }
+
+    if (!fs.existsSync(condaUnpack)) {
+      mainWarn('Nexus', `conda-unpack not found at ${condaUnpack} — skipping`);
+      return;
+    }
+
+    if (!this.isWindows) {
+      fs.chmodSync(condaUnpack, 0o755);
+      mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpack}`);
+      try {
+        await execFileAsync(pythonPath, [condaUnpack]);
+        return;
+      } catch (error) {
+        throw new Error(`conda-unpack failed: ${this.formatCommandError(error)}`);
+      }
+    }
+
+    mainLog('Nexus', `Running conda-unpack executable: ${condaUnpack}`);
+    try {
+      await execFileAsync(condaUnpack, []);
+    } catch (error) {
+      throw new Error(`conda-unpack executable failed: ${this.formatCommandError(error)}`);
+    }
+  }
+
   /**
    * Returns true only when the extracted runtime exists and its install marker
    * matches the bundled/runtime version. This avoids treating a partially
@@ -331,19 +394,8 @@ class DynamicNexusService {
 
         try {
           // Run conda-unpack to fix hardcoded paths
-          const condaUnpack = this.getCondaUnpackPath(envDir);
-          if (fs.existsSync(condaUnpack)) {
-            if (!this.isWindows) fs.chmodSync(condaUnpack, 0o755);
-            this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
-            if (this.isWindows) {
-              // On Windows, conda-unpack.exe is a binary executable, run it directly
-              await execAsync(`"${condaUnpack}"`);
-            } else {
-              // On macOS/Linux, use python from conda env to run conda-unpack (shebang may point to wrong path)
-              const pythonBin = this.getPythonPath(envDir);
-              await execAsync(`"${pythonBin}" "${condaUnpack}"`);
-            }
-          }
+          this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
+          await this.runCondaUnpack(envDir);
 
           // Repair code signatures on macOS: strip conda-forge Team IDs and ad-hoc re-sign
           // all native libraries and executables so dlopen succeeds without Team ID conflicts.
@@ -488,8 +540,8 @@ class DynamicNexusService {
       this.emitSetup('error', `Failed to start process: ${err.message}`);
     });
 
-    mainLog('Nexus', `Waiting for healthy Nexus server on port ${this._port} (timeout ${WAIT_PORT_TIMEOUT_NORMAL_MS}ms)...`);
-    await this.waitForHealthyServer(this._port, WAIT_PORT_TIMEOUT_NORMAL_MS);
+    mainLog('Nexus', `Waiting for healthy Nexus server on port ${this._port}...`);
+    await this.waitForHealthyServer(this._port);
     const elapsed = Date.now() - spawnStart;
     mainLog('Nexus', `Server ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
@@ -964,8 +1016,8 @@ echo "codesign-repair: signed=$$SIGNED failed=$$FAILED"
     }
   }
 
-  private async waitForHealthyServer(port: number, timeoutMs = 10000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
+  private async waitForHealthyServer(port: number, timeoutMs?: number): Promise<void> {
+    const deadline = timeoutMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
       if (this.process?.exitCode !== null && this.process?.exitCode !== undefined) {

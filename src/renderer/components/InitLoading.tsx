@@ -6,6 +6,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { init } from '@/common/ipcBridge';
 import { useInit } from '../context/InitContext';
 
 // ── Step definitions ─────────────────────────────────────────────────────────
@@ -109,11 +110,13 @@ type InitLoadingProps = {
 
 const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
   const { t } = useTranslation();
-  const { status, skipInitScreen } = useInit();
+  const { status, skipInitScreen, refetch } = useInit();
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [retryingStartup, setRetryingStartup] = useState(false);
+  const [reinstalling, setReinstalling] = useState<'sudoclaw' | 'nexus' | null>(null);
 
   // Animate spinner while installing
   useEffect(() => {
@@ -153,6 +156,101 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
   const headerTitle = '正在准备运行环境';
   const headerMessage = getHeaderMessage(status.message, isReady, isError);
   const shouldShowHeaderMessage = normalizeHeaderText(headerMessage) !== normalizeHeaderText(headerTitle);
+  const showReinstallActions = isError;
+  const actionInProgress = retryingStartup || reinstalling !== null;
+
+  const handleManualRetry = async () => {
+    setRetryingStartup(true);
+    try {
+      await init.retryStartup.invoke();
+      await refetch();
+    } finally {
+      setRetryingStartup(false);
+    }
+  };
+
+  const handleManualReinstall = async (component: 'sudoclaw' | 'nexus') => {
+    setReinstalling(component);
+    try {
+      await init.reinstallComponent.invoke({ component });
+      await refetch();
+    } finally {
+      setReinstalling(null);
+    }
+  };
+
+  const renderReinstallButtons = () => (
+    <div
+      style={
+        {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties
+      }
+    >
+      <button
+        type='button'
+        onClick={() => void handleManualRetry()}
+        disabled={actionInProgress}
+        style={{
+          border: '1px solid rgba(96, 165, 250, 0.35)',
+          borderRadius: '10px',
+          background: retryingStartup ? 'rgba(30, 64, 175, 0.28)' : 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
+          color: '#dbeafe',
+          fontSize: '12px',
+          fontWeight: 700,
+          padding: '9px 14px',
+          cursor: actionInProgress ? 'not-allowed' : 'pointer',
+          opacity: reinstalling ? 0.7 : 1,
+          flexShrink: 0,
+        }}
+      >
+        {retryingStartup ? '处理中...' : t('common.retry')}
+      </button>
+      <button
+        type='button'
+        onClick={() => void handleManualReinstall('sudoclaw')}
+        disabled={actionInProgress}
+        style={{
+          border: '1px solid rgba(248, 113, 113, 0.35)',
+          borderRadius: '10px',
+          background: reinstalling === 'sudoclaw' ? 'rgba(127, 29, 29, 0.28)' : 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
+          color: '#fee2e2',
+          fontSize: '12px',
+          fontWeight: 700,
+          padding: '9px 14px',
+          cursor: actionInProgress ? 'not-allowed' : 'pointer',
+          opacity: reinstalling && reinstalling !== 'sudoclaw' ? 0.7 : 1,
+          flexShrink: 0,
+        }}
+      >
+        {reinstalling === 'sudoclaw' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Sudoclaw`}
+      </button>
+      <button
+        type='button'
+        onClick={() => void handleManualReinstall('nexus')}
+        disabled={actionInProgress}
+        style={{
+          border: '1px solid rgba(248, 113, 113, 0.35)',
+          borderRadius: '10px',
+          background: reinstalling === 'nexus' ? 'rgba(127, 29, 29, 0.28)' : 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
+          color: '#fee2e2',
+          fontSize: '12px',
+          fontWeight: 700,
+          padding: '9px 14px',
+          cursor: actionInProgress ? 'not-allowed' : 'pointer',
+          opacity: reinstalling && reinstalling !== 'nexus' ? 0.7 : 1,
+          flexShrink: 0,
+        }}
+      >
+        {reinstalling === 'nexus' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Nexus`}
+      </button>
+    </div>
+  );
 
   if (isStartupVariant) {
     return (
@@ -254,25 +352,28 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             }
           >
             <div style={{ fontSize: '12px', color: '#8ca0bb', textAlign: 'left', flex: 1 }}>{t('common.setupContinuesInBackground')}</div>
-            {status.phase !== 'ready' && (
-              <button
-                type='button'
-                onClick={skipInitScreen}
-                style={{
-                  border: '1px solid rgba(96, 165, 250, 0.35)',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
-                  color: '#dbeafe',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  padding: '8px 14px',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                {t('common.skip')}
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {showReinstallActions && renderReinstallButtons()}
+              {status.phase !== 'ready' && (
+                <button
+                  type='button'
+                  onClick={skipInitScreen}
+                  style={{
+                    border: '1px solid rgba(96, 165, 250, 0.35)',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
+                    color: '#dbeafe',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  {t('common.skip')}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -608,26 +709,40 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             }
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>{t('common.skip')}</div>
-              <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>{t('common.setupContinuesInBackground')}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>{showReinstallActions ? '手动重装' : t('common.skip')}</div>
+              <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>{showReinstallActions ? '启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。' : t('common.setupContinuesInBackground')}</div>
             </div>
-            <button
-              type='button'
-              onClick={skipInitScreen}
-              style={{
-                border: '1px solid rgba(96, 165, 250, 0.35)',
-                borderRadius: '10px',
-                background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
-                color: '#dbeafe',
-                fontSize: '12px',
-                fontWeight: 700,
-                padding: '9px 16px',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
+            <div
+              style={
+                {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  WebkitAppRegion: 'no-drag',
+                } as React.CSSProperties
+              }
             >
-              {t('common.skip')}
-            </button>
+              {showReinstallActions && renderReinstallButtons()}
+              <button
+                type='button'
+                onClick={skipInitScreen}
+                style={{
+                  border: '1px solid rgba(96, 165, 250, 0.35)',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(30, 64, 175, 0.18))',
+                  color: '#dbeafe',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '9px 16px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {t('common.skip')}
+              </button>
+            </div>
           </div>
         )}
       </div>

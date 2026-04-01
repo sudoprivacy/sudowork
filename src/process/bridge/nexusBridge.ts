@@ -125,14 +125,64 @@ export function initNexusBridge(): void {
       const path = await import('path');
       const os = await import('os');
       const tar = await import('tar');
-      const { exec } = await import('child_process');
+      const { execFile } = await import('child_process');
       const util = await import('util');
 
-      const execAsync = util.promisify(exec);
+      const execFileAsync = util.promisify(execFile);
       const app = await import('electron').then((m) => m.app);
       const isWindows = process.platform === 'win32';
       const tempDir = path.join(os.tmpdir(), `nexus-${Date.now()}`);
       const tempTarGzPath = path.join(tempDir, 'nexus.tar.gz');
+      const formatCommandError = (error: unknown): string => {
+        if (!(error instanceof Error)) {
+          return String(error);
+        }
+
+        const execError = error as Error & { code?: number | string; stdout?: string; stderr?: string };
+        const details = [execError.message, execError.code !== undefined ? `code=${String(execError.code)}` : null, execError.stdout?.trim() ? `stdout=${execError.stdout.trim()}` : null, execError.stderr?.trim() ? `stderr=${execError.stderr.trim()}` : null].filter(Boolean);
+
+        return details.join(' | ');
+      };
+      const runCondaUnpack = async (): Promise<void> => {
+        const pythonBin = isWindows ? path.join(envDir, 'python.exe') : path.join(envDir, 'bin', 'python');
+        const binDir = isWindows ? path.join(envDir, 'Scripts') : path.join(envDir, 'bin');
+        const condaUnpackScriptCandidates = isWindows ? ['conda-unpack-script.py', 'conda-unpack.py'] : ['conda-unpack'];
+        const condaUnpackScript = condaUnpackScriptCandidates.map((name) => path.join(binDir, name)).find((candidate) => fs.existsSync(candidate));
+        const condaUnpackExe = isWindows ? path.join(binDir, 'conda-unpack.exe') : path.join(binDir, 'conda-unpack');
+
+        if (condaUnpackScript) {
+          mainLog('NexusBridge', `Running conda-unpack via python: ${pythonBin} ${condaUnpackScript}`);
+          try {
+            await execFileAsync(pythonBin, [condaUnpackScript]);
+            return;
+          } catch (error) {
+            throw new Error(`conda-unpack script failed: ${formatCommandError(error)}`);
+          }
+        }
+
+        if (!fs.existsSync(condaUnpackExe)) {
+          mainWarn('NexusBridge', `conda-unpack not found at ${condaUnpackExe} — skipping`);
+          return;
+        }
+
+        if (!isWindows) {
+          fs.chmodSync(condaUnpackExe, 0o755);
+          mainLog('NexusBridge', `Running conda-unpack via python: ${pythonBin} ${condaUnpackExe}`);
+          try {
+            await execFileAsync(pythonBin, [condaUnpackExe]);
+            return;
+          } catch (error) {
+            throw new Error(`conda-unpack failed: ${formatCommandError(error)}`);
+          }
+        }
+
+        mainLog('NexusBridge', `Running conda-unpack executable: ${condaUnpackExe}`);
+        try {
+          await execFileAsync(condaUnpackExe, []);
+        } catch (error) {
+          throw new Error(`conda-unpack executable failed: ${formatCommandError(error)}`);
+        }
+      };
 
       await fs.promises.mkdir(tempDir, { recursive: true });
       await fs.promises.copyFile(filePath, tempTarGzPath);
@@ -146,20 +196,8 @@ export function initNexusBridge(): void {
       mainLog('NexusBridge', `Extracting local nexus file to ${envDir}...`);
       await tar.x({ file: tempTarGzPath, cwd: envDir });
 
-      const condaUnpack = isWindows ? path.join(envDir, 'Scripts', 'conda-unpack.exe') : path.join(envDir, 'bin', 'conda-unpack');
-      if (fs.existsSync(condaUnpack)) {
-        if (!isWindows) fs.chmodSync(condaUnpack, 0o755);
-        mainLog('NexusBridge', `Running conda-unpack: ${condaUnpack}`);
-        if (isWindows) {
-          await execAsync(`"${condaUnpack}"`);
-        } else {
-          const pythonBin = path.join(envDir, 'bin', 'python');
-          await execAsync(`"${pythonBin}" "${condaUnpack}"`);
-        }
-        mainLog('NexusBridge', 'conda-unpack completed');
-      } else {
-        mainWarn('NexusBridge', `conda-unpack not found at ${condaUnpack} — skipping`);
-      }
+      await runCondaUnpack();
+      mainLog('NexusBridge', 'conda-unpack completed');
 
       const nexusdBin = isWindows ? path.join(envDir, 'Scripts', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd');
 
