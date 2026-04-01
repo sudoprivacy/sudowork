@@ -115,6 +115,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare-matrix, build-pipeline]
     if: needs.build-pipeline.result == 'success'
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
 
     steps:
       - name: Checkout code
@@ -209,3 +211,108 @@ jobs:
           echo "Deleting old nightly releases:"
           echo "$TO_DELETE"
           echo "$TO_DELETE" | xargs -I{} gh release delete {} --repo "${{ github.repository }}" --yes --cleanup-tag
+
+  # 【新增】通知 QA 团队下载测试
+  notify-qa:
+    name: Notify QA Team
+    needs: [prepare-matrix, build-pipeline, release]
+    if: needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Feishu Notification
+        if: env.FEISHU_WEBHOOK_URL != ''
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}
+        run: |
+          TAG_NAME="${{ needs.release.outputs.tag_name }}"
+          REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          RELEASE_URL="${REPO_URL}/releases/tag/${TAG_NAME}"
+          DATE=$(date -u +%Y-%m-%d)
+
+          echo "=========================================="
+          echo "📢 Sending Feishu Notification"
+          echo "=========================================="
+          echo "Tag: $TAG_NAME"
+          echo "Release URL: $RELEASE_URL"
+
+          # 构建消息内容
+          MESSAGE=$(cat <<EOF
+          {
+            "msg_type": "interactive",
+            "card": {
+              "header": {
+                "title": {
+                  "tag": "plain_text",
+                  "content": "🌙 Nightly Build Ready"
+                },
+                "template": "blue"
+              },
+              "elements": [
+                {
+                  "tag": "div",
+                  "fields": [
+                    {
+                      "is_short": true,
+                      "text": {
+                        "tag": "lark_md",
+                        "content": "**Tag:**\n${TAG_NAME}"
+                      }
+                    },
+                    {
+                      "is_short": true,
+                      "text": {
+                        "tag": "lark_md",
+                        "content": "**Date:**\n${DATE}"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "tag": "action",
+                  "actions": [
+                    {
+                      "tag": "button",
+                      "text": {
+                        "tag": "plain_text",
+                        "content": "📥 Download Release"
+                      },
+                      "url": "${RELEASE_URL}",
+                      "type": "primary"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+          EOF
+          )
+
+          # 发送请求
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$FEISHU_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$MESSAGE")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Feishu notification sent successfully"
+            echo "Response: $BODY"
+          else
+            echo "⚠️ Failed to send Feishu notification"
+            echo "HTTP Code: $HTTP_CODE"
+            echo "Response: $BODY"
+          fi
+
+      - name: Notification Summary
+        run: |
+          TAG_NAME="${{ needs.release.outputs.tag_name }}"
+          echo "=========================================="
+          echo "📢 Nightly Build Notification"
+          echo "=========================================="
+          echo "Tag: $TAG_NAME"
+          echo "Download: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG_NAME}"
+          echo "Date: $(date -u +%Y-%m-%d)"
+          echo "=========================================="
+          echo ""
+          echo "✅ Nightly build is ready for QA testing"
