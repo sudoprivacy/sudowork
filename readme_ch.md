@@ -553,11 +553,145 @@ brew install sudowork
 
 ### 贡献
 
-1. Fork 本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
+## 发布流程（Release Workflow）
+
+本项目采用 **dev → nightly → candidate → release → hotfix** 的发布模型，在保证开发效率的同时严格控制版本质量。
+
+---
+
+### 1. 开发阶段（Development）
+
+* 所有开发工作在 `dev` 分支进行
+* 功能开发 / Bug 修复：
+
+  ```
+  git checkout -b feature/xxx
+  git commit -m "xxx"
+  git push origin feature/xxx
+  ```
+* 合并到 `dev` 后：
+
+  * 自动触发 CI 构建
+  * 生成内部测试版本（Pre-release，仅供开发/QA 使用）
+
+---
+
+### 2. 每日构建（Nightly）
+
+* CI 每天自动从 `dev` 分支构建
+* 自动生成标签：
+
+  ```
+  nightly-YYYY-MM-DD-commit
+  ```
+* 自动发布为 **GitHub Pre-release**
+* QA 基于 nightly 版本进行日常测试
+
+👉 Nightly = “当天所有开发成果的集成版本”
+
+---
+
+### 3. 候选版本（Candidate / RC）
+
+* 从某个稳定的 nightly 版本选出候选版本
+* 打标签：
+
+  ```
+  vX.Y.Z-rc
+  ```
+* 执行完整回归测试
+* 需要人工确认（QA / 产品 / 技术负责人）
+
+👉 RC = “准正式版本，只差最后确认”
+
+---
+
+### 4. 正式发布（Release）
+
+* RC 验证通过后：
+
+  ```
+  dev → main（通过 PR 合并）
+  ```
+* 打正式版本标签：
+
+  ```
+  vX.Y.Z
+  ```
+* 自动执行：
+
+  * 创建发布分支：
+
+    ```
+    release-vX.Y
+    ```
+  * 构建正式版本
+  * 发布 GitHub Release
+  * 上传制品到 COS（或其他存储）
+  * 部署生产环境
+
+👉 Release = “对外发布、可用于生产环境的版本”
+
+---
+
+### 5. 紧急修复（Hotfix）
+
+* 生产环境出现问题时：
+
+  * 从对应发布分支创建修复：
+
+    ```
+    release-vX.Y
+    ```
+
+* 修复完成后：
+
+  * 打补丁版本：
+
+    ```
+    vX.Y.(Z+1)
+    ```
+  * 发布正式版本（同 Release 流程）
+
+* 修复必须同步回主干：
+
+  * 合并到 `main`
+  * 合并到 `dev`
+
+👉 Hotfix = “基于线上版本的紧急修复，支持多人并行”
+
+---
+
+### 6. 重要规范（必须遵守）
+
+* ❌ 禁止直接提交到 `main` 分支
+* ✅ 所有功能必须先进入 `dev`
+* ✅ 所有正式版本必须来自 **RC 验证通过**
+* ✅ 所有生产发布必须基于 **Tag 构建**
+* ✅ Hotfix 必须从 `release` 分支发起
+* ✅ Hotfix 必须回合并 `main` 和 `dev`
+
+---
+
+### 7. 版本类型说明
+
+| 类型      | 用途     | 是否对外 | 说明    |
+| ------- | ------ | ---- | ----- |
+| Dev     | 开发验证   | 否    | 临时构建  |
+| Nightly | 每日集成测试 | 否    | QA 使用 |
+| RC      | 发布候选   | 否    | 回归测试  |
+| Release | 正式发布   | 是    | 生产版本  |
+| Hotfix  | 紧急修复   | 是    | 补丁版本  |
+
+---
+
+### 一句话总结
+
+* 开发看 `dev`
+* 测试用 `nightly`
+* 发布看 `rc`
+* 上线用 `release`
+* 修复走 `hotfix`
 
 ---
 
