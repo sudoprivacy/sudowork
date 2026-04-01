@@ -54,13 +54,6 @@ python tests/e2e/run_op.py --port 9230 --op screenshot --path before.png
 python tests/e2e/run_op.py --port 9230 --op click --x <n> --y <n> --screenshot before.png
 ```
 
-## Report Format
+## Bug Filing
 
-```
-## QA Report -- <date>
-### Tested: <what was tested>
-### Results:
-- [PASS] <description> (screenshot: <path>)
-- [FAIL] <description> (screenshot: <path>, issue: <url>)
-### Issues Filed: <list of URLs>
-```
+When you find a bug, file it immediately as a GitHub issue using `scripts/file_bug.py`. Don't wait until the end — file as you go.
