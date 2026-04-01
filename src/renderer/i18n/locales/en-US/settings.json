@@ -748,5 +748,32 @@
   "openclaw.failedToLoadStatus": "Failed to load status",
   "openclaw.gatewayUrlRequired": "Please enter Gateway URL",
   "openclaw.workspaceOpened": "Workspace opened",
-  "openclaw.failedToOpenWorkspace": "Failed to open workspace"
+  "openclaw.failedToOpenWorkspace": "Failed to open workspace",
+  "profile": "User Center",
+  "memberManagement": "Member Management",
+  "recharge": {
+    "title": "Recharge Points",
+    "selectPackage": "Select Package",
+    "selectPayment": "Payment Method",
+    "alipay": "Alipay",
+    "wechat": "WeChat Pay",
+    "paying": "Waiting for Payment",
+    "success": "Recharge Successful",
+    "failed": "Recharge Failed",
+    "scanToPay": "Scan with {{method}} to pay",
+    "orderAmount": "Order Amount",
+    "pointsToGet": "Points to Get",
+    "cancelOrder": "Cancel Order",
+    "orderExpired": "Order Expired",
+    "orderCancelled": "Order Cancelled",
+    "retryPayment": "Try Again",
+    "history": "Recharge History",
+    "noOrders": "No recharge records",
+    "loadPackagesFailed": "Failed to load packages",
+    "createOrderFailed": "Failed to create order",
+    "waitingPayment": "Waiting for payment...",
+    "expireAt": "Expires at",
+    "createOrder": "Create Order",
+    "successDesc": "Points have been credited to your account"
+  }
 }

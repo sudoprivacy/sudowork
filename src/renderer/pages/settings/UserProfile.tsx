@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Avatar, Progress, Table, Tag, Button, Input, Modal, Message } from '@arco-design/web-react';
 import { User, Phone, Wechat, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import RechargeModal from './components/RechargeModal';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 
@@ -15,6 +16,7 @@ const UserProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [rechargeModalVisible, setRechargeModalVisible] = useState(false);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -129,9 +131,16 @@ const UserProfile: React.FC = () => {
         <div className='grid grid-cols-1 md:grid-cols-3 gap-16px'>
           <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col justify-between h-140px'>
             <div className='text-13px font-500 text-t-secondary'>剩余积分</div>
-            <div className='flex items-baseline gap-8px'>
-              <span className='text-36px font-700 italic text-primary'>{remainingPoints}</span>
-              <span className='text-12px font-600 text-t-tertiary'>PTS</span>
+            <div className='flex items-baseline justify-between'>
+              <div className='flex items-baseline gap-8px'>
+                <span className='text-36px font-700 italic text-primary'>{remainingPoints}</span>
+                <span className='text-12px font-600 text-t-tertiary'>PTS</span>
+              </div>
+              {currentUser?.token && (
+                <span className='text-13px font-500 text-primary cursor-pointer hover:opacity-80 transition-opacity' onClick={() => setRechargeModalVisible(true)}>
+                  充值
+                </span>
+              )}
             </div>
           </div>
 
@@ -205,6 +214,16 @@ const UserProfile: React.FC = () => {
       <Modal title='编辑昵称' visible={editModalVisible} onOk={handleSaveNickname} onCancel={() => setEditModalVisible(false)} okText='保存' cancelText='取消'>
         <Input value={editingNickname} onChange={(val) => setEditingNickname(val)} placeholder='请输入昵称' onPressEnter={handleSaveNickname} />
       </Modal>
+
+      {/* Recharge Modal */}
+      <RechargeModal
+        visible={rechargeModalVisible}
+        onCancel={() => setRechargeModalVisible(false)}
+        onSuccess={() => {
+          void fetchProfile();
+          void refresh();
+        }}
+      />
     </SettingsPageWrapper>
   );
 };
