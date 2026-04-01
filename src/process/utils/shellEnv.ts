@@ -15,12 +15,14 @@
 
 import { execFile, execFileSync } from 'child_process';
 import { accessSync, existsSync, readdirSync } from 'fs';
+import { app } from 'electron';
 import os from 'os';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
+const DEV_NPM_REGISTRY = 'https://mirrors.cloud.tencent.com/npm/';
 
 /**
  * Environment variables to inherit from user's shell.
@@ -266,7 +268,7 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, winExtraPaths.join(';'));
   }
 
-  return {
+  const enhancedEnv = {
     ...process.env,
     ...shellEnv,
     ...customEnv,
@@ -274,6 +276,13 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     // When customEnv.PATH exists, merge it with the already merged path (fix: don't override)
     PATH: customEnv?.PATH ? mergePaths(mergedPath, customEnv.PATH) : mergedPath,
   } as Record<string, string>;
+
+  if (!app.isPackaged) {
+    enhancedEnv.NPM_CONFIG_REGISTRY = DEV_NPM_REGISTRY;
+    enhancedEnv.npm_config_registry = DEV_NPM_REGISTRY;
+  }
+
+  return enhancedEnv;
 }
 
 /**

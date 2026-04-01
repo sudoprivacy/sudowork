@@ -43,7 +43,7 @@ export async function extractTarGzWithProgress(archivePath: string, targetDir: s
 
 function openZip(zipPath: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, zipFile) => {
+    yauzl.open(zipPath, { autoClose: false, lazyEntries: true }, (err, zipFile) => {
       if (err || !zipFile) {
         reject(err ?? new Error(`Failed to open zip archive: ${zipPath}`));
         return;

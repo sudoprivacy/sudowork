@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { app } from 'electron';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
@@ -34,7 +35,8 @@ class ServiceManager {
   private startupNexusReinstallAttempted = false;
   private readonly STARTUP_RETRY_LIMIT = 3;
   private readonly STARTUP_RETRY_DELAY_MS = 10_000;
-  private readonly SUDOCLAW_START_TIMEOUT_MS = 15_000;
+  private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
+  private readonly SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_START_ATTEMPTS = 3;
   private readonly NEXUS_START_ATTEMPTS = 3;
 
@@ -298,11 +300,12 @@ class ServiceManager {
     await this.startOpenClawOnce(this.SUDOCLAW_START_TIMEOUT_MS);
   }
 
-  private async startOpenClawForStartup(): Promise<void> {
+  private async startOpenClawForStartup(timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
     try {
       await this.startOpenClawWithRecovery({
         allowReinstall: !this.startupSudoclawReinstallAttempted,
         postReinstallAttempts: this.SUDOCLAW_START_ATTEMPTS,
+        timeoutMs,
       });
     } catch (err) {
       if (!this.startupSudoclawReinstallAttempted) {
@@ -312,8 +315,9 @@ class ServiceManager {
     }
   }
 
-  private async startOpenClawWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number }): Promise<void> {
+  private async startOpenClawWithRecovery(options: { allowReinstall: boolean; postReinstallAttempts: number; timeoutMs?: number }): Promise<void> {
     const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
+    const startupTimeoutMs = options.timeoutMs ?? this.SUDOCLAW_START_TIMEOUT_MS;
 
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
@@ -323,7 +327,7 @@ class ServiceManager {
           await this.preparePortForStart(17863, 'Sudoclaw');
           initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
-          await this.startOpenClawOnce(this.SUDOCLAW_START_TIMEOUT_MS);
+          await this.startOpenClawOnce(startupTimeoutMs);
           return;
         } catch (err) {
           lastError = err;
@@ -352,6 +356,9 @@ class ServiceManager {
       if (!reinstallResult.installed) {
         throw new Error(reinstallResult.error ?? 'Sudoclaw 强制重装失败');
       }
+      if (startupTimeoutMs >= this.SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS) {
+        initStatusManager.addLog(`ℹ 首次安装/重装后的 Sudoclaw 启动等待时间已放宽至 ${startupTimeoutMs / 1000} 秒`);
+      }
       await startAttempts(options.postReinstallAttempts, 'reinstall');
     }
   }
@@ -369,7 +376,7 @@ class ServiceManager {
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
-      if (versionState.needsUpgrade) {
+      if (app.isPackaged && versionState.needsUpgrade) {
         mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
         const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
         if (!installResult.installed) {

@@ -23,12 +23,27 @@ const TAG = 'RuntimeInstaller';
  * from service lifecycle management.
  */
 class RuntimeInstaller {
+  static readonly SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS = 90_000;
+
+  private getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState: () => { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
+    if (!app.isPackaged) {
+      const versionState = getSudoclawVersionState();
+      return {
+        installedVersion: versionState.installedVersion,
+        bundledVersion: versionState.bundledVersion,
+        needsUpgrade: false,
+      };
+    }
+
+    return getSudoclawVersionState();
+  }
+
   /**
    * Check and install all runtimes as needed.
    * Returns true if startup should proceed to service starts,
    * false if a critical install failure occurred.
    */
-  async ensureAll(options?: { startSudoclaw?: () => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
+  async ensureAll(options?: { startSudoclaw?: (timeoutMs?: number) => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
 
     // ── Fast synchronous pre-check (no awaits, only sync fs / spawnSync) ────
@@ -129,7 +144,7 @@ class RuntimeInstaller {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
       const nexusVersionState = hasNexusResource ? await dynamicNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
-      const sudoclawVersionState = getSudoclawVersionState();
+      const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
@@ -155,7 +170,7 @@ class RuntimeInstaller {
     const nodeInstalled = isNodeInstalled();
     const sudoclawInstalled = getSudoclawCliPath() !== null;
     const bdpanInstalled = isBdpanInstalled();
-    const sudoclawVersionState = getSudoclawVersionState();
+    const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
     const claudeStatusPromise = hasClaudeResource ? fullClaudeCliService.checkInstalled() : Promise.resolve({ installed: true });
     const nexusInstalledPromise = dynamicNexusService.checkInstalled();
     const nexusVersionStatePromise = hasNexusResource ? dynamicNexusService.getVersionState() : Promise.resolve({ needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined });
@@ -449,7 +464,7 @@ class RuntimeInstaller {
         }
         markStepActive('sudoclaw', 'Sudoclaw 文件已就绪，正在启动服务...', 92);
         initStatusManager.addLog('✓ Sudoclaw 安装完成，开始启动服务...');
-        await options.startSudoclaw();
+        await options.startSudoclaw(RuntimeInstaller.SUDOCLAW_FIRST_INSTALL_START_TIMEOUT_MS);
         return { step: 'sudoclaw', ok: true, required: true };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
