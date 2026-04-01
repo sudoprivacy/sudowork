@@ -15,7 +15,7 @@
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
 import { SafetyFileService } from './SafetyFileService';
-import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile, getNexusClient, CONFIG_DIR } from './SecurityHookFile';
+import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState, actionExists, writeActionFile, deleteEventFile, readNexusFileAsUtf8 } from './SecurityHookFile';
 import { initBlacklist, BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 import { ProcessConfig } from '@/process/initStorage';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -366,16 +366,13 @@ export class SafetyPollingService {
    */
   private async hasActiveBlacklistRules(): Promise<boolean> {
     try {
-      const client = getNexusClient();
-      const content = await client.read(BLACKLIST_CONFIG_PATH);
-      if (!Buffer.isBuffer(content) || content.length === 0) {
+      const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
+      if (!configStr) {
         return false;
       }
-      const configStr = content.toString('utf-8');
       const config = JSON.parse(configStr) as { rules?: { enabled?: boolean }[] };
       return config?.rules?.some((rule: { enabled?: boolean }) => rule.enabled) ?? false;
-    } catch (error) {
-      // If blacklist file doesn't exist or parse fails, assume no rules
+    } catch {
       return false;
     }
   }

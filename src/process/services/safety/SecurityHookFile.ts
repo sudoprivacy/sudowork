@@ -14,7 +14,7 @@
 
 import type { Nexus } from '@/common/nexus';
 import { getNexusRpcClient } from '@/common/nexus';
-import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileData, EventType, RiskLevel, NetworkEventData, FileEventData } from '@/common/safetyTypes';
+import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileData, EventType, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@/common/safetyTypes';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Nexus security hook directory paths */
@@ -28,6 +28,38 @@ export const ENABLED_CONFIG_PATH = '/safe/config/enabled';
  */
 export function getNexusClient(): Nexus {
   return getNexusRpcClient();
+}
+
+/**
+ * Read a Nexus file as UTF-8, normalizing RPC shapes (Buffer vs `{ content }`).
+ * Matches handling in readEventFile / readEnabledState so callers do not skip logic
+ * when the server returns a non-Buffer result.
+ */
+export async function readNexusFileAsUtf8(filePath: string): Promise<string | null> {
+  try {
+    const client = getNexusClient();
+    const result = await client.read(filePath, false);
+
+    if (Buffer.isBuffer(result)) {
+      const s = result.toString('utf-8');
+      return s.length > 0 ? s : null;
+    }
+
+    if (result && typeof result === 'object' && 'content' in result) {
+      const raw = (result as { content?: unknown }).content;
+      if (Buffer.isBuffer(raw)) {
+        const s = raw.toString('utf-8');
+        return s.length > 0 ? s : null;
+      }
+      if (typeof raw === 'string') {
+        return raw.length > 0 ? raw : null;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -278,6 +310,11 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
       code = 'FILE_UNKNOWN';
       message = `File operation: ${fileData.path}`;
     }
+  } else if (data.type === 'process') {
+    const processData = data.data as ProcessEventData;
+    code = 'PROCESS_EXEC';
+    message = `Process execution: ${processData.command}${processData.args.length > 0 ? ' ' + processData.args.join(' ') : ''}`;
+    level = 'high'; // Process execution defaults to high risk
   }
 
   return {
@@ -290,6 +327,7 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
       detectedAt: Date.now(),
       networkData: data.type === 'network' ? (data.data as NetworkEventData) : undefined,
       fileData: data.type === 'file' ? (data.data as FileEventData) : undefined,
+      processData: data.type === 'process' ? (data.data as ProcessEventData) : undefined,
     },
   };
 }

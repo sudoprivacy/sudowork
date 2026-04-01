@@ -24,10 +24,13 @@
   "eventType": "事件类型",
   "networkRequest": "网络请求",
   "fileOperation": "文件操作",
+  "processExecution": "进程执行",
   "url": "URL",
   "method": "方法",
   "headers": "请求头",
   "body": "请求体",
   "filePath": "文件路径",
-  "fileFlags": "操作标志"
+  "fileFlags": "操作标志",
+  "command": "命令",
+  "arguments": "参数"
 }

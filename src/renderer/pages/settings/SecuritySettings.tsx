@@ -27,7 +27,7 @@ const SecuritySettings: React.FC = () => {
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState<BlacklistRule | null>(null);
   const [ruleForm, setRuleForm] = useState({
-    type: 'network' as 'network' | 'file',
+    type: 'network' as 'network' | 'file' | 'process',
     pattern: '',
     matchType: 'wildcard' as BlacklistMatchType,
     description: '',
@@ -365,11 +365,19 @@ const SecuritySettings: React.FC = () => {
                           title: '类型',
                           dataIndex: 'type',
                           width: 80,
-                          render: (type) => (
-                            <Tag color={type === 'network' ? 'blue' : 'green'} size='small'>
-                              {type === 'network' ? '网络' : '文件'}
-                            </Tag>
-                          ),
+                          render: (type) => {
+                            const typeConfig: Record<string, { color: string; label: string }> = {
+                              network: { color: 'blue', label: '网络' },
+                              file: { color: 'green', label: '文件' },
+                              process: { color: 'orange', label: '进程' },
+                            };
+                            const config = typeConfig[type] || { color: 'gray', label: type };
+                            return (
+                              <Tag color={config.color} size='small'>
+                                {config.label}
+                              </Tag>
+                            );
+                          },
                         },
                         {
                           title: '匹配',
@@ -439,6 +447,7 @@ const SecuritySettings: React.FC = () => {
             <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
               <Option value='network'>网络请求 (域名/IP)</Option>
               <Option value='file'>文件操作 (路径)</Option>
+              <Option value='process'>进程执行 (命令)</Option>
             </Select>
           </div>
 
@@ -451,8 +460,8 @@ const SecuritySettings: React.FC = () => {
           </div>
 
           <div>
-            <label className='block text-14px text-t-secondary mb-4px'>{ruleForm.type === 'network' ? '域名/IP 模式' : '路径模式'}</label>
-            <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : '例如: /etc/* 或 ~/.ssh/*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
+            <label className='block text-14px text-t-secondary mb-4px'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
+            <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : ruleForm.type === 'file' ? '例如: /etc/* 或 ~/.ssh/*' : '例如: rm* 或 npm*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
           </div>
 
           <div>

@@ -14,7 +14,7 @@ import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { getNexusClient, CONFIG_DIR } from '../services/safety/SecurityHookFile';
+import { getNexusClient, CONFIG_DIR, readNexusFileAsUtf8 } from '../services/safety/SecurityHookFile';
 import type { BlacklistConfig } from '@/common/safetyTypes';
 
 const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
@@ -90,12 +90,10 @@ export function initSafetyBridge(): void {
   // Get blacklist configuration - read directly from Nexus for consistency
   ipcBridge.safety.getBlacklist.provider(async () => {
     try {
-      const client = getNexusClient();
-      const content = await client.read(BLACKLIST_CONFIG_PATH);
-      if (!content || content.length === 0) {
+      const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
+      if (!configStr) {
         return { success: true, data: { rules: [] } };
       }
-      const configStr = content.toString('utf-8');
       const config = JSON.parse(configStr);
       return { success: true, data: config || { rules: [] } };
     } catch (err) {

@@ -24,10 +24,13 @@
   "eventType": "Olay Türü",
   "networkRequest": "Ağ İsteği",
   "fileOperation": "Dosya İşlemi",
+  "processExecution": "İşlem Yürütme",
   "url": "URL",
   "method": "Yöntem",
   "headers": "Üst Bilgiler",
   "body": "Gövde",
   "filePath": "Dosya Yolu",
-  "fileFlags": "Dosya Bayrakları"
+  "fileFlags": "Dosya Bayrakları",
+  "command": "Komut",
+  "arguments": "Argümanlar"
 }
