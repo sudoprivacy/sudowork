@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge, type IOpenClawModelsResponse } from '../../common';
+import type { SudoclawConfig } from '@/common/ipcBridge';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
 
 const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
@@ -65,12 +66,11 @@ export function initOpenClawBridge(): void {
     // 修改 sudoclaw.json 配置文件
     const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
     const fs = await import('fs');
-    const path = await import('path');
 
     if (fs.existsSync(SUDOCLAW_CONFIG_PATH)) {
       try {
         const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-        const config = JSON.parse(raw) as Record<string, unknown>;
+        const config = JSON.parse(raw) as SudoclawConfig;
 
         // 1. 确定 API 类型
         let apiType: string;
@@ -89,39 +89,46 @@ export function initOpenClawBridge(): void {
         if (!config.models) {
           config.models = { providers: {} };
         }
-        const models = config.models as { providers?: Record<string, any> };
+        const models = config.models as NonNullable<SudoclawConfig['models']>;
         if (!models.providers) {
           models.providers = {};
         }
 
+        const providers = models.providers;
+        const providerEntries = Object.entries(providers) as Array<[string, NonNullable<SudoclawConfig['models']>['providers'][string]]>;
+
         // 4. 确保该 provider 存在，并且只包含当前模型
-        if (!models.providers[providerName]) {
-          models.providers[providerName] = {
+        if (!providers[providerName]) {
+          providers[providerName] = {
             baseUrl: 'https://hk.sudorouter.ai/v1',
             api: apiType,
             models: [],
           };
         }
-        const provider = models.providers[providerName];
-        // 确保 provider 只包含当前模型
-        if (!Array.isArray(provider.models) || !provider.models.some((m: any) => m.id === params.modelId)) {
-          provider.models = [{ id: params.modelId, name: params.modelId }];
+        const provider = providers[providerName];
+        const hasSelectedModel = Array.isArray(provider.models) && provider.models.some((model) => model.id === params.modelId);
+        const canonicalApiKey =
+          providerEntries
+            .filter(([name]) => name !== providerName)
+            .map(([, item]) => item?.apiKey)
+            .find((key): key is string => typeof key === 'string' && key.trim().length > 0) || (typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0 ? provider.apiKey : undefined);
+        const hasSameApiKey = !canonicalApiKey || provider.apiKey === canonicalApiKey;
 
-          // 如果没有 apiKey，从已配置的模型中获取第一个（如果有）
-          if (!provider.apiKey) {
-            const allProviders = Object.values(models.providers) as any[];
-            const existingApiKey = allProviders.find((p: any) => p.apiKey)?.apiKey;
-            if (existingApiKey) {
-              provider.apiKey = existingApiKey;
-            }
-          }
+        // 确保 provider 只包含当前模型；即使模型已存在，也需要继续比对 apiKey 是否需要同步
+        if (!hasSelectedModel) {
+          provider.models = [{ id: params.modelId, name: params.modelId }];
+        }
+
+        // 如果已有 provider 的模型已存在，也需要同步最新的 apiKey，避免旧 key 残留
+        if (!hasSameApiKey && canonicalApiKey) {
+          provider.apiKey = canonicalApiKey;
         }
 
         // 5. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
         if (!config.agents) {
           config.agents = { defaults: {} };
         }
-        const agents = config.agents as { defaults?: any };
+        const agents = config.agents as NonNullable<SudoclawConfig['agents']>;
         if (!agents.defaults) {
           agents.defaults = {};
         }
