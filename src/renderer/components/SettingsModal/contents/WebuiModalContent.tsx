@@ -56,7 +56,7 @@ const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-  const [activeTab, setActiveTab] = useState<'webui' | 'channels'>('webui');
+  const [activeTab, setActiveTab] = useState<'channels'>('channels');
 
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
@@ -695,8 +695,8 @@ const WebuiModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'webui' | 'channels') || 'webui')} type='line' className='mb-12px settings-remote-tabs'>
-        <Tabs.TabPane
+      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'channels') || 'channels')} type='line' className='mb-12px settings-remote-tabs'>
+        {/* <Tabs.TabPane
           key='webui'
           title={
             <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
@@ -704,7 +704,7 @@ const WebuiModalContent: React.FC = () => {
               <span>WebUI</span>
             </span>
           }
-        />
+        /> */}
         <Tabs.TabPane
           key='channels'
           title={
@@ -723,15 +723,15 @@ const WebuiModalContent: React.FC = () => {
         />
       </Tabs>
 
-      {activeTab === 'webui' ? (
+      {/* {activeTab === 'webui' ? (
         webuiPanel
-      ) : (
-        <div className='flex-1 min-h-0'>
-          <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
-            <ChannelModalContentLazy />
-          </Suspense>
-        </div>
-      )}
+      ) : ( */}
+      <div className='flex-1 min-h-0'>
+        <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
+          <ChannelModalContentLazy />
+        </Suspense>
+      </div>
+      {/* )} */}
 
       {/* 设置新密码弹窗 / Set New Password Modal */}
       <AionModal visible={setPasswordModalVisible} onCancel={() => setSetPasswordModalVisible(false)} onOk={handleSetNewPassword} confirmLoading={passwordLoading} title={t('settings.webui.setNewPassword')} size='small'>
