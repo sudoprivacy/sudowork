@@ -509,44 +509,14 @@ class ServiceManager {
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
-    let getGitVersion: (() => Promise<string | null>) | null = null;
-    let isNodeInstalled: (() => boolean) | null = null;
-    let checkClaudeInstalled: (() => Promise<boolean>) | null = null;
-
-    if (!startupOnlyChecks) {
-      const readinessModules = await Promise.all([import('../git/GitInstallService'), import('../claudeCli/NodeRuntimeService'), import('../claudeCli/CliInstallService')]);
-      const [gitModule, nodeModule, claudeModule] = readinessModules;
-      getGitVersion = gitModule.getGitVersion;
-      isNodeInstalled = nodeModule.isNodeInstalled;
-      checkClaudeInstalled = async () => {
-        if (!claudeModule.claudeCliService.hasTgzResource()) {
-          return true;
-        }
-        const status = await claudeModule.claudeCliService.checkInstalled();
-        return status.installed;
-      };
-    }
-
     while (Date.now() < deadline) {
       const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
       const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
-      const gitVersionPromise = getGitVersion ? getGitVersion() : Promise.resolve(null);
-      const nodeInstalledPromise = isNodeInstalled ? Promise.resolve(isNodeInstalled()) : Promise.resolve(true);
-      const claudeInstalledPromise = checkClaudeInstalled ? checkClaudeInstalled() : Promise.resolve(true);
-      const [gitVersion, nodeInstalled, claudeInstalled, sudoclawHealthy, nexusHealthy] = await Promise.all([gitVersionPromise, nodeInstalledPromise, claudeInstalledPromise, sudoclawHealthyPromise, nexusHealthyPromise]);
+      const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
         { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
         { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
-        ...(startupOnlyChecks
-          ? []
-          : [
-              { name: 'Git', ok: Boolean(gitVersion) },
-              { name: 'Node.js', ok: nodeInstalled },
-              { name: 'Claude Code CLI', ok: claudeInstalled },
-              // bdpan is optional (required: false in RuntimeInstaller), skip readiness check
-              { name: 'bdpan', ok: true },
-            ]),
       ];
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
