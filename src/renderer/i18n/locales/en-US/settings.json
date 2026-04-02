@@ -751,6 +751,9 @@
   "openclaw.failedToOpenWorkspace": "Failed to open workspace",
   "profile": "User Center",
   "memberManagement": "Member Management",
+  "sudorouter": "Sudorouter",
+  "copilot": "Copilot",
+  "security": "Security",
   "recharge": {
     "title": "Recharge Points",
     "selectPackage": "Select Package",
