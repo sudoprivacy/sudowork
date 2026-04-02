@@ -146,6 +146,22 @@ try {
     console.log('[openclaw] Build completed');
   }
 
+  // Bundle openclaw runtime into aggregated JS artifact
+  const skipBundle = process.argv.includes('--skip-bundle');
+  if (!skipBundle) {
+    console.log('[openclaw] Bundling openclaw runtime with esbuild...');
+    const { bundleOpenclaw } = require('./bundle-openclaw');
+    try {
+      const result = bundleOpenclaw(pkgDir);
+      console.log(`[openclaw] Bundle complete: ${result.filesBefore} → ${result.filesAfter} files`);
+    } catch (bundleErr) {
+      console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${bundleErr.message}`);
+      console.warn('[openclaw] The package will work but with more files than optimal.');
+    }
+  } else {
+    console.log('[openclaw] Skipping bundle step (--skip-bundle)');
+  }
+
   // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
   console.log('[openclaw] Creating launcher.mjs...');
   const launcherContent = `#!/usr/bin/env node
