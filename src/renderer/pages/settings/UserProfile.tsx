@@ -181,7 +181,7 @@ const UserProfile: React.FC = () => {
         </div>
 
         {/* Ledger Table */}
-        <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
+        {/* <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
           <div className='px-20px py-16px border-b border-border-base font-600 text-14px text-t-primary'>使用流水</div>
           {ledger.length > 0 ? (
             <table className='w-full'>
@@ -207,7 +207,7 @@ const UserProfile: React.FC = () => {
           ) : (
             <div className='py-24px text-center text-t-tertiary'>暂无使用记录</div>
           )}
-        </div>
+        </div> */}
       </div>
 
       {/* Edit Nickname Modal */}

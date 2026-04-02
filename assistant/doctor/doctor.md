@@ -56,4 +56,4 @@ python tests/e2e/run_op.py --port 9230 --op click --x <n> --y <n> --screenshot b
 
 ## Bug Filing
 
-When you find a bug, file it immediately as a GitHub issue using `scripts/file_bug.py`. Don't wait until the end — file as you go.
+When you find a bug, file it immediately as a GitHub issue — don't wait until the end. Use `python assistant/doctor/scripts/file_bug.py` (standalone, no browser needed). Run with `--help` for options.

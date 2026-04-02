@@ -325,7 +325,7 @@ _Deeply analyze Excel data, automatically beautify reports, and generate insight
 ### **AI Image Generation & Editing**
 
 _Intelligent image generation, editing, and recognition, powered by Gemini_
-<!-- 
+<!--
 <p align="center">
 
   <img src="./resources/Image_Generation.gif" alt="AI Image Generation" width="800">
@@ -571,4 +571,3 @@ brew install sudowork
     <img src="https://contrib.rocks/image?repo=sudoprivacy/sudowork&max=50" alt="Contributors" />
   </a>
 </p>
-

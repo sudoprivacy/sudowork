@@ -30,7 +30,7 @@ const MessageAvailableCommands: React.FC<MessageAvailableCommandsProps> = ({ mes
         <HammerAndAnvil theme='outline' size='16' fill={iconColors.primary} />
         <span className='text-t-secondary text-13px font-medium'>{t('messages.availableCommands', { count: commands.length })}</span>
       </div>
-      <CollapsibleContent maxHeight={150} defaultCollapsed={true}>
+      <CollapsibleContent maxHeight={150} defaultCollapsed={false}>
         <AionCollapse accordion bordered={false} expandIconPosition='right'>
           {commands.map((command) => (
             <AionCollapse.Item key={command.name} name={command.name} header={<span className='text-t-primary font-medium'>{command.name}</span>}>

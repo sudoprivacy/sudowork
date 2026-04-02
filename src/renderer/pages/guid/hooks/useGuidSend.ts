@@ -85,8 +85,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
+      // Only fallback within the same routing category:
+      // ACP types (claude, qwen, codebuddy, etc.) can fallback to each other,
+      // but never to sudoclaw (OpenClaw Gateway) — they have different capabilities.
       const fallback = getAvailableFallbackAgent();
-      if (fallback && fallback !== effectiveAgentType) {
+      const isSameCategory = fallback && fallback !== 'sudoclaw' && effectiveAgentType !== 'sudoclaw';
+      if (fallback && fallback !== effectiveAgentType && isSameCategory) {
         finalEffectiveAgentType = fallback;
         Message.info(
           t('guid.autoSwitchedAgent', {
@@ -180,10 +184,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
 
       try {
+        // For presets with a non-gemini backend (e.g. claude), don't pass the
+        // UI's Gemini model — let the backend resolve the model itself.
+        const isGeminiBackend = acpBackend === 'gemini';
         const conversation = await ipcBridge.conversation.create.invoke({
           type: 'acp',
           name: input,
-          model: currentModel!,
+          model: isGeminiBackend ? currentModel! : ({} as TProviderWithModel),
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
