@@ -218,10 +218,11 @@ jobs:
     needs: [prepare-matrix, build-pipeline, release]
     if: success()
     runs-on: ubuntu-latest
+    env:
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}
     steps:
       - name: Send Feishu Notification
-        env:
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}
+        if: env.FEISHU_WEBHOOK_URL != ''
         run: |
           TAG_NAME="${{ needs.release.outputs.tag_name }}"
           REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
