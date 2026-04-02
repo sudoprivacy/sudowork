@@ -720,6 +720,16 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
+  // 优化：在普通桌面模式下，提前创建窗口（显示 InitLoading 加载页面），
+  // 不必等 initializeProcess() 完成。InitContext.tsx 的重试机制确保 IPC bridge
+  // 尚未就绪时也不会报错。
+  // Optimization: In normal desktop mode, create the window early (showing InitLoading)
+  // without waiting for initializeProcess(). InitContext.tsx retry mechanism ensures
+  // graceful handling when IPC bridges are not yet ready.
+  if (!isResetPasswordMode && !isWebUIMode && !isVersionMode) {
+    createWindow();
+  }
+
   try {
     await initializeProcess();
   } catch (error) {
@@ -765,18 +775,11 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
-    // Start ACP detection immediately but do NOT await it before createWindow().
-    // Detection calls execSync for every potential CLI (claude, gemini, goose …) and
-    // on Windows each call can block the Node.js event loop for up to 1 s.
-    // With 10+ CLIs that adds up to 10+ s of frozen UI before the window appears.
-    //
-    // Sudoclaw is always inserted into the detected list unconditionally (no execSync
-    // needed), so it will show up immediately.  Other agents (claude, gemini, …) may
-    // appear slightly later once detection finishes and the renderer's SWR revalidates
-    // on window focus - this is an acceptable trade-off.
+    // Start ACP detection in background (now fully async, no longer blocks event loop).
+    // Sudoclaw is always inserted unconditionally. Other agents appear once detection finishes.
     const acpDetectionDone = initializeAcpDetector();
 
-    createWindow();
+    // Window already created above (before initializeProcess) for faster startup.
 
     // Keep detection running in background; log when it finishes.
     void acpDetectionDone.then(() => {
@@ -794,7 +797,6 @@ const handleAppReady = async (): Promise<void> => {
 
         // 无论设置如何，启动时都创建托盘图标（确保图标常驻）
         // Regardless of setting, create tray icon on startup (ensure it's persistent)
-        await new Promise((resolve) => setTimeout(resolve, 100));
         createOrUpdateTray();
       } catch {
         // Ignore storage read errors, default to false

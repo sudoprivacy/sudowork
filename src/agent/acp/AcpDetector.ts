@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -182,13 +185,16 @@ class AcpDetector {
       return null;
     };
 
-    const isCliAvailable = (cliCommand: string): boolean => {
+    // 使用异步 exec 代替 execSync，避免阻塞 Node.js 事件循环
+    // Use async exec instead of execSync to avoid blocking the Node.js event loop
+    // Windows 上每次 execSync 可阻塞 100-1000ms，10+ CLI 累计可达 10s+
+    // On Windows each execSync blocks 100-1000ms, 10+ CLIs accumulate to 10s+
+    const isCliAvailable = async (cliCommand: string): Promise<boolean> => {
       // Keep original behavior: prefer where/which, then fallback on Windows to Get-Command.
       // 保持原逻辑：优先使用 where/which，Windows 下失败再回退到 Get-Command。
       try {
-        execSync(`${whichCommand} ${cliCommand}`, {
+        await execAsync(`${whichCommand} ${cliCommand}`, {
           encoding: 'utf-8',
-          stdio: 'pipe',
           timeout: 1000,
           env: enhancedEnv,
         });
@@ -201,9 +207,8 @@ class AcpDetector {
         try {
           // PowerShell fallback for shim scripts like claude.ps1 (vfox)
           // PowerShell 回退，支持 claude.ps1 这类 shim（例如 vfox）
-          execSync(`powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`, {
+          await execAsync(`powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`, {
             encoding: 'utf-8',
-            stdio: 'pipe',
             timeout: 1000,
             env: enhancedEnv,
           });
@@ -218,35 +223,34 @@ class AcpDetector {
 
     const detected: DetectedAgent[] = [];
 
-    // 并行检测所有潜在的 ACP CLI
-    const detectionPromises = POTENTIAL_ACP_CLIS.map((cli) => {
-      return Promise.resolve().then(() => {
-        // 优先检查 ~/.nexus/bin 等目录
-        // Check priority bin directories first
-        const priorityCliPath = findCliInPriorityDirs(cli.cmd);
-        if (priorityCliPath) {
-          console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
-          return {
-            backend: cli.backendId,
-            name: cli.name,
-            cliPath: priorityCliPath,
-            acpArgs: cli.args,
-          };
-        }
-
-        // 回退到 which/where 检测
-        // Fallback to which/where detection
-        if (!isCliAvailable(cli.cmd)) {
-          return null;
-        }
-
+    // 并行检测所有潜在的 ACP CLI（异步，不阻塞事件循环）
+    // Detect all potential ACP CLIs in parallel (async, non-blocking)
+    const detectionPromises = POTENTIAL_ACP_CLIS.map(async (cli) => {
+      // 优先检查 ~/.nexus/bin 等目录
+      // Check priority bin directories first
+      const priorityCliPath = findCliInPriorityDirs(cli.cmd);
+      if (priorityCliPath) {
+        console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
         return {
           backend: cli.backendId,
           name: cli.name,
-          cliPath: cli.cmd,
+          cliPath: priorityCliPath,
           acpArgs: cli.args,
         };
-      });
+      }
+
+      // 回退到 which/where 检测（现在是异步的，真正并行）
+      // Fallback to which/where detection (now async, truly parallel)
+      if (!(await isCliAvailable(cli.cmd))) {
+        return null;
+      }
+
+      return {
+        backend: cli.backendId,
+        name: cli.name,
+        cliPath: cli.cmd,
+        acpArgs: cli.args,
+      };
     });
 
     const results = await Promise.allSettled(detectionPromises);

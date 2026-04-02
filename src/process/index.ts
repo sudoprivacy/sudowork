@@ -48,23 +48,29 @@ export const initializeProcess = async () => {
   const { serviceManager } = await import('./services/serviceManager');
   void serviceManager.startup();
 
-  // Initialize Extension Registry (scan and resolve all extensions)
-  const extStart = Date.now();
-  try {
-    await ExtensionRegistry.getInstance().initialize();
-  } catch (error) {
-    mainError('Process', 'Failed to initialize ExtensionRegistry', error);
-  }
-  perfLog('ExtensionRegistry', Date.now() - extStart);
-
-  // Initialize Channel subsystem
-  const channelStart = Date.now();
-  try {
-    await getChannelManager().initialize();
-  } catch (error) {
-    mainError('Process', 'Failed to initialize ChannelManager', error);
-  }
-  perfLog('ChannelManager', Date.now() - channelStart);
+  // Initialize Extension Registry and Channel subsystem in parallel (they are independent)
+  const extChannelStart = Date.now();
+  await Promise.all([
+    (async () => {
+      const extStart = Date.now();
+      try {
+        await ExtensionRegistry.getInstance().initialize();
+      } catch (error) {
+        mainError('Process', 'Failed to initialize ExtensionRegistry', error);
+      }
+      perfLog('ExtensionRegistry', Date.now() - extStart);
+    })(),
+    (async () => {
+      const channelStart = Date.now();
+      try {
+        await getChannelManager().initialize();
+      } catch (error) {
+        mainError('Process', 'Failed to initialize ChannelManager', error);
+      }
+      perfLog('ChannelManager', Date.now() - channelStart);
+    })(),
+  ]);
+  perfLog('ExtensionRegistry+ChannelManager(parallel)', Date.now() - extChannelStart);
 
   perfLog('total_startup', Date.now() - totalStart);
   mainLog('Process', `Initialization complete in ${Date.now() - totalStart}ms`);
