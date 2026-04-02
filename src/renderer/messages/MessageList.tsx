@@ -98,12 +98,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <div>{t('messages.unknownMessageType', { type: (message as any).type })}</div>;
     }
   }),
-  (prev, next) => 
-    prev.message.id === next.message.id && 
-    prev.message.content === next.message.content && 
-    prev.message.position === next.message.position && 
-    prev.message.type === next.message.type &&
-    prev.isStreaming === next.isStreaming
+  (prev, next) => prev.message.id === next.message.id && prev.message.content === next.message.content && prev.message.position === next.message.position && prev.message.type === next.message.type && prev.isStreaming === next.isStreaming
 );
 
 interface MessageListProps {
@@ -203,10 +198,10 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   // 只有当它是最新的消息（后面没有用户消息）时才闪烁
   const lastAiMessageId = React.useMemo(() => {
     if (!aiProcessing) return null;
-    
+
     let lastAiId: string | null = null;
     let hasUserMessageAfter = false;
-    
+
     // Iterate from end to find the last AI message and check if there's a user message after it
     // 从后向前遍历，找到最后一条 AI 消息并检查后面是否有用户消息
     for (let i = list.length - 1; i >= 0; i--) {
@@ -220,7 +215,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         break;
       }
     }
-    
+
     return lastAiId;
   }, [list, aiProcessing]);
 

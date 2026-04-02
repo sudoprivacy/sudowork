@@ -394,103 +394,117 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
   // PERF: Process all presets in parallel instead of sequentially
   // Each preset's file operations are independent, so they can run concurrently
-  await Promise.all(ASSISTANT_PRESETS.map(async (preset) => {
-    const assistantId = `builtin-${preset.id}`;
+  await Promise.all(
+    ASSISTANT_PRESETS.map(async (preset) => {
+      const assistantId = `builtin-${preset.id}`;
 
-    // 如果设置了 resourceDir，使用该目录；否则使用默认的 rules/ 目录
-    // If resourceDir is set, use that directory; otherwise use default rules/ directory
-    const presetRulesDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : rulesDir;
-    const presetSkillsDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : builtinSkillsDir;
+      // 如果设置了 resourceDir，使用该目录；否则使用默认的 rules/ 目录
+      // If resourceDir is set, use that directory; otherwise use default rules/ directory
+      const presetRulesDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : rulesDir;
+      const presetSkillsDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : builtinSkillsDir;
 
-    // 复制规则文件 / Copy rule files
-    const hasRuleFiles = Object.keys(preset.ruleFiles).length > 0;
-    if (hasRuleFiles) {
-      await Promise.all(Object.entries(preset.ruleFiles).map(async ([locale, ruleFile]) => {
+      // 复制规则文件 / Copy rule files
+      const hasRuleFiles = Object.keys(preset.ruleFiles).length > 0;
+      if (hasRuleFiles) {
+        await Promise.all(
+          Object.entries(preset.ruleFiles).map(async ([locale, ruleFile]) => {
+            try {
+              const sourceRulesPath = path.join(presetRulesDir, ruleFile);
+              // 目标文件名格式：{assistantId}.{locale}.md
+              // Target file name format: {assistantId}.{locale}.md
+              const targetFileName = `${assistantId}.${locale}.md`;
+              const targetPath = path.join(assistantsDir, targetFileName);
+
+              // 检查源文件是否存在 / Check if source file exists
+              if (!existsSync(sourceRulesPath)) {
+                mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
+                return;
+              }
+
+              // 内置助手规则文件始终强制覆盖，确保用户获得最新版本
+              // Always overwrite builtin assistant rule files to ensure users get the latest version
+              let content = await fs.readFile(sourceRulesPath, 'utf-8');
+              // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
+              // Replace relative paths with absolute paths so AI can find scripts correctly
+              content = content.replace(/skills\//g, userSkillsDir + '/');
+              await fs.writeFile(targetPath, content, 'utf-8');
+            } catch (error) {
+              // 忽略缺失的语言文件 / Ignore missing locale files
+              mainWarn('Sudowork', `Failed to copy rule file ${ruleFile}:`, error);
+            }
+          })
+        );
+      } else {
+        // 如果助手没有 ruleFiles 配置，删除旧的 rules 缓存文件
+        // If assistant has no ruleFiles config, delete old rules cache files
+        const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
         try {
-          const sourceRulesPath = path.join(presetRulesDir, ruleFile);
-          // 目标文件名格式：{assistantId}.{locale}.md
-          // Target file name format: {assistantId}.{locale}.md
-          const targetFileName = `${assistantId}.${locale}.md`;
-          const targetPath = path.join(assistantsDir, targetFileName);
-
-          // 检查源文件是否存在 / Check if source file exists
-          if (!existsSync(sourceRulesPath)) {
-            mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
-            return;
-          }
-
-          // 内置助手规则文件始终强制覆盖，确保用户获得最新版本
-          // Always overwrite builtin assistant rule files to ensure users get the latest version
-          let content = await fs.readFile(sourceRulesPath, 'utf-8');
-          // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
-          // Replace relative paths with absolute paths so AI can find scripts correctly
-          content = content.replace(/skills\//g, userSkillsDir + '/');
-          await fs.writeFile(targetPath, content, 'utf-8');
+          const files = readdirSync(assistantsDir);
+          await Promise.all(
+            files
+              .filter((file) => rulesFilePattern.test(file))
+              .map(async (file) => {
+                const filePath = path.join(assistantsDir, file);
+                await fs.unlink(filePath);
+              })
+          );
         } catch (error) {
-          // 忽略缺失的语言文件 / Ignore missing locale files
-          mainWarn('Sudowork', `Failed to copy rule file ${ruleFile}:`, error);
+          // 忽略删除失败 / Ignore deletion failure
         }
-      }));
-    } else {
-      // 如果助手没有 ruleFiles 配置，删除旧的 rules 缓存文件
-      // If assistant has no ruleFiles config, delete old rules cache files
-      const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
-      try {
-        const files = readdirSync(assistantsDir);
-        await Promise.all(files.filter((file) => rulesFilePattern.test(file)).map(async (file) => {
-          const filePath = path.join(assistantsDir, file);
-          await fs.unlink(filePath);
-        }));
-      } catch (error) {
-        // 忽略删除失败 / Ignore deletion failure
       }
-    }
 
-    // 复制技能文件 / Copy skill files (if preset has skills)
-    if (preset.skillFiles) {
-      await Promise.all(Object.entries(preset.skillFiles).map(async ([locale, skillFile]) => {
+      // 复制技能文件 / Copy skill files (if preset has skills)
+      if (preset.skillFiles) {
+        await Promise.all(
+          Object.entries(preset.skillFiles).map(async ([locale, skillFile]) => {
+            try {
+              const sourceSkillsPath = path.join(presetSkillsDir, skillFile);
+              // 目标文件名格式：{assistantId}-skills.{locale}.md
+              // Target file name format: {assistantId}-skills.{locale}.md
+              const targetFileName = `${assistantId}-skills.${locale}.md`;
+              const targetPath = path.join(assistantsDir, targetFileName);
+
+              // 检查源文件是否存在 / Check if source file exists
+              if (!existsSync(sourceSkillsPath)) {
+                mainWarn('Sudowork', `Source skill file not found: ${sourceSkillsPath}`);
+                return;
+              }
+
+              // 内置助手技能文件始终强制覆盖，确保用户获得最新版本
+              // Always overwrite builtin assistant skill files to ensure users get the latest version
+              let content = await fs.readFile(sourceSkillsPath, 'utf-8');
+              // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
+              // Replace relative paths with absolute paths so AI can find scripts correctly
+              content = content.replace(/skills\//g, userSkillsDir + '/');
+              await fs.writeFile(targetPath, content, 'utf-8');
+            } catch (error) {
+              // 忽略缺失的技能文件 / Ignore missing skill files
+              mainWarn('Sudowork', `Failed to copy skill file ${skillFile}:`, error);
+            }
+          })
+        );
+      } else {
+        // 如果助手没有 skillFiles 配置，删除旧的 skills 缓存文件
+        // If assistant has no skillFiles config, delete old skills cache files
+        // 这样可以确保迁移到 SkillManager 后不会读取到旧的 presetSkills
+        // This ensures old presetSkills won't be read after migrating to SkillManager
+        const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
         try {
-          const sourceSkillsPath = path.join(presetSkillsDir, skillFile);
-          // 目标文件名格式：{assistantId}-skills.{locale}.md
-          // Target file name format: {assistantId}-skills.{locale}.md
-          const targetFileName = `${assistantId}-skills.${locale}.md`;
-          const targetPath = path.join(assistantsDir, targetFileName);
-
-          // 检查源文件是否存在 / Check if source file exists
-          if (!existsSync(sourceSkillsPath)) {
-            mainWarn('Sudowork', `Source skill file not found: ${sourceSkillsPath}`);
-            return;
-          }
-
-          // 内置助手技能文件始终强制覆盖，确保用户获得最新版本
-          // Always overwrite builtin assistant skill files to ensure users get the latest version
-          let content = await fs.readFile(sourceSkillsPath, 'utf-8');
-          // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
-          // Replace relative paths with absolute paths so AI can find scripts correctly
-          content = content.replace(/skills\//g, userSkillsDir + '/');
-          await fs.writeFile(targetPath, content, 'utf-8');
+          const files = readdirSync(assistantsDir);
+          await Promise.all(
+            files
+              .filter((file) => skillsFilePattern.test(file))
+              .map(async (file) => {
+                const filePath = path.join(assistantsDir, file);
+                await fs.unlink(filePath);
+              })
+          );
         } catch (error) {
-          // 忽略缺失的技能文件 / Ignore missing skill files
-          mainWarn('Sudowork', `Failed to copy skill file ${skillFile}:`, error);
+          // 忽略删除失败 / Ignore deletion failure
         }
-      }));
-    } else {
-      // 如果助手没有 skillFiles 配置，删除旧的 skills 缓存文件
-      // If assistant has no skillFiles config, delete old skills cache files
-      // 这样可以确保迁移到 SkillManager 后不会读取到旧的 presetSkills
-      // This ensures old presetSkills won't be read after migrating to SkillManager
-      const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
-      try {
-        const files = readdirSync(assistantsDir);
-        await Promise.all(files.filter((file) => skillsFilePattern.test(file)).map(async (file) => {
-          const filePath = path.join(assistantsDir, file);
-          await fs.unlink(filePath);
-        }));
-      } catch (error) {
-        // 忽略删除失败 / Ignore deletion failure
       }
-    }
-  }));
+    })
+  );
 
   // 保存当前版本号，下次启动时跳过复制
   // Save current version to skip copy on next startup
@@ -638,125 +652,125 @@ const initStorage = async () => {
   // 5. 初始化内置助手（Assistants）— runs in parallel with database init (step 6)
   // PERF: Assistant config + database init are independent; run them concurrently
   const assistantsPromise = (async () => {
-  try {
-    // 5.1 初始化内置助手的规则文件到用户目录
-    // Initialize builtin assistant rule files to user directory
-    await initBuiltinAssistantRules();
+    try {
+      // 5.1 初始化内置助手的规则文件到用户目录
+      // Initialize builtin assistant rule files to user directory
+      await initBuiltinAssistantRules();
 
-    // 5.2 初始化助手配置（只包含元数据，不包含 context）
-    // Initialize assistant config (metadata only, no context)
-    // PERF: Read config once and reuse — configFile now has in-memory cache,
-    // so the first get() reads from disk and subsequent ones use cache
-    const existingAgents = (await configFile.get('acp.customAgents').catch((): undefined => undefined)) || [];
-    const builtinAssistants = getBuiltinAssistants();
+      // 5.2 初始化助手配置（只包含元数据，不包含 context）
+      // Initialize assistant config (metadata only, no context)
+      // PERF: Read config once and reuse — configFile now has in-memory cache,
+      // so the first get() reads from disk and subsequent ones use cache
+      const existingAgents = (await configFile.get('acp.customAgents').catch((): undefined => undefined)) || [];
+      const builtinAssistants = getBuiltinAssistants();
 
-    // 5.2.1 检查是否需要迁移：修复老版本中所有助手都默认启用的问题
-    // Check if migration needed: fix old version where all assistants were enabled by default
-    const ASSISTANT_ENABLED_MIGRATION_KEY = 'migration.assistantEnabledFixed';
-    const migrationDone = await configFile.get(ASSISTANT_ENABLED_MIGRATION_KEY).catch(() => false);
-    const needsMigration = !migrationDone && existingAgents.length > 0;
+      // 5.2.1 检查是否需要迁移：修复老版本中所有助手都默认启用的问题
+      // Check if migration needed: fix old version where all assistants were enabled by default
+      const ASSISTANT_ENABLED_MIGRATION_KEY = 'migration.assistantEnabledFixed';
+      const migrationDone = await configFile.get(ASSISTANT_ENABLED_MIGRATION_KEY).catch(() => false);
+      const needsMigration = !migrationDone && existingAgents.length > 0;
 
-    // 5.2.2 检查是否需要迁移：为内置助手添加默认启用的技能
-    // Check if migration needed: add default enabled skills for builtin assistants
-    const BUILTIN_SKILLS_MIGRATION_KEY = 'migration.builtinDefaultSkillsAdded_v2';
-    const builtinSkillsMigrationDone = await configFile.get(BUILTIN_SKILLS_MIGRATION_KEY).catch(() => false);
-    const needsBuiltinSkillsMigration = !builtinSkillsMigrationDone;
+      // 5.2.2 检查是否需要迁移：为内置助手添加默认启用的技能
+      // Check if migration needed: add default enabled skills for builtin assistants
+      const BUILTIN_SKILLS_MIGRATION_KEY = 'migration.builtinDefaultSkillsAdded_v2';
+      const builtinSkillsMigrationDone = await configFile.get(BUILTIN_SKILLS_MIGRATION_KEY).catch(() => false);
+      const needsBuiltinSkillsMigration = !builtinSkillsMigrationDone;
 
-    // 5.2.3 检查是否需要迁移：为内置助手添加 promptsI18n
-    // Check if migration needed: add promptsI18n for builtin assistants
-    const PROMPTS_I18N_MIGRATION_KEY = 'migration.promptsI18nAdded';
-    const promptsI18nMigrationDone = await configFile.get(PROMPTS_I18N_MIGRATION_KEY).catch(() => false);
-    const needsPromptsI18nMigration = !promptsI18nMigrationDone;
+      // 5.2.3 检查是否需要迁移：为内置助手添加 promptsI18n
+      // Check if migration needed: add promptsI18n for builtin assistants
+      const PROMPTS_I18N_MIGRATION_KEY = 'migration.promptsI18nAdded';
+      const promptsI18nMigrationDone = await configFile.get(PROMPTS_I18N_MIGRATION_KEY).catch(() => false);
+      const needsPromptsI18nMigration = !promptsI18nMigrationDone;
 
-    // 更新或添加内置助手配置
-    // Update or add built-in assistant configurations
-    const updatedAgents = [...existingAgents];
-    let hasChanges = false;
+      // 更新或添加内置助手配置
+      // Update or add built-in assistant configurations
+      const updatedAgents = [...existingAgents];
+      let hasChanges = false;
 
-    for (const builtin of builtinAssistants) {
-      const index = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === builtin.id);
-      if (index >= 0) {
-        // 更新现有内置助手配置
-        // Update existing built-in assistant config
-        const existing = updatedAgents[index];
-        // 只有当关键字段不同时才更新，避免不必要的写入
-        // Update only if key fields are different to avoid unnecessary writes
-        // 注意：enabled 和 presetAgentType 字段由用户控制，不参与 shouldUpdate 判断
-        // Note: enabled and presetAgentType are user-controlled, not included in shouldUpdate check
-        // 检查 promptsI18n 是否需要更新（如果不存在或已更改，或需要迁移）
-        // Check if promptsI18n needs update (if missing, changed, or migration needed)
-        const promptsI18nMissing = !existing.promptsI18n && builtin.promptsI18n;
-        const promptsI18nChanged = existing.promptsI18n && builtin.promptsI18n && JSON.stringify(existing.promptsI18n) !== JSON.stringify(builtin.promptsI18n);
-        const needsPromptsI18nUpdate = needsPromptsI18nMigration || promptsI18nMissing || promptsI18nChanged;
-        const shouldUpdate = existing.name !== builtin.name || existing.description !== builtin.description || existing.avatar !== builtin.avatar || existing.isPreset !== builtin.isPreset || existing.isBuiltin !== builtin.isBuiltin || needsPromptsI18nUpdate;
-        // 当 enabled 是 undefined 或需要迁移时，设置默认值（Cowork 启用，其他禁用）
-        // When enabled is undefined or migration needed, set default value (Cowork enabled, others disabled)
-        const needsEnabledFix = existing.enabled === undefined || needsMigration;
-        // 迁移时强制使用默认值，否则保留用户设置
-        // Force default value during migration, otherwise preserve user setting
-        const resolvedEnabled = needsEnabledFix ? builtin.enabled : existing.enabled;
-        // presetAgentType 由用户控制，未设置时使用内置默认值
-        // presetAgentType is user-controlled, use builtin default if not set
-        const resolvedPresetAgentType = existing.presetAgentType ?? builtin.presetAgentType;
+      for (const builtin of builtinAssistants) {
+        const index = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === builtin.id);
+        if (index >= 0) {
+          // 更新现有内置助手配置
+          // Update existing built-in assistant config
+          const existing = updatedAgents[index];
+          // 只有当关键字段不同时才更新，避免不必要的写入
+          // Update only if key fields are different to avoid unnecessary writes
+          // 注意：enabled 和 presetAgentType 字段由用户控制，不参与 shouldUpdate 判断
+          // Note: enabled and presetAgentType are user-controlled, not included in shouldUpdate check
+          // 检查 promptsI18n 是否需要更新（如果不存在或已更改，或需要迁移）
+          // Check if promptsI18n needs update (if missing, changed, or migration needed)
+          const promptsI18nMissing = !existing.promptsI18n && builtin.promptsI18n;
+          const promptsI18nChanged = existing.promptsI18n && builtin.promptsI18n && JSON.stringify(existing.promptsI18n) !== JSON.stringify(builtin.promptsI18n);
+          const needsPromptsI18nUpdate = needsPromptsI18nMigration || promptsI18nMissing || promptsI18nChanged;
+          const shouldUpdate = existing.name !== builtin.name || existing.description !== builtin.description || existing.avatar !== builtin.avatar || existing.isPreset !== builtin.isPreset || existing.isBuiltin !== builtin.isBuiltin || needsPromptsI18nUpdate;
+          // 当 enabled 是 undefined 或需要迁移时，设置默认值（Cowork 启用，其他禁用）
+          // When enabled is undefined or migration needed, set default value (Cowork enabled, others disabled)
+          const needsEnabledFix = existing.enabled === undefined || needsMigration;
+          // 迁移时强制使用默认值，否则保留用户设置
+          // Force default value during migration, otherwise preserve user setting
+          const resolvedEnabled = needsEnabledFix ? builtin.enabled : existing.enabled;
+          // presetAgentType 由用户控制，未设置时使用内置默认值
+          // presetAgentType is user-controlled, use builtin default if not set
+          const resolvedPresetAgentType = existing.presetAgentType ?? builtin.presetAgentType;
 
-        // 为有 defaultEnabledSkills 配置的内置助手添加默认技能（仅在迁移时且用户未设置 enabledSkills 时）
-        // Add default enabled skills for builtin assistants with defaultEnabledSkills (only during migration and if user hasn't set enabledSkills)
-        let resolvedEnabledSkills = existing.enabledSkills;
-        const needsSkillsMigration = needsBuiltinSkillsMigration && builtin.enabledSkills && (!existing.enabledSkills || existing.enabledSkills.length === 0);
-        if (needsSkillsMigration) {
-          resolvedEnabledSkills = builtin.enabledSkills;
-        }
+          // 为有 defaultEnabledSkills 配置的内置助手添加默认技能（仅在迁移时且用户未设置 enabledSkills 时）
+          // Add default enabled skills for builtin assistants with defaultEnabledSkills (only during migration and if user hasn't set enabledSkills)
+          let resolvedEnabledSkills = existing.enabledSkills;
+          const needsSkillsMigration = needsBuiltinSkillsMigration && builtin.enabledSkills && (!existing.enabledSkills || existing.enabledSkills.length === 0);
+          if (needsSkillsMigration) {
+            resolvedEnabledSkills = builtin.enabledSkills;
+          }
 
-        if (shouldUpdate || needsEnabledFix || (needsSkillsMigration && resolvedEnabledSkills !== existing.enabledSkills) || needsPromptsI18nUpdate) {
-          // 保留用户已设置的 enabled 和 presetAgentType / Preserve user-set enabled and presetAgentType
-          updatedAgents[index] = {
-            ...existing,
-            ...builtin,
-            enabled: resolvedEnabled,
-            presetAgentType: resolvedPresetAgentType,
-            enabledSkills: resolvedEnabledSkills,
-            // 确保 promptsI18n 被更新 / Ensure promptsI18n is updated
-            promptsI18n: builtin.promptsI18n,
-          };
+          if (shouldUpdate || needsEnabledFix || (needsSkillsMigration && resolvedEnabledSkills !== existing.enabledSkills) || needsPromptsI18nUpdate) {
+            // 保留用户已设置的 enabled 和 presetAgentType / Preserve user-set enabled and presetAgentType
+            updatedAgents[index] = {
+              ...existing,
+              ...builtin,
+              enabled: resolvedEnabled,
+              presetAgentType: resolvedPresetAgentType,
+              enabledSkills: resolvedEnabledSkills,
+              // 确保 promptsI18n 被更新 / Ensure promptsI18n is updated
+              promptsI18n: builtin.promptsI18n,
+            };
+            hasChanges = true;
+          }
+        } else {
+          // 添加新的内置助手
+          // Add new built-in assistant
+          updatedAgents.unshift(builtin);
           hasChanges = true;
         }
-      } else {
-        // 添加新的内置助手
-        // Add new built-in assistant
-        updatedAgents.unshift(builtin);
-        hasChanges = true;
       }
-    }
 
-    if (hasChanges) {
-      await configFile.set('acp.customAgents', updatedAgents);
-    }
+      if (hasChanges) {
+        await configFile.set('acp.customAgents', updatedAgents);
+      }
 
-    // 标记迁移完成 / Mark migration as done
-    if (needsMigration) {
-      await configFile.set(ASSISTANT_ENABLED_MIGRATION_KEY, true);
+      // 标记迁移完成 / Mark migration as done
+      if (needsMigration) {
+        await configFile.set(ASSISTANT_ENABLED_MIGRATION_KEY, true);
+      }
+      if (needsBuiltinSkillsMigration) {
+        await configFile.set(BUILTIN_SKILLS_MIGRATION_KEY, true);
+      }
+      if (needsPromptsI18nMigration) {
+        await configFile.set(PROMPTS_I18N_MIGRATION_KEY, true);
+      }
+    } catch (error) {
+      mainError('Sudowork', 'Failed to initialize builtin assistants:', error);
     }
-    if (needsBuiltinSkillsMigration) {
-      await configFile.set(BUILTIN_SKILLS_MIGRATION_KEY, true);
-    }
-    if (needsPromptsI18nMigration) {
-      await configFile.set(PROMPTS_I18N_MIGRATION_KEY, true);
-    }
-  } catch (error) {
-    mainError('Sudowork', 'Failed to initialize builtin assistants:', error);
-  }
   })();
 
   // 6. 初始化数据库（better-sqlite3）— runs in parallel with step 5
   const dbPromise = (async () => {
-  const dbStart = Date.now();
-  try {
-    getDatabase();
-    cleanupOrphanedHealthCheckConversations();
-  } catch (error) {
-    mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
-  }
-  perfLog('initStorage.database', Date.now() - dbStart);
+    const dbStart = Date.now();
+    try {
+      getDatabase();
+      cleanupOrphanedHealthCheckConversations();
+    } catch (error) {
+      mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
+    }
+    perfLog('initStorage.database', Date.now() - dbStart);
   })();
 
   // Wait for both assistant config and database init to complete

@@ -278,7 +278,7 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
   // Handle modal visibility
   useEffect(() => {
     if (visible) {
-      fetchPackages();
+      void fetchPackages();
     } else {
       stopPolling();
       resetState();
