@@ -228,6 +228,64 @@ git push origin release-v1.2
 
 ---
 
-## 联系方式
+## 子模块依赖管理
 
-如有问题，请联系开发团队或在 GitHub Issues 中提问。
+### ai-dev-browser
+
+[ai-dev-browser](https://github.com/sudoprivacy/ai-dev-browser) 是浏览器自动化核心库，作为 git submodule 位于 `vendor/ai-dev-browser`。
+
+**版本策略**：pin 到 release tag，不追踪 master。
+
+| 项目 | 说明 |
+|------|------|
+| **当前版本** | v0.2.0 |
+| **路径** | `vendor/ai-dev-browser` |
+| **更新方式** | 手动 checkout tag，或通过 GitHub Actions workflow |
+
+#### 手动更新
+
+```bash
+cd vendor/ai-dev-browser
+git fetch origin --tags
+git checkout v0.3.0            # 替换为目标版本
+cd ../..
+git add vendor/ai-dev-browser
+git commit -m "chore(deps): update ai-dev-browser to v0.3.0"
+```
+
+#### 通过 GitHub Actions 更新
+
+```yaml
+# GitHub Actions → Update ai-dev-browser → Run workflow
+tag: v0.3.0
+```
+
+会自动创建 PR 到 dev 分支，CI 通过后合并即可。
+
+#### v0.2.0 关键变更
+
+- `find` 重命名为 `page_find`，`scroll` 重命名为 `page_scroll`
+- `mouse_click`/`mouse_move`/`mouse_drag` 新增 `--screenshot` 参数，传截图路径自动换算坐标
+- `page_screenshot` 默认 `max_long_edge=1280`（之前 1568），`max_total_pixels=1,150,000`
+- 新增环境变量 `AI_DEV_BROWSER_PORT`、`AI_DEV_BROWSER_HEADLESS`、`AI_DEV_BROWSER_REDIRECT`
+- nodriver 已完全移除，依赖改为 websockets
+
+#### Sudowork 侧的封装
+
+Sudowork 通过 `tests/e2e/ops/` 对 ai-dev-browser API 进行二次封装，对齐 [W3C WebDriver Actions API](https://w3c.github.io/webdriver/#actions)。Doctor QA agent 使用 `python tests/e2e/run_op.py` 作为唯一的浏览器交互入口。
+
+---
+
+## CI/CD Workflows
+
+### Workflow 文件
+
+| 文件 | 用途 | 触发方式 |
+|------|------|---------|
+| `build-and-release.yml` | 开发构建 & 正式发布 | 手动触发 / Tag 推送 |
+| `build-nightly.yml` | 每日构建 | 定时 / 手动 |
+| `candidate-promotion.yml` | Candidate 晋升 | 手动触发 |
+| `hotfix.yml` | Hotfix 流程 | Push 到 release-* 分支 |
+| `pr-checks.yml` | PR 检查 | PR 到 dev/main |
+| `update-ai-dev-browser.yml` | 更新 ai-dev-browser submodule | 手动触发 |
+| `_build-reusable.yml` | 构建复用模块 | 被其他 workflow 调用 |
