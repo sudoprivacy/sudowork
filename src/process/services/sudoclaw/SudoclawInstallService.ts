@@ -60,8 +60,15 @@ export function removeSudoclawCli(): void {
   }
 }
 
+/** Check if the esbuild-bundled openclaw.mjs exists (aggregated single-file mode). */
+function hasBundledEntry(pkgRoot: string): boolean {
+  return fs.existsSync(path.join(pkgRoot, 'openclaw.mjs'));
+}
+
 /** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
 function hasDistEntry(pkgRoot: string): boolean {
+  // Accept either the aggregated bundle or the original dist entry
+  if (hasBundledEntry(pkgRoot)) return true;
   const entryMjs = path.join(pkgRoot, 'dist', 'entry.mjs');
   const entryJs = path.join(pkgRoot, 'dist', 'entry.js');
   return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
@@ -74,6 +81,16 @@ function hasDistEntry(pkgRoot: string): boolean {
  */
 function hasNodeModules(pkgRoot: string): boolean {
   const nm = path.join(pkgRoot, 'node_modules');
+
+  // In bundled mode, node_modules only contains native bindings (chalk is inlined)
+  if (hasBundledEntry(pkgRoot)) {
+    // Only require the davey native binding directory to exist
+    const daveyBinding = getDaveyBindingName();
+    const daveyPath = path.join(nm, daveyBinding);
+    return fs.existsSync(daveyPath);
+  }
+
+  // Unbundled (legacy) mode: full node_modules required
   if (!fs.existsSync(nm) || !fs.statSync(nm).isDirectory()) return false;
 
   // Check for correct platform-specific @snazzah/davey binding
@@ -102,6 +119,18 @@ function getDaveyBindingName(): string {
 function checkPlatformDependencies(pkgRoot: string): boolean {
   const daveyBinding = getDaveyBindingName();
   const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
+
+  // In bundled mode, JS deps like chalk are inlined — only native bindings matter
+  if (hasBundledEntry(pkgRoot)) {
+    if (fs.existsSync(daveyPath)) {
+      mainLog('Sudoclaw', 'Platform dependencies OK (bundled mode)');
+      return true;
+    }
+    mainWarn('Sudoclaw', `Platform dependencies missing (bundled mode): ${daveyPath}`);
+    return false;
+  }
+
+  // Unbundled (legacy) mode: check both native binding and JS deps
   const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
 
   if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
@@ -625,7 +654,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     }
 
     if (!checkPlatformDependencies(newPkgRoot)) {
-      const error = `Platform dependencies missing after extraction (${getDaveyBindingName()}, chalk)`;
+      const error = `Platform dependencies missing after extraction (${getDaveyBindingName()})`;
       mainError('Sudoclaw', error);
       return { installed: false, cliPath: null, error };
     }

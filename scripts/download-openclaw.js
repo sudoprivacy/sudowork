@@ -5,7 +5,7 @@
  * Builds dist/ at pack time if missing (npm packaging bug #49338).
  * The output tgz is ready for end users — no runtime build needed.
  *
- * Usage: node scripts/download-openclaw.js [--force] [--version=X]
+ * Usage: node scripts/download-openclaw.js [--force] [--version=X] [--skip-bundle]
  */
 
 const { execSync } = require('child_process');
@@ -20,6 +20,7 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
 const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
 const FORCE = process.argv.includes('--force');
+const SKIP_BUNDLE = process.argv.includes('--skip-bundle');
 const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
 const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org/';
 
@@ -203,6 +204,21 @@ if not exist "%BUNDLED_NODE%" (
 "%BUNDLED_NODE%" "%CLI%" %*
 `;
   fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
+
+  // Bundle openclaw runtime with esbuild (reduces file count dramatically)
+  if (!SKIP_BUNDLE) {
+    console.log('[openclaw] Bundling openclaw runtime with esbuild...');
+    try {
+      const bundleScript = path.join(__dirname, 'bundle-openclaw.js');
+      execSync(`node "${bundleScript}" "${pkgDir}"`, { stdio: 'inherit', timeout: 300_000 });
+      console.log('[openclaw] Bundling complete.');
+    } catch (err) {
+      console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${err?.message}`);
+      console.warn('[openclaw] The package will work but with more files than optimal.');
+    }
+  } else {
+    console.log('[openclaw] Skipping bundle step (--skip-bundle).');
+  }
 
   writeOpenClawManifest(version);
 
