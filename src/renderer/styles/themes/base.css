@@ -587,7 +587,8 @@ body,
 
 /* Streaming message border pulse - red border animation for AI output */
 @keyframes streaming-border-pulse {
-  0%, 100% {
+  0%,
+  100% {
     border-color: rgba(245, 63, 63, 0.3);
     box-shadow: 0 0 0 1px rgba(245, 63, 63, 0.1);
   }

@@ -93,8 +93,8 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const OpenClawSendBox: React.FC<{ 
-  conversation_id: string; 
+const OpenClawSendBox: React.FC<{
+  conversation_id: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, onAiProcessingChange }) => {
   const aiProcessingContext = React.useContext(AIProcessingContext);
