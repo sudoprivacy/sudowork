@@ -371,15 +371,12 @@ class DynamicNexusService {
       this.removeDirIfExists(stagingDir);
       this.removeDirIfExists(backupDir);
 
-      // Copy to temp to avoid permission issues with original resource
-      const tempTarGzPath = path.join(os.tmpdir(), `nexus-${Date.now()}.tar.gz`);
-      fs.copyFileSync(bundledPath, tempTarGzPath);
-
       try {
-        // Extract
+        // Extract directly from bundled resource (no temp copy needed — extractTarGzWithProgress
+        // uses read-only streams, so permission issues with the original resource do not apply)
         fs.mkdirSync(stagingDir, { recursive: true });
         this.emitSetup('extracting', 'Extracting Nexus environment...', 0);
-        await extractTarGzWithProgress(tempTarGzPath, stagingDir, (percent) => {
+        await extractTarGzWithProgress(bundledPath, stagingDir, (percent) => {
           this.emitSetup('extracting', `Extracting Nexus environment... ${percent}%`, percent);
         });
 
@@ -427,14 +424,6 @@ class DynamicNexusService {
           throw err;
         }
       } finally {
-        // Clean up temp file
-        if (fs.existsSync(tempTarGzPath)) {
-          try {
-            fs.unlinkSync(tempTarGzPath);
-          } catch {
-            // Ignore errors during cleanup
-          }
-        }
         try {
           this.removeDirIfExists(stagingDir);
         } catch {
