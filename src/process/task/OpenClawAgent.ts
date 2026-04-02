@@ -448,26 +448,33 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleEvent(evt: EventFrame): void {
-    switch (evt.event) {
-      case 'chat':
-      case 'chat.event':
-        this.handleChatEvent(evt.payload as ChatEvent);
-        break;
-      case 'agent':
-      case 'agent.event':
-        this.handleAgentEvent(evt.payload);
-        break;
-      case 'exec.approval.request':
-        this.handleApprovalRequest(evt.payload);
-        break;
-      case 'shutdown':
-        this.handleDisconnect('Gateway shutdown');
-        break;
-      case 'health':
-      case 'tick':
-        break;
-      default:
-        break;
+    try {
+      switch (evt.event) {
+        case 'chat':
+        case 'chat.event':
+          this.handleChatEvent(evt.payload as ChatEvent);
+          break;
+        case 'agent':
+        case 'agent.event':
+          this.handleAgentEvent(evt.payload);
+          break;
+        case 'exec.approval.request':
+          this.handleApprovalRequest(evt.payload);
+          break;
+        case 'shutdown':
+          this.handleDisconnect('Gateway shutdown');
+          break;
+        case 'health':
+        case 'tick':
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      mainError('OpenClawAgent', `Unhandled error in event handler (${evt.event}):`, error);
+      // Emit error to UI and force end turn to prevent hanging
+      this.emitErrorMessage(`Internal error processing event: ${error instanceof Error ? error.message : String(error)}`);
+      this.handleEndTurn();
     }
   }
 
