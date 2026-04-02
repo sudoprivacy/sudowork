@@ -254,6 +254,7 @@ export class OpenClawGatewayManager extends EventEmitter {
         env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
 
+<<<<<<< Updated upstream
       // Inject sudorouter credentials so skills (e.g. image-analysis) can access them
       // Read directly from sudoclaw.json to avoid cross-layer import issues
       try {
@@ -272,6 +273,10 @@ export class OpenClawGatewayManager extends EventEmitter {
       } catch (e) {
         console.warn('[OpenClawGatewayManager] Failed to read sudoclaw.json for env injection:', e);
       }
+=======
+      // Skills read credentials and model config directly from sudoclaw.json
+      // via OPENCLAW_CONFIG_PATH at each invocation, so no env var injection needed.
+>>>>>>> Stashed changes
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
 

@@ -7,7 +7,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { DEFAULT_IMAGE_BASE_URL, DEFAULT_IMAGE_MODEL } from '../../common/storage';
+import { DEFAULT_IMAGE_BASE_URL } from '../../common/storage';
 import { detectImageMimeType } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
@@ -53,47 +53,42 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
 }
 
 export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
-  // 1. Switch is on: use user-selected model routed through sudorouter
-  const imageModel = await ProcessConfig.get('tools.imageGenerationModel').catch((): null => null);
-  if (imageModel?.switch && imageModel.useModel) {
-    // Route user-selected model through sudorouter
-    const sr = readSudorouterCredentials();
-    if (sr) {
-      return { baseUrl: sr.baseUrl, apiKey: sr.apiKey, model: imageModel.useModel };
+  // Primary: read image model from sudoclaw.json agents.defaults.model.image (updated by settings IPC)
+  let imageModelId: string | null = null;
+  try {
+    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw);
+    const model = config?.agents?.defaults?.model?.image;
+    if (model && typeof model === 'string' && model.trim()) imageModelId = model;
+  } catch {}
+
+  // Fallback: ProcessConfig (before user has changed settings in this session)
+  if (!imageModelId) {
+    const imageModel = await ProcessConfig.get('tools.imageGenerationModel').catch((): null => null);
+    if (!imageModel?.switch || !imageModel.useModel) {
+      console.log('[ImageGen] image generation switch is off or no model selected');
+      return null;
     }
-    // Fall back to model.config sudorouter provider
-    const providers = (await ProcessConfig.get('model.config').catch((): null => null)) || [];
-    for (const provider of providers) {
-      if (provider.baseUrl?.includes('sudorouter.ai') && provider.apiKey) {
-        const baseUrl = provider.baseUrl.replace(/\/+$/, '');
-        console.log('[ImageGen] switch on, routing user model via model.config sudorouter:', imageModel.useModel);
-        return { baseUrl, apiKey: provider.apiKey, model: imageModel.useModel };
-      }
-    }
+    imageModelId = imageModel.useModel;
   }
 
-  // 2. Switch off or no model selected: try sudorouter from sudoclaw.json with default model
+  // Route user-selected model through sudorouter
   const sr = readSudorouterCredentials();
   if (sr) {
-    console.log('[ImageGen] using sudoclaw sudorouter with default model, baseUrl:', sr.baseUrl);
-    return { baseUrl: sr.baseUrl, apiKey: sr.apiKey, model: DEFAULT_IMAGE_MODEL };
+    return { baseUrl: sr.baseUrl, apiKey: sr.apiKey, model: imageModelId };
   }
 
-  // 3. Fall back: any model.config provider with sudorouter.ai baseUrl
+  // Fall back to model.config sudorouter provider
   const providers = (await ProcessConfig.get('model.config').catch((): null => null)) || [];
-  console.log(
-    '[ImageGen] model.config providers:',
-    providers.map((p) => ({ baseUrl: p.baseUrl, hasKey: !!p.apiKey }))
-  );
   for (const provider of providers) {
     if (provider.baseUrl?.includes('sudorouter.ai') && provider.apiKey) {
       const baseUrl = provider.baseUrl.replace(/\/+$/, '');
-      console.log('[ImageGen] using model.config sudorouter baseUrl:', baseUrl);
-      return { baseUrl, apiKey: provider.apiKey, model: DEFAULT_IMAGE_MODEL };
+      console.log('[ImageGen] routing user model via model.config sudorouter:', imageModelId);
+      return { baseUrl, apiKey: provider.apiKey, model: imageModelId };
     }
   }
 
-  console.log('[ImageGen] no config found, returning null');
+  console.log('[ImageGen] no credentials found, returning null');
   return null;
 }
 

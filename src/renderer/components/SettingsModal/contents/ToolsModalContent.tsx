@@ -5,7 +5,7 @@
  */
 
 import { ConfigStorage, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
-import { acpConversation } from '@/common/ipcBridge';
+import { acpConversation, openclaw } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -275,6 +275,9 @@ const ToolsModalContent: React.FC = () => {
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
+      // Persist to sudoclaw.json agents.defaults.model.image so skill scripts pick it up dynamically
+      const modelId = newImageGenerationModel.switch && newImageGenerationModel.useModel ? newImageGenerationModel.useModel : null;
+      openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
       return newImageGenerationModel;
     });
   };
@@ -313,9 +316,9 @@ const ToolsModalContent: React.FC = () => {
                   disabled={!imageGenerationModel?.switch}
                   onChange={(val) => handleImageGenerationModelChange({ useModel: val as string })}
                   options={[
-                    { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
-                    { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
-                    { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
+                    // { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
+                    // { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
+                    // { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
                     { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
                     { label: 'gpt-image-1', value: 'gpt-image-1' },
                     { label: 'doubao-seedream-4-0-250828', value: 'doubao-seedream-4-0-250828' },
