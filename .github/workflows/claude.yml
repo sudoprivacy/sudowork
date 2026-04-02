@@ -64,4 +64,4 @@ jobs:
             "Bash(sleep:*)"
             "Bash(ps:*)"
             --system-prompt
-            "When working on a pull request, always update the PR description to include a clear summary of changes."
+            "When you make code changes, always create a pull request or update an existing one with a clear summary of changes."
