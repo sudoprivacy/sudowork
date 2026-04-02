@@ -1,8 +1,12 @@
 name: Update ai-dev-browser
 
 on:
-  repository_dispatch:
-    types: [ai-dev-browser-updated]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "ai-dev-browser release tag (e.g. v0.3.0)"
+        required: true
+        type: string
 
 jobs:
   update:
@@ -13,21 +17,24 @@ jobs:
           submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update submodule to latest
+      - name: Update submodule to tag
         run: |
-          git submodule update --remote vendor/ai-dev-browser
+          cd vendor/ai-dev-browser
+          git fetch origin --tags
+          git checkout ${{ inputs.tag }}
+          cd ../..
           git add vendor/ai-dev-browser
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           branch: auto/update-ai-dev-browser
-          title: "chore(deps): update ai-dev-browser to ${{ github.event.client_payload.sha }}"
+          title: "chore(deps): update ai-dev-browser to ${{ inputs.tag }}"
           body: |
-            Automated submodule update triggered by push to ai-dev-browser master.
+            Update ai-dev-browser submodule to **${{ inputs.tag }}**.
 
-            **Commit**: sudoprivacy/ai-dev-browser@${{ github.event.client_payload.sha }}
-            **Message**: ${{ github.event.client_payload.message }}
+            Triggered manually via workflow_dispatch.
+            Review the [release notes](https://github.com/sudoprivacy/ai-dev-browser/releases/tag/${{ inputs.tag }}) before merging.
           base: dev
-          commit-message: "chore(deps): update ai-dev-browser submodule"
+          commit-message: "chore(deps): update ai-dev-browser to ${{ inputs.tag }}"
           delete-branch: true
