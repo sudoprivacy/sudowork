@@ -309,7 +309,7 @@ const LoginPage: React.FC = () => {
             <AionLogoMark />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
-          <p className='text-13px text-t-secondary'>AgentOPS | 办公专家</p>
+          <p className='text-13px text-t-secondary'>AgentOps | 办公专家</p>
         </div>
 
         {/* Tab switcher */}
