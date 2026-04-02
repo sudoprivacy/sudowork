@@ -25,12 +25,12 @@ const AboutModalContent: React.FC = () => {
         <div className='flex flex-col max-w-540px mx-auto'>
           <div className='flex flex-col items-center py-28px'>
             <div className='w-56px h-56px rd-16px bg-gradient-to-br from-orange-4 to-orange-6 flex items-center justify-center mb-12px shadow-md'>
-              <span className='text-white text-20px font-800'>S</span>
+              <span className='text-28px' role='img' aria-label='April Fools'>🤡</span>
             </div>
             <Typography.Title heading={4} className='text-18px font-700 text-t-primary mb-4px mt-0'>
-              Sudowork
+              April Fool's
             </Typography.Title>
-            <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
+            <div className='text-12px text-t-tertiary mb-10px'>🤡 愚人节快乐 🤡</div>
             <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>v{packageJson.version}</span>
             <Button size='small' type='outline' className='mt-12px' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
               {t('settings.checkForUpdates')}

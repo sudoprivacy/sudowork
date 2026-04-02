@@ -10,17 +10,15 @@ import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/u
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
-
 interface TitlebarProps {
   workspaceAvailable: boolean;
 }
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='SudoClaw' className='app-titlebar__brand-logo w-5 h-5 object-contain' />;
+const AionLogoMark: React.FC = () => <span className='app-titlebar__brand-logo w-5 h-5 flex items-center justify-center' role='img' aria-label='AprilClaw'>🤡</span>;
 
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
-  const appTitle = useMemo(() => 'SudoClaw', []);
+  const appTitle = useMemo(() => 'AprilClaw', []);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
   const [mobileCenterOffset, setMobileCenterOffset] = useState(0);
