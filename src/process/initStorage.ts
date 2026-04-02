@@ -104,7 +104,12 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
     return decodeURIComponent(atob(base64));
   };
 
+  // In-memory cache: after first read, subsequent reads use cache instead of disk I/O.
+  // This avoids repeated file reads during startup (configFile.get is called 8-10 times).
+  let memoryCache: S | null = null;
+
   const toJson = async (): Promise<S> => {
+    if (memoryCache) return { ...memoryCache };
     try {
       const result = await file.read();
       if (!result) return {} as S;
@@ -128,7 +133,8 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
         mainWarn('Storage', `Chat history file appears to be empty: ${path}`);
       }
 
-      return parsed;
+      memoryCache = parsed;
+      return { ...parsed };
     } catch (e) {
       // console.error(`[Storage] Error reading/parsing file ${path}:`, e);
       return {} as S;
@@ -137,16 +143,21 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
 
   const setJson = async (data: S): Promise<S> => {
     try {
+      memoryCache = { ...data };
       await file.write(encode(JSON.stringify(data)));
       return data;
     } catch (e) {
+      memoryCache = null; // Invalidate cache on write failure
       return Promise.reject(e);
     }
   };
 
   const toJsonSync = (): S => {
+    if (memoryCache) return { ...memoryCache };
     try {
-      return JSON.parse(decode(readFileSync(path).toString())) as S;
+      const parsed = JSON.parse(decode(readFileSync(path).toString())) as S;
+      memoryCache = parsed;
+      return { ...parsed };
     } catch (e) {
       return {} as S;
     }
@@ -156,6 +167,10 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
     toJson,
     setJson,
     toJsonSync,
+    /** Invalidate the in-memory cache, forcing the next read to hit disk. */
+    invalidateCache() {
+      memoryCache = null;
+    },
     async set<K extends keyof S>(key: K, value: Awaited<S>[K]): Promise<Awaited<S>[K]> {
       const data = await toJson();
       data[key] = value;
@@ -172,6 +187,7 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
       return setJson(data);
     },
     clear() {
+      memoryCache = null;
       return setJson({} as S);
     },
     getSync<K extends keyof S>(key: K): S[K] {
@@ -191,6 +207,7 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
       if (!existsSync(dir)) {
         mkdirSync(dir);
       }
+      memoryCache = null; // Invalidate cache since file is being moved
       return file.copy(fullName).then(() => file.rm());
     },
   };
@@ -375,7 +392,9 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     mkdirSync(assistantsDir);
   }
 
-  for (const preset of ASSISTANT_PRESETS) {
+  // PERF: Process all presets in parallel instead of sequentially
+  // Each preset's file operations are independent, so they can run concurrently
+  await Promise.all(ASSISTANT_PRESETS.map(async (preset) => {
     const assistantId = `builtin-${preset.id}`;
 
     // 如果设置了 resourceDir，使用该目录；否则使用默认的 rules/ 目录
@@ -386,7 +405,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     // 复制规则文件 / Copy rule files
     const hasRuleFiles = Object.keys(preset.ruleFiles).length > 0;
     if (hasRuleFiles) {
-      for (const [locale, ruleFile] of Object.entries(preset.ruleFiles)) {
+      await Promise.all(Object.entries(preset.ruleFiles).map(async ([locale, ruleFile]) => {
         try {
           const sourceRulesPath = path.join(presetRulesDir, ruleFile);
           // 目标文件名格式：{assistantId}.{locale}.md
@@ -397,7 +416,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceRulesPath)) {
             mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
-            continue;
+            return;
           }
 
           // 内置助手规则文件始终强制覆盖，确保用户获得最新版本
@@ -411,19 +430,17 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           // 忽略缺失的语言文件 / Ignore missing locale files
           mainWarn('Sudowork', `Failed to copy rule file ${ruleFile}:`, error);
         }
-      }
+      }));
     } else {
       // 如果助手没有 ruleFiles 配置，删除旧的 rules 缓存文件
       // If assistant has no ruleFiles config, delete old rules cache files
       const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
       try {
         const files = readdirSync(assistantsDir);
-        for (const file of files) {
-          if (rulesFilePattern.test(file)) {
-            const filePath = path.join(assistantsDir, file);
-            await fs.unlink(filePath);
-          }
-        }
+        await Promise.all(files.filter((file) => rulesFilePattern.test(file)).map(async (file) => {
+          const filePath = path.join(assistantsDir, file);
+          await fs.unlink(filePath);
+        }));
       } catch (error) {
         // 忽略删除失败 / Ignore deletion failure
       }
@@ -431,7 +448,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
     // 复制技能文件 / Copy skill files (if preset has skills)
     if (preset.skillFiles) {
-      for (const [locale, skillFile] of Object.entries(preset.skillFiles)) {
+      await Promise.all(Object.entries(preset.skillFiles).map(async ([locale, skillFile]) => {
         try {
           const sourceSkillsPath = path.join(presetSkillsDir, skillFile);
           // 目标文件名格式：{assistantId}-skills.{locale}.md
@@ -442,7 +459,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           // 检查源文件是否存在 / Check if source file exists
           if (!existsSync(sourceSkillsPath)) {
             mainWarn('Sudowork', `Source skill file not found: ${sourceSkillsPath}`);
-            continue;
+            return;
           }
 
           // 内置助手技能文件始终强制覆盖，确保用户获得最新版本
@@ -456,7 +473,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
           // 忽略缺失的技能文件 / Ignore missing skill files
           mainWarn('Sudowork', `Failed to copy skill file ${skillFile}:`, error);
         }
-      }
+      }));
     } else {
       // 如果助手没有 skillFiles 配置，删除旧的 skills 缓存文件
       // If assistant has no skillFiles config, delete old skills cache files
@@ -465,17 +482,15 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
       try {
         const files = readdirSync(assistantsDir);
-        for (const file of files) {
-          if (skillsFilePattern.test(file)) {
-            const filePath = path.join(assistantsDir, file);
-            await fs.unlink(filePath);
-          }
-        }
+        await Promise.all(files.filter((file) => skillsFilePattern.test(file)).map(async (file) => {
+          const filePath = path.join(assistantsDir, file);
+          await fs.unlink(filePath);
+        }));
       } catch (error) {
         // 忽略删除失败 / Ignore deletion failure
       }
     }
-  }
+  }));
 
   // 保存当前版本号，下次启动时跳过复制
   // Save current version to skip copy on next startup
@@ -620,7 +635,9 @@ const initStorage = async () => {
   } catch (error) {
     mainError('Sudowork', 'Failed to initialize default MCP servers:', error);
   }
-  // 5. 初始化内置助手（Assistants）
+  // 5. 初始化内置助手（Assistants）— runs in parallel with database init (step 6)
+  // PERF: Assistant config + database init are independent; run them concurrently
+  const assistantsPromise = (async () => {
   try {
     // 5.1 初始化内置助手的规则文件到用户目录
     // Initialize builtin assistant rule files to user directory
@@ -628,6 +645,8 @@ const initStorage = async () => {
 
     // 5.2 初始化助手配置（只包含元数据，不包含 context）
     // Initialize assistant config (metadata only, no context)
+    // PERF: Read config once and reuse — configFile now has in-memory cache,
+    // so the first get() reads from disk and subsequent ones use cache
     const existingAgents = (await configFile.get('acp.customAgents').catch((): undefined => undefined)) || [];
     const builtinAssistants = getBuiltinAssistants();
 
@@ -726,8 +745,10 @@ const initStorage = async () => {
   } catch (error) {
     mainError('Sudowork', 'Failed to initialize builtin assistants:', error);
   }
+  })();
 
-  // 6. 初始化数据库（better-sqlite3）
+  // 6. 初始化数据库（better-sqlite3）— runs in parallel with step 5
+  const dbPromise = (async () => {
   const dbStart = Date.now();
   try {
     getDatabase();
@@ -736,6 +757,10 @@ const initStorage = async () => {
     mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
   }
   perfLog('initStorage.database', Date.now() - dbStart);
+  })();
+
+  // Wait for both assistant config and database init to complete
+  await Promise.all([assistantsPromise, dbPromise]);
 
   perfLog('initStorage.total', Date.now() - startTime);
 
