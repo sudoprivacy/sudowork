@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import type { IMessagePlan } from '../../common/chatLib';
 
 const MessagePlan: React.FC<{ message: IMessagePlan }> = ({ message }) => {
-  const [showMore, setShowMore] = useState(true);
+  const [showMore, setShowMore] = useState(false);
   return (
     <div>
       <div className='flex items-center gap-10px color-#86909C cursor-pointer' onClick={() => setShowMore(!showMore)}>

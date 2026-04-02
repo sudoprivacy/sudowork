@@ -45,7 +45,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       skill: { id: 'skill', label: '技能商店', icon: <Lightning theme='outline' size='16' />, path: 'skill' },
       security: { id: 'security', label: '安全防护', icon: <Shield theme='outline' size='16' />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
-      copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
+      // copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
       webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='16' />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
@@ -53,7 +53,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     };
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
-    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'runtime', 'system', 'about'] as const;
+    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot',
     const builtins: NavItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Insert extension tabs before system (unanchored default) or at anchor position
