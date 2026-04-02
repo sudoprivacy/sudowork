@@ -42,3 +42,11 @@
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* Container for viewsteps to keep newest items visible at the bottom */
+.viewsteps-container {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
