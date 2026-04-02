@@ -168,10 +168,13 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
       return true;
     });
 
-    // Only auto-collapse if we were in-progress and now completed, and currently expanded
-    // 只有当从进行中变为完成时才自动折叠，并且当前是展开状态
-    if (wasInProgress && allCompleted && isExpanded) {
-      onToggle(summaryId);
+    // Handle auto-collapse when all tasks are finished for the first time
+    if (allCompleted && wasInProgress && isExpanded) {
+      // Small delay to ensure state has settled and user saw the final step
+      const timer = setTimeout(() => {
+        onToggle(summaryId);
+      }, 100);
+      return () => clearTimeout(timer);
     }
 
     prevMessagesRef.current = messages;
