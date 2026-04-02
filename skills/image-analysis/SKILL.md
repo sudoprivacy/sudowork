@@ -5,7 +5,7 @@ description: "Analyze, describe, or answer questions about image content using v
 
 # Image Analysis Skill
 
-Analyze images via SudoRouter's chat completions API with vision.
+Analyze images via LLM provider's chat completions API with vision.
 
 ## When to Use
 
@@ -34,15 +34,10 @@ Get the image from the user's message or workspace context.
 ### Step 2: Run the image analysis script
 
 ```bash
-CURR_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")" && pwd)"
-bash $CURR_DIR/scripts/analyze_image.sh "<image_path>" "<question or prompt>"
+bash scripts/analyze_image.sh "<image_path>" "<question or prompt>"
 ```
 
-The script requires the following env vars to be set:
-- `SUDOROUTER_BASE_URL` — API base URL
-- `SUDOROUTER_API_KEY` — API key
-
-The model is auto-detected from `sudoclaw.json` (via `OPENCLAW_CONFIG_PATH`), falling back to `gemini-2.5-flash`.
+The script reads API credentials and model from `sudoclaw.json` via the `OPENCLAW_CONFIG_PATH` env var (auto-set at gateway startup). No manual env var configuration is needed.
 
 The script prints the analysis result (LLM response) on success, or an error message on failure.
 
