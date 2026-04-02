@@ -71,7 +71,10 @@ const getDiffLineStyle = (line: string, isDark: boolean): React.CSSProperties =>
 
 function CodeBlock(props: any) {
   const { t } = useTranslation();
-  const [fold, setFlow] = useState(true);
+  const [fold, setFlow] = useState(() => {
+    const content = String(props.children || '').replace(/\n$/, '');
+    return content.split('\n').length >= 4;
+  });
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });
