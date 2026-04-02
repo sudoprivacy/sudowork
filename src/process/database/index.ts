@@ -17,7 +17,8 @@ import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
-import { encryptCredentials, decryptCredentials } from '@/channels/utils/credentialCrypto';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
+import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 
 /**
  * Main database class for Sudowork
@@ -765,6 +766,10 @@ export class AionUIDatabase {
 
   /**
    * Get all assistant plugins
+   *
+   * After migration:
+   * - Credentials are read ONLY from Nexus (source of truth)
+   * - Original storage (SQLite) only provides metadata (name, enabled, status, config)
    */
   getChannelPlugins(): IQueryResult<IChannelPluginConfig[]> {
     try {
@@ -782,15 +787,22 @@ export class AionUIDatabase {
 
       const plugins: IChannelPluginConfig[] = rows.map((row) => {
         const storedConfig = JSON.parse(row.config || '{}');
-        // Decrypt credentials when loading
-        const decryptedCredentials = decryptCredentials(storedConfig.credentials);
+        const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
+        const namespace = `channel:${row.type}:${row.id}`;
+
+        // Build credentials object - read ALL credential fields from Nexus
+        const credentials: Record<string, string | undefined> = {};
+        for (const field of credentialFields) {
+          // After migration, credentials come ONLY from Nexus (no fallback to SQLite)
+          credentials[field] = resolveSecret(namespace, field, '');
+        }
 
         return {
           id: row.id,
           type: row.type as PluginType,
           name: row.name,
           enabled: row.enabled === 1,
-          credentials: decryptedCredentials,
+          credentials: credentials as any,
           config: storedConfig.config,
           status: (row.status as PluginStatus) || 'stopped',
           lastConnected: row.last_connected ?? undefined,
@@ -807,6 +819,10 @@ export class AionUIDatabase {
 
   /**
    * Get assistant plugin by ID
+   *
+   * After migration:
+   * - Credentials are read ONLY from Nexus (source of truth)
+   * - Original storage (SQLite) only provides metadata (name, enabled, status, config)
    */
   getChannelPlugin(pluginId: string): IQueryResult<IChannelPluginConfig | null> {
     try {
@@ -829,15 +845,22 @@ export class AionUIDatabase {
       }
 
       const storedConfig = JSON.parse(row.config || '{}');
-      // Decrypt credentials when loading
-      const decryptedCredentials = decryptCredentials(storedConfig.credentials);
+      const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
+      const namespace = `channel:${row.type}:${row.id}`;
+
+      // Build credentials object - read ALL credential fields from Nexus
+      const credentials: Record<string, string | undefined> = {};
+      for (const field of credentialFields) {
+        // After migration, credentials come ONLY from Nexus (no fallback to SQLite)
+        credentials[field] = resolveSecret(namespace, field, '');
+      }
 
       const plugin: IChannelPluginConfig = {
         id: row.id,
         type: row.type as PluginType,
         name: row.name,
         enabled: row.enabled === 1,
-        credentials: decryptedCredentials,
+        credentials: credentials as any,
         config: storedConfig.config,
         status: (row.status as PluginStatus) || 'stopped',
         lastConnected: row.last_connected ?? undefined,
@@ -853,10 +876,18 @@ export class AionUIDatabase {
 
   /**
    * Create or update assistant plugin
+   *
+   * After migration:
+   * - ALL credentials are stored ONLY in Nexus (Nexus is source of truth)
+   * - Original storage (SQLite) is frozen for credentials - no longer maintained
+   * - Plugin metadata (name, enabled, status, config) continues to be stored in SQLite
    */
   upsertChannelPlugin(plugin: IChannelPluginConfig): IQueryResult<boolean> {
     try {
       const now = Date.now();
+
+      // Store plugin metadata (non-credential fields) in SQLite
+      // Note: config field is kept for backwards compatibility but credentials are NOT stored here
       const stmt = this.db.prepare(`
         INSERT INTO assistant_plugins (id, type, name, enabled, config, status, last_connected, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -869,16 +900,27 @@ export class AionUIDatabase {
           updated_at = excluded.updated_at
       `);
 
-      // Encrypt credentials before storing
-      const encryptedCredentials = encryptCredentials(plugin.credentials);
-
-      // Store both credentials and config in the config column
+      // Store only non-credential config in SQLite
+      // After migration, credentials are stored ONLY in Nexus - original storage is frozen
       const storedConfig = {
-        credentials: encryptedCredentials,
         config: plugin.config,
       };
 
       stmt.run(plugin.id, plugin.type, plugin.name, plugin.enabled ? 1 : 0, JSON.stringify(storedConfig), plugin.status, plugin.lastConnected ?? null, plugin.createdAt || now, now);
+
+      // Credentials are stored ONLY in Nexus after migration (Nexus is source of truth)
+      // Original storage (SQLite) is frozen for credentials - no longer maintained
+      if (plugin.credentials) {
+        const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(plugin.type);
+        const namespace = `channel:${plugin.type}:${plugin.id}`;
+
+        for (const field of credentialFields) {
+          const value = plugin.credentials[field];
+          if (typeof value === 'string') {
+            cachePut(namespace, field, value);
+          }
+        }
+      }
 
       return { success: true, data: true };
     } catch (error: any) {
