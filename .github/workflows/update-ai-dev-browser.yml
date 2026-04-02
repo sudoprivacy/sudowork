@@ -1,0 +1,33 @@
+name: Update ai-dev-browser
+
+on:
+  repository_dispatch:
+    types: [ai-dev-browser-updated]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update submodule to latest
+        run: |
+          git submodule update --remote vendor/ai-dev-browser
+          git add vendor/ai-dev-browser
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: auto/update-ai-dev-browser
+          title: "chore(deps): update ai-dev-browser to ${{ github.event.client_payload.sha }}"
+          body: |
+            Automated submodule update triggered by push to ai-dev-browser master.
+
+            **Commit**: sudoprivacy/ai-dev-browser@${{ github.event.client_payload.sha }}
+            **Message**: ${{ github.event.client_payload.message }}
+          base: dev
+          commit-message: "chore(deps): update ai-dev-browser submodule"
+          delete-branch: true

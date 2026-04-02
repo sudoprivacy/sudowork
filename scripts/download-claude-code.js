@@ -28,7 +28,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-code-build-'));
 try {
   // 1. Initialize a dummy package.json
   fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'claude-code-bundle' }));
-  
+
   // 2. Install the package with all its production dependencies
   console.log('[claude-code] Installing dependencies (this may take a minute)...');
 

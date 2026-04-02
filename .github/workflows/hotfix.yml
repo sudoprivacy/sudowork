@@ -107,18 +107,12 @@ jobs:
           echo "=========================================="
 
           # 创建 PR 同步到 main
+          BODY="## Hotfix Sync\n\nAutomated PR to sync hotfix fixes from **$BRANCH** back to **main** branch.\n\n- Hotfix Tag: $HOTFIX_TAG\n- Source Branch: $BRANCH\n\nThis PR ensures the hotfix changes are included in future releases."
           gh pr create \
             --base main \
             --head "$BRANCH" \
             --title "hotfix: Sync $HOTFIX_TAG fixes to main" \
-            --body "## Hotfix Sync
-
-Automated PR to sync hotfix fixes from **$BRANCH** back to **main** branch.
-
-- Hotfix Tag: $HOTFIX_TAG
-- Source Branch: $BRANCH
-
-This PR ensures the hotfix changes are included in future releases." \
+            --body "$(echo -e "$BODY")" \
             --label "hotfix,automated" || echo "⚠️ PR to main may already exist or failed"
 
           echo "✅ PR to main created (or already exists)"
@@ -133,18 +127,12 @@ This PR ensures the hotfix changes are included in future releases." \
           echo "=========================================="
 
           # 创建 PR 同步到 dev
+          BODY="## Hotfix Sync\n\nAutomated PR to sync hotfix fixes from **$BRANCH** back to **dev** branch.\n\n- Hotfix Tag: $HOTFIX_TAG\n- Source Branch: $BRANCH\n\nThis PR ensures the hotfix changes are included in future development."
           gh pr create \
             --base dev \
             --head "$BRANCH" \
             --title "hotfix: Sync $HOTFIX_TAG fixes to dev" \
-            --body "## Hotfix Sync
-
-Automated PR to sync hotfix fixes from **$BRANCH** back to **dev** branch.
-
-- Hotfix Tag: $HOTFIX_TAG
-- Source Branch: $BRANCH
-
-This PR ensures the hotfix changes are included in future development." \
+            --body "$(echo -e "$BODY")" \
             --label "hotfix,automated" || echo "⚠️ PR to dev may already exist or failed"
 
           echo "✅ PR to dev created (or already exists)"
