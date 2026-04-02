@@ -216,7 +216,7 @@ jobs:
   notify-qa:
     name: Notify QA Team
     needs: [prepare-matrix, build-pipeline, release]
-    if: needs.release.result == 'success'
+    if: success()
     runs-on: ubuntu-latest
     steps:
       - name: Send Feishu Notification
