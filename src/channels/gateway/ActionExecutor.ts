@@ -11,6 +11,8 @@ import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
+import { addMessage } from '@/process/message';
+import { uuid } from '@/common/utils';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
@@ -268,6 +270,10 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  // Busy guard: tracks conversations currently generating AI responses
+  // Prevents concurrent generations for the same conversation (e.g., Feishu retries)
+  private busyConversations: Set<string> = new Set();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -520,6 +526,48 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
+    const sessionId = context.sessionId;
+    const conversationId = context.conversationId;
+
+    if (!sessionId || !conversationId) {
+      await context.sendMessage({
+        type: 'text',
+        text: '❌ Session not initialized. Please try again.',
+        parseMode: 'HTML',
+      });
+      return;
+    }
+
+    // --- Busy guard: prevent concurrent AI generations for the same conversation ---
+    if (this.busyConversations.has(conversationId)) {
+      console.warn(`[ActionExecutor] Conversation ${conversationId} is busy, skipping duplicate message`);
+      await context.sendMessage({
+        type: 'text',
+        text: '⏳ Still processing your previous message. Please wait...',
+        parseMode: 'HTML',
+      });
+      return;
+    }
+    this.busyConversations.add(conversationId);
+
+    // --- Persist user message to database immediately ---
+    // This ensures user questions appear in the desktop session UI
+    try {
+      const userMessage: TMessage = {
+        type: 'text',
+        id: uuid(),
+        conversation_id: conversationId,
+        content: { content: text },
+        position: 'right',
+        status: 'finish',
+        createdAt: Date.now(),
+      };
+      addMessage(conversationId, userMessage);
+    } catch (error) {
+      console.error(`[ActionExecutor] Failed to persist user message:`, error);
+      // Non-fatal: continue with AI generation even if persistence fails
+    }
+
     // Send "thinking" indicator (skip for platforms that don't support editing)
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
@@ -535,13 +583,6 @@ export class ActionExecutor {
     void context.sendTyping?.(context.chatId);
 
     try {
-      const sessionId = context.sessionId;
-      const conversationId = context.conversationId;
-
-      if (!sessionId || !conversationId) {
-        throw new Error('Session not initialized');
-      }
-
       const messageService = getChannelMessageService();
 
       // 节流控制：使用定时器机制确保最后一条消息能被发送
@@ -716,6 +757,8 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release busy guard
+      this.busyConversations.delete(conversationId);
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }

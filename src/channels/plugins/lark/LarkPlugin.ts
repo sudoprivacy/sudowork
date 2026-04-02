@@ -327,8 +327,9 @@ export class LarkPlugin extends BasePlugin {
     // Register event handlers on the EventDispatcher
     this.eventDispatcher.register({
       // Handle incoming messages
+      // Return immediately and process in background to avoid Feishu retry timeouts
       'im.message.receive_v1': async (data: Record<string, unknown>) => {
-        await this.handleMessageEvent({ event: data });
+        void this.handleMessageEvent({ event: data });
       },
 
       // Handle card action callbacks (button clicks)
@@ -343,14 +344,18 @@ export class LarkPlugin extends BasePlugin {
 
       // Handle bot menu clicks (custom menu in chat)
       // Event name: application.bot.menu_v6
+      // Return immediately and process in background
       'application.bot.menu_v6': async (data: Record<string, unknown>) => {
-        await this.handleBotMenuEvent({ event: data });
+        void this.handleBotMenuEvent({ event: data });
       },
     });
   }
 
   /**
    * Handle incoming message events
+   *
+   * Important: This method returns quickly and processes AI logic in the background.
+   * Feishu/Lark WebSocket events should be acknowledged fast to avoid retries.
    */
   private async handleMessageEvent(event: any): Promise<void> {
     try {
@@ -365,6 +370,7 @@ export class LarkPlugin extends BasePlugin {
       // Event deduplication - use message_id as unique identifier
       const eventId = message.message_id;
       if (eventId && this.isEventProcessed(eventId)) {
+        console.log(`[LarkPlugin] Skipping duplicate message event: ${eventId}`);
         return;
       }
       if (eventId) {
@@ -394,7 +400,9 @@ export class LarkPlugin extends BasePlugin {
           }
         }
 
-        // Process in background to avoid blocking
+        // Process in background to avoid blocking the WebSocket event loop.
+        // The ActionExecutor's busy guard will prevent concurrent AI generations
+        // for the same conversation, handling any retried events gracefully.
         void this.messageHandler(unifiedMessage).catch((error) => console.error(`[LarkPlugin] Error handling message:`, error));
       }
     } catch (error) {
