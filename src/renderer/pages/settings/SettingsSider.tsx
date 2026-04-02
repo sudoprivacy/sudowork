@@ -13,7 +13,7 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'runtime', 'system', 'about'] as const;
+const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot',
 
 type SiderItem = {
   id: string;
@@ -108,7 +108,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
       security: { id: 'security', label: t('settings.security'), icon: <Shield />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
-      copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
+      // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
       webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
