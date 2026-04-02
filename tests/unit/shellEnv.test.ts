@@ -74,6 +74,13 @@ describe('getEnhancedEnv', () => {
 
   beforeEach(() => {
     vi.resetModules();
+    vi.doMock('electron', () => ({
+      app: {
+        isPackaged: false,
+        getPath: vi.fn().mockReturnValue('/tmp'),
+        getAppPath: vi.fn().mockReturnValue('/tmp'),
+      },
+    }));
   });
 
   it('includes process.env.PATH in the returned env (macOS/Linux, shell skipped via mock)', async () => {

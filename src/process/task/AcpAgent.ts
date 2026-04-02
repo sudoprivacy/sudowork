@@ -259,6 +259,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       let cdpPort = 9230;
       try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
       } catch {
         /* use default */
