@@ -257,7 +257,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
         {isExpanded ? <IconDown /> : <IconRight />}
       </div>
       {isExpanded && (
-        <div className='p-l-20px flex flex-col gap-8px pt-8px'>
+        <div className='p-l-20px flex flex-col gap-8px pt-8px max-h-100px overflow-auto viewsteps-container'>
           {tools.map((item) => (
             <ToolItemDetail key={item.key} item={item} />
           ))}

@@ -7,6 +7,7 @@
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import type { ThemePreference } from '@/renderer/hooks/useTheme';
 import { IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
+import { Tooltip } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -39,25 +40,25 @@ export const ThemeSwitcher = () => {
       {options.map((option) => {
         const isActive = themePreference === option.value;
         return (
-          <button
-            key={option.value}
-            type='button'
-            role='radio'
-            aria-checked={isActive}
-            aria-label={option.label}
-            title={option.label}
-            className='inline-flex items-center justify-center w-26px h-26px rd-5px transition-all duration-160 cursor-pointer border-none'
-            style={{
-              color: isActive ? 'rgb(var(--primary-6))' : 'var(--color-text-4)',
-              backgroundColor: isActive ? 'var(--color-bg-2)' : 'transparent',
-              boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
-            onClick={() => {
-              if (!isActive) void setTheme(option.value);
-            }}
-          >
-            {option.icon}
-          </button>
+          <Tooltip key={option.value} content={option.label} position='bottom'>
+            <button
+              type='button'
+              role='radio'
+              aria-checked={isActive}
+              aria-label={option.label}
+              className='inline-flex items-center justify-center w-26px h-26px rd-5px transition-all duration-160 cursor-pointer border-none'
+              style={{
+                color: isActive ? 'rgb(var(--primary-6))' : 'var(--color-text-4)',
+                backgroundColor: isActive ? 'var(--color-bg-2)' : 'transparent',
+                boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              }}
+              onClick={() => {
+                if (!isActive) void setTheme(option.value);
+              }}
+            >
+              {option.icon}
+            </button>
+          </Tooltip>
         );
       })}
     </div>

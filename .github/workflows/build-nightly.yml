@@ -216,13 +216,13 @@ jobs:
   notify-qa:
     name: Notify QA Team
     needs: [prepare-matrix, build-pipeline, release]
-    if: needs.release.result == 'success'
+    if: success()
     runs-on: ubuntu-latest
+    env:
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}
     steps:
       - name: Send Feishu Notification
         if: env.FEISHU_WEBHOOK_URL != ''
-        env:
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}
         run: |
           TAG_NAME="${{ needs.release.outputs.tag_name }}"
           REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
@@ -230,10 +230,17 @@ jobs:
           DATE=$(date -u +%Y-%m-%d)
 
           echo "=========================================="
-          echo "📢 Sending Feishu Notification"
+          echo "📢 Nightly Build Notification"
           echo "=========================================="
           echo "Tag: $TAG_NAME"
           echo "Release URL: $RELEASE_URL"
+
+          # 检查是否配置了飞书 Webhook
+          if [ -z "$FEISHU_WEBHOOK_URL" ]; then
+            echo "⚠️ FEISHU_QA_WEBHOOK_URL not configured, skipping notification"
+            echo "To enable: Add FEISHU_QA_WEBHOOK_URL secret in repository settings"
+            exit 0
+          fi
 
           # 构建消息内容
           MESSAGE=$(cat <<EOF

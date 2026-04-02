@@ -233,15 +233,21 @@ class DynamicNexusService {
     return details.join(' | ');
   }
 
+  /** Timeout for conda-unpack execution (10 minutes). conda-unpack traverses all
+   *  files in the conda environment to fix hardcoded paths, which can be very slow
+   *  on Windows with large environments. */
+  private static readonly CONDA_UNPACK_TIMEOUT_MS = 10 * 60 * 1000;
+
   private async runCondaUnpack(envDir: string): Promise<void> {
     const pythonPath = this.getPythonPath(envDir);
     const condaUnpack = this.getCondaUnpackPath(envDir);
     const condaUnpackScript = this.getCondaUnpackScriptPath(envDir);
+    const timeout = DynamicNexusService.CONDA_UNPACK_TIMEOUT_MS;
 
     if (condaUnpackScript) {
       mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpackScript}`);
       try {
-        await execFileAsync(pythonPath, [condaUnpackScript]);
+        await execFileAsync(pythonPath, [condaUnpackScript], { timeout });
         return;
       } catch (error) {
         throw new Error(`conda-unpack script failed: ${this.formatCommandError(error)}`);
@@ -257,7 +263,7 @@ class DynamicNexusService {
       fs.chmodSync(condaUnpack, 0o755);
       mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpack}`);
       try {
-        await execFileAsync(pythonPath, [condaUnpack]);
+        await execFileAsync(pythonPath, [condaUnpack], { timeout });
         return;
       } catch (error) {
         throw new Error(`conda-unpack failed: ${this.formatCommandError(error)}`);
@@ -266,7 +272,7 @@ class DynamicNexusService {
 
     mainLog('Nexus', `Running conda-unpack executable: ${condaUnpack}`);
     try {
-      await execFileAsync(condaUnpack, []);
+      await execFileAsync(condaUnpack, [], { timeout });
     } catch (error) {
       throw new Error(`conda-unpack executable failed: ${this.formatCommandError(error)}`);
     }
@@ -371,15 +377,12 @@ class DynamicNexusService {
       this.removeDirIfExists(stagingDir);
       this.removeDirIfExists(backupDir);
 
-      // Copy to temp to avoid permission issues with original resource
-      const tempTarGzPath = path.join(os.tmpdir(), `nexus-${Date.now()}.tar.gz`);
-      fs.copyFileSync(bundledPath, tempTarGzPath);
-
       try {
-        // Extract
+        // Extract directly from bundled resource (no temp copy needed — extractTarGzWithProgress
+        // uses read-only streams, so permission issues with the original resource do not apply)
         fs.mkdirSync(stagingDir, { recursive: true });
         this.emitSetup('extracting', 'Extracting Nexus environment...', 0);
-        await extractTarGzWithProgress(tempTarGzPath, stagingDir, (percent) => {
+        await extractTarGzWithProgress(bundledPath, stagingDir, (percent) => {
           this.emitSetup('extracting', `Extracting Nexus environment... ${percent}%`, percent);
         });
 
@@ -394,7 +397,7 @@ class DynamicNexusService {
 
         try {
           // Run conda-unpack to fix hardcoded paths
-          this.emitSetup('unpacking', 'Running conda-unpack to fix install paths...');
+          this.emitSetup('unpacking', 'Running conda-unpack to fix install paths... (this may take several minutes on Windows)');
           await this.runCondaUnpack(envDir);
 
           // Repair code signatures on macOS: strip conda-forge Team IDs and ad-hoc re-sign
@@ -427,14 +430,6 @@ class DynamicNexusService {
           throw err;
         }
       } finally {
-        // Clean up temp file
-        if (fs.existsSync(tempTarGzPath)) {
-          try {
-            fs.unlinkSync(tempTarGzPath);
-          } catch {
-            // Ignore errors during cleanup
-          }
-        }
         try {
           this.removeDirIfExists(stagingDir);
         } catch {
