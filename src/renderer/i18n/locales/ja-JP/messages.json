@@ -10,6 +10,8 @@
   "copy": "コピー",
   "copySuccess": "コピーしました",
   "copyFailed": "コピーに失敗しました",
+  "expandFiles": "全 {{count}} ファイルを表示",
+  "collapseFiles": "ファイルを折りたたむ",
   "copiedToClipboard": "クリップボードにコピーしました",
   "downloadSuccess": "ダウンロードしました",
   "downloadFailed": "ダウンロードに失敗しました",

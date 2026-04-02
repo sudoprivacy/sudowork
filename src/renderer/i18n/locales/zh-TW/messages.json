@@ -10,6 +10,8 @@
   "copy": "複製",
   "copySuccess": "複製成功",
   "copyFailed": "複製失敗",
+  "expandFiles": "展開全部 {{count}} 個檔案",
+  "collapseFiles": "收起檔案",
   "copiedToClipboard": "已複製到剪貼簿",
   "downloadSuccess": "下載成功",
   "downloadFailed": "下載失敗",

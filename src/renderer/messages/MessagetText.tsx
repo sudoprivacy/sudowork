@@ -55,6 +55,9 @@ const useFormatContent = (content: string) => {
   }, [content]);
 };
 
+/** 默认最多显示的文件数量，超出时折叠 */
+const MAX_VISIBLE_FILES = 10;
+
 const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = ({ message, isStreaming = false }) => {
   // Filter think tags from content before rendering
   // 在渲染前过滤 think 标签
@@ -72,6 +75,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
+  const [filesExpanded, setFilesExpanded] = useState(false);
   const isUserMessage = message.position === 'right';
   const skills = message.content.skills || [];
 
@@ -134,11 +138,25 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
                 <FilePreview path={visibleFiles[0]} onRemove={() => undefined} readonly />
               </div>
             ) : (
-              <HorizontalFileList>
-                {visibleFiles.map((path) => (
-                  <FilePreview key={path} path={path} onRemove={() => undefined} readonly />
-                ))}
-              </HorizontalFileList>
+              <>
+                <HorizontalFileList>
+                  {(filesExpanded ? visibleFiles : visibleFiles.slice(0, MAX_VISIBLE_FILES)).map((path) => (
+                    <FilePreview key={path} path={path} onRemove={() => undefined} readonly />
+                  ))}
+                </HorizontalFileList>
+                {visibleFiles.length > MAX_VISIBLE_FILES && (
+                  <div className={classNames('mt-4px flex', { 'justify-end': isUserMessage, 'justify-start': !isUserMessage })}>
+                    <button
+                      onClick={() => setFilesExpanded((prev) => !prev)}
+                      className='text-12px text-primary bg-transparent border-none cursor-pointer hover:opacity-80 transition-opacity px-4px py-2px rd-4px hover:bg-primary-light'
+                    >
+                      {filesExpanded
+                        ? t('messages.collapseFiles', { defaultValue: '收起文件' })
+                        : t('messages.expandFiles', { defaultValue: '展开全部 {{count}} 个文件', count: visibleFiles.length })}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
