@@ -5,7 +5,11 @@
  * Builds dist/ at pack time if missing (npm packaging bug #49338).
  * The output tgz is ready for end users — no runtime build needed.
  *
- * Usage: node scripts/download-openclaw.js [--force] [--version=X]
+ * After npm install, the script bundles openclaw runtime into a single
+ * aggregated JS file (openclaw.mjs) using esbuild, dramatically reducing
+ * the file count from ~40k to a handful.
+ *
+ * Usage: node scripts/download-openclaw.js [--force] [--skip-bundle] [--version=X]
  */
 
 const { execSync } = require('child_process');
@@ -20,6 +24,7 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
 const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
 const FORCE = process.argv.includes('--force');
+const SKIP_BUNDLE = process.argv.includes('--skip-bundle');
 const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
 const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org/';
 
@@ -69,86 +74,88 @@ function getVersionFromArchive(archivePath) {
   }
 }
 
-let version = KNOWN_GOOD_VERSION;
+// Main logic wrapped in async IIFE to support await for esbuild bundling
+(async () => {
+  let version = KNOWN_GOOD_VERSION;
 
-if (fs.existsSync(OUTPUT) && !FORCE) {
-  const archivedVersion = getVersionFromArchive(OUTPUT);
-  if (archivedVersion) {
-    updateLocalDevRuntimeVersion('openclaw', archivedVersion);
-  } else {
-    clearLocalDevRuntimeVersion('openclaw');
-  }
-
-  if (!fs.existsSync(OUTPUT_MANIFEST)) {
+  if (fs.existsSync(OUTPUT) && !FORCE) {
+    const archivedVersion = getVersionFromArchive(OUTPUT);
     if (archivedVersion) {
-      writeOpenClawManifest(archivedVersion);
+      updateLocalDevRuntimeVersion('openclaw', archivedVersion);
     } else {
-      console.warn('[openclaw] Existing archive version is unknown, skipping manifest generation');
+      clearLocalDevRuntimeVersion('openclaw');
     }
-  }
-  console.log(`[openclaw] Already exists: ${OUTPUT}  (use --force to re-download)`);
-  process.exit(0);
-}
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
-try {
-  // Download with npm pack
-  execSync(`npm pack openclaw@${version} --registry=${NPM_REGISTRY}`, { cwd: tmpDir, stdio: 'inherit' });
-  const files = fs.readdirSync(tmpDir);
-  const tgz = files.find((f) => f.endsWith('.tgz'));
-  if (!tgz) throw new Error('npm pack did not produce a .tgz file');
-
-  const extractDir = path.join(tmpDir, 'extract');
-  fs.mkdirSync(extractDir, { recursive: true });
-
-  // Extract - run tar from extractDir with relative path to avoid Windows path issues
-  console.log(`[openclaw] Extracting ${tgz}...`);
-  if (process.platform === 'win32') {
-    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit', shell: true });
-  } else {
-    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit' });
+    if (!fs.existsSync(OUTPUT_MANIFEST)) {
+      if (archivedVersion) {
+        writeOpenClawManifest(archivedVersion);
+      } else {
+        console.warn('[openclaw] Existing archive version is unknown, skipping manifest generation');
+      }
+    }
+    console.log(`[openclaw] Already exists: ${OUTPUT}  (use --force to re-download)`);
+    process.exit(0);
   }
 
-  const pkgDir = path.join(extractDir, 'package');
-  const distEntry = path.join(pkgDir, 'dist', 'entry.mjs');
-  const distEntryJs = path.join(pkgDir, 'dist', 'entry.js');
-  const hasDist = fs.existsSync(distEntry) || fs.existsSync(distEntryJs);
-
-  // Install dependencies
-  const npmTimeout = 1_200_000;
-  console.log(`[openclaw] Installing dependencies (npm, flat structure, registry: ${NPM_REGISTRY}, timeout: ${npmTimeout / 1000}s)...`);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
   try {
-    execSync(`npm install --omit=dev --legacy-peer-deps --registry=${NPM_REGISTRY}`, {
-      cwd: pkgDir,
-      stdio: 'inherit',
-      timeout: npmTimeout,
-    });
-  } catch (err) {
-    console.error('[openclaw] npm install failed:', err?.message);
-    throw new Error('npm install failed. Ensure npm is available and network is stable.');
-  }
+    // Download with npm pack
+    execSync(`npm pack openclaw@${version} --registry=${NPM_REGISTRY}`, { cwd: tmpDir, stdio: 'inherit' });
+    const files = fs.readdirSync(tmpDir);
+    const tgz = files.find((f) => f.endsWith('.tgz'));
+    if (!tgz) throw new Error('npm pack did not produce a .tgz file');
 
-  // Build if dist/ missing
-  if (!hasDist) {
-    console.log('[openclaw] dist/ missing, building at pack time...');
-    const tryBuild = (installCmd, buildCmd) => {
-      execSync(installCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 120_000 });
-      execSync(buildCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 180_000 });
-    };
+    const extractDir = path.join(tmpDir, 'extract');
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    // Extract - run tar from extractDir with relative path to avoid Windows path issues
+    console.log(`[openclaw] Extracting ${tgz}...`);
+    if (process.platform === 'win32') {
+      execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit', shell: true });
+    } else {
+      execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit' });
+    }
+
+    const pkgDir = path.join(extractDir, 'package');
+    const distEntry = path.join(pkgDir, 'dist', 'entry.mjs');
+    const distEntryJs = path.join(pkgDir, 'dist', 'entry.js');
+    const hasDist = fs.existsSync(distEntry) || fs.existsSync(distEntryJs);
+
+    // Install dependencies
+    const npmTimeout = 1_200_000;
+    console.log(`[openclaw] Installing dependencies (npm, flat structure, registry: ${NPM_REGISTRY}, timeout: ${npmTimeout / 1000}s)...`);
     try {
-      tryBuild(`npm install --legacy-peer-deps --registry=${NPM_REGISTRY}`, 'npm run build');
-    } catch {
-      tryBuild('pnpm install', 'pnpm build');
+      execSync(`npm install --omit=dev --legacy-peer-deps --registry=${NPM_REGISTRY}`, {
+        cwd: pkgDir,
+        stdio: 'inherit',
+        timeout: npmTimeout,
+      });
+    } catch (err) {
+      console.error('[openclaw] npm install failed:', err?.message);
+      throw new Error('npm install failed. Ensure npm is available and network is stable.');
     }
-    if (!fs.existsSync(distEntry) && !fs.existsSync(distEntryJs)) {
-      throw new Error('Build completed but dist/entry.(m)js still missing');
-    }
-    console.log('[openclaw] Build completed');
-  }
 
-  // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
-  console.log('[openclaw] Creating launcher.mjs...');
-  const launcherContent = `#!/usr/bin/env node
+    // Build if dist/ missing
+    if (!hasDist) {
+      console.log('[openclaw] dist/ missing, building at pack time...');
+      const tryBuild = (installCmd, buildCmd) => {
+        execSync(installCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 120_000 });
+        execSync(buildCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 180_000 });
+      };
+      try {
+        tryBuild(`npm install --legacy-peer-deps --registry=${NPM_REGISTRY}`, 'npm run build');
+      } catch {
+        tryBuild('pnpm install', 'pnpm build');
+      }
+      if (!fs.existsSync(distEntry) && !fs.existsSync(distEntryJs)) {
+        throw new Error('Build completed but dist/entry.(m)js still missing');
+      }
+      console.log('[openclaw] Build completed');
+    }
+
+    // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
+    console.log('[openclaw] Creating launcher.mjs...');
+    const launcherContent = `#!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -163,15 +170,15 @@ while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs
 process.argv = ['node', openclawPath, ...userArgs];
 await import('./openclaw.mjs');
 `;
-  fs.writeFileSync(path.join(pkgDir, 'launcher.mjs'), launcherContent, 'utf-8');
+    fs.writeFileSync(path.join(pkgDir, 'launcher.mjs'), launcherContent, 'utf-8');
 
-  // Create bin directory with wrappers
-  console.log('[openclaw] Creating bin wrappers...');
-  const binDir = path.join(pkgDir, 'bin');
-  fs.mkdirSync(binDir, { recursive: true });
+    // Create bin directory with wrappers
+    console.log('[openclaw] Creating bin wrappers...');
+    const binDir = path.join(pkgDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
 
-  // Unix wrapper (shell script)
-  const unixWrapper = `#!/bin/sh
+    // Unix wrapper (shell script)
+    const unixWrapper = `#!/bin/sh
 # openclaw wrapper — managed by Sudowork (Sudoclaw)
 CLI="\$(dirname "\$0")/../launcher.mjs"
 STATE_DIR="\${HOME}/.nexus/sudoclaw"
@@ -185,10 +192,10 @@ fi
 
 exec env OPENCLAW_STATE_DIR="\$STATE_DIR" OPENCLAW_CONFIG_PATH="\$STATE_DIR/sudoclaw.json" "\$BUNDLED_NODE" "\$CLI" "\$@"
 `;
-  fs.writeFileSync(path.join(binDir, 'openclaw'), unixWrapper, { mode: 0o755 });
+    fs.writeFileSync(path.join(binDir, 'openclaw'), unixWrapper, { mode: 0o755 });
 
-  // Windows wrapper (batch file)
-  const windowsWrapper = `@echo off
+    // Windows wrapper (batch file)
+    const windowsWrapper = `@echo off
 set "CLI=%~dp0..\\launcher.mjs"
 set "OPENCLAW_STATE_DIR=%USERPROFILE%\\.nexus\\sudoclaw"
 set "OPENCLAW_CONFIG_PATH=%USERPROFILE%\\.nexus\\sudoclaw\\sudoclaw.json"
@@ -202,31 +209,56 @@ if not exist "%BUNDLED_NODE%" (
 
 "%BUNDLED_NODE%" "%CLI%" %*
 `;
-  fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
+    fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
 
-  writeOpenClawManifest(version);
+    // Bundle openclaw runtime with esbuild (in-process, no child process spawn)
+    if (!SKIP_BUNDLE) {
+      console.log('[openclaw] Bundling openclaw runtime with esbuild...');
+      try {
+        const { bundleOpenclaw } = require('./bundle-openclaw.js');
+        const bundleResult = await bundleOpenclaw(pkgDir);
 
-  // Create final tarball - run from extractDir to avoid path issues
-  console.log('[openclaw] Creating final tarball...');
-  if (process.platform === 'win32') {
-    const tmpOutput = path.join(extractDir, 'openclaw.tgz');
-    try {
-      execSync(`tar -czf openclaw.tgz package`, { cwd: extractDir, stdio: 'inherit', shell: true });
-    } catch (e) {
-      if (!fs.existsSync(tmpOutput)) throw e;
+        if (bundleResult.success) {
+          console.log(`[openclaw] Bundle complete: ${bundleResult.filesAfter} files (was ${bundleResult.filesBefore})`);
+        } else {
+          console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${bundleResult.error}`);
+          console.warn('[openclaw] The package will work but with more files than optimal.');
+        }
+      } catch (err) {
+        console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${err.message}`);
+        console.warn('[openclaw] The package will work but with more files than optimal.');
+      }
+    } else {
+      console.log('[openclaw] Skipping bundle (--skip-bundle flag)');
     }
-    fs.copyFileSync(tmpOutput, OUTPUT);
-  } else {
-    execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
+
+    writeOpenClawManifest(version);
+
+    // Create final tarball - run from extractDir to avoid path issues
+    console.log('[openclaw] Creating final tarball...');
+    if (process.platform === 'win32') {
+      const tmpOutput = path.join(extractDir, 'openclaw.tgz');
+      try {
+        execSync(`tar -czf openclaw.tgz package`, { cwd: extractDir, stdio: 'inherit', shell: true });
+      } catch (e) {
+        if (!fs.existsSync(tmpOutput)) throw e;
+      }
+      fs.copyFileSync(tmpOutput, OUTPUT);
+    } else {
+      execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
+    }
+
+    updateLocalDevRuntimeVersion('openclaw', version);
+
+  } finally {
+    if (!fs.existsSync(OUTPUT)) {
+      clearLocalDevRuntimeVersion('openclaw');
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  updateLocalDevRuntimeVersion('openclaw', version);
-
-} finally {
-  if (!fs.existsSync(OUTPUT)) {
-    clearLocalDevRuntimeVersion('openclaw');
-  }
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-}
-
-console.log(`[openclaw] Saved to ${OUTPUT}`);
+  console.log(`[openclaw] Saved to ${OUTPUT}`);
+})().catch((err) => {
+  console.error(`[openclaw] Fatal error: ${err.message}`);
+  process.exit(1);
+});

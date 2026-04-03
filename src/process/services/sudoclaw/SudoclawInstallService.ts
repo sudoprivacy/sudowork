@@ -67,6 +67,11 @@ function hasDistEntry(pkgRoot: string): boolean {
   return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
 }
 
+/** Check if the package has been bundled into a single openclaw.mjs file via esbuild. */
+function hasBundledEntry(pkgRoot: string): boolean {
+  return fs.existsSync(path.join(pkgRoot, 'openclaw.mjs'));
+}
+
 /**
  * Check if node_modules exists with correct platform-specific bindings.
  * Checks for the @snazzah/davey binding for the current platform/arch.
@@ -81,7 +86,10 @@ function hasNodeModules(pkgRoot: string): boolean {
   const daveyPath = path.join(nm, daveyBinding);
   if (!fs.existsSync(daveyPath)) return false;
 
-  // Also check for chalk (dependency used by OpenClaw)
+  // In bundled mode, chalk is inlined into openclaw.mjs — only native bindings needed
+  if (hasBundledEntry(pkgRoot)) return true;
+
+  // Legacy (unbundled) mode: also check for chalk
   const chalk = path.join(nm, 'chalk');
   return fs.existsSync(chalk);
 }
@@ -102,8 +110,19 @@ function getDaveyBindingName(): string {
 function checkPlatformDependencies(pkgRoot: string): boolean {
   const daveyBinding = getDaveyBindingName();
   const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
-  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
 
+  // In bundled mode, only native bindings are required (chalk is inlined)
+  if (hasBundledEntry(pkgRoot)) {
+    if (fs.existsSync(daveyPath)) {
+      mainLog('Sudoclaw', 'Platform dependencies OK (bundled mode)');
+      return true;
+    }
+    mainWarn('Sudoclaw', `Platform dependencies missing (bundled mode): ${daveyPath}`);
+    return false;
+  }
+
+  // Legacy (unbundled) mode: check both davey binding and chalk
+  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
   if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
     mainLog('Sudoclaw', 'Platform dependencies OK');
     return true;
