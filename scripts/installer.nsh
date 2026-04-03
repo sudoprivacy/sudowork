@@ -71,12 +71,15 @@
 !macroend
 
 ; Callback function: Set uninstaller window title after GUI is ready.
-; Defined at the top level (outside any function/section) so NSIS compiles it
-; as an uninstaller function (un. prefix).
+; Guard with !ifdef BUILD_UNINSTALLER so this function is only compiled during
+; the uninstaller pass. Otherwise NSIS warning 6010 (unreferenced function)
+; is triggered during the installer pass and treated as a build error.
+!ifdef BUILD_UNINSTALLER
 Function un.overrideUninstCaption
   StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
     SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
 FunctionEnd
+!endif
 
 ; ========================================
 ; Keep Cancel button enabled on the INSTFILES page
