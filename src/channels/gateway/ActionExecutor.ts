@@ -268,6 +268,13 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  /**
+   * Per-conversation mutex to serialize message processing.
+   * Prevents concurrent AI generations on the same conversation which would
+   * cause stream overwrites and lost messages in ChannelMessageService.
+   */
+  private conversationLocks: Map<string, Promise<void>> = new Map();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -512,15 +519,18 @@ export class ActionExecutor {
   }
 
   /**
-   * Handle chat message - send to AI and stream response
+   * Handle chat message - send to AI and stream response.
+   * Uses a per-conversation mutex to serialize processing — prevents concurrent
+   * streams on the same conversation (which causes stream overwrites and lost messages).
    */
   private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
-    // Update session activity (scoped by chatId)
-    if (context.channelUser) {
-      this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
+    const conversationId = context.conversationId;
+    if (!conversationId) {
+      throw new Error('Session not initialized');
     }
 
-    // Send "thinking" indicator (skip for platforms that don't support editing)
+    // Send "thinking" immediately so the user always sees acknowledgment,
+    // even if we need to wait for a previous message to finish processing.
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
     if (supportsEdit) {
@@ -531,14 +541,36 @@ export class ActionExecutor {
       });
     }
 
+    // Per-conversation mutex: wait for any previous message to finish before processing.
+    // This guarantees serial processing — no two messages on the same conversation
+    // will call sendMessage() concurrently (which would overwrite each other's streams).
+    const previousLock = this.conversationLocks.get(conversationId);
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.conversationLocks.set(conversationId, lockPromise);
+
+    if (previousLock) {
+      try {
+        await previousLock;
+      } catch {
+        // Previous message failed — continue with this one
+      }
+    }
+
+    // Update session activity (scoped by chatId)
+    if (context.channelUser) {
+      this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
+    }
+
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
 
     try {
       const sessionId = context.sessionId;
-      const conversationId = context.conversationId;
 
-      if (!sessionId || !conversationId) {
+      if (!sessionId) {
         throw new Error('Session not initialized');
       }
 
@@ -718,6 +750,13 @@ export class ActionExecutor {
     } finally {
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
+
+      // Release per-conversation lock so the next queued message can proceed.
+      // Only clean up if this is still our lock (a newer message may have replaced it).
+      if (this.conversationLocks.get(conversationId) === lockPromise) {
+        this.conversationLocks.delete(conversationId);
+      }
+      releaseLock!();
     }
   }
 
