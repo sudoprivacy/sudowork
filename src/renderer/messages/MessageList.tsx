@@ -360,28 +360,29 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
           {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
-          {item.type === 'tool_summary' && (() => {
-            // Check if this summary is part of the ongoing AI response
-            // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
-            const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
-            const isStreaming = item.messages.some(m => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
+          {item.type === 'tool_summary' &&
+            (() => {
+              // Check if this summary is part of the ongoing AI response
+              // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
+              const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
+              const isStreaming = item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
 
-            return (
-              <MessageToolGroupSummary
-                messages={item.messages}
-                summaryId={item.id}
-                // While AI is processing/streaming this block, it MUST be expanded.
-                // 当 AI 正在处理或流式传输此块时，它必须展开。
-                isExpanded={isStreaming ? true : (toolSummaryStates[item.id] ?? false)}
-                onToggle={(id) => {
-                  // Only allow toggling if it's NOT streaming
-                  if (!isStreaming) {
-                    setToolSummaryStates((prev) => ({ ...prev, [id]: !prev[id] }));
-                  }
-                }}
-              />
-            );
-          })()}
+              return (
+                <MessageToolGroupSummary
+                  messages={item.messages}
+                  summaryId={item.id}
+                  // While AI is processing/streaming this block, it MUST be expanded.
+                  // 当 AI 正在处理或流式传输此块时，它必须展开。
+                  isExpanded={isStreaming ? true : (toolSummaryStates[item.id] ?? false)}
+                  onToggle={(id) => {
+                    // Only allow toggling if it's NOT streaming
+                    if (!isStreaming) {
+                      setToolSummaryStates((prev) => ({ ...prev, [id]: !prev[id] }));
+                    }
+                  }}
+                />
+              );
+            })()}
         </div>
       );
     }
