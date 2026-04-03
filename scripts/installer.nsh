@@ -86,13 +86,6 @@
 !macroend
 
 ; ========================================
-; Auto-launch after installation
-; ========================================
-Function .onInstSuccess
-  Exec '"$INSTDIR\Sudowork.exe"'
-FunctionEnd
-
-; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
 ; ========================================
 ; IMPORTANT: This macro REPLACES electron-builder's default file removal.
