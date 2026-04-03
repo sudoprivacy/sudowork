@@ -74,9 +74,15 @@
 ; Guard with !ifdef BUILD_UNINSTALLER so this function is only compiled during
 ; the uninstaller pass. Otherwise NSIS warning 6010 (unreferenced function)
 ; is triggered during the installer pass and treated as a build error.
+;
+; Note: We use the numeric LCID 2052 instead of ${LANG_SIMPCHINESE} because
+; this function is compiled at !include time, before MUI_LANGUAGE defines
+; the LANG_SIMPCHINESE constant. LangString directives handle late-binding
+; language IDs, but regular instructions like StrCmp require compile-time
+; resolution — hence the raw value.
 !ifdef BUILD_UNINSTALLER
 Function un.overrideUninstCaption
-  StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
+  StrCmp $LANGUAGE 2052 0 +2
     SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
 FunctionEnd
 !endif
