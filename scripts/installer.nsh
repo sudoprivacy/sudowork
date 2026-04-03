@@ -3,6 +3,8 @@
 ; - Replaces default "RMDir /r $INSTDIR" with manifest-based file removal
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
+; - Keeps Cancel button enabled during installation
+; - Adds desktop & start menu shortcut options
 
 !include "x64.nsh"
 !include "nsDialogs.nsh"
@@ -60,23 +62,27 @@ Var /GLOBAL createStartMenuShortcut
 
 ; ========================================
 ; Custom page: Shortcut options (Desktop & Start Menu)
-; Shown after the installation directory page, before install begins.
+; Keep Cancel button enabled on the INSTFILES page
 ; ========================================
+; Guard with !ifndef BUILD_UNINSTALLER because electron-builder runs makensis
+; twice: once for the uninstaller (BUILD_UNINSTALLER defined) and once for the
+; installer.  During the uninstaller pass assistedInstaller.nsh skips the
+; install-page section, so customPageAfterChangeDir is never expanded and the
+; functions would be unreferenced → NSIS warning 6010 → build error.
+!ifndef BUILD_UNINSTALLER
 !macro customPageAfterChangeDir
-  !define MUI_PAGE_CUSTOMFUNCTION_PRE shortcutOptionsPagePre
   Page custom shortcutOptionsPageCreate shortcutOptionsPageLeave
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
 !macroend
 
-Function shortcutOptionsPagePre
+Function shortcutOptionsPageCreate
   ; Skip this page on silent/update installs.
   ; When electron-builder performs an auto-update, it invokes the installer
   ; with the /S (silent) flag, so IfSilent correctly detects update scenarios
   ; without requiring the StdUtils plugin.
   IfSilent 0 +2
     Abort
-FunctionEnd
 
-Function shortcutOptionsPageCreate
   !insertmacro MUI_HEADER_TEXT "选择附加任务" "选择安装过程中要执行的附加任务。"
 
   nsDialogs::Create 1018
@@ -103,6 +109,13 @@ Function shortcutOptionsPageLeave
   ${NSD_GetState} $desktopShortcutCheckbox $createDesktopShortcut
   ${NSD_GetState} $startMenuShortcutCheckbox $createStartMenuShortcut
 FunctionEnd
+
+Function instFilesShow
+  ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
+  GetDlgItem $0 $hwndParent 2
+  EnableWindow $0 1
+FunctionEnd
+!endif
 
 ; ========================================
 ; Install: Record installed files into a manifest
@@ -157,6 +170,13 @@ FunctionEnd
     DetailPrint "Skipped Start Menu shortcut per user preference."
   ${EndIf}
 !macroend
+
+; ========================================
+; Auto-launch after installation
+; ========================================
+Function .onInstSuccess
+  Exec '"$INSTDIR\Sudowork.exe"'
+FunctionEnd
 
 ; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
