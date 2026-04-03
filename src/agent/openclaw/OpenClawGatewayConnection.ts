@@ -140,10 +140,24 @@ export class OpenClawGatewayConnection {
     this.flushPendingErrors(new Error('Gateway client stopped'));
   }
 
+  /** Default timeout per method category (ms) */
+  private static readonly REQUEST_TIMEOUTS: Record<string, number> = {
+    'chat.send': 120_000,
+    'chat.abort': 15_000,
+    connect: 30_000,
+  };
+
+  private static readonly DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
   /**
-   * Send request to Gateway and wait for response
+   * Send request to Gateway and wait for response.
+   *
+   * A timeout guard ensures that the returned promise always settles.
+   * If the Gateway does not respond within `opts.timeoutMs` (or a
+   * method-specific default), the pending request is rejected with a
+   * descriptive error so callers are never left hanging.
    */
-  async request<T = unknown>(method: string, params?: unknown, opts?: { expectFinal?: boolean }): Promise<T> {
+  async request<T = unknown>(method: string, params?: unknown, opts?: { expectFinal?: boolean; timeoutMs?: number }): Promise<T> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('Gateway not connected');
     }
@@ -151,6 +165,7 @@ export class OpenClawGatewayConnection {
     const id = randomUUID();
     const frame: RequestFrame = { type: 'req', id, method, params };
     const expectFinal = opts?.expectFinal === true;
+    const timeoutMs = opts?.timeoutMs ?? OpenClawGatewayConnection.REQUEST_TIMEOUTS[method] ?? OpenClawGatewayConnection.DEFAULT_REQUEST_TIMEOUT_MS;
 
     const promise = new Promise<T>((resolve, reject) => {
       this.pending.set(id, {
@@ -158,6 +173,19 @@ export class OpenClawGatewayConnection {
         reject,
         expectFinal,
       });
+
+      // Timeout guard — reject and clean up if no response arrives in time
+      const timer = setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          reject(new Error(`Request '${method}' timed out after ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      // Prevent the timer from keeping the Node.js process alive
+      if (typeof timer === 'object' && 'unref' in timer) {
+        timer.unref();
+      }
     });
 
     this.ws.send(JSON.stringify(frame));
