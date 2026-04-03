@@ -1,7 +1,7 @@
 appId: com.sudowork.app
 productName: Sudowork
 executableName: Sudowork
-copyright: Copyright © 2024 Sudowork
+copyright: Copyright © 2024 北京数牍科技有限公司
 
 protocols:
   - name: Sudowork Protocol
@@ -139,6 +139,7 @@ extraResources:
     to: nexus.tar.gz
 
 win:
+  legalTrademarks: Copyright © 2024 北京数牍科技有限公司
   target:
     - nsis
   #    - msi
