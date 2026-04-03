@@ -327,8 +327,10 @@ export class LarkPlugin extends BasePlugin {
     // Register event handlers on the EventDispatcher
     this.eventDispatcher.register({
       // Handle incoming messages
+      // Fire-and-forget: don't await to avoid blocking the WebSocket event loop.
+      // Feishu requires response within 3s; AI generation takes 10-30s.
       'im.message.receive_v1': async (data: Record<string, unknown>) => {
-        await this.handleMessageEvent({ event: data });
+        void this.handleMessageEvent({ event: data });
       },
 
       // Handle card action callbacks (button clicks)
@@ -343,8 +345,9 @@ export class LarkPlugin extends BasePlugin {
 
       // Handle bot menu clicks (custom menu in chat)
       // Event name: application.bot.menu_v6
+      // Fire-and-forget: same as message handler to avoid blocking.
       'application.bot.menu_v6': async (data: Record<string, unknown>) => {
-        await this.handleBotMenuEvent({ event: data });
+        void this.handleBotMenuEvent({ event: data });
       },
     });
   }

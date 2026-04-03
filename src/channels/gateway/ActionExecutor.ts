@@ -7,7 +7,9 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { uuid } from '@/common/utils';
 import { getDatabase } from '@/process/database';
+import { addMessage } from '@/process/message';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
@@ -268,6 +270,9 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  // Busy guard: track conversations with active AI generation to prevent concurrent writes
+  private busyConversations: Set<string> = new Set();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -520,6 +525,20 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
+    const conversationId = context.conversationId;
+
+    // Busy guard: prevent concurrent AI generations for the same conversation.
+    // This handles Feishu webhook retries (3s timeout) that cause duplicate processing.
+    if (conversationId && this.busyConversations.has(conversationId)) {
+      console.warn(`[ActionExecutor] Conversation ${conversationId} is busy, skipping duplicate message`);
+      await context.sendMessage({
+        type: 'text',
+        text: '⏳ Still processing your previous message, please wait...',
+        parseMode: 'HTML',
+      });
+      return;
+    }
+
     // Send "thinking" indicator (skip for platforms that don't support editing)
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
@@ -534,13 +553,34 @@ export class ActionExecutor {
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
 
+    // Mark conversation as busy
+    if (conversationId) {
+      this.busyConversations.add(conversationId);
+    }
+
     try {
       const sessionId = context.sessionId;
-      const conversationId = context.conversationId;
 
       if (!sessionId || !conversationId) {
         throw new Error('Session not initialized');
       }
+
+      // Persist user message to DB before AI generation.
+      // This ensures user questions appear in the desktop session UI (fixes missing session history).
+      const userMsgId = `channel_user_${Date.now()}_${uuid().slice(0, 8)}`;
+      const userMessage: TMessage = {
+        id: userMsgId,
+        msg_id: userMsgId,
+        type: 'text',
+        position: 'right',
+        status: 'finish',
+        conversation_id: conversationId,
+        content: {
+          content: text,
+        },
+        createdAt: Date.now(),
+      };
+      addMessage(conversationId, userMessage);
 
       const messageService = getChannelMessageService();
 
@@ -716,6 +756,10 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release busy guard
+      if (conversationId) {
+        this.busyConversations.delete(conversationId);
+      }
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }

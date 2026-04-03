@@ -17,7 +17,7 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
 /** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (reduced from 5min for faster recovery from hung streams)
 
 /**
  * 消息流状态
@@ -225,8 +225,13 @@ export class ChannelMessageService {
         const errorMessage = `Error: ${error.message || 'Failed to send message'}`;
         console.error(`[ChannelMessageService] Send error:`, error);
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
-        clearTimeout(timeoutTimer);
-        this.activeStreams.delete(conversationId);
+        // Only clean up if this stream is still the active one (ownership check prevents race conditions)
+        const currentStream = this.activeStreams.get(conversationId);
+        if (currentStream && currentStream.msgId === msgId) {
+          clearTimeout(timeoutTimer);
+          this.activeStreams.delete(conversationId);
+          this.messageListMap.delete(conversationId);
+        }
         reject(error);
       });
     });
