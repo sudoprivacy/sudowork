@@ -2,8 +2,52 @@
 ; - Generates an install manifest at install time for selective uninstall
 ; - Replaces default "RMDir /r $INSTDIR" with manifest-based file removal
 ; - Preserves user-added files in the installation directory
+; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 
 !include "x64.nsh"
+
+; ========================================
+; Language overrides: Standardize Simplified Chinese uninstall terminology
+; NSIS built-in SimpChinese strings may use "解除安装" (Traditional Chinese style).
+; We override them to use "卸载" which is the standard Simplified Chinese term.
+; ========================================
+!macro customHeader
+  ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
+  ; Suppress warning 6030 (LangString set multiple times) since we intentionally
+  ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
+  !pragma warning disable 6030
+  LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "欢迎使用 $(^NameDA) 卸载向导"
+  LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_SIMPCHINESE} \
+    "此向导将引导你卸载 $(^NameDA)。$\r$\n$\r$\n\
+    卸载前，请确保 $(^NameDA) 已经关闭。$\r$\n$\r$\n$_CLICK"
+  LangString MUI_UNTEXT_CONFIRM_TITLE ${LANG_SIMPCHINESE} "卸载 $(^NameDA)"
+  LangString MUI_UNTEXT_CONFIRM_SUBTITLE ${LANG_SIMPCHINESE} "从你的电脑中卸载 $(^NameDA)。"
+  LangString MUI_UNTEXT_UNINSTALLING_TITLE ${LANG_SIMPCHINESE} "正在卸载"
+  LangString MUI_UNTEXT_UNINSTALLING_SUBTITLE ${LANG_SIMPCHINESE} "$(^NameDA) 正在卸载，请稍候。"
+  LangString MUI_UNTEXT_FINISH_TITLE ${LANG_SIMPCHINESE} "卸载完成"
+  LangString MUI_UNTEXT_FINISH_SUBTITLE ${LANG_SIMPCHINESE} "卸载已成功完成。"
+  LangString MUI_UNTEXT_FINISH_INFO_TITLE ${LANG_SIMPCHINESE} "正在完成 $(^NameDA) 卸载向导"
+  LangString MUI_UNTEXT_FINISH_INFO_TEXT ${LANG_SIMPCHINESE} \
+    "$(^NameDA) 已从你的电脑中卸载。$\r$\n$\r$\n\
+    点击「完成」关闭此向导。"
+  LangString MUI_UNTEXT_FINISH_INFO_REBOOT ${LANG_SIMPCHINESE} \
+    "要完成 $(^NameDA) 的卸载，必须重新启动你的电脑。你想现在重新启动吗？"
+  LangString MUI_UNTEXT_ABORT_TITLE ${LANG_SIMPCHINESE} "卸载已中止"
+  LangString MUI_UNTEXT_ABORT_SUBTITLE ${LANG_SIMPCHINESE} "卸载未能完成。"
+  !pragma warning enable 6030
+!macroend
+
+; ========================================
+; Uninstaller init: Override window caption for Simplified Chinese
+; ========================================
+!macro customUnInit
+  ; Override uninstaller window title for Simplified Chinese
+  ; The NSIS base ^UninstallCaption string may use "解除安装"
+  ; Note: Caption is a top-level command and cannot be used inside Functions.
+  ; We use SendMessage with WM_SETTEXT (0x000C) to set the window title at runtime.
+  StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
+    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
+!macroend
 
 ; ========================================
 ; Install: Record installed files into a manifest
@@ -42,13 +86,6 @@
 
   _ci_end:
 !macroend
-
-; ========================================
-; Auto-launch after installation
-; ========================================
-Function .onInstSuccess
-  Exec '"$INSTDIR\Sudowork.exe"'
-FunctionEnd
 
 ; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
