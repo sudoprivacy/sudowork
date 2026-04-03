@@ -181,6 +181,21 @@ describe('SudoclawInstallService', () => {
     });
   });
 
+  it('treats launcher presence as sufficient for installed detection', async () => {
+    const pkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
+    fs.mkdirSync(pkgRoot, { recursive: true });
+    fs.writeFileSync(path.join(pkgRoot, 'launcher.mjs'), 'export {};');
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+
+    expect(module.getSudoclawCliPath()).toBe(path.join(pkgRoot, 'launcher.mjs'));
+
+    const result = await module.ensureSudoclawInstalled();
+    expect(result.installed).toBe(true);
+    expect(result.cliPath).toBe(path.join(pkgRoot, 'launcher.mjs'));
+    expect(tarExtractMock).not.toHaveBeenCalled();
+  });
+
   it('preserves custom workspace while repairing config', async () => {
     const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
     fs.mkdirSync(sudoclawDir, { recursive: true });

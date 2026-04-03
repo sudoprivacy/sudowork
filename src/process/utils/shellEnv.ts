@@ -466,12 +466,7 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
   }
 
   // 4. Nothing found — warn clearly and return bare name as last resort
-  mainWarn(
-    'ShellEnv',
-    `Node.js/npx could not be found on this system. ` +
-    `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` +
-    `Returning bare '${npxName}' which will likely fail.`
-  );
+  mainWarn('ShellEnv', `Node.js/npx could not be found on this system. ` + `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` + `Returning bare '${npxName}' which will likely fail.`);
   return npxName;
 }
 
