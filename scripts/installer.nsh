@@ -9,33 +9,41 @@
 !include "x64.nsh"
 
 ; ========================================
+; Global variable declarations (file scope)
+; ========================================
+; IMPORTANT: These MUST be at file scope (outside any macro) so they are
+; processed immediately when this file is !include'd. Declaring them inside
+; a macro (e.g. customHeader) only creates them when the macro is expanded,
+; which may be too late if assistedInstaller.nsh expands customPageAfterChangeDir
+; first — causing "Pop $(user_var: output)" errors.
+;
+; Suppress warning 6001 ("Variable not referenced") for the uninstaller pass
+; where these variables are declared but unused.
+!pragma warning disable 6001
+
+; Variable to store user's choice on whether to delete user data (~/.nexus/)
+Var /GLOBAL deleteNexusData
+
+; Variables for the Terms of Service / Privacy Policy agreement page
+Var /GLOBAL tosPage.Dialog
+Var /GLOBAL tosPage.Checkbox
+Var /GLOBAL tosPage.TextBox
+
+; Variables for the Shortcut Options page
+Var /GLOBAL shortcutPage.Dialog
+Var /GLOBAL shortcutPage.DesktopCheckbox
+Var /GLOBAL shortcutPage.StartMenuCheckbox
+Var /GLOBAL createDesktopShortcutChoice
+Var /GLOBAL createStartMenuShortcutChoice
+
+!pragma warning enable 6001
+
+; ========================================
 ; Language overrides: Standardize Simplified Chinese uninstall terminology
 ; NSIS built-in SimpChinese strings may use "解除安装" (Traditional Chinese style).
 ; We override them to use "卸载" which is the standard Simplified Chinese term.
 ; ========================================
 !macro customHeader
-  ; Variable to store user's choice on whether to delete user data (~/.nexus/)
-  Var /GLOBAL deleteNexusData
-
-  ; Variables for the Terms of Service / Privacy Policy agreement page
-  ; and Shortcut Options page — only used during the installer pass,
-  ; but declared globally (both passes) so that any macro expansion
-  ; referencing them doesn't fail with "Pop $(user_var: output)".
-  ; Suppress warning 6001 ("Variable not referenced") for the uninstaller
-  ; pass where these variables are declared but unused.
-  !pragma warning disable 6001
-  Var /GLOBAL tosPage.Dialog
-  Var /GLOBAL tosPage.Checkbox
-  Var /GLOBAL tosPage.TextBox
-
-  ; Variables for the Shortcut Options page
-  Var /GLOBAL shortcutPage.Dialog
-  Var /GLOBAL shortcutPage.DesktopCheckbox
-  Var /GLOBAL shortcutPage.StartMenuCheckbox
-  Var /GLOBAL createDesktopShortcutChoice
-  Var /GLOBAL createStartMenuShortcutChoice
-  !pragma warning enable 6001
-
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
   ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
