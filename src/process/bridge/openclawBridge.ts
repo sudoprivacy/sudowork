@@ -148,4 +148,21 @@ export function initOpenClawBridge(): void {
       }
     }
   });
+
+  ipcBridge.openclaw.updateImageModel.provider(async (params) => {
+    const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    const fs = await import('fs');
+    if (!fs.existsSync(SUDOCLAW_CONFIG_PATH)) return;
+    try {
+      const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as SudoclawConfig;
+      if (!config.agents) config.agents = { defaults: {} };
+      if (!config.agents.defaults) config.agents.defaults = {};
+      config.agents.defaults.imageModel = params.modelId ?? '';
+      fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+      mainLog('OpenClawBridge', 'Updated image model in sudoclaw.json:', params.modelId);
+    } catch (error) {
+      mainError('OpenClawBridge', 'Failed to update image model in sudoclaw.json', error);
+    }
+  });
 }

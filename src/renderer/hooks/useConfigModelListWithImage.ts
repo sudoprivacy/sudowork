@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import { ipcBridge } from '../../common';
+import { DEFAULT_IMAGE_MODEL } from '@/common/storage';
 
 const useConfigModelListWithImage = () => {
   const { data } = useSWR('configModelListWithImage', () => {
@@ -32,9 +33,9 @@ const useConfigModelListWithImage = () => {
       } else if (platform.baseUrl && platform.baseUrl.includes('sudorouter.ai')) {
         // SudoRouter 平台：添加图像生成模型
         // SudoRouter platform: add image generation model
-        const hasSudorouterImage = platform.model.some((m) => m.includes('gemini-2.5-flash-image'));
+        const hasSudorouterImage = platform.model.some((m) => m.includes(DEFAULT_IMAGE_MODEL));
         if (!hasSudorouterImage) {
-          platform.model = platform.model.concat(['gemini-2.5-flash-image']);
+          platform.model = platform.model.concat([DEFAULT_IMAGE_MODEL]);
         }
       }
 

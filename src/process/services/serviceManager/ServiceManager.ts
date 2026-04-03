@@ -321,11 +321,39 @@ class ServiceManager {
       initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
       mainLog('ServiceManager', 'Sudoclaw gateway started successfully');
       this.gatewayReadyResolve?.({ host: 'localhost', port: SUDOCLAW_DEFAULT_PORT });
+
+      // Sync image model from sudowork config to sudoclaw.json on every startup.
+      // Covers first-time (no prior user interaction) and ensures sudoclaw.json stays in sync.
+      void this.syncImageModelToSudoclaw(SUDOCLAW_CONFIG_PATH);
     } catch (err) {
       mainError('ServiceManager', 'Sudoclaw gateway start failed', err);
       // Resolve with null so waiters don't hang forever.
       this.gatewayReadyResolve?.(null);
       throw err;
+    }
+  }
+
+  private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
+    try {
+      const { ProcessConfig } = await import('@/process/initStorage');
+      const { DEFAULT_IMAGE_MODEL } = await import('@/common/storage');
+      const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
+      // If no config saved yet (first run), treat as default: switch on with DEFAULT_IMAGE_MODEL.
+      const switchOn = imageConfig ? imageConfig.switch : true;
+      const useModel = imageConfig?.useModel || DEFAULT_IMAGE_MODEL;
+      const modelId = switchOn && useModel ? useModel : null;
+
+      const fs = await import('fs');
+      if (!fs.existsSync(sudoclawConfigPath)) return;
+      const raw = fs.readFileSync(sudoclawConfigPath, 'utf-8');
+      const config = JSON.parse(raw);
+      if (!config.agents) config.agents = { defaults: {} };
+      if (!config.agents.defaults) config.agents.defaults = {};
+      config.agents.defaults.imageModel = modelId ?? '';
+      fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+      mainLog('ServiceManager', 'Synced image model to sudoclaw.json on startup:', modelId);
+    } catch (err) {
+      mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
   }
 
