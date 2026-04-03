@@ -79,7 +79,7 @@ export function initOpenClawBridge(): void {
         } else if (params.modelId.includes('claude')) {
           apiType = 'anthropic-messages';
         } else {
-          apiType = 'openai-responses';
+          apiType = 'openai-completions';
         }
 
         // 2. 创建对应的 provider 名称（如 sudorouter-gemini-3-pro-preview）
@@ -97,34 +97,32 @@ export function initOpenClawBridge(): void {
         const providers = models.providers;
         const providerEntries = Object.entries(providers) as Array<[string, NonNullable<SudoclawConfig['models']>['providers'][string]]>;
 
-        // 4. 确保该 provider 存在，并且只包含当前模型
+        // 4. 确保该 provider 存在，并始终使用最新的 baseUrl 和 api 类型
         if (!providers[providerName]) {
           providers[providerName] = {
-            baseUrl: 'https://hk.sudorouter.ai/v1',
-            api: apiType,
             models: [],
           };
         }
         const provider = providers[providerName];
-        const hasSelectedModel = Array.isArray(provider.models) && provider.models.some((model) => model.id === params.modelId);
+        provider.baseUrl = 'https://hk.sudorouter.ai/v1';
+        provider.api = apiType;
+
+        // 5. 确保 provider 只包含当前模型
+        provider.models = [{ id: params.modelId, name: params.modelId }];
+
+        // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
         const canonicalApiKey =
+          providers['sudorouter']?.apiKey ||
           providerEntries
-            .filter(([name]) => name !== providerName)
             .map(([, item]) => item?.apiKey)
-            .find((key): key is string => typeof key === 'string' && key.trim().length > 0) || (typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0 ? provider.apiKey : undefined);
-        const hasSameApiKey = !canonicalApiKey || provider.apiKey === canonicalApiKey;
+            .find((key): key is string => typeof key === 'string' && key.trim().length > 0);
 
-        // 确保 provider 只包含当前模型；即使模型已存在，也需要继续比对 apiKey 是否需要同步
-        if (!hasSelectedModel) {
-          provider.models = [{ id: params.modelId, name: params.modelId }];
-        }
-
-        // 如果已有 provider 的模型已存在，也需要同步最新的 apiKey，避免旧 key 残留
-        if (!hasSameApiKey && canonicalApiKey) {
+        // 始终刷新 apiKey 以保持同步
+        if (canonicalApiKey) {
           provider.apiKey = canonicalApiKey;
         }
 
-        // 5. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
+        // 7. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
         if (!config.agents) {
           config.agents = { defaults: {} };
         }
@@ -140,7 +138,7 @@ export function initOpenClawBridge(): void {
           agents.defaults.model.primary = fullModelPath;
         }
 
-        // 6. 保存修改后的配置
+        // 8. 保存修改后的配置
         fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
         mainLog('OpenClawBridge', 'Updated sudoclaw.json config');
       } catch (error) {
