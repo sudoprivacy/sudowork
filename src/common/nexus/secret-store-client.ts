@@ -40,9 +40,11 @@ export class SecretStoreClient {
   private readonly client: FetchClient;
 
   constructor(apiKey: string, baseUrl?: string) {
+    const resolvedBaseUrl = baseUrl ?? 'http://localhost:12012';
+    console.log('[SecretStoreClient] Created with baseUrl:', resolvedBaseUrl, 'apiKey length:', apiKey?.length ?? 0);
     this.client = new FetchClient({
       apiKey,
-      baseUrl: baseUrl ?? 'http://localhost:12012',
+      baseUrl: resolvedBaseUrl,
     });
   }
 

@@ -1178,6 +1178,19 @@ export class AionUIDatabase {
     this.db.exec('VACUUM');
     mainLog('Database', 'Vacuum completed');
   }
+
+  /**
+   * Get raw assistant plugin records for secret migration.
+   * Returns original credential data from SQLite without going through Nexus.
+   * Used by SecretMigrationCoordinator during initial migration.
+   */
+  getAssistantPluginsForMigration(): Array<{ id: string; type: string; config: string }> {
+    return this.db.prepare('SELECT id, type, config FROM assistant_plugins').all() as Array<{
+      id: string;
+      type: string;
+      config: string;
+    }>;
+  }
 }
 
 // Export singleton instance

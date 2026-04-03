@@ -58,13 +58,20 @@ class SecretCacheImpl {
 
     try {
       const secrets = await this.client.listSecrets();
+      console.log('[SecretCache] listSecrets returned:', secrets.length, 'secrets');
       for (const secret of secrets) {
         if (secret.deletedAt) {
           continue; // Skip deleted secrets
         }
-        const value = await this.client.getSecret(secret.namespace, secret.key);
-        this.cache.set(`${secret.namespace}:${secret.key}`, value);
-        this.migrated.add(`${secret.namespace}:${secret.key}`);
+        console.log('[SecretCache] Getting secret:', secret.namespace, secret.key);
+        try {
+          const value = await this.client.getSecret(secret.namespace, secret.key);
+          this.cache.set(`${secret.namespace}:${secret.key}`, value);
+          this.migrated.add(`${secret.namespace}:${secret.key}`);
+        } catch (err) {
+          // Skip secrets that cannot be retrieved (may be deleted or inaccessible)
+          console.warn('[SecretCache] Skipping inaccessible secret:', secret.namespace, secret.key, '-', err instanceof Error ? err.message : err);
+        }
       }
       this.initialized = true;
     } catch (error) {

@@ -235,7 +235,7 @@ export class SecretMigrationCoordinator {
   }
 
   /**
-   * Migrate a single secret to Nexus.
+   * Migrate a single secret to Nexus with verification.
    */
   private async migrateSecret(namespace: string, key: string, value: string): Promise<void> {
     if (!this.client) {
@@ -249,14 +249,24 @@ export class SecretMigrationCoordinator {
     }
 
     try {
+      // Step 1: Write secret to Nexus
       await this.client.putSecret(namespace, key, value);
+
+      // Step 2: Read back to verify - ensure secret was stored correctly
+      const storedValue = await this.client.getSecret(namespace, key);
+
+      // Step 3: Data integrity check
+      if (storedValue !== value) {
+        throw new Error(`Verification failed: stored value mismatch for ${ref}`);
+      }
+
+      // Step 4: Verification passed, mark as migrated
       this.markMigratedLocal(namespace, key);
       markMigrated(namespace, key, value);
-      console.log(`[SecretMigration] Migrated ${ref}`);
+      console.log(`[SecretMigration] Secret verified: ${ref}`);
     } catch (error) {
-      const errorMsg = `Failed to migrate ${ref}: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(`[SecretMigration] ${errorMsg}`);
-      throw new Error(errorMsg);
+      console.error(`[SecretMigration] Failed to migrate ${ref}: ${error instanceof Error ? error.message : String(error)}`);
+      throw error; // Re-throw so the caller can track failures
     }
   }
 
@@ -271,39 +281,46 @@ export class SecretMigrationCoordinator {
    */
   private async migrateChannelCredentials(): Promise<number> {
     console.log('[SecretMigration] Migrating channel credentials...');
-    let count = 0;
+    let migrated = 0;
+    let failed = 0;
 
     try {
       const db = getDatabase();
-      const pluginsResult = db.getChannelPlugins();
+      // Use dedicated method to get raw credentials (not via getChannelPlugins which reads from Nexus)
+      const rows = db.getAssistantPluginsForMigration();
 
-      if (!pluginsResult.success || !pluginsResult.data) {
-        console.log('[SecretMigration] No channel plugins found or error reading');
+      if (!rows || rows.length === 0) {
+        console.log('[SecretMigration] No channel plugins found');
         return 0;
       }
 
-      for (const plugin of pluginsResult.data) {
-        const credentialFields = CHANNEL_CREDENTIAL_FIELDS[plugin.type] || [];
+      for (const row of rows) {
+        const credentialFields = CHANNEL_CREDENTIAL_FIELDS[row.type] || [];
         if (credentialFields.length === 0) {
           continue;
         }
 
+        // Parse original credentials from config column
+        const storedConfig = JSON.parse(row.config || '{}');
+        const credentials = storedConfig.credentials || {};
+
         // Decrypt credentials before storing
-        const decryptedCredentials = decryptCredentials(plugin.credentials);
+        const decryptedCredentials = decryptCredentials(credentials);
         if (!decryptedCredentials) {
           continue;
         }
 
-        const namespace = `channel:${plugin.type}:${plugin.id}`;
+        const namespace = `channel:${row.type}:${row.id}`;
 
         for (const field of credentialFields) {
           const value = decryptedCredentials[field];
           if (value && typeof value === 'string') {
             try {
               await this.migrateSecret(namespace, field, value);
-              count++;
+              migrated++;
             } catch (error) {
-              console.error(`[SecretMigration] Failed to migrate channel ${plugin.type}:${plugin.id}:${field}:`, error);
+              // Error already logged in migrateSecret
+              failed++;
             }
           }
         }
@@ -315,7 +332,8 @@ export class SecretMigrationCoordinator {
       console.error('[SecretMigration] Error migrating channel credentials:', error);
     }
 
-    return count;
+    console.log(`[SecretMigration] Channel credentials migration complete: ${migrated} migrated, ${failed} failed`);
+    return migrated;
   }
 
   /**
@@ -332,7 +350,8 @@ export class SecretMigrationCoordinator {
    */
   private async migrateAIPlatformCredentials(): Promise<number> {
     console.log('[SecretMigration] Migrating AI platform credentials...');
-    let count = 0;
+    let migrated = 0;
+    let failed = 0;
 
     try {
       const modelConfig = await ProcessConfig.get('model.config' as any);
@@ -347,9 +366,9 @@ export class SecretMigrationCoordinator {
           const namespace = `provider:${provider.id}`;
           try {
             await this.migrateSecret(namespace, 'api_key', provider.apiKey);
-            count++;
+            migrated++;
           } catch (error) {
-            console.error(`[SecretMigration] Failed to migrate provider ${provider.id} api_key:`, error);
+            failed++;
           }
         }
 
@@ -360,18 +379,18 @@ export class SecretMigrationCoordinator {
           if (config.accessKeyId && typeof config.accessKeyId === 'string') {
             try {
               await this.migrateSecret(`provider:${provider.id}`, 'access_key_id', config.accessKeyId);
-              count++;
+              migrated++;
             } catch (error) {
-              console.error(`[SecretMigration] Failed to migrate provider ${provider.id} access_key_id:`, error);
+              failed++;
             }
           }
 
           if (config.secretAccessKey && typeof config.secretAccessKey === 'string') {
             try {
               await this.migrateSecret(`provider:${provider.id}`, 'secret_access_key', config.secretAccessKey);
-              count++;
+              migrated++;
             } catch (error) {
-              console.error(`[SecretMigration] Failed to migrate provider ${provider.id} secret_access_key:`, error);
+              failed++;
             }
           }
         }
@@ -382,7 +401,8 @@ export class SecretMigrationCoordinator {
       console.error('[SecretMigration] Error migrating AI platform credentials:', error);
     }
 
-    return count;
+    console.log(`[SecretMigration] AI platform credentials migration complete: ${migrated} migrated, ${failed} failed`);
+    return migrated;
   }
 
   /**
@@ -390,7 +410,8 @@ export class SecretMigrationCoordinator {
    */
   private async migrateACPAuthTokens(): Promise<number> {
     console.log('[SecretMigration] Migrating ACP auth tokens...');
-    let count = 0;
+    let migrated = 0;
+    let failed = 0;
 
     try {
       const acpConfig = await ProcessConfig.get('acp.config' as any);
@@ -412,9 +433,9 @@ export class SecretMigrationCoordinator {
           const namespace = `auth:acp:${backend}`;
           try {
             await this.migrateSecret(namespace, 'auth_token', authToken);
-            count++;
+            migrated++;
           } catch (error) {
-            console.error(`[SecretMigration] Failed to migrate acp ${backend} auth_token:`, error);
+            failed++;
           }
         }
       }
@@ -424,7 +445,8 @@ export class SecretMigrationCoordinator {
       console.error('[SecretMigration] Error migrating ACP auth tokens:', error);
     }
 
-    return count;
+    console.log(`[SecretMigration] ACP auth tokens migration complete: ${migrated} migrated, ${failed} failed`);
+    return migrated;
   }
 
   /**
@@ -432,7 +454,8 @@ export class SecretMigrationCoordinator {
    */
   private async migrateDeviceAuthTokens(): Promise<number> {
     console.log('[SecretMigration] Migrating device auth tokens...');
-    let count = 0;
+    let migrated = 0;
+    let failed = 0;
 
     try {
       const deviceAuthPath = this.resolveDeviceAuthPath();
@@ -461,9 +484,9 @@ export class SecretMigrationCoordinator {
           const key = role === 'default' ? 'token' : `token:${role}`;
           try {
             await this.migrateSecret(namespace, key, tokenEntry.token);
-            count++;
+            migrated++;
           } catch (error) {
-            console.error(`[SecretMigration] Failed to migrate device auth token (role: ${role}):`, error);
+            failed++;
           }
         }
       }
@@ -473,7 +496,8 @@ export class SecretMigrationCoordinator {
       console.error('[SecretMigration] Error migrating device auth tokens:', error);
     }
 
-    return count;
+    console.log(`[SecretMigration] Device auth tokens migration complete: ${migrated} migrated, ${failed} failed`);
+    return migrated;
   }
 
   /**
@@ -489,7 +513,8 @@ export class SecretMigrationCoordinator {
    */
   private async migrateJWTSecrets(): Promise<number> {
     console.log('[SecretMigration] Migrating JWT secrets...');
-    let count = 0;
+    let migrated = 0;
+    let failed = 0;
 
     try {
       const users = UserRepository.listUsers();
@@ -500,9 +525,9 @@ export class SecretMigrationCoordinator {
           const key = user.id === 'system_default_user' ? 'webui_secret' : `webui_secret:${user.id}`;
           try {
             await this.migrateSecret(namespace, key, user.jwt_secret);
-            count++;
+            migrated++;
           } catch (error) {
-            console.error(`[SecretMigration] Failed to migrate JWT secret for user ${user.id}:`, error);
+            failed++;
           }
         }
       }
@@ -512,7 +537,8 @@ export class SecretMigrationCoordinator {
       console.error('[SecretMigration] Error migrating JWT secrets:', error);
     }
 
-    return count;
+    console.log(`[SecretMigration] JWT secrets migration complete: ${migrated} migrated, ${failed} failed`);
+    return migrated;
   }
 }
 
