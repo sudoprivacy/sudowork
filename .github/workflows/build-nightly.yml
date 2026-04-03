@@ -13,7 +13,7 @@ on:
       branch:
         description: 'Branch to build from'
         required: true
-        default: 'main'
+        default: 'dev'
         type: string
       platform:
         description: 'Platform to build'
@@ -54,7 +54,7 @@ jobs:
             BRANCH="${{ inputs.branch }}"
             SKIP_CODE_QUALITY="${{ inputs.skip_code_quality }}"
           else
-            BRANCH="main"
+            BRANCH="dev"
             SKIP_CODE_QUALITY="true"
           fi
 
