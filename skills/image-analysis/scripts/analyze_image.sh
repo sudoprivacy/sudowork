@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Sudowork built-in image analysis script
 # Usage: analyze_image.sh <image_path> [prompt]
-# Requires env vars: SUDOROUTER_BASE_URL, SUDOROUTER_API_KEY, OPENCLAW_CONFIG_PATH (optional)
+# Reads config from sudoclaw.json via OPENCLAW_CONFIG_PATH (required) env var.
+# Overrides with optional env vars: PROVIDER_BASE_URL, PROVIDER_API_KEY, CHAT_MODEL
 
 set -euo pipefail
 
@@ -18,29 +19,31 @@ if [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Require env vars — no fallback to config files
-if [ -z "${SUDOROUTER_BASE_URL:-}" ] || [ -z "${SUDOROUTER_API_KEY:-}" ]; then
-  echo "Error: SUDOROUTER_BASE_URL and SUDOROUTER_API_KEY env vars are required" >&2
-  exit 1
-fi
-
-BASE_URL="${SUDOROUTER_BASE_URL}"
-API_KEY="${SUDOROUTER_API_KEY}"
-# Resolve model: CHAT_MODEL env var > sudoclaw.json config > default
-if [ -n "${CHAT_MODEL:-}" ]; then
-  MODEL="$CHAT_MODEL"
-elif [ -n "${OPENCLAW_CONFIG_PATH:-}" ] && [ -f "$OPENCLAW_CONFIG_PATH" ]; then
-  MODEL=$(python3 -c "
+# Read BASE_URL, API_KEY, and MODEL from sudoclaw.json (with env var overrides)
+if [ -n "${OPENCLAW_CONFIG_PATH:-}" ] && [ -f "$OPENCLAW_CONFIG_PATH" ]; then
+  eval "$(python3 -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
+    sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
+    base_url = sr.get('baseUrl','')
+    api_key = sr.get('apiKey','')
     m = c.get('agents',{}).get('defaults',{}).get('model',{}).get('primary','')
-    print(m.split('/')[-1] if '/' in m else m)
+    model = m.split('/')[-1] if '/' in m else m
+    print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
+    print(f'_CFG_API_KEY={repr(api_key)}')
+    print(f'_CFG_MODEL={repr(model)}')
 except: pass
-" "$OPENCLAW_CONFIG_PATH" 2>/dev/null)
-  MODEL="${MODEL:-gemini-2.5-flash}"
-else
-  MODEL="gemini-2.5-flash"
+" "$OPENCLAW_CONFIG_PATH" 2>/dev/null)"
+fi
+
+BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
+API_KEY="${PROVIDER_API_KEY:-${_CFG_API_KEY:-}}"
+MODEL="${CHAT_MODEL:-${_CFG_MODEL:-gemini-2.5-flash}}"
+
+if [ -z "$BASE_URL" ] || [ -z "$API_KEY" ]; then
+  echo "Error: Could not resolve PROVIDER_BASE_URL and PROVIDER_API_KEY from config or env vars" >&2
+  exit 1
 fi
 
 echo "[analyze_image] IMAGE_PATH=$IMAGE_PATH" >&2
