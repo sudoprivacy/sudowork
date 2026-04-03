@@ -16,7 +16,12 @@
 ; ========================================
 !macro customHeader
   ; Variable to store user's choice on whether to delete user data (~/.nexus/)
+  ; Wrapped in !ifndef BUILD_UNINSTALLER to avoid NSIS warning 6001
+  ; ("variable not referenced") during the uninstaller build pass, where
+  ; customUnInstall/customRemoveFiles macros are not expanded.
+  !ifndef BUILD_UNINSTALLER
   Var /GLOBAL deleteNexusData
+  !endif
 
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
