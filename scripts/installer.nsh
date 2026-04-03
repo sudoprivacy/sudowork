@@ -17,9 +17,15 @@
   Var /GLOBAL deleteNexusData
 
   ; Variables for the Terms of Service / Privacy Policy agreement page
+  ; Guard with !ifndef BUILD_UNINSTALLER: these are only used by installer
+  ; functions (tosPageCreate, etc.) which are also guarded. Without this guard,
+  ; NSIS warning 6001 fires during the uninstaller pass because the variables
+  ; are declared but never referenced.
+  !ifndef BUILD_UNINSTALLER
   Var /GLOBAL tosPage.Dialog
   Var /GLOBAL tosPage.Checkbox
   Var /GLOBAL tosPage.TextBox
+  !endif
 
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
