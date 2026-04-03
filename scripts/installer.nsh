@@ -101,12 +101,13 @@
 ; installer.nsi template (which loads MUI2.nsh). Functions defined at file
 ; scope would be compiled before MUI2 is loaded → "macro not found" error.
 ;
-; The macro is always defined, but its contents are guarded by
-; !ifndef BUILD_UNINSTALLER so the macro expands to nothing during the
-; uninstaller pass. This avoids "Pop $(user_var)" errors from referencing
-; variables that are only declared for the installer pass.
-!macro customPageAfterChangeDir
+; Two versions of the macro are defined: a full version for the installer
+; pass and an empty version for the uninstaller pass (BUILD_UNINSTALLER).
+; NSIS validates variable references in macro text during expansion BEFORE
+; evaluating !ifndef directives inside the body, so the guard must wrap
+; the entire !macro definition rather than being placed inside it.
 !ifndef BUILD_UNINSTALLER
+!macro customPageAfterChangeDir
 
   ; ========================================
   ; Terms of Service / Privacy Policy Agreement Page
@@ -284,8 +285,13 @@ $\r$\n\
 
   ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
-!endif
+
 !macroend
+!else
+; Uninstaller pass: define an empty macro so assistedInstaller.nsh can expand it
+!macro customPageAfterChangeDir
+!macroend
+!endif
 
 ; ========================================
 ; Install: Record installed files into a manifest
