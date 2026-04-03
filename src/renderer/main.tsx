@@ -21,6 +21,9 @@ const Main = () => {
   }
 
   if (!initReady && !isInitScreenSkipped) {
+    if (status.phase === 'pending' && !status.displayMode) {
+      return null;
+    }
     return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 
