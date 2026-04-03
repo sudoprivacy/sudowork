@@ -1,3 +1,12 @@
+"""
+Nexus JSON-RPC client module.
+
+This module provides the low-level client for communicating with the Nexus file
+system service over JSON-RPC 2.0. The Nexus service acts as a shared storage
+layer where security events and action decisions are exchanged between the hook
+and the security control plane.
+"""
+
 import json
 import logging
 import time
@@ -13,10 +22,35 @@ logger = logging.getLogger("nexus")
 
 
 class Nexus:
+    """
+    Client for the Nexus file system service using JSON-RPC 2.0 protocol.
+
+    Provides methods for reading, writing, checking existence, and deleting
+    files on the Nexus service. Used by NexusController to exchange security
+    event data with the control plane.
+    """
+
     def __init__(self, url: str):
+        """
+        Args:
+            url: Base URL of the Nexus service (e.g., "http://127.0.0.1:12012").
+        """
         self.base_url = url
 
     def call_rpc(self, method: str, params: Dict[str, Any] = None) -> Any:
+        """
+        Make a JSON-RPC 2.0 call to the Nexus service.
+
+        Args:
+            method: The RPC method name (e.g., "read", "write", "exists").
+            params: Optional dictionary of method parameters.
+
+        Returns:
+            The "result" field from the JSON-RPC response.
+
+        Raises:
+            NexusError: If the RPC call returns an error or the HTTP request fails.
+        """
         logger.debug(f"API call: {method} with params: {params}")
 
         try:
@@ -52,6 +86,19 @@ class Nexus:
         if_none_match: bool = False,
         force: bool = False,
     ) -> dict[str, Any]:
+        """
+        Write content to a file on the Nexus service.
+
+        Args:
+            path: The file path on the Nexus service.
+            content: The content to write (bytes or string).
+            if_match: Optional ETag for optimistic concurrency (write only if ETag matches).
+            if_none_match: If True, write only if the file does not already exist.
+            force: If True, overwrite regardless of concurrency checks.
+
+        Returns:
+            A dictionary with write result metadata.
+        """
         return self.call_rpc(
             "write",
             {"path": path, "content": content, "if_match": if_match, "if_none_match": if_none_match, "force": force},
@@ -62,8 +109,24 @@ class Nexus:
         path: str,
         return_metadata: bool = False,
     ) -> bytes | dict[str, Any]:
+        """
+        Read a file from the Nexus service.
+
+        Handles multiple response formats: raw bytes, base64-encoded content,
+        and metadata-enriched responses.
+
+        Args:
+            path: The file path on the Nexus service.
+            return_metadata: If True, return a dict with content and metadata
+                             instead of just the raw content bytes.
+
+        Returns:
+            The file content as bytes, or a dict with content and metadata if
+            return_metadata is True.
+        """
         result = self.call_rpc("read", {"path": path, "return_metadata": return_metadata})
         if isinstance(result, dict):
+            # Handle typed bytes response format
             if result.get("__type__") == "bytes" and "data" in result:
                 decoded_content = b64decode(result["data"])
                 if return_metadata:
@@ -71,6 +134,7 @@ class Nexus:
                     return result
                 else:
                     return decoded_content
+            # Handle content + encoding response format
             if "content" in result:
                 content = result["content"]
                 encoding = result.get("encoding", "base64")
@@ -88,10 +152,24 @@ class Nexus:
         return result
 
     def exists(self, path: str) -> bool:
+        """Check if a file exists on the Nexus service."""
         result = self.call_rpc("exists", {"path": path})
         return result.get("exists", False)
 
     def read_until_exists(self, path: str, timeout: Optional[timedelta] = None) -> bytes:
+        """
+        Poll until a file exists on the Nexus service, then read and return it.
+
+        This is used to wait for an asynchronous action decision from the security
+        control plane (e.g., waiting for a human to approve/deny an operation).
+
+        Args:
+            path: The file path to wait for.
+            timeout: Maximum time to wait. If None, waits indefinitely.
+
+        Returns:
+            The file content as bytes once it exists.
+        """
         start_time = datetime.now()
         while not ((timeout and datetime.now() - start_time > timeout) or (self.exists(path))):
             time.sleep(1)
@@ -102,10 +180,19 @@ class Nexus:
         paths: List[str],
         recursive: bool = False,
     ) -> None:
+        """
+        Delete multiple files from the Nexus service.
+
+        Args:
+            paths: List of file paths to delete.
+            recursive: If True, delete directories and their contents recursively.
+        """
         self.call_rpc("delete_bulk", {"paths": paths, "recursive": recursive})
 
 
 class NexusError(Exception):
+    """Custom exception for Nexus service errors, optionally associated with a file path."""
+
     def __init__(self, message: str, path: str = None):
         self.message = message
         self.path = path
@@ -137,6 +224,18 @@ class RPCErrorCode(Enum):
 
 
 def rpc_error(error: Dict[str, Any]) -> NexusError:
+    """
+    Convert a JSON-RPC error response into a typed NexusError exception.
+
+    Maps known error codes to descriptive error messages and extracts
+    relevant context (paths, ETags) from the error data field.
+
+    Args:
+        error: The "error" object from a JSON-RPC response.
+
+    Returns:
+        A NexusError with an appropriate message and optional path context.
+    """
     code = error.get("code", RPCErrorCode.INTERNAL_ERROR)
     message = error.get("message", "Unknown error")
     data = error.get("data")
