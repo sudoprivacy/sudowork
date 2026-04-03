@@ -5,6 +5,15 @@
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 
 !include "x64.nsh"
+!include "nsDialogs.nsh"
+
+; ========================================
+; Variables for shortcut option checkboxes
+; ========================================
+Var /GLOBAL desktopShortcutCheckbox
+Var /GLOBAL startMenuShortcutCheckbox
+Var /GLOBAL createDesktopShortcut
+Var /GLOBAL createStartMenuShortcut
 
 ; ========================================
 ; Language overrides: Standardize Simplified Chinese uninstall terminology
@@ -50,6 +59,50 @@
 !macroend
 
 ; ========================================
+; Custom page: Shortcut options (Desktop & Start Menu)
+; Shown after the installation directory page, before install begins.
+; ========================================
+!macro customPageAfterChangeDir
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE shortcutOptionsPagePre
+  Page custom shortcutOptionsPageCreate shortcutOptionsPageLeave
+!macroend
+
+Function shortcutOptionsPagePre
+  ; Skip this page on update/silent installs
+  ${if} ${isUpdated}
+    Abort
+  ${endif}
+FunctionEnd
+
+Function shortcutOptionsPageCreate
+  !insertmacro MUI_HEADER_TEXT "选择附加任务" "选择安装过程中要执行的附加任务。"
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 20u "选择要执行的附加任务："
+  Pop $0
+
+  ${NSD_CreateCheckbox} 20u 25u -20u 15u "创建桌面快捷方式(&D)"
+  Pop $desktopShortcutCheckbox
+  ${NSD_Check} $desktopShortcutCheckbox
+
+  ${NSD_CreateCheckbox} 20u 45u -20u 15u "创建「开始」菜单快捷方式(&S)"
+  Pop $startMenuShortcutCheckbox
+  ${NSD_Check} $startMenuShortcutCheckbox
+
+  nsDialogs::Show
+FunctionEnd
+
+Function shortcutOptionsPageLeave
+  ${NSD_GetState} $desktopShortcutCheckbox $createDesktopShortcut
+  ${NSD_GetState} $startMenuShortcutCheckbox $createStartMenuShortcut
+FunctionEnd
+
+; ========================================
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall
@@ -85,6 +138,22 @@
     DetailPrint "Warning: Could not create install manifest file."
 
   _ci_end:
+
+  ; --- Shortcut options: Remove shortcuts if user unchecked them ---
+  ; The electron-builder install section creates shortcuts by default before
+  ; this macro runs. We remove unwanted shortcuts based on user choices.
+  ${If} $createDesktopShortcut != ${BST_CHECKED}
+    Delete "$newDesktopLink"
+    DetailPrint "Skipped desktop shortcut per user preference."
+  ${EndIf}
+
+  ${If} $createStartMenuShortcut != ${BST_CHECKED}
+    Delete "$newStartMenuLink"
+    !ifdef MENU_FILENAME
+      RMDir "$SMPROGRAMS\${MENU_FILENAME}"
+    !endif
+    DetailPrint "Skipped Start Menu shortcut per user preference."
+  ${EndIf}
 !macroend
 
 ; ========================================
