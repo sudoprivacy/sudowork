@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Sudowork image generation/editing script
 # Usage:
-#   generate_image.sh gen "<prompt>" [size]
-#   generate_image.sh edit "<prompt>" "<image_path>" [size]
-# Reads config from sudoclaw.json via OPENCLAW_CONFIG_PATH env var.
+#   generate_image.sh gen "<prompt>" [<filename_no_ext>] [size]
+#   generate_image.sh edit "<prompt>" "<image_path>" [<filename_no_ext>] [size]
+# Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH env var.
 # IMAGE_MODEL is read from agents.defaults.imageModel in sudoclaw.json.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
 
@@ -12,19 +12,40 @@ set -euo pipefail
 MODE="${1:-}"
 if [ "$MODE" != "gen" ] && [ "$MODE" != "edit" ]; then
   echo "Usage:" >&2
-  echo "  generate_image.sh gen \"<prompt>\" [size]" >&2
-  echo "  generate_image.sh edit \"<prompt>\" \"<image_path>\" [size]" >&2
+  echo "  generate_image.sh gen \"<prompt>\" [<filename_no_ext>] [size]" >&2
+  echo "  generate_image.sh edit \"<prompt>\" \"<image_path>\" [<filename_no_ext>] [size]" >&2
   exit 1
 fi
+
+# Helper: detect if an arg looks like a size (e.g. 1024x1024)
+is_size() { [[ "$1" =~ ^[0-9]+x[0-9]+$ ]]; }
 
 if [ "$MODE" = "gen" ]; then
   PROMPT="${2:-}"
   IMAGE_PATH=""
-  SIZE="${3:-1024x1024}"
+  # arg3: filename or size
+  ARG3="${3:-}"
+  ARG4="${4:-}"
+  if is_size "$ARG3"; then
+    FILENAME=""
+    SIZE="$ARG3"
+  else
+    FILENAME="$ARG3"
+    SIZE="${ARG4:-1024x1024}"
+  fi
 else
   PROMPT="${2:-}"
   IMAGE_PATH="${3:-}"
-  SIZE="${4:-1024x1024}"
+  # arg4: filename or size
+  ARG4="${4:-}"
+  ARG5="${5:-}"
+  if is_size "$ARG4"; then
+    FILENAME=""
+    SIZE="$ARG4"
+  else
+    FILENAME="$ARG4"
+    SIZE="${ARG5:-1024x1024}"
+  fi
 fi
 
 if [ -z "$PROMPT" ]; then
@@ -43,7 +64,7 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
 fi
 
 # Read BASE_URL, API_KEY, and IMAGE_MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${OPENCLAW_CONFIG_PATH:-}" ] && [ -f "$OPENCLAW_CONFIG_PATH" ]; then
+if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
   eval "$(python3 -c "
 import json, sys
 try:
@@ -57,7 +78,7 @@ try:
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
 except: pass
-" "$OPENCLAW_CONFIG_PATH" 2>/dev/null)"
+" "$SUDOCLAW_CONFIG_PATH" 2>/dev/null)"
 fi
 
 BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
@@ -103,13 +124,52 @@ else
   ENDPOINT="${BASE_URL}/images/edits"
   echo "[generate_image] POST $ENDPOINT (image: $IMAGE_PATH)" >&2
 
+  # Pad non-square images to a square with white background so the full image
+  # fits in the output without cropping (letterbox for landscape, pillarbox for portrait).
+  PADDED_PATH=$(python3 -c "
+import sys
+from PIL import Image
+
+src = sys.argv[1]
+img = Image.open(src)
+w, h = img.size
+
+if w == h:
+    print(src)
+    sys.exit(0)
+
+side = max(w, h)
+# Use RGBA if source has alpha, else RGB
+mode = img.mode if img.mode in ('RGBA', 'LA') else 'RGB'
+bg_color = (255, 255, 255, 0) if mode == 'RGBA' else (255, 255, 255)
+canvas = Image.new(mode, (side, side), bg_color)
+offset = ((side - w) // 2, (side - h) // 2)
+canvas.paste(img, offset)
+
+import tempfile, os
+ext = os.path.splitext(src)[1] or '.png'
+tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+# PNG preserves transparency; for JPEG use RGB
+save_fmt = 'PNG' if mode == 'RGBA' else None
+canvas.save(tmp.name, format=save_fmt)
+print(tmp.name)
+" "$IMAGE_PATH")
+
+  CLEANUP_PADDED=""
+  if [ "$PADDED_PATH" != "$IMAGE_PATH" ]; then
+    echo "[generate_image] Padded non-square image to square: $PADDED_PATH" >&2
+    CLEANUP_PADDED="$PADDED_PATH"
+  fi
+
   RESPONSE=$(curl -s -X POST "$ENDPOINT" \
     -H "Authorization: Bearer $API_KEY" \
-    -F "image=@${IMAGE_PATH}" \
+    -F "image=@${PADDED_PATH}" \
     -F "prompt=${PROMPT}" \
     -F "model=${MODEL}" \
     -F "n=1" \
     -F "size=${SIZE}")
+
+  [ -n "$CLEANUP_PADDED" ] && rm -f "$CLEANUP_PADDED"
 fi
 
 echo "[generate_image] Response length: ${#RESPONSE}" >&2
@@ -118,11 +178,10 @@ echo "[generate_image] Response preview: ${RESPONSE:0:200}" >&2
 # Extract image data, save to file, and print the path
 # Response is piped via stdin to avoid OS command-line arg size limits (b64 data can be 2.5MB+)
 echo "$RESPONSE" | python3 -c "
-import json, sys, base64, re, os, urllib.request
+import json, sys, base64, os, urllib.request
 
 response = json.load(sys.stdin)
-prompt = sys.argv[1]
-size = sys.argv[2]
+filename_stem = sys.argv[1]  # may be empty string
 
 # Check for error
 if 'error' in response:
@@ -156,9 +215,13 @@ if image_bytes[:3] == b'\xff\xd8\xff':
 elif image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
     ext = 'webp'
 
-# Build meaningful filename from prompt
-slug = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fff]+', '_', prompt).strip('_')[:40].rstrip('_')
-filename = f'{slug}_{size}.{ext}'
+if filename_stem:
+    dirpart = os.path.dirname(filename_stem)
+    if dirpart:
+        os.makedirs(dirpart, exist_ok=True)
+    filename = f'{filename_stem}.{ext}'
+else:
+    filename = f'image.{ext}'
 
 # Avoid overwriting
 if os.path.exists(filename):
@@ -173,4 +236,4 @@ with open(filename, 'wb') as f:
 
 print(f'[generate_image] Saved: {filename} ({len(image_bytes)} bytes)', file=sys.stderr)
 print(filename)
-" "$PROMPT" "$SIZE"
+" "$FILENAME"

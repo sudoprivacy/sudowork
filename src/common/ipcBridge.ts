@@ -494,7 +494,7 @@ export type SudoclawProvider = {
 };
 export type SudoclawConfig = {
   lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[]; image?: string }; models?: Record<string, { alias?: string }> } };
+  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string | { primary?: string }; models?: Record<string, { alias?: string }> } };
   models?: {
     mode?: 'merge' | 'replace';
     providers?: Record<string, SudoclawProvider>;

@@ -36,17 +36,25 @@ Trigger this skill when the user asks to:
 ### Step 3: Run the image generation script
 
 **For generation (new image):**
-```bash
-bash scripts/generate_image.sh gen "<prompt>" [size]
-```
+
+1.  **Choose output path stem** (no extension): a concise name (e.g. `white_cat`). If the user specifies a location, use that path. Otherwise use just the filename stem — the script saves relative to the workspace (CWD).
+2.  **Execute**:
+    ```bash
+    bash scripts/generate_image.sh gen "<prompt>" "<filepath_no_ext>" [size]
+    ```
 
 **For editing (modify existing image):**
-```bash
-bash scripts/generate_image.sh edit "<prompt>" "<image_path>" [size]
-```
+
+1.  **Choose output path stem** (no extension): use the source filename with a timestamp (e.g. `abc_1712123456`). If the user specifies a location, use that path. Otherwise use just the filename stem — the script saves relative to the workspace (CWD).
+2.  **Execute**:
+    ```bash
+    bash scripts/generate_image.sh edit "<prompt>" "<image_path>" "<filepath_no_ext>" [size]
+    ```
+
+The script appends the correct extension (`.png`, `.jpg`, `.webp`) based on the output image data.
 
 - `size` is optional, defaults to `1024x1024`. Common sizes: `1024x1024`, `1024x1536`, `1536x1024`.
-- The script reads API credentials and image model from `sudoclaw.json` via `OPENCLAW_CONFIG_PATH`. No manual configuration needed.
+- The script reads API credentials and image model from `sudoclaw.json` via `SUDOCLAW_CONFIG_PATH`. No manual configuration needed.
 - The image model is read from `sudoclaw.json` (set via Tools settings). If not configured, the script will report an error asking the user to set the image model in Tools settings.
 
 The script prints the saved image file path on success, or an error message on failure.
