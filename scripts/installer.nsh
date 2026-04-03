@@ -96,7 +96,13 @@ Function shortcutOptionsPageCreate
   IfSilent 0 +2
     Abort
 
-  !insertmacro MUI_HEADER_TEXT "选择附加任务" "选择安装过程中要执行的附加任务。"
+  ; Set header text directly via SendMessage (avoids MUI_HEADER_TEXT macro
+  ; which may not be available when electron-builder compiles the custom script).
+  ; Control IDs: 1037 = header title, 1038 = header subtitle. WM_SETTEXT = 0x000C.
+  GetDlgItem $0 $HWNDPARENT 1037
+  SendMessage $0 0x000C 0 "STR:选择附加任务"
+  GetDlgItem $0 $HWNDPARENT 1038
+  SendMessage $0 0x000C 0 "STR:选择安装过程中要执行的附加任务。"
 
   nsDialogs::Create 1018
   Pop $0
