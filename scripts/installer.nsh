@@ -4,6 +4,7 @@
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 ; - Keeps Cancel button enabled during installation
+; - Provides shortcut options page for desktop and start menu shortcuts
 
 !include "x64.nsh"
 
@@ -20,6 +21,13 @@
   Var /GLOBAL tosPage.Dialog
   Var /GLOBAL tosPage.Checkbox
   Var /GLOBAL tosPage.TextBox
+
+  ; Variables for the Shortcut Options page
+  Var /GLOBAL shortcutPage.Dialog
+  Var /GLOBAL shortcutPage.DesktopCheckbox
+  Var /GLOBAL shortcutPage.StartMenuCheckbox
+  Var /GLOBAL createDesktopShortcutChoice
+  Var /GLOBAL createStartMenuShortcutChoice
 
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
@@ -83,6 +91,9 @@
 !macro customPageAfterChangeDir
   ; Insert the Terms of Service / Privacy Policy agreement page
   Page custom tosPageCreate tosPageLeave
+
+  ; Insert the Shortcut Options page (desktop shortcut + start menu shortcut)
+  Page custom shortcutPageCreate shortcutPageLeave
 
   ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
@@ -207,6 +218,49 @@ Function tosPageLeave
   ${EndIf}
 FunctionEnd
 
+; ========================================
+; Shortcut Options Page
+; ========================================
+; Allows the user to choose whether to create desktop and start menu shortcuts.
+; Both checkboxes are checked by default.
+
+Function shortcutPageCreate
+  !insertmacro MUI_HEADER_TEXT "快捷方式设置" "选择要创建的快捷方式"
+
+  nsDialogs::Create 1018
+  Pop $shortcutPage.Dialog
+  ${If} $shortcutPage.Dialog == error
+    Abort
+  ${EndIf}
+
+  ; --- Description label ---
+  ${NSD_CreateLabel} 0 0 100% 20u "请选择安装过程中需要创建的快捷方式："
+  Pop $0
+  CreateFont $1 "Microsoft YaHei" 9
+  SendMessage $0 ${WM_SETFONT} $1 1
+
+  ; --- Desktop shortcut checkbox (checked by default) ---
+  ${NSD_CreateCheckbox} 10u 30u 100% 14u "创建桌面快捷方式(&D)"
+  Pop $shortcutPage.DesktopCheckbox
+  CreateFont $2 "Microsoft YaHei" 9
+  SendMessage $shortcutPage.DesktopCheckbox ${WM_SETFONT} $2 1
+  ${NSD_Check} $shortcutPage.DesktopCheckbox
+
+  ; --- Start menu shortcut checkbox (checked by default) ---
+  ${NSD_CreateCheckbox} 10u 50u 100% 14u "创建开始菜单快捷方式(&S)"
+  Pop $shortcutPage.StartMenuCheckbox
+  SendMessage $shortcutPage.StartMenuCheckbox ${WM_SETFONT} $2 1
+  ${NSD_Check} $shortcutPage.StartMenuCheckbox
+
+  nsDialogs::Show
+FunctionEnd
+
+Function shortcutPageLeave
+  ; Store user's choices for later use in customInstall
+  ${NSD_GetState} $shortcutPage.DesktopCheckbox $createDesktopShortcutChoice
+  ${NSD_GetState} $shortcutPage.StartMenuCheckbox $createStartMenuShortcutChoice
+FunctionEnd
+
 Function instFilesShow
   ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
   GetDlgItem $0 $hwndParent 2
@@ -219,6 +273,25 @@ FunctionEnd
 ; ========================================
 !macro customInstall
   DetailPrint "Runtime components will be installed by Sudowork on first launch."
+
+  ; --- Remove shortcuts if user opted out ---
+  ; electron-builder creates shortcuts by default (createDesktopShortcut: true,
+  ; createStartMenuShortcut: true in electron-builder.yml). We remove them here
+  ; if the user unchecked the corresponding option on the Shortcut Options page.
+  ${If} $createDesktopShortcutChoice != ${BST_CHECKED}
+    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
+    DetailPrint "Skipped desktop shortcut per user preference."
+  ${EndIf}
+
+  ${If} $createStartMenuShortcutChoice != ${BST_CHECKED}
+    !ifdef MENU_FILENAME
+      Delete "$SMPROGRAMS\${MENU_FILENAME}\${SHORTCUT_NAME}.lnk"
+      RMDir "$SMPROGRAMS\${MENU_FILENAME}"
+    !else
+      Delete "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
+    !endif
+    DetailPrint "Skipped start menu shortcut per user preference."
+  ${EndIf}
 
   ; Generate install manifest by scanning $INSTDIR after installation completes.
   ; This records every top-level file/directory so the uninstaller knows what to remove.
