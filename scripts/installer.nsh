@@ -13,6 +13,9 @@
 ; ========================================
 !macro customHeader
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
+  ; Suppress warning 6030 (LangString set multiple times) since we intentionally
+  ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
+  !pragma warning disable 6030
   LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "欢迎使用 $(^NameDA) 卸载向导"
   LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_SIMPCHINESE} \
     "此向导将引导你卸载 $(^NameDA)。$\r$\n$\r$\n\
@@ -31,6 +34,7 @@
     "要完成 $(^NameDA) 的卸载，必须重新启动你的电脑。你想现在重新启动吗？"
   LangString MUI_UNTEXT_ABORT_TITLE ${LANG_SIMPCHINESE} "卸载已中止"
   LangString MUI_UNTEXT_ABORT_SUBTITLE ${LANG_SIMPCHINESE} "卸载未能完成。"
+  !pragma warning enable 6030
 !macroend
 
 ; ========================================
