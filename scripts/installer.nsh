@@ -18,11 +18,12 @@
   Var /GLOBAL deleteNexusData
 
   ; Variables for the Terms of Service / Privacy Policy agreement page
-  ; and Shortcut Options page — only needed during the installer pass.
-  ; Guard with !ifndef BUILD_UNINSTALLER to avoid NSIS warning 6001
-  ; ("Variable not referenced") during the uninstaller compilation pass,
-  ; since the functions that use these variables are also installer-only.
-  !ifndef BUILD_UNINSTALLER
+  ; and Shortcut Options page — only used during the installer pass,
+  ; but declared globally (both passes) so that any macro expansion
+  ; referencing them doesn't fail with "Pop $(user_var: output)".
+  ; Suppress warning 6001 ("Variable not referenced") for the uninstaller
+  ; pass where these variables are declared but unused.
+  !pragma warning disable 6001
   Var /GLOBAL tosPage.Dialog
   Var /GLOBAL tosPage.Checkbox
   Var /GLOBAL tosPage.TextBox
@@ -33,7 +34,7 @@
   Var /GLOBAL shortcutPage.StartMenuCheckbox
   Var /GLOBAL createDesktopShortcutChoice
   Var /GLOBAL createStartMenuShortcutChoice
-  !endif
+  !pragma warning enable 6001
 
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
