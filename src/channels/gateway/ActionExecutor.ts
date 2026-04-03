@@ -268,6 +268,13 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  /**
+   * Per-conversation mutex to serialize message processing.
+   * Prevents concurrent AI generations on the same conversation (e.g., from Feishu retries).
+   * Each entry holds a Promise that resolves when the current message finishes processing.
+   */
+  private conversationLocks: Map<string, Promise<void>> = new Map();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -512,7 +519,12 @@ export class ActionExecutor {
   }
 
   /**
-   * Handle chat message - send to AI and stream response
+   * Handle chat message - send to AI and stream response.
+   *
+   * Uses a per-conversation mutex to serialize processing:
+   * 1. "⏳ Thinking..." is sent IMMEDIATELY so the user always sees acknowledgment.
+   * 2. If a previous message is still being processed, we wait for it to finish
+   *    before starting AI generation — prevents concurrent stream overwrites.
    */
   private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
     // Update session activity (scoped by chatId)
@@ -520,7 +532,8 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
-    // Send "thinking" indicator (skip for platforms that don't support editing)
+    // Send "thinking" indicator IMMEDIATELY (before acquiring lock)
+    // This ensures the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
     if (supportsEdit) {
@@ -530,6 +543,25 @@ export class ActionExecutor {
         parseMode: 'HTML',
       });
     }
+
+    // Per-conversation mutex: wait for any previous message to finish processing.
+    // This prevents concurrent AI generations that cause stream overwrites and hung promises.
+    const conversationId = context.conversationId || context.chatId;
+    const previousLock = this.conversationLocks.get(conversationId);
+    if (previousLock) {
+      try {
+        await previousLock;
+      } catch {
+        // Ignore errors from previous message processing
+      }
+    }
+
+    // Create a new lock for this message
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.conversationLocks.set(conversationId, lockPromise);
 
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
@@ -716,6 +748,12 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release per-conversation lock so the next queued message can proceed
+      releaseLock!();
+      if (this.conversationLocks.get(conversationId) === lockPromise) {
+        this.conversationLocks.delete(conversationId);
+      }
+
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }
