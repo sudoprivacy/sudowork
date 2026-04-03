@@ -14,12 +14,7 @@
 ; ========================================
 !macro customHeader
   ; Variable to store user's choice on whether to delete user data (~/.nexus/)
-  ; Suppress warning 6001 (variable not referenced) because this variable is only
-  ; used in the uninstaller pass (customUnInstall / customRemoveFiles), but Var /GLOBAL
-  ; must be declared unconditionally in customHeader.
-  !pragma warning disable 6001
   Var /GLOBAL deleteNexusData
-  !pragma warning enable 6001
 
   ; Variables for the Terms of Service / Privacy Policy agreement page
   Var /GLOBAL tosPage.Dialog
