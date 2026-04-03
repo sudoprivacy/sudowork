@@ -324,27 +324,27 @@ export class LarkPlugin extends BasePlugin {
   private setupEventHandlers(): void {
     if (!this.eventDispatcher) return;
 
-    // Register event handlers on the EventDispatcher
+    // Register event handlers on the EventDispatcher.
+    // IMPORTANT: All handlers use fire-and-forget (void) instead of await.
+    // Lark WebSocket requires the handler to return within ~3 seconds.
+    // AI generation takes 10-30s, so awaiting here blocks the WebSocket
+    // event loop and causes Feishu to consider the connection dead, leading
+    // to retries and eventual permanent hang.
     this.eventDispatcher.register({
-      // Handle incoming messages
+      // Handle incoming messages — fire-and-forget
       'im.message.receive_v1': async (data: Record<string, unknown>) => {
-        await this.handleMessageEvent({ event: data });
+        void this.handleMessageEvent({ event: data });
       },
 
-      // Handle card action callbacks (button clicks)
-      // Event name: card.action.trigger
+      // Handle card action callbacks (button clicks) — fire-and-forget
       'card.action.trigger': async (data: Record<string, unknown>) => {
-        // Don't await - process in background to avoid 200340 timeout
-        // Lark requires immediate response within 3 seconds
         void this.handleCardAction({ event: data });
-        // Return immediately to acknowledge the callback
         return {};
       },
 
-      // Handle bot menu clicks (custom menu in chat)
-      // Event name: application.bot.menu_v6
+      // Handle bot menu clicks (custom menu in chat) — fire-and-forget
       'application.bot.menu_v6': async (data: Record<string, unknown>) => {
-        await this.handleBotMenuEvent({ event: data });
+        void this.handleBotMenuEvent({ event: data });
       },
     });
   }

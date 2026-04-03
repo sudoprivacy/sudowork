@@ -16,8 +16,10 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
  */
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
-/** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+/** Maximum time (ms) to wait for a stream to complete before auto-cleaning.
+ *  Reduced from 5 minutes to 2 minutes for faster recovery from hung streams,
+ *  which is especially important for Feishu where retries compound quickly. */
+const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
  * 消息流状态
@@ -194,9 +196,11 @@ export class ChannelMessageService {
     return new Promise((resolve, reject) => {
       // Auto-clean stream if no finish event arrives within the timeout.
       // This prevents hung promises when an agent crashes mid-stream.
+      // The ownership check (staleStream.msgId === msgId) prevents a race
+      // where a new stream has already replaced this one for the same conversation.
       const timeoutTimer = setTimeout(() => {
         const staleStream = this.activeStreams.get(conversationId);
-        if (staleStream) {
+        if (staleStream && staleStream.msgId === msgId) {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
@@ -227,6 +231,7 @@ export class ChannelMessageService {
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
         clearTimeout(timeoutTimer);
         this.activeStreams.delete(conversationId);
+        this.messageListMap.delete(conversationId);
         reject(error);
       });
     });

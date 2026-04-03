@@ -7,7 +7,9 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { uuid } from '@/common/utils';
 import { getDatabase } from '@/process/database';
+import { addMessage } from '@/process/message';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
@@ -268,6 +270,10 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  // Busy guard: tracks conversations with an active AI generation in progress.
+  // Prevents concurrent generations when Feishu retries messages (3s webhook timeout).
+  private busyConversations: Set<string> = new Set();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -515,9 +521,54 @@ export class ActionExecutor {
    * Handle chat message - send to AI and stream response
    */
   private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+    const conversationId = context.conversationId;
+
+    // ── Busy guard ──────────────────────────────────────────────────────
+    // If this conversation already has an active AI generation, return a
+    // "still processing" message instead of starting a second one.
+    // This prevents Feishu 3-second webhook retries from spawning parallel
+    // generations that race on the SQLite database.
+    if (conversationId && this.busyConversations.has(conversationId)) {
+      console.log(`[ActionExecutor] Conversation ${conversationId} is busy, skipping duplicate request`);
+      try {
+        await context.sendMessage({
+          type: 'text',
+          text: '⏳ Still processing your previous message, please wait...',
+          parseMode: 'HTML',
+        });
+      } catch {
+        // Ignore send errors for busy response
+      }
+      return;
+    }
+
+    if (conversationId) {
+      this.busyConversations.add(conversationId);
+    }
+
     // Update session activity (scoped by chatId)
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
+    }
+
+    // ── Persist user message to database ────────────────────────────────
+    // Save the user's question immediately so it appears in the desktop
+    // session UI (position: 'right' = sender side).
+    if (conversationId) {
+      try {
+        const userMessage: TMessage = {
+          type: 'text',
+          id: uuid(),
+          conversation_id: conversationId,
+          content: { content: text },
+          position: 'right',
+          status: 'finish',
+        };
+        addMessage(conversationId, userMessage);
+      } catch (error) {
+        console.error(`[ActionExecutor] Failed to persist user message:`, error);
+        // Non-fatal – continue with AI generation even if persistence fails
+      }
     }
 
     // Send "thinking" indicator (skip for platforms that don't support editing)
@@ -716,6 +767,10 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release busy guard so the next message can be processed
+      if (conversationId) {
+        this.busyConversations.delete(conversationId);
+      }
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }
