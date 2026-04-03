@@ -9,7 +9,7 @@ import { ipcBridge } from '@/common';
 import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Spin, Message, Input, Progress, Modal, Popconfirm } from '@arco-design/web-react';
+import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch } from '@arco-design/web-react';
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -195,16 +195,12 @@ const InstalledSkillCard: React.FC<{
               e.stopPropagation();
             }}
           >
-            <button type='button' className={classNames('h-20px min-w-48px px-6px rd-full border-none flex items-center justify-center gap-4px text-10px font-medium transition-colors cursor-pointer', isEnabled ? 'bg-primary text-white shadow-sm' : 'bg-fill-3 text-t-secondary')} onClick={() => onToggleEnabled?.(!isEnabled)} disabled={togglingEnabled}>
-              {togglingEnabled ? (
-                <Spin size={10} />
-              ) : (
-                <>
-                  <span className={classNames('w-5px h-5px rd-full flex-shrink-0', isEnabled ? 'bg-white/90' : 'bg-t-secondary')} />
-                  <span>{isEnabled ? t('settings.skill.enableToggle', { defaultValue: '启用' }) : t('settings.agentDisabled', { defaultValue: '已禁用' })}</span>
-                </>
-              )}
-            </button>
+            <Switch
+              size='small'
+              checked={isEnabled}
+              loading={togglingEnabled}
+              onChange={(checked) => onToggleEnabled?.(checked)}
+            />
           </div>
         )}
       </div>
