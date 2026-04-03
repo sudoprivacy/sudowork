@@ -28,6 +28,22 @@ export const LARK_MESSAGE_LIMIT = 4000;
 /**
  * Lark message event structure
  */
+/**
+ * Lark message mention structure
+ * When users @mention others in Feishu, the message text contains placeholders like @_user_1,
+ * and a mentions array maps these keys to actual user info.
+ */
+interface LarkMention {
+  key?: string; // e.g., "@_user_1"
+  id?: {
+    open_id?: string;
+    user_id?: string;
+    union_id?: string;
+  };
+  name?: string; // Display name, e.g., "吕洋洋"
+  tenant_key?: string;
+}
+
 interface LarkMessageEvent {
   event?: {
     message?: {
@@ -37,6 +53,7 @@ interface LarkMessageEvent {
       content?: string;
       message_type?: string;
       create_time?: string;
+      mentions?: LarkMention[];
     };
     sender?: {
       sender_id?: {
@@ -115,7 +132,7 @@ export function toUnifiedIncomingMessage(event: LarkMessageEvent | LarkCardActio
   const user = toUnifiedUser(sender);
   if (!user) return null;
 
-  const content = extractMessageContent(message);
+  const content = extractMessageContent(message, message.mentions);
 
   return {
     id: message.message_id || Date.now().toString(),
@@ -144,9 +161,30 @@ export function toUnifiedUser(sender: LarkMessageEvent['event']['sender']): IUni
 }
 
 /**
+ * Replace @_user_xx mention placeholders in text with actual display names.
+ * Only replaces keys that are confirmed in the mentions list (strict matching).
+ * This is for incoming messages only — agent responses should NOT have mentions replaced.
+ */
+function replaceMentionPlaceholders(text: string, mentions?: LarkMention[]): string {
+  if (!text || !mentions || mentions.length === 0) {
+    return text;
+  }
+
+  let result = text;
+  for (const mention of mentions) {
+    if (mention.key && mention.name) {
+      // Strict replacement: only replace the exact mention key from the mentions list
+      // Use replaceAll to handle multiple occurrences of the same mention
+      result = result.split(mention.key).join(`@${mention.name}`);
+    }
+  }
+  return result;
+}
+
+/**
  * Extract message content from Lark message
  */
-function extractMessageContent(message: LarkMessageEvent['event']['message']): IUnifiedMessageContent {
+function extractMessageContent(message: LarkMessageEvent['event']['message'], mentions?: LarkMention[]): IUnifiedMessageContent {
   if (!message) {
     return { type: 'text', text: '' };
   }
@@ -161,11 +199,15 @@ function extractMessageContent(message: LarkMessageEvent['event']['message']): I
   }
 
   switch (messageType) {
-    case 'text':
+    case 'text': {
+      let text = typeof content === 'object' ? (content as any).text || '' : String(content);
+      // Replace @_user_xx placeholders with actual display names from mentions list
+      text = replaceMentionPlaceholders(text, mentions);
       return {
         type: 'text',
-        text: typeof content === 'object' ? (content as any).text || '' : String(content),
+        text,
       };
+    }
 
     case 'image':
       return {
