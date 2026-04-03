@@ -3,6 +3,7 @@
 ; - Replaces default "RMDir /r $INSTDIR" with manifest-based file removal
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
+; - Keeps Cancel button enabled during installation
 
 !include "x64.nsh"
 
@@ -50,6 +51,30 @@
 !macroend
 
 ; ========================================
+; Keep Cancel button enabled on the INSTFILES page
+; ========================================
+; The customPageAfterChangeDir macro is expanded by assistedInstaller.nsh
+; right before !insertmacro MUI_PAGE_INSTFILES, so any MUI_PAGE_CUSTOMFUNCTION_*
+; defines set here will apply to the INSTFILES page.
+;
+; Guard with !ifndef BUILD_UNINSTALLER because electron-builder runs makensis
+; twice: once for the uninstaller (BUILD_UNINSTALLER defined) and once for the
+; installer.  During the uninstaller pass assistedInstaller.nsh skips the
+; install-page section, so customPageAfterChangeDir is never expanded and the
+; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
+!ifndef BUILD_UNINSTALLER
+!macro customPageAfterChangeDir
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
+!macroend
+
+Function instFilesShow
+  ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
+  GetDlgItem $0 $hwndParent 2
+  EnableWindow $0 1
+FunctionEnd
+!endif
+
+; ========================================
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall
@@ -86,6 +111,13 @@
 
   _ci_end:
 !macroend
+
+; ========================================
+; Auto-launch after installation
+; ========================================
+Function .onInstSuccess
+  Exec '"$INSTDIR\Sudowork.exe"'
+FunctionEnd
 
 ; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
