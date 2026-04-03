@@ -17,7 +17,7 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
 /** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
  * 消息流状态
@@ -192,11 +192,23 @@ export class ChannelMessageService {
     }
 
     return new Promise((resolve, reject) => {
+      // Clean up any existing stream for this conversation before registering a new one.
+      // This prevents hung promises when messages arrive while a previous one is still processing
+      // (e.g., Feishu retries or rapid user messages). Without this, the old stream's resolve/reject
+      // are lost and its Promise hangs forever until the 2-minute timeout.
+      const existingStream = this.activeStreams.get(conversationId);
+      if (existingStream) {
+        console.warn(`[ChannelMessageService] Cleaning up existing stream for conversation ${conversationId} (msgId: ${existingStream.msgId})`);
+        clearTimeout(existingStream.timeoutTimer);
+        this.messageListMap.delete(conversationId);
+        existingStream.resolve(existingStream.msgId); // Resolve (not reject) so caller cleanup runs normally
+      }
+
       // Auto-clean stream if no finish event arrives within the timeout.
       // This prevents hung promises when an agent crashes mid-stream.
       const timeoutTimer = setTimeout(() => {
         const staleStream = this.activeStreams.get(conversationId);
-        if (staleStream) {
+        if (staleStream && staleStream.msgId === msgId) {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
@@ -227,6 +239,7 @@ export class ChannelMessageService {
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
         clearTimeout(timeoutTimer);
         this.activeStreams.delete(conversationId);
+        this.messageListMap.delete(conversationId);
         reject(error);
       });
     });

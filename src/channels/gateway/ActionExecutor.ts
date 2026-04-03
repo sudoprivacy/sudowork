@@ -268,6 +268,16 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  /**
+   * Busy guard: tracks conversations with active AI generation.
+   * Maps conversationId -> timestamp when generation started.
+   * Prevents concurrent processing of messages for the same conversation,
+   * which causes stream overwrites, hung promises, and "database is locked" errors.
+   * Auto-expires after BUSY_GUARD_TIMEOUT_MS to prevent permanent lockout.
+   */
+  private busyConversations: Map<string, number> = new Map();
+  private static readonly BUSY_GUARD_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -520,6 +530,24 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
+    const conversationId = context.conversationId;
+
+    // Busy guard: prevent concurrent AI generations for the same conversation.
+    // Without this, Feishu retries (3s timeout) and rapid messages cause stream overwrites
+    // in ChannelMessageService, leading to hung promises and unresponsive conversations.
+    if (conversationId) {
+      const busyStart = this.busyConversations.get(conversationId);
+      if (busyStart && (Date.now() - busyStart) < ActionExecutor.BUSY_GUARD_TIMEOUT_MS) {
+        console.warn(`[ActionExecutor] Conversation ${conversationId} is busy (started ${Math.round((Date.now() - busyStart) / 1000)}s ago), skipping message`);
+        await context.sendMessage({
+          type: 'text',
+          text: '⏳ Still processing your previous message, please wait...',
+          parseMode: 'HTML',
+        });
+        return;
+      }
+    }
+
     // Send "thinking" indicator (skip for platforms that don't support editing)
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
@@ -534,9 +562,13 @@ export class ActionExecutor {
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
 
+    // Mark conversation as busy AFTER sending "thinking" indicator
+    if (conversationId) {
+      this.busyConversations.set(conversationId, Date.now());
+    }
+
     try {
       const sessionId = context.sessionId;
-      const conversationId = context.conversationId;
 
       if (!sessionId || !conversationId) {
         throw new Error('Session not initialized');
@@ -716,6 +748,10 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release busy guard so the conversation can accept new messages
+      if (conversationId) {
+        this.busyConversations.delete(conversationId);
+      }
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }
