@@ -93,50 +93,52 @@
 ; installer.  During the uninstaller pass assistedInstaller.nsh skips the
 ; install-page section, so customPageAfterChangeDir is never expanded and the
 ; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
+; ========================================
+; Custom pages and installer-only functions
+; ========================================
+; All installer-only Functions are defined INSIDE the customPageAfterChangeDir
+; macro so they are compiled when the macro is expanded by assistedInstaller.nsh
+; — which happens AFTER MUI2.nsh is loaded. This ensures MUI_HEADER_TEXT and
+; other MUI2 macros are available.
+;
+; electron-builder prepends the custom script's !include BEFORE the main
+; installer.nsi template (which loads MUI2.nsh). Functions defined at file
+; scope would be compiled before MUI2 is loaded → "macro not found" error.
 !ifndef BUILD_UNINSTALLER
 !macro customPageAfterChangeDir
-  ; Insert the Terms of Service / Privacy Policy agreement page
-  Page custom tosPageCreate tosPageLeave
 
-  ; Insert the Shortcut Options page (desktop shortcut + start menu shortcut)
-  Page custom shortcutPageCreate shortcutPageLeave
+  ; ========================================
+  ; Terms of Service / Privacy Policy Agreement Page
+  ; ========================================
+  ; Displays embedded ToS and Privacy content in a scrollable text area.
+  ; The user must check the agreement checkbox before proceeding.
 
-  ; Keep Cancel button enabled during installation
-  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
-!macroend
+  Function tosPageCreate
+    !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
 
-; ========================================
-; Terms of Service / Privacy Policy Agreement Page
-; ========================================
-; Displays embedded ToS and Privacy content in a scrollable text area.
-; The user must check the agreement checkbox before proceeding.
+    nsDialogs::Create 1018
+    Pop $tosPage.Dialog
+    ${If} $tosPage.Dialog == error
+      Abort
+    ${EndIf}
 
-Function tosPageCreate
-  !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
+    ; --- Description label ---
+    ${NSD_CreateLabel} 0 0 100% 16u "请仔细阅读以下服务条款和隐私协议："
+    Pop $0
+    CreateFont $1 "Microsoft YaHei" 9
+    SendMessage $0 ${WM_SETFONT} $1 1
 
-  nsDialogs::Create 1018
-  Pop $tosPage.Dialog
-  ${If} $tosPage.Dialog == error
-    Abort
-  ${EndIf}
+    ; --- Scrollable read-only text area with embedded ToS + Privacy content ---
+    nsDialogs::CreateControl "RichEdit20A" \
+      ${WS_VISIBLE}|${WS_CHILD}|${WS_VSCROLL}|${WS_TABSTOP}|${WS_BORDER}|${ES_MULTILINE}|${ES_READONLY}|${ES_WANTRETURN} \
+      ${WS_EX_STATICEDGE} \
+      0 18u 100% 94u ""
+    Pop $tosPage.TextBox
+    SendMessage $tosPage.TextBox ${WM_SETFONT} $1 1
 
-  ; --- Description label ---
-  ${NSD_CreateLabel} 0 0 100% 16u "请仔细阅读以下服务条款和隐私协议："
-  Pop $0
-  CreateFont $1 "Microsoft YaHei" 9
-  SendMessage $0 ${WM_SETFONT} $1 1
-
-  ; --- Scrollable read-only text area with embedded ToS + Privacy content ---
-  nsDialogs::CreateControl "RichEdit20A" \
-    ${WS_VISIBLE}|${WS_CHILD}|${WS_VSCROLL}|${WS_TABSTOP}|${WS_BORDER}|${ES_MULTILINE}|${ES_READONLY}|${ES_WANTRETURN} \
-    ${WS_EX_STATICEDGE} \
-    0 18u 100% 94u ""
-  Pop $tosPage.TextBox
-  SendMessage $tosPage.TextBox ${WM_SETFONT} $1 1
-
-  ; Set the embedded legal text content
-  ${NSD_SetText} $tosPage.TextBox \
-    "【服务条款】$\r$\n\
+    ; Set the embedded legal text content
+    ${NSD_SetText} $tosPage.TextBox \
+      "【服务条款】$\r$\n\
 $\r$\n\
 欢迎使用 Sudowork（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
 $\r$\n\
@@ -190,88 +192,98 @@ $\r$\n\
 我们可能适时更新本隐私协议。更新后的协议将通过软件通知或官方网站公布。$\r$\n\
 "
 
-  ; --- Agreement checkbox ---
-  ${NSD_CreateCheckbox} 0 116u 100% 12u "我已阅读并同意上述服务条款和隐私协议"
-  Pop $tosPage.Checkbox
-  CreateFont $2 "Microsoft YaHei" 9 700
-  SendMessage $tosPage.Checkbox ${WM_SETFONT} $2 1
-  ${NSD_OnClick} $tosPage.Checkbox tosPageCheckboxClick
+    ; --- Agreement checkbox ---
+    ${NSD_CreateCheckbox} 0 116u 100% 12u "我已阅读并同意上述服务条款和隐私协议"
+    Pop $tosPage.Checkbox
+    CreateFont $2 "Microsoft YaHei" 9 700
+    SendMessage $tosPage.Checkbox ${WM_SETFONT} $2 1
+    ${NSD_OnClick} $tosPage.Checkbox tosPageCheckboxClick
 
-  ; Disable the "Next" button until the checkbox is checked
-  GetDlgItem $0 $HWNDPARENT 1
-  EnableWindow $0 0
+    ; Disable the "Next" button until the checkbox is checked
+    GetDlgItem $0 $HWNDPARENT 1
+    EnableWindow $0 0
 
-  nsDialogs::Show
-FunctionEnd
+    nsDialogs::Show
+  FunctionEnd
 
-Function tosPageCheckboxClick
-  ; Toggle Next button based on checkbox state
-  ${NSD_GetState} $tosPage.Checkbox $0
-  GetDlgItem $1 $HWNDPARENT 1
-  ${If} $0 == ${BST_CHECKED}
-    EnableWindow $1 1
-  ${Else}
-    EnableWindow $1 0
-  ${EndIf}
-FunctionEnd
+  Function tosPageCheckboxClick
+    ; Toggle Next button based on checkbox state
+    ${NSD_GetState} $tosPage.Checkbox $0
+    GetDlgItem $1 $HWNDPARENT 1
+    ${If} $0 == ${BST_CHECKED}
+      EnableWindow $1 1
+    ${Else}
+      EnableWindow $1 0
+    ${EndIf}
+  FunctionEnd
 
-Function tosPageLeave
-  ; Final validation: ensure checkbox is checked before allowing navigation
-  ${NSD_GetState} $tosPage.Checkbox $0
-  ${If} $0 != ${BST_CHECKED}
-    MessageBox MB_OK|MB_ICONEXCLAMATION "请先勾选「我已阅读并同意上述服务条款和隐私协议」后再继续。"
-    Abort
-  ${EndIf}
-FunctionEnd
+  Function tosPageLeave
+    ; Final validation: ensure checkbox is checked before allowing navigation
+    ${NSD_GetState} $tosPage.Checkbox $0
+    ${If} $0 != ${BST_CHECKED}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "请先勾选「我已阅读并同意上述服务条款和隐私协议」后再继续。"
+      Abort
+    ${EndIf}
+  FunctionEnd
 
-; ========================================
-; Shortcut Options Page
-; ========================================
-; Allows the user to choose whether to create desktop and start menu shortcuts.
-; Both checkboxes are checked by default.
+  ; ========================================
+  ; Shortcut Options Page
+  ; ========================================
+  ; Allows the user to choose whether to create desktop and start menu shortcuts.
+  ; Both checkboxes are checked by default.
 
-Function shortcutPageCreate
-  !insertmacro MUI_HEADER_TEXT "快捷方式设置" "选择要创建的快捷方式"
+  Function shortcutPageCreate
+    !insertmacro MUI_HEADER_TEXT "快捷方式设置" "选择要创建的快捷方式"
 
-  nsDialogs::Create 1018
-  Pop $shortcutPage.Dialog
-  ${If} $shortcutPage.Dialog == error
-    Abort
-  ${EndIf}
+    nsDialogs::Create 1018
+    Pop $shortcutPage.Dialog
+    ${If} $shortcutPage.Dialog == error
+      Abort
+    ${EndIf}
 
-  ; --- Description label ---
-  ${NSD_CreateLabel} 0 0 100% 20u "请选择安装过程中需要创建的快捷方式："
-  Pop $0
-  CreateFont $1 "Microsoft YaHei" 9
-  SendMessage $0 ${WM_SETFONT} $1 1
+    ; --- Description label ---
+    ${NSD_CreateLabel} 0 0 100% 20u "请选择安装过程中需要创建的快捷方式："
+    Pop $0
+    CreateFont $1 "Microsoft YaHei" 9
+    SendMessage $0 ${WM_SETFONT} $1 1
 
-  ; --- Desktop shortcut checkbox (checked by default) ---
-  ${NSD_CreateCheckbox} 10u 30u 100% 14u "创建桌面快捷方式(&D)"
-  Pop $shortcutPage.DesktopCheckbox
-  CreateFont $2 "Microsoft YaHei" 9
-  SendMessage $shortcutPage.DesktopCheckbox ${WM_SETFONT} $2 1
-  ${NSD_Check} $shortcutPage.DesktopCheckbox
+    ; --- Desktop shortcut checkbox (checked by default) ---
+    ${NSD_CreateCheckbox} 10u 30u 100% 14u "创建桌面快捷方式(&D)"
+    Pop $shortcutPage.DesktopCheckbox
+    CreateFont $2 "Microsoft YaHei" 9
+    SendMessage $shortcutPage.DesktopCheckbox ${WM_SETFONT} $2 1
+    ${NSD_Check} $shortcutPage.DesktopCheckbox
 
-  ; --- Start menu shortcut checkbox (checked by default) ---
-  ${NSD_CreateCheckbox} 10u 50u 100% 14u "创建开始菜单快捷方式(&S)"
-  Pop $shortcutPage.StartMenuCheckbox
-  SendMessage $shortcutPage.StartMenuCheckbox ${WM_SETFONT} $2 1
-  ${NSD_Check} $shortcutPage.StartMenuCheckbox
+    ; --- Start menu shortcut checkbox (checked by default) ---
+    ${NSD_CreateCheckbox} 10u 50u 100% 14u "创建开始菜单快捷方式(&S)"
+    Pop $shortcutPage.StartMenuCheckbox
+    SendMessage $shortcutPage.StartMenuCheckbox ${WM_SETFONT} $2 1
+    ${NSD_Check} $shortcutPage.StartMenuCheckbox
 
-  nsDialogs::Show
-FunctionEnd
+    nsDialogs::Show
+  FunctionEnd
 
-Function shortcutPageLeave
-  ; Store user's choices for later use in customInstall
-  ${NSD_GetState} $shortcutPage.DesktopCheckbox $createDesktopShortcutChoice
-  ${NSD_GetState} $shortcutPage.StartMenuCheckbox $createStartMenuShortcutChoice
-FunctionEnd
+  Function shortcutPageLeave
+    ; Store user's choices for later use in customInstall
+    ${NSD_GetState} $shortcutPage.DesktopCheckbox $createDesktopShortcutChoice
+    ${NSD_GetState} $shortcutPage.StartMenuCheckbox $createStartMenuShortcutChoice
+  FunctionEnd
 
-Function instFilesShow
-  ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
-  GetDlgItem $0 $hwndParent 2
-  EnableWindow $0 1
-FunctionEnd
+  Function instFilesShow
+    ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
+    GetDlgItem $0 $hwndParent 2
+    EnableWindow $0 1
+  FunctionEnd
+
+  ; Insert the Terms of Service / Privacy Policy agreement page
+  Page custom tosPageCreate tosPageLeave
+
+  ; Insert the Shortcut Options page (desktop shortcut + start menu shortcut)
+  Page custom shortcutPageCreate shortcutPageLeave
+
+  ; Keep Cancel button enabled during installation
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
+!macroend
 !endif
 
 ; ========================================
