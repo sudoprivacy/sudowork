@@ -82,6 +82,8 @@
 !ifndef BUILD_UNINSTALLER
 !macro customPageAfterChangeDir
   ; Insert the Terms of Service / Privacy Policy agreement page
+  !define MUI_PAGE_HEADER_TEXT "服务条款与隐私协议"
+  !define MUI_PAGE_HEADER_SUBTEXT "请阅读以下条款，勾选同意后继续安装"
   Page custom tosPageCreate tosPageLeave
 
   ; Keep Cancel button enabled during installation
@@ -95,8 +97,6 @@
 ; The user must check the agreement checkbox before proceeding.
 
 Function tosPageCreate
-  !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
-
   nsDialogs::Create 1018
   Pop $tosPage.Dialog
   ${If} $tosPage.Dialog == error
