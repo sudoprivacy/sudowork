@@ -163,7 +163,6 @@ nsis:
   uninstallDisplayName: ${productName}
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   include: scripts/installer.nsh
-  warningsAsErrors: false
 
 mac:
   target:
