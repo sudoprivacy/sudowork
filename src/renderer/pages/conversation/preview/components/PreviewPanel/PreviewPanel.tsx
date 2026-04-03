@@ -484,7 +484,7 @@ const PreviewPanel: React.FC = () => {
                 <span className='text-12px text-t-secondary'>{t('preview.editor')}</span>
               </div>
               <div className='flex-1 overflow-hidden'>
-                <TextEditor value={content} onChange={updateContent} />
+                <TextEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
               </div>
               {/* 拖动分割线 / Drag handle */}
               {createDragHandle({ className: 'absolute right-0 top-0 bottom-0' })}
@@ -496,7 +496,7 @@ const PreviewPanel: React.FC = () => {
                 <span className='text-12px text-t-secondary'>{t('preview.preview')}</span>
               </div>
               <div className='flex flex-col flex-1 overflow-hidden'>
-                <CodePreview content={content} language={metadata?.language} hideToolbar />
+                <CodePreview content={content} language={metadata?.language} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} />
               </div>
             </div>
           </div>
