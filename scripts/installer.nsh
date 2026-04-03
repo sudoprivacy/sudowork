@@ -10,14 +10,6 @@
 !include "nsDialogs.nsh"
 
 ; ========================================
-; Variables for shortcut option checkboxes
-; ========================================
-Var /GLOBAL desktopShortcutCheckbox
-Var /GLOBAL startMenuShortcutCheckbox
-Var /GLOBAL createDesktopShortcut
-Var /GLOBAL createStartMenuShortcut
-
-; ========================================
 ; Language overrides: Standardize Simplified Chinese uninstall terminology
 ; NSIS built-in SimpChinese strings may use "解除安装" (Traditional Chinese style).
 ; We override them to use "卸载" which is the standard Simplified Chinese term.
@@ -70,6 +62,15 @@ Var /GLOBAL createStartMenuShortcut
 ; install-page section, so customPageAfterChangeDir is never expanded and the
 ; functions would be unreferenced → NSIS warning 6010 → build error.
 !ifndef BUILD_UNINSTALLER
+
+; Variables for shortcut option checkboxes
+; Declared inside !ifndef BUILD_UNINSTALLER to avoid NSIS warning 6001
+; ("variable not referenced") during the uninstaller build pass.
+Var /GLOBAL desktopShortcutCheckbox
+Var /GLOBAL startMenuShortcutCheckbox
+Var /GLOBAL createDesktopShortcut
+Var /GLOBAL createStartMenuShortcut
+
 !macro customPageAfterChangeDir
   Page custom shortcutOptionsPageCreate shortcutOptionsPageLeave
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
