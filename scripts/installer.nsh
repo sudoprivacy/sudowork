@@ -15,6 +15,9 @@
 ; We override them to use "卸载" which is the standard Simplified Chinese term.
 ; ========================================
 !macro customHeader
+  ; Variable to store user's choice on whether to delete user data (~/.nexus/)
+  Var /GLOBAL deleteNexusData
+
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
   ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
@@ -22,6 +25,7 @@
   LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "欢迎使用 $(^NameDA) 卸载向导"
   LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_SIMPCHINESE} \
     "此向导将引导你卸载 $(^NameDA)。$\r$\n$\r$\n\
+    注意：卸载将删除安装目录中的程序文件及相关数据。$\r$\n$\r$\n\
     卸载前，请确保 $(^NameDA) 已经关闭。$\r$\n$\r$\n$_CLICK"
   LangString MUI_UNTEXT_CONFIRM_TITLE ${LANG_SIMPCHINESE} "卸载 $(^NameDA)"
   LangString MUI_UNTEXT_CONFIRM_SUBTITLE ${LANG_SIMPCHINESE} "从你的电脑中卸载 $(^NameDA)。"
@@ -37,6 +41,14 @@
     "要完成 $(^NameDA) 的卸载，必须重新启动你的电脑。你想现在重新启动吗？"
   LangString MUI_UNTEXT_ABORT_TITLE ${LANG_SIMPCHINESE} "卸载已中止"
   LangString MUI_UNTEXT_ABORT_SUBTITLE ${LANG_SIMPCHINESE} "卸载未能完成。"
+
+  ; Override NSIS base language strings that still use "解除安装"
+  ; These are separate from MUI2 strings and may show in window titles, buttons, and detail text.
+  LangString ^UninstallCaption ${LANG_SIMPCHINESE} "$(^Name) 卸载"
+  LangString ^UninstallBtn ${LANG_SIMPCHINESE} "卸载(&U)"
+  LangString ^UnSubCaption_1 ${LANG_SIMPCHINESE} ": 正在卸载文件"
+  LangString ^UninstalledText ${LANG_SIMPCHINESE} "$(^Name) 已成功从你的电脑中卸载。"
+  LangString ^UninstallText ${LANG_SIMPCHINESE} "将从以下文件夹中卸载 $(^Name)。"
   !pragma warning enable 6030
 !macroend
 
@@ -180,6 +192,28 @@ Function .onInstSuccess
 FunctionEnd
 
 ; ========================================
+; Uninstall: Prompt user about deleting user data before removal begins
+; ========================================
+; This macro runs BEFORE customRemoveFiles in the uninstall section.
+; It asks the user whether to also delete user data (~/.nexus/) and stores
+; the choice in $deleteNexusData for later use.
+!macro customUnInstall
+  StrCpy $deleteNexusData "0"
+  ${IfNot} ${Silent}
+    ${IfNot} ${isUpdated}
+      MessageBox MB_YESNO|MB_ICONQUESTION \
+        "是否同时删除用户数据（配置文件等）？$\r$\n$\r$\n\
+        选择「是」将删除 $PROFILE\.nexus 目录中的所有用户配置和数据。$\r$\n\
+        选择「否」将保留用户数据，仅卸载程序文件。" \
+        IDYES _cuu_yes IDNO _cuu_end
+      _cuu_yes:
+        StrCpy $deleteNexusData "1"
+      _cuu_end:
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
 ; ========================================
 ; IMPORTANT: This macro REPLACES electron-builder's default file removal.
@@ -260,4 +294,10 @@ FunctionEnd
     RMDir /r "$INSTDIR"
 
   _crf_end:
+
+  ; --- Delete user data (~/.nexus/) if user opted in ---
+  StrCmp $deleteNexusData "1" 0 _crf_skip_nexus
+    RMDir /r "$PROFILE\.nexus"
+    DetailPrint "User data directory removed: $PROFILE\.nexus"
+  _crf_skip_nexus:
 !macroend

@@ -140,9 +140,13 @@ function resolvePackageRootFrom(cliDir: string): string | null {
   const packageDir = path.join(cliDir, 'package');
   const pkgJson = path.join(packageDir, 'package.json');
   if (fs.existsSync(pkgJson)) return packageDir;
+  const launcherPath = path.join(packageDir, 'launcher.mjs');
+  if (fs.existsSync(launcherPath)) return packageDir;
   // Fallback: maybe extracted flat
   const flatPkg = path.join(cliDir, 'package.json');
   if (fs.existsSync(flatPkg)) return cliDir;
+  const flatLauncherPath = path.join(cliDir, 'launcher.mjs');
+  if (fs.existsSync(flatLauncherPath)) return cliDir;
   return null;
 }
 
@@ -404,6 +408,10 @@ function hasLauncher(pkgRoot: string): boolean {
   return fs.existsSync(path.join(pkgRoot, 'launcher.mjs'));
 }
 
+function getLauncherPath(pkgRoot: string): string {
+  return path.join(pkgRoot, 'launcher.mjs');
+}
+
 /** Check if bin wrapper exists in package (created at pack time) */
 function hasBinWrapper(pkgRoot: string): boolean {
   const binDir = path.join(pkgRoot, 'bin');
@@ -598,16 +606,12 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   const pkgRoot = resolvePackageRoot();
 
   // Check if already fully installed with all required files (tgz includes launcher and bin)
-  if (!forceReinstall && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
-    if (checkPlatformDependencies(pkgRoot)) {
-      if (!isSudoclawInstallManifestCurrent()) {
-        writeSudoclawInstallManifest();
-      }
-      mainLog('Sudoclaw', 'Already installed');
-      const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-      return { installed: true, cliPath: path.join(pkgRoot, 'bin', binName) };
+  if (!forceReinstall && pkgRoot && hasLauncher(pkgRoot)) {
+    if (!isSudoclawInstallManifestCurrent()) {
+      writeSudoclawInstallManifest();
     }
-    mainLog('Sudoclaw', 'Platform dependencies missing, will re-extract...');
+    mainLog('Sudoclaw', 'Existing launcher detected, skipping re-extract');
+    return { installed: true, cliPath: getLauncherPath(pkgRoot) };
   }
 
   try {
@@ -686,11 +690,10 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
 /** Get the Sudoclaw CLI path if installed */
 export function getSudoclawCliPath(): string | null {
   const pkgRoot = resolvePackageRoot();
-  if (!pkgRoot || !hasDistEntry(pkgRoot) || !hasNodeModules(pkgRoot) || !hasLauncher(pkgRoot) || !hasBinWrapper(pkgRoot)) {
+  if (!pkgRoot || !hasLauncher(pkgRoot)) {
     return null;
   }
-  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-  return path.join(pkgRoot, 'bin', binName);
+  return getLauncherPath(pkgRoot);
 }
 
 /**
