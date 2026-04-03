@@ -51,16 +51,27 @@
 !macroend
 
 ; ========================================
-; Uninstaller init: Override window caption for Simplified Chinese
+; Uninstaller welcome page: Hook into MUI2 GUI initialization
 ; ========================================
-!macro customUnInit
-  ; Override uninstaller window title for Simplified Chinese
-  ; The NSIS base ^UninstallCaption string may use "解除安装"
-  ; Note: Caption is a top-level command and cannot be used inside Functions.
-  ; We use SendMessage with WM_SETTEXT (0x000C) to set the window title at runtime.
+; The LangString overrides in customHeader may not take effect because NSIS
+; uses the first definition (from MUI_LANGUAGE) and ignores subsequent ones.
+; The SendMessage approach in un.onInit (customUnInit) also fails because
+; MUI2 resets the window caption during GUI initialization, after un.onInit.
+;
+; Solution: Use customUnWelcomePage to register a page SHOW callback that runs
+; AFTER the GUI is fully initialized, ensuring our caption override sticks.
+!macro customUnWelcomePage
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.overrideUninstCaption
+  !insertmacro MUI_UNPAGE_WELCOME
+!macroend
+
+; Callback function: Set uninstaller window title after GUI is ready.
+; Defined at the top level (outside any function/section) so NSIS compiles it
+; as an uninstaller function (un. prefix).
+Function un.overrideUninstCaption
   StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
     SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
-!macroend
+FunctionEnd
 
 ; ========================================
 ; Keep Cancel button enabled on the INSTFILES page
