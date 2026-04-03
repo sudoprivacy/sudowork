@@ -43,8 +43,10 @@
 !macro customUnInit
   ; Override uninstaller window title for Simplified Chinese
   ; The NSIS base ^UninstallCaption string may use "解除安装"
+  ; Note: Caption is a top-level command and cannot be used inside Functions.
+  ; We use SendMessage with WM_SETTEXT (0x000C) to set the window title at runtime.
   StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
-    Caption "${PRODUCT_NAME} 卸载"
+    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
 !macroend
 
 ; ========================================
