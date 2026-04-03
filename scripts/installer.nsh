@@ -16,6 +16,11 @@
   ; Variable to store user's choice on whether to delete user data (~/.nexus/)
   Var /GLOBAL deleteNexusData
 
+  ; Variables for the Terms of Service / Privacy Policy agreement page
+  Var /GLOBAL tosPage.Dialog
+  Var /GLOBAL tosPage.Checkbox
+  Var /GLOBAL tosPage.TextBox
+
   ; Override MUI2 uninstaller page strings for Simplified Chinese (LANG_SIMPCHINESE)
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
   ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
@@ -87,8 +92,131 @@ FunctionEnd
 ; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
 !ifndef BUILD_UNINSTALLER
 !macro customPageAfterChangeDir
+  ; Insert the Terms of Service / Privacy Policy agreement page
+  Page custom tosPageCreate tosPageLeave
+
+  ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
 !macroend
+
+; ========================================
+; Terms of Service / Privacy Policy Agreement Page
+; ========================================
+; Displays embedded ToS and Privacy content in a scrollable text area.
+; The user must check the agreement checkbox before proceeding.
+
+Function tosPageCreate
+  !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
+
+  nsDialogs::Create 1018
+  Pop $tosPage.Dialog
+  ${If} $tosPage.Dialog == error
+    Abort
+  ${EndIf}
+
+  ; --- Description label ---
+  ${NSD_CreateLabel} 0 0 100% 16u "请仔细阅读以下服务条款和隐私协议："
+  Pop $0
+  CreateFont $1 "Microsoft YaHei" 9
+  SendMessage $0 ${WM_SETFONT} $1 1
+
+  ; --- Scrollable read-only text area with embedded ToS + Privacy content ---
+  nsDialogs::CreateControl "RichEdit20A" \
+    ${WS_VISIBLE}|${WS_CHILD}|${WS_VSCROLL}|${WS_TABSTOP}|${WS_BORDER}|${ES_MULTILINE}|${ES_READONLY}|${ES_WANTRETURN} \
+    ${WS_EX_STATICEDGE} \
+    0 18u 100% 94u ""
+  Pop $tosPage.TextBox
+  SendMessage $tosPage.TextBox ${WM_SETFONT} $1 1
+
+  ; Set the embedded legal text content
+  ${NSD_SetText} $tosPage.TextBox \
+    "【服务条款】$\r$\n\
+$\r$\n\
+欢迎使用 Sudowork（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
+$\r$\n\
+一、服务内容$\r$\n\
+本软件是由数道隐私科技（以下简称「我们」）开发和运营的企业 AI 应用平台，为用户提供智能办公、数据处理等相关服务。我们有权根据业务需要对服务内容进行调整，并将通过适当方式通知用户。$\r$\n\
+$\r$\n\
+二、用户行为规范$\r$\n\
+用户应合法、合规地使用本软件，不得利用本软件从事任何违反法律法规、侵害他人合法权益的行为。用户对其使用本软件的行为承担全部责任。$\r$\n\
+$\r$\n\
+三、知识产权$\r$\n\
+本软件的所有知识产权（包括但不限于著作权、商标权、专利权）均归我们所有。未经我们书面许可，用户不得对本软件进行反编译、反汇编、逆向工程等操作。$\r$\n\
+$\r$\n\
+四、免责声明$\r$\n\
+本软件按「现状」提供，我们不对软件的适用性、可靠性、准确性作任何明示或暗示的保证。因使用本软件产生的任何直接或间接损失，我们在法律允许的范围内不承担责任。$\r$\n\
+$\r$\n\
+五、条款变更$\r$\n\
+我们保留随时修改本条款的权利。修改后的条款将通过软件更新或官方网站公布，继续使用本软件即视为接受修改后的条款。$\r$\n\
+$\r$\n\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$\r$\n\
+$\r$\n\
+【隐私协议】$\r$\n\
+$\r$\n\
+我们重视您的隐私保护。本隐私协议说明我们如何收集、使用、存储和保护您的个人信息。$\r$\n\
+$\r$\n\
+一、信息收集$\r$\n\
+我们可能收集以下信息：$\r$\n\
+  · 设备信息：操作系统版本、设备型号、唯一设备标识符等$\r$\n\
+  · 使用数据：功能使用频率、操作日志、崩溃报告等$\r$\n\
+  · 账户信息：用户注册时提供的信息（如适用）$\r$\n\
+$\r$\n\
+二、信息使用$\r$\n\
+收集的信息将用于：$\r$\n\
+  · 提供和改进软件服务$\r$\n\
+  · 个性化用户体验$\r$\n\
+  · 安全防护与故障排查$\r$\n\
+  · 遵守法律法规要求$\r$\n\
+$\r$\n\
+三、信息存储与保护$\r$\n\
+我们采用行业标准的安全措施保护您的个人信息，防止未经授权的访问、使用或泄露。您的数据将存储在受保护的服务器上，并仅在必要期限内保留。$\r$\n\
+$\r$\n\
+四、信息共享$\r$\n\
+未经您的同意，我们不会将您的个人信息出售或分享给第三方，但以下情况除外：$\r$\n\
+  · 法律法规要求$\r$\n\
+  · 经您明确授权同意$\r$\n\
+  · 为提供服务所必需的合作方（受严格保密约束）$\r$\n\
+$\r$\n\
+五、用户权利$\r$\n\
+您有权查询、更正、删除您的个人信息，也有权撤回授权同意。如需行使上述权利，请通过软件内的设置功能或联系我们的客服团队。$\r$\n\
+$\r$\n\
+六、协议更新$\r$\n\
+我们可能适时更新本隐私协议。更新后的协议将通过软件通知或官方网站公布。$\r$\n\
+"
+
+  ; --- Agreement checkbox ---
+  ${NSD_CreateCheckbox} 0 116u 100% 12u "我已阅读并同意上述服务条款和隐私协议"
+  Pop $tosPage.Checkbox
+  CreateFont $2 "Microsoft YaHei" 9 700
+  SendMessage $tosPage.Checkbox ${WM_SETFONT} $2 1
+  ${NSD_OnClick} $tosPage.Checkbox tosPageCheckboxClick
+
+  ; Disable the "Next" button until the checkbox is checked
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 0
+
+  nsDialogs::Show
+FunctionEnd
+
+Function tosPageCheckboxClick
+  ; Toggle Next button based on checkbox state
+  ${NSD_GetState} $tosPage.Checkbox $0
+  GetDlgItem $1 $HWNDPARENT 1
+  ${If} $0 == ${BST_CHECKED}
+    EnableWindow $1 1
+  ${Else}
+    EnableWindow $1 0
+  ${EndIf}
+FunctionEnd
+
+Function tosPageLeave
+  ; Final validation: ensure checkbox is checked before allowing navigation
+  ${NSD_GetState} $tosPage.Checkbox $0
+  ${If} $0 != ${BST_CHECKED}
+    MessageBox MB_OK|MB_ICONEXCLAMATION "请先勾选「我已阅读并同意上述服务条款和隐私协议」后再继续。"
+    Abort
+  ${EndIf}
+FunctionEnd
 
 Function instFilesShow
   ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
