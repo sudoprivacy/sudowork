@@ -8,6 +8,12 @@
 
 !include "x64.nsh"
 
+; WS_BORDER is not defined in NSIS's standard WinMessages.nsh,
+; so we define it here for use in custom dialog controls.
+!ifndef WS_BORDER
+  !define WS_BORDER 0x00800000
+!endif
+
 ; ========================================
 ; Global variable declarations (file scope)
 ; ========================================
