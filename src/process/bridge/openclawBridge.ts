@@ -111,11 +111,7 @@ export function initOpenClawBridge(): void {
         provider.models = [{ id: params.modelId, name: params.modelId }];
 
         // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
-        const canonicalApiKey =
-          providers['sudorouter']?.apiKey ||
-          providerEntries
-            .map(([, item]) => item?.apiKey)
-            .find((key): key is string => typeof key === 'string' && key.trim().length > 0);
+        const canonicalApiKey = providers['sudorouter']?.apiKey || providerEntries.map(([, item]) => item?.apiKey).find((key): key is string => typeof key === 'string' && key.trim().length > 0);
 
         // 始终刷新 apiKey 以保持同步
         if (canonicalApiKey) {

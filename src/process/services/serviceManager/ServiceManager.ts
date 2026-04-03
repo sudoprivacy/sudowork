@@ -9,6 +9,7 @@ import * as http from 'node:http';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
+import { runtimeInstaller } from './RuntimeInstaller';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
 
@@ -76,12 +77,15 @@ class ServiceManager {
     }
 
     this.startupInProgress = true;
+    runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
-    initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
-    initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+
+    if (initStatusManager.getStatus().displayMode === 'startup') {
+      initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
+      initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+    }
 
     try {
-      const { runtimeInstaller } = await import('./RuntimeInstaller');
       const ok = await runtimeInstaller.ensureAll({
         startSudoclaw: this.startOpenClawForStartup.bind(this),
         startNexus: this.startNexusForStartup.bind(this),
