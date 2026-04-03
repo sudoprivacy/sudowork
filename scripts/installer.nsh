@@ -68,10 +68,12 @@ Var /GLOBAL createStartMenuShortcut
 !macroend
 
 Function shortcutOptionsPagePre
-  ; Skip this page on update/silent installs
-  ${if} ${isUpdated}
+  ; Skip this page on silent/update installs.
+  ; When electron-builder performs an auto-update, it invokes the installer
+  ; with the /S (silent) flag, so IfSilent correctly detects update scenarios
+  ; without requiring the StdUtils plugin.
+  IfSilent 0 +2
     Abort
-  ${endif}
 FunctionEnd
 
 Function shortcutOptionsPageCreate
