@@ -35,6 +35,14 @@
     "要完成 $(^NameDA) 的卸载，必须重新启动你的电脑。你想现在重新启动吗？"
   LangString MUI_UNTEXT_ABORT_TITLE ${LANG_SIMPCHINESE} "卸载已中止"
   LangString MUI_UNTEXT_ABORT_SUBTITLE ${LANG_SIMPCHINESE} "卸载未能完成。"
+
+  ; Override NSIS base language strings that still use "解除安装"
+  ; These are separate from MUI2 strings and may show in window titles, buttons, and detail text.
+  LangString ^UninstallCaption ${LANG_SIMPCHINESE} "$(^Name) 卸载"
+  LangString ^UninstallBtn ${LANG_SIMPCHINESE} "卸载(&U)"
+  LangString ^UnSubCaption_1 ${LANG_SIMPCHINESE} ": 正在卸载文件"
+  LangString ^UninstalledText ${LANG_SIMPCHINESE} "$(^Name) 已成功从你的电脑中卸载。"
+  LangString ^UninstallText ${LANG_SIMPCHINESE} "将从以下文件夹中卸载 $(^Name)。"
   !pragma warning enable 6030
 !macroend
 
