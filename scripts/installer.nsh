@@ -7,6 +7,16 @@
 ; - Provides shortcut options page for desktop and start menu shortcuts
 
 !include "x64.nsh"
+; MUI2.nsh and nsDialogs.nsh must be included here because electron-builder
+; includes this file in the NSIS script header, BEFORE the main installer.nsi
+; template loads MUI2.nsh. Macros (customHeader, customInstall, etc.) are
+; unaffected because they are only defined at include time and expanded later.
+; However, file-scope functions (tosPageCreate, etc.) are compiled immediately
+; and need these headers available. All headers have include guards, so the
+; later !include in installer.nsi is safely a no-op.
+!include "MUI2.nsh"
+!include "nsDialogs.nsh"
+!include "LogicLib.nsh"
 
 ; WS_BORDER is not defined in NSIS's standard WinMessages.nsh,
 ; so we define it here for use in custom dialog controls.
