@@ -42,7 +42,7 @@ export interface InitStatus {
 }
 
 class InitStatusManager {
-  private status: InitStatus = { phase: 'pending', message: '准备初始化...', progress: 0, displayMode: 'full' };
+  private status: InitStatus = { phase: 'pending', message: '准备初始化...', progress: 0 };
   private listeners: Set<(status: InitStatus) => void> = new Set();
 
   getStatus(): InitStatus {

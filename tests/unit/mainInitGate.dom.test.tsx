@@ -70,6 +70,23 @@ describe('Main init gate', () => {
     expect(screen.queryByTestId('router')).not.toBeInTheDocument();
   });
 
+  it('waits for display mode to resolve before rendering the init screen', () => {
+    mockUseInit.mockReturnValue({
+      status: createInitStatus({ phase: 'pending', displayMode: undefined }),
+      isReady: false,
+      hasResolvedInitialStatus: true,
+      isInitScreenSkipped: false,
+      skipInitScreen: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    const { container } = render(<Main />);
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByTestId('init-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('router')).not.toBeInTheDocument();
+  });
+
   it('renders the app when the init screen was skipped', () => {
     mockUseInit.mockReturnValue({
       status: createInitStatus(),
