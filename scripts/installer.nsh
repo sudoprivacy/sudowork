@@ -4,8 +4,11 @@
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 ; - Keeps Cancel button enabled during installation
+; - Displays Terms of Service / Privacy Policy agreement page
 
 !include "x64.nsh"
+!include "nsDialogs.nsh"
+!include "LogicLib.nsh"
 
 ; ========================================
 ; Language overrides: Standardize Simplified Chinese uninstall terminology
@@ -62,10 +65,92 @@
 ; installer.  During the uninstaller pass assistedInstaller.nsh skips the
 ; install-page section, so customPageAfterChangeDir is never expanded and the
 ; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
+; ========================================
+; Terms of Service / Privacy Policy URLs
+; ========================================
+!define TOS_URL "https://www.sudowork.com/terms"
+!define PRIVACY_URL "https://www.sudowork.com/privacy"
+
 !ifndef BUILD_UNINSTALLER
+
+; Variable for the agreement checkbox control handle
+Var tosCheckbox
+
 !macro customPageAfterChangeDir
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
+  Page custom tosPageCreate tosPageLeave
 !macroend
+
+; ========================================
+; Terms of Service / Privacy Policy agreement page
+; ========================================
+Function tosPageCreate
+  !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读并同意以下条款后继续安装"
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ; Instruction label
+  ${NSD_CreateLabel} 0 0 100% 24u "安装 Sudowork 前，请阅读以下服务条款和隐私协议。点击下方链接可在浏览器中查看完整内容："
+  Pop $0
+
+  ; Terms of Service link
+  ${NSD_CreateLink} 0 32u 100% 16u "《服务条款》  ${TOS_URL}"
+  Pop $0
+  ${NSD_OnClick} $0 onTosLinkClick
+
+  ; Privacy Policy link
+  ${NSD_CreateLink} 0 52u 100% 16u "《隐私协议》  ${PRIVACY_URL}"
+  Pop $0
+  ${NSD_OnClick} $0 onPrivacyLinkClick
+
+  ; Separator line (description)
+  ${NSD_CreateLabel} 0 80u 100% 24u "继续安装即表示您已阅读并同意上述服务条款和隐私协议。如不同意，请点击「取消」退出安装。"
+  Pop $0
+
+  ; Agreement checkbox
+  ${NSD_CreateCheckbox} 0 112u 100% 16u "我已阅读并同意《服务条款》和《隐私协议》"
+  Pop $tosCheckbox
+  ${NSD_OnClick} $tosCheckbox onTosCheckboxClick
+
+  ; Disable Next button until checkbox is checked
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 0
+
+  nsDialogs::Show
+FunctionEnd
+
+Function tosPageLeave
+  ${NSD_GetState} $tosCheckbox $0
+  ${If} $0 == ${BST_UNCHECKED}
+    MessageBox MB_OK|MB_ICONEXCLAMATION "请先阅读并同意《服务条款》和《隐私协议》后再继续安装。"
+    Abort
+  ${EndIf}
+FunctionEnd
+
+Function onTosLinkClick
+  Pop $0 ; remove click target from stack
+  ExecShell "open" "${TOS_URL}"
+FunctionEnd
+
+Function onPrivacyLinkClick
+  Pop $0 ; remove click target from stack
+  ExecShell "open" "${PRIVACY_URL}"
+FunctionEnd
+
+Function onTosCheckboxClick
+  Pop $0 ; remove click target from stack
+  ${NSD_GetState} $tosCheckbox $0
+  GetDlgItem $1 $HWNDPARENT 1
+  ${If} $0 == ${BST_CHECKED}
+    EnableWindow $1 1
+  ${Else}
+    EnableWindow $1 0
+  ${EndIf}
+FunctionEnd
 
 Function instFilesShow
   ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
