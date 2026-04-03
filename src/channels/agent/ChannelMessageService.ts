@@ -17,7 +17,7 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
 /** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (reduced from 5 for faster recovery)
 
 /**
  * 消息流状态
@@ -192,12 +192,27 @@ export class ChannelMessageService {
     }
 
     return new Promise((resolve, reject) => {
+      // Clean up any existing stream for this conversation BEFORE registering the new one.
+      // This prevents the "lost resolve" bug where overwriting an active stream causes
+      // the previous message's Promise to hang forever.
+      const existingStream = this.activeStreams.get(conversationId);
+      if (existingStream) {
+        console.warn(`[ChannelMessageService] Cleaning up existing stream for conversation ${conversationId} before starting new one (msgId: ${existingStream.msgId})`);
+        clearTimeout(existingStream.timeoutTimer);
+        this.activeStreams.delete(conversationId);
+        this.messageListMap.delete(conversationId);
+        // Resolve (not reject) so the previous caller's post-stream cleanup runs normally
+        existingStream.resolve(existingStream.msgId);
+      }
+
       // Auto-clean stream if no finish event arrives within the timeout.
       // This prevents hung promises when an agent crashes mid-stream.
       const timeoutTimer = setTimeout(() => {
         const staleStream = this.activeStreams.get(conversationId);
-        if (staleStream) {
-          console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
+        // Stream ownership check: only clean up if this is still OUR stream.
+        // Without this, a stale timer from message A could kill message B's stream.
+        if (staleStream && staleStream.msgId === msgId) {
+          console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId} (msgId: ${msgId})`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
           staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } }, true);
@@ -227,6 +242,7 @@ export class ChannelMessageService {
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
         clearTimeout(timeoutTimer);
         this.activeStreams.delete(conversationId);
+        this.messageListMap.delete(conversationId);
         reject(error);
       });
     });
