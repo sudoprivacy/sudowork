@@ -88,11 +88,6 @@
 ; right before !insertmacro MUI_PAGE_INSTFILES, so any MUI_PAGE_CUSTOMFUNCTION_*
 ; defines set here will apply to the INSTFILES page.
 ;
-; Guard with !ifndef BUILD_UNINSTALLER because electron-builder runs makensis
-; twice: once for the uninstaller (BUILD_UNINSTALLER defined) and once for the
-; installer.  During the uninstaller pass assistedInstaller.nsh skips the
-; install-page section, so customPageAfterChangeDir is never expanded and the
-; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
 ; ========================================
 ; Custom pages and installer-only functions
 ; ========================================
@@ -104,8 +99,13 @@
 ; electron-builder prepends the custom script's !include BEFORE the main
 ; installer.nsi template (which loads MUI2.nsh). Functions defined at file
 ; scope would be compiled before MUI2 is loaded → "macro not found" error.
-!ifndef BUILD_UNINSTALLER
+;
+; The macro is always defined, but its contents are guarded by
+; !ifndef BUILD_UNINSTALLER so the macro expands to nothing during the
+; uninstaller pass. This avoids "Pop $(user_var)" errors from referencing
+; variables that are only declared for the installer pass.
 !macro customPageAfterChangeDir
+!ifndef BUILD_UNINSTALLER
 
   ; ========================================
   ; Terms of Service / Privacy Policy Agreement Page
@@ -283,8 +283,8 @@ $\r$\n\
 
   ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
-!macroend
 !endif
+!macroend
 
 ; ========================================
 ; Install: Record installed files into a manifest
