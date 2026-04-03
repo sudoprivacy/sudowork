@@ -17,7 +17,7 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
 /** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (reduced from 5 min for faster recovery)
 
 /**
  * 消息流状态
@@ -196,7 +196,9 @@ export class ChannelMessageService {
       // This prevents hung promises when an agent crashes mid-stream.
       const timeoutTimer = setTimeout(() => {
         const staleStream = this.activeStreams.get(conversationId);
-        if (staleStream) {
+        // Only clean up if this is still OUR stream (same msgId).
+        // A newer stream may have replaced ours — don't kill it.
+        if (staleStream && staleStream.msgId === msgId) {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
@@ -204,6 +206,18 @@ export class ChannelMessageService {
           staleStream.resolve(staleStream.msgId);
         }
       }, STREAM_TIMEOUT_MS);
+
+      // Safety: clean up any existing stream before registering a new one.
+      // This prevents lost resolve functions and stale timeout timers from
+      // causing hung promises or killing the new stream.
+      const existingStream = this.activeStreams.get(conversationId);
+      if (existingStream) {
+        console.warn(`[ChannelMessageService] Cleaning up existing stream for conversation ${conversationId} before registering new one`);
+        clearTimeout(existingStream.timeoutTimer);
+        this.messageListMap.delete(conversationId);
+        // Resolve (not reject) so the old caller's post-stream cleanup runs normally
+        existingStream.resolve(existingStream.msgId);
+      }
 
       // 注册流状态
       // Register stream state
@@ -227,6 +241,7 @@ export class ChannelMessageService {
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
         clearTimeout(timeoutTimer);
         this.activeStreams.delete(conversationId);
+        this.messageListMap.delete(conversationId);
         reject(error);
       });
     });

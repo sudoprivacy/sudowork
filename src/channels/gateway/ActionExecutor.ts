@@ -268,6 +268,10 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  // Per-conversation mutex: ensures only one message is processed at a time per conversation.
+  // Maps conversationId → Promise that resolves when the current processing completes.
+  private conversationLocks: Map<string, Promise<void>> = new Map();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -513,6 +517,12 @@ export class ActionExecutor {
 
   /**
    * Handle chat message - send to AI and stream response
+   *
+   * Guarantees:
+   * 1. Every message immediately shows "⏳ Thinking..." (user always sees acknowledgment)
+   * 2. Per-conversation serialization: if a previous message is still being processed,
+   *    the new message waits for it to finish before starting AI generation
+   * 3. No message is silently dropped
    */
   private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
     // Update session activity (scoped by chatId)
@@ -520,7 +530,8 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
-    // Send "thinking" indicator (skip for platforms that don't support editing)
+    // STEP 1: Send "thinking" indicator IMMEDIATELY (before acquiring lock)
+    // This guarantees the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
     if (supportsEdit) {
@@ -534,6 +545,10 @@ export class ActionExecutor {
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
 
+    // Per-conversation lock: declared outside try so `finally` can release it.
+    let releaseLock: (() => void) | null = null;
+    let lockPromise: Promise<void> | null = null;
+
     try {
       const sessionId = context.sessionId;
       const conversationId = context.conversationId;
@@ -541,6 +556,23 @@ export class ActionExecutor {
       if (!sessionId || !conversationId) {
         throw new Error('Session not initialized');
       }
+
+      // STEP 2: Per-conversation serialization (mutex).
+      // Wait for any previous message in this conversation to finish processing.
+      // This prevents stream overwrites and concurrent AI generations.
+      const previousLock = this.conversationLocks.get(conversationId);
+      if (previousLock) {
+        console.log(`[ActionExecutor] Conversation ${conversationId} is busy, waiting for previous message to complete...`);
+        // Wait for previous processing to complete (ignore errors — we still want to proceed)
+        await previousLock.catch(() => {});
+      }
+
+      // STEP 3: Acquire the conversation lock and process the message.
+      // We create a new Promise and store it in the lock map so subsequent messages wait.
+      lockPromise = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      this.conversationLocks.set(conversationId, lockPromise);
 
       const messageService = getChannelMessageService();
 
@@ -716,6 +748,15 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release conversation lock so the next queued message can proceed.
+      // Only release if this is still the current lock holder (avoid releasing a newer lock).
+      if (context.conversationId && lockPromise && this.conversationLocks.get(context.conversationId) === lockPromise) {
+        this.conversationLocks.delete(context.conversationId);
+      }
+      if (releaseLock) {
+        releaseLock();
+      }
+
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
     }
