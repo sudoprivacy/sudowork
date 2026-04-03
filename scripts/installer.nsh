@@ -101,7 +101,13 @@
 ; The user must check the agreement checkbox before proceeding.
 
 Function tosPageCreate
-  !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
+  ; Set page header text using Win32 API (MUI_HEADER_TEXT macro is not available
+  ; at this point because electron-builder includes installer.nsh before MUI2.nsh).
+  ; Control IDs: 1037 = header title, 1038 = header subtitle.
+  GetDlgItem $0 $HWNDPARENT 1037
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:服务条款与隐私协议"
+  GetDlgItem $0 $HWNDPARENT 1038
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:请阅读以下条款，勾选同意后继续安装"
 
   nsDialogs::Create 1018
   Pop $tosPage.Dialog
