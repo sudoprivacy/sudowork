@@ -5,16 +5,23 @@
  */
 
 import { SecretStoreClient } from './secret-store-client.js';
+import { resolveConfig } from './config.js';
 
 let clientInstance: SecretStoreClient | null = null;
 
 /**
  * Get or create the SecretStoreClient singleton.
  * Thread-safe in Node.js module context.
+ *
+ * Uses resolveConfig() to read baseUrl from:
+ * 1. ~/.nexus/config.yaml
+ * 2. NEXUS_URL environment variable
+ * 3. Default: http://localhost:12012
  */
 export function getSecretStoreClient(apiKey?: string): SecretStoreClient {
   if (!clientInstance && apiKey) {
-    clientInstance = new SecretStoreClient(apiKey, 'http://localhost:12012');
+    const config = resolveConfig({ apiKey });
+    clientInstance = new SecretStoreClient(apiKey, config.baseUrl);
   }
   if (!clientInstance) {
     throw new Error('SecretStoreClient not initialized. Call getSecretStoreClient(apiKey) first.');
@@ -24,9 +31,11 @@ export function getSecretStoreClient(apiKey?: string): SecretStoreClient {
 
 /**
  * Initialize the SecretStoreClient with API key.
+ * Uses resolveConfig() to read baseUrl from config file or environment.
  */
 export function initializeSecretStoreClient(apiKey: string): void {
-  clientInstance = new SecretStoreClient(apiKey, 'http://localhost:12012');
+  const config = resolveConfig({ apiKey });
+  clientInstance = new SecretStoreClient(apiKey, config.baseUrl);
 }
 
 // Re-export types
