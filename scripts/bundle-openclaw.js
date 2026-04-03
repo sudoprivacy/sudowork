@@ -130,6 +130,87 @@ function countFiles(dir) {
   return count;
 }
 
+function getPackageNameFromSpecifier(specifier) {
+  if (!specifier || specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('node:')) {
+    return null;
+  }
+
+  if (/^[A-Za-z]:[\\/]/.test(specifier)) {
+    return null;
+  }
+
+  if (specifier.startsWith('@')) {
+    const parts = specifier.split('/');
+    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : null;
+  }
+
+  const [pkgName] = specifier.split('/');
+  return pkgName || null;
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+function collectRuntimeRequirePackages(bundleFile, builtins) {
+  if (!fs.existsSync(bundleFile)) return [];
+
+  const content = fs.readFileSync(bundleFile, 'utf-8');
+  const packages = new Set();
+  const requirePattern = /\brequire\d*\((['"])([^"'./][^"']*)\1\)/g;
+
+  for (const match of content.matchAll(requirePattern)) {
+    const specifier = match[2];
+    const pkgName = getPackageNameFromSpecifier(specifier);
+    if (!pkgName || builtins.has(specifier) || builtins.has(pkgName)) continue;
+    packages.add(pkgName);
+  }
+
+  return [...packages].sort();
+}
+
+function collectTransitivePackageDeps(pkgDir, packageNames) {
+  const nmDir = path.join(pkgDir, 'node_modules');
+  const keepPackages = new Set();
+  const visited = new Set();
+  const queue = [...packageNames];
+
+  while (queue.length > 0) {
+    const packageName = queue.shift();
+    if (!packageName || visited.has(packageName)) continue;
+    visited.add(packageName);
+
+    const packageDir = path.join(nmDir, packageName);
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) continue;
+
+    keepPackages.add(packageName);
+
+    const pkgJson = readJsonFile(packageJsonPath);
+    if (!pkgJson || typeof pkgJson !== 'object') continue;
+
+    const dependencySets = [
+      pkgJson.dependencies,
+      pkgJson.optionalDependencies,
+    ];
+
+    for (const deps of dependencySets) {
+      if (!deps || typeof deps !== 'object') continue;
+      for (const depName of Object.keys(deps)) {
+        if (!visited.has(depName)) {
+          queue.push(depName);
+        }
+      }
+    }
+  }
+
+  return [...keepPackages].sort();
+}
+
 /** Find native addon packages by scanning for .node files in node_modules */
 function discoverNativeExternals(pkgDir) {
   const nmDir = path.join(pkgDir, 'node_modules');
@@ -168,18 +249,18 @@ function discoverNativeExternals(pkgDir) {
   return [...nativePackages];
 }
 
-/** Get directories that should be kept in node_modules (native addons only) */
-function getNativeModuleDirs(pkgDir, nativeExternals) {
+/** Get directories that should be kept in node_modules */
+function getNativeModuleDirs(pkgDir, packageNames) {
   const nmDir = path.join(pkgDir, 'node_modules');
   const keepDirs = new Set();
 
-  for (const ext of nativeExternals) {
-    const extPath = path.join(nmDir, ext);
+  for (const packageName of packageNames) {
+    const extPath = path.join(nmDir, packageName);
     if (fs.existsSync(extPath)) {
-      keepDirs.add(ext);
+      keepDirs.add(packageName);
       // For scoped packages, also keep the scope directory
-      if (ext.startsWith('@')) {
-        keepDirs.add(ext.split('/')[0]);
+      if (packageName.startsWith('@')) {
+        keepDirs.add(packageName.split('/')[0]);
       }
     }
   }
@@ -249,6 +330,31 @@ async function main() {
     process.exit(1);
   }
 
+  const catchMissingPlugin = {
+  name: 'catch-missing',
+  setup(build) {
+    build.onEnd((result) => {
+      const missing = new Set();
+
+      for (const err of result.errors) {
+        // 只关心无法解析的模块
+        if (err.text.includes('Could not resolve')) {
+          const match = err.text.match(/Could not resolve "(.+?)"/);
+          if (match) {
+            missing.add(match[1]);
+          }
+        }
+      }
+
+      if (missing.size > 0) {
+        console.log('\n[bundle-openclaw] Missing modules (建议加入 external):');
+        for (const m of missing) {
+          console.log(`  - ${m}`);
+        }
+      }
+    });
+  },
+};
   // Catch-all plugin: externalize any bare specifier that esbuild can't resolve.
   // This prevents future breakage from new optional dependencies.
   const catchAllExternalPlugin = {
@@ -314,8 +420,14 @@ async function main() {
       platform: 'node',
       format: 'esm',
       outfile: outputFile,
-      target: 'node20',
-      sourcemap: 'external',
+      //outdir: 'dist',  
+      //outfile: 'dist/entry.js', 
+      target: 'node22',
+      // splitting: true, 
+      // chunkNames: 'chunks/chunk-[hash]',
+      // sourcemap: 'external',
+      sourcemap: false,         // 先关掉（避免内存炸）
+      minify: false,
       treeShaking: true,
       external: externals,
       banner: { js: banner },
@@ -323,7 +435,8 @@ async function main() {
         '__dirname': '__bundled_dirname',
         '__filename': '__bundled_filename',
       },
-      plugins: [catchAllExternalPlugin],
+      // plugins: [catchAllExternalPlugin],
+      plugins: [catchMissingPlugin],
       logLevel: 'warning',
       // Allow esbuild to handle errors gracefully
       logOverride: {
@@ -358,12 +471,20 @@ async function main() {
     throw new Error('esbuild did not produce output file');
   }
 
+  const runtimeRequirePackages = collectRuntimeRequirePackages(outputFile, new Set(getNodeBuiltins()));
+  const runtimeDependencyPackages = collectTransitivePackageDeps(resolvedPkgDir, runtimeRequirePackages);
+
   const outputSize = fs.statSync(outputFile).size;
   console.log(`[bundle-openclaw] Bundle created: ${outputFile} (${(outputSize / 1024 / 1024).toFixed(1)} MB)`);
+  console.log(`[bundle-openclaw] Runtime JS packages kept: ${runtimeDependencyPackages.join(', ') || '(none)'}`);
 
   // Clean up node_modules - keep only native binding directories
-  console.log('[bundle-openclaw] Cleaning node_modules (keeping native addons only)...');
-  const keepDirs = getNativeModuleDirs(resolvedPkgDir, [...nativeExternals, ...KNOWN_OPTIONAL_EXTERNALS]);
+  console.log('[bundle-openclaw] Cleaning node_modules (keeping native addons + runtime JS deps)...');
+  const keepDirs = getNativeModuleDirs(resolvedPkgDir, [
+    ...nativeExternals,
+    ...KNOWN_OPTIONAL_EXTERNALS,
+    ...runtimeDependencyPackages,
+  ]);
 
   if (fs.existsSync(nmDir)) {
     const topEntries = fs.readdirSync(nmDir, { withFileTypes: true });
@@ -412,6 +533,8 @@ async function main() {
     originalEntry: path.relative(resolvedPkgDir, entryPoint),
     outputSize,
     nativeExternals,
+    runtimeRequirePackages,
+    runtimeDependencyPackages,
     filesBefore,
     filesAfter,
     reduction: `${((1 - filesAfter / filesBefore) * 100).toFixed(1)}%`,
