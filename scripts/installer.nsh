@@ -95,16 +95,36 @@ Var /GLOBAL createStartMenuShortcutChoice
 !macroend
 
 ; ========================================
-; Uninstaller init: Override window caption for Simplified Chinese
+; Uninstaller welcome page: Hook into MUI2 GUI initialization
 ; ========================================
-!macro customUnInit
-  ; Override uninstaller window title for Simplified Chinese
-  ; The NSIS base ^UninstallCaption string may use "解除安装"
-  ; Note: Caption is a top-level command and cannot be used inside Functions.
-  ; We use SendMessage with WM_SETTEXT (0x000C) to set the window title at runtime.
-  StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
-    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
+; The LangString overrides in customHeader may not take effect because NSIS
+; uses the first definition (from MUI_LANGUAGE) and ignores subsequent ones.
+; The SendMessage approach in un.onInit (customUnInit) also fails because
+; MUI2 resets the window caption during GUI initialization, after un.onInit.
+;
+; Solution: Use customUnWelcomePage to register a page SHOW callback that runs
+; AFTER the GUI is fully initialized, ensuring our caption override sticks.
+!macro customUnWelcomePage
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.overrideUninstCaption
+  !insertmacro MUI_UNPAGE_WELCOME
 !macroend
+
+; Callback function: Set uninstaller window title after GUI is ready.
+; Guard with !ifdef BUILD_UNINSTALLER so this function is only compiled during
+; the uninstaller pass. Otherwise NSIS warning 6010 (unreferenced function)
+; is triggered during the installer pass and treated as a build error.
+;
+; Note: We use the numeric LCID 2052 instead of ${LANG_SIMPCHINESE} because
+; this function is compiled at !include time, before MUI_LANGUAGE defines
+; the LANG_SIMPCHINESE constant. LangString directives handle late-binding
+; language IDs, but regular instructions like StrCmp require compile-time
+; resolution — hence the raw value.
+!ifdef BUILD_UNINSTALLER
+Function un.overrideUninstCaption
+  StrCmp $LANGUAGE 2052 0 +2
+    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
+FunctionEnd
+!endif
 
 ; ========================================
 ; Keep Cancel button enabled on the INSTFILES page
