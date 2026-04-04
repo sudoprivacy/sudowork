@@ -542,6 +542,54 @@ function ensureDefaultConfig(): void {
   }
 }
 
+/** Marker used to identify the safety-rules section inside USER.md */
+const USER_MD_SAFETY_MARKER = '<!-- SUDOCLAW_DELETE_SAFETY_RULES -->';
+
+/**
+ * 文件删除安全规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "file deletion safety rules"
+ * section.  If USER.md does not exist it is created; if it already exists but
+ * does not contain the marker the rules are appended.  If the marker is already
+ * present the file is left untouched.
+ *
+ * This guarantees that fresh installs *and* upgrades always carry the prompt.
+ */
+function ensureUserMdSafetyRules(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const safetyRulesBlock = `
+${USER_MD_SAFETY_MARKER}
+## 文件删除安全规则
+
+在执行任何文件或文件夹删除操作前，必须先向用户确认。你需要：
+
+1. **停止操作**并告知用户即将删除的具体路径；
+2. **明确请求用户确认**（如：确认删除 /path/to/file？请回复"确认"或"取消"）；
+3. **等待用户明确同意**后才执行删除；
+4. 若用户**拒绝或未确认**，则放弃删除操作。
+
+此规则适用于所有删除场景：单文件删除、文件夹递归删除、批量删除、rm/rmdir/del 等命令。
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      // USER.md does not exist — create it with a header + safety rules
+      const content = `# User\n${safetyRulesBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with file-deletion safety rules');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      if (!existing.includes(USER_MD_SAFETY_MARKER)) {
+        // Append safety rules to the existing USER.md
+        fs.appendFileSync(userMdPath, `\n${safetyRulesBlock}`, 'utf-8');
+        mainLog('Sudoclaw', 'Appended file-deletion safety rules to existing USER.md');
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md safety rules', err);
+  }
+}
+
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
   // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
@@ -602,6 +650,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureDefaultConfig();
   repairOpenClawConfig();
   fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+  ensureUserMdSafetyRules();
 
   const pkgRoot = resolvePackageRoot();
 
@@ -669,6 +718,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureDefaultConfig();
     repairOpenClawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    ensureUserMdSafetyRules();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
