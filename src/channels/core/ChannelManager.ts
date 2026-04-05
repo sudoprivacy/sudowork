@@ -362,17 +362,8 @@ export class ChannelManager {
       // Stop the plugin
       await this.pluginManager?.stopPlugin(pluginId);
 
-      // Update database
-      const existingResult = db.getChannelPlugin(pluginId);
-      if (existingResult.data) {
-        const updated: IChannelPluginConfig = {
-          ...existingResult.data,
-          enabled: false,
-          status: 'stopped',
-          updatedAt: Date.now(),
-        };
-        db.upsertChannelPlugin(updated);
-      }
+      // Update database - only update enabled and status, do NOT trigger credential save to Nexus
+      db.updateChannelPluginEnabled(pluginId, false, 'stopped');
 
       return { success: true };
     } catch (error: any) {

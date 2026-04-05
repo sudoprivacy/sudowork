@@ -942,6 +942,20 @@ export class AionUIDatabase {
   }
 
   /**
+   * Update assistant plugin enabled/disabled status only.
+   * Does NOT update config or trigger credential save to Nexus.
+   */
+  updateChannelPluginEnabled(pluginId: string, enabled: boolean, status: PluginStatus): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+      this.db.prepare('UPDATE assistant_plugins SET enabled = ?, status = ?, updated_at = ? WHERE id = ?').run(enabled ? 1 : 0, status, now, pluginId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Delete assistant plugin
    */
   deleteChannelPlugin(pluginId: string): IQueryResult<boolean> {
