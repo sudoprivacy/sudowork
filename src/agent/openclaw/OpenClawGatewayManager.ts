@@ -181,11 +181,11 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origArgv = [...process.argv];
     const origCwd = process.cwd();
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
-    const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+    const origConfigPath = process.env.SUDOCLAW_CONFIG_PATH;
 
     process.argv = ['node', entryPath, ...buildGatewayArgs(this.port)];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
-    process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
+    process.env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
 
     // Load safety hook before gateway entry (for in-process mode)
@@ -219,8 +219,8 @@ export class OpenClawGatewayManager extends EventEmitter {
       process.chdir(origCwd);
       if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
       else delete process.env.OPENCLAW_STATE_DIR;
-      if (origConfigPath !== undefined) process.env.OPENCLAW_CONFIG_PATH = origConfigPath;
-      else delete process.env.OPENCLAW_CONFIG_PATH;
+      if (origConfigPath !== undefined) process.env.SUDOCLAW_CONFIG_PATH = origConfigPath;
+      else delete process.env.SUDOCLAW_CONFIG_PATH;
     }
   }
 
@@ -251,11 +251,11 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       if (this.stateDir) {
         env.OPENCLAW_STATE_DIR = this.stateDir;
-        env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
+        env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
 
       // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
-      // directly from sudoclaw.json via OPENCLAW_CONFIG_PATH at each invocation,
+      // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
       // so no env var injection is needed here.
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
