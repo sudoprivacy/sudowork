@@ -37,18 +37,18 @@ Trigger this skill when the user asks to:
 
 **For generation (new image):**
 
-1.  **Choose output path stem** (no extension): a concise name (e.g. `white_cat`). If the user specifies a location, use that path. Otherwise use just the filename stem — the script saves relative to the workspace (CWD).
+1.  **Determine output path stem**: run `pwd` first to get the session workspace path, then construct an absolute path with a concise name (e.g. `/session/workspace/white_cat`). If the user specifies a location, use that absolute path instead.
 2.  **Execute**:
     ```bash
-    bash scripts/generate_image.sh gen "<prompt>" "<filepath_no_ext>" [size]
+    bash skills/image-generation/scripts/generate_image.sh gen "<prompt>" "<absolute_filepath_no_ext>" [size]
     ```
 
 **For editing (modify existing image):**
 
-1.  **Choose output path stem** (no extension): use the source filename with a timestamp (e.g. `abc_1712123456`). If the user specifies a location, use that path. Otherwise use just the filename stem — the script saves relative to the workspace (CWD).
+1.  **Determine output path stem**: use the session workspace path from `pwd` with the source filename and a timestamp (e.g. `/session/workspace/abc_1712123456`). If the user specifies a location, use that absolute path instead.
 2.  **Execute**:
     ```bash
-    bash scripts/generate_image.sh edit "<prompt>" "<image_path>" "<filepath_no_ext>" [size]
+    bash skills/image-generation/scripts/generate_image.sh edit "<prompt>" "<image_path>" "<absolute_filepath_no_ext>" [size]
     ```
 
 The script appends the correct extension (`.png`, `.jpg`, `.webp`) based on the output image data.
@@ -61,4 +61,10 @@ The script prints the saved image file path on success, or an error message on f
 
 ### Step 4: Show the result
 
-Display the generated/edited image to the user. Show the file path so they can find it.
+Display the image inline using markdown image syntax so it renders in chat:
+
+```
+![<concise description>](<absolute_image_path>)
+```
+
+The script prints the saved file path — use that as `<absolute_image_path>`.
