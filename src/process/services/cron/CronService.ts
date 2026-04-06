@@ -17,6 +17,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { cronBusyGuard } from './CronBusyGuard';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
+import { createConversation } from '../conversationService';
 
 /**
  * Parameters for creating a new cron job
@@ -193,6 +194,17 @@ class CronService {
   }
 
   /**
+   * Manually trigger a job to execute immediately
+   */
+  async triggerJob(jobId: string): Promise<void> {
+    const job = await cronStore.getById(jobId);
+    if (!job) {
+      throw new Error(`Job ${jobId} not found`);
+    }
+    await this.executeJob(job);
+  }
+
+  /**
    * Start timer for a job
    */
   private startTimer(job: CronJob): void {
@@ -334,6 +346,7 @@ class CronService {
       // 对于定时任务，需要 yoloMode=true（自动批准）
       // 尽量复用已有任务实例，避免不必要的重连
       let task;
+      let activeConversationId = conversationId;
       try {
         const existingTask = WorkerManage.getTaskById(conversationId);
         if (existingTask) {
@@ -349,26 +362,58 @@ class CronService {
             });
           }
         } else {
-          // No existing task, create new one with yoloMode=true
+          // No existing task, try to build from database
           task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
             yoloMode: true,
           });
         }
       } catch (err) {
-        job.state.lastStatus = 'error';
-        job.state.lastError = err instanceof Error ? err.message : 'Conversation not found';
-        this.updateNextRunTime(job);
-        cronStore.update(job.id, { state: job.state });
-        const updatedJob = cronStore.getById(job.id);
-        if (updatedJob) {
-          ipcBridge.cron.onJobUpdated.emit(updatedJob);
+        mainWarn('CronService', `Failed to build task for conversation ${conversationId}, will create new conversation: ${err}`);
+        task = null;
+      }
+
+      // If conversation not found, auto-create a new one
+      if (!task) {
+        try {
+          mainLog('CronService', `Auto-creating conversation for cron job ${job.id} (${job.name})`);
+          const agentType = job.metadata.agentType || 'openclaw-gateway';
+          const result = await createConversation({
+            type: agentType,
+            name: `[Cron] ${job.name}`,
+            source: 'cron',
+            model: { useModel: '', provider: '', baseUrl: '' } as any,
+            extra: {
+              backend: agentType,
+            },
+          });
+          if (!result.success || !result.conversation) {
+            throw new Error(result.error || 'Failed to create conversation');
+          }
+          activeConversationId = result.conversation.id;
+          // Update the job's conversationId so future runs reuse this conversation
+          job.metadata.conversationId = activeConversationId;
+          job.metadata.conversationTitle = `[Cron] ${job.name}`;
+          cronStore.update(job.id, { metadata: job.metadata });
+
+          task = await WorkerManage.getTaskByIdRollbackBuild(activeConversationId, {
+            yoloMode: true,
+          });
+        } catch (err) {
+          job.state.lastStatus = 'error';
+          job.state.lastError = err instanceof Error ? err.message : 'Failed to create conversation';
+          this.updateNextRunTime(job);
+          cronStore.update(job.id, { state: job.state });
+          const updatedJob = cronStore.getById(job.id);
+          if (updatedJob) {
+            ipcBridge.cron.onJobUpdated.emit(updatedJob);
+          }
+          return;
         }
-        return;
       }
 
       if (!task) {
         job.state.lastStatus = 'error';
-        job.state.lastError = 'Conversation not found';
+        job.state.lastError = 'Failed to initialize task';
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         const updatedJob = cronStore.getById(job.id);
@@ -404,7 +449,7 @@ class CronService {
       // Update conversation modifyTime so it appears at the top of the list
       try {
         const db = getDatabase();
-        db.updateConversation(conversationId, {});
+        db.updateConversation(activeConversationId, {});
       } catch (err) {
         mainWarn('CronService', 'Failed to update conversation modifyTime after execution:', err);
       }
