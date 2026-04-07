@@ -37,6 +37,8 @@ import { copyText } from '@/renderer/utils/clipboard';
 import { IconCopy } from '@arco-design/web-react/icon';
 import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
+import MessageTimeSeparator from './MessageTimeSeparator';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 
@@ -48,7 +50,8 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string };
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string }
+  | { type: 'time_separator'; id: string; timestamp: number };
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
@@ -307,7 +310,32 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     }
     // Flush any remaining turn actions at the end
     flushTurnActions();
-    return result;
+
+    // Insert time separators between messages with significant time gaps
+    // 在时间间隔较大的消息之间插入时间分隔符
+    const withTimeSeparators: Array<IMessageVO> = [];
+    let prevTimestamp: number | undefined;
+
+    for (const item of result) {
+      // Get timestamp from TMessage items (they have createdAt)
+      const currentTimestamp = 'createdAt' in item ? (item as TMessage).createdAt : undefined;
+
+      if (currentTimestamp && shouldShowTimeSeparator(prevTimestamp, currentTimestamp)) {
+        withTimeSeparators.push({
+          type: 'time_separator',
+          id: `time-sep-${currentTimestamp}`,
+          timestamp: currentTimestamp,
+        });
+      }
+
+      withTimeSeparators.push(item);
+
+      if (currentTimestamp) {
+        prevTimestamp = currentTimestamp;
+      }
+    }
+
+    return withTimeSeparators;
   }, [list]);
 
   // Use auto-scroll hook
@@ -323,7 +351,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
 
       const targetIndex = processedList.findIndex((item) => {
-        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions') {
+        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator') {
           return false;
         }
         const message = item as TMessage;
@@ -356,6 +384,10 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   };
 
   const renderItem = (_index: number, item: (typeof processedList)[0]) => {
+    // Render time separator
+    if ('type' in item && item.type === 'time_separator') {
+      return <MessageTimeSeparator key={item.id} timestamp={(item as { type: 'time_separator'; id: string; timestamp: number }).timestamp} />;
+    }
     if ('type' in item && ['file_summary', 'tool_summary'].includes(item.type)) {
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
