@@ -98,6 +98,32 @@
     "refresh": "更新",
     "temporarySpace": "一時スペース",
     "changeWorkspace": "ワークスペースを変更",
+    "drafts": {
+      "title": "下書き",
+      "description": "エージェント実行中に生成された中間ファイル",
+      "empty": "下書きは空です",
+      "clearAll": "下書きをクリア",
+      "clearConfirm": "下書きのすべてのファイルをクリアしますか？",
+      "clearSuccess": "下書きがクリアされました",
+      "fileCount": "{{count}} 個の中間ファイル",
+      "deleteFailed": "下書きファイルの削除に失敗しました",
+      "deleteSuccess": "下書きファイルが削除されました"
+    },
+    "rename": {
+      "title": "ワークスペースの名前を変更",
+      "placeholder": "新しいフォルダー名を入力してください",
+      "success": "ワークスペースの名前が変更されました",
+      "failed": "名前の変更に失敗しました",
+      "invalidName": "フォルダー名に無効な文字が含まれています",
+      "alreadyExists": "対象フォルダーは既に存在します",
+      "agentRunning": "エージェントが実行中です。完了後に名前を変更してください",
+      "emptyName": "名前は空にできません",
+      "warning": "物理フォルダーの名前が変更されます",
+      "renameWorkspace": "ワークスペースの名前を変更",
+      "quickRename": "クイック名前変更",
+      "quickRenameDesc": "一時スペースを意味のある名前に変更"
+    },
+    "openInExplorer": "ファイルマネージャーで開く",
     "migration": {
       "title": "ワークスペースを変更",
       "currentWorkspaceLabel": "現在の一時ワークスペース：",

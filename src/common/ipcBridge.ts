@@ -234,6 +234,30 @@ export const fs = {
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
 };
 
+// 草稿箱文件操作 / Drafts file operations
+export const drafts = {
+  /** 列出草稿箱文件 / List files in drafts directory */
+  listDrafts: bridge.buildProvider<
+    IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>,
+    { workspace: string }
+  >('drafts.list'),
+  /** 读取草稿文件内容 / Read draft file content */
+  readDraft: bridge.buildProvider<IBridgeResponse<{ content: string }>, { workspace: string; fileName: string }>('drafts.read'),
+  /** 删除指定草稿文件 / Delete specific draft file */
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('drafts.delete'),
+  /** 清空草稿箱 / Clear all drafts */
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('drafts.clear'),
+};
+
+// 工作空间管理操作 / Workspace management operations
+export const workspaceManage = {
+  /** 重命名工作空间目录 / Rename workspace directory */
+  renameDirectory: bridge.buildProvider<
+    IBridgeResponse<{ newPath: string }>,
+    { oldPath: string; newName: string }
+  >('workspace.rename-directory'),
+};
+
 export const fileWatch = {
   startWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-start'), // 开始监听文件变化
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化

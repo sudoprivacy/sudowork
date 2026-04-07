@@ -58,7 +58,7 @@ export class AcpConnection {
   }> = () => Promise.resolve({ optionId: 'allow' }); // Returns a resolved Promise for interface consistency
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
-  public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
+  public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string; stage?: 'intermediate' | 'final' }) => void = () => {};
   // Disconnect callback - called when child process exits unexpectedly during runtime
   public onDisconnect: (error: { code: number | null; signal: NodeJS.Signals | null }) => void = () => {};
 

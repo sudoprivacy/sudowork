@@ -17,7 +17,7 @@ import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
@@ -1192,11 +1192,30 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     });
   }
 
-  private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
+  private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string; stage?: 'intermediate' | 'final' }): void {
+    const workspace = this.extra.workspace;
+
+    // 中间文件写入草稿箱 / Write intermediate files to drafts directory
+    if (operation.method === 'fs/write_text_file' && operation.stage === 'intermediate' && workspace) {
+      const draftsDir = nodePath.join(workspace, DRAFTS_DIR_NAME);
+      try {
+        fs.mkdirSync(draftsDir, { recursive: true });
+        const targetPath = nodePath.join(draftsDir, nodePath.basename(operation.path));
+        fs.writeFileSync(targetPath, operation.content || '', 'utf-8');
+
+        // 更新 UI 显示路径为草稿箱路径 / Update display path to drafts path
+        operation.path = targetPath;
+      } catch {
+        // 草稿箱写入失败时回退到原始路径 / Fallback to original path on drafts write failure
+      }
+    }
+
     let text: string;
+    const isDraft = operation.stage === 'intermediate';
+    const draftLabel = isDraft ? ' (draft)' : '';
     switch (operation.method) {
       case 'fs/write_text_file':
-        text = `📝 File written: \`${operation.path}\`\n\n\`\`\`\n${operation.content || ''}\n\`\`\``;
+        text = `📝 File written${draftLabel}: \`${operation.path}\`\n\n\`\`\`\n${operation.content || ''}\n\`\`\``;
         break;
       case 'fs/read_text_file':
         text = `📖 File read: \`${operation.path}\``;

@@ -98,6 +98,32 @@
     "refresh": "Refresh",
     "temporarySpace": "Temporary Space",
     "changeWorkspace": "Change Workspace",
+    "drafts": {
+      "title": "Drafts",
+      "description": "Intermediate files produced during Agent execution",
+      "empty": "Drafts is empty",
+      "clearAll": "Clear Drafts",
+      "clearConfirm": "Are you sure you want to clear all files in Drafts?",
+      "clearSuccess": "Drafts cleared",
+      "fileCount": "{{count}} intermediate file(s)",
+      "deleteFailed": "Failed to delete draft file",
+      "deleteSuccess": "Draft file deleted"
+    },
+    "rename": {
+      "title": "Rename Workspace",
+      "placeholder": "Enter new folder name",
+      "success": "Workspace renamed successfully",
+      "failed": "Rename failed",
+      "invalidName": "Folder name contains invalid characters",
+      "alreadyExists": "Target folder already exists",
+      "agentRunning": "Agent is running, please wait before renaming",
+      "emptyName": "Name cannot be empty",
+      "warning": "This will rename the physical folder",
+      "renameWorkspace": "Rename Workspace",
+      "quickRename": "Quick Rename",
+      "quickRenameDesc": "Rename temporary space to a meaningful name"
+    },
+    "openInExplorer": "Open in File Manager",
     "migration": {
       "title": "Change Workspace",
       "currentWorkspaceLabel": "Current temporary workspace: ",

@@ -21,6 +21,7 @@ import WorkspaceCollapse from '../WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
 import DragOverlayContent from './DragOverlayContent';
 import SortableConversationRow from './SortableConversationRow';
+import WorkspaceRenameModal from './WorkspaceRenameModal';
 import { useBatchSelection } from './hooks/useBatchSelection';
 import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
@@ -68,6 +69,17 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     collapsed,
   });
 
+  // Workspace rename modal state
+  const [workspaceRenameModal, setWorkspaceRenameModal] = React.useState<{ visible: boolean; workspacePath: string }>({ visible: false, workspacePath: '' });
+
+  const handleOpenWorkspaceRename = useCallback((workspacePath: string) => {
+    setWorkspaceRenameModal({ visible: true, workspacePath });
+  }, []);
+
+  const handleCloseWorkspaceRename = useCallback(() => {
+    setWorkspaceRenameModal({ visible: false, workspacePath: '' });
+  }, []);
+
   const getConversationRowProps = useCallback(
     (conversation: TChatConversation): ConversationRowProps => ({
       conversation,
@@ -110,6 +122,13 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   return (
     <FlexFullContainer>
+      {/* Workspace Rename Modal */}
+      <WorkspaceRenameModal
+        visible={workspaceRenameModal.visible}
+        workspacePath={workspaceRenameModal.workspacePath}
+        onClose={handleCloseWorkspaceRename}
+      />
+
       <Modal title={t('conversation.history.renameTitle')} visible={renameModalVisible} onOk={handleRenameConfirm} onCancel={handleRenameCancel} okText={t('conversation.history.saveName')} cancelText={t('conversation.history.cancelEdit')} confirmLoading={renameLoading} okButtonProps={{ disabled: !renameModalName.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
         <Input autoFocus value={renameModalName} onChange={setRenameModalName} onPressEnter={handleRenameConfirm} placeholder={t('conversation.history.renamePlaceholder')} allowClear />
       </Modal>
@@ -245,14 +264,31 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               if (item.type === 'workspace' && item.workspaceGroup) {
                 const group = item.workspaceGroup;
                 return (
-                  <div key={group.workspace} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                  <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
                     <WorkspaceCollapse
                       expanded={expandedWorkspaces.includes(group.workspace)}
                       onToggle={() => handleToggleWorkspace(group.workspace)}
                       siderCollapsed={collapsed}
                       header={
-                        <div className='flex items-center gap-8px text-14px min-w-0'>
+                        <div
+                          className='flex items-center gap-8px text-14px min-w-0'
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleOpenWorkspaceRename(group.workspace);
+                          }}
+                        >
                           <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
+                          <span
+                            className='opacity-0 group-hover:opacity-100 text-12px cursor-pointer text-t-secondary hover:text-t-primary transition-opacity flex-shrink-0'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenWorkspaceRename(group.workspace);
+                            }}
+                            title={t('conversation.workspace.rename.renameWorkspace')}
+                          >
+                            &#9998;
+                          </span>
                         </div>
                       }
                     >

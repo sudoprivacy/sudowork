@@ -383,6 +383,56 @@ export class AionUIDatabase {
    * ==================
    */
 
+  /**
+   * Get all conversations associated with a specific workspace path
+   * 获取与指定工作空间路径关联的所有对话
+   *
+   * @param workspacePath - The workspace path to search for
+   * @returns Array of matching conversations
+   */
+  getConversationsByWorkspace(workspacePath: string): TChatConversation[] {
+    try {
+      const stmt = this.db.prepare(
+        `SELECT * FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
+      );
+      const rows = stmt.all(workspacePath) as IConversationRow[];
+      return rows.map(rowToConversation);
+    } catch (error) {
+      mainError('Database', 'Failed to get conversations by workspace:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Batch update workspace path for all related conversations (used for directory rename)
+   * 批量更新所有关联对话的工作空间路径（用于目录重命名）
+   *
+   * @param oldPath - The old workspace path
+   * @param newPath - The new workspace path
+   */
+  updateWorkspacePath(oldPath: string, newPath: string): void {
+    const conversations = this.getConversationsByWorkspace(oldPath);
+    if (conversations.length === 0) return;
+
+    const updateStmt = this.db.prepare(
+      `UPDATE conversations
+       SET extra = json_set(extra, '$.workspace', ?),
+           name = ?,
+           updated_at = ?
+       WHERE id = ?`
+    );
+
+    const transaction = this.db.transaction(() => {
+      const now = Date.now();
+      for (const conv of conversations) {
+        updateStmt.run(newPath, newPath, now, conv.id);
+      }
+    });
+
+    transaction();
+    mainLog('Database', `Updated ${conversations.length} conversations from workspace ${oldPath} to ${newPath}`);
+  }
+
   createConversation(conversation: TChatConversation, userId?: string): IQueryResult<TChatConversation> {
     try {
       const row = conversationToRow(conversation, userId || this.defaultUserId);

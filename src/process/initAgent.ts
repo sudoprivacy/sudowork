@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
@@ -35,6 +36,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     // 规范化路径：去除末尾斜杠，解析为绝对路径
     workspace = path.resolve(workspace);
   }
+
+  // 自动创建草稿箱目录 / Auto-create drafts directory
+  const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
+  await fs.mkdir(draftsDir, { recursive: true });
 
   return { workspace, customWorkspace };
 };

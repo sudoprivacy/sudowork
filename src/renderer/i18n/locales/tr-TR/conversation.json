@@ -91,6 +91,32 @@
     "refresh": "Yenile",
     "temporarySpace": "Geçici Alan",
     "changeWorkspace": "Çalışma Alanını Değiştir",
+    "drafts": {
+      "title": "Taslaklar",
+      "description": "Ajan yürütme sırasında üretilen ara dosyalar",
+      "empty": "Taslaklar boş",
+      "clearAll": "Taslakları Temizle",
+      "clearConfirm": "Taslaklardaki tüm dosyaları silmek istediğinizden emin misiniz?",
+      "clearSuccess": "Taslaklar temizlendi",
+      "fileCount": "{{count}} ara dosya",
+      "deleteFailed": "Taslak dosya silinemedi",
+      "deleteSuccess": "Taslak dosya silindi"
+    },
+    "rename": {
+      "title": "Çalışma Alanını Yeniden Adlandır",
+      "placeholder": "Yeni klasör adını girin",
+      "success": "Çalışma alanı başarıyla yeniden adlandırıldı",
+      "failed": "Yeniden adlandırma başarısız",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "alreadyExists": "Hedef klasör zaten mevcut",
+      "agentRunning": "Ajan çalışıyor, lütfen yeniden adlandırmadan önce bekleyin",
+      "emptyName": "İsim boş olamaz",
+      "warning": "Bu fiziksel klasörü yeniden adlandıracak",
+      "renameWorkspace": "Çalışma Alanını Yeniden Adlandır",
+      "quickRename": "Hızlı Yeniden Adlandır",
+      "quickRenameDesc": "Geçici alanı anlamlı bir adla yeniden adlandır"
+    },
+    "openInExplorer": "Dosya Yöneticisinde Aç",
     "migration": {
       "title": "Çalışma Alanını Değiştir",
       "currentWorkspaceLabel": "Mevcut geçici çalışma alanı: ",
