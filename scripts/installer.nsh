@@ -33,8 +33,14 @@
 ; the MUI2 macros pick them up.
 
 ; Enable header image in the top-right corner of every step page
-!define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_RIGHT
+; Use !ifndef guards because electron-builder may already define these
+; when installerHeader is set in electron-builder.yml.
+!ifndef MUI_HEADERIMAGE
+  !define MUI_HEADERIMAGE
+!endif
+!ifndef MUI_HEADERIMAGE_RIGHT
+  !define MUI_HEADERIMAGE_RIGHT
+!endif
 
 ; Background colour for the welcome / finish full-page panels
 !define MUI_BGCOLOR "161C2D"
