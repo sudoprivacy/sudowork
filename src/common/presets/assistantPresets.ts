@@ -416,6 +416,52 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
+    id: 'rigo-return-mgmt',
+    avatar: '📦',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/rigo-return-mgmt',
+    ruleFiles: {
+      'en-US': 'rigo-return-mgmt.md',
+      'zh-CN': 'rigo-return-mgmt.md',
+    },
+    defaultEnabledSkills: ['rule-engine', 'return-judgment', 'report-builder'],
+    nameI18n: {
+      'en-US': 'Rigo Return Manager',
+      'zh-CN': '返厂管理搭子',
+    },
+    descriptionI18n: {
+      'en-US': 'Automated return management for Rigo. Daily batch processing: pull documents, judge return eligibility, generate 44-field reports, push to WeChat Work.',
+      'zh-CN': '锐锢返厂管理 AI 搭子，每日定时批处理：拉取单据→判定返厂→生成 44 字段报表→推送企微群。',
+    },
+    promptsI18n: {
+      'en-US': ['Run today\'s return batch processing', 'Check overdue return orders', 'Generate daily return report'],
+      'zh-CN': ['执行今日返厂批处理', '检查超时返厂订单', '生成今日返厂报表'],
+    },
+  },
+  {
+    id: 'rigo-amazon-recon',
+    avatar: '🔄',
+    presetAgentType: 'claude',
+    resourceDir: 'assistant/rigo-amazon-recon',
+    ruleFiles: {
+      'en-US': 'rigo-amazon-recon.md',
+      'zh-CN': 'rigo-amazon-recon.md',
+    },
+    defaultEnabledSkills: ['rule-engine', 'amazon-reconciliation', 'report-builder'],
+    nameI18n: {
+      'en-US': 'Rigo Amazon Reconciliation',
+      'zh-CN': '亚马逊处理专员',
+    },
+    descriptionI18n: {
+      'en-US': 'Monthly Amazon cross-border reconciliation specialist. Auto-export 6 tables from Lingxing, process with formula rules, annotate discrepancies, iterate with human confirmation.',
+      'zh-CN': '锐锢亚马逊跨境月度对账专员，自动导出领星 6 张表→加工核对→标注差异→人机迭代确认。',
+    },
+    promptsI18n: {
+      'en-US': ['Start monthly Amazon reconciliation', 'Show discrepancies from last reconciliation round', 'Generate final reconciliation report'],
+      'zh-CN': ['启动本月亚马逊对账', '查看上轮对账差异', '生成最终对账报告'],
+    },
+  },
+  {
     id: 'jiansheku',
     avatar: '🏗️',
     presetAgentType: 'sudoclaw',
