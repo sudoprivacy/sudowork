@@ -36,11 +36,12 @@ class SecretCacheImpl {
   private initialized = false;
 
   /**
-   * Initialize the client with API key.
+   * Initialize the client.
+   * Uses resolveConfig() to get full config including identity headers.
    * Called once at startup.
    */
-  initialize(apiKey: string): void {
-    this.client = getSecretStoreClient(apiKey);
+  initialize(): void {
+    this.client = getSecretStoreClient();
   }
 
   /**

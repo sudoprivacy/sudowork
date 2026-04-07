@@ -36,15 +36,26 @@ export interface GetSecretRequest {
   version?: number;
 }
 
+export interface SecretStoreClientOptions {
+  apiKey?: string;
+  baseUrl?: string;
+  subject?: string;
+  agentId?: string;
+  zoneId?: string;
+}
+
 export class SecretStoreClient {
   private readonly client: FetchClient;
 
-  constructor(apiKey: string, baseUrl?: string) {
-    const resolvedBaseUrl = baseUrl ?? 'http://localhost:12012';
-    console.log('[SecretStoreClient] Created with baseUrl:', resolvedBaseUrl, 'apiKey length:', apiKey?.length ?? 0);
+  constructor(options: SecretStoreClientOptions) {
+    const resolvedBaseUrl = options.baseUrl ?? 'http://localhost:12012';
+    console.log('[SecretStoreClient] Created with baseUrl:', resolvedBaseUrl, 'apiKey length:', options.apiKey?.length ?? 0);
     this.client = new FetchClient({
-      apiKey,
+      apiKey: options.apiKey ?? '',
       baseUrl: resolvedBaseUrl,
+      subject: options.subject,
+      agentId: options.agentId,
+      zoneId: options.zoneId,
     });
   }
 

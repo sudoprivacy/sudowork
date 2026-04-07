@@ -16,7 +16,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 
 export interface DeviceAuthEntry {
   token: string;
@@ -105,29 +104,29 @@ export function loadDeviceAuthToken(params: { deviceId: string; role: string }):
   if (!entry || typeof entry.token !== 'string') {
     return null;
   }
-  // Resolve token from Nexus cache if available
-  entry.token = resolveSecret('auth:device', 'token', entry.token);
   return entry;
 }
 
 /**
  * Store device auth token for a specific device and role
- *
- * After migration:
- * - Token is stored ONLY in Nexus (Nexus is source of truth)
- * - Original storage (file) is frozen - no longer maintained
  */
 export function storeDeviceAuthToken(params: { deviceId: string; role: string; token: string; scopes?: string[] }): DeviceAuthEntry {
+  const filePath = resolveDeviceAuthPath();
+  const existing = readStore(filePath);
   const role = normalizeRole(params.role);
+  const next: DeviceAuthStore = {
+    version: 1,
+    deviceId: params.deviceId,
+    tokens: existing && existing.deviceId === params.deviceId && existing.tokens ? { ...existing.tokens } : {},
+  };
   const entry: DeviceAuthEntry = {
     token: params.token,
     role,
     scopes: normalizeScopes(params.scopes),
     updatedAtMs: Date.now(),
   };
-  // Token is stored ONLY in Nexus after migration
-  // Original storage (file) is frozen - no longer maintained
-  cachePut('auth:device', 'token', params.token);
+  next.tokens[role] = entry;
+  writeStore(filePath, next);
   return entry;
 }
 

@@ -8,7 +8,6 @@
  *    - Channel credentials (Telegram, Feishu, DingTalk, WeChat)
  *    - AI Platform API Keys (OpenAI, Anthropic, Gemini, Bedrock)
  *    - ACP Auth Tokens
- *    - Device Auth Tokens
  *    - JWT Secrets
  * 4. Mark migration as complete
  * 5. Trigger cache preload
@@ -69,15 +68,15 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
 export class SecretMigrationCoordinator {
   private client: SecretStoreClient | null = null;
   private migrationMap: MigrationMap = {};
-  private apiKey: string = '';
 
   /**
-   * Initialize the coordinator with API key for Nexus authentication.
+   * Initialize the coordinator with optional credentials for Nexus authentication.
+   * Uses resolveConfig() to get full config if no options provided.
    */
-  initialize(apiKey: string): void {
-    this.apiKey = apiKey;
-    this.client = getSecretStoreClient(apiKey);
-    secretCache.initialize(apiKey);
+  initialize(options?: { apiKey?: string; subject?: string; agentId?: string; zoneId?: string }): void {
+    // Use the parameter if provided, otherwise getSecretStoreClient will use resolveConfig()
+    this.client = getSecretStoreClient();
+    secretCache.initialize();
   }
 
   /**
@@ -126,7 +125,6 @@ export class SecretMigrationCoordinator {
       this.migrateChannelCredentials.bind(this),
       this.migrateAIPlatformCredentials.bind(this),
       this.migrateACPAuthTokens.bind(this),
-      this.migrateDeviceAuthTokens.bind(this),
       this.migrateJWTSecrets.bind(this),
     ];
 
@@ -155,12 +153,17 @@ export class SecretMigrationCoordinator {
 
   /**
    * Check if Nexus is healthy by calling /health endpoint.
+   * Uses the configured baseUrl from config.yaml instead of hardcoded port.
    */
   private async waitForNexus(timeoutMs: number): Promise<boolean> {
+    const config = resolveConfig();
+    const healthUrl = `${config.baseUrl}/health`;
+    console.log(`[SecretMigration] Checking Nexus health at: ${healthUrl}`);
+
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       try {
-        const response = await fetch('http://localhost:12012/health', {
+        const response = await fetch(healthUrl, {
           method: 'GET',
           signal: AbortSignal.timeout(5000),
         });
@@ -450,65 +453,6 @@ export class SecretMigrationCoordinator {
   }
 
   /**
-   * Migrate device auth tokens from ~/.openclaw/identity/device-auth.json.
-   */
-  private async migrateDeviceAuthTokens(): Promise<number> {
-    console.log('[SecretMigration] Migrating device auth tokens...');
-    let migrated = 0;
-    let failed = 0;
-
-    try {
-      const deviceAuthPath = this.resolveDeviceAuthPath();
-      if (!fs.existsSync(deviceAuthPath)) {
-        console.log('[SecretMigration] No device-auth.json found');
-        return 0;
-      }
-
-      const content = fs.readFileSync(deviceAuthPath, 'utf-8');
-      const store = JSON.parse(content);
-
-      if (!store.tokens || typeof store.tokens !== 'object') {
-        return 0;
-      }
-
-      // Each token entry has structure: { token, role, scopes, updatedAtMs }
-      for (const [role, entry] of Object.entries(store.tokens)) {
-        if (!entry || typeof entry !== 'object') {
-          continue;
-        }
-
-        const tokenEntry = entry as { token?: string };
-        if (tokenEntry.token && typeof tokenEntry.token === 'string') {
-          // Use role as part of the key to differentiate tokens
-          const namespace = 'auth:device';
-          const key = role === 'default' ? 'token' : `token:${role}`;
-          try {
-            await this.migrateSecret(namespace, key, tokenEntry.token);
-            migrated++;
-          } catch (error) {
-            failed++;
-          }
-        }
-      }
-
-      await this.saveMigrationMap();
-    } catch (error) {
-      console.error('[SecretMigration] Error migrating device auth tokens:', error);
-    }
-
-    console.log(`[SecretMigration] Device auth tokens migration complete: ${migrated} migrated, ${failed} failed`);
-    return migrated;
-  }
-
-  /**
-   * Resolve the device auth file path.
-   */
-  private resolveDeviceAuthPath(): string {
-    const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(os.homedir(), '.openclaw');
-    return path.join(stateDir, 'identity', 'device-auth.json');
-  }
-
-  /**
    * Migrate JWT secrets from SQLite users table.
    */
   private async migrateJWTSecrets(): Promise<number> {
@@ -561,15 +505,23 @@ export function getMigrationCoordinator(): SecretMigrationCoordinator {
  */
 export async function initializeSecrets(): Promise<void> {
   const config = resolveConfig();
-  const apiKey = config.apiKey;
 
-  if (!apiKey) {
-    console.warn('[SecretMigration] No Nexus API key found, skipping secret migration');
+  const hasIdentityHeaders = !!(config.subject || config.agentId || config.zoneId);
+  const hasApiKey = !!config.apiKey;
+
+  // Skip if neither apiKey nor identity headers are configured
+  if (!hasApiKey && !hasIdentityHeaders) {
+    console.warn('[SecretMigration] No Nexus credentials found (apiKey or identity headers). Skipping secret migration.');
     return;
   }
 
   const coordinator = getMigrationCoordinator();
-  coordinator.initialize(apiKey);
+  coordinator.initialize({
+    apiKey: config.apiKey,
+    subject: config.subject,
+    agentId: config.agentId,
+    zoneId: config.zoneId,
+  });
 
   // Run migration if needed
   const migrationResult = await coordinator.migrateAll();

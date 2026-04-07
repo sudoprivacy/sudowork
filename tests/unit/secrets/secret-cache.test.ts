@@ -21,7 +21,7 @@ describe('SecretCache', () => {
 
   describe('initialize', () => {
     it('should initialize the client', () => {
-      secretCache.initialize('test-api-key');
+      secretCache.initialize();
       expect((secretCache as any).client).toBeDefined();
     });
   });
