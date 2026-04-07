@@ -11,6 +11,7 @@ import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
+import { isNightlyBuild } from '@/common/buildInfo';
 import { useTranslation } from 'react-i18next';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
@@ -58,6 +59,31 @@ const UpdateModal: React.FC = () => {
   const checkForUpdates = async () => {
     setStatus('checking');
     try {
+      // Nightly builds: skip electron-updater, only use manual GitHub release check
+      if (isNightlyBuild) {
+        setUseAutoUpdate(false);
+        const res = await ipcBridge.update.check.invoke({ includePrerelease: true });
+        if (!res?.success) {
+          throw new Error(res?.msg || t('update.checkFailed'));
+        }
+        setCurrentVersion(res.data?.currentVersion || '');
+
+        if (res.data?.updateAvailable && res.data.latest) {
+          setUpdateInfo(res.data.latest);
+          setReleasePageUrl(res.data.latest.htmlUrl || '');
+          if (!res.data.latest.recommendedAsset) {
+            setErrorMsg(t('update.noCompatibleAssetManual'));
+          }
+          setStatus('available');
+          return;
+        }
+
+        setUpdateInfo(res.data?.latest || null);
+        setReleasePageUrl(res.data?.latest?.htmlUrl || '');
+        setStatus('upToDate');
+        return;
+      }
+
       // 优先使用自动更新模式
       if (useAutoUpdate) {
         const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease });
@@ -371,11 +397,20 @@ const UpdateModal: React.FC = () => {
               </div>
             </div>
 
-            {/* 自动更新开关 / Auto update toggle */}
-            <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b border-border-2'>
-              <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
-              <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
-            </div>
+            {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
+            {!isNightlyBuild && (
+              <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b border-border-2'>
+                <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
+                <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
+              </div>
+            )}
+
+            {/* Nightly build notice */}
+            {isNightlyBuild && (
+              <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>
+                {t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}
+              </div>
+            )}
 
             {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-[rgb(var(--warning-6))]/10 text-[rgb(var(--warning-6))]'>{t('update.noCompatibleAssetManual')}</div>}
 
