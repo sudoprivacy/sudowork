@@ -277,7 +277,7 @@ const mapNightlyRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
 
   return {
     tagName: rel.tag_name,
-    version: `nightly (${nightlyDate})`,
+    version: rel.tag_name,
     name: rel.name || `Nightly ${nightlyDate}`,
     body: rel.body,
     htmlUrl: rel.html_url,
@@ -321,7 +321,7 @@ const checkNightlyUpdate = async (repo: string, currentBuildDate: string): Promi
   const updateAvailable = latestNorm > currentNorm;
 
   return {
-    currentVersion: `nightly (${currentBuildDate})`,
+    currentVersion,
     updateAvailable,
     latest: updateAvailable ? latest : undefined,
   };

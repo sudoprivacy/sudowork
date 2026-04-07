@@ -51,14 +51,14 @@ function getBuildMetadata() {
     }
   };
 
-  const version = process.env.BUILD_VERSION || gitExec('git describe --tags --abbrev=0 2>/dev/null', '') || packageJson.version;
+  const version = process.env.BUILD_VERSION || gitExec('git describe --tags --abbrev=0', '') || packageJson.version;
   const date = process.env.BUILD_DATE || gitExec('git log -1 --format=%cs', new Date().toISOString().slice(0, 10));
   const commit = process.env.BUILD_COMMIT || gitExec('git rev-parse --short HEAD', 'unknown');
 
   // Detect nightly: explicit env var, or tag starting with "nightly-"
   let isNightly = process.env.BUILD_IS_NIGHTLY === 'true';
   if (!isNightly) {
-    const tag = gitExec('git describe --tags --exact-match 2>/dev/null', '');
+    const tag = gitExec('git describe --tags --exact-match', '');
     if (/^nightly-/i.test(tag)) isNightly = true;
   }
 
