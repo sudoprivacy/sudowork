@@ -140,6 +140,24 @@
       "openFailed": "Failed to open",
       "revealFailed": "Failed to open containing folder",
       "uploadToBdpan": "Upload to Baidu Netdisk"
+    },
+    "drafts": {
+      "title": "Drafts",
+      "description": "Intermediate files produced during Agent execution",
+      "empty": "Drafts is empty",
+      "clearAll": "Clear Drafts",
+      "clearConfirm": "Are you sure you want to clear all files in Drafts?",
+      "fileCount": "{{count}} intermediate file(s)"
+    },
+    "renameWorkspace": {
+      "title": "Rename Workspace",
+      "placeholder": "Enter new folder name",
+      "hint": "This will rename the physical folder. The conversation title will not change.",
+      "success": "Workspace renamed successfully",
+      "failed": "Failed to rename workspace",
+      "invalidName": "Folder name contains invalid characters",
+      "alreadyExists": "Target folder already exists",
+      "agentRunning": "An Agent is currently running. Please wait for it to finish before renaming."
     }
   },
   "chat": {

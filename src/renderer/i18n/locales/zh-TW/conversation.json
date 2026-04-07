@@ -140,6 +140,24 @@
       "openFailed": "開啟失敗",
       "revealFailed": "無法開啟所在資料夾",
       "uploadToBdpan": "上傳至百度網盤"
+    },
+    "drafts": {
+      "title": "草稿箱",
+      "description": "Agent 執行過程中產出的中間檔案",
+      "empty": "草稿箱為空",
+      "clearAll": "清空草稿箱",
+      "clearConfirm": "確定清空草稿箱中的所有檔案嗎？",
+      "fileCount": "{{count}} 個中間檔案"
+    },
+    "renameWorkspace": {
+      "title": "重新命名工作空間",
+      "placeholder": "請輸入新的資料夾名稱",
+      "hint": "將重新命名實體資料夾，會話標題不會改變",
+      "success": "工作空間重新命名成功",
+      "failed": "重新命名失敗",
+      "invalidName": "資料夾名稱包含非法字元",
+      "alreadyExists": "目標資料夾已存在",
+      "agentRunning": "有正在執行的 Agent，請等待完成後再重新命名"
     }
   },
   "chat": {

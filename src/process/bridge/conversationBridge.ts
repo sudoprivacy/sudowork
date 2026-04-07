@@ -558,6 +558,12 @@ export function initConversationBridge(): void {
       const nextModel = 'model' in updates ? updates.model : undefined;
       const modelChanged = !!nextModel && JSON.stringify(prevModel) !== JSON.stringify(nextModel);
 
+      // Detect workspace path change to kill running agent (so it rebuilds with new path)
+      // 检测 workspace 路径变更以 kill 运行中的 Agent（使其使用新路径重建）
+      const prevWorkspace = existing.success && existing.data ? existing.data.extra?.workspace : undefined;
+      const nextWorkspace = updates.extra?.workspace;
+      const workspaceChanged = !!nextWorkspace && nextWorkspace !== prevWorkspace;
+
       let finalUpdates = updates;
       if (mergeExtra && updates.extra && existing.success && existing.data) {
         finalUpdates = {
@@ -571,8 +577,9 @@ export function initConversationBridge(): void {
 
       const result = await Promise.resolve(db.updateConversation(id, finalUpdates));
 
-      // If model changed, kill running task to force rebuild with new model on next send
-      if (result.success && modelChanged) {
+      // If model or workspace changed, kill running task to force rebuild on next send
+      // 如果 model 或 workspace 变更，kill 运行中的 task 以强制在下次发送时重建
+      if (result.success && (modelChanged || workspaceChanged)) {
         try {
           WorkerManage.kill(id);
         } catch (killErr) {

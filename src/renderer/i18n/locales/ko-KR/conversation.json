@@ -140,6 +140,24 @@
       "openFailed": "열기 실패",
       "revealFailed": "포함 폴더 열기 실패",
       "uploadToBdpan": "바이두 넷디스크에 업로드"
+    },
+    "drafts": {
+      "title": "초안함",
+      "description": "에이전트 실행 중 생성된 중간 파일",
+      "empty": "초안함이 비어 있습니다",
+      "clearAll": "초안함 비우기",
+      "clearConfirm": "초안함의 모든 파일을 삭제하시겠습니까?",
+      "fileCount": "{{count}}개 중간 파일"
+    },
+    "renameWorkspace": {
+      "title": "워크스페이스 이름 변경",
+      "placeholder": "새 폴더 이름 입력",
+      "hint": "물리적 폴더 이름이 변경됩니다. 대화 제목은 변경되지 않습니다.",
+      "success": "워크스페이스 이름 변경 성공",
+      "failed": "이름 변경 실패",
+      "invalidName": "폴더 이름에 잘못된 문자가 포함되어 있습니다",
+      "alreadyExists": "대상 폴더가 이미 존재합니다",
+      "agentRunning": "에이전트가 실행 중입니다. 완료 후 다시 시도하세요."
     }
   },
   "chat": {

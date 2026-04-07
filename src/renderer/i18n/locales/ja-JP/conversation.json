@@ -140,6 +140,24 @@
       "openFailed": "開けませんでした",
       "revealFailed": "フォルダーを開けませんでした",
       "uploadToBdpan": "百度ネットディスクにアップロード"
+    },
+    "drafts": {
+      "title": "下書き",
+      "description": "エージェント実行中に生成された中間ファイル",
+      "empty": "下書きは空です",
+      "clearAll": "下書きをクリア",
+      "clearConfirm": "下書きのすべてのファイルをクリアしますか？",
+      "fileCount": "{{count}} 個の中間ファイル"
+    },
+    "renameWorkspace": {
+      "title": "ワークスペースの名前を変更",
+      "placeholder": "新しいフォルダー名を入力",
+      "hint": "物理フォルダーの名前が変更されます。会話タイトルは変更されません。",
+      "success": "ワークスペースの名前を変更しました",
+      "failed": "名前の変更に失敗しました",
+      "invalidName": "フォルダー名に無効な文字が含まれています",
+      "alreadyExists": "ターゲットフォルダーはすでに存在します",
+      "agentRunning": "エージェントが実行中です。完了するまでお待ちください。"
     }
   },
   "chat": {

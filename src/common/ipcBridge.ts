@@ -234,6 +234,25 @@ export const fs = {
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
 };
 
+// 工作空间管理 / Workspace management
+export const workspaceManage = {
+  // 重命名工作空间物理目录（同时更新所有关联对话的 extra.workspace）
+  // Rename workspace physical directory (also updates extra.workspace in all associated conversations)
+  renameDirectory: bridge.buildProvider<
+    IBridgeResponse<{ newPath: string }>,
+    { conversationId: string; oldPath: string; newName: string }
+  >('workspace-manage.rename-directory'),
+  // 列出草稿箱文件 / List drafts files
+  listDrafts: bridge.buildProvider<
+    Array<{ name: string; size: number; modifiedAt: number }>,
+    { workspace: string }
+  >('workspace-manage.list-drafts'),
+  // 删除草稿文件 / Delete a draft file
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
+  // 清空草稿箱 / Clear all drafts
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
+};
+
 export const fileWatch = {
   startWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-start'), // 开始监听文件变化
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化

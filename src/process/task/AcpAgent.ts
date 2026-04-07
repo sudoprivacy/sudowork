@@ -1192,7 +1192,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     });
   }
 
-  private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
+  private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string; stage?: 'intermediate' | 'final' }): void {
     let text: string;
     switch (operation.method) {
       case 'fs/write_text_file':

@@ -17,7 +17,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Empty, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
+import { Down, Edit, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -74,6 +74,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [showDirectorySelector, setShowDirectorySelector] = useState(false);
   const [selectedTargetPath, setSelectedTargetPath] = useState('');
   const [migrationLoading, setMigrationLoading] = useState(false);
+
+  // Workspace directory rename state / 工作空间目录重命名状态
+  const [showWorkspaceRenameModal, setShowWorkspaceRenameModal] = useState(false);
+  const [workspaceNewName, setWorkspaceNewName] = useState('');
+  const [workspaceRenameLoading, setWorkspaceRenameLoading] = useState(false);
 
   // Bdpan upload state
   const [bdpanUploadPickerVisible, setBdpanUploadPickerVisible] = useState(false);
@@ -361,6 +366,49 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       setSelectedTargetPath('');
     }
   }, [migrationLoading]);
+
+  // Workspace directory rename handler
+  // 工作空间目录重命名处理
+  const handleOpenWorkspaceRename = useCallback(() => {
+    setWorkspaceNewName(getLastDirectoryName(workspace));
+    setShowWorkspaceRenameModal(true);
+  }, [workspace]);
+
+  const handleWorkspaceRenameConfirm = useCallback(async () => {
+    const trimmedName = workspaceNewName.trim();
+    if (!trimmedName) {
+      messageApi.warning(t('conversation.workspace.contextMenu.renameEmpty'));
+      return;
+    }
+    if (trimmedName === getLastDirectoryName(workspace)) {
+      setShowWorkspaceRenameModal(false);
+      return;
+    }
+
+    setWorkspaceRenameLoading(true);
+    try {
+      const result = await ipcBridge.workspaceManage.renameDirectory.invoke({
+        conversationId: conversation_id,
+        oldPath: workspace,
+        newName: trimmedName,
+      });
+      if (result?.success && result.data?.newPath) {
+        setShowWorkspaceRenameModal(false);
+        messageApi.success(t('conversation.workspace.renameWorkspace.success'));
+        // Refresh history to reflect the new workspace name
+        emitter.emit('chat.history.refresh');
+        // Navigate to refresh the workspace panel with new path
+        void navigate(`/conversation/${conversation_id}`);
+      } else {
+        messageApi.error(result?.msg || t('conversation.workspace.renameWorkspace.failed'));
+      }
+    } catch (error) {
+      console.error('Failed to rename workspace directory:', error);
+      messageApi.error(t('conversation.workspace.renameWorkspace.failed'));
+    } finally {
+      setWorkspaceRenameLoading(false);
+    }
+  }, [workspaceNewName, workspace, conversation_id, messageApi, t, navigate]);
 
   const showBdpanUploadPicker = useCallback(
     (node: IDirOrFile) => {
@@ -655,6 +703,29 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
         </Modal>
 
+        {/* Workspace Directory Rename Modal / 工作空间目录重命名弹窗 */}
+        <Modal
+          visible={showWorkspaceRenameModal}
+          title={t('conversation.workspace.renameWorkspace.title')}
+          onCancel={() => !workspaceRenameLoading && setShowWorkspaceRenameModal(false)}
+          onOk={handleWorkspaceRenameConfirm}
+          okText={t('common.confirm')}
+          cancelText={t('common.cancel')}
+          confirmLoading={workspaceRenameLoading}
+          style={{ borderRadius: '12px' }}
+          alignCenter
+          getPopupContainer={() => document.body}
+        >
+          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+          <Input
+            autoFocus
+            value={workspaceNewName}
+            onChange={(value) => setWorkspaceNewName(value)}
+            onPressEnter={handleWorkspaceRenameConfirm}
+            placeholder={t('conversation.workspace.renameWorkspace.placeholder')}
+          />
+        </Modal>
+
         {/* Workspace Migration Modal */}
         <Modal visible={showMigrationModal} title={t('conversation.workspace.migration.title')} onCancel={handleCloseMigrationModal} footer={null} style={{ borderRadius: '12px' }} className='workspace-migration-modal' alignCenter getPopupContainer={() => document.body}>
           <div className='py-8px'>
@@ -789,6 +860,13 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               </Popover>
             </div>
             <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
+              {isTemporaryWorkspace && (
+                <Tooltip content={t('conversation.workspace.renameWorkspace.title')}>
+                  <span>
+                    <Edit className='workspace-toolbar-icon-btn flex cursor-pointer' theme='outline' size='16' fill={iconColors.secondary} onClick={handleOpenWorkspaceRename} />
+                  </span>
+                </Tooltip>
+              )}
               <Tooltip content={t('conversation.workspace.refresh')}>
                 <span>
                   <Refresh className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
@@ -964,7 +1042,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       }}
                     >
                       <span className='flex items-center gap-4px min-w-0'>
-                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{node.title}</span>
+                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{node.title === '.drafts' && !isFile ? t('conversation.workspace.drafts.title') : node.title}</span>
                         {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded'>PASTE</span>}
                       </span>
                       {isMobile && (

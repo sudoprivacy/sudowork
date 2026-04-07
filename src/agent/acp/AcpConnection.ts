@@ -58,7 +58,7 @@ export class AcpConnection {
   }> = () => Promise.resolve({ optionId: 'allow' }); // Returns a resolved Promise for interface consistency
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
-  public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
+  public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string; stage?: 'intermediate' | 'final' }) => void = () => {};
   // Disconnect callback - called when child process exits unexpectedly during runtime
   public onDisconnect: (error: { code: number | null; signal: NodeJS.Signals | null }) => void = () => {};
 
@@ -978,14 +978,51 @@ export class AcpConnection {
 
   // Normalize write operations and emit UI events so the workspace view stays in sync
   // 将写入操作归一化并通知 UI，保持工作区视图同步
-  private async handleWriteOperation(params: { path: string; content: string; sessionId?: string }): Promise<null> {
-    const resolvedWritePath = this.resolveWorkspacePath(params.path);
+  private async handleWriteOperation(params: { path: string; content: string; sessionId?: string; stage?: 'intermediate' | 'final' }): Promise<null> {
+    let resolvedWritePath = this.resolveWorkspacePath(params.path);
+
+    // Route intermediate files to .drafts/ directory
+    // 将中间产物文件路由到 .drafts/ 目录
+    const stage = params.stage || this.inferFileStage(params.path);
+    if (stage === 'intermediate') {
+      const draftsDir = path.join(this.workingDir, '.drafts');
+      const fileName = path.basename(resolvedWritePath);
+      resolvedWritePath = path.join(draftsDir, fileName);
+    }
+
     this.onFileOperation({
       method: 'fs/write_text_file',
       path: resolvedWritePath,
       content: params.content,
       sessionId: params.sessionId || '',
+      stage,
     });
     return await writeTextFile(resolvedWritePath, params.content);
+  }
+
+  /**
+   * Infer whether a file is intermediate or final based on heuristics
+   * 根据启发式规则推断文件是中间产物还是最终结果
+   *
+   * Files that look like scripts, temporary data, or intermediate analysis are routed to drafts.
+   * Final outputs like reports, final results, etc. go to the workspace root.
+   */
+  private inferFileStage(filePath: string): 'intermediate' | 'final' {
+    const ext = path.extname(filePath).toLowerCase();
+    const baseName = path.basename(filePath).toLowerCase();
+
+    // Script files are typically intermediate (execution scripts, not output)
+    const intermediateExtensions = ['.py', '.sh', '.bat', '.ps1', '.rb', '.pl'];
+    if (intermediateExtensions.includes(ext)) {
+      return 'intermediate';
+    }
+
+    // Files with step/draft/temp/tmp in their name are intermediate
+    if (/\b(step|draft|temp|tmp|intermediate|scratch)\b/i.test(baseName)) {
+      return 'intermediate';
+    }
+
+    // Default: final (backward compatible)
+    return 'final';
   }
 }
