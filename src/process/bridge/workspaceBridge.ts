@@ -81,6 +81,31 @@ export function initWorkspaceBridge(): void {
   });
 
   /**
+   * Update workspace display name (no physical rename, only DB update)
+   * 更新工作空间显示名（不改物理路径，只更新数据库）
+   */
+  ipcBridge.workspaceManage.updateDisplayName.provider(async ({ workspace, displayName }) => {
+    try {
+      const trimmed = displayName.trim();
+      if (!trimmed) {
+        return { success: false, error: 'Display name cannot be empty' };
+      }
+
+      const db = getDatabase();
+      const result = db.updateWorkspaceDisplayName(workspace, trimmed);
+      if (!result.success) {
+        return { success: false, error: result.error || 'Database update failed' };
+      }
+
+      mainLog('workspaceBridge', `Updated display name for workspace ${workspace} -> "${trimmed}" (${result.data} conversations)`);
+      return { success: true };
+    } catch (error) {
+      mainError('workspaceBridge', 'Failed to update workspace display name:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  /**
    * List drafts files in workspace
    * 列出工作空间草稿箱中的文件
    */

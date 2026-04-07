@@ -148,8 +148,8 @@
     },
     "renameWorkspace": {
       "title": "Çalışma Alanını Yeniden Adlandır",
-      "placeholder": "Yeni klasör adı girin",
-      "hint": "Fiziksel klasör yeniden adlandırılacaktır. İlişkili tüm konuşmalar otomatik olarak güncellenecektir.",
+      "placeholder": "Görünen adı girin",
+      "hint": "Yalnızca görünen ad değiştirilecektir. Fiziksel klasör yolu değiştirilmeyecektir.",
       "success": "Çalışma alanı yeniden adlandırıldı",
       "failed": "Yeniden adlandırma başarısız",
       "invalidName": "Klasör adı geçersiz karakterler içeriyor",

@@ -58,7 +58,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     if (!newName) return;
     setWsRenameLoading(true);
     try {
-      const result = await ipcBridge.workspaceManage.renameDirectory.invoke({ oldPath: wsRenameModal.workspace, newName });
+      const result = await ipcBridge.workspaceManage.updateDisplayName.invoke({ workspace: wsRenameModal.workspace, displayName: newName });
       if (result?.success) {
         Message.success(t('conversation.workspace.renameWorkspace.success'));
         setWsRenameModal({ visible: false, workspace: '', name: '' });

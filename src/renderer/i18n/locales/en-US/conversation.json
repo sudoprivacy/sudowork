@@ -153,8 +153,8 @@
     },
     "renameWorkspace": {
       "title": "Rename Workspace",
-      "placeholder": "Enter new folder name",
-      "hint": "This will rename the physical folder. All associated conversations will be updated automatically.",
+      "placeholder": "Enter display name",
+      "hint": "This only changes the display name. The physical folder path will not be modified.",
       "success": "Workspace renamed successfully",
       "failed": "Rename failed",
       "invalidName": "Folder name contains invalid characters",

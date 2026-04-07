@@ -1176,6 +1176,8 @@ export const workspaceManage = {
   clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
   /** Delete a specific draft file / 删除指定草稿文件 */
   deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
+  /** Update workspace display name (no physical rename) / 更新工作空间显示名（不改物理路径） */
+  updateDisplayName: bridge.buildProvider<IBridgeResponse, { workspace: string; displayName: string }>('workspace-manage.update-display-name'),
 };
 
 // ==================== User Phone Storage API ====================

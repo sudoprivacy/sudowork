@@ -52,7 +52,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -78,7 +78,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     if (!newName) return;
     setWsRenameLoading(true);
     try {
-      const result = await ipcBridge.workspaceManage.renameDirectory.invoke({ oldPath: workspace, newName });
+      const result = await ipcBridge.workspaceManage.updateDisplayName.invoke({ workspace, displayName: newName });
       if (result?.success) {
         Message.success(t('conversation.workspace.renameWorkspace.success'));
         setWsRenameModal({ visible: false, name: '' });
@@ -238,13 +238,16 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Check if this is a temporary workspace (check both path and root folder name)
   const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
 
-  // Get workspace display name using shared utility
+  // Get workspace display name - prefer stored display name, fallback to path-derived name
   const workspaceDisplayName = useMemo(() => {
+    if (storedDisplayName) {
+      return storedDisplayName;
+    }
     if (isTemporaryWorkspace) {
       return t('conversation.workspace.temporarySpace');
     }
     return getDisplayName(workspace);
-  }, [workspace, isTemporaryWorkspace, t]);
+  }, [storedDisplayName, workspace, isTemporaryWorkspace, t]);
 
   // Workspace migration handlers
   // const handleOpenMigrationModal = useCallback(() => {
@@ -874,8 +877,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         type='button'
                         className={menuButtonBase}
                         onClick={() => {
-                          const displayName = getLastDirectoryName(workspace);
-                          setWsRenameModal({ visible: true, name: displayName });
+                          setWsRenameModal({ visible: true, name: workspaceDisplayName });
                           modalsHook.closeContextMenu();
                         }}
                       >

@@ -153,8 +153,8 @@
     },
     "renameWorkspace": {
       "title": "重命名工作空间",
-      "placeholder": "请输入新的文件夹名称",
-      "hint": "将重命名物理文件夹，所有关联的会话会自动更新",
+      "placeholder": "请输入显示名称",
+      "hint": "仅更改显示名称，不会修改物理文件夹路径",
       "success": "工作空间重命名成功",
       "failed": "重命名失败",
       "invalidName": "文件夹名称包含非法字符",

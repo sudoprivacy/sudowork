@@ -615,6 +615,40 @@ export class AionUIDatabase {
     }
   }
 
+  /**
+   * Update workspace display name for all conversations with the given workspace path.
+   * Only updates the displayName field in extra JSON, does NOT change the physical workspace path.
+   * 更新指定工作空间路径的所有会话的显示名称，不改变物理路径。
+   */
+  updateWorkspaceDisplayName(workspace: string, displayName: string): IQueryResult<number> {
+    try {
+      const findStmt = this.db.prepare(
+        `SELECT id FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
+      );
+      const rows = findStmt.all(workspace) as Array<{ id: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: 0 };
+      }
+
+      const updateStmt = this.db.prepare(
+        `UPDATE conversations SET extra = json_set(extra, '$.workspaceDisplayName', ?), updated_at = ? WHERE id = ?`
+      );
+
+      const now = Date.now();
+      const transaction = this.db.transaction(() => {
+        for (const row of rows) {
+          updateStmt.run(displayName, now, row.id);
+        }
+      });
+      transaction();
+
+      return { success: true, data: rows.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
   deleteConversation(conversationId: string): IQueryResult<boolean> {
     try {
       const stmt = this.db.prepare('DELETE FROM conversations WHERE id = ?');
