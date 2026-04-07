@@ -8,21 +8,16 @@
  * Safety Blacklist Service
  *
  * Manages blacklist configuration for safety hook service.
- * - Stores blacklist rules in ProcessConfig (file-based storage for main process)
- * - Syncs blacklist to Nexus filesystem for hook access
+ * Nexus is the SINGLE SOURCE OF TRUTH for all blacklist data.
  */
 
-import { ProcessConfig } from '@/process/initStorage';
 import type { BlacklistConfig, BlacklistRule } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import { getNexusClient, CONFIG_DIR } from './SecurityHookFile';
+import { getNexusClient, CONFIG_DIR, readNexusFileAsUtf8 } from './SecurityHookFile';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Path in Nexus filesystem for blacklist config */
 export const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
-
-/** Storage key for ProcessConfig */
-const BLACKLIST_STORAGE_KEY = 'safetyHook.blacklist';
 
 /**
  * Generate a unique ID for a blacklist rule
@@ -32,64 +27,39 @@ export function generateRuleId(): string {
 }
 
 /**
- * Load blacklist configuration from storage
+ * Load blacklist configuration from Nexus
  */
 export async function loadBlacklist(): Promise<BlacklistConfig> {
   try {
-    const stored = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
-    if (stored) {
+    const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
+    if (configStr) {
+      const config = JSON.parse(configStr) as BlacklistConfig;
       return {
         ...DEFAULT_BLACKLIST_CONFIG,
-        ...stored,
-        rules: stored.rules || [],
+        ...config,
+        rules: config.rules || [],
       };
     }
   } catch (error) {
-    mainError('SafetyBlacklist', 'Failed to load from storage:', error);
+    mainError('SafetyBlacklist', 'Failed to load from Nexus:', error);
   }
   return { ...DEFAULT_BLACKLIST_CONFIG };
 }
 
 /**
- * Save blacklist configuration to storage
+ * Save blacklist configuration to Nexus
  */
 export async function saveBlacklist(config: BlacklistConfig): Promise<boolean> {
-  try {
-    await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
-    return true;
-  } catch (error) {
-    mainError('SafetyBlacklist', 'Failed to save to storage:', error);
-    return false;
-  }
-}
-
-/**
- * Sync blacklist configuration to Nexus filesystem
- * This allows hook.js to read the blacklist for matching
- */
-export async function syncBlacklistToNexus(config: BlacklistConfig): Promise<boolean> {
   try {
     const client = getNexusClient();
     await client.mkdir(CONFIG_DIR, true);
     await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
-    mainLog('SafetyBlacklist', 'Synced to Nexus:', BLACKLIST_CONFIG_PATH);
+    mainLog('SafetyBlacklist', 'Saved to Nexus');
     return true;
   } catch (error) {
-    mainError('SafetyBlacklist', 'Failed to sync to Nexus:', error);
-    throw error;
+    mainError('SafetyBlacklist', 'Failed to save to Nexus:', error);
+    return false;
   }
-}
-
-/**
- * Save blacklist and sync to Nexus
- */
-export async function saveAndSyncBlacklist(config: BlacklistConfig): Promise<boolean> {
-  const saved = await saveBlacklist(config);
-  if (!saved) {
-    throw new Error('Failed to save blacklist to storage');
-  }
-  await syncBlacklistToNexus(config);
-  return true;
 }
 
 /**
@@ -104,7 +74,7 @@ export async function addBlacklistRule(rule: Omit<BlacklistRule, 'id' | 'created
     updatedAt: Date.now(),
   };
   config.rules.push(newRule);
-  await saveAndSyncBlacklist(config);
+  await saveBlacklist(config);
   return config;
 }
 
@@ -122,7 +92,7 @@ export async function updateBlacklistRule(ruleId: string, updates: Partial<Omit<
     ...updates,
     updatedAt: Date.now(),
   };
-  await saveAndSyncBlacklist(config);
+  await saveBlacklist(config);
   return config;
 }
 
@@ -132,47 +102,27 @@ export async function updateBlacklistRule(ruleId: string, updates: Partial<Omit<
 export async function deleteBlacklistRule(ruleId: string): Promise<BlacklistConfig> {
   const config = await loadBlacklist();
   config.rules = config.rules.filter((r) => r.id !== ruleId);
-  await saveAndSyncBlacklist(config);
+  await saveBlacklist(config);
   return config;
 }
 
 /**
  * Initialize blacklist on app start
- * Ensures Nexus has the current blacklist config
- * Priority: Nexus > Local storage (to avoid overwriting existing data)
+ * Ensures Nexus has a valid blacklist config file
  */
 export async function initBlacklist(): Promise<void> {
   try {
+    const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
+    if (configStr) {
+      mainLog('SafetyBlacklist', 'Blacklist config exists in Nexus');
+      return;
+    }
+
+    // No config exists, create empty config
     const client = getNexusClient();
-
-    // First check if Nexus already has blacklist config
-    try {
-      const content = await client.read(BLACKLIST_CONFIG_PATH);
-      if (Buffer.isBuffer(content) && content.length > 0) {
-        // Nexus has data, sync to local storage for persistence
-        const configStr = content.toString('utf-8');
-        const nexusConfig = JSON.parse(configStr);
-        await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, nexusConfig);
-        mainLog('SafetyBlacklist', 'Synced from Nexus to local storage');
-        return;
-      }
-    } catch (err) {
-      // Nexus doesn't have config, check local storage
-    }
-
-    // Nexus doesn't have data, check local storage and sync to Nexus
-    const localConfig = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
-    if (localConfig && localConfig.rules && localConfig.rules.length > 0) {
-      // Local storage has data, sync to Nexus
-      await client.mkdir(CONFIG_DIR, true);
-      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(localConfig, null, 2));
-      mainLog('SafetyBlacklist', 'Synced from local storage to Nexus');
-    } else {
-      // Neither has data, create empty config in Nexus
-      await client.mkdir(CONFIG_DIR, true);
-      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify({ rules: [] }, null, 2));
-      mainLog('SafetyBlacklist', 'Initialized empty config in Nexus');
-    }
+    await client.mkdir(CONFIG_DIR, true);
+    await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify({ rules: [] }, null, 2));
+    mainLog('SafetyBlacklist', 'Initialized empty config in Nexus');
   } catch (error) {
     mainError('SafetyBlacklist', 'Failed to initialize:', error);
   }
