@@ -35,6 +35,7 @@ export const shell = {
 export const openclaw = {
   getModels: bridge.buildProvider<IOpenClawModelsResponse, void>('openclaw.get-models'),
   selectModel: bridge.buildProvider<void, { conversationId: string; modelId: string; modelRatio: number }>('openclaw.select-model'),
+  updateImageModel: bridge.buildProvider<void, { modelId: string | null }>('openclaw.update-image-model'),
 };
 
 //通用会话能力
@@ -493,7 +494,7 @@ export type SudoclawProvider = {
 };
 export type SudoclawConfig = {
   lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; models?: Record<string, { alias?: string }> } };
+  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; models?: Record<string, { alias?: string }> } };
   models?: {
     mode?: 'merge' | 'replace';
     providers?: Record<string, SudoclawProvider>;

@@ -10,7 +10,7 @@ import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
 import { useCallback, useRef, useState } from 'react';
 import type { SelectedNodeRef } from '../types';
-import { getFirstLevelKeys } from '../utils/treeHelpers';
+import { getAllDirKeys, getFirstLevelKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
@@ -94,9 +94,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
             setTreeKey(Math.random());
           }
 
-          // 只展开第一层文件夹（根节点）
-          // Only expand first level folders (root node)
-          setExpandedKeys(getFirstLevelKeys(res));
+          // 搜索时展开所有包含匹配结果的文件夹，否则只展开第一层
+          // When searching, expand all folders containing matches; otherwise only expand first level
+          if (search) {
+            setExpandedKeys(getAllDirKeys(res));
+          } else {
+            setExpandedKeys(getFirstLevelKeys(res));
+          }
 
           // 根据是否有文件决定工作空间面板的展开/折叠状态
           // Determine workspace panel expand/collapse state based on files

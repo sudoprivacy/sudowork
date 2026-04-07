@@ -68,6 +68,23 @@ export function getFirstLevelKeys(nodes: IDirOrFile[]): string[] {
 }
 
 /**
+ * 递归收集树中所有文件夹节点的 key（用于搜索时全部展开）
+ * Recursively collect all directory node keys in the tree (for expanding all on search)
+ */
+export function getAllDirKeys(nodes: IDirOrFile[]): string[] {
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.isDir) {
+      keys.push(node.relativePath);
+      if (node.children && node.children.length > 0) {
+        keys.push(...getAllDirKeys(node.children));
+      }
+    }
+  }
+  return keys;
+}
+
+/**
  * 替换路径列表中的旧路径为新路径
  * Replace old path with new path in path list
  */

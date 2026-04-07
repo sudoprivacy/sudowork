@@ -37,7 +37,7 @@ Get the image from the user's message or workspace context.
 bash scripts/analyze_image.sh "<image_path>" "<question or prompt>"
 ```
 
-The script reads API credentials and model from `sudoclaw.json` via the `OPENCLAW_CONFIG_PATH` env var (auto-set at gateway startup). No manual env var configuration is needed.
+The script reads API credentials and model from `sudoclaw.json` via the `SUDOCLAW_CONFIG_PATH` env var (auto-set at gateway startup). No manual env var configuration is needed.
 
 The script prints the analysis result (LLM response) on success, or an error message on failure.
 
