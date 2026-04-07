@@ -2,7 +2,7 @@
   "name": "sudowork",
   "productName": "sudowork",
   "version": "0.1.3",
-  "description": "新一代企业AI应用平台—AgentOPS|办公专家",
+  "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
   "engines": {
     "node": ">=22 <26"
@@ -67,7 +67,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "Sudowork",
+    "name": "北京数牍科技有限公司",
     "email": "service@sudoprivacy.com"
   },
   "license": "Apache-2.0",
