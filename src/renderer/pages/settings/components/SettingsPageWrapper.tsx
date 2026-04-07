@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { AlarmClock, Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -48,12 +48,13 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       // copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
       webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='16' />, path: 'runtime' },
+      cron: { id: 'cron', label: t('cron.scheduledTasks'), icon: <AlarmClock theme='outline' size='16' />, path: 'cron' },
       system: { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
     };
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
-    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot',
+    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'cron', 'system', 'about'] as const; // 隐藏'copilot',
     const builtins: NavItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Insert extension tabs before system (unanchored default) or at anchor position

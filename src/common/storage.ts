@@ -210,6 +210,10 @@ export type TChatConversation =
           currentModelId?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -263,6 +267,10 @@ export type TChatConversation =
           isHealthCheck?: boolean;
           /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
           openclawModelId?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
