@@ -21,6 +21,7 @@ import { applyDefaultConversationName } from './utils/newConversationName';
 import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
+import { formatSessionTime } from '@/renderer/utils/messageTime';
 
 const TAB_OVERFLOW_THRESHOLD = 10;
 
@@ -35,17 +36,19 @@ interface ConversationTabViewProps {
   isActive: boolean;
   isMobile: boolean;
   contextMenu: React.ReactNode;
+  timeLabel?: string;
   onSwitch: (tabId: string) => void;
   onClose: (tabId: string) => void;
 }
 
-const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabName, isActive, isMobile, contextMenu, onSwitch, onClose }) => {
+const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabName, isActive, isMobile, contextMenu, timeLabel, onSwitch, onClose }) => {
   const tabClassName = `flex items-center gap-8px px-12px h-full max-w-240px cursor-pointer transition-all duration-200 shrink-0 border-r border-[color:var(--border-base)] ${isActive ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-base)]'}`;
 
   return (
     <Dropdown droplist={contextMenu} trigger='contextMenu' position='bl'>
       <div className={tabClassName} style={{ borderRight: '1px solid var(--border-base)' }} onClick={() => onSwitch(tabId)} title={isMobile ? undefined : tabName}>
         <span className='text-15px whitespace-nowrap overflow-hidden text-ellipsis select-none flex-1'>{tabName}</span>
+        {timeLabel && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0'>{timeLabel}</span>}
         <Close
           theme='outline'
           size='14'
@@ -323,9 +326,11 @@ const ConversationTabs: React.FC = () => {
       <div className='relative flex items-center h-40px w-full border-t border-x border-solid border-[color:var(--border-base)]'>
         {/* Tabs 滚动区域 */}
         <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'>
-          {openTabs.map((tab) => (
-            <ConversationTabView key={tab.id} tabId={tab.id} tabName={tab.name} isActive={tab.id === activeTabId} isMobile={isMobile} contextMenu={getContextMenu(tab.id)} onSwitch={handleSwitchTab} onClose={handleCloseTab} />
-          ))}
+          {openTabs.map((tab) => {
+            const tabTime = tab.modifyTime || tab.createTime;
+            const tabTimeLabel = tabTime ? formatSessionTime(tabTime, i18n.language, t('conversation.history.yesterday')) : '';
+            return <ConversationTabView key={tab.id} tabId={tab.id} tabName={tab.name} isActive={tab.id === activeTabId} isMobile={isMobile} contextMenu={getContextMenu(tab.id)} timeLabel={tabTimeLabel} onSwitch={handleSwitchTab} onClose={handleCloseTab} />;
+          })}
         </div>
 
         {/* 新建会话按钮 - 点击显示 Agent 下拉选择 */}
