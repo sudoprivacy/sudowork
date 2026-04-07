@@ -818,16 +818,22 @@ export function initConversationBridge(): void {
     // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
     let presetContext: string | undefined;
     let enabledSkills: string[] | undefined;
+    let conversation: TChatConversation | undefined;
     try {
       const db = getDatabase();
       const convResult = db.getConversation(conversation_id);
       if (convResult.success && convResult.data) {
-        presetContext = convResult.data.extra?.presetContext;
-        enabledSkills = convResult.data.extra?.enabledSkills;
+        conversation = convResult.data;
+        presetContext = conversation.extra?.presetContext;
+        enabledSkills = conversation.extra?.enabledSkills;
       }
     } catch {
       // ignore
     }
+
+    // Ensure workspace skills symlinks exist before dispatching to the gateway.
+    // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
+    await syncConversationWorkspaceSkills(conversation);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
