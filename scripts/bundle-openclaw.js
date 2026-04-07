@@ -268,6 +268,75 @@ function getNativeModuleDirs(pkgDir, packageNames) {
   return keepDirs;
 }
 
+function getCurrentKoffiBinaryDirName() {
+  const platformMap = {
+    darwin: 'darwin',
+    linux: 'linux',
+    win32: 'win32',
+    freebsd: 'freebsd',
+    openbsd: 'openbsd',
+  };
+  const archMap = {
+    arm64: 'arm64',
+    x64: 'x64',
+    ia32: 'ia32',
+    arm: 'armhf',
+    loong64: 'loong64',
+    riscv64: 'riscv64d',
+  };
+
+  const platform = platformMap[process.platform];
+  const arch = archMap[process.arch];
+  if (!platform || !arch) return null;
+
+  return `${platform}_${arch}`;
+}
+
+function pruneKoffiNativeBinaries(pkgDir) {
+  const koffiDir = path.join(pkgDir, 'node_modules', 'koffi', 'build', 'koffi');
+  if (!fs.existsSync(koffiDir)) return;
+
+  const keepDirName = getCurrentKoffiBinaryDirName();
+  if (!keepDirName) {
+    console.warn(`[bundle-openclaw] Unknown koffi target for ${process.platform}/${process.arch}; skipping koffi binary pruning.`);
+    return;
+  }
+
+  const entries = fs.readdirSync(koffiDir, { withFileTypes: true });
+  let removedCount = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === keepDirName) continue;
+    fs.rmSync(path.join(koffiDir, entry.name), { recursive: true, force: true });
+    removedCount++;
+  }
+
+  console.log(`[bundle-openclaw] Pruned koffi binaries to ${keepDirName} (removed ${removedCount} platform directories)`);
+}
+
+function pruneDocsToRuntimeSubset(pkgDir) {
+  const docsDir = path.join(pkgDir, 'docs');
+  const templatesDir = path.join(docsDir, 'reference', 'templates');
+  if (!fs.existsSync(docsDir)) return;
+
+  if (!fs.existsSync(templatesDir)) {
+    console.warn('[bundle-openclaw] docs/reference/templates missing; leaving docs/ untouched.');
+    return;
+  }
+
+  const tempDir = path.join(pkgDir, '.openclaw-docs-templates');
+  fs.rmSync(tempDir, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(tempDir), { recursive: true });
+  fs.cpSync(templatesDir, tempDir, { recursive: true });
+
+  fs.rmSync(docsDir, { recursive: true, force: true });
+  fs.mkdirSync(path.join(docsDir, 'reference'), { recursive: true });
+  fs.cpSync(tempDir, path.join(docsDir, 'reference', 'templates'), { recursive: true });
+  fs.rmSync(tempDir, { recursive: true, force: true });
+
+  console.log('[bundle-openclaw] Pruned docs/ to docs/reference/templates only');
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -524,6 +593,9 @@ async function main() {
 
     console.log(`[bundle-openclaw] Removed ${removedCount} directories from node_modules`);
   }
+
+  pruneKoffiNativeBinaries(resolvedPkgDir);
+  pruneDocsToRuntimeSubset(resolvedPkgDir);
 
   // Write bundle manifest
   const filesAfter = countFiles(resolvedPkgDir);
