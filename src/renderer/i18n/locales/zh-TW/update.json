@@ -21,5 +21,7 @@
   "autoUpdateMode": "自動更新模式",
   "showInFolder": "在資料夾中顯示",
   "openFile": "開啟檔案",
-  "errorTitle": "更新失敗"
+  "errorTitle": "更新失敗",
+  "nightlyUpdateTitle": "有新的 Nightly 版本可用",
+  "nightlyNote": "目前使用的是 Nightly 預覽版，僅支援更新到更新的 Nightly 版本。"
 }

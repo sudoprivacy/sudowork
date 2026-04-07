@@ -1,8 +1,58 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { resolve } from 'path';
+import { execSync } from 'child_process';
 import UnoCSS from 'unocss/vite';
 import unoConfig from './uno.config.ts';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+/**
+ * Resolve build-time metadata from environment variables or git.
+ *
+ * CI can inject via env vars: BUILD_VERSION, BUILD_DATE, BUILD_COMMIT, BUILD_IS_NIGHTLY.
+ * When running locally, values are auto-detected from git and package.json.
+ */
+function resolveBuildMeta() {
+  const execGit = (cmd: string, fallback: string): string => {
+    try {
+      return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    } catch {
+      return fallback;
+    }
+  };
+
+  // Version: env var > git tag > package.json
+  let version = process.env.BUILD_VERSION;
+  if (!version) {
+    const gitTag = execGit('git describe --tags --exact-match 2>/dev/null', '');
+    if (gitTag) {
+      // Strip leading 'v' and any nightly prefix to get a clean version
+      version = gitTag.replace(/^v/, '');
+    }
+  }
+  if (!version) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      version = require('./package.json').version;
+    } catch {
+      version = '0.0.0-dev';
+    }
+  }
+
+  // Commit date: env var > git log
+  const buildDate = process.env.BUILD_DATE || execGit('git log -1 --format=%cs', new Date().toISOString().slice(0, 10));
+
+  // Short commit hash: env var > git rev-parse
+  const buildCommit = process.env.BUILD_COMMIT || execGit('git rev-parse --short HEAD', 'unknown');
+
+  // Nightly flag: env var or auto-detect from git tag
+  let isNightly = process.env.BUILD_IS_NIGHTLY === 'true';
+  if (!isNightly && !process.env.BUILD_IS_NIGHTLY) {
+    const gitTag = execGit('git describe --tags --exact-match 2>/dev/null', '');
+    isNightly = gitTag.startsWith('nightly-');
+  }
+
+  return { version, buildDate, buildCommit, isNightly };
+}
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
@@ -38,6 +88,15 @@ const mainAliases = {
 
 export default defineConfig(({ mode }) => {
   const isDevelopment = mode === 'development';
+  const buildMeta = resolveBuildMeta();
+
+  // Shared build-time defines injected into all processes (main, preload, renderer)
+  const buildDefines = {
+    __BUILD_VERSION__: JSON.stringify(buildMeta.version),
+    __BUILD_DATE__: JSON.stringify(buildMeta.buildDate),
+    __BUILD_COMMIT__: JSON.stringify(buildMeta.buildCommit),
+    __BUILD_IS_NIGHTLY__: JSON.stringify(buildMeta.isNightly),
+  };
 
   return {
     main: {
@@ -76,7 +135,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      define: { 'process.env.env': JSON.stringify(process.env.env) },
+      define: { 'process.env.env': JSON.stringify(process.env.env), ...buildDefines },
     },
 
     preload: {
@@ -149,6 +208,7 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.env': JSON.stringify(process.env.env),
         global: 'globalThis',
+        ...buildDefines,
       },
       optimizeDeps: {
         exclude: ['electron'],

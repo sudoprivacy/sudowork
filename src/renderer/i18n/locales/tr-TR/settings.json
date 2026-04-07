@@ -499,6 +499,8 @@
   "contactMe": "Bana Ulaşın",
   "officialWebsite": "Resmi Web Sitesi",
   "checkForUpdates": "Güncellemeleri kontrol et",
+  "buildDate": "Derleme tarihi: {{date}}",
+  "nightlyBuild": "Nightly sürüm",
   "includePrereleaseUpdates": "Ön sürüm/geliştirici sürümlerini dahil et",
   "saveModelConfigFailed": "Model yapılandırması kaydedilemedi",
   "healthCheck": "Sağlık Kontrolü",

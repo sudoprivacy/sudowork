@@ -21,5 +21,7 @@
   "autoUpdateMode": "자동 업데이트 모드",
   "showInFolder": "폴더에서 보기",
   "openFile": "파일 열기",
-  "errorTitle": "업데이트 실패"
+  "errorTitle": "업데이트 실패",
+  "nightlyUpdateTitle": "새로운 Nightly 빌드 사용 가능",
+  "nightlyNote": "Nightly 빌드를 사용 중입니다. 새로운 Nightly 빌드로만 업데이트할 수 있습니다."
 }

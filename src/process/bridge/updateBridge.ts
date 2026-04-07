@@ -13,6 +13,7 @@ import * as path from 'path';
 import semver from 'semver';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { isNightlyBuild, buildDate, isNightlyTag, parseNightlyDate } from '@/common/buildInfo';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -260,6 +261,37 @@ const mapRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
   };
 };
 
+/**
+ * Map a nightly GitHub release to UpdateReleaseInfo.
+ * Nightly tags (e.g. "nightly-2026-04-01-abc1234") are not valid semver,
+ * so we use the date from the tag as a pseudo-version for display purposes.
+ */
+const mapNightlyRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
+  if (!isNightlyTag(rel.tag_name)) return null;
+
+  const nightlyDate = parseNightlyDate(rel.tag_name);
+  if (!nightlyDate) return null;
+
+  const assets = (rel.assets || [])
+    .filter((asset) => asset && asset.name && asset.browser_download_url)
+    .filter((asset) => isAllowedAssetName(asset.name))
+    .map(mapAsset);
+
+  return {
+    tagName: rel.tag_name,
+    // Use the nightly tag as the "version" string for display
+    version: rel.tag_name,
+    name: rel.name,
+    body: rel.body,
+    htmlUrl: rel.html_url,
+    publishedAt: rel.published_at,
+    prerelease: true,
+    draft: Boolean(rel.draft),
+    assets,
+    recommendedAsset: pickRecommendedAsset(assets),
+  };
+};
+
 type DownloadState = {
   abortController: AbortController;
   filePath: string;
@@ -420,6 +452,54 @@ export function initUpdateBridge(): void {
       const includePrerelease = Boolean(params?.includePrerelease);
       const currentVersion = app.getVersion();
 
+      const releases = await fetchGitHubReleases(repo);
+
+      // ────────────────────────────────────────────────────────────
+      // Nightly-to-nightly update path
+      // 当前为 nightly 版本时，只允许更新到更新的 nightly 版本
+      // When the current build is nightly, only allow updating to a newer nightly.
+      // ────────────────────────────────────────────────────────────
+      if (isNightlyBuild) {
+        mainLog('Update', `Current build is nightly (date: ${buildDate}), checking for newer nightly releases...`);
+
+        const nightlyCandidates = releases
+          .filter((r) => r && !r.draft && r.prerelease)
+          .map(mapNightlyRelease)
+          .filter((r): r is UpdateReleaseInfo => Boolean(r));
+
+        // Sort nightly candidates by date (newest first)
+        nightlyCandidates.sort((a, b) => {
+          const dateA = parseNightlyDate(a.tagName) || '';
+          const dateB = parseNightlyDate(b.tagName) || '';
+          return dateB.localeCompare(dateA);
+        });
+
+        const latestNightly = nightlyCandidates[0];
+        if (!latestNightly) {
+          mainLog('Update', 'No nightly releases found');
+          return { success: true, data: { currentVersion: `nightly (${buildDate})`, updateAvailable: false } };
+        }
+
+        const latestNightlyDate = parseNightlyDate(latestNightly.tagName) || '';
+        const updateAvailable = latestNightlyDate > buildDate;
+
+        mainLog('Update', `Latest nightly: ${latestNightly.tagName} (${latestNightlyDate}), current: ${buildDate}, update available: ${updateAvailable}`);
+
+        return {
+          success: true,
+          data: {
+            currentVersion: `nightly (${buildDate})`,
+            updateAvailable,
+            latest: updateAvailable ? latestNightly : undefined,
+          },
+        };
+      }
+
+      // ────────────────────────────────────────────────────────────
+      // Standard semver update path (stable / RC releases)
+      // 标准 semver 更新路径（稳定版 / RC 版本）
+      // ────────────────────────────────────────────────────────────
+
       // EN: Versioning note
       // Update comparisons are pure semver: `app.getVersion()` (packaged app version) vs release `tag_name`.
       // If you want dev/prerelease updates to work reliably, CI must inject a prerelease semver into
@@ -430,9 +510,8 @@ export function initUpdateBridge(): void {
       // 更新比较严格使用 semver：`app.getVersion()`（应用自身版本号）对比 Release 的 `tag_name`。
       // 若要 dev/预发布版本更新可靠生效，需要 CI 在 dev 构建时把 `package.json#version`
       // 注入为带 prerelease 的 semver（如 `1.7.2-dev.1234+sha.abcdef0`），以保证比较顺序正确。
-      // 这里刻意不对“当前是稳定版版本号但用户勾选了 prerelease”做字符串猜测。
+      // 这里刻意不对”当前是稳定版版本号但用户勾选了 prerelease”做字符串猜测。
 
-      const releases = await fetchGitHubReleases(repo);
       const candidates = releases
         .filter((r) => r && !r.draft)
         .filter((r) => (includePrerelease ? true : !r.prerelease))

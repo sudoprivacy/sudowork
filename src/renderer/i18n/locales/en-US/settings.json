@@ -510,6 +510,8 @@
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
   "checkForUpdates": "Check for updates",
+  "buildDate": "Build date: {{date}}",
+  "nightlyBuild": "Nightly build",
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "saveModelConfigFailed": "Failed to save model configuration",
   "healthCheck": "Health Check",

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
 import packageJson from '../../../../../package.json';
 import OpsModal from '@/renderer/components/OpsModal';
+import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
 
 const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
@@ -31,7 +32,19 @@ const AboutModalContent: React.FC = () => {
               Sudowork
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
-            <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>v{packageJson.version}</span>
+            <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>
+              {isNightlyBuild ? `nightly (${buildDate})` : `v${buildVersion || packageJson.version}`}
+            </span>
+            {buildDate !== 'unknown' && (
+              <div className='text-11px text-t-quaternary mt-4px font-mono'>
+                {t('settings.buildDate', { date: buildDate })} · {buildCommit}
+              </div>
+            )}
+            {isNightlyBuild && (
+              <span className='mt-4px px-8px py-2px rd-10px text-11px bg-orange-1 text-orange-6 dark:bg-orange-9/20 dark:text-orange-5 font-500'>
+                {t('settings.nightlyBuild')}
+              </span>
+            )}
             <Button size='small' type='outline' className='mt-12px' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
               {t('settings.checkForUpdates')}
             </Button>

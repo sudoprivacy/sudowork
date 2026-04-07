@@ -12,6 +12,7 @@ import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
 import { useTranslation } from 'react-i18next';
+import { isNightlyBuild } from '@/common/buildInfo';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 
@@ -28,7 +29,9 @@ const UpdateModal: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [releasePageUrl, setReleasePageUrl] = useState('');
-  const [useAutoUpdate, setUseAutoUpdate] = useState(true); // 默认使用自动更新
+  // Nightly builds exclude auto-update metadata (*.yml, *.blockmap),
+  // so electron-updater cannot be used. Default to manual download mode.
+  const [useAutoUpdate, setUseAutoUpdate] = useState(!isNightlyBuild);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
   const [autoUpdateDownloadedPath, setAutoUpdateDownloadedPath] = useState<string | null>(null);
 
@@ -45,7 +48,8 @@ const UpdateModal: React.FC = () => {
     setAutoUpdateDownloadedPath(null);
   };
 
-  const includePrerelease = useMemo(() => localStorage.getItem('update.includePrerelease') === 'true', [visible]);
+  // Nightly builds always check for prerelease updates; otherwise respect user preference
+  const includePrerelease = useMemo(() => isNightlyBuild || localStorage.getItem('update.includePrerelease') === 'true', [visible]);
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
 
   const openReleasePage = () => {
@@ -58,6 +62,31 @@ const UpdateModal: React.FC = () => {
   const checkForUpdates = async () => {
     setStatus('checking');
     try {
+      // Nightly builds: skip auto-updater, go straight to manual GitHub API check
+      // Nightly 版本：跳过 electron-updater，直接通过 GitHub API 检查更新
+      if (isNightlyBuild) {
+        const res = await ipcBridge.update.check.invoke({ includePrerelease: true });
+        if (!res?.success) {
+          throw new Error(res?.msg || t('update.checkFailed'));
+        }
+        setCurrentVersion(res.data?.currentVersion || '');
+
+        if (res.data?.updateAvailable && res.data.latest) {
+          setUpdateInfo(res.data.latest);
+          setReleasePageUrl(res.data.latest.htmlUrl || '');
+          if (!res.data.latest.recommendedAsset) {
+            setErrorMsg(t('update.noCompatibleAssetManual'));
+          }
+          setStatus('available');
+          return;
+        }
+
+        setUpdateInfo(res.data?.latest || null);
+        setReleasePageUrl(res.data?.latest?.htmlUrl || '');
+        setStatus('upToDate');
+        return;
+      }
+
       // 优先使用自动更新模式
       if (useAutoUpdate) {
         const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease });
@@ -336,6 +365,12 @@ const UpdateModal: React.FC = () => {
       case 'available':
         return (
           <div className='flex flex-col h-full'>
+            {/* Nightly 版本提示 / Nightly version notice */}
+            {isNightlyBuild && (
+              <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20 dark:text-orange-5'>
+                {t('update.nightlyNote')}
+              </div>
+            )}
             {/* 版本信息头部 / Version info header */}
             <div className='flex items-center justify-between px-24px py-16px border-b border-border-2 bg-fill-1'>
               <div className='flex items-center gap-12px'>
@@ -343,7 +378,7 @@ const UpdateModal: React.FC = () => {
                   <Download size='20' fill='rgb(var(--primary-6))' />
                 </div>
                 <div>
-                  <div className='text-15px font-600 text-t-primary'>{t('update.availableTitle')}</div>
+                  <div className='text-15px font-600 text-t-primary'>{isNightlyBuild ? t('update.nightlyUpdateTitle') : t('update.availableTitle')}</div>
                   <div className='text-12px text-t-tertiary mt-2px'>
                     {currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
                   </div>
@@ -371,11 +406,13 @@ const UpdateModal: React.FC = () => {
               </div>
             </div>
 
-            {/* 自动更新开关 / Auto update toggle */}
-            <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b border-border-2'>
-              <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
-              <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
-            </div>
+            {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
+            {!isNightlyBuild && (
+              <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b border-border-2'>
+                <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
+                <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
+              </div>
+            )}
 
             {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-[rgb(var(--warning-6))]/10 text-[rgb(var(--warning-6))]'>{t('update.noCompatibleAssetManual')}</div>}
 
