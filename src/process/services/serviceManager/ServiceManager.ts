@@ -659,7 +659,7 @@ class ServiceManager {
     try {
       const { SafetyPollingService } = await import('../safety/SafetyPollingService');
       const service = SafetyPollingService.getInstance();
-      void service.start({ pollingIntervalMs: 3000 });
+      void service.start({ pollingIntervalMs: 3000 }, false);
     } catch (err) {
       mainError('ServiceManager', 'Failed to start SafetyPollingService', err);
     }

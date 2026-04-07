@@ -142,7 +142,8 @@ export class NexusController extends Nexus {
         controller.errorWith(actionResult.reason || 'Security Violation: request was DENIED');
       }
     } catch (err) {
-      controller.errorWith('remote controller is offline');
+      // Timeout or other error - deny by default for security
+      controller.errorWith('User confirmation timeout or connection error - request denied');
     }
   }
 }
