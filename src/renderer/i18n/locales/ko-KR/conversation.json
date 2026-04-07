@@ -140,6 +140,27 @@
       "openFailed": "열기 실패",
       "revealFailed": "포함 폴더 열기 실패",
       "uploadToBdpan": "바이두 넷디스크에 업로드"
+    },
+    "drafts": {
+      "title": "임시 보관함",
+      "description": "에이전트 실행 중 생성된 중간 파일",
+      "empty": "임시 보관함이 비어 있습니다",
+      "clearAll": "임시 보관함 비우기",
+      "clearConfirm": "임시 보관함의 모든 파일을 삭제하시겠습니까?",
+      "fileCount": "{{count}}개의 중간 파일",
+      "clearSuccess": "임시 보관함이 비워졌습니다",
+      "deleteFailed": "임시 파일 삭제 실패"
+    },
+    "renameWorkspace": {
+      "title": "작업 공간 이름 변경",
+      "placeholder": "새 폴더 이름 입력",
+      "hint": "실제 폴더 이름이 변경됩니다. 관련된 모든 대화가 자동으로 업데이트됩니다.",
+      "success": "작업 공간 이름이 변경되었습니다",
+      "failed": "이름 변경 실패",
+      "invalidName": "폴더 이름에 잘못된 문자가 포함되어 있습니다",
+      "alreadyExists": "대상 폴더가 이미 존재합니다",
+      "agentRunning": "에이전트가 실행 중입니다. 완료 후 이름을 변경해 주세요.",
+      "emptyName": "이름은 비워둘 수 없습니다"
     }
   },
   "chat": {

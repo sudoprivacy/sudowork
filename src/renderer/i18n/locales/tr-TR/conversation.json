@@ -135,7 +135,28 @@
       "uploadToBdpan": "Baidu Netdisk'e Yükle"
     },
     "expand": "Çalışma Alanını Genişlet",
-    "collapse": "Çalışma Alanını Daralt"
+    "collapse": "Çalışma Alanını Daralt",
+    "drafts": {
+      "title": "Taslaklar",
+      "description": "Ajan yürütme sırasında üretilen ara dosyalar",
+      "empty": "Taslaklar boş",
+      "clearAll": "Taslakları Temizle",
+      "clearConfirm": "Taslaklardaki tüm dosyaları silmek istediğinizden emin misiniz?",
+      "fileCount": "{{count}} ara dosya",
+      "clearSuccess": "Taslaklar temizlendi",
+      "deleteFailed": "Taslak dosya silinemedi"
+    },
+    "renameWorkspace": {
+      "title": "Çalışma Alanını Yeniden Adlandır",
+      "placeholder": "Yeni klasör adı girin",
+      "hint": "Fiziksel klasör yeniden adlandırılacaktır. İlişkili tüm konuşmalar otomatik olarak güncellenecektir.",
+      "success": "Çalışma alanı yeniden adlandırıldı",
+      "failed": "Yeniden adlandırma başarısız",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "alreadyExists": "Hedef klasör zaten mevcut",
+      "agentRunning": "Bir Ajan çalışıyor. Yeniden adlandırmadan önce tamamlanmasını bekleyin.",
+      "emptyName": "Ad boş olamaz"
+    }
   },
   "chat": {
     "noModelSelected": "Mevcut oturum için model seçilmedi, mesaj gönderilemiyor",

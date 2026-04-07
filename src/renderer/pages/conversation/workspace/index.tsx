@@ -407,6 +407,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const contextMenuNode = modalsHook.contextMenu.node;
   const isContextMenuNodeFile = !!contextMenuNode?.isFile;
   const isContextMenuNodeRoot = !!contextMenuNode && (!contextMenuNode.relativePath || contextMenuNode.relativePath === '');
+  // Drafts directory (.drafts/) should not be renameable or deleteable
+  // 草稿箱目录不支持重命名和删除
+  const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === '.drafts' && !contextMenuNode.isFile;
 
   // Check if file supports preview
   const isPreviewSupported = (() => {
@@ -891,24 +894,28 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         {t('conversation.workspace.contextMenu.uploadToBdpan')}
                       </button>
                       <div className='h-1px bg-3 my-2px'></div>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          fileOpsHook.handleDeleteNode(contextMenuNode);
-                        }}
-                      >
-                        {t('common.delete')}
-                      </button>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          fileOpsHook.openRenameModal(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.rename')}
-                      </button>
+                      {!isContextMenuNodeDrafts && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            fileOpsHook.handleDeleteNode(contextMenuNode);
+                          }}
+                        >
+                          {t('common.delete')}
+                        </button>
+                      )}
+                      {!isContextMenuNodeDrafts && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            fileOpsHook.openRenameModal(contextMenuNode);
+                          }}
+                        >
+                          {t('conversation.workspace.contextMenu.rename')}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -947,6 +954,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const isFile = node.dataRef.isFile;
                   const isPasteTarget = !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
+                  // Display .drafts with i18n name / 草稿箱目录显示本地化名称
+                  const isDraftsDir = node.title === '.drafts' && !isFile;
+                  const displayTitle = isDraftsDir ? t('conversation.workspace.drafts.title') : node.title;
 
                   return (
                     <div
@@ -964,7 +974,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       }}
                     >
                       <span className='flex items-center gap-4px min-w-0'>
-                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{node.title}</span>
+                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{displayTitle}</span>
                         {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded'>PASTE</span>}
                       </span>
                       {isMobile && (

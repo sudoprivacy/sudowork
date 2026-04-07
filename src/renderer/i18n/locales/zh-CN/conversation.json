@@ -140,6 +140,27 @@
       "openFailed": "打开失败",
       "revealFailed": "无法打开所在目录",
       "uploadToBdpan": "上传至百度网盘"
+    },
+    "drafts": {
+      "title": "草稿箱",
+      "description": "Agent 执行过程中产出的中间文件",
+      "empty": "草稿箱为空",
+      "clearAll": "清空草稿箱",
+      "clearConfirm": "确定清空草稿箱中的所有文件吗？",
+      "fileCount": "{{count}} 个中间文件",
+      "clearSuccess": "草稿箱已清空",
+      "deleteFailed": "删除草稿文件失败"
+    },
+    "renameWorkspace": {
+      "title": "重命名工作空间",
+      "placeholder": "请输入新的文件夹名称",
+      "hint": "将重命名物理文件夹，所有关联的会话会自动更新",
+      "success": "工作空间重命名成功",
+      "failed": "重命名失败",
+      "invalidName": "文件夹名称包含非法字符",
+      "alreadyExists": "目标文件夹已存在",
+      "agentRunning": "有正在运行的 Agent，请等待完成后再重命名",
+      "emptyName": "名称不能为空"
     }
   },
   "chat": {

@@ -618,6 +618,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
+            workspace: this.workspace,
           });
         }
 

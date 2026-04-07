@@ -1164,6 +1164,20 @@ export const healthMonitor = {
   disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
 };
 
+// ==================== Workspace Management API ====================
+// 工作空间管理 API（重命名、草稿箱操作）
+
+export const workspaceManage = {
+  /** Rename workspace directory (physical rename + DB update) / 重命名工作空间目录 */
+  renameDirectory: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { oldPath: string; newName: string }>('workspace-manage.rename-directory'),
+  /** List drafts files / 列出草稿箱文件 */
+  listDrafts: bridge.buildProvider<IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>, { workspace: string }>('workspace-manage.list-drafts'),
+  /** Clear all drafts / 清空草稿箱 */
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
+  /** Delete a specific draft file / 删除指定草稿文件 */
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
+};
+
 // ==================== User Phone Storage API ====================
 // Store user phone (RSA encrypted) for skill access
 // Skill reads encrypted content and sends to server for decryption
