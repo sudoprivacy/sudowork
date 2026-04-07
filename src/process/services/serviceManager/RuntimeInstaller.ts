@@ -23,6 +23,30 @@ const TAG = 'RuntimeInstaller';
  * from service lifecycle management.
  */
 class RuntimeInstaller {
+  primeStatusForStartup(): void {
+    const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
+    const shouldAssumeBundledResources = app.isPackaged;
+
+    const fastNodeOk = isNodeInstalled();
+    const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
+    const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
+
+    const nexusResPath = path.join(resDir, 'nexus.tar.gz');
+    const hasNexusResource = (() => {
+      if (shouldAssumeBundledResources) {
+        return true;
+      }
+      try {
+        return fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
+      } catch {
+        return false;
+      }
+    })();
+    const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
+
+    initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk ? 'startup' : 'full');
+  }
+
   private getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState: () => { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
     if (!app.isPackaged) {
       const versionState = getSudoclawVersionState();
@@ -43,6 +67,7 @@ class RuntimeInstaller {
    */
   async ensureAll(options?: { startSudoclaw?: (timeoutMs?: number) => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
+    const shouldAssumeBundledResources = app.isPackaged;
 
     // ── Fast synchronous pre-check (no awaits, only sync fs) ────────────────
     // Running before the first `await` means this executes synchronously in the
@@ -54,12 +79,14 @@ class RuntimeInstaller {
 
     const fastNodeOk = isNodeInstalled();
 
-    const sudoclawBinName = isWin32 ? 'openclaw.cmd' : 'openclaw';
-    const sudoclawBinPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'bin', sudoclawBinName);
-    const fastSudoclawOk = fs.existsSync(sudoclawBinPath);
+    const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
+    const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
     const nexusResPath = path.join(resDir, 'nexus.tar.gz');
     const hasNexusResource = (() => {
+      if (shouldAssumeBundledResources) {
+        return true;
+      }
       try {
         return fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
       } catch {
@@ -166,8 +193,8 @@ class RuntimeInstaller {
     // attempt install when the source archive actually exists.
     const nodeResExt = isWin32 ? 'zip' : 'tar.gz';
     const nodeResName = `node-${process.platform}-${process.arch}.${nodeResExt}`;
-    const hasNodeResource = fs.existsSync(path.join(resDir, nodeResName));
-    const hasSudoclawResource = fs.existsSync(path.join(resDir, 'openclaw.tgz'));
+    const hasNodeResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, nodeResName));
+    const hasSudoclawResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, 'openclaw.tgz'));
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
     const willInstallSudoclaw = hasSudoclawResource && (!sudoclawInstalled || sudoclawVersionState.needsUpgrade);

@@ -4,8 +4,55 @@
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 ; - Keeps Cancel button enabled during installation
+; - Provides shortcut options page for desktop and start menu shortcuts
 
 !include "x64.nsh"
+; MUI2.nsh and nsDialogs.nsh must be included here because electron-builder
+; includes this file in the NSIS script header, BEFORE the main installer.nsi
+; template loads MUI2.nsh. Macros (customHeader, customInstall, etc.) are
+; unaffected because they are only defined at include time and expanded later.
+; However, file-scope functions (tosPageCreate, etc.) are compiled immediately
+; and need these headers available. All headers have include guards, so the
+; later !include in installer.nsi is safely a no-op.
+!include "MUI2.nsh"
+!include "nsDialogs.nsh"
+!include "LogicLib.nsh"
+
+; WS_BORDER is not defined in NSIS's standard WinMessages.nsh,
+; so we define it here for use in custom dialog controls.
+!ifndef WS_BORDER
+  !define WS_BORDER 0x00800000
+!endif
+
+; ========================================
+; Global variable declarations (file scope)
+; ========================================
+; IMPORTANT: These MUST be at file scope (outside any macro) so they are
+; processed immediately when this file is !include'd. Declaring them inside
+; a macro (e.g. customHeader) only creates them when the macro is expanded,
+; which may be too late if assistedInstaller.nsh expands customPageAfterChangeDir
+; first — causing "Pop $(user_var: output)" errors.
+;
+; Suppress warning 6001 ("Variable not referenced") for the uninstaller pass
+; where these variables are declared but unused.
+!pragma warning disable 6001
+
+; Variable to store user's choice on whether to delete user data (~/.nexus/)
+Var /GLOBAL deleteNexusData
+
+; Variables for the Terms of Service / Privacy Policy agreement page
+Var /GLOBAL tosPage.Dialog
+Var /GLOBAL tosPage.Checkbox
+Var /GLOBAL tosPage.TextBox
+
+; Variables for the Shortcut Options page
+Var /GLOBAL shortcutPage.Dialog
+Var /GLOBAL shortcutPage.DesktopCheckbox
+Var /GLOBAL shortcutPage.StartMenuCheckbox
+Var /GLOBAL createDesktopShortcutChoice
+Var /GLOBAL createStartMenuShortcutChoice
+
+!pragma warning enable 6001
 
 ; ========================================
 ; Language overrides: Standardize Simplified Chinese uninstall terminology
@@ -20,6 +67,7 @@
   LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "欢迎使用 $(^NameDA) 卸载向导"
   LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_SIMPCHINESE} \
     "此向导将引导你卸载 $(^NameDA)。$\r$\n$\r$\n\
+    注意：卸载将删除安装目录中的程序文件及相关数据。$\r$\n$\r$\n\
     卸载前，请确保 $(^NameDA) 已经关闭。$\r$\n$\r$\n$_CLICK"
   LangString MUI_UNTEXT_CONFIRM_TITLE ${LANG_SIMPCHINESE} "卸载 $(^NameDA)"
   LangString MUI_UNTEXT_CONFIRM_SUBTITLE ${LANG_SIMPCHINESE} "从你的电脑中卸载 $(^NameDA)。"
@@ -35,20 +83,48 @@
     "要完成 $(^NameDA) 的卸载，必须重新启动你的电脑。你想现在重新启动吗？"
   LangString MUI_UNTEXT_ABORT_TITLE ${LANG_SIMPCHINESE} "卸载已中止"
   LangString MUI_UNTEXT_ABORT_SUBTITLE ${LANG_SIMPCHINESE} "卸载未能完成。"
+
+  ; Override NSIS base language strings that still use "解除安装"
+  ; These are separate from MUI2 strings and may show in window titles, buttons, and detail text.
+  LangString ^UninstallCaption ${LANG_SIMPCHINESE} "$(^Name) 卸载"
+  LangString ^UninstallBtn ${LANG_SIMPCHINESE} "卸载(&U)"
+  LangString ^UnSubCaption_1 ${LANG_SIMPCHINESE} ": 正在卸载文件"
+  LangString ^UninstalledText ${LANG_SIMPCHINESE} "$(^Name) 已成功从你的电脑中卸载。"
+  LangString ^UninstallText ${LANG_SIMPCHINESE} "将从以下文件夹中卸载 $(^Name)。"
   !pragma warning enable 6030
 !macroend
 
 ; ========================================
-; Uninstaller init: Override window caption for Simplified Chinese
+; Uninstaller welcome page: Hook into MUI2 GUI initialization
 ; ========================================
-!macro customUnInit
-  ; Override uninstaller window title for Simplified Chinese
-  ; The NSIS base ^UninstallCaption string may use "解除安装"
-  ; Note: Caption is a top-level command and cannot be used inside Functions.
-  ; We use SendMessage with WM_SETTEXT (0x000C) to set the window title at runtime.
-  StrCmp $LANGUAGE ${LANG_SIMPCHINESE} 0 +2
-    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
+; The LangString overrides in customHeader may not take effect because NSIS
+; uses the first definition (from MUI_LANGUAGE) and ignores subsequent ones.
+; The SendMessage approach in un.onInit (customUnInit) also fails because
+; MUI2 resets the window caption during GUI initialization, after un.onInit.
+;
+; Solution: Use customUnWelcomePage to register a page SHOW callback that runs
+; AFTER the GUI is fully initialized, ensuring our caption override sticks.
+!macro customUnWelcomePage
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.overrideUninstCaption
+  !insertmacro MUI_UNPAGE_WELCOME
 !macroend
+
+; Callback function: Set uninstaller window title after GUI is ready.
+; Guard with !ifdef BUILD_UNINSTALLER so this function is only compiled during
+; the uninstaller pass. Otherwise NSIS warning 6010 (unreferenced function)
+; is triggered during the installer pass and treated as a build error.
+;
+; Note: We use the numeric LCID 2052 instead of ${LANG_SIMPCHINESE} because
+; this function is compiled at !include time, before MUI_LANGUAGE defines
+; the LANG_SIMPCHINESE constant. LangString directives handle late-binding
+; language IDs, but regular instructions like StrCmp require compile-time
+; resolution — hence the raw value.
+!ifdef BUILD_UNINSTALLER
+Function un.overrideUninstCaption
+  StrCmp $LANGUAGE 2052 0 +2
+    SendMessage $HWNDPARENT 0x000C 0 "STR:${PRODUCT_NAME} 卸载"
+FunctionEnd
+!endif
 
 ; ========================================
 ; Keep Cancel button enabled on the INSTFILES page
@@ -57,28 +133,229 @@
 ; right before !insertmacro MUI_PAGE_INSTFILES, so any MUI_PAGE_CUSTOMFUNCTION_*
 ; defines set here will apply to the INSTFILES page.
 ;
-; Guard with !ifndef BUILD_UNINSTALLER because electron-builder runs makensis
-; twice: once for the uninstaller (BUILD_UNINSTALLER defined) and once for the
-; installer.  During the uninstaller pass assistedInstaller.nsh skips the
-; install-page section, so customPageAfterChangeDir is never expanded and the
-; instFilesShow function would be unreferenced → NSIS warning 6010 → build error.
-!ifndef BUILD_UNINSTALLER
+; ========================================
+; Custom pages and installer-only functions
+; ========================================
+; All installer-only Functions are defined INSIDE the customPageAfterChangeDir
+; macro so they are compiled when the macro is expanded by assistedInstaller.nsh
+; — which happens AFTER MUI2.nsh is loaded. This ensures MUI_HEADER_TEXT and
+; other MUI2 macros are available.
+;
+; electron-builder prepends the custom script's !include BEFORE the main
+; installer.nsi template (which loads MUI2.nsh). Functions defined at file
+; scope would be compiled before MUI2 is loaded → "macro not found" error.
+;
+; A single macro is defined with !ifndef BUILD_UNINSTALLER inside the body.
+; Variables are declared globally in customHeader (both passes) so that
+; variable references are always valid. The !ifndef guard ensures the
+; actual page logic only runs during the installer pass.
 !macro customPageAfterChangeDir
-  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
-!macroend
+!ifndef BUILD_UNINSTALLER
 
-Function instFilesShow
-  ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
-  GetDlgItem $0 $hwndParent 2
-  EnableWindow $0 1
-FunctionEnd
-!endif
+  ; ========================================
+  ; Terms of Service / Privacy Policy Agreement Page
+  ; ========================================
+  ; Displays embedded ToS and Privacy content in a scrollable text area.
+  ; The user must check the agreement checkbox before proceeding.
+
+  Function tosPageCreate
+    !insertmacro MUI_HEADER_TEXT "服务条款与隐私协议" "请阅读以下条款，勾选同意后继续安装"
+
+    nsDialogs::Create 1018
+    Pop $tosPage.Dialog
+    ${If} $tosPage.Dialog == error
+      Abort
+    ${EndIf}
+
+    ; --- Description label ---
+    ${NSD_CreateLabel} 0 0 100% 16u "请仔细阅读以下服务条款和隐私协议："
+    Pop $0
+    CreateFont $1 "Microsoft YaHei" 9
+    SendMessage $0 ${WM_SETFONT} $1 1
+
+    ; --- Scrollable read-only text area with embedded ToS + Privacy content ---
+    nsDialogs::CreateControl "RichEdit20A" \
+      ${WS_VISIBLE}|${WS_CHILD}|${WS_VSCROLL}|${WS_TABSTOP}|${WS_BORDER}|${ES_MULTILINE}|${ES_READONLY}|${ES_WANTRETURN} \
+      ${WS_EX_STATICEDGE} \
+      0 18u 100% 94u ""
+    Pop $tosPage.TextBox
+    SendMessage $tosPage.TextBox ${WM_SETFONT} $1 1
+
+    ; Set the embedded legal text content
+    ${NSD_SetText} $tosPage.TextBox \
+      "【服务条款】$\r$\n\
+$\r$\n\
+欢迎使用 Sudowork（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
+$\r$\n\
+一、服务内容$\r$\n\
+本软件是由数道隐私科技（以下简称「我们」）开发和运营的企业 AI 应用平台，为用户提供智能办公、数据处理等相关服务。我们有权根据业务需要对服务内容进行调整，并将通过适当方式通知用户。$\r$\n\
+$\r$\n\
+二、用户行为规范$\r$\n\
+用户应合法、合规地使用本软件，不得利用本软件从事任何违反法律法规、侵害他人合法权益的行为。用户对其使用本软件的行为承担全部责任。$\r$\n\
+$\r$\n\
+三、知识产权$\r$\n\
+本软件的所有知识产权（包括但不限于著作权、商标权、专利权）均归我们所有。未经我们书面许可，用户不得对本软件进行反编译、反汇编、逆向工程等操作。$\r$\n\
+$\r$\n\
+四、免责声明$\r$\n\
+本软件按「现状」提供，我们不对软件的适用性、可靠性、准确性作任何明示或暗示的保证。因使用本软件产生的任何直接或间接损失，我们在法律允许的范围内不承担责任。$\r$\n\
+$\r$\n\
+五、条款变更$\r$\n\
+我们保留随时修改本条款的权利。修改后的条款将通过软件更新或官方网站公布，继续使用本软件即视为接受修改后的条款。$\r$\n\
+$\r$\n\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$\r$\n\
+$\r$\n\
+【隐私协议】$\r$\n\
+$\r$\n\
+我们重视您的隐私保护。本隐私协议说明我们如何收集、使用、存储和保护您的个人信息。$\r$\n\
+$\r$\n\
+一、信息收集$\r$\n\
+我们可能收集以下信息：$\r$\n\
+  · 设备信息：操作系统版本、设备型号、唯一设备标识符等$\r$\n\
+  · 使用数据：功能使用频率、操作日志、崩溃报告等$\r$\n\
+  · 账户信息：用户注册时提供的信息（如适用）$\r$\n\
+$\r$\n\
+二、信息使用$\r$\n\
+收集的信息将用于：$\r$\n\
+  · 提供和改进软件服务$\r$\n\
+  · 个性化用户体验$\r$\n\
+  · 安全防护与故障排查$\r$\n\
+  · 遵守法律法规要求$\r$\n\
+$\r$\n\
+三、信息存储与保护$\r$\n\
+我们采用行业标准的安全措施保护您的个人信息，防止未经授权的访问、使用或泄露。您的数据将存储在受保护的服务器上，并仅在必要期限内保留。$\r$\n\
+$\r$\n\
+四、信息共享$\r$\n\
+未经您的同意，我们不会将您的个人信息出售或分享给第三方，但以下情况除外：$\r$\n\
+  · 法律法规要求$\r$\n\
+  · 经您明确授权同意$\r$\n\
+  · 为提供服务所必需的合作方（受严格保密约束）$\r$\n\
+$\r$\n\
+五、用户权利$\r$\n\
+您有权查询、更正、删除您的个人信息，也有权撤回授权同意。如需行使上述权利，请通过软件内的设置功能或联系我们的客服团队。$\r$\n\
+$\r$\n\
+六、协议更新$\r$\n\
+我们可能适时更新本隐私协议。更新后的协议将通过软件通知或官方网站公布。$\r$\n\
+"
+
+    ; --- Agreement checkbox ---
+    ${NSD_CreateCheckbox} 0 116u 100% 12u "我已阅读并同意上述服务条款和隐私协议"
+    Pop $tosPage.Checkbox
+    CreateFont $2 "Microsoft YaHei" 9 700
+    SendMessage $tosPage.Checkbox ${WM_SETFONT} $2 1
+    ${NSD_OnClick} $tosPage.Checkbox tosPageCheckboxClick
+
+    ; Disable the "Next" button until the checkbox is checked
+    GetDlgItem $0 $HWNDPARENT 1
+    EnableWindow $0 0
+
+    nsDialogs::Show
+  FunctionEnd
+
+  Function tosPageCheckboxClick
+    ; Toggle Next button based on checkbox state
+    ${NSD_GetState} $tosPage.Checkbox $0
+    GetDlgItem $1 $HWNDPARENT 1
+    ${If} $0 == ${BST_CHECKED}
+      EnableWindow $1 1
+    ${Else}
+      EnableWindow $1 0
+    ${EndIf}
+  FunctionEnd
+
+  Function tosPageLeave
+    ; Final validation: ensure checkbox is checked before allowing navigation
+    ${NSD_GetState} $tosPage.Checkbox $0
+    ${If} $0 != ${BST_CHECKED}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "请先勾选「我已阅读并同意上述服务条款和隐私协议」后再继续。"
+      Abort
+    ${EndIf}
+  FunctionEnd
+
+  ; ========================================
+  ; Shortcut Options Page
+  ; ========================================
+  ; Allows the user to choose whether to create desktop and start menu shortcuts.
+  ; Both checkboxes are checked by default.
+
+  Function shortcutPageCreate
+    !insertmacro MUI_HEADER_TEXT "快捷方式设置" "选择要创建的快捷方式"
+
+    nsDialogs::Create 1018
+    Pop $shortcutPage.Dialog
+    ${If} $shortcutPage.Dialog == error
+      Abort
+    ${EndIf}
+
+    ; --- Description label ---
+    ${NSD_CreateLabel} 0 0 100% 20u "请选择安装过程中需要创建的快捷方式："
+    Pop $0
+    CreateFont $1 "Microsoft YaHei" 9
+    SendMessage $0 ${WM_SETFONT} $1 1
+
+    ; --- Desktop shortcut checkbox (checked by default) ---
+    ${NSD_CreateCheckbox} 10u 30u 100% 14u "创建桌面快捷方式(&D)"
+    Pop $shortcutPage.DesktopCheckbox
+    CreateFont $2 "Microsoft YaHei" 9
+    SendMessage $shortcutPage.DesktopCheckbox ${WM_SETFONT} $2 1
+    ${NSD_Check} $shortcutPage.DesktopCheckbox
+
+    ; --- Start menu shortcut checkbox (checked by default) ---
+    ${NSD_CreateCheckbox} 10u 50u 100% 14u "创建开始菜单快捷方式(&S)"
+    Pop $shortcutPage.StartMenuCheckbox
+    SendMessage $shortcutPage.StartMenuCheckbox ${WM_SETFONT} $2 1
+    ${NSD_Check} $shortcutPage.StartMenuCheckbox
+
+    nsDialogs::Show
+  FunctionEnd
+
+  Function shortcutPageLeave
+    ; Store user's choices for later use in customInstall
+    ${NSD_GetState} $shortcutPage.DesktopCheckbox $createDesktopShortcutChoice
+    ${NSD_GetState} $shortcutPage.StartMenuCheckbox $createStartMenuShortcutChoice
+  FunctionEnd
+
+  Function instFilesShow
+    ; Enable the Cancel button (NSIS button ID 2) so users can abort during installation
+    GetDlgItem $0 $hwndParent 2
+    EnableWindow $0 1
+  FunctionEnd
+
+  ; Insert the Terms of Service / Privacy Policy agreement page
+  Page custom tosPageCreate tosPageLeave
+
+  ; Insert the Shortcut Options page (desktop shortcut + start menu shortcut)
+  Page custom shortcutPageCreate shortcutPageLeave
+
+  ; Keep Cancel button enabled during installation
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
+
+!endif ; BUILD_UNINSTALLER
+!macroend
 
 ; ========================================
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall
   DetailPrint "Runtime components will be installed by Sudowork on first launch."
+
+  ; --- Remove shortcuts if user opted out ---
+  ; electron-builder creates shortcuts by default (createDesktopShortcut: true,
+  ; createStartMenuShortcut: true in electron-builder.yml). We remove them here
+  ; if the user unchecked the corresponding option on the Shortcut Options page.
+  ${If} $createDesktopShortcutChoice != ${BST_CHECKED}
+    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
+    DetailPrint "Skipped desktop shortcut per user preference."
+  ${EndIf}
+
+  ${If} $createStartMenuShortcutChoice != ${BST_CHECKED}
+    !ifdef MENU_FILENAME
+      Delete "$SMPROGRAMS\${MENU_FILENAME}\${SHORTCUT_NAME}.lnk"
+      RMDir "$SMPROGRAMS\${MENU_FILENAME}"
+    !else
+      Delete "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
+    !endif
+    DetailPrint "Skipped start menu shortcut per user preference."
+  ${EndIf}
 
   ; Generate install manifest by scanning $INSTDIR after installation completes.
   ; This records every top-level file/directory so the uninstaller knows what to remove.
@@ -118,6 +395,28 @@ FunctionEnd
 Function .onInstSuccess
   Exec '"$INSTDIR\Sudowork.exe"'
 FunctionEnd
+
+; ========================================
+; Uninstall: Prompt user about deleting user data before removal begins
+; ========================================
+; This macro runs BEFORE customRemoveFiles in the uninstall section.
+; It asks the user whether to also delete user data (~/.nexus/) and stores
+; the choice in $deleteNexusData for later use.
+!macro customUnInstall
+  StrCpy $deleteNexusData "0"
+  ${IfNot} ${Silent}
+    ${IfNot} ${isUpdated}
+      MessageBox MB_YESNO|MB_ICONQUESTION \
+        "是否同时删除用户数据（配置文件等）？$\r$\n$\r$\n\
+        选择「是」将删除 $PROFILE\.nexus 目录中的所有用户配置和数据。$\r$\n\
+        选择「否」将保留用户数据，仅卸载程序文件。" \
+        IDYES _cuu_yes IDNO _cuu_end
+      _cuu_yes:
+        StrCpy $deleteNexusData "1"
+      _cuu_end:
+    ${EndIf}
+  ${EndIf}
+!macroend
 
 ; ========================================
 ; Uninstall: Replace default "RMDir /r $INSTDIR" with manifest-based removal
@@ -200,4 +499,10 @@ FunctionEnd
     RMDir /r "$INSTDIR"
 
   _crf_end:
+
+  ; --- Delete user data (~/.nexus/) if user opted in ---
+  StrCmp $deleteNexusData "1" 0 _crf_skip_nexus
+    RMDir /r "$PROFILE\.nexus"
+    DetailPrint "User data directory removed: $PROFILE\.nexus"
+  _crf_skip_nexus:
 !macroend

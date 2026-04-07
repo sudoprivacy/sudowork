@@ -111,11 +111,7 @@ export function initOpenClawBridge(): void {
         provider.models = [{ id: params.modelId, name: params.modelId }];
 
         // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
-        const canonicalApiKey =
-          providers['sudorouter']?.apiKey ||
-          providerEntries
-            .map(([, item]) => item?.apiKey)
-            .find((key): key is string => typeof key === 'string' && key.trim().length > 0);
+        const canonicalApiKey = providers['sudorouter']?.apiKey || providerEntries.map(([, item]) => item?.apiKey).find((key): key is string => typeof key === 'string' && key.trim().length > 0);
 
         // 始终刷新 apiKey 以保持同步
         if (canonicalApiKey) {
@@ -144,6 +140,23 @@ export function initOpenClawBridge(): void {
       } catch (error) {
         mainError('OpenClawBridge', 'Failed to update sudoclaw.json config', error);
       }
+    }
+  });
+
+  ipcBridge.openclaw.updateImageModel.provider(async (params) => {
+    const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    const fs = await import('fs');
+    if (!fs.existsSync(SUDOCLAW_CONFIG_PATH)) return;
+    try {
+      const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as SudoclawConfig;
+      if (!config.agents) config.agents = { defaults: {} };
+      if (!config.agents.defaults) config.agents.defaults = {};
+      config.agents.defaults.imageModel = params.modelId ?? '';
+      fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+      mainLog('OpenClawBridge', 'Updated image model in sudoclaw.json:', params.modelId);
+    } catch (error) {
+      mainError('OpenClawBridge', 'Failed to update image model in sudoclaw.json', error);
     }
   });
 }
