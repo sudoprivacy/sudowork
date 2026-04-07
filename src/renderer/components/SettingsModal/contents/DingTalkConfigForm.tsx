@@ -57,7 +57,7 @@ interface DingTalkConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
 }
 
-const DINGTALK_DEV_DOCS_URL = 'https://github.com/sudoprivacy/Sudowork/wiki/DingTalk-Bot-Setup-Guide';
+const DINGTALK_DEV_DOCS_URL = 'https://open.dingtalk.com/document/dingstart/custom-bot-creation-and-installation';
 
 const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
   const { t } = useTranslation();
@@ -113,6 +113,26 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
     void loadPendingPairings();
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
+
+  // Load saved credentials for backfill
+  useEffect(() => {
+    // Only load if plugin has credentials configured and no values are currently entered
+    if (!pluginStatus?.hasToken || clientId || clientSecret) return;
+
+    const loadCredentials = async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'dingtalk_default' });
+        if (result.success && result.data) {
+          if (result.data.clientId) setClientId(result.data.clientId);
+          if (result.data.clientSecret) setClientSecret(result.data.clientSecret);
+        }
+      } catch (error) {
+        console.error('[DingTalkConfig] Failed to load credentials:', error);
+      }
+    };
+
+    void loadCredentials();
+  }, [pluginStatus]);
 
   // Load available agents + saved selection
   useEffect(() => {

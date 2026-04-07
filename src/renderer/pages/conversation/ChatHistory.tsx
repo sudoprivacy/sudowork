@@ -12,6 +12,7 @@ import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timeline';
+import { formatSessionTime } from '@/renderer/utils/messageTime';
 import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
@@ -78,7 +79,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     }
   });
   const { id } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { getJobStatus, markAsRead } = useCronJobsMap();
   const siderTooltipProps = getSiderTooltipProps(collapsed && !isMobile);
@@ -205,6 +206,8 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     const isSelected = id === conversation.id;
     const isEditing = editingId === conversation.id;
     const cronStatus = getJobStatus(conversation.id);
+    const activityTime = getActivityTime(conversation);
+    const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
 
     return (
       <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
@@ -223,6 +226,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               <div className='flex items-center gap-4px w-full'>
                 <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
                 <CronJobIndicator status={cronStatus} size={14} />
+                {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
               </div>
             )}
           </FlexFullContainer>

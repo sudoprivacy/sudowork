@@ -5,6 +5,7 @@
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
 ; - Keeps Cancel button enabled during installation
 ; - Provides shortcut options page for desktop and start menu shortcuts
+; - Modern visual styling with brand colours, custom fonts, and improved layout
 
 !include "x64.nsh"
 ; MUI2.nsh and nsDialogs.nsh must be included here because electron-builder
@@ -23,6 +24,36 @@
 !ifndef WS_BORDER
   !define WS_BORDER 0x00800000
 !endif
+
+; ========================================
+; Modern UI Visual Customisation
+; ========================================
+; Brand colour palette — dark navy / blue gradient with white text.
+; These defines MUST appear before the first MUI page insertion so
+; the MUI2 macros pick them up.
+
+; Enable header image in the top-right corner of every step page
+; Use !ifndef guards because electron-builder may already define these
+; when installerHeader is set in electron-builder.yml.
+!ifndef MUI_HEADERIMAGE
+  !define MUI_HEADERIMAGE
+!endif
+!ifndef MUI_HEADERIMAGE_RIGHT
+  !define MUI_HEADERIMAGE_RIGHT
+!endif
+
+; Background colour for the welcome / finish full-page panels
+!define MUI_BGCOLOR "161C2D"
+
+; Branded footer text shown in the bottom-left of every page
+!define MUI_BRANDINGTEXT "Sudowork — 新一代企业 AI 应用平台"
+
+; Colour of text on Welcome / Finish pages (white on dark background)
+!define MUI_TEXTCOLOR "FFFFFF"
+
+; Use the abort warning to confirm cancellation
+!define MUI_ABORTWARNING
+!define MUI_ABORTWARNING_TEXT "确定要取消安装 Sudowork 吗？"
 
 ; ========================================
 ; Global variable declarations (file scope)
@@ -64,11 +95,11 @@ Var /GLOBAL createStartMenuShortcutChoice
   ; Suppress warning 6030 (LangString set multiple times) since we intentionally
   ; override the strings already defined by MUI_LANGUAGE "SimpChinese".
   !pragma warning disable 6030
-  LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "欢迎使用 $(^NameDA) 卸载向导"
+  LangString MUI_UNTEXT_WELCOME_INFO_TITLE ${LANG_SIMPCHINESE} "卸载 $(^NameDA)"
   LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_SIMPCHINESE} \
-    "此向导将引导你卸载 $(^NameDA)。$\r$\n$\r$\n\
-    注意：卸载将删除安装目录中的程序文件及相关数据。$\r$\n$\r$\n\
-    卸载前，请确保 $(^NameDA) 已经关闭。$\r$\n$\r$\n$_CLICK"
+    "此向导将引导你从计算机中移除 $(^NameDA)。$\r$\n$\r$\n\
+    卸载将删除安装目录中的程序文件及相关数据。$\r$\n\
+    卸载前，请确保 $(^NameDA) 已完全退出。$\r$\n$\r$\n$_CLICK"
   LangString MUI_UNTEXT_CONFIRM_TITLE ${LANG_SIMPCHINESE} "卸载 $(^NameDA)"
   LangString MUI_UNTEXT_CONFIRM_SUBTITLE ${LANG_SIMPCHINESE} "从你的电脑中卸载 $(^NameDA)。"
   LangString MUI_UNTEXT_UNINSTALLING_TITLE ${LANG_SIMPCHINESE} "正在卸载"
@@ -167,19 +198,22 @@ FunctionEnd
       Abort
     ${EndIf}
 
-    ; --- Description label ---
-    ${NSD_CreateLabel} 0 0 100% 16u "请仔细阅读以下服务条款和隐私协议："
+    ; --- Description label (larger, modern font) ---
+    ${NSD_CreateLabel} 0 0 100% 18u "请仔细阅读以下服务条款和隐私协议："
     Pop $0
-    CreateFont $1 "Microsoft YaHei" 9
+    CreateFont $1 "Microsoft YaHei UI" 10
     SendMessage $0 ${WM_SETFONT} $1 1
 
     ; --- Scrollable read-only text area with embedded ToS + Privacy content ---
+    ; Use a taller text area for better readability
     nsDialogs::CreateControl "RichEdit20A" \
       ${WS_VISIBLE}|${WS_CHILD}|${WS_VSCROLL}|${WS_TABSTOP}|${WS_BORDER}|${ES_MULTILINE}|${ES_READONLY}|${ES_WANTRETURN} \
       ${WS_EX_STATICEDGE} \
-      0 18u 100% 94u ""
+      0 20u 100% 92u ""
     Pop $tosPage.TextBox
-    SendMessage $tosPage.TextBox ${WM_SETFONT} $1 1
+    ; Use the same modern font for text content
+    CreateFont $3 "Microsoft YaHei UI" 9
+    SendMessage $tosPage.TextBox ${WM_SETFONT} $3 1
 
     ; Set the embedded legal text content
     ${NSD_SetText} $tosPage.TextBox \
@@ -237,10 +271,10 @@ $\r$\n\
 我们可能适时更新本隐私协议。更新后的协议将通过软件通知或官方网站公布。$\r$\n\
 "
 
-    ; --- Agreement checkbox ---
-    ${NSD_CreateCheckbox} 0 116u 100% 12u "我已阅读并同意上述服务条款和隐私协议"
+    ; --- Agreement checkbox (prominent, modern font) ---
+    ${NSD_CreateCheckbox} 0 116u 100% 14u "我已阅读并同意上述服务条款和隐私协议"
     Pop $tosPage.Checkbox
-    CreateFont $2 "Microsoft YaHei" 9 700
+    CreateFont $2 "Microsoft YaHei UI" 9 700
     SendMessage $tosPage.Checkbox ${WM_SETFONT} $2 1
     ${NSD_OnClick} $tosPage.Checkbox tosPageCheckboxClick
 
@@ -286,21 +320,27 @@ $\r$\n\
       Abort
     ${EndIf}
 
-    ; --- Description label ---
+    ; --- Description label (modern font, slightly larger) ---
     ${NSD_CreateLabel} 0 0 100% 20u "请选择安装过程中需要创建的快捷方式："
     Pop $0
-    CreateFont $1 "Microsoft YaHei" 9
+    CreateFont $1 "Microsoft YaHei UI" 10
     SendMessage $0 ${WM_SETFONT} $1 1
 
+    ; --- GroupBox for visual grouping ---
+    ${NSD_CreateGroupBox} 0 24u 100% 58u "快捷方式选项"
+    Pop $0
+    CreateFont $4 "Microsoft YaHei UI" 9
+    SendMessage $0 ${WM_SETFONT} $4 1
+
     ; --- Desktop shortcut checkbox (checked by default) ---
-    ${NSD_CreateCheckbox} 10u 30u 100% 14u "创建桌面快捷方式(&D)"
+    ${NSD_CreateCheckbox} 14u 40u 90% 14u "创建桌面快捷方式(&D)"
     Pop $shortcutPage.DesktopCheckbox
-    CreateFont $2 "Microsoft YaHei" 9
+    CreateFont $2 "Microsoft YaHei UI" 9
     SendMessage $shortcutPage.DesktopCheckbox ${WM_SETFONT} $2 1
     ${NSD_Check} $shortcutPage.DesktopCheckbox
 
     ; --- Start menu shortcut checkbox (checked by default) ---
-    ${NSD_CreateCheckbox} 10u 50u 100% 14u "创建开始菜单快捷方式(&S)"
+    ${NSD_CreateCheckbox} 14u 60u 90% 14u "创建开始菜单快捷方式(&S)"
     Pop $shortcutPage.StartMenuCheckbox
     SendMessage $shortcutPage.StartMenuCheckbox ${WM_SETFONT} $2 1
     ${NSD_Check} $shortcutPage.StartMenuCheckbox
@@ -330,6 +370,39 @@ $\r$\n\
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
 
 !endif ; BUILD_UNINSTALLER
+!macroend
+
+; ========================================
+; Custom Finish Page: Fix "Run Sudowork" checkbox color on dark background
+; ========================================
+; The MUI2 finish page uses MUI_BGCOLOR ("161C2D") as background and
+; MUI_TEXTCOLOR ("FFFFFF") for labels, but the "Run" checkbox inherits the
+; default system text colour (black / dark), making it nearly invisible.
+; We define a customFinishPage macro so electron-builder uses our version
+; instead of the default one, allowing us to attach a SHOW callback that
+; forces the checkbox text to white.
+!macro customFinishPage
+  !ifndef HIDE_RUN_AFTER_FINISH
+    Function StartApp
+      ${if} ${isUpdated}
+        StrCpy $1 "--updated"
+      ${else}
+        StrCpy $1 ""
+      ${endif}
+      ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
+    FunctionEnd
+
+    !define MUI_FINISHPAGE_RUN
+    !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
+  !endif
+
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW finishPageShow
+  !insertmacro MUI_PAGE_FINISH
+
+  Function finishPageShow
+    ; Make the "Run" checkbox readable on the dark finish page background
+    SetCtlColors $mui.FinishPage.Run "FFFFFF" "161C2D"
+  FunctionEnd
 !macroend
 
 ; ========================================
@@ -388,13 +461,6 @@ $\r$\n\
 
   _ci_end:
 !macroend
-
-; ========================================
-; Auto-launch after installation
-; ========================================
-Function .onInstSuccess
-  Exec '"$INSTDIR\Sudowork.exe"'
-FunctionEnd
 
 ; ========================================
 ; Uninstall: Prompt user about deleting user data before removal begins
