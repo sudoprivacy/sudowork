@@ -1,5 +1,5 @@
 name: ❓ Question
-description: Ask a question about Sudowork
+description: Ask a question about SudoClaw
 title: "[Question]: "
 labels: ["question"]
 body:

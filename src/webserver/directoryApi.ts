@@ -395,7 +395,7 @@ router.get('/shortcuts', fileOperationLimiter, (_req, res) => {
   try {
     const shortcuts = [
       {
-        name: 'Sudowork Directory',
+        name: 'SudoClaw Directory',
         path: process.cwd(),
         icon: '🤖',
       },

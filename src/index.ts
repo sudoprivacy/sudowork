@@ -40,7 +40,7 @@ mainLog('App', `Electron: ${process.versions.electron}, Node: ${process.versions
 mainLog('App', `Packaged: ${app.isPackaged}, Dev: ${!app.isPackaged}`);
 
 // Set the app name early to ensure proper tray tooltip on macOS
-app.setName('Sudowork');
+app.setName('SudoClaw');
 
 // Hide Dock icon when running as Node.js CLI (ELECTRON_RUN_AS_NODE)
 // This prevents the Dock bounce when using the claude CLI wrapper
@@ -447,7 +447,7 @@ const createOrUpdateTray = (): void => {
       tray.setImage(icon);
     }
 
-    tray.setToolTip('Sudowork');
+    tray.setToolTip('SudoClaw');
 
     // 确保 i18n 已初始化后再设置菜单
     // Ensure i18n is initialized before setting menu
@@ -470,7 +470,7 @@ const createOrUpdateTray = (): void => {
 const refreshTrayMenu = (): void => {
   if (tray) {
     tray.setContextMenu(buildTrayContextMenu());
-    tray.setToolTip('Sudowork');
+    tray.setToolTip('SudoClaw');
   }
 };
 

@@ -1,10 +1,10 @@
 appId: com.sudowork.app
-productName: Sudowork
-executableName: Sudowork
+productName: SudoClaw
+executableName: SudoClaw
 copyright: Copyright © 2024 北京数牍科技有限公司
 
 protocols:
-  - name: Sudowork Protocol
+  - name: SudoClaw Protocol
     schemes:
       - sudowork
 

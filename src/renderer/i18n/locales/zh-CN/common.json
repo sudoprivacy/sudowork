@@ -60,6 +60,6 @@
   "skip": "跳过",
   "setupContinuesInBackground": "先进入应用，运行环境会继续在后台安装。",
   "refresh": "刷新",
-  "tray.showWindow": "显示 Sudowork",
+  "tray.showWindow": "显示 SudoClaw",
   "tray.quit": "退出"
 }

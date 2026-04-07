@@ -156,7 +156,7 @@ const UserProfile: React.FC = () => {
           </Avatar>
           <div className='flex-1'>
             <div className='flex items-center gap-8px'>
-              <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
+              <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'SudoClaw 用户'}</div>
               <Button type='text' size='small' icon={<Edit size={14} />} onClick={handleEditNickname}>
                 编辑
               </Button>

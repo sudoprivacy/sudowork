@@ -18,7 +18,7 @@ interface ChannelConflictWarningProps {
 }
 
 /**
- * Warning component when OpenClaw channel conflicts with Sudowork Channels
+ * Warning component when OpenClaw channel conflicts with SudoClaw Channels
  */
 export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ platform, openclawConfigPath, onDisableOpenClaw, onIgnore }) => {
   const platformName = platform === 'lark' ? 'Lark/Feishu' : 'Telegram';
@@ -32,14 +32,14 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
       content={
         <Space direction='vertical' size='medium' style={{ width: '100%' }}>
           <Paragraph>
-            <Text bold>OpenClaw is handling {platformName} messages, not Sudowork.</Text>
+            <Text bold>OpenClaw is handling {platformName} messages, not SudoClaw.</Text>
           </Paragraph>
 
           <Paragraph>
             Your {platformName} bot credentials are also configured in OpenClaw. This means:
             <ul>
               <li>
-                <Text type='error'>✗ Switching agents in Sudowork will have no effect</Text>
+                <Text type='error'>✗ Switching agents in SudoClaw will have no effect</Text>
               </li>
               <li>
                 <Text type='error'>✗ Messages are processed by OpenClaw's agent</Text>
@@ -51,7 +51,7 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
           </Paragraph>
 
           <Paragraph>
-            <Text bold>To use Sudowork Channels and switch agents:</Text>
+            <Text bold>To use SudoClaw Channels and switch agents:</Text>
           </Paragraph>
 
           <Paragraph>
@@ -61,19 +61,19 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
             <br />
             Set: <Text code>{`channels.${channelKey}.enabled = false`}</Text>
             <br />
-            Then restart OpenClaw and Sudowork.
+            Then restart OpenClaw and SudoClaw.
           </Paragraph>
 
           <Paragraph>
             <Text type='secondary'>Option 2: Use a different bot</Text>
             <br />
-            Create a new {platformName} bot with different credentials for Sudowork.
+            Create a new {platformName} bot with different credentials for SudoClaw.
           </Paragraph>
 
           <Paragraph>
             <Text type='secondary'>Option 3: Keep using OpenClaw</Text>
             <br />
-            Disable {platformName} in Sudowork Channels and continue using OpenClaw's integration.
+            Disable {platformName} in SudoClaw Channels and continue using OpenClaw's integration.
           </Paragraph>
 
           <Space>

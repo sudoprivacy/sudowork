@@ -1343,7 +1343,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         type: 'error',
         conversation_id: this.conversation_id,
         msg_id: v.msg_id,
-        data: 'Permission required. Please open Sudowork and confirm the pending request in the conversation panel.',
+        data: 'Permission required. Please open SudoClaw and confirm the pending request in the conversation panel.',
       });
       return;
     }

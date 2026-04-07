@@ -6,7 +6,7 @@ import { User, Protect } from '@icon-park/react';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import '../login/LoginPage.css';
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
+const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='SudoClaw' className='w-64px h-64px object-contain' />;
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();

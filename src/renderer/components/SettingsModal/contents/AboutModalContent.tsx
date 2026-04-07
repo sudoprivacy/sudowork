@@ -28,7 +28,7 @@ const AboutModalContent: React.FC = () => {
               <span className='text-white text-20px font-800'>S</span>
             </div>
             <Typography.Title heading={4} className='text-18px font-700 text-t-primary mb-4px mt-0'>
-              Sudowork
+              SudoClaw
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
             <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>v{packageJson.version}</span>

@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug or unexpected behavior in Sudowork
+description: Report a bug or unexpected behavior in SudoClaw
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -19,8 +19,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Sudowork Version
-      description: What version of Sudowork are you using?
+      label: SudoClaw Version
+      description: What version of SudoClaw are you using?
       placeholder: e.g., 1.2.2
     validations:
       required: true

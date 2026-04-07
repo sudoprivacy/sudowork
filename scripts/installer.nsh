@@ -185,7 +185,7 @@ FunctionEnd
     ${NSD_SetText} $tosPage.TextBox \
       "【服务条款】$\r$\n\
 $\r$\n\
-欢迎使用 Sudowork（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
+欢迎使用 SudoClaw（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
 $\r$\n\
 一、服务内容$\r$\n\
 本软件是由数道隐私科技（以下简称「我们」）开发和运营的企业 AI 应用平台，为用户提供智能办公、数据处理等相关服务。我们有权根据业务需要对服务内容进行调整，并将通过适当方式通知用户。$\r$\n\
@@ -336,7 +336,7 @@ $\r$\n\
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall
-  DetailPrint "Runtime components will be installed by Sudowork on first launch."
+  DetailPrint "Runtime components will be installed by SudoClaw on first launch."
 
   ; --- Remove shortcuts if user opted out ---
   ; electron-builder creates shortcuts by default (createDesktopShortcut: true,

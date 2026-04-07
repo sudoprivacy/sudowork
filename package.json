@@ -1,6 +1,6 @@
 {
   "name": "sudowork",
-  "productName": "sudowork",
+  "productName": "SudoClaw",
   "version": "0.1.3",
   "description": "新一代企业AI应用平台—AgentOPS|办公专家",
   "main": "./out/main/index.js",
@@ -67,7 +67,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "Sudowork",
+    "name": "SudoClaw",
     "email": "service@sudoprivacy.com"
   },
   "license": "Apache-2.0",

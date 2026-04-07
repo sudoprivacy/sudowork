@@ -11,7 +11,7 @@ assignees: ''
 ## 背景与目标
 
 ### 问题
-Sudowork 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、Bdpan、Git）可能安装失败或启动失败。目前用户必须手动打开「设置 → 运行环境」检查状态并点击安装/启动按钮。
+SudoClaw 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、Bdpan、Git）可能安装失败或启动失败。目前用户必须手动打开「设置 → 运行环境」检查状态并点击安装/启动按钮。
 
 ### 目标
 实现自动健康监控，要求：

@@ -27,7 +27,7 @@ function isValidPhone(phone: string): boolean {
   return false;
 }
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
+const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='SudoClaw' className='w-64px h-64px object-contain' />;
 
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
