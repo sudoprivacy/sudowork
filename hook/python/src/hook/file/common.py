@@ -9,10 +9,7 @@ into POSIX-style file flag enums for security policy evaluation.
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Callable, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from _typeshed import OpenTextMode
+from typing import List, Callable, Optional
 
 
 # noinspection SpellCheckingInspection
@@ -63,7 +60,7 @@ class FileData:
 FileCallback = Callable[[FileData], Optional[str]]
 
 
-def parse_flags(mode: OpenTextMode) -> List[FileFlag]:
+def parse_flags(mode) -> List[FileFlag]:
     """
     Parse a Python open() mode string into a list of FileFlag values.
 

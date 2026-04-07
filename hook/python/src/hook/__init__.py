@@ -12,9 +12,6 @@ from hook.network import NetworkData, Urllib3Interceptor
 from hook.nexus import NexusPayload, NexusPayloadType, NexusController
 from hook.process import ProcessData, ProcessInterceptor
 
-# Initialize the Nexus controller that communicates with the local Nexus security service.
-nexus_controller = NexusController("http://127.0.0.1:12012")
-
 
 def build_callback(payload_type: NexusPayloadType):
     """
@@ -37,10 +34,17 @@ def build_callback(payload_type: NexusPayloadType):
     return callback
 
 
-# Set up all interceptors. Once set up, every file open, HTTP request, and subprocess
-# execution will be checked against the Nexus security policies before proceeding.
-Urllib3Interceptor(build_callback(NexusPayloadType.NETWORK)).setup()
+# noinspection PyBroadException
+try:
+    # Initialize the Nexus controller that communicates with the local Nexus security service.
+    nexus_controller = NexusController("http://127.0.0.1:12012")
 
-FileInterceptor(build_callback(NexusPayloadType.FILE)).setup()
+    # Set up all interceptors. Once set up, every file open, HTTP request, and subprocess
+    # execution will be checked against the Nexus security policies before proceeding.
+    Urllib3Interceptor(build_callback(NexusPayloadType.NETWORK)).setup()
 
-ProcessInterceptor(build_callback(NexusPayloadType.PROCESS)).setup()
+    FileInterceptor(build_callback(NexusPayloadType.FILE)).setup()
+
+    ProcessInterceptor(build_callback(NexusPayloadType.PROCESS)).setup()
+except Exception:
+    pass

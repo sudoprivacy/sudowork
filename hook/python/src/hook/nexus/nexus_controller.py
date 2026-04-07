@@ -116,7 +116,10 @@ class NexusController(Nexus):
                 return True
 
         # Check against the locally-cached blacklist rules
-        self._update_blacklist()
+        try:
+            self._update_blacklist()
+        except Exception as e:
+            logger.error(f"update blacklist failed, error: {e}")
         return allow_data(self.blacklist, payload)
 
     def _update_blacklist(self):
@@ -130,9 +133,6 @@ class NexusController(Nexus):
             return
 
         with self.blacklist_lock:
-            try:
-                data = json.loads(self.read("/safe/config/blacklist", return_metadata=False))
-                self.blacklist = [BlacklistRule.from_dict(rule) for rule in data.get("rules", [])]
-                self.blacklist_update_time = datetime.now() + self.blacklist_update_interval
-            except Exception as e:
-                logger.error(f"update blacklist failed, error: {e}")
+            data = json.loads(self.read("/safe/config/blacklist", return_metadata=False))
+            self.blacklist = [BlacklistRule.from_dict(rule) for rule in data.get("rules", [])]
+            self.blacklist_update_time = datetime.now() + self.blacklist_update_interval

@@ -13,7 +13,7 @@ import time
 from base64 import b64decode
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from uuid import uuid4
 
 from urllib3 import request
@@ -62,7 +62,7 @@ class Nexus:
             )
         except Exception as e:
             logger.error(f"API call connection failed")
-            raise e
+            raise NexusError(f"Failed to connect to server: {e}")
 
         text = response.data.decode("utf-8")
         if response.status != 200:
@@ -81,11 +81,11 @@ class Nexus:
     def write(
         self,
         path: str,
-        content: bytes | str,
-        if_match: str | None = None,
+        content: Union[bytes, str],
+        if_match: Optional[str] = None,
         if_none_match: bool = False,
         force: bool = False,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Write content to a file on the Nexus service.
 
@@ -108,7 +108,7 @@ class Nexus:
         self,
         path: str,
         return_metadata: bool = False,
-    ) -> bytes | dict[str, Any]:
+    ) -> Union[bytes, Dict[str, Any]]:
         """
         Read a file from the Nexus service.
 
