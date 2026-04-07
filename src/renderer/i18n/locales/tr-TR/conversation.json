@@ -132,7 +132,17 @@
       "addedToChat": "Sohbete eklendi",
       "openFailed": "Açılamadı",
       "revealFailed": "İçeren klasör açılamadı",
-      "uploadToBdpan": "Baidu Netdisk'e Yükle"
+      "uploadToBdpan": "Baidu Netdisk'e Yükle",
+      "newFolder": "Yeni Klasör"
+    },
+    "newFolder": {
+      "title": "Yeni Klasör",
+      "placeholder": "Klasör adını girin",
+      "hint": "Geçerli dizinde yeni bir klasör oluşturun",
+      "success": "Klasör başarıyla oluşturuldu",
+      "failed": "Klasör oluşturulamadı",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "reservedName": "Bu ad sistem tarafından ayrılmıştır. Lütfen farklı bir ad kullanın."
     },
     "expand": "Çalışma Alanını Genişlet",
     "collapse": "Çalışma Alanını Daralt",

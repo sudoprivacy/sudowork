@@ -139,7 +139,17 @@
       "addedToChat": "已加入聊天",
       "openFailed": "開啟失敗",
       "revealFailed": "無法開啟所在資料夾",
-      "uploadToBdpan": "上傳至百度網盤"
+      "uploadToBdpan": "上傳至百度網盤",
+      "newFolder": "新增資料夾"
+    },
+    "newFolder": {
+      "title": "新增資料夾",
+      "placeholder": "請輸入資料夾名稱",
+      "hint": "在當前目錄下建立新資料夾",
+      "success": "資料夾建立成功",
+      "failed": "建立資料夾失敗",
+      "invalidName": "資料夾名稱包含無效字元",
+      "reservedName": "該名稱為系統保留名稱，請使用其他名稱"
     },
     "drafts": {
       "title": "草稿箱",

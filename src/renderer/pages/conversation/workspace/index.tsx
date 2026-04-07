@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -73,6 +74,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
   const [wsRenameLoading, setWsRenameLoading] = useState(false);
 
+  // New folder modal state
+  const [newFolderModal, setNewFolderModal] = useState<{ visible: boolean; name: string; parentPath: string }>({ visible: false, name: '', parentPath: '' });
+  const [newFolderLoading, setNewFolderLoading] = useState(false);
+
   const handleWorkspaceRenameConfirm = useCallback(async () => {
     const newName = wsRenameModal.name.trim();
     if (!newName) return;
@@ -92,6 +97,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       setWsRenameLoading(false);
     }
   }, [wsRenameModal, workspace, t]);
+
+  // New folder creation handler
+  const handleNewFolderConfirm = useCallback(async () => {
+    const folderName = newFolderModal.name.trim();
+    if (!folderName) return;
+
+    // Validate folder name characters
+    const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1f]/;
+    if (invalidCharsRegex.test(folderName)) {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    if (folderName === '.' || folderName === '..') {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    // Prevent creating folder named .drafts (reserved)
+    if (folderName === DRAFTS_DIR_NAME) {
+      Message.error(t('conversation.workspace.newFolder.reservedName'));
+      return;
+    }
+
+    setNewFolderLoading(true);
+    try {
+      const targetPath = newFolderModal.parentPath ? `${newFolderModal.parentPath}/${folderName}` : `${workspace}/${folderName}`;
+      const result = await ipcBridge.fs.createDir.invoke({ path: targetPath });
+      if (result) {
+        Message.success(t('conversation.workspace.newFolder.success'));
+        setNewFolderModal({ visible: false, name: '', parentPath: '' });
+        treeHook.refreshWorkspace();
+      } else {
+        Message.error(t('conversation.workspace.newFolder.failed'));
+      }
+    } catch {
+      Message.error(t('conversation.workspace.newFolder.failed'));
+    } finally {
+      setNewFolderLoading(false);
+    }
+  }, [newFolderModal, workspace, t, treeHook.refreshWorkspace]);
+
+  // Open new folder modal for a given parent directory
+  const openNewFolderModal = useCallback(
+    (parentNode?: IDirOrFile) => {
+      const parentPath = parentNode?.fullPath ?? workspace;
+      setNewFolderModal({ visible: true, name: '', parentPath });
+      modalsHook.closeContextMenu();
+    },
+    [workspace, modalsHook.closeContextMenu]
+  );
 
   // Workspace migration modal state
   const [showMigrationModal, setShowMigrationModal] = useState(false);
@@ -698,6 +752,24 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
         </Modal>
 
+        {/* New Folder Modal */}
+        <Modal
+          title={t('conversation.workspace.newFolder.title')}
+          visible={newFolderModal.visible}
+          onOk={handleNewFolderConfirm}
+          onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })}
+          okText={t('common.confirm')}
+          cancelText={t('common.cancel')}
+          confirmLoading={newFolderLoading}
+          okButtonProps={{ disabled: !newFolderModal.name.trim() }}
+          style={{ borderRadius: '12px' }}
+          alignCenter
+          getPopupContainer={() => document.body}
+        >
+          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
+          <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
+        </Modal>
+
         {/* Delete Modal */}
         <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
           <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
@@ -877,6 +949,15 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         type='button'
                         className={menuButtonBase}
                         onClick={() => {
+                          openNewFolderModal(contextMenuNode);
+                        }}
+                      >
+                        {t('conversation.workspace.contextMenu.newFolder')}
+                      </button>
+                      <button
+                        type='button'
+                        className={menuButtonBase}
+                        onClick={() => {
                           setWsRenameModal({ visible: true, name: workspaceDisplayName });
                           modalsHook.closeContextMenu();
                         }}
@@ -936,6 +1017,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                           }}
                         >
                           {t('conversation.workspace.contextMenu.preview')}
+                        </button>
+                      )}
+                      {!isContextMenuNodeFile && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            openNewFolderModal(contextMenuNode);
+                          }}
+                        >
+                          {t('conversation.workspace.contextMenu.newFolder')}
                         </button>
                       )}
                       <div className='h-1px bg-3 my-2px'></div>

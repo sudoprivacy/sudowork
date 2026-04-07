@@ -139,7 +139,17 @@
       "addedToChat": "チャットに追加しました",
       "openFailed": "開けませんでした",
       "revealFailed": "フォルダーを開けませんでした",
-      "uploadToBdpan": "百度ネットディスクにアップロード"
+      "uploadToBdpan": "百度ネットディスクにアップロード",
+      "newFolder": "新しいフォルダー"
+    },
+    "newFolder": {
+      "title": "新しいフォルダー",
+      "placeholder": "フォルダー名を入力",
+      "hint": "現在のディレクトリに新しいフォルダーを作成します",
+      "success": "フォルダーを作成しました",
+      "failed": "フォルダーの作成に失敗しました",
+      "invalidName": "フォルダー名に無効な文字が含まれています",
+      "reservedName": "この名前はシステムで予約されています。別の名前を使用してください。"
     },
     "drafts": {
       "title": "下書き",

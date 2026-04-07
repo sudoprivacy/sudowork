@@ -139,7 +139,17 @@
       "addedToChat": "已添加到聊天",
       "openFailed": "打开失败",
       "revealFailed": "无法打开所在目录",
-      "uploadToBdpan": "上传至百度网盘"
+      "uploadToBdpan": "上传至百度网盘",
+      "newFolder": "新建文件夹"
+    },
+    "newFolder": {
+      "title": "新建文件夹",
+      "placeholder": "请输入文件夹名称",
+      "hint": "在当前目录下创建新文件夹",
+      "success": "文件夹创建成功",
+      "failed": "创建文件夹失败",
+      "invalidName": "文件夹名称包含非法字符",
+      "reservedName": "该名称为系统保留名称，请使用其他名称"
     },
     "drafts": {
       "title": "草稿箱",

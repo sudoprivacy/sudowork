@@ -139,7 +139,17 @@
       "addedToChat": "Added to chat",
       "openFailed": "Failed to open",
       "revealFailed": "Failed to open containing folder",
-      "uploadToBdpan": "Upload to Baidu Netdisk"
+      "uploadToBdpan": "Upload to Baidu Netdisk",
+      "newFolder": "New Folder"
+    },
+    "newFolder": {
+      "title": "New Folder",
+      "placeholder": "Enter folder name",
+      "hint": "Create a new folder in the current directory",
+      "success": "Folder created successfully",
+      "failed": "Failed to create folder",
+      "invalidName": "Folder name contains invalid characters",
+      "reservedName": "This name is reserved by the system. Please use a different name."
     },
     "drafts": {
       "title": "Drafts",

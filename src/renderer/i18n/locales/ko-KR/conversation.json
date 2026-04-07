@@ -139,7 +139,17 @@
       "addedToChat": "채팅에 추가됨",
       "openFailed": "열기 실패",
       "revealFailed": "포함 폴더 열기 실패",
-      "uploadToBdpan": "바이두 넷디스크에 업로드"
+      "uploadToBdpan": "바이두 넷디스크에 업로드",
+      "newFolder": "새 폴더"
+    },
+    "newFolder": {
+      "title": "새 폴더",
+      "placeholder": "폴더 이름 입력",
+      "hint": "현재 디렉토리에 새 폴더를 생성합니다",
+      "success": "폴더가 생성되었습니다",
+      "failed": "폴더 생성에 실패했습니다",
+      "invalidName": "폴더 이름에 잘못된 문자가 포함되어 있습니다",
+      "reservedName": "이 이름은 시스템 예약 이름입니다. 다른 이름을 사용해주세요."
     },
     "drafts": {
       "title": "임시 보관함",
