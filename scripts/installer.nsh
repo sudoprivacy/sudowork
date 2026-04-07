@@ -424,13 +424,6 @@ $\r$\n\
 !macroend
 
 ; ========================================
-; Auto-launch after installation
-; ========================================
-Function .onInstSuccess
-  Exec '"$INSTDIR\Sudowork.exe"'
-FunctionEnd
-
-; ========================================
 ; Uninstall: Prompt user about deleting user data before removal begins
 ; ========================================
 ; This macro runs BEFORE customRemoveFiles in the uninstall section.
