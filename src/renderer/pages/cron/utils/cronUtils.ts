@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
 
 /**
@@ -42,28 +43,33 @@ export const FREQUENCY_PRESETS: FrequencyPreset[] = ['manual', 'hourly', 'daily'
 export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
 
 /**
- * Convert frequency preset + options to a CronSchedule
+ * Convert frequency preset + options to a CronSchedule.
+ * Pass a `t` function from `useTranslation()` to get i18n-aware descriptions.
  */
 export function frequencyToSchedule(
   preset: FrequencyPreset,
-  options?: { hour?: number; minute?: number; weekday?: string }
+  options?: { hour?: number; minute?: number; weekday?: string },
+  t?: TFunction
 ): ICronSchedule | null {
   const hour = options?.hour ?? 9;
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
+  const label = (key: string, fallback: string) => (t ? t(key, { defaultValue: fallback }) : fallback);
+
   switch (preset) {
     case 'manual':
       return null;
     case 'hourly':
-      return { kind: 'cron', expr: '0 * * * *', description: `每小时整点` };
+      return { kind: 'cron', expr: '0 * * * *', description: label('cron.create.frequency.hourly', '每小时整点') };
     case 'daily':
-      return { kind: 'cron', expr: `${minute} ${hour} * * *`, description: `每天 ${timeStr}` };
+      return { kind: 'cron', expr: `${minute} ${hour} * * *`, description: `${label('cron.create.frequency.daily', '每天')} ${timeStr}` };
     case 'weekdays':
-      return { kind: 'cron', expr: `${minute} ${hour} * * MON-FRI`, description: `工作日 ${timeStr}` };
+      return { kind: 'cron', expr: `${minute} ${hour} * * MON-FRI`, description: `${label('cron.create.frequency.weekdays', '工作日')} ${timeStr}` };
     case 'weekly': {
       const day = options?.weekday ?? 'MON';
-      return { kind: 'cron', expr: `${minute} ${hour} * * ${day}`, description: `每周${weekdayLabel(day)} ${timeStr}` };
+      const dayLabel = t ? t(`cron.create.weekday.${day}`, { defaultValue: weekdayLabel(day) }) : weekdayLabel(day);
+      return { kind: 'cron', expr: `${minute} ${hour} * * ${day}`, description: `${label('cron.create.frequency.weekly', '每周')} ${dayLabel} ${timeStr}` };
     }
   }
 }

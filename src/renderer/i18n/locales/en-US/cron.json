@@ -21,7 +21,8 @@
     "goTo": "View Chat",
     "pause": "Pause",
     "resume": "Resume",
-    "delete": "Delete"
+    "delete": "Delete",
+    "runNow": "Run Now"
   },
   "confirmDelete": "Are you sure you want to delete this scheduled task?",
   "deleteSuccess": "Task deleted",
@@ -52,7 +53,6 @@
   "create.cronExprRequired": "Please enter a cron expression",
   "create.scheduleDescription": "Schedule Description",
   "create.scheduleDescriptionPlaceholder": "e.g., Weekdays at 9:00 AM",
-  "actions.runNow": "Run Now",
   "runNowSuccess": "Task execution triggered",
   "create.description": "Description",
   "create.descriptionPlaceholder": "Briefly describe the task purpose",
@@ -84,5 +84,10 @@
   "create.weekday.SAT": "Saturday",
   "create.nextRun": "Next run",
   "create.nextRunToday": "Today {{time}}",
-  "create.nextRunTomorrow": "Tomorrow {{time}}"
+  "create.nextRunTomorrow": "Tomorrow {{time}}",
+  "create.conversationMode": "Execution Mode",
+  "create.conversationMode.new": "New conversation each run (Recommended)",
+  "create.conversationMode.reuse": "Reuse existing conversation (for continuous append)",
+  "goToLastConversation": "View latest run conversation",
+  "sidebar.scheduled": "Scheduled"
 }

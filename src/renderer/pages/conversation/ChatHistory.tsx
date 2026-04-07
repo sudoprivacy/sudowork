@@ -60,12 +60,23 @@ const useScrollIntoView = (id: string) => {
   }, [id]);
 };
 
+// Key for localStorage to persist collapsed state of scheduled job folders
+const SCHEDULED_FOLDER_KEY = 'cron_sidebar_expanded_';
+
 const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const [chatHistory, setChatHistory] = useState<TChatConversation[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(SCHEDULED_FOLDER_KEY + 'state');
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -176,6 +187,18 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     }
   };
 
+  const toggleFolder = (jobName: string) => {
+    setExpandedFolders((prev) => {
+      const next = { ...prev, [jobName]: !prev[jobName] };
+      try {
+        localStorage.setItem(SCHEDULED_FOLDER_KEY + 'state', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const formatTimeline = useTimeline();
 
   const renderConversation = (conversation: TChatConversation) => {
@@ -256,6 +279,24 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     );
   };
 
+  // Split into scheduled (cron-execution) and recent conversations
+  const scheduledConvs = chatHistory.filter((c) => !!(c.extra as any)?.cronJobId);
+  const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
+
+  // Group scheduled by cronJobName, sorted by most recent first
+  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
+  scheduledConvs.forEach((conv) => {
+    const jobName = (conv.extra as any)?.cronJobName as string || 'Unknown';
+    const group = scheduledGroups.find((g) => g.jobName === jobName);
+    if (group) {
+      group.convs.push(conv);
+    } else {
+      scheduledGroups.push({ jobName, convs: [conv] });
+    }
+  });
+  // Sort groups by most recent conversation within each group
+  scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+
   return (
     <FlexFullContainer>
       <div
@@ -268,15 +309,48 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
         {!chatHistory.length ? (
           <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
         ) : (
-          chatHistory.map((item) => {
-            const timeline = formatTimeline(item);
-            return (
-              <React.Fragment key={item.id}>
-                {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                {renderConversation(item)}
-              </React.Fragment>
-            );
-          })
+          <>
+            {/* ── SCHEDULED SECTION ── */}
+            {scheduledGroups.length > 0 && (
+              <>
+                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>
+                  {t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}
+                </div>
+                {scheduledGroups.map(({ jobName, convs }) => {
+                  const isExpanded = expandedFolders[jobName] !== false; // default open
+                  return (
+                    <React.Fragment key={jobName}>
+                      {/* Folder header */}
+                      <div
+                        className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden'
+                        onClick={() => toggleFolder(jobName)}
+                      >
+                        <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
+                        <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
+                      </div>
+                      {/* Conversations under this folder */}
+                      {isExpanded && convs.map((conv) => (
+                        <div key={conv.id} className='pl-16px'>
+                          {renderConversation(conv)}
+                        </div>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </>
+            )}
+
+            {/* ── RECENTS SECTION ── */}
+            {recentConvs.map((item) => {
+              const timeline = formatTimeline(item);
+              return (
+                <React.Fragment key={item.id}>
+                  {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
+                  {renderConversation(item)}
+                </React.Fragment>
+              );
+            })}
+          </>
         )}
       </div>
     </FlexFullContainer>

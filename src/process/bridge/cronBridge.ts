@@ -45,4 +45,13 @@ export function initCronBridge(): void {
   ipcBridge.cron.triggerJob.provider(async ({ jobId }) => {
     await cronService.triggerJob(jobId);
   });
+
+  // Power management handlers
+  ipcBridge.cron.getPowerSaveActive.provider(async () => {
+    return cronService.getPowerSaveActive();
+  });
+
+  ipcBridge.cron.setPowerSave.provider(async ({ enabled }) => {
+    cronService.setPowerSave(enabled);
+  });
 }

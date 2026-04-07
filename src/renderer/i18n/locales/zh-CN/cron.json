@@ -84,5 +84,10 @@
   "create.weekday.SAT": "周六",
   "create.nextRun": "下次运行",
   "create.nextRunToday": "今天 {{time}}",
-  "create.nextRunTomorrow": "明天 {{time}}"
+  "create.nextRunTomorrow": "明天 {{time}}",
+  "create.conversationMode": "执行模式",
+  "create.conversationMode.new": "每次新建会话（推荐）",
+  "create.conversationMode.reuse": "复用已有会话（适合持续追加）",
+  "goToLastConversation": "查看最近执行会话",
+  "sidebar.scheduled": "定时任务"
 }

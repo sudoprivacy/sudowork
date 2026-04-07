@@ -6,6 +6,9 @@
 
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
+import { ConfigStorage } from '@/common/storage';
+import type { AcpBackendAll } from '@/types/acpTypes';
+import type { AcpBackendConfig } from '@/types/acpTypes';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import {
@@ -18,12 +21,36 @@ import {
 } from '@/renderer/pages/cron/utils/cronUtils';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Drawer, Empty, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
-import { Add, ArrowLeft, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
+import { Add, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
+
+// Sentinel for "no assistant selected" (default → Sudoclaw). Using an explicit
+// sentinel instead of '' because Arco Select treats empty string as unset and
+// won't reliably fire onChange when switching back to it.
+const DEFAULT_ASSISTANT = '__default__';
+
+// ─── Hook: load preset assistants ───
+
+function useAssistantsForCron(): AcpBackendConfig[] {
+  const [assistants, setAssistants] = useState<AcpBackendConfig[]>([]);
+  useEffect(() => {
+    Promise.all([
+      ConfigStorage.get('acp.customAgents'),
+      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
+    ]).then(([local, ext]) => {
+      const merged: AcpBackendConfig[] = [
+        ...((local as AcpBackendConfig[]) || []),
+        ...((ext as unknown as AcpBackendConfig[]) || []),
+      ];
+      setAssistants(merged.filter((a) => a.isPreset === true));
+    }).catch(() => {});
+  }, []);
+  return assistants;
+}
 
 const TextArea = Input.TextArea;
 
@@ -123,9 +150,13 @@ const CronJobDetail: React.FC<{
   onTrigger: (jobId: string) => void;
   onNavigate: (conversationId: string) => void;
 }> = ({ job, onBack, onEdit, onDelete, onToggle, onTrigger, onNavigate }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const formatNextRun = useFormatNextRunRelative();
   const { hasError, isPaused } = getJobStatusFlags(job);
+  const assistants = useAssistantsForCron();
+  const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
+  const assistantName = selectedAssistant ? (selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudoclaw') : 'Sudoclaw';
 
   return (
     <div className='space-y-24px'>
@@ -184,6 +215,32 @@ const CronJobDetail: React.FC<{
             {job.target.payload.text}
           </div>
         </div>
+        {/* Execution mode */}
+        <div>
+          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+          <div className='text-14px text-t-primary'>
+            {(job.metadata.conversationMode ?? 'new') === 'new'
+              ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' })
+              : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}
+          </div>
+        </div>
+        {/* Working directory */}
+        {job.metadata.workspace && (
+          <div>
+            <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+            <div className='text-14px text-t-primary truncate' title={job.metadata.workspace}>
+              {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
+            </div>
+          </div>
+        )}
+        {/* Assistant */}
+        <div>
+          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+          <div className='text-14px text-t-primary flex items-center gap-6px'>
+            {selectedAssistant?.avatar && <span>{selectedAssistant.avatar}</span>}
+            <span>{assistantName}</span>
+          </div>
+        </div>
       </div>
 
       {/* Error info */}
@@ -203,17 +260,27 @@ const CronJobDetail: React.FC<{
       </div>
 
       {/* Conversation link */}
-      {job.metadata.conversationId && job.metadata.conversationTitle && (
-        <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
-          <span
-            className='text-14px text-primary cursor-pointer hover:underline'
-            onClick={() => onNavigate(job.metadata.conversationId)}
-          >
-            {job.metadata.conversationTitle}
-          </span>
-        </div>
-      )}
+      {(() => {
+        const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+        const targetConvId = isNewMode
+          ? job.state.lastConversationId
+          : job.metadata.conversationId;
+        const targetConvTitle = isNewMode
+          ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' })
+          : job.metadata.conversationTitle;
+        if (!targetConvId) return null;
+        return (
+          <div>
+            <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
+            <span
+              className='text-14px text-primary cursor-pointer hover:underline'
+              onClick={() => onNavigate(targetConvId)}
+            >
+              {targetConvTitle}
+            </span>
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -231,6 +298,10 @@ const CronJobFormDrawer: React.FC<{
   const { t } = useTranslation();
   const frequencyLabels = useFrequencyLabels();
   const weekdayLabels = useWeekdayLabels();
+  const { i18n } = useTranslation();
+  const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  const assistants = useAssistantsForCron();
+
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [frequency, setFrequency] = useState<FrequencyPreset>('daily');
@@ -239,6 +310,8 @@ const CronJobFormDrawer: React.FC<{
   const [weekday, setWeekday] = useState('MON');
   const [showMore, setShowMore] = useState(false);
   const [workspace, setWorkspace] = useState('');
+  const [conversationMode, setConversationMode] = useState<'new' | 'reuse'>('new');
+  const [selectedAssistantId, setSelectedAssistantId] = useState<string>(DEFAULT_ASSISTANT);
 
   useEffect(() => {
     if (visible) {
@@ -248,6 +321,9 @@ const CronJobFormDrawer: React.FC<{
         setHour(parsed.hour);
         setMinute(parsed.minute);
         setWeekday(parsed.weekday);
+        setConversationMode(editJob.metadata.conversationMode ?? 'new');
+        setWorkspace(editJob.metadata.workspace ?? '');
+        setSelectedAssistantId(editJob.metadata.presetAssistantId || DEFAULT_ASSISTANT);
         form.setFieldsValue({
           name: editJob.name,
           description: editJob.schedule.description,
@@ -261,6 +337,8 @@ const CronJobFormDrawer: React.FC<{
         setWeekday('MON');
         setWorkspace('');
         setShowMore(false);
+        setConversationMode('new');
+        setSelectedAssistantId(DEFAULT_ASSISTANT);
       }
     }
   }, [visible, editJob, form]);
@@ -281,11 +359,20 @@ const CronJobFormDrawer: React.FC<{
       const values = await form.validate();
       setSaving(true);
 
-      const schedule = frequencyToSchedule(frequency, { hour, minute, weekday });
+      const schedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
       const isManual = frequency === 'manual';
 
+      // Derive agentType from selected assistant's presetAgentType; default to openclaw-gateway (Sudoclaw)
+      const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
+      const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
+      const selectedAssistant = effectiveAssistantId ? assistants.find((a) => a.id === effectiveAssistantId) : undefined;
+      const presetAgentType = selectedAssistant?.presetAgentType || 'sudoclaw';
+      const agentType = (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackendAll;
+
       if (editJob) {
-        // Update existing job
+        // Update existing job. JSON IPC strips `undefined`, so we pass an explicit
+        // `null` sentinel when clearing the assistant back to Default — the backend
+        // normalizes `null` → cleared field.
         await ipcBridge.cron.updateJob.invoke({
           jobId: editJob.id,
           updates: {
@@ -293,18 +380,26 @@ const CronJobFormDrawer: React.FC<{
             enabled: isManual ? false : editJob.enabled,
             schedule: schedule || editJob.schedule,
             target: { payload: { kind: 'message', text: values.prompt } },
+            metadata: {
+              ...editJob.metadata,
+              agentType,
+              conversationMode,
+              workspace: workspace || undefined,
+              presetAssistantId: isDefaultAssistant ? null : effectiveAssistantId,
+            },
           },
         });
       } else {
-        // Create new job — for now still requires a conversation
-        // Use a placeholder that will be replaced when backend decoupling is done
         await ipcBridge.cron.addJob.invoke({
           name: values.name,
           schedule: schedule || { kind: 'cron', expr: '0 9 * * *', description: values.description || values.name },
           message: values.prompt,
-          conversationId: '', // Will be handled by backend
-          agentType: 'openclaw-gateway',
+          conversationId: '',
+          agentType,
           createdBy: 'user',
+          conversationMode,
+          workspace: workspace || undefined,
+          presetAssistantId: effectiveAssistantId,
         });
       }
 
@@ -327,10 +422,20 @@ const CronJobFormDrawer: React.FC<{
       placement='right'
       width={520}
       title={
-        <span className='text-16px font-medium'>
-          {editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}
-        </span>
+        <>
+          <span className='text-16px font-medium'>
+            {editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}
+          </span>
+          <div
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+            style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <Close size={18} />
+          </div>
+        </>
       }
+      closable={false}
       visible={visible}
       onCancel={onClose}
       footer={
@@ -417,11 +522,21 @@ const CronJobFormDrawer: React.FC<{
 
           {showMore && (
             <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-              {/* Agent/Assistant selector — placeholder for now */}
+              {/* Agent/Assistant selector */}
               <div>
                 <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                <Select placeholder={t('cron.create.agentPlaceholder', { defaultValue: '默认' })} allowClear>
-                  <Select.Option value='default'>默认</Select.Option>
+                <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)}>
+                  <Select.Option value={DEFAULT_ASSISTANT}>
+                    <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
+                  </Select.Option>
+                  {assistants.map((a) => (
+                    <Select.Option key={a.id} value={a.id}>
+                      <span className='flex items-center gap-6px'>
+                        {a.avatar && <span>{a.avatar}</span>}
+                        <span>{a.nameI18n?.[localeKey] || a.name}</span>
+                      </span>
+                    </Select.Option>
+                  ))}
                 </Select>
               </div>
 
@@ -435,6 +550,15 @@ const CronJobFormDrawer: React.FC<{
                     <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>
                   )}
                 </Button>
+              </div>
+
+              {/* Execution mode */}
+              <div className='col-span-2'>
+                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+                <Select value={conversationMode} onChange={(v) => setConversationMode(v as 'new' | 'reuse')}>
+                  <Select.Option value='new'>{t('cron.create.conversationMode.new', { defaultValue: '每次新建会话（推荐）' })}</Select.Option>
+                  <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话（适合持续追加）' })}</Select.Option>
+                </Select>
               </div>
             </div>
           )}
@@ -454,6 +578,24 @@ const CronModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
   const { jobs, loading, pauseJob, resumeJob, deleteJob, refetch } = useAllCronJobs();
+
+  // Keep-awake toggle state
+  const [keepAwake, setKeepAwake] = useState(false);
+  useEffect(() => {
+    ipcBridge.cron.getPowerSaveActive.invoke().then((active) => {
+      setKeepAwake(active);
+    }).catch(() => {});
+  }, []);
+
+  const handleKeepAwakeChange = async (checked: boolean) => {
+    setKeepAwake(checked);
+    try {
+      await ipcBridge.cron.setPowerSave.invoke({ enabled: checked });
+    } catch {
+      // revert on failure
+      setKeepAwake(!checked);
+    }
+  };
 
   // View state
   const [selectedJob, setSelectedJob] = useState<ICronJob | null>(null);
@@ -553,7 +695,7 @@ const CronModalContent: React.FC = () => {
               <div className='flex items-center gap-8px text-13px text-t-secondary'>
                 <Sun theme='outline' size={16} />
                 <span>{t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}</span>
-                <Switch size='small' defaultChecked />
+                <Switch size='small' checked={keepAwake} onChange={handleKeepAwakeChange} />
               </div>
             </div>
 
