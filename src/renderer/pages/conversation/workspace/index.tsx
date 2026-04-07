@@ -98,55 +98,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     }
   }, [wsRenameModal, workspace, t]);
 
-  // New folder creation handler
-  const handleNewFolderConfirm = useCallback(async () => {
-    const folderName = newFolderModal.name.trim();
-    if (!folderName) return;
-
-    // Validate folder name characters
-    const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1f]/;
-    if (invalidCharsRegex.test(folderName)) {
-      Message.error(t('conversation.workspace.newFolder.invalidName'));
-      return;
-    }
-    if (folderName === '.' || folderName === '..') {
-      Message.error(t('conversation.workspace.newFolder.invalidName'));
-      return;
-    }
-    // Prevent creating folder named .drafts (reserved)
-    if (folderName === DRAFTS_DIR_NAME) {
-      Message.error(t('conversation.workspace.newFolder.reservedName'));
-      return;
-    }
-
-    setNewFolderLoading(true);
-    try {
-      const targetPath = newFolderModal.parentPath ? `${newFolderModal.parentPath}/${folderName}` : `${workspace}/${folderName}`;
-      const result = await ipcBridge.fs.createDir.invoke({ path: targetPath });
-      if (result) {
-        Message.success(t('conversation.workspace.newFolder.success'));
-        setNewFolderModal({ visible: false, name: '', parentPath: '' });
-        treeHook.refreshWorkspace();
-      } else {
-        Message.error(t('conversation.workspace.newFolder.failed'));
-      }
-    } catch {
-      Message.error(t('conversation.workspace.newFolder.failed'));
-    } finally {
-      setNewFolderLoading(false);
-    }
-  }, [newFolderModal, workspace, t, treeHook.refreshWorkspace]);
-
-  // Open new folder modal for a given parent directory
-  const openNewFolderModal = useCallback(
-    (parentNode?: IDirOrFile) => {
-      const parentPath = parentNode?.fullPath ?? workspace;
-      setNewFolderModal({ visible: true, name: '', parentPath });
-      modalsHook.closeContextMenu();
-    },
-    [workspace, modalsHook.closeContextMenu]
-  );
-
   // Workspace migration modal state
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [showDirectorySelector, setShowDirectorySelector] = useState(false);
@@ -202,6 +153,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     t,
     onFilesDropped: pasteHook.handleFilesToAdd,
   });
+
+  // New folder creation handler
+  const handleNewFolderConfirm = useCallback(async () => {
+    const folderName = newFolderModal.name.trim();
+    if (!folderName) return;
+
+    // Validate folder name characters
+    const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1f]/;
+    if (invalidCharsRegex.test(folderName)) {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    if (folderName === '.' || folderName === '..') {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    // Prevent creating folder named .drafts (reserved)
+    if (folderName === DRAFTS_DIR_NAME) {
+      Message.error(t('conversation.workspace.newFolder.reservedName'));
+      return;
+    }
+
+    setNewFolderLoading(true);
+    try {
+      const targetPath = newFolderModal.parentPath ? `${newFolderModal.parentPath}/${folderName}` : `${workspace}/${folderName}`;
+      const result = await ipcBridge.fs.createDir.invoke({ path: targetPath });
+      if (result) {
+        Message.success(t('conversation.workspace.newFolder.success'));
+        setNewFolderModal({ visible: false, name: '', parentPath: '' });
+        treeHook.refreshWorkspace();
+      } else {
+        Message.error(t('conversation.workspace.newFolder.failed'));
+      }
+    } catch {
+      Message.error(t('conversation.workspace.newFolder.failed'));
+    } finally {
+      setNewFolderLoading(false);
+    }
+  }, [newFolderModal, workspace, t, treeHook.refreshWorkspace]);
+
+  // Open new folder modal for a given parent directory
+  const openNewFolderModal = useCallback(
+    (parentNode?: IDirOrFile) => {
+      const parentPath = parentNode?.fullPath ?? workspace;
+      setNewFolderModal({ visible: true, name: '', parentPath });
+      modalsHook.closeContextMenu();
+    },
+    [workspace, modalsHook.closeContextMenu]
+  );
 
   // 只在用户主动打开搜索时聚焦，不在会话切换时自动聚焦
   // Only focus search input when user actively opens search, not on conversation switch
@@ -735,37 +735,13 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         </Modal>
 
         {/* Workspace Rename Modal (root directory) */}
-        <Modal
-          title={t('conversation.workspace.renameWorkspace.title')}
-          visible={wsRenameModal.visible}
-          onOk={handleWorkspaceRenameConfirm}
-          onCancel={() => setWsRenameModal({ visible: false, name: '' })}
-          okText={t('common.confirm')}
-          cancelText={t('common.cancel')}
-          confirmLoading={wsRenameLoading}
-          okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
-          style={{ borderRadius: '12px' }}
-          alignCenter
-          getPopupContainer={() => document.body}
-        >
+        <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
           <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
           <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
         </Modal>
 
         {/* New Folder Modal */}
-        <Modal
-          title={t('conversation.workspace.newFolder.title')}
-          visible={newFolderModal.visible}
-          onOk={handleNewFolderConfirm}
-          onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })}
-          okText={t('common.confirm')}
-          cancelText={t('common.cancel')}
-          confirmLoading={newFolderLoading}
-          okButtonProps={{ disabled: !newFolderModal.name.trim() }}
-          style={{ borderRadius: '12px' }}
-          alignCenter
-          getPopupContainer={() => document.body}
-        >
+        <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
           <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
           <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
         </Modal>
