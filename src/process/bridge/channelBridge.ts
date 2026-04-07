@@ -159,6 +159,33 @@ export function initChannelBridge(): void {
   });
 
   /**
+   * Get decrypted credentials for a plugin (for backfill in settings UI)
+   */
+  channel.getPluginCredentials.provider(async ({ pluginId }) => {
+    try {
+      const db = getDatabase();
+      // getChannelPlugin already decrypts credentials via decryptCredentials
+      const result = db.getChannelPlugin(pluginId);
+
+      if (!result.success || !result.data) {
+        return { success: false, msg: result.error || 'Plugin not found' };
+      }
+
+      const plugin = result.data;
+      if (!plugin.credentials) {
+        return { success: true, data: null };
+      }
+
+      // Credentials are already decrypted by getChannelPlugin (via decryptCredentials)
+      // Just return them directly
+      return { success: true, data: plugin.credentials };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'getPluginCredentials error:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  /**
    * Enable a plugin
    */
   channel.enablePlugin.provider(async ({ pluginId, config }) => {

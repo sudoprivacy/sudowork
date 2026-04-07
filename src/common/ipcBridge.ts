@@ -1072,11 +1072,12 @@ export const skillHub = {
 
 // ==================== Channel API ====================
 
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
 
 export const channel = {
   // Plugin Management
   getPluginStatus: bridge.buildProvider<IBridgeResponse<IChannelPluginStatus[]>, void>('channel.get-plugin-status'),
+  getPluginCredentials: bridge.buildProvider<IBridgeResponse<IPluginCredentials | null>, { pluginId: string }>('channel.get-plugin-credentials'),
   enablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string; config: Record<string, unknown> }>('channel.enable-plugin'),
   disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.disable-plugin'),
   testPlugin: bridge.buildProvider<IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>, { pluginId: string; token: string; extraConfig?: { appId?: string; appSecret?: string } }>('channel.test-plugin'),
