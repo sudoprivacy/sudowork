@@ -114,6 +114,26 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
+  // Load saved credentials for backfill
+  useEffect(() => {
+    // Only load if plugin has credentials configured and no values are currently entered
+    if (!pluginStatus?.hasToken || clientId || clientSecret) return;
+
+    const loadCredentials = async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'dingtalk_default' });
+        if (result.success && result.data) {
+          if (result.data.clientId) setClientId(result.data.clientId);
+          if (result.data.clientSecret) setClientSecret(result.data.clientSecret);
+        }
+      } catch (error) {
+        console.error('[DingTalkConfig] Failed to load credentials:', error);
+      }
+    };
+
+    void loadCredentials();
+  }, [pluginStatus]);
+
   // Load available agents + saved selection
   useEffect(() => {
     const loadAgentsAndSelection = async () => {

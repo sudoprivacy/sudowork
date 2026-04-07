@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sudowork built-in image analysis script
 # Usage: analyze_image.sh <image_path> [prompt]
-# Reads config from sudoclaw.json via OPENCLAW_CONFIG_PATH (required) env var.
+# Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH (required) env var.
 # Overrides with optional env vars: PROVIDER_BASE_URL, PROVIDER_API_KEY, CHAT_MODEL
 
 set -euo pipefail
@@ -20,7 +20,7 @@ if [ ! -f "$IMAGE_PATH" ]; then
 fi
 
 # Read BASE_URL, API_KEY, and MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${OPENCLAW_CONFIG_PATH:-}" ] && [ -f "$OPENCLAW_CONFIG_PATH" ]; then
+if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
   eval "$(python3 -c "
 import json, sys
 try:
@@ -34,7 +34,7 @@ try:
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_MODEL={repr(model)}')
 except: pass
-" "$OPENCLAW_CONFIG_PATH" 2>/dev/null)"
+" "$SUDOCLAW_CONFIG_PATH" 2>/dev/null)"
 fi
 
 BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
