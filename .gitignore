@@ -205,6 +205,8 @@ resources/node-darwin-arm64.tar.gz
 resources/bdpan-installer-*
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
+resources/installerSidebar.bmp
+resources/installerHeader.bmp
 tests/e2e/ops/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/

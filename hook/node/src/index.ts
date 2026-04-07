@@ -17,10 +17,12 @@ export interface SafetyHookOptions {
   enableFile?: boolean;
   /** Enable process interception, defaults to true */
   enableProcess?: boolean;
-  /** Timeout in milliseconds for waiting user confirmation, defaults to 600000 (10 minutes) */
+  /** Timeout in milliseconds for waiting user confirmation, defaults to 60000 (60 seconds) */
   timeout?: number;
   /** Polling interval for enabled state check (ms), defaults to 3000 */
   statePollingInterval?: number;
+  /** Max retries for waiting Nexus to be ready, defaults to 30 (90 seconds) */
+  nexusReadyRetries?: number;
 }
 
 let networkInterceptor: BatchInterceptor | null = null;
@@ -31,17 +33,19 @@ let nexusController: NexusController | null = null;
 let statePollingTimer: NodeJS.Timeout | null = null;
 let currentNexusUrl: string = 'http://127.0.0.1:12012';
 let currentStatePollingInterval: number = 3000;
-let fastPassEnabled = false; // When true, allow all requests immediately
+let fastPassEnabled = false;
 
-/** Path in Nexus filesystem for enabled state sync */
+/** Path in Nexus filesystem for enabled state */
 const ENABLED_CONFIG_PATH = '/safe/config/enabled';
 
 /** Path in Nexus filesystem for blacklist config */
 const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
 
+/** Default state for first run */
+const DEFAULT_STATE = { enabled: true, fastPass: false };
+
 /**
  * Initialize safety hook interceptors
- * @param options Configuration options
  */
 export function initSafetyHook(options: SafetyHookOptions = {}): void {
   if (isApplied) {
@@ -53,7 +57,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   const enableNetwork = options.enableNetwork !== false;
   const enableFile = options.enableFile !== false;
   const enableProcess = options.enableProcess !== false;
-  const timeout = options.timeout || 600_000;
+  const timeout = options.timeout || 60_000;
   const statePollingInterval = options.statePollingInterval || 3000;
 
   currentNexusUrl = nexusUrl;
@@ -64,7 +68,6 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     networkInterceptor = new BatchInterceptor({ name: 'claw-interceptor', interceptors: NodeInterceptors });
     networkInterceptor.apply();
     networkInterceptor.on('request', async ({ request, requestId, controller }: { request: Request; requestId: string; controller: RequestController }) => {
-      // Skip requests to Nexus server itself (avoid infinite loop)
       if (request.url.startsWith(nexusUrl)) {
         return;
       }
@@ -102,12 +105,10 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   isApplied = true;
   console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
-  // Start polling for enabled state changes (for Agent CLI processes without parentPort)
   if (!process.parentPort) {
     startStatePolling();
   }
 
-  // Always load blacklist config (both CLI and worker processes need it)
   startBlacklistPolling();
 }
 
@@ -120,7 +121,6 @@ export function isSafetyHookApplied(): boolean {
 
 /**
  * Check if fastPass mode is enabled
- * When true, all requests should be allowed immediately without interception
  */
 export function isFastPassEnabled(): boolean {
   return fastPassEnabled;
@@ -130,9 +130,6 @@ export function isFastPassEnabled(): boolean {
  * Dispose safety hook interceptors
  */
 export function disposeSafetyHook(): void {
-  // Don't stop state polling - we need it to detect when user re-enables hook
-  // stopStatePolling();
-
   if (networkInterceptor) {
     networkInterceptor.dispose();
     networkInterceptor = null;
@@ -141,78 +138,79 @@ export function disposeSafetyHook(): void {
     fileInterceptor.dispose();
     fileInterceptor = null;
   }
+  if (processInterceptor) {
+    processInterceptor.dispose();
+    processInterceptor = null;
+  }
   nexusController = null;
   isApplied = false;
-  console.error('[SafetyHook] Disposed (state polling continues)');
+  console.error('[SafetyHook] Disposed');
 }
 
 /**
- * Start polling for enabled state changes from Nexus filesystem
+ * Start polling for enabled state changes from Nexus
  */
 function startStatePolling(): void {
   if (statePollingTimer) {
-    return; // Already polling
+    return;
   }
 
   console.error(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
 
-  statePollingTimer = setInterval(async () => {
-    try {
-      const state = await readEnabledState();
-      fastPassEnabled = state.fastPass;
+  checkStateAndAct();
 
-      if (state.fastPass) {
-        // FastPass mode: allow all requests immediately
-        // If currently applied, dispose interceptors but keep polling
-        if (isApplied) {
-          disposeSafetyHook();
-          console.error('[SafetyHook] FastPass detected, disposed interceptors');
-        }
-      } else if (!state.enabled && isApplied) {
-        disposeSafetyHook();
-      } else if (state.enabled && !isApplied) {
-        initSafetyHook({
-          nexusUrl: currentNexusUrl,
-          statePollingInterval: currentStatePollingInterval,
-        });
-      }
-    } catch (error) {
-      // Ignore errors during polling (Nexus may be temporarily unavailable)
-    }
-  }, currentStatePollingInterval);
+  statePollingTimer = setInterval(checkStateAndAct, currentStatePollingInterval);
 }
 
 /**
- * Stop polling for enabled state changes
+ * Check enabled state from Nexus and act accordingly
  */
-function stopStatePolling(): void {
-  if (statePollingTimer) {
-    clearInterval(statePollingTimer);
-    statePollingTimer = null;
-    console.error('[SafetyHook] Stopped state polling');
+async function checkStateAndAct(): Promise<void> {
+  try {
+    const state = await readEnabledState();
+
+    if (state === null) {
+      // Nexus unavailable, keep current state and retry next polling
+      return;
+    }
+
+    fastPassEnabled = state.fastPass;
+
+    if (state.fastPass) {
+      if (isApplied) {
+        disposeSafetyHook();
+        console.error('[SafetyHook] FastPass detected, disposed interceptors');
+      }
+      return;
+    }
+
+    if (!state.enabled && isApplied) {
+      disposeSafetyHook();
+    } else if (state.enabled && !isApplied) {
+      initSafetyHook({
+        nexusUrl: currentNexusUrl,
+        statePollingInterval: currentStatePollingInterval,
+      });
+    }
+  } catch (error) {
+    // Ignore errors during polling
   }
 }
 
 /**
  * Read enabled state from Nexus filesystem
- * Returns both enabled status and fastPass flag
+ * Returns null if Nexus is unavailable
  */
-async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean }> {
-  if (!nexusController) {
-    return { enabled: true, fastPass: false }; // Default to enabled
-  }
-
+async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean } | null> {
   try {
     const nexus = new Nexus(currentNexusUrl);
     const result = await nexus.read(ENABLED_CONFIG_PATH, false);
 
-    // Handle Buffer result
     if (Buffer.isBuffer(result)) {
       const data = JSON.parse(result.toString('utf-8'));
       return { enabled: data.enabled === true, fastPass: data.fastPass === true };
     }
 
-    // Handle object result with content
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
       const data = Buffer.isBuffer(content)
@@ -221,11 +219,53 @@ async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean
       return { enabled: data.enabled === true, fastPass: data.fastPass === true };
     }
 
-    return { enabled: true, fastPass: false }; // Default to enabled
+    return null;
   } catch (error) {
-    // File may not exist yet, default to enabled
-    return { enabled: true, fastPass: false };
+    return null;
   }
+}
+
+/**
+ * Ensure state exists in Nexus, create default if not
+ */
+async function ensureState(): Promise<{ enabled: boolean; fastPass: boolean }> {
+  const state = await readEnabledState();
+  if (state !== null) {
+    return state;
+  }
+
+  // No state exists, write default
+  try {
+    const nexus = new Nexus(currentNexusUrl);
+    await nexus.write(ENABLED_CONFIG_PATH, JSON.stringify({
+      ...DEFAULT_STATE,
+      timestamp: Date.now(),
+    }));
+    console.error('[SafetyHook] Created default state in Nexus');
+    return { ...DEFAULT_STATE };
+  } catch (error) {
+    console.error('[SafetyHook] Failed to create default state:', error);
+    return { ...DEFAULT_STATE };
+  }
+}
+
+/**
+ * Wait for Nexus to be ready with retries
+ */
+async function waitForNexusReady(maxRetries: number): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const nexus = new Nexus(currentNexusUrl);
+      // Try to read any file to check if Nexus is responding
+      await nexus.read(ENABLED_CONFIG_PATH, false);
+      return true;
+    } catch (error) {
+      if (i < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -236,12 +276,10 @@ async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
     const nexus = new Nexus(currentNexusUrl);
     const result = await nexus.read(BLACKLIST_CONFIG_PATH, false);
 
-    // Handle Buffer result
     if (Buffer.isBuffer(result)) {
       return JSON.parse(result.toString('utf-8')) as BlacklistConfig;
     }
 
-    // Handle object result with content
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
       const data = Buffer.isBuffer(content)
@@ -252,28 +290,22 @@ async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
 
     return null;
   } catch {
-    // File may not exist
     return null;
   }
 }
 
 /**
- * Start polling for blacklist config changes from Nexus filesystem
+ * Start polling for blacklist config changes
  */
 function startBlacklistPolling(): void {
-  console.error(`[SafetyHook] Starting blacklist config polling`);
-
-  // Initial load
   readBlacklistConfig()
     .then((config) => {
       if (config) {
         updateBlacklistConfig(config);
-        console.error(`[SafetyHook] Loaded blacklist config: rules=${config.rules?.length || 0}`);
       }
     })
     .catch(() => {});
 
-  // Poll for updates (every 5 seconds)
   setInterval(async () => {
     try {
       const config = await readBlacklistConfig();
@@ -281,17 +313,15 @@ function startBlacklistPolling(): void {
         updateBlacklistConfig(config);
       }
     } catch {
-      // Ignore errors during polling
+      // Ignore errors
     }
-  }, 5000);
+  }, currentStatePollingInterval);
 }
 
 /**
  * Handle safety hook toggle message from parent process
  */
 function handleSafetyHookToggle(enabled: boolean): void {
-  console.error(`[SafetyHook] Received toggle: enabled=${enabled}, current isApplied=${isApplied}`);
-
   if (enabled && !isApplied) {
     initSafetyHook();
   } else if (!enabled && isApplied) {
@@ -306,33 +336,74 @@ if (process.parentPort) {
     if (type === 'safety.hook.toggle') {
       handleSafetyHookToggle(data?.enabled);
     } else if (type === 'safety.blacklist.update') {
-      // Receive blacklist config update from main process
       if (data?.config) {
         updateBlacklistConfig(data.config);
-        console.error(`[SafetyHook] Received blacklist update via parentPort: rules=${data.config.rules?.length || 0}`);
       }
     }
   });
 }
 
-// Auto-apply when loaded via -r flag (CLI usage)
-// Only applies if SUDOWORK_SAFETY_HOOK is not set to 'false'
-// Skip for npm/npx processes — the hook is injected via NODE_OPTIONS which
-// applies to ALL child Node.js processes, including npm/npx that install ACP
-// bridge packages. Intercepting their network/file operations causes them to fail.
+// ============================================================================
+// Auto-initialization when loaded via -r flag
+// ============================================================================
+
+/**
+ * Bootstrap safety hook
+ * 1. Wait for Nexus to be ready
+ * 2. Read state from Nexus
+ * 3. Initialize or skip based on state
+ */
+async function bootstrap(): Promise<void> {
+  const maxRetries = 30; // 30 seconds max
+
+  // Wait for Nexus to be ready
+  const nexusReady = await waitForNexusReady(maxRetries);
+  if (!nexusReady) {
+    console.error('[SafetyHook] Nexus not ready after retries, starting polling anyway');
+    startStatePolling();
+    startBlacklistPolling();
+    return;
+  }
+
+  // Ensure state exists in Nexus
+  const state = await ensureState();
+  console.error(`[SafetyHook] State from Nexus: enabled=${state.enabled}, fastPass=${state.fastPass}`);
+
+  fastPassEnabled = state.fastPass;
+
+  if (state.fastPass) {
+    // fastPass=true: skip initialization, just start polling
+    console.error('[SafetyHook] FastPass enabled, skipping initialization');
+    startStatePolling();
+    startBlacklistPolling();
+  } else if (state.enabled) {
+    // enabled=true: initialize hook
+    initSafetyHook();
+  } else {
+    // enabled=false, fastPass=false: just start polling
+    console.error('[SafetyHook] Disabled, starting polling only');
+    startStatePolling();
+    startBlacklistPolling();
+  }
+}
+
+// Auto-apply when loaded via -r flag
 if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
   const mainScript = process.argv[1] || '';
   const isNpmProcess = mainScript.includes('npm-cli.js') || mainScript.includes('npx-cli.js') ||
     mainScript.endsWith('/npm') || mainScript.endsWith('/npx');
-  // ACP bridge processes use stdio for JSON-RPC — hook's network interception
-  // and polling would interfere with the protocol stream.
-  // Detection by argv is unreliable on Windows (shell: true), so we also
-  // check for SUDOWORK_ACP_CHILD env var set by acpConnectors.ts.
   const isAcpBridge = mainScript.includes('agent-acp') ||
     process.env.SUDOWORK_ACP_CHILD === '1';
+
   if (isNpmProcess || isAcpBridge) {
-    // Do not intercept npm/npx or ACP bridge processes — let them run unimpeded
+    // Skip npm/npx/ACP bridge processes
   } else {
-    initSafetyHook();
+    // Bootstrap: wait for Nexus, read state, then decide
+    bootstrap().catch((error) => {
+      console.error('[SafetyHook] Bootstrap failed:', error);
+      // Fallback: start polling anyway
+      startStatePolling();
+      startBlacklistPolling();
+    });
   }
 }

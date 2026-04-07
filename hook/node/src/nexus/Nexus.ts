@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-// Use stderr for all logging to avoid corrupting ACP stdio pipe
-const log = {
-  debug: (...args: unknown[]) => process.stderr.write(`[nexus] ${args.join(' ')}\n`),
-  info: (...args: unknown[]) => process.stderr.write(`[nexus] ${args.join(' ')}\n`),
-  error: (...args: unknown[]) => process.stderr.write(`[nexus] ERROR: ${args.join(' ')}\n`),
-};
+// Use stderr for error logging to avoid corrupting ACP stdio pipe
+const logError = (...args: unknown[]) => process.stderr.write(`[nexus] ERROR: ${args.join(' ')}\n`);
 
 export class Nexus {
   constructor(
@@ -14,7 +10,6 @@ export class Nexus {
   ) {}
 
   protected async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
-    log.debug(`API call: ${method} with params: ${JSON.stringify(params)}`);
     const url = new URL(`/api/nfs/${method}`, this.serverUrl);
     const rpcRequest = {
       jsonrpc: '2.0',
@@ -32,15 +27,14 @@ export class Nexus {
       },
     });
     if (!response.ok) {
-      log.error(`API call failed: ${method} - HTTP ${response.status}`);
+      logError(`API call failed: ${method} - HTTP ${response.status}`);
       throw new Error(`Request failed: ${await response.text()}`);
     }
     const rpcResponse = (await response.json()) as RPCResponse;
     if (rpcResponse.error) {
-      log.error(`API call RPC error: ${method} - ${rpcResponse.error.message}`);
+      logError(`API call RPC error: ${method} - ${rpcResponse.error.message}`);
       throwRPCError(rpcResponse.error);
     }
-    log.info(`API call completed: ${method}`);
     return rpcResponse.result;
   }
 
