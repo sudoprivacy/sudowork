@@ -69,6 +69,30 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [showSearch, setShowSearch] = useState(true);
   const searchInputRef = useRef<RefInputType | null>(null);
 
+  // Workspace rename modal state (for root directory rename)
+  const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
+  const [wsRenameLoading, setWsRenameLoading] = useState(false);
+
+  const handleWorkspaceRenameConfirm = useCallback(async () => {
+    const newName = wsRenameModal.name.trim();
+    if (!newName) return;
+    setWsRenameLoading(true);
+    try {
+      const result = await ipcBridge.workspaceManage.renameDirectory.invoke({ oldPath: workspace, newName });
+      if (result?.success) {
+        Message.success(t('conversation.workspace.renameWorkspace.success'));
+        setWsRenameModal({ visible: false, name: '' });
+        emitter.emit('chat.history.refresh');
+      } else {
+        Message.error(result?.msg || t('conversation.workspace.renameWorkspace.failed'));
+      }
+    } catch {
+      Message.error(t('conversation.workspace.renameWorkspace.failed'));
+    } finally {
+      setWsRenameLoading(false);
+    }
+  }, [wsRenameModal, workspace, t]);
+
   // Workspace migration modal state
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [showDirectorySelector, setShowDirectorySelector] = useState(false);
@@ -653,6 +677,24 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
         </Modal>
 
+        {/* Workspace Rename Modal (root directory) */}
+        <Modal
+          title={t('conversation.workspace.renameWorkspace.title')}
+          visible={wsRenameModal.visible}
+          onOk={handleWorkspaceRenameConfirm}
+          onCancel={() => setWsRenameModal({ visible: false, name: '' })}
+          okText={t('common.confirm')}
+          cancelText={t('common.cancel')}
+          confirmLoading={wsRenameLoading}
+          okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
+          style={{ borderRadius: '12px' }}
+          alignCenter
+          getPopupContainer={() => document.body}
+        >
+          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+          <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
+        </Modal>
+
         {/* Delete Modal */}
         <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
           <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
@@ -827,6 +869,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         }}
                       >
                         {t('conversation.workspace.contextMenu.open')}
+                      </button>
+                      <button
+                        type='button'
+                        className={menuButtonBase}
+                        onClick={() => {
+                          const displayName = getLastDirectoryName(workspace);
+                          setWsRenameModal({ visible: true, name: displayName });
+                          modalsHook.closeContextMenu();
+                        }}
+                      >
+                        {t('conversation.workspace.contextMenu.rename')}
                       </button>
                       <div className='h-1px bg-3 my-2px'></div>
                       <button

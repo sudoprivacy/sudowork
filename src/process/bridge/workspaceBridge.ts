@@ -13,6 +13,7 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { ipcBridge } from '@/common';
 import { isValidDirectoryName } from '@/common/utils/pathValidation';
 import { getDatabase } from '@process/database';
+import WorkerManage from '@process/WorkerManage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -65,6 +66,12 @@ export function initWorkspaceBridge(): void {
       }
 
       mainLog('workspaceBridge', `Updated ${updateResult.data} conversations in database`);
+
+      // 6. Sync running agents' cached workspace path
+      const agentUpdated = WorkerManage.updateActiveAgentWorkspace(oldPath, newPath);
+      if (agentUpdated > 0) {
+        mainLog('workspaceBridge', `Synced workspace path for ${agentUpdated} active agent(s)`);
+      }
 
       return { success: true, data: { newPath } };
     } catch (error) {
