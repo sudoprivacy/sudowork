@@ -11,7 +11,7 @@ import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
-import { isNightlyBuild } from '@/common/buildInfo';
+import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
 import { useTranslation } from 'react-i18next';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
@@ -355,7 +355,7 @@ const UpdateModal: React.FC = () => {
               <CheckOne theme='filled' size='28' fill='rgb(var(--success-6))' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.upToDateTitle')}</div>
-            <div className='text-13px text-t-tertiary'>{t('update.currentVersion', { version: currentVersion || '-' })}</div>
+            <div className='text-13px text-t-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
           </div>
         );
 
@@ -371,7 +371,7 @@ const UpdateModal: React.FC = () => {
                 <div>
                   <div className='text-15px font-600 text-t-primary'>{t('update.availableTitle')}</div>
                   <div className='text-12px text-t-tertiary mt-2px'>
-                    {currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
+                    {buildVersion || currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
                   </div>
                 </div>
               </div>

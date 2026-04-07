@@ -22,7 +22,7 @@ declare const __BUILD_DATE__: string;
 declare const __BUILD_COMMIT__: string;
 declare const __BUILD_IS_NIGHTLY__: boolean;
 
-/** Application version – from git tag / package.json */
+/** Application version – from git tag, or date-commit for untagged builds */
 export const buildVersion: string = typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : '0.0.0-dev';
 
 /** Commit date in YYYY-MM-DD format */

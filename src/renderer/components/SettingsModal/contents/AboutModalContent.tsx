@@ -10,7 +10,6 @@ import React, { useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
-import packageJson from '../../../../../package.json';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
 import OpsModal from '@/renderer/components/OpsModal';
 
@@ -33,10 +32,7 @@ const AboutModalContent: React.FC = () => {
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
             <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>
-              {(() => {
-                const ver = buildVersion !== '0.0.0-dev' ? buildVersion : packageJson.version;
-                return isNightlyBuild ? ver : `v${ver}`;
-              })()}
+              {buildVersion}
             </span>
             {isNightlyBuild && (
               <span className='mt-6px px-8px py-2px rd-10px text-11px bg-orange-1 text-orange-6 font-500 dark:bg-orange-9/20'>
