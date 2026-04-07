@@ -790,11 +790,21 @@ export class AionUIDatabase {
         const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
         const namespace = `channel:${row.type}:${row.id}`;
 
-        // Build credentials object - read ALL credential fields from Nexus
+        // Build credentials object - read credential fields from Nexus (secret fields)
         const credentials: Record<string, string | undefined> = {};
         for (const field of credentialFields) {
-          // After migration, credentials come ONLY from Nexus (no fallback to SQLite)
           credentials[field] = resolveSecret(namespace, field, '');
+        }
+
+        // Merge ID fields from SQLite config (not stored in Nexus after migration)
+        // Before migration, all credentials were stored in SQLite config.credentials
+        // After migration, only secret fields go to Nexus, ID fields remain in SQLite config
+        if (storedConfig.credentials) {
+          for (const [key, value] of Object.entries(storedConfig.credentials)) {
+            if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+              credentials[key] = value;
+            }
+          }
         }
 
         return {
@@ -848,11 +858,21 @@ export class AionUIDatabase {
       const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
       const namespace = `channel:${row.type}:${row.id}`;
 
-      // Build credentials object - read ALL credential fields from Nexus
+      // Build credentials object - read credential fields from Nexus (secret fields)
       const credentials: Record<string, string | undefined> = {};
       for (const field of credentialFields) {
-        // After migration, credentials come ONLY from Nexus (no fallback to SQLite)
         credentials[field] = resolveSecret(namespace, field, '');
+      }
+
+      // Merge ID fields from SQLite config (not stored in Nexus after migration)
+      // Before migration, all credentials were stored in SQLite config.credentials
+      // After migration, only secret fields go to Nexus, ID fields remain in SQLite config
+      if (storedConfig.credentials) {
+        for (const [key, value] of Object.entries(storedConfig.credentials)) {
+          if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+            credentials[key] = value;
+          }
+        }
       }
 
       const plugin: IChannelPluginConfig = {
@@ -900,10 +920,20 @@ export class AionUIDatabase {
           updated_at = excluded.updated_at
       `);
 
-      // Store only non-credential config in SQLite
-      // After migration, credentials are stored ONLY in Nexus - original storage is frozen
+      // Store non-credential config in SQLite
+      // Also store ID fields (not in credentialFields) that should be preserved but not stored in Nexus
+      const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(plugin.type);
+      const idFields: Record<string, string> = {};
+      if (plugin.credentials) {
+        for (const [key, value] of Object.entries(plugin.credentials)) {
+          if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+            idFields[key] = value;
+          }
+        }
+      }
       const storedConfig = {
         config: plugin.config,
+        credentials: idFields, // Store ID fields that are not in Nexus
       };
 
       stmt.run(plugin.id, plugin.type, plugin.name, plugin.enabled ? 1 : 0, JSON.stringify(storedConfig), plugin.status, plugin.lastConnected ?? null, plugin.createdAt || now, now);
