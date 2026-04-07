@@ -631,13 +631,23 @@ export class LarkPlugin extends BasePlugin {
       });
 
       // Try to get tenant access token to verify credentials
-      // The SDK will throw if credentials are invalid
-      await client.auth.tenantAccessToken.internal({
+      // Note: Feishu API returns HTTP 200 even on auth failure,
+      // with the error indicated in the response body's `code` field
+      const response = await client.auth.tenantAccessToken.internal({
         data: {
           app_id: appId,
           app_secret: appSecret,
         },
       });
+
+      // Check if the API returned an error code
+      // code === 0 means success; any other value indicates failure
+      if (response?.code !== undefined && response.code !== 0) {
+        return {
+          success: false,
+          error: response.msg || `Lark API error (code: ${response.code})`,
+        };
+      }
 
       return { success: true, botInfo: { name: 'Lark Bot' } };
     } catch (error: any) {
