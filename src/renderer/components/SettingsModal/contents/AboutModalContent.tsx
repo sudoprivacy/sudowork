@@ -33,7 +33,10 @@ const AboutModalContent: React.FC = () => {
             </Typography.Title>
             <div className='text-12px text-t-tertiary mb-10px'>北京数牍科技有限公司</div>
             <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>
-              {`v${buildVersion !== '0.0.0-dev' ? buildVersion : packageJson.version}`}
+              {(() => {
+                const ver = buildVersion !== '0.0.0-dev' ? buildVersion : packageJson.version;
+                return isNightlyBuild ? ver : `v${ver}`;
+              })()}
             </span>
             {isNightlyBuild && (
               <span className='mt-6px px-8px py-2px rd-10px text-11px bg-orange-1 text-orange-6 font-500 dark:bg-orange-9/20'>
