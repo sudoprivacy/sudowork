@@ -9,6 +9,7 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { useEffect } from 'react';
 import type { ContextMenuState } from '../types';
+import { getAllDirKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
@@ -134,10 +135,16 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    */
   useEffect(() => {
     return ipcBridge.conversation.responseSearchWorkSpace.provider((data) => {
-      if (data.match) setFiles([data.match]);
+      if (data.match) {
+        const matchData = [data.match];
+        setFiles(matchData);
+        // 搜索时自动展开所有文件夹，让用户直接看到匹配结果
+        // Auto-expand all folders on search so users can see matches directly
+        setExpandedKeys(getAllDirKeys(matchData));
+      }
       return Promise.resolve();
     });
-  }, [setFiles]);
+  }, [setFiles, setExpandedKeys]);
 
   /**
    * 监听右键菜单外部点击 - 关闭菜单
