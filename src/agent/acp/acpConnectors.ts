@@ -38,6 +38,20 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
+function getHookPythonWhlPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
+  }
+  return path.join(app.getAppPath(), 'hook/python/dist/hook-0.0.1-py3-none-any.whl');
+}
+
+function getHookPythonPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pythonpath');
+  }
+  return path.join(app.getAppPath(), 'hook/python/pythonpath');
+}
+
 // ── Environment helpers ─────────────────────────────────────────────
 
 /**
@@ -89,6 +103,11 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     const hookOption = `-r ${hookJsPath}`;
     cleanEnv.NODE_OPTIONS = hookOption;
     console.log(`[ACP] Injecting safety hook via NODE_OPTIONS: ${hookOption}`);
+
+    const pythonpath = getHookPythonPath();
+    cleanEnv.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+    cleanEnv.PYTHONPATH = pythonpath;
+    console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
 
   return cleanEnv;
