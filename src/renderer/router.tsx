@@ -24,6 +24,8 @@ const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
+const SudoClawPage = React.lazy(() => import('./pages/sudoclaw'));
+const MemoryViewer = React.lazy(() => import('./pages/sudoclaw/MemoryViewer'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>
@@ -74,6 +76,8 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<Navigate to='/settings/agent' replace />} />
+          <Route path='/sudoclaw' element={withRouteFallback(SudoClawPage)} />
+          <Route path='/sudoclaw/memory' element={withRouteFallback(MemoryViewer)} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />

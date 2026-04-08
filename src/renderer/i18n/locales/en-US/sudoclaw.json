@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "Dashboard",
+  "memoryViewer": "Memory Viewer",
+  "status": {
+    "title": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "sessionState": "Session State",
+    "tickCount": "Tick Count",
+    "lastActivity": "Last Activity",
+    "noActivity": "No activity recorded",
+    "gatewayRunning": "Gateway Running",
+    "gatewayPort": "Gateway Port",
+    "version": "Version",
+    "notInstalled": "Not installed"
+  },
+  "session": {
+    "idle": "Idle",
+    "active": "Active",
+    "paused": "Paused"
+  },
+  "toggle": {
+    "enable": "Enable SudoClaw",
+    "disable": "Disable SudoClaw",
+    "enableSuccess": "SudoClaw enabled",
+    "disableSuccess": "SudoClaw disabled",
+    "toggleFailed": "Failed to toggle SudoClaw"
+  },
+  "memory": {
+    "title": "Memory Logs",
+    "selectDate": "Select date",
+    "searchPlaceholder": "Search memory entries...",
+    "noEntries": "No memory entries for this date",
+    "noResults": "No entries match your search",
+    "loading": "Loading memory entries...",
+    "entryCount": "{{count}} entries",
+    "category": "Category",
+    "tags": "Tags",
+    "viewEntry": "View entry",
+    "browseByDate": "Browse by date",
+    "today": "Today",
+    "loadFailed": "Failed to load memory entries"
+  }
+}

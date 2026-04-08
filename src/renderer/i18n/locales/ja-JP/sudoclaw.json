@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "ダッシュボード",
+  "memoryViewer": "メモリビューア",
+  "status": {
+    "title": "ステータス",
+    "enabled": "有効",
+    "disabled": "無効",
+    "sessionState": "セッション状態",
+    "tickCount": "実行回数",
+    "lastActivity": "最終アクティビティ",
+    "noActivity": "アクティビティなし",
+    "gatewayRunning": "ゲートウェイ実行中",
+    "gatewayPort": "ゲートウェイポート",
+    "version": "バージョン",
+    "notInstalled": "未インストール"
+  },
+  "session": {
+    "idle": "アイドル",
+    "active": "アクティブ",
+    "paused": "一時停止"
+  },
+  "toggle": {
+    "enable": "SudoClawを有効にする",
+    "disable": "SudoClawを無効にする",
+    "enableSuccess": "SudoClawが有効になりました",
+    "disableSuccess": "SudoClawが無効になりました",
+    "toggleFailed": "SudoClawの切り替えに失敗しました"
+  },
+  "memory": {
+    "title": "メモリログ",
+    "selectDate": "日付を選択",
+    "searchPlaceholder": "メモリエントリを検索...",
+    "noEntries": "この日付のメモリエントリはありません",
+    "noResults": "検索に一致するエントリはありません",
+    "loading": "メモリエントリを読み込み中...",
+    "entryCount": "{{count}} 件",
+    "category": "カテゴリ",
+    "tags": "タグ",
+    "viewEntry": "エントリを表示",
+    "browseByDate": "日付で閲覧",
+    "today": "今日",
+    "loadFailed": "メモリエントリの読み込みに失敗しました"
+  }
+}

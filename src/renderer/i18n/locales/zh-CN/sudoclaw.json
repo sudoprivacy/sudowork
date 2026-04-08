@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "仪表盘",
+  "memoryViewer": "记忆查看器",
+  "status": {
+    "title": "状态",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "sessionState": "会话状态",
+    "tickCount": "执行次数",
+    "lastActivity": "最近活动",
+    "noActivity": "暂无活动记录",
+    "gatewayRunning": "网关运行中",
+    "gatewayPort": "网关端口",
+    "version": "版本",
+    "notInstalled": "未安装"
+  },
+  "session": {
+    "idle": "空闲",
+    "active": "活跃",
+    "paused": "已暂停"
+  },
+  "toggle": {
+    "enable": "启用 SudoClaw",
+    "disable": "禁用 SudoClaw",
+    "enableSuccess": "SudoClaw 已启用",
+    "disableSuccess": "SudoClaw 已禁用",
+    "toggleFailed": "切换 SudoClaw 失败"
+  },
+  "memory": {
+    "title": "记忆日志",
+    "selectDate": "选择日期",
+    "searchPlaceholder": "搜索记忆条目...",
+    "noEntries": "该日期暂无记忆条目",
+    "noResults": "没有匹配的条目",
+    "loading": "正在加载记忆条目...",
+    "entryCount": "{{count}} 条记录",
+    "category": "类别",
+    "tags": "标签",
+    "viewEntry": "查看条目",
+    "browseByDate": "按日期浏览",
+    "today": "今天",
+    "loadFailed": "加载记忆条目失败"
+  }
+}

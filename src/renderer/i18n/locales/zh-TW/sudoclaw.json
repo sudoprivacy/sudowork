@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "儀表板",
+  "memoryViewer": "記憶檢視器",
+  "status": {
+    "title": "狀態",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "sessionState": "會話狀態",
+    "tickCount": "執行次數",
+    "lastActivity": "最近活動",
+    "noActivity": "暫無活動記錄",
+    "gatewayRunning": "閘道運行中",
+    "gatewayPort": "閘道埠",
+    "version": "版本",
+    "notInstalled": "未安裝"
+  },
+  "session": {
+    "idle": "閒置",
+    "active": "活躍",
+    "paused": "已暫停"
+  },
+  "toggle": {
+    "enable": "啟用 SudoClaw",
+    "disable": "停用 SudoClaw",
+    "enableSuccess": "SudoClaw 已啟用",
+    "disableSuccess": "SudoClaw 已停用",
+    "toggleFailed": "切換 SudoClaw 失敗"
+  },
+  "memory": {
+    "title": "記憶日誌",
+    "selectDate": "選擇日期",
+    "searchPlaceholder": "搜尋記憶條目...",
+    "noEntries": "該日期暫無記憶條目",
+    "noResults": "沒有匹配的條目",
+    "loading": "正在載入記憶條目...",
+    "entryCount": "{{count}} 條記錄",
+    "category": "類別",
+    "tags": "標籤",
+    "viewEntry": "檢視條目",
+    "browseByDate": "按日期瀏覽",
+    "today": "今天",
+    "loadFailed": "載入記憶條目失敗"
+  }
+}
