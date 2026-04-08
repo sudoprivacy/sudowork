@@ -23,6 +23,7 @@ const NEXUS_DEFAULT_PORT = 12012;
 
 /** OSS base URL for downloading Nexus binaries at runtime */
 const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download';
 
 /** Platform name mapping: Node.js process.platform → Nexus binary OS name */
 const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
@@ -92,20 +93,16 @@ class DynamicNexusService {
     return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
   }
 
+  private getGitHubDownloadUrl(): string {
+    const version = this.getNexusVersion();
+    return `${NEXUS_GITHUB_RELEASE_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
+  }
+
   /**
    * Get the installed nexusd binary path: ~/.nexus/bin/nexusd (or nexusd.exe on Windows)
    */
   private getInstalledNexusdPath(): string {
     return path.join(getDataPath(), 'bin', this.getNexusdName());
-  }
-
-  /**
-   * Get the legacy conda env nexusd path for backward compatibility checks.
-   */
-  private getLegacyNexusdPath(): string {
-    const envDir = path.join(getDataPath(), 'nexus_env');
-    const binDir = this.isWindows ? 'Scripts' : 'bin';
-    return path.join(envDir, binDir, this.getNexusdName());
   }
 
   private getPidFilePath(): string {
@@ -173,11 +170,10 @@ class DynamicNexusService {
   }
 
   async getVersionState(): Promise<{ installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }> {
-    const bundledPath = this.getBundledNexusPath();
     const bundledVersion = this.normalizeVersion(this.getBundledVersion());
     const installedVersion = this.normalizeVersion(await this.getInstalledVersion());
 
-    if (!bundledPath || !bundledVersion || !installedVersion) {
+    if (!bundledVersion || !installedVersion) {
       return {
         installedVersion,
         bundledVersion,
@@ -197,6 +193,10 @@ class DynamicNexusService {
 
     if (!fs.existsSync(nexusdPath)) {
       return undefined;
+    }
+
+    if (this.isMarkerCurrent(this.getReadyMarkerPath())) {
+      return this.normalizeVersion(this.getNexusVersion());
     }
 
     try {
@@ -220,26 +220,10 @@ class DynamicNexusService {
   /**
    * Returns true only when the installed binary exists and its install marker
    * matches the bundled/runtime version.
-   * Also checks the legacy conda env path for backward compatibility.
    */
   checkInstalledSync(): boolean {
-    if (!this.getBundledNexusPath()) {
-      return true;
-    }
-
-    // Check new binary path: ~/.nexus/bin/nexusd
     const nexusdBin = this.getInstalledNexusdPath();
-    if (fs.existsSync(nexusdBin) && this.isMarkerCurrent(this.getReadyMarkerPath())) {
-      return true;
-    }
-
-    // Check legacy conda env path for backward compatibility
-    const legacyPath = this.getLegacyNexusdPath();
-    if (fs.existsSync(legacyPath)) {
-      return true;
-    }
-
-    return false;
+    return fs.existsSync(nexusdBin) && this.isMarkerCurrent(this.getReadyMarkerPath());
   }
 
   /** Subscribe to setup progress events (fires on stage transitions). */
@@ -258,7 +242,6 @@ class DynamicNexusService {
 
   /**
    * Checks if nexus is already installed locally.
-   * Returns true if no bundled resource is available (Nexus is optional — skip silently).
    */
   async checkInstalled(): Promise<boolean> {
     return this.checkInstalledSync();
@@ -363,7 +346,7 @@ class DynamicNexusService {
 
   /**
    * Installs nexus for the current platform.
-   * First tries bundled resources, then falls back to downloading from OSS.
+   * Prefers bundled resources, then OSS, then GitHub release assets.
    * Copies the binary to ~/.nexus/bin/nexusd (or nexusd.exe) and sets executable permission.
    */
   async install(): Promise<void> {
@@ -372,35 +355,47 @@ class DynamicNexusService {
     }
 
     const platformKey = `${os.platform()}-${os.arch()}`;
+    let sourcePath: string | null = null;
 
-    // Try bundled resource first; fall back to OSS download
-    let sourcePath = this.getBundledNexusPath();
+    const versionedName = this.getVersionedBinaryName();
+    const downloadDir = path.join(getDataPath(), 'downloads');
+    const downloadDest = path.join(downloadDir, versionedName);
+    const bundledPath = this.getBundledNexusPath();
+    if (bundledPath) {
+      sourcePath = bundledPath;
+      mainLog('Nexus', `Using bundled Nexus binary from ${bundledPath}`);
+    } else {
+      fs.mkdirSync(downloadDir, { recursive: true });
 
-    if (!sourcePath) {
-      // Download from OSS to user data directory (not app bundle, which would break code signing)
-      const ossUrl = this.getOssDownloadUrl();
-      const versionedName = this.getVersionedBinaryName();
-      const downloadDir = path.join(getDataPath(), 'downloads');
-      const downloadDest = path.join(downloadDir, versionedName);
+      const downloadAttempts = [
+        { label: 'OSS', url: this.getOssDownloadUrl() },
+        { label: 'GitHub', url: this.getGitHubDownloadUrl() },
+      ];
 
-      mainLog('Nexus', `Bundled resource not found for ${platformKey}, downloading from OSS: ${ossUrl}`);
-      this.emitSetup('downloading', `Downloading Nexus binary from OSS...`, 0);
+      let lastError: string | null = null;
 
-      try {
-        fs.mkdirSync(downloadDir, { recursive: true });
-        await this.downloadFile(ossUrl, downloadDest);
+      for (const attempt of downloadAttempts) {
+        this.emitSetup('downloading', `Downloading Nexus binary from ${attempt.label}...`, 0);
+        mainLog('Nexus', `Downloading Nexus from ${attempt.label} for ${platformKey}: ${attempt.url}`);
 
-        // Make binary executable on macOS/Linux
-        if (!this.isWindows) {
-          fs.chmodSync(downloadDest, 0o755);
+        try {
+          await this.downloadFile(attempt.url, downloadDest);
+          if (!this.isWindows) {
+            fs.chmodSync(downloadDest, 0o755);
+          }
+          sourcePath = downloadDest;
+          mainLog('Nexus', `Downloaded Nexus binary from ${attempt.label} to ${downloadDest}`);
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err);
+          mainWarn('Nexus', `${attempt.label} download failed: ${lastError}`);
         }
+      }
 
-        sourcePath = downloadDest;
-        mainLog('Nexus', `Downloaded Nexus binary to ${downloadDest}`);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        this.emitSetup('error', `Failed to download Nexus from OSS: ${errorMsg}`);
-        throw new Error(`Nexus binary not available for platform ${platformKey}. Bundled resource not found and OSS download failed: ${errorMsg}`);
+      if (!sourcePath) {
+        const errorMsg = lastError ?? 'unknown error';
+        this.emitSetup('error', `Failed to download Nexus runtime: ${errorMsg}`);
+        throw new Error(`Nexus binary not available for platform ${platformKey}. Resource missing, OSS download failed, and GitHub download failed: ${errorMsg}`);
       }
     }
 
@@ -457,7 +452,6 @@ class DynamicNexusService {
 
   /**
    * Resolves the nexusd binary path to use for execution.
-   * Prefers the new binary path (~/.nexus/bin/nexusd), falls back to legacy conda env path.
    */
   private resolveNexusdBinForExec(): string {
     const newPath = this.getInstalledNexusdPath();
@@ -465,9 +459,16 @@ class DynamicNexusService {
       return newPath;
     }
 
-    const legacyPath = this.getLegacyNexusdPath();
-    if (fs.existsSync(legacyPath)) {
-      return legacyPath;
+    throw new Error('Nexus not installed. Please install it first.');
+  }
+
+  private resolveStartCommand(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
+    const newPath = this.getInstalledNexusdPath();
+    if (fs.existsSync(newPath)) {
+      return {
+        command: newPath,
+        args: ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
+      };
     }
 
     throw new Error('Nexus not installed. Please install it first.');
@@ -486,6 +487,7 @@ class DynamicNexusService {
     this._running = false;
 
     const nexusdBin = this.resolveNexusdBinForExec();
+    const launchCommand = this.resolveStartCommand(this._port);
 
     if (fs.existsSync(this.getPidFilePath())) {
       const stopped = await this.stopManagedPidFromFile('before startup');
@@ -507,12 +509,6 @@ class DynamicNexusService {
       throw new Error(`Port ${this._port} is still in use after pre-start PID stop${pidSummary}`);
     }
 
-    // Directly execute the nexusd binary (no python interpreter needed)
-    const executablePath = nexusdBin;
-
-    // Use the cluster profile (lite + federation) for local development.
-    const spawnArgs = ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
-
     // Point Nexus RecordStore to its own SQLite database under ~/.nexus/
     const nexusDbPath = path.join(getDataPath(), 'nexus_record_store.db');
     const nexusEnv = {
@@ -522,8 +518,8 @@ class DynamicNexusService {
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
-    mainLog('Nexus', `Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
-    this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe', env: nexusEnv });
+    mainLog('Nexus', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
+    this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
       mainLog('Nexus:stdout', d.toString().trim());
@@ -555,11 +551,7 @@ class DynamicNexusService {
   }
 
   getStartCommandPreview(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
-    const nexusdBin = this.getInstalledNexusdPath();
-    return {
-      command: nexusdBin,
-      args: ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
-    };
+    return this.resolveStartCommand(port);
   }
 
   /**
@@ -687,11 +679,9 @@ class DynamicNexusService {
     const normalizedCommand = commandLine.replaceAll('\\', '/').toLowerCase();
     const nexusdName = this.getNexusdName().toLowerCase();
 
-    // Check if the command references nexusd from either the new bin path or legacy conda env path
     const binDir = path.join(getDataPath(), 'bin').replaceAll('\\', '/').toLowerCase();
-    const legacyEnvDir = path.join(getDataPath(), 'nexus_env').replaceAll('\\', '/').toLowerCase();
 
-    return normalizedCommand.includes(nexusdName) && (normalizedCommand.includes(binDir) || normalizedCommand.includes(legacyEnvDir));
+    return normalizedCommand.includes(nexusdName) && normalizedCommand.includes(binDir);
   }
 
   private deletePidFile(): void {

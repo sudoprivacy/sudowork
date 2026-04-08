@@ -103,15 +103,47 @@ describe('DynamicNexusService install readiness', () => {
     await expect(dynamicNexusService.checkInstalled()).resolves.toBe(true);
   });
 
-  it('treats a legacy conda env nexusd as installed (backward compatibility)', async () => {
-    // Legacy path: ~/.nexus/nexus_env/bin/nexusd (or Scripts/nexusd.exe on Windows)
+  it('returns marker version immediately for current binary installs', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), String(runtimeVersions.nexus));
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    await expect(dynamicNexusService.getInstalledVersion()).resolves.toBe(String(runtimeVersions.nexus));
+  });
+
+  it('ignores a legacy nexus_env nexusd when checking installation status', async () => {
     const legacyBinDir = path.join(dataDir, 'nexus_env', process.platform === 'win32' ? 'Scripts' : 'bin');
     fs.mkdirSync(legacyBinDir, { recursive: true });
     fs.writeFileSync(path.join(legacyBinDir, nexusdName), 'binary');
 
     const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
 
-    expect(dynamicNexusService.checkInstalledSync()).toBe(true);
-    await expect(dynamicNexusService.checkInstalled()).resolves.toBe(true);
+    expect(dynamicNexusService.checkInstalledSync()).toBe(false);
+    await expect(dynamicNexusService.checkInstalled()).resolves.toBe(false);
+  });
+
+  it('uses direct binary launch command for current binary installs', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), String(runtimeVersions.nexus));
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+    const command = dynamicNexusService.getStartCommandPreview();
+
+    expect(command.command).toBe(path.join(binDir, nexusdName));
+    expect(command.args).toEqual(['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', '12012']);
+  });
+
+  it('throws when only legacy nexus_env nexusd exists', async () => {
+    const legacyBinDir = path.join(dataDir, 'nexus_env', process.platform === 'win32' ? 'Scripts' : 'bin');
+    fs.mkdirSync(legacyBinDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyBinDir, nexusdName), 'binary');
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    expect(() => dynamicNexusService.getStartCommandPreview()).toThrow('Nexus not installed. Please install it first.');
   });
 });
