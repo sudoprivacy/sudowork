@@ -725,7 +725,8 @@
     "agentDesc": "Used for WeCom conversations",
     "longConnHint": "WebSocket Long Connection Mode",
     "longConnDesc": "No public IP required. Enable API mode in WeCom admin console and select \"Long Connection\".",
-    "singleConnNote": "Note: Each bot allows only one active connection. A new connection will disconnect the previous one."
+    "singleConnNote": "Note: Each bot allows only one active connection. A new connection will disconnect the previous one.",
+    "credentialsLocked": "Disable the channel to modify credentials"
   },
   "extensionAssistantReadonly": "Extension assistants are read-only. You can duplicate it and edit the copy.",
   "skill.title": "Skill Hub",

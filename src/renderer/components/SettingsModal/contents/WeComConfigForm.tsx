@@ -55,11 +55,12 @@ interface WeComConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
+  onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
 const WECOM_DEV_DOCS_URL = 'https://developer.work.weixin.qq.com/document/path/101463';
 
-const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
 
   // WeCom credentials
@@ -114,23 +115,49 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
-  // Load saved credentials for backfill
+  // Clear local state when plugin is disabled
+  // This ensures the input fields are unlocked after disabling
   useEffect(() => {
-    if (!pluginStatus?.hasToken || botId || secret) return;
+    if (pluginStatus && !pluginStatus.enabled) {
+      // Plugin is disabled - clear local state immediately
+      // No need to reload from backend since we know users were deleted
+      console.log('[WeComConfig] Plugin disabled, clearing local state');
+      setAuthorizedUsers([]);
+      setPendingPairings([]);
+    }
+  }, [pluginStatus?.enabled]);
 
+  // Load saved credentials for backfill (when hasToken or when disabled but credentials exist)
+  useEffect(() => {
     const loadCredentials = async () => {
       try {
         const result = await channel.getPluginCredentials.invoke({ pluginId: 'wecom_default' });
         if (result.success && result.data) {
-          if (result.data.botId) setBotId(result.data.botId);
-          if (result.data.secret) setSecret(result.data.secret);
+          const loadedBotId = result.data.botId || '';
+          const loadedSecret = result.data.secret || '';
+
+          // Update local state only if empty
+          if (!botId && loadedBotId) {
+            setBotId(loadedBotId);
+          }
+          if (!secret && loadedSecret) {
+            setSecret(loadedSecret);
+          }
+
+          // Always notify parent of loaded credentials (for ref sync)
+          if (loadedBotId && loadedSecret) {
+            onCredentialsChange?.({ botId: loadedBotId, secret: loadedSecret });
+          }
         }
       } catch (error) {
         console.error('[WeComConfig] Failed to load credentials:', error);
       }
     };
 
-    void loadCredentials();
+    // Always try to load credentials when plugin status changes
+    if (pluginStatus) {
+      void loadCredentials();
+    }
   }, [pluginStatus]);
 
   // Load available agents + saved selection
@@ -269,6 +296,14 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
     setCredentialsTested(false);
   };
 
+  // Notify parent of credential changes
+  const notifyCredentialsChange = useCallback(
+    (newBotId: string, newSecret: string) => {
+      onCredentialsChange?.({ botId: newBotId, secret: newSecret });
+    },
+    [onCredentialsChange]
+  );
+
   // Approve pairing
   const handleApprovePairing = async (code: string) => {
     try {
@@ -341,6 +376,11 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   };
 
   const hasExistingUsers = authorizedUsers.length > 0;
+  // Lock credentials when plugin is enabled and has valid token
+  // Unlock when disabled to allow reconfiguration
+  const isCredentialsLocked = pluginStatus?.enabled && pluginStatus?.hasToken;
+  // Check if we have valid credentials (either from input or hasToken)
+  const hasValidCredentials = !!(botId.trim() && secret.trim()) || !!pluginStatus?.hasToken;
   const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
 
@@ -366,20 +406,21 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         }
         required
       >
-        {hasExistingUsers ? (
-          <Tooltip content={t('settings.assistant.tokenLocked', 'Please close the Channel and delete all authorized users before modifying')}>
+        {isCredentialsLocked ? (
+          <Tooltip content={t('settings.wecom.credentialsLocked', 'Disable the channel to modify credentials')}>
             <span>
               <Input
                 value={botId}
                 onChange={(value) => {
                   setBotId(value);
                   handleCredentialsChange();
+                  notifyCredentialsChange(value, secret);
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, botId: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'botxxxxxxxxxx'}
+                placeholder={isCredentialsLocked ? '••••••••••••••••' : 'botxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.botId && !botId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
-                disabled={hasExistingUsers}
+                disabled={isCredentialsLocked}
               />
             </span>
           </Tooltip>
@@ -389,12 +430,13 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
             onChange={(value) => {
               setBotId(value);
               handleCredentialsChange();
+              notifyCredentialsChange(value, secret);
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, botId: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'botxxxxxxxxxx'}
+            placeholder={isCredentialsLocked ? '••••••••••••••••' : 'botxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.botId && !botId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
-            disabled={hasExistingUsers}
+            disabled={isCredentialsLocked}
           />
         )}
       </PreferenceRow>
@@ -419,21 +461,22 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         }
         required
       >
-        {hasExistingUsers ? (
-          <Tooltip content={t('settings.assistant.tokenLocked', 'Please close the Channel and delete all authorized users before modifying')}>
+        {isCredentialsLocked ? (
+          <Tooltip content={t('settings.wecom.credentialsLocked', 'Disable the channel to modify credentials')}>
             <span>
               <Input.Password
                 value={secret}
                 onChange={(value) => {
                   setSecret(value);
                   handleCredentialsChange();
+                  notifyCredentialsChange(botId, value);
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, secret: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                placeholder={isCredentialsLocked ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.secret && !secret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
-                disabled={hasExistingUsers}
+                disabled={isCredentialsLocked}
               />
             </span>
           </Tooltip>
@@ -443,13 +486,14 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
             onChange={(value) => {
               setSecret(value);
               handleCredentialsChange();
+              notifyCredentialsChange(botId, value);
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, secret: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+            placeholder={isCredentialsLocked ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.secret && !secret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle
-            disabled={hasExistingUsers}
+            disabled={isCredentialsLocked}
           />
         )}
       </PreferenceRow>
@@ -463,8 +507,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         </div>
       )}
 
-      {/* Test Connection Button */}
-      {!hasExistingUsers && !pluginStatus?.connected && (
+      {/* Test Connection Button - show when not connected and not locked */}
+      {!isCredentialsLocked && !pluginStatus?.connected && (
         <div className='flex justify-end'>
           {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !botId.trim() && !secret.trim()}>

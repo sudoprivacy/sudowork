@@ -718,14 +718,17 @@
     "statusConnecting": "连接中...",
     "step1": "打开企业微信找到你的智能机器人",
     "step2": "发送任意消息开始配对",
+    "step2Chat": "你可以通过企业微信与 AI 助手聊天！",
     "step3": "配对请求会显示在下方，点击「批准」授权用户",
     "step4": "授权成功后，你可以通过企业微信与 AI 助手聊天！",
+    "nextSteps": "下一步操作",
     "waitingConnection": "连接正在建立，请稍候...",
     "agent": "对话Agent",
     "agentDesc": "用于企业微信对话",
     "longConnHint": "WebSocket 长连接模式",
     "longConnDesc": "无需公网 IP。请在企微管理后台开启 API 模式并选择「长连接」方式。",
-    "singleConnNote": "注意：每个机器人仅允许一个活跃连接，新连接会踢掉旧连接。"
+    "singleConnNote": "注意：每个机器人仅允许一个活跃连接，新连接会踢掉旧连接。",
+    "credentialsLocked": "禁用渠道后可修改凭证"
   },
   "addAssistant": "添加助手",
   "extensionAssistantReadonly": "扩展助手为只读，你可以复制它并编辑副本。",

@@ -380,6 +380,17 @@ export class ChannelManager {
           updatedAt: Date.now(),
         };
         db.upsertChannelPlugin(updated);
+
+        // For WeCom and WeChat: clear all authorized users and sessions when disabled
+        // This allows reconfiguring with new bot credentials
+        // Note: We keep credentials so user can re-enable without re-entering
+        const pluginType = existingResult.data.type;
+        if (pluginType === 'wecom' || pluginType === 'wechat') {
+          console.log(`[ChannelManager] Clearing all users and sessions for ${pluginType} on disable`);
+          // Delete all channel users for this platform
+          db.deleteChannelUsersByPlatform(pluginType);
+          // Note: We keep credentials so user can re-enable without re-entering
+        }
       }
 
       return { success: true };

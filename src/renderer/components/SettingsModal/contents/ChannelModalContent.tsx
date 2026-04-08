@@ -164,6 +164,9 @@ const ChannelModalContent: React.FC = () => {
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
 
+  // Track WeCom credentials entered in WeComConfigForm
+  const wecomCredentialsRef = React.useRef<{ botId: string; secret: string }>({ botId: '', secret: '' });
+
   // Collapse state - true means collapsed (closed), false means expanded (open)
   const [collapseKeys, setCollapseKeys] = useState<Record<string, boolean>>({
     telegram: true, // Default to collapsed
@@ -461,15 +464,39 @@ const ChannelModalContent: React.FC = () => {
     setWecomEnableLoading(true);
     try {
       if (enabled) {
-        if (!wecomPluginStatus?.hasToken) {
+        // Check if we have credentials from form input
+        const pendingBotId = wecomCredentialsRef.current.botId.trim();
+        const pendingSecret = wecomCredentialsRef.current.secret.trim();
+
+        // If no pending credentials, try to get saved credentials from database
+        if (!pendingBotId || !pendingSecret) {
+          const credResult = await channel.getPluginCredentials.invoke({ pluginId: 'wecom_default' });
+          if (credResult.success && credResult.data?.botId && credResult.data?.secret) {
+            // Found saved credentials, use them
+            const result = await channel.enablePlugin.invoke({
+              pluginId: 'wecom_default',
+              config: {},
+            });
+
+            if (result.success) {
+              Message.success(t('settings.wecom.pluginEnabled', 'WeCom bot enabled'));
+              await loadPluginStatus();
+            } else {
+              Message.error(result.msg || t('settings.wecom.enableFailed', 'Failed to enable WeCom plugin'));
+            }
+            return;
+          }
+
+          // No saved credentials and no pending credentials - show warning
           Message.warning(t('settings.wecom.credentialsRequired', 'Please configure WeCom credentials first'));
           setWecomEnableLoading(false);
           return;
         }
 
+        // Pass credentials from form input
         const result = await channel.enablePlugin.invoke({
           pluginId: 'wecom_default',
-          config: {},
+          config: { botId: pendingBotId, secret: pendingSecret },
         });
 
         if (result.success) {
@@ -701,7 +728,16 @@ const ChannelModalContent: React.FC = () => {
       disabled: wecomEnableLoading,
       isConnected: wecomPluginStatus?.connected || false,
       defaultModel: wecomModelSelection.currentModel?.useModel,
-      content: <WeComConfigForm pluginStatus={wecomPluginStatus} modelSelection={wecomModelSelection} onStatusChange={setWecomPluginStatus} />,
+      content: (
+        <WeComConfigForm
+          pluginStatus={wecomPluginStatus}
+          modelSelection={wecomModelSelection}
+          onStatusChange={setWecomPluginStatus}
+          onCredentialsChange={(creds) => {
+            wecomCredentialsRef.current = creds;
+          }}
+        />
+      ),
     };
 
     const extensionChannels: ChannelConfig[] = Object.values(extensionStatuses)
