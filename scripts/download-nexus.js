@@ -14,7 +14,6 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
-const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
@@ -36,7 +35,6 @@ function createFallbackPlaceholder(platform) {
     outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
   }
   fs.writeFileSync(outputFile, Buffer.alloc(0));
-  clearLocalDevRuntimeVersion('nexus');
   return outputFile;
 }
 
@@ -160,7 +158,6 @@ async function downloadNexus(platform, force = false) {
       fs.chmodSync(outputFile, 0o755);
     }
 
-    updateLocalDevRuntimeVersion('nexus', NEXUS_VERSION);
     console.log(`Saved to: ${outputFile}`);
     return true;
   } catch (err) {
@@ -168,7 +165,6 @@ async function downloadNexus(platform, force = false) {
     try {
       fs.unlinkSync(outputFile);
     } catch {}
-    clearLocalDevRuntimeVersion('nexus');
 
     if (err.message === 'NOT_FOUND') {
       console.warn(`\n⚠️  Nexus binary not available for platform ${platform}`);

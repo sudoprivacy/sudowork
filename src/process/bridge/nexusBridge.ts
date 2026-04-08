@@ -6,10 +6,10 @@ import runtimeVersions from '@/shared/runtime-versions.json';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
-    const installed = await dynamicNexusService.checkInstalled();
     // Treat Nexus as running only when /health returns a healthy response.
-    const running = await dynamicNexusService.checkActualRunning();
-    const version = installed ? await dynamicNexusService.getInstalledVersion() : undefined;
+    const [running, installedByFiles] = await Promise.all([dynamicNexusService.checkActualRunning(), dynamicNexusService.checkInstalled()]);
+    const installed = running || installedByFiles;
+    const version = installedByFiles ? await dynamicNexusService.getInstalledVersion() : undefined;
     return {
       success: true,
       data: {

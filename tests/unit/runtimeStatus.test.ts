@@ -62,6 +62,7 @@ describe('runtimeStatus helpers', () => {
     const record = createRecord({
       key: 'sudoclaw',
       status: { installed: true, source: 'managed', version: '1.2.3' },
+      statusResolved: true,
       sudoclawGatewayRunning: true,
       sudoclawGatewayPort: 7331,
     });
@@ -77,6 +78,7 @@ describe('runtimeStatus helpers', () => {
     const record = createRecord({
       key: 'nexus',
       status: { installed: true, source: 'managed', version: '0.9.0' },
+      statusResolved: true,
       nexusInstalled: true,
       nexusRunning: true,
       onInstall: async () => {},
@@ -94,6 +96,7 @@ describe('runtimeStatus helpers', () => {
     const record = createRecord({
       key: 'nexus',
       status: { installed: true, source: 'managed', version: '0.9.0' },
+      statusResolved: true,
       nexusInstalled: true,
       nexusRunning: false,
       onInstall: async () => {},
@@ -126,6 +129,26 @@ describe('runtimeStatus helpers', () => {
       onUninstall: async () => {},
     });
 
+    expect(getRuntimeActionDescriptors(record)).toEqual([{ key: 'refresh', type: 'outline' }]);
+  });
+
+  it('shows checking for nexus before the first status refresh completes', () => {
+    const record = createRecord({
+      key: 'nexus',
+      status: null,
+      statusResolved: false,
+      nexusInstalled: false,
+      nexusRunning: false,
+      onInstall: async () => {},
+      onUninstall: async () => {},
+      onStart: async () => {},
+    });
+
+    expect(resolveRuntimeStatus(record)).toBe('checking');
+    expect(getStatusInfo(record, t)).toEqual({
+      dotColor: 'bg-gray-4',
+      statusText: '检查中…',
+    });
     expect(getRuntimeActionDescriptors(record)).toEqual([{ key: 'refresh', type: 'outline' }]);
   });
 });

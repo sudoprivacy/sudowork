@@ -12,7 +12,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
-const { normalizeVersion, readLocalDevRuntimeVersions } = require('./dev-runtime-state');
 
 // ── CLI ──
 
@@ -60,33 +59,14 @@ function httpGet(url, timeout = 2000) {
   });
 }
 
-function isStateCurrent(entry, expectedVersion) {
-  if (!entry || typeof entry !== 'object') return false;
-
-  return (
-    normalizeVersion(entry.version) === normalizeVersion(expectedVersion) &&
-    entry.platform === process.platform &&
-    entry.arch === process.arch
-  );
-}
-
 function ensureBundledRuntimeAsset({ name, archivePath, expectedVersion, downloadScript }) {
   const archiveExists = fs.existsSync(archivePath);
-  const state = readLocalDevRuntimeVersions();
-  const entry = state[name];
-  const stateCurrent = isStateCurrent(entry, expectedVersion);
 
-  if (archiveExists && stateCurrent) {
+  if (archiveExists) {
     return;
   }
 
-  const reason = !archiveExists
-    ? 'archive missing'
-    : entry
-      ? `version/platform mismatch (expected ${process.platform}-${process.arch}@${expectedVersion})`
-      : 'local version state missing';
-
-  console.log(`[dev-runtime] Refreshing ${name}: ${reason}`);
+  console.log(`[dev-runtime] Refreshing ${name}: archive missing (${expectedVersion})`);
 
   const result = spawnSync('node', [downloadScript, '--force'], {
     stdio: 'inherit',
@@ -113,18 +93,6 @@ function ensureDevRuntimeResources() {
     downloadScript: path.join('scripts', 'download-openclaw.js'),
   });
 
-  // Construct versioned nexus binary filename: v{version}-nexus-cluster-{os}-{arch}[.exe]
-  const nexusOsName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
-  const nexusArchName = process.arch === 'x64' ? 'x86_64' : process.arch;
-  const nexusExt = process.platform === 'win32' ? '.exe' : '';
-  const nexusBinaryName = `v${runtimeVersions.nexus}-nexus-cluster-${nexusOsName}-${nexusArchName}${nexusExt}`;
-
-  ensureBundledRuntimeAsset({
-    name: 'nexus',
-    archivePath: path.join(resourcesDir, nexusBinaryName),
-    expectedVersion: runtimeVersions.nexus,
-    downloadScript: path.join('scripts', 'download-nexus.js'),
-  });
 }
 
 // ── stop ──

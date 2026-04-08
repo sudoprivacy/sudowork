@@ -24,14 +24,10 @@ const TAG = 'RuntimeInstaller';
  */
 class RuntimeInstaller {
   primeStatusForStartup(): void {
-    const shouldAssumeBundledResources = app.isPackaged;
-
     const fastNodeOk = isNodeInstalled();
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
-
-    const hasNexusResource = shouldAssumeBundledResources || installedNexusService.hasBundledResource();
-    const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
+    const fastNexusOk = installedNexusService.checkInstalledSync();
 
     initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk ? 'startup' : 'full');
   }
@@ -70,8 +66,7 @@ class RuntimeInstaller {
 
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
-    const hasNexusResource = shouldAssumeBundledResources || installedNexusService.hasBundledResource();
-    const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
+    const fastNexusOk = installedNexusService.checkInstalledSync();
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');
       initStatusManager.setStepProgress('git', 100, 'Git 环境检查已跳过');
@@ -88,12 +83,12 @@ class RuntimeInstaller {
         initStatusManager.setStepProgress('sudoclaw', options?.startSudoclaw ? 88 : 100, options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪');
       }
       if (fastNexusOk) {
-        initStatusManager.setStepState('nexus', options?.startNexus && hasNexusResource ? 'pending' : 'done', options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
-        initStatusManager.setStepProgress('nexus', options?.startNexus && hasNexusResource ? 88 : 100, options?.startNexus && hasNexusResource ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
+        initStatusManager.setStepState('nexus', options?.startNexus ? 'pending' : 'done', options?.startNexus ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
+        initStatusManager.setStepProgress('nexus', options?.startNexus ? 88 : 100, options?.startNexus ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
       }
     };
 
-    mainLog(TAG, `Fast check: Git=skipped, Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk} (hasNexusResource=${hasNexusResource})`);
+    mainLog(TAG, `Fast check: Git=skipped, Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}`);
 
     const startCriticalServices = async (): Promise<boolean> => {
       const serviceStartTasks: Promise<void>[] = [];
@@ -104,7 +99,7 @@ class RuntimeInstaller {
         serviceStartTasks.push(options.startSudoclaw());
       }
 
-      if (options?.startNexus && hasNexusResource) {
+      if (options?.startNexus) {
         initStatusManager.setStepState('nexus', 'active', '正在启动 Nexus 服务...');
         initStatusManager.setStepProgress('nexus', 92, '正在启动 Nexus 服务...');
         serviceStartTasks.push(options.startNexus());
@@ -120,7 +115,7 @@ class RuntimeInstaller {
 
     if (fastNodeOk && fastSudoclawOk && fastNexusOk) {
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
-      const nexusVersionState = hasNexusResource ? await installedNexusService.getVersionState() : { needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined };
+      const nexusVersionState = await installedNexusService.getVersionState();
       const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
@@ -148,7 +143,7 @@ class RuntimeInstaller {
     const sudoclawInstalled = getSudoclawCliPath() !== null;
     const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
     const nexusInstalledPromise = dynamicNexusService.checkInstalled();
-    const nexusVersionStatePromise = hasNexusResource ? dynamicNexusService.getVersionState() : Promise.resolve({ needsUpgrade: false, installedVersion: undefined, bundledVersion: undefined });
+    const nexusVersionStatePromise = dynamicNexusService.getVersionState();
     const gitInstalledPromise = isGitInstalled();
     const claudeStatusPromise = claudeCliService.checkInstalled();
     const bdpanInstalledPromise = Promise.resolve().then(() => isBdpanInstalled());
@@ -176,7 +171,7 @@ class RuntimeInstaller {
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
     const willInstallSudoclaw = hasSudoclawResource && (!sudoclawInstalled || sudoclawVersionState.needsUpgrade);
-    const willInstallNexus = hasNexusResource && (!nexusInstalled || nexusVersionState.needsUpgrade);
+    const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
     if (willInstallNode || willInstallSudoclaw || willInstallNexus) {
       initStatusManager.setDisplayMode('full');
@@ -251,9 +246,7 @@ class RuntimeInstaller {
       markStepError('sudoclaw', '未找到 Sudoclaw 安装资源');
     }
 
-    if (!hasNexusResource) {
-      markStepDone('nexus', '当前构建未包含 Nexus，已跳过');
-    } else if (nexusInstalled && !nexusVersionState.needsUpgrade) {
+    if (nexusInstalled && !nexusVersionState.needsUpgrade) {
       if (options?.startNexus) {
         initStatusManager.setStepState('nexus', 'pending', '等待启动 Nexus...');
         initStatusManager.setStepProgress('nexus', 88, '等待启动 Nexus...');
@@ -264,7 +257,8 @@ class RuntimeInstaller {
       initStatusManager.setStepState('nexus', 'pending', '等待安装 Nexus...');
       initStatusManager.setStepProgress('nexus', 0, '等待安装 Nexus...');
     } else {
-      markStepError('nexus', '未找到 Nexus 安装资源');
+      initStatusManager.setStepState('nexus', 'pending', '等待安装 Nexus...');
+      initStatusManager.setStepProgress('nexus', 0, '等待安装 Nexus...');
     }
 
     if (bdpanInstalled) {
@@ -457,9 +451,6 @@ class RuntimeInstaller {
     })();
 
     const nexusTask: Promise<TaskResult> = (async () => {
-      if (!hasNexusResource) {
-        return { step: 'nexus', ok: true, required: false };
-      }
       if (nexusInstalled && !nexusVersionState.needsUpgrade) {
         if (!options?.startNexus) {
           return { step: 'nexus', ok: true, required: true };
@@ -476,10 +467,6 @@ class RuntimeInstaller {
           return { step: 'nexus', ok: false, required: true, error };
         }
       }
-      if (!willInstallNexus) {
-        return { step: 'nexus', ok: false, required: true, error: '未找到 Nexus 安装资源' };
-      }
-
       try {
         const isUpgrade = nexusVersionState.needsUpgrade;
         const action = isUpgrade ? `升级 Nexus ${nexusVersionState.installedVersion} → ${nexusVersionState.bundledVersion}` : '安装 Nexus';
