@@ -113,12 +113,21 @@ function ensureDevRuntimeResources() {
     downloadScript: path.join('scripts', 'download-openclaw.js'),
   });
 
-  ensureBundledRuntimeAsset({
-    name: 'nexus',
-    archivePath: path.join(resourcesDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'),
-    expectedVersion: runtimeVersions.nexus,
-    downloadScript: path.join('scripts', 'download-nexus.js'),
-  });
+  const nexusVersion = runtimeVersions.nexus;
+  const NEXUS_PLATFORM_MAP = {
+    'darwin-arm64': `v${nexusVersion}-nexus-cluster-macos-arm64`,
+    'darwin-x64': `v${nexusVersion}-nexus-cluster-macos-x86_64`,
+    'win32-x64': `v${nexusVersion}-nexus-cluster-windows-x86_64.exe`,
+  };
+  const nexusResourceName = NEXUS_PLATFORM_MAP[`${process.platform}-${process.arch}`];
+  if (nexusResourceName) {
+    ensureBundledRuntimeAsset({
+      name: 'nexus',
+      archivePath: path.join(resourcesDir, nexusResourceName),
+      expectedVersion: runtimeVersions.nexus,
+      downloadScript: path.join('scripts', 'download-nexus.js'),
+    });
+  }
 }
 
 // ── stop ──

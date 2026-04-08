@@ -27,6 +27,15 @@ describe('DynamicNexusService install readiness', () => {
   let originalResourcesPath: PropertyDescriptor | undefined;
   const nexusdName = process.platform === 'win32' ? 'nexusd.exe' : 'nexusd';
 
+  // Versioned resource name matching the platform map in DynamicNexusService
+  const nexusVersion = runtimeVersions.nexus;
+  const PLATFORM_MAP: Record<string, string> = {
+    'darwin-arm64': `v${nexusVersion}-nexus-cluster-macos-arm64`,
+    'darwin-x64': `v${nexusVersion}-nexus-cluster-macos-x86_64`,
+    'win32-x64': `v${nexusVersion}-nexus-cluster-windows-x86_64.exe`,
+  };
+  const versionedResourceName = PLATFORM_MAP[`${process.platform}-${process.arch}`] ?? nexusdName;
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -37,8 +46,8 @@ describe('DynamicNexusService install readiness', () => {
 
     fs.mkdirSync(resourcesDir, { recursive: true });
     fs.mkdirSync(dataDir, { recursive: true });
-    // Write the bundled binary (new format: resources/nexusd)
-    fs.writeFileSync(path.join(resourcesDir, nexusdName), Buffer.alloc(1024 * 1024));
+    // Write the bundled binary (versioned format: e.g., resources/v0.9.27-nexus-cluster-macos-arm64)
+    fs.writeFileSync(path.join(resourcesDir, versionedResourceName), Buffer.alloc(1024 * 1024));
 
     vi.doMock('electron', () => ({
       app: {

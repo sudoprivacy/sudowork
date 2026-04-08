@@ -31,13 +31,15 @@ class RuntimeInstaller {
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
-    const nexusResPath = path.join(resDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd');
+    const nexusResourceName = installedNexusService.getExpectedResourceName();
+    const nexusResPath = nexusResourceName ? path.join(resDir, nexusResourceName) : null;
     const hasNexusResource = (() => {
+      if (!nexusResourceName) return false;
       if (shouldAssumeBundledResources) {
         return true;
       }
       try {
-        return fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
+        return nexusResPath !== null && fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
       } catch {
         return false;
       }
@@ -82,13 +84,15 @@ class RuntimeInstaller {
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
-    const nexusResPath = path.join(resDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd');
+    const nexusResourceName = installedNexusService.getExpectedResourceName();
+    const nexusResPath = nexusResourceName ? path.join(resDir, nexusResourceName) : null;
     const hasNexusResource = (() => {
+      if (!nexusResourceName) return false;
       if (shouldAssumeBundledResources) {
         return true;
       }
       try {
-        return fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
+        return nexusResPath !== null && fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
       } catch {
         return false;
       }
