@@ -10,6 +10,7 @@ import { CheckOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
+import jianshekuLogo from '@/renderer/assets/logos/jiansheku.png';
 import JsbConfigForm from './JsbConfigForm';
 
 /**
@@ -20,7 +21,7 @@ const SecretModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
 
-  const [jsbCollapsed, setJsbCollapsed] = useState(false);
+  const [jsbCollapsed, setJsbCollapsed] = useState(true);
 
   const guideText = t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
   const setupSteps = [
@@ -55,7 +56,7 @@ const SecretModalContent: React.FC = () => {
             <Collapse.Item
               header={
                 <div className='flex items-center gap-8px'>
-                  <div className='w-14px h-14px rd-3px shrink-0' style={{ background: 'linear-gradient(135deg, #165DFF, #0FC6C2)' }} />
+                  <img src={jianshekuLogo} alt='Jiansheku' className='w-14px h-14px rd-3px shrink-0' />
                   <span className='text-14px text-t-primary'>{t('settings.secrets.jsbTitle', '建设库')}</span>
                 </div>
               }

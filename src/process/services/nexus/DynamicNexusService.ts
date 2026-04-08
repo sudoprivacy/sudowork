@@ -509,10 +509,17 @@ class DynamicNexusService {
     // Use the cluster profile (lite + federation) for local development.
     const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
 
+    // Point Nexus RecordStore to its own SQLite database under ~/.nexus/
+    const nexusDbPath = path.join(getDataPath(), 'nexus_record_store.db');
+    const nexusEnv = {
+      ...process.env,
+      NEXUS_DATABASE_URL: `sqlite:///${nexusDbPath.replace(/\\/g, '/')}`,
+    };
+
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
     mainLog('Nexus', `Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
-    this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe' });
+    this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
       mainLog('Nexus:stdout', d.toString().trim());
