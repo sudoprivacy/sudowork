@@ -24,6 +24,7 @@ import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
+import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
@@ -120,22 +121,30 @@ const GuidPage: React.FC = () => {
     locationState: location.state as { workspace?: string } | null,
   });
 
-  // 转换已安装技能为选择器项
-  const skillSelectorItems = useMemo<SkillSelectorItem[]>(
-    () =>
-      installedSkills.map((skill) => {
-        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-        return {
-          name: skill.name,
-          displayName,
-          description,
-          icon: icon || resolveSkillIcon(skill.meta?.icon),
-          emoji,
-          enabled: skill.enabled,
-        };
-      }),
-    [installedSkills]
-  );
+  // 获取当前选中助手的 enabledSkills 列表
+  const agentEnabledSkills = useMemo(() => {
+    return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
+  }, [agentSelection.selectedAgentInfo, agentSelection.resolveEnabledSkills]);
+
+  // 转换已安装技能为选择器项（根据选中助手过滤）
+  const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
+    const items = installedSkills.map((skill) => {
+      const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+      return {
+        name: skill.name,
+        displayName,
+        description,
+        icon: icon || resolveSkillIcon(skill.meta?.icon),
+        emoji,
+        enabled: skill.enabled,
+      };
+    });
+    // 如果当前助手指定了关联技能列表，则只显示关联的技能
+    if (agentEnabledSkills && agentEnabledSkills.length > 0) {
+      return items.filter((item) => agentEnabledSkills.includes(item.name));
+    }
+    return items;
+  }, [installedSkills, agentEnabledSkills]);
 
   // 技能选择器控制器
   const skillSelectorController = useSkillSelectorController({
@@ -219,6 +228,12 @@ const GuidPage: React.FC = () => {
     openTab,
     t,
   });
+
+  // 通过 @ 按钮触发技能选择器
+  const handleTriggerSkillSelector = useCallback(() => {
+    guidInput.setInput('@');
+    guidInput.handleTextareaFocus();
+  }, [guidInput.setInput, guidInput.handleTextareaFocus]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -353,6 +368,7 @@ const GuidPage: React.FC = () => {
       customAgents={agentSelection.customAgents}
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey('gemini')}
+      onTriggerSkillSelector={handleTriggerSkillSelector}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
@@ -385,6 +401,14 @@ const GuidPage: React.FC = () => {
             </p>
 
             {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+
+            <PromptTemplates
+              visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
+              onSelectPrompt={(content) => {
+                guidInput.setInput(content);
+                guidInput.handleTextareaFocus();
+              }}
+            />
 
             <GuidInputCard
               input={guidInput.input}
