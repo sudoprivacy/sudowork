@@ -163,8 +163,11 @@ export class WeComPlugin extends BasePlugin {
    * Uses stream mode for real-time streaming responses
    */
   async sendMessage(chatId: string, message: IUnifiedOutgoingMessage): Promise<string> {
+    console.log(`[WeComPlugin] sendMessage: chatId=${chatId}, text=${message.text?.slice(0, 100)}`);
     const { content } = toWeComSendParams(message);
     const reqId = this.reqIdCache.get(chatId);
+
+    console.log(`[WeComPlugin] sendMessage: reqId=${reqId || 'none'}, content length=${content.length}`);
 
     // Truncate if too long
     const truncatedContent = content.length > WECOM_MESSAGE_LIMIT ? content.slice(0, WECOM_MESSAGE_LIMIT - 3) + '...' : content;
@@ -172,6 +175,7 @@ export class WeComPlugin extends BasePlugin {
     // If we have a reqId (responding to an incoming message), use stream mode
     if (reqId) {
       const streamId = this.generateStreamId();
+      console.log(`[WeComPlugin] sendMessage: using stream mode, streamId=${streamId}`);
 
       // Send initial stream message
       this.send({
@@ -201,6 +205,7 @@ export class WeComPlugin extends BasePlugin {
     // Otherwise, use proactive push (aibot_send_msg)
     const { type: chatType } = parseChatId(chatId);
     const sendReqId = this.generateReqId();
+    console.log(`[WeComPlugin] sendMessage: using proactive push, chatType=${chatType}, sendReqId=${sendReqId}`);
 
     this.send({
       cmd: 'aibot_send_msg',
@@ -284,13 +289,17 @@ export class WeComPlugin extends BasePlugin {
           this.handleWsMessage(msg);
 
           // Check for successful subscription
-          if (msg.cmd === 'aibot_subscribe' && msg.errcode === 0 && !this.isConnected) {
+          // WeCom response format: {"errcode":0,"errmsg":"ok"} or with cmd field
+          const isSubscribeSuccess = (msg.cmd === 'aibot_subscribe' || msg.errcode !== undefined) && msg.errcode === 0;
+          const isSubscribeFail = (msg.cmd === 'aibot_subscribe' || msg.errcode !== undefined) && msg.errcode !== 0 && msg.errcode !== undefined;
+
+          if (isSubscribeSuccess && !this.isConnected) {
             clearTimeout(timeout);
             this.isConnected = true;
             this.reconnectDelay = RECONNECT_INITIAL_DELAY;
             this.startHeartbeat();
             resolve();
-          } else if (msg.cmd === 'aibot_subscribe' && msg.errcode !== 0 && msg.errcode !== undefined) {
+          } else if (isSubscribeFail) {
             clearTimeout(timeout);
             reject(new Error(`Subscribe failed: ${msg.errmsg || `errcode=${msg.errcode}`}`));
           }
@@ -340,15 +349,19 @@ export class WeComPlugin extends BasePlugin {
    */
   private handleWsMessage(msg: Record<string, unknown>): void {
     const cmd = msg.cmd as string;
+    const errcode = msg.errcode as number | undefined;
+    console.log(`[WeComPlugin] handleWsMessage: cmd=${cmd || 'none'}, errcode=${errcode}, full msg=${JSON.stringify(msg).slice(0, 500)}`);
 
     switch (cmd) {
       case 'aibot_msg_callback':
+        console.log(`[WeComPlugin] ⭐ RECEIVED MESSAGE CALLBACK - processing message from user`);
         void this.handleMsgCallback(msg).catch((error) => {
           console.error('[WeComPlugin] Error handling message callback:', error);
         });
         break;
 
       case 'aibot_event_callback':
+        console.log(`[WeComPlugin] ⭐ RECEIVED EVENT CALLBACK - processing event`);
         void this.handleEventCallback(msg).catch((error) => {
           console.error('[WeComPlugin] Error handling event callback:', error);
         });
@@ -374,15 +387,29 @@ export class WeComPlugin extends BasePlugin {
       const body = msg.body as WeComMsgCallback;
       const headers = msg.headers as { req_id?: string } | undefined;
       const msgId = body?.msgid;
+      const userId = body?.from?.userid;
+      const chatType = body?.chattype;
+      const msgType = body?.msgtype;
 
-      if (!msgId) return;
+      console.log(`[WeComPlugin] handleMsgCallback: msgId=${msgId}, chattype=${chatType}, from=${userId}, msgtype=${msgType}`);
+      console.log(`[WeComPlugin] handleMsgCallback body: ${JSON.stringify(body).slice(0, 800)}`);
+
+      if (!msgId) {
+        console.warn('[WeComPlugin] handleMsgCallback: missing msgId, skipping');
+        return;
+      }
 
       // Event deduplication
-      if (this.isEventProcessed(msgId)) return;
+      if (this.isEventProcessed(msgId)) {
+        console.log(`[WeComPlugin] handleMsgCallback: msgId=${msgId} already processed, skipping`);
+        return;
+      }
       this.markEventProcessed(msgId);
 
-      const userId = body.from?.userid;
-      if (!userId) return;
+      if (!userId) {
+        console.warn('[WeComPlugin] handleMsgCallback: missing userId, skipping');
+        return;
+      }
 
       // Track user
       this.activeUsers.add(userId);
@@ -604,6 +631,8 @@ export class WeComPlugin extends BasePlugin {
       return { success: false, error: 'Secret is required for WeCom' };
     }
 
+    console.log(`[WeComPlugin] testConnection: connecting to ${WECOM_WS_URL}...`);
+
     return new Promise((resolve) => {
       const ws = new WebSocket(WECOM_WS_URL);
       let resolved = false;
@@ -620,11 +649,13 @@ export class WeComPlugin extends BasePlugin {
       };
 
       const timeout = setTimeout(() => {
+        console.log('[WeComPlugin] testConnection: timeout after 15s');
         cleanup();
         resolve({ success: false, error: 'Connection timeout' });
       }, 15000);
 
       ws.on('open', () => {
+        console.log('[WeComPlugin] testConnection: WebSocket opened, sending subscribe...');
         ws.send(
           JSON.stringify({
             cmd: 'aibot_subscribe',
@@ -637,7 +668,10 @@ export class WeComPlugin extends BasePlugin {
       ws.on('message', (data: WebSocket.Data) => {
         try {
           const msg = JSON.parse(data.toString());
-          if (msg.cmd === 'aibot_subscribe') {
+          console.log('[WeComPlugin] testConnection: received message:', JSON.stringify(msg).slice(0, 200));
+          // WeCom response format: {"errcode":0,"errmsg":"ok"} or {"errcode":xxx,"errmsg":"xxx"}
+          // The response may not have a "cmd" field
+          if (msg.errcode !== undefined) {
             clearTimeout(timeout);
             if (msg.errcode === 0) {
               resolve({ success: true, botInfo: { name: 'WeCom Bot' } });
@@ -646,15 +680,21 @@ export class WeComPlugin extends BasePlugin {
             }
             cleanup();
           }
-        } catch {
+        } catch (e) {
+          console.error('[WeComPlugin] testConnection: parse error:', e);
           // ignore parse errors during test
         }
       });
 
       ws.on('error', (error: Error) => {
+        console.error('[WeComPlugin] testConnection: WebSocket error:', error.message);
         clearTimeout(timeout);
         cleanup();
         resolve({ success: false, error: error.message || 'WebSocket connection failed' });
+      });
+
+      ws.on('close', (code, reason) => {
+        console.log(`[WeComPlugin] testConnection: WebSocket closed, code=${code}, reason=${reason.toString()}`);
       });
     });
   }

@@ -278,7 +278,15 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         await loadPendingPairings();
         await loadAuthorizedUsers();
       } else {
-        Message.error(result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing'));
+        // Check if it's "already approved" - show as info instead of error
+        const errorMsg = result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing');
+        if (errorMsg.toLowerCase().includes('already')) {
+          Message.info(t('settings.assistant.pairingAlreadyApproved', 'Pairing already approved'));
+          await loadPendingPairings();
+          await loadAuthorizedUsers();
+        } else {
+          Message.error(errorMsg);
+        }
       }
     } catch (error: any) {
       Message.error(error.message);
@@ -534,8 +542,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         </div>
       )}
 
-      {/* Pending Pairings */}
-      {pluginStatus?.enabled && authorizedUsers.length === 0 && (
+      {/* Pending Pairings - always show when plugin is enabled */}
+      {pluginStatus?.enabled && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
           <SectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}

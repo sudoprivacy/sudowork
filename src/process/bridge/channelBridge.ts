@@ -248,6 +248,11 @@ export function initChannelBridge(): void {
       const db = getDatabase();
       const result = db.getPendingPairingRequests();
 
+      mainLog('ChannelBridge', `getPendingPairings: success=${result.success}, count=${result.data?.length || 0}`);
+      if (result.data && result.data.length > 0) {
+        mainLog('ChannelBridge', `getPendingPairings: codes=${result.data.map((p) => `${p.code}(${p.platformType})`).join(', ')}`);
+      }
+
       if (!result.success || !result.data) {
         return { success: false, msg: result.error };
       }

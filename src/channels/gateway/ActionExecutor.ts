@@ -321,11 +321,14 @@ export class ActionExecutor {
     try {
       // Check if user is authorized
       const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
+      console.log(`[ActionExecutor] processMessage: platform=${platform}, userId=${user.id}, chatId=${chatId}, isAuthorized=${isAuthorized}`);
 
       // Handle /start command - always show pairing (except for WeChat which auto-authorizes)
       if (content.type === 'command' && content.text === '/start' && platform !== 'wechat') {
+        console.log(`[ActionExecutor] processMessage: handling /start command`);
         const result = await handlePairingShow(context);
         if (result.message) {
+          console.log(`[ActionExecutor] processMessage: sending pairing message`);
           await context.sendMessage(result.message);
         }
         return;
@@ -333,20 +336,24 @@ export class ActionExecutor {
 
       // If not authorized, handle based on platform
       if (!isAuthorized) {
-        // WeChat: auto-authorize user without pairing flow
-        if (platform === 'wechat') {
+        console.log(`[ActionExecutor] processMessage: user not authorized, platform=${platform}`);
+        // WeChat & WeCom: auto-authorize user without pairing flow
+        // Note: WeCom only pushes messages from authorized users, so if we receive a message,
+        // it means the user is already authorized at the WeCom backend level.
+        // We auto-authorize them in our system to enable the pairing flow to work.
+        if (platform === 'wechat' || platform === 'wecom') {
           const db = getDatabase();
           const now = Date.now();
-          const newUserId = `wechat_${user.id}_${now}`;
+          const newUserId = `${platform}_${user.id}_${now}`;
           const createResult = db.createChannelUser({
             id: newUserId,
             platformUserId: user.id,
-            platformType: 'wechat',
+            platformType: platform,
             displayName: user.displayName || user.id,
             authorizedAt: now,
           });
           if (!createResult.success) {
-            console.error(`[ActionExecutor] Failed to create WeChat user: ${createResult.error}`);
+            console.error(`[ActionExecutor] Failed to create ${platform} user: ${createResult.error}`);
             await context.sendMessage({
               type: 'text',
               text: '❌ Failed to authorize. Please try again.',
@@ -354,12 +361,17 @@ export class ActionExecutor {
             });
             return;
           }
-          console.log(`[ActionExecutor] Auto-authorized WeChat user: ${user.id}`);
+          console.log(`[ActionExecutor] Auto-authorized ${platform} user: ${user.id}`);
+          // Fall through to process the message normally
         } else {
-          // Other platforms: show pairing flow
+          // Other platforms (wecom, dingtalk, lark, telegram): show pairing flow
+          console.log(`[ActionExecutor] processMessage: showing pairing flow for platform=${platform}`);
           const result = await handlePairingShow(context);
+          console.log(`[ActionExecutor] processMessage: pairing result success=${result.success}, hasMessage=${!!result.message}`);
           if (result.message) {
+            console.log(`[ActionExecutor] processMessage: sending pairing message to chatId=${chatId}`);
             await context.sendMessage(result.message);
+            console.log(`[ActionExecutor] processMessage: pairing message sent`);
           }
           return;
         }
