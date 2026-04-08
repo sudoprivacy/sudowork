@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '../../common';
 import type { IConfirmation } from '../../common/chatLib';
+import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 
 type AgentType = 'acp' | 'openclaw-gateway';
 
@@ -55,6 +56,15 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
     }
     this.confirmations = [...this.confirmations, data];
     ipcBridge.conversation.confirmation.add.emit({ ...data, conversation_id: this.conversation_id });
+
+    // Emit approval-pending event for SudoClawManager and other subscribers
+    channelEventBus.emitApprovalPending({
+      conversationId: this.conversation_id,
+      requestId: data.id,
+      callId: data.callId,
+      toolName: data.title ?? 'Unknown Tool',
+      description: data.description,
+    });
   }
   confirm(_msg_id: string, callId: string, _data: ConfirmationOption) {
     // 查找要移除的确认项（根据 callId 匹配）
@@ -71,6 +81,14 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
       ipcBridge.conversation.confirmation.remove.emit({
         conversation_id: this.conversation_id,
         id: confirmationToRemove.id,
+      });
+
+      // Emit approval-resolved event for SudoClawManager and other subscribers
+      channelEventBus.emitApprovalResolved({
+        conversationId: this.conversation_id,
+        requestId: confirmationToRemove.id,
+        callId,
+        optionId: typeof _data === 'string' ? _data : String(_data),
       });
     }
   }
