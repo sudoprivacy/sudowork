@@ -26,6 +26,124 @@ const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_r
 
 fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (error) {
+    console.warn(`[openclaw][diag] Failed to parse JSON ${filePath}: ${error.message}`);
+    return null;
+  }
+}
+
+function logFileSummary(label, filePath, options = {}) {
+  const {
+    maxChars = 1200,
+    patterns = [],
+  } = options;
+
+  if (!fs.existsSync(filePath)) {
+    console.log(`[openclaw][diag] ${label}: missing (${filePath})`);
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const preview = content.slice(0, maxChars);
+  console.log(`[openclaw][diag] ${label}: ${filePath}`);
+  console.log(`[openclaw][diag] ${label} preview (${Math.min(content.length, maxChars)}/${content.length} chars):`);
+  console.log(preview);
+
+  for (const pattern of patterns) {
+    const index = content.indexOf(pattern);
+    if (index === -1) {
+      console.log(`[openclaw][diag] ${label} pattern not found: ${pattern}`);
+      continue;
+    }
+    const start = Math.max(0, index - 240);
+    const end = Math.min(content.length, index + pattern.length + 480);
+    console.log(`[openclaw][diag] ${label} pattern match for "${pattern}" at offset ${index}:`);
+    console.log(content.slice(start, end));
+  }
+}
+
+function logPackageVersion(label, pkgDir, packageName) {
+  const pkgJsonPath = path.join(pkgDir, 'node_modules', ...packageName.split('/'), 'package.json');
+  const pkgJson = readJsonIfExists(pkgJsonPath);
+  if (!pkgJson) {
+    console.log(`[openclaw][diag] ${label}: ${packageName} not installed`);
+    return;
+  }
+
+  console.log(
+    `[openclaw][diag] ${label}: ${packageName}@${pkgJson.version} (${pkgJson.type || 'type=unspecified'})`,
+  );
+}
+
+function logCommandOutput(label, command, cwd) {
+  try {
+    const output = execSync(command, {
+      cwd,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    console.log(`[openclaw][diag] ${label}:`);
+    console.log(output || '(empty)');
+  } catch (error) {
+    console.warn(`[openclaw][diag] ${label} failed: ${error.message}`);
+    if (typeof error.stdout === 'string' && error.stdout.trim()) {
+      console.warn(`[openclaw][diag] ${label} stdout:`);
+      console.warn(error.stdout.trim());
+    }
+    if (typeof error.stderr === 'string' && error.stderr.trim()) {
+      console.warn(`[openclaw][diag] ${label} stderr:`);
+      console.warn(error.stderr.trim());
+    }
+  }
+}
+
+function logOpenClawDiagnostics(stage, pkgDir, entryPoint, outputFile) {
+  console.log(`[openclaw][diag] ===== ${stage} =====`);
+  console.log(
+    `[openclaw][diag] env node=${process.version} npm_config_platform=${process.env.npm_config_platform || '(unset)'} npm_config_arch=${process.env.npm_config_arch || '(unset)'} platform=${process.platform} arch=${process.arch}`,
+  );
+
+  const openclawPkg = readJsonIfExists(path.join(pkgDir, 'package.json'));
+  if (openclawPkg) {
+    console.log(
+      `[openclaw][diag] openclaw package version=${openclawPkg.version} type=${openclawPkg.type || 'type=unspecified'}`,
+    );
+    console.log(
+      `[openclaw][diag] declared deps: @whiskeysockets/baileys=${openclawPkg.dependencies?.['@whiskeysockets/baileys'] || '(missing)'} protobufjs=${openclawPkg.dependencies?.protobufjs || '(missing)'} libsignal=${openclawPkg.dependencies?.libsignal || '(missing)'}`,
+    );
+  }
+
+  logCommandOutput('npm version', 'npm --version', pkgDir);
+  logPackageVersion(stage, pkgDir, '@whiskeysockets/baileys');
+  logPackageVersion(stage, pkgDir, 'libsignal');
+  logPackageVersion(stage, pkgDir, 'protobufjs');
+  logPackageVersion(stage, pkgDir, '@bufbuild/protobuf');
+  logCommandOutput(
+    'npm ls @whiskeysockets/baileys protobufjs libsignal @bufbuild/protobuf',
+    'npm ls @whiskeysockets/baileys protobufjs libsignal @bufbuild/protobuf --depth=3',
+    pkgDir,
+  );
+
+  logFileSummary('entry source', entryPoint, {
+    maxChars: 1600,
+    patterns: ['await init_Defaults', 'init_Defaults', 'Promise.resolve().then(() => (init_'],
+  });
+
+  logFileSummary('baileys Defaults', path.join(pkgDir, 'node_modules', '@whiskeysockets', 'baileys', 'lib', 'Defaults', 'index.js'), {
+    maxChars: 1600,
+    patterns: ['await ', 'top-level', 'export const', 'export {', 'from '],
+  });
+
+  logFileSummary('bundle output', outputFile, {
+    maxChars: 1600,
+    patterns: ['await init_Defaults', 'init_Defaults', 'var init_Defaults = __esm'],
+  });
+}
+
 function getDaveyBindingDirName() {
   const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
@@ -147,6 +265,10 @@ try {
     console.log('[openclaw] Build completed');
   }
 
+  const entryPoint = fs.existsSync(distEntry) ? distEntry : distEntryJs;
+  const bundleOutput = path.join(pkgDir, 'openclaw.mjs');
+  logOpenClawDiagnostics('post-install pre-bundle', pkgDir, entryPoint, bundleOutput);
+
   // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
   console.log('[openclaw] Creating launcher.mjs...');
   const launcherContent = `#!/usr/bin/env node
@@ -215,8 +337,10 @@ if not exist "%BUNDLED_NODE%" (
         timeout: 300_000, // 5 minutes
       });
       console.log('[openclaw] Bundle completed successfully.');
+      logOpenClawDiagnostics('post-bundle', pkgDir, entryPoint, bundleOutput);
     } catch (err) {
       console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${err?.message}`);
+      logOpenClawDiagnostics('bundle-failed fallback', pkgDir, entryPoint, bundleOutput);
       console.warn('[openclaw] The package will work but with more files than optimal.');
     }
   } else {

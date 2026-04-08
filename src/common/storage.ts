@@ -212,6 +212,10 @@ export type TChatConversation =
           isHealthCheck?: boolean;
           /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
           workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -267,6 +271,10 @@ export type TChatConversation =
           openclawModelId?: string;
           /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
           workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'

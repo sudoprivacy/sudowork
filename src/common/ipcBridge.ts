@@ -698,6 +698,10 @@ export const cron = {
   addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>('cron.add-job'),
   updateJob: bridge.buildProvider<ICronJob, { jobId: string; updates: Partial<ICronJob> }>('cron.update-job'),
   removeJob: bridge.buildProvider<void, { jobId: string }>('cron.remove-job'),
+  triggerJob: bridge.buildProvider<void, { jobId: string }>('cron.trigger-job'),
+  // Power management
+  getPowerSaveActive: bridge.buildProvider<boolean, void>('cron.get-power-save-active'),
+  setPowerSave: bridge.buildProvider<void, { enabled: boolean }>('cron.set-power-save'),
   // Events
   onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
@@ -721,6 +725,13 @@ export interface ICronJob {
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
+    /** Execution mode: 'new' creates a fresh conversation each run (default), 'reuse' appends to the bound conversation */
+    conversationMode?: 'new' | 'reuse';
+    /** Working directory to use for execution */
+    workspace?: string;
+    /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time.
+     *  In Partial<ICronJob> updates, pass `null` to explicitly clear (since JSON IPC strips `undefined`). */
+    presetAssistantId?: string | null;
   };
   state: {
     nextRunAtMs?: number;
@@ -730,6 +741,8 @@ export interface ICronJob {
     runCount: number;
     retryCount: number;
     maxRetries: number;
+    /** ID of the most recently created execution conversation (only used when conversationMode === 'new') */
+    lastConversationId?: string;
   };
 }
 
@@ -741,6 +754,9 @@ export interface ICreateCronJobParams {
   conversationTitle?: string;
   agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
+  conversationMode?: 'new' | 'reuse';
+  workspace?: string;
+  presetAssistantId?: string | null;
 }
 
 interface ISendMessageParams {
@@ -805,6 +821,10 @@ export interface ICreateConversationParams {
     };
     /** Explicit marker for temporary health-check conversations */
     isHealthCheck?: boolean;
+    /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+    cronJobId?: string;
+    /** Cron job name that created this conversation */
+    cronJobName?: string;
   };
 }
 interface IResetConversationParams {
