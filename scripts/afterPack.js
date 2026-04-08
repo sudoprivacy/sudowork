@@ -426,14 +426,15 @@ module.exports = async function afterPack(context) {
     }
 
     // Fixed name archives
-    const runtimeVersions = require('../src/shared/runtime-versions.json');
-    const nexusVersion = runtimeVersions.nexus;
-    const NEXUS_PLATFORM_MAP = {
-      'darwin-arm64': `v${nexusVersion}-nexus-cluster-macos-arm64`,
-      'darwin-x64': `v${nexusVersion}-nexus-cluster-macos-x86_64`,
-    };
-    const nexusBinaryName = NEXUS_PLATFORM_MAP[`${electronPlatformName}-${targetArch}`];
-    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', ...(nexusBinaryName ? [nexusBinaryName] : [])];
+    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz'];
+
+    // Find versioned nexus binary (e.g. v0.9.27-nexus-cluster-macos-arm64)
+    try {
+      const nexusBinaries = fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-/.test(f));
+      fixedArchives.push(...nexusBinaries);
+    } catch {
+      // Resources dir not readable — nexusd will be skipped
+    }
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;

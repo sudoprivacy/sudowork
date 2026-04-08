@@ -1,6 +1,8 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
+import * as https from 'https';
+import * as http from 'http';
 import { app } from 'electron';
 import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
@@ -18,6 +20,14 @@ const NEXUS_READY_MARKER = '.nexus-bin-ready';
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
+
+/** OSS base URL for downloading Nexus binaries at runtime */
+const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+
+/** Platform name mapping: Node.js process.platform → Nexus binary OS name */
+const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
+/** Architecture mapping: Node.js process.arch → Nexus binary arch name */
+const ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x86_64' };
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -49,13 +59,6 @@ class DynamicNexusService {
   private _setupCallbacks: NexusSetupCallback[] = [];
   private readonly isWindows = process.platform === 'win32';
 
-  // Platform-to-release-binary mapping (matches GitHub release asset names)
-  private static readonly PLATFORM_MAP: Record<string, string> = {
-    'darwin-arm64': 'nexus-cluster-macos-arm64',
-    'darwin-x64': 'nexus-cluster-macos-x86_64',
-    'win32-x64': 'nexus-cluster-windows-x86_64.exe',
-  };
-
   /**
    * Get the nexusd executable name for the current platform.
    */
@@ -64,19 +67,33 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the expected versioned resource name for the current platform.
-   * e.g., 'v0.9.27-nexus-cluster-macos-arm64'
-   * Returns null for unsupported platforms or missing version.
+   * Get the platform-specific binary name used in download URLs and versioned resource filenames.
+   * e.g. 'nexus-cluster-macos-arm64' or 'nexus-cluster-windows-x86_64.exe'
    */
-  getExpectedResourceName(): string | null {
-    const version = runtimeVersions.nexus;
-    if (!version || typeof version !== 'string' || !version.trim()) return null;
+  getPlatformBinaryName(): string {
+    const osName = OS_NAME_MAP[process.platform];
+    const archName = ARCH_NAME_MAP[process.arch];
+    if (!osName || !archName) throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
+    const base = `nexus-cluster-${osName}-${archName}`;
+    return this.isWindows ? `${base}.exe` : base;
+  }
 
-    const platformKey = `${process.platform}-${process.arch}`;
-    const releaseName = DynamicNexusService.PLATFORM_MAP[platformKey];
-    if (!releaseName) return null;
+  /**
+   * Get the versioned resource filename for the current platform and bundled version.
+   * e.g. 'v0.9.27-nexus-cluster-macos-arm64'
+   */
+  getVersionedBinaryName(): string {
+    const version = this.getNexusVersion();
+    return `v${version}-${this.getPlatformBinaryName()}`;
+  }
 
-    return `v${version}-${releaseName}`;
+  /**
+   * Get the OSS download URL for the current platform's Nexus binary.
+   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.27/nexus-cluster-macos-arm64
+   */
+  private getOssDownloadUrl(): string {
+    const version = this.getNexusVersion();
+    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
   }
 
   /**
@@ -253,34 +270,29 @@ class DynamicNexusService {
 
   /**
    * Get the bundled Nexus resource path (the versioned binary file in resources).
-   * Looks for versioned filename (e.g., v0.9.27-nexus-cluster-macos-arm64).
-   * Falls back to legacy unversioned name (nexusd/nexusd.exe) for backward compatibility.
+   * Looks for versioned filename e.g. v0.9.27-nexus-cluster-macos-arm64.
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
-    const resourceName = this.getExpectedResourceName();
-    // Try versioned name first, then legacy unversioned name
-    const candidates = resourceName ? [resourceName, this.getNexusdName()] : [this.getNexusdName()];
+    const versionedName = this.getVersionedBinaryName();
 
-    for (const binaryName of candidates) {
-      // Packaged app: check resourcesPath
-      if (app.isPackaged) {
-        const packagedPath = path.join(process.resourcesPath, binaryName);
-        if (fs.existsSync(packagedPath)) {
-          const stats = fs.statSync(packagedPath);
-          if (stats.size >= 1024 * 1024) {
-            return packagedPath;
-          }
+    // Packaged app: check resourcesPath
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, versionedName);
+      if (fs.existsSync(packagedPath)) {
+        const stats = fs.statSync(packagedPath);
+        if (stats.size >= 1024 * 1024) {
+          return packagedPath;
         }
       }
+    }
 
-      // Development mode: check resources directory
-      const devPath = path.join(app.getAppPath(), 'resources', binaryName);
-      if (fs.existsSync(devPath)) {
-        const stats = fs.statSync(devPath);
-        if (stats.size >= 1024 * 1024) {
-          return devPath;
-        }
+    // Development mode: check resources directory
+    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
+    if (fs.existsSync(devPath)) {
+      const stats = fs.statSync(devPath);
+      if (stats.size >= 1024 * 1024) {
+        return devPath;
       }
     }
 
@@ -288,7 +300,74 @@ class DynamicNexusService {
   }
 
   /**
-   * Installs nexus for the current platform from bundled resources.
+   * Download a file from a URL (HTTP/HTTPS) with redirect support.
+   * Emits download progress events.
+   */
+  private downloadFile(url: string, destPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let redirects = 0;
+
+      const doRequest = (requestUrl: string): void => {
+        if (redirects++ > 10) {
+          reject(new Error('Too many redirects'));
+          return;
+        }
+
+        const protocol = requestUrl.startsWith('https') ? https : http;
+        protocol
+          .get(requestUrl, (response) => {
+            if ([301, 302, 307, 308].includes(response.statusCode!) && response.headers.location) {
+              mainLog('Nexus', `Download redirect → ${response.headers.location}`);
+              doRequest(response.headers.location);
+              return;
+            }
+
+            if (response.statusCode !== 200) {
+              reject(new Error(`HTTP ${response.statusCode}`));
+              return;
+            }
+
+            const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+            let downloaded = 0;
+            const file = fs.createWriteStream(destPath);
+
+            response.on('data', (chunk: Buffer) => {
+              downloaded += chunk.length;
+              if (totalSize > 0) {
+                const percent = Math.round((downloaded / totalSize) * 100);
+                this.emitSetup('downloading', `Downloading Nexus... ${percent}%`, percent);
+              }
+            });
+
+            response.pipe(file);
+
+            file.on('finish', () => {
+              file.close();
+              resolve();
+            });
+
+            file.on('error', (err) => {
+              try {
+                fs.unlinkSync(destPath);
+              } catch {}
+              reject(err);
+            });
+          })
+          .on('error', (err) => {
+            try {
+              fs.unlinkSync(destPath);
+            } catch {}
+            reject(err);
+          });
+      };
+
+      doRequest(url);
+    });
+  }
+
+  /**
+   * Installs nexus for the current platform.
+   * First tries bundled resources, then falls back to downloading from OSS.
    * Copies the binary to ~/.nexus/bin/nexusd (or nexusd.exe) and sets executable permission.
    */
   async install(): Promise<void> {
@@ -298,13 +377,38 @@ class DynamicNexusService {
 
     const platformKey = `${os.platform()}-${os.arch()}`;
 
-    // Use bundled resource only (no OSS fallback)
-    const bundledPath = this.getBundledNexusPath();
-    if (!bundledPath) {
-      throw new Error(`Nexus bundled resource not found for platform ${platformKey}. Please rebuild the app with nexus resources.`);
+    // Try bundled resource first; fall back to OSS download
+    let sourcePath = this.getBundledNexusPath();
+
+    if (!sourcePath) {
+      // Download from OSS
+      const ossUrl = this.getOssDownloadUrl();
+      const versionedName = this.getVersionedBinaryName();
+      const downloadDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
+      const downloadDest = path.join(downloadDir, versionedName);
+
+      mainLog('Nexus', `Bundled resource not found for ${platformKey}, downloading from OSS: ${ossUrl}`);
+      this.emitSetup('downloading', `Downloading Nexus binary from OSS...`, 0);
+
+      try {
+        fs.mkdirSync(downloadDir, { recursive: true });
+        await this.downloadFile(ossUrl, downloadDest);
+
+        // Make binary executable on macOS/Linux
+        if (!this.isWindows) {
+          fs.chmodSync(downloadDest, 0o755);
+        }
+
+        sourcePath = downloadDest;
+        mainLog('Nexus', `Downloaded Nexus binary to ${downloadDest}`);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        this.emitSetup('error', `Failed to download Nexus from OSS: ${errorMsg}`);
+        throw new Error(`Nexus binary not available for platform ${platformKey}. Bundled resource not found and OSS download failed: ${errorMsg}`);
+      }
     }
 
-    mainLog('Nexus', `Using bundled Nexus from ${bundledPath}...`);
+    mainLog('Nexus', `Using Nexus binary from ${sourcePath}...`);
 
     try {
       this.deletePidFile();
@@ -318,8 +422,8 @@ class DynamicNexusService {
 
       this.emitSetup('installing', 'Copying Nexus binary...', 0);
 
-      // Copy the binary from bundled resources to ~/.nexus/bin/nexusd
-      fs.copyFileSync(bundledPath, destPath);
+      // Copy the binary to ~/.nexus/bin/nexusd
+      fs.copyFileSync(sourcePath, destPath);
 
       this.emitSetup('installing', 'Setting permissions...', 50);
 

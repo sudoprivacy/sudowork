@@ -113,21 +113,18 @@ function ensureDevRuntimeResources() {
     downloadScript: path.join('scripts', 'download-openclaw.js'),
   });
 
-  const nexusVersion = runtimeVersions.nexus;
-  const NEXUS_PLATFORM_MAP = {
-    'darwin-arm64': `v${nexusVersion}-nexus-cluster-macos-arm64`,
-    'darwin-x64': `v${nexusVersion}-nexus-cluster-macos-x86_64`,
-    'win32-x64': `v${nexusVersion}-nexus-cluster-windows-x86_64.exe`,
-  };
-  const nexusResourceName = NEXUS_PLATFORM_MAP[`${process.platform}-${process.arch}`];
-  if (nexusResourceName) {
-    ensureBundledRuntimeAsset({
-      name: 'nexus',
-      archivePath: path.join(resourcesDir, nexusResourceName),
-      expectedVersion: runtimeVersions.nexus,
-      downloadScript: path.join('scripts', 'download-nexus.js'),
-    });
-  }
+  // Construct versioned nexus binary filename: v{version}-nexus-cluster-{os}-{arch}[.exe]
+  const nexusOsName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+  const nexusArchName = process.arch === 'x64' ? 'x86_64' : process.arch;
+  const nexusExt = process.platform === 'win32' ? '.exe' : '';
+  const nexusBinaryName = `v${runtimeVersions.nexus}-nexus-cluster-${nexusOsName}-${nexusArchName}${nexusExt}`;
+
+  ensureBundledRuntimeAsset({
+    name: 'nexus',
+    archivePath: path.join(resourcesDir, nexusBinaryName),
+    expectedVersion: runtimeVersions.nexus,
+    downloadScript: path.join('scripts', 'download-nexus.js'),
+  });
 }
 
 // ── stop ──
