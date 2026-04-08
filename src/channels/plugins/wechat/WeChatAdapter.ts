@@ -4,15 +4,99 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IUnifiedIncomingMessage, IUnifiedOutgoingMessage } from '../../types';
-import type { IWeChatSendMessagePayload, WeChatMessage } from './types';
+import type { AttachmentType, IUnifiedAttachment, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, MessageContentType } from '../../types';
+import type { IWeChatSendMessagePayload, WeChatMessage, WeChatMessageItem } from './types';
 import { MessageItemType, MessageState, MessageType, WECHAT_MESSAGE_LIMIT } from './types';
 
 let clientIdCounter = 0;
 
 /**
+ * Extract the CDN download URL from a WeChat message item.
+ * Checks image_item, voice_item, file_item, video_item in order.
+ */
+export function getMediaUrl(item: WeChatMessageItem): string | undefined {
+  if (item.image_item?.media?.full_url) return item.image_item.media.full_url;
+  if (item.voice_item?.media?.full_url) return item.voice_item.media.full_url;
+  if (item.file_item?.media?.full_url) return item.file_item.media.full_url;
+  if (item.video_item?.media?.full_url) return item.video_item.media.full_url;
+  return undefined;
+}
+
+/**
+ * Map a WeChat MessageItemType to a unified content type.
+ */
+function itemTypeToContentType(itemType: number): MessageContentType {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'photo';
+    case MessageItemType.VOICE:
+      return 'voice';
+    case MessageItemType.FILE:
+      return 'document';
+    case MessageItemType.VIDEO:
+      return 'video';
+    default:
+      return 'text';
+  }
+}
+
+/**
+ * Map a WeChat MessageItemType to an attachment type.
+ */
+function itemTypeToAttachmentType(itemType: number): AttachmentType {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'photo';
+    case MessageItemType.VOICE:
+      return 'voice';
+    case MessageItemType.FILE:
+      return 'document';
+    case MessageItemType.VIDEO:
+      return 'video';
+    default:
+      return 'document';
+  }
+}
+
+/**
+ * Get a default file extension based on item type.
+ */
+export function getDefaultExtension(itemType: number): string {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return '.jpg';
+    case MessageItemType.VOICE:
+      return '.amr';
+    case MessageItemType.FILE:
+      return '';
+    case MessageItemType.VIDEO:
+      return '.mp4';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Get default MIME type based on item type.
+ */
+function getDefaultMimeType(itemType: number): string {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'image/jpeg';
+    case MessageItemType.VOICE:
+      return 'audio/amr';
+    case MessageItemType.FILE:
+      return 'application/octet-stream';
+    case MessageItemType.VIDEO:
+      return 'video/mp4';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+/**
  * Convert a WeChatMessage (from getUpdates) to a unified incoming message.
- * Only processes USER messages with text items in Phase 1.
+ * Supports text, image, voice, file, and video message items.
  */
 export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMessage | null {
   // Only handle user messages
@@ -23,20 +107,39 @@ export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMe
   const userId = msg.from_user_id || '';
   if (!userId) return null;
 
-  // Extract text from item_list
+  // Extract text and media from item_list
   const textParts: string[] = [];
-  let hasMedia = false;
+  const attachments: IUnifiedAttachment[] = [];
+  let contentType: MessageContentType = 'text';
 
   for (const item of msg.item_list || []) {
     if (item.type === MessageItemType.TEXT && item.text_item?.text) {
       textParts.push(item.text_item.text);
     } else if (item.type && item.type !== MessageItemType.NONE && item.type !== MessageItemType.TEXT) {
-      hasMedia = true;
+      // Media item — use _localPath (set by WeChatPlugin after download) or CDN URL as fileId
+      const fileId = item._localPath || getMediaUrl(item) || '';
+      if (fileId) {
+        const fileName = item.file_item?.file_name || undefined;
+        attachments.push({
+          type: itemTypeToAttachmentType(item.type),
+          fileId,
+          fileName,
+          mimeType: getDefaultMimeType(item.type),
+          size: item.image_item?.hd_size || item.file_item?.file_size || undefined,
+          duration: item.voice_item?.voice_length || item.video_item?.video_length || undefined,
+        });
+        // Set the content type to the first media type encountered
+        if (contentType === 'text') {
+          contentType = itemTypeToContentType(item.type);
+        }
+      }
     }
   }
 
-  const text = textParts.join('\n') || (hasMedia ? '[Media message — not yet supported. Please send text.]' : '');
-  if (!text) return null;
+  const text = textParts.join('\n');
+
+  // If no text and no attachments, nothing to process
+  if (!text && attachments.length === 0) return null;
 
   return {
     id: String(msg.message_id || msg.seq || Date.now()),
@@ -47,8 +150,9 @@ export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMe
       displayName: userId,
     },
     content: {
-      type: 'text',
-      text,
+      type: contentType,
+      text: text || (attachments.length > 0 ? '' : ''),
+      attachments: attachments.length > 0 ? attachments : undefined,
     },
     timestamp: msg.create_time_ms || Date.now(),
     raw: msg,

@@ -163,4 +163,33 @@ export class WeChatApiClient {
       // Best-effort
     }
   }
+
+  // ==================== Media Download ====================
+
+  /**
+   * Download a media file from a CDN URL.
+   * Returns the raw binary data as a Buffer.
+   */
+  async downloadMedia(url: string): Promise<Buffer> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WECHAT_LONG_POLL_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!response.ok) {
+        throw new Error(`Media download failed: HTTP ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      clearTimeout(timer);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Media download timed out');
+      }
+      throw error;
+    }
+  }
 }
