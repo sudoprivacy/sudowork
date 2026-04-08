@@ -49,6 +49,20 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
+function getHookPythonWhlPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
+  }
+  return path.join(app.getAppPath(), 'hook/python/dist/hook-0.0.1-py3-none-any.whl');
+}
+
+function getHookPythonPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pythonpath');
+  }
+  return path.join(app.getAppPath(), 'hook/python/pythonpath');
+}
+
 /**
  * OpenClaw Gateway Process Manager
  *
@@ -275,6 +289,12 @@ export class OpenClawGatewayManager extends EventEmitter {
         console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
         mainWarn('OpenClawGatewayManager', 'Safety hook not found, starting without preload hook', { hookJsPath });
       }
+
+      const pythonpath = getHookPythonPath();
+      env.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+      env.PYTHONPATH = pythonpath;
+      console.log('[OpenClawGatewayManager] Injecting python safety hook:', pythonpath);
+
       console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${nodeArgs.join(' ')} ${args.join(' ')}`);
       this.lastLaunchCommand = {
         command: bundledNode,
