@@ -565,7 +565,7 @@ const USER_MD_SAFETY_MARKER = '<!-- SUDOCLAW_DELETE_SAFETY_RULES -->';
  *
  * This guarantees that fresh installs *and* upgrades always carry the prompt.
  */
-function ensureUserMdSafetyRules(): void {
+export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `
 ${USER_MD_SAFETY_MARKER}
