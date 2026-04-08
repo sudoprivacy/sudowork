@@ -290,7 +290,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   // Group scheduled by cronJobName, sorted by most recent first
   const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
   scheduledConvs.forEach((conv) => {
-    const jobName = (conv.extra as any)?.cronJobName as string || 'Unknown';
+    const jobName = ((conv.extra as any)?.cronJobName as string) || 'Unknown';
     const group = scheduledGroups.find((g) => g.jobName === jobName);
     if (group) {
       group.convs.push(conv);
@@ -317,27 +317,23 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
             {/* ── SCHEDULED SECTION ── */}
             {scheduledGroups.length > 0 && (
               <>
-                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>
-                  {t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}
-                </div>
+                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>
                 {scheduledGroups.map(({ jobName, convs }) => {
                   const isExpanded = expandedFolders[jobName] !== false; // default open
                   return (
                     <React.Fragment key={jobName}>
                       {/* Folder header */}
-                      <div
-                        className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden'
-                        onClick={() => toggleFolder(jobName)}
-                      >
+                      <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => toggleFolder(jobName)}>
                         <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
                         <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
                       </div>
                       {/* Conversations under this folder */}
-                      {isExpanded && convs.map((conv) => (
-                        <div key={conv.id} className='pl-16px'>
-                          {renderConversation(conv)}
-                        </div>
-                      ))}
+                      {isExpanded &&
+                        convs.map((conv) => (
+                          <div key={conv.id} className='pl-16px'>
+                            {renderConversation(conv)}
+                          </div>
+                        ))}
                     </React.Fragment>
                   );
                 })}

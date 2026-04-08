@@ -46,11 +46,7 @@ export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as con
  * Convert frequency preset + options to a CronSchedule.
  * Pass a `t` function from `useTranslation()` to get i18n-aware descriptions.
  */
-export function frequencyToSchedule(
-  preset: FrequencyPreset,
-  options?: { hour?: number; minute?: number; weekday?: string },
-  t?: TFunction
-): ICronSchedule | null {
+export function frequencyToSchedule(preset: FrequencyPreset, options?: { hour?: number; minute?: number; weekday?: string }, t?: TFunction): ICronSchedule | null {
   const hour = options?.hour ?? 9;
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -115,7 +111,13 @@ export function scheduleToFrequency(schedule: ICronSchedule): {
 
 function weekdayLabel(day: string): string {
   const map: Record<string, string> = {
-    SUN: '日', MON: '一', TUE: '二', WED: '三', THU: '四', FRI: '五', SAT: '六',
+    SUN: '日',
+    MON: '一',
+    TUE: '二',
+    WED: '三',
+    THU: '四',
+    FRI: '五',
+    SAT: '六',
   };
   return map[day] || day;
 }

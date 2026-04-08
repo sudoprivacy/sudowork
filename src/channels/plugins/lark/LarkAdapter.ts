@@ -32,13 +32,13 @@ export const LARK_MESSAGE_LIMIT = 4000;
  * Lark mention structure in message event
  */
 interface LarkMention {
-  key: string;    // Placeholder in message text, e.g. "@_user_1"
+  key: string; // Placeholder in message text, e.g. "@_user_1"
   id: {
     user_id?: string;
     open_id?: string;
     union_id?: string;
   };
-  name: string;   // Display name, e.g. "吕洋洋"
+  name: string; // Display name, e.g. "吕洋洋"
   tenant_key?: string;
 }
 
