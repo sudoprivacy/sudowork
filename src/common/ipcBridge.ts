@@ -528,6 +528,32 @@ export interface ISudoclawStatus {
   error?: string;
 }
 
+// Cost control state — Week 5
+export interface ISudoclawCostControlState {
+  ticksThisHour: number;
+  ticksThisDay: number;
+  budgetStatus: 'ok' | 'warning' | 'exceeded';
+  budgetFraction: number;
+  canTick: boolean;
+  hourResetMs: number;
+  dayResetMs: number;
+}
+
+export interface ISudoclawCostControlEvent {
+  type: 'budget_warning' | 'budget_exceeded' | 'rate_limited_hourly' | 'rate_limited_daily';
+  message: string;
+  state: ISudoclawCostControlState;
+}
+
+export interface ISudoclawMemoryStats {
+  activeFileCount: number;
+  activeSizeBytes: number;
+  archivedFileCount: number;
+  archivedSizeBytes: number;
+  lastArchiveCount: number;
+  lastRunAt: string | null;
+}
+
 export const sudoclaw = {
   /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
   getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
@@ -558,6 +584,19 @@ export const sudoclaw = {
   getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
   /** Emitted during WeChat plugin install — delivers QR code data and progress */
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
+
+  // ========== Cost Control (Week 5) ==========
+
+  /** Get current cost control state (tick counts, budget status) */
+  getCostControlState: bridge.buildProvider<IBridgeResponse<ISudoclawCostControlState>, void>('sudoclaw.get-cost-control-state'),
+  /** Emitted when budget warning or hard-stop is triggered */
+  costControlEvent: bridge.buildEmitter<ISudoclawCostControlEvent>('sudoclaw.cost-control-event'),
+  /** Get memory lifecycle statistics */
+  getMemoryStats: bridge.buildProvider<IBridgeResponse<ISudoclawMemoryStats>, void>('sudoclaw.get-memory-stats'),
+  /** Trigger manual memory lifecycle run (archive old logs) */
+  runMemoryLifecycle: bridge.buildProvider<IBridgeResponse<{ archivedCount: number; bytesFreed: number }>, void>('sudoclaw.run-memory-lifecycle'),
+  /** Get network resilience state */
+  getNetworkState: bridge.buildProvider<IBridgeResponse<{ state: 'connected' | 'degraded' | 'disconnected'; failureCount: number }>, void>('sudoclaw.get-network-state'),
 };
 
 // Initialization status for runtime dependencies

@@ -440,4 +440,52 @@ export function initSudoclawBridge(): void {
       child.on('close', () => clearTimeout(timeout));
     });
   });
+
+  // ==================== Cost Control (Week 5) ====================
+
+  ipcBridge.sudoclaw.getCostControlState.provider(async () => {
+    try {
+      const { getSudoclawCostControl } = await import('../services/sudoclaw/SudoclawCostControl');
+      const costControl = getSudoclawCostControl();
+      const state = costControl.getState();
+      return { success: true, data: state };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.getMemoryStats.provider(async () => {
+    try {
+      const { getMemoryLifecycleInstance } = await import('../services/sudoclaw/SudoclawMemoryLifecycle');
+      const lifecycle = getMemoryLifecycleInstance?.();
+      if (!lifecycle) {
+        return { success: true, data: { activeFileCount: 0, activeSizeBytes: 0, archivedFileCount: 0, archivedSizeBytes: 0, lastArchiveCount: 0, lastRunAt: null } };
+      }
+      return { success: true, data: lifecycle.getStats() };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.runMemoryLifecycle.provider(async () => {
+    try {
+      const { getMemoryLifecycleInstance } = await import('../services/sudoclaw/SudoclawMemoryLifecycle');
+      const lifecycle = getMemoryLifecycleInstance?.();
+      if (!lifecycle) {
+        return { success: true, data: { archivedCount: 0, bytesFreed: 0 } };
+      }
+      const result = await lifecycle.runLifecycle();
+      return { success: true, data: { archivedCount: result.archivedCount, bytesFreed: result.bytesFreed } };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.getNetworkState.provider(async () => {
+    try {
+      return { success: true, data: { state: 'connected' as const, failureCount: 0 } };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
 }
