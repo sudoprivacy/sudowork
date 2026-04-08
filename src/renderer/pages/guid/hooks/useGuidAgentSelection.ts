@@ -45,6 +45,7 @@ async function savePreferredModelId(agentKey: string, modelId: string): Promise<
 export type GuidAgentSelectionResult = {
   selectedAgentKey: string;
   setSelectedAgentKey: (key: string) => void;
+  resetSelection: () => void;
   selectedAgent: AcpBackend | 'custom';
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
@@ -95,6 +96,14 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     _setSelectedAgentKey(key);
     ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
       console.error('Failed to save selected agent:', error);
+    });
+  }, []);
+
+  // Reset agent selection to default (no assistant selected) and clear persisted value
+  const resetSelection = useCallback(() => {
+    _setSelectedAgentKey('openclaw-gateway');
+    ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
+      console.error('Failed to clear saved agent selection:', error);
     });
   }, []);
 
@@ -601,6 +610,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   return {
     selectedAgentKey,
     setSelectedAgentKey,
+    resetSelection,
     selectedAgent,
     selectedAgentInfo,
     isPresetAgent,
