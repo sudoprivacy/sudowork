@@ -85,6 +85,17 @@ export function getAllDirKeys(nodes: IDirOrFile[]): string[] {
 }
 
 /**
+ * 过滤 expandedKeys，只保留在新树中仍然存在的目录 key
+ * Filter expandedKeys to only keep keys that still exist as directories in the new tree
+ */
+export function filterValidExpandedKeys(expandedKeys: string[], nodes: IDirOrFile[]): string[] {
+  const validKeys = new Set(getAllDirKeys(nodes));
+  // 根节点的 relativePath 为空字符串，getAllDirKeys 已包含
+  // Root node has empty relativePath, already included by getAllDirKeys
+  return expandedKeys.filter((key) => validKeys.has(key));
+}
+
+/**
  * 替换路径列表中的旧路径为新路径
  * Replace old path with new path in path list
  */
