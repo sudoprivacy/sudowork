@@ -841,36 +841,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Stream & Signal Emission (merged from Manager) ==========
 
-  /**
-   * Replace OpenClaw variants with SudoClaw in user-facing message content.
-   * Maintains case mapping: OpenClaw → SudoClaw, openClaw → sudoClaw, Openclaw → Sudoclaw, openclaw → sudoclaw
-   */
-  private sanitizeDisplayText(msg: IResponseMessage): void {
-    const replaceBrandName = (text: string): string => {
-      return text.replace(/\b(OpenClaw|openClaw|Openclaw|openclaw)\b/g, (match) => {
-        if (match === 'OpenClaw') return 'SudoClaw';
-        if (match === 'openClaw') return 'sudoClaw';
-        if (match === 'Openclaw') return 'Sudoclaw';
-        return 'sudoclaw'; // openclaw
-      });
-    };
-
-    if (msg.type === 'error' && typeof msg.data === 'string') {
-      (msg as { data: string }).data = replaceBrandName(msg.data);
-    } else if ((msg.type === 'content' || msg.type === 'user_content') && msg.data) {
-      const d = msg.data as string | { content?: string };
-      if (typeof d === 'string') {
-        (msg as { data: string }).data = replaceBrandName(d);
-      } else if (d && typeof (d as { content?: string }).content === 'string') {
-        (d as { content: string }).content = replaceBrandName((d as { content: string }).content);
-      }
-    }
-  }
-
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
     const msg = { ...message, conversation_id: this.conversation_id };
-    this.sanitizeDisplayText(msg);
 
     // Mark as finished when content is output
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
