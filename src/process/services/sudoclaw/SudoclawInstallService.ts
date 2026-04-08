@@ -503,6 +503,16 @@ export function repairOpenClawConfig(): void {
   } catch {
     // ignore parse errors
   }
+
+  // Ensure workspace directory and USER.md safety rules exist on every startup.
+  // This covers scenarios where macOS upgrades or filesystem changes remove the
+  // workspace directory or USER.md file after the initial installation.
+  try {
+    fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    ensureUserMdSafetyRules();
+  } catch (err) {
+    mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function ensureDefaultConfig(): void {
