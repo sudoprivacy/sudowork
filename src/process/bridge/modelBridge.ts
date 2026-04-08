@@ -14,6 +14,7 @@ import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { cachePut, resolveSecret } from '@common/nexus/secret-cache';
 import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
 
 /**
@@ -428,7 +429,41 @@ export function initModelBridge(): void {
   });
 
   ipcBridge.mode.saveModelConfig.provider((models) => {
-    return ProcessConfig.set('model.config', models)
+    // After migration: write credentials to Nexus (source of truth)
+    // ConfigStorage keeps only non-credential fields - original storage is frozen for credentials
+    for (const provider of models) {
+      const namespace = `provider:${provider.id}`;
+
+      // Write API key to Nexus
+      if (provider.apiKey) {
+        cachePut(namespace, 'api_key', provider.apiKey);
+      }
+
+      // Write Bedrock credentials to Nexus
+      if (provider.platform === 'bedrock' && provider.bedrockConfig) {
+        if (provider.bedrockConfig.accessKeyId) {
+          cachePut(namespace, 'access_key_id', provider.bedrockConfig.accessKeyId);
+        }
+        if (provider.bedrockConfig.secretAccessKey) {
+          cachePut(namespace, 'secret_access_key', provider.bedrockConfig.secretAccessKey);
+        }
+      }
+    }
+
+    // Write non-credential fields to ConfigStorage (credentials are NOT stored here)
+    const providersWithoutCredentials = models.map((p) => ({
+      ...p,
+      apiKey: undefined as string | undefined,
+      bedrockConfig: p.bedrockConfig
+        ? {
+            ...p.bedrockConfig,
+            accessKeyId: undefined as string | undefined,
+            secretAccessKey: undefined as string | undefined,
+          }
+        : undefined,
+    }));
+
+    return ProcessConfig.set('model.config', providersWithoutCredentials)
       .then(() => {
         return { success: true };
       })
@@ -465,6 +500,29 @@ export function initModelBridge(): void {
           } as IProvider;
         });
 
+        // After migration: read credentials from Nexus (source of truth)
+        // Original storage (ConfigStorage) only keeps non-credential fields
+        for (const provider of normalizedProviders) {
+          const namespace = `provider:${provider.id}`;
+
+          // Read API key from Nexus
+          const apiKey = resolveSecret(namespace, 'api_key', '');
+          if (apiKey) {
+            provider.apiKey = apiKey;
+          }
+
+          // Read Bedrock credentials from Nexus
+          if (provider.platform === 'bedrock' && provider.bedrockConfig) {
+            const accessKeyId = resolveSecret(namespace, 'access_key_id', '');
+            const secretAccessKey = resolveSecret(namespace, 'secret_access_key', '');
+            provider.bedrockConfig = {
+              ...provider.bedrockConfig,
+              accessKeyId: accessKeyId || undefined,
+              secretAccessKey: secretAccessKey || undefined,
+            };
+          }
+        }
+
         // Merge extension-contributed model providers (with user overrides from persisted config)
         try {
           const registry = ExtensionRegistry.getInstance();
@@ -478,13 +536,18 @@ export function initModelBridge(): void {
 
           const mergedExtensionProviders: IProvider[] = extensionProviders.map((provider) => {
             const existing = normalizedProviders.find((item) => item.id === provider.id);
+            const namespace = `provider:${provider.id}`;
+
+            // Read credentials from Nexus for extension providers
+            const apiKey = existing?.apiKey || resolveSecret(namespace, 'api_key', '');
+
             return {
               ...(existing || {}),
               id: provider.id,
               platform: provider.platform,
               name: provider.name,
               baseUrl: existing?.baseUrl || provider.baseUrl || '',
-              apiKey: existing?.apiKey || '',
+              apiKey: apiKey,
               model: Array.isArray(existing?.model) && existing.model.length > 0 ? existing.model : provider.models,
               enabled: existing?.enabled ?? true,
             } as IProvider;

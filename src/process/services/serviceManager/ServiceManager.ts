@@ -215,6 +215,12 @@ class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
+
+      // Initialize secrets system after Nexus is healthy
+      // This runs migration (if needed) and preloads the secret cache
+      this.initializeSecrets().catch((err) => {
+        mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+      });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
       throw err;
@@ -230,6 +236,23 @@ class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  /**
+   * Initialize the secrets system after Nexus is healthy.
+   * This runs the migration coordinator and preloads the secret cache.
+   */
+  private async initializeSecrets(): Promise<void> {
+    try {
+      const { initializeSecrets } = await import('@common/nexus/secret-migration');
+      mainLog('ServiceManager', 'Initializing secrets system...');
+      await initializeSecrets();
+      mainLog('ServiceManager', 'Secrets system initialized');
+    } catch (err) {
+      // Don't throw - secrets initialization failure should not block startup
+      // The system can operate in fallback mode without the secrets cache
+      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
     }
   }
 
@@ -300,7 +323,7 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -339,6 +362,7 @@ class ServiceManager {
       try {
         fs.mkdirSync(path.join(SUDOCLAW_DIR, 'workspace'), { recursive: true });
         ensureUserMdSafetyRules();
+        ensureUserMdIdentityStatement();
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
       }
