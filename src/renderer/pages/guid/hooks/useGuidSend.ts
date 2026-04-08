@@ -52,6 +52,10 @@ export type GuidSendDeps = {
   setMentionSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setMentionActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 
+  // Agent/skills reset
+  resetAgentSelection: () => void;
+  setSelectedSkills: React.Dispatch<React.SetStateAction<string[]>>;
+
   // Navigation & tabs
   navigate: NavigateFunction;
   closeAllTabs: () => void;
@@ -69,7 +73,7 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, navigate, closeAllTabs, openTab, t } = deps;
+  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
 
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
@@ -246,6 +250,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         setMentionActiveIndex(0);
         setFiles([]);
         setDir('');
+        // 重置助手选择和技能，确保返回 Guide 页面时为初始状态
+        resetAgentSelection();
+        setSelectedSkills([]);
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
@@ -253,7 +260,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       .finally(() => {
         setLoading(false);
       });
-  }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir]);
+  }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
   const isButtonDisabled = !input.trim();
