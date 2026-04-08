@@ -558,6 +558,8 @@ export const sudoclaw = {
   getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
   /** Emitted during WeChat plugin install — delivers QR code data and progress */
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
+  /** Emitted when SudoClaw sends a notification (routed to WebUI via bridge) */
+  notification: bridge.buildEmitter<{ title: string; body: string; urgency: 'info' | 'action_needed' | 'completed'; conversationId?: string; metadata?: Record<string, unknown>; timestamp: number }>('sudoclaw.notification'),
 };
 
 // Initialization status for runtime dependencies

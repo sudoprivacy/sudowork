@@ -12,6 +12,27 @@ import { uuid } from '../../common/utils';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 
 /**
+ * Attempt to wake the SudoClaw persistent agent when a channel message
+ * targets an `openclaw-gateway` conversation.
+ *
+ * This is a best-effort operation — if the gateway task is not running
+ * or WorkerManage cannot locate it, the wake is silently skipped.
+ */
+function trySudoClawWake(conversationId: string): void {
+  try {
+    const task = WorkerManage.getTaskById(conversationId) as BaseAgent<unknown> & {
+      wake?: () => void;
+    };
+    if (task && typeof task.wake === 'function') {
+      task.wake();
+      console.log(`[ChannelMessageService] SudoClaw wake signal sent for conversation ${conversationId}`);
+    }
+  } catch {
+    // Gateway task may not exist (yet) — safe to ignore
+  }
+}
+
+/**
  * Streaming callback for progress updates
  */
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
@@ -173,6 +194,12 @@ export class ChannelMessageService {
       task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
         yoloMode: isFromChannel,
       });
+
+      // Wake SudoClaw agent if this is a persistent openclaw-gateway conversation
+      // triggered by an incoming channel message.
+      if (dbResult.success && dbResult.data?.type === 'openclaw-gateway') {
+        trySudoClawWake(conversationId);
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to get conversation task';
       console.error(`[ChannelMessageService] Failed to get task:`, errorMsg);
