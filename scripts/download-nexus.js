@@ -19,6 +19,27 @@ const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('.
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
 const NEXUS_VERSION = runtimeVersions.nexus;
+
+/**
+ * Create an empty placeholder file for the current platform so electron-builder doesn't fail.
+ * Used when binaries are not available for the platform or download fails.
+ */
+function createFallbackPlaceholder(platform) {
+  fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+  let outputFile;
+  if (platform && PLATFORMS[platform]) {
+    outputFile = getOutputFile(platform);
+  } else {
+    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+    const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
+  }
+  fs.writeFileSync(outputFile, Buffer.alloc(0));
+  clearLocalDevRuntimeVersion('nexus');
+  return outputFile;
+}
+
 const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
 // Platform mappings: direct binary downloads (no tar.gz)
@@ -184,13 +205,7 @@ async function main() {
     } else {
       console.warn(`⚠️  Unsupported platform: ${currentPlatform}`);
       console.warn('   Creating empty placeholder file.');
-      // Create empty placeholder file so electron-builder doesn't fail
-      fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-      const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
-      const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
-      const ext = process.platform === 'win32' ? '.exe' : '';
-      const fallbackOutput = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
-      fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
+      createFallbackPlaceholder(null);
       process.exit(0);
     }
   }
@@ -208,11 +223,7 @@ async function main() {
   } catch (err) {
     console.error(`\n❌ Failed to download:`, err.message);
     console.warn('   Creating empty placeholder file.');
-    // Create empty placeholder file so electron-builder doesn't fail
-    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-    const outputFile = getOutputFile(platform);
-    fs.writeFileSync(outputFile, Buffer.alloc(0));
-    clearLocalDevRuntimeVersion('nexus');
+    createFallbackPlaceholder(platform);
     // Exit 0 to allow build to continue
   }
 
@@ -222,15 +233,8 @@ async function main() {
 main().catch((err) => {
   console.error('Error:', err.message);
   console.warn('Creating empty placeholder file.');
-  // Create empty placeholder file so electron-builder doesn't fail
   try {
-    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
-    const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
-    const ext = process.platform === 'win32' ? '.exe' : '';
-    const fallbackOutput = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
-    fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
-    clearLocalDevRuntimeVersion('nexus');
+    createFallbackPlaceholder(null);
   } catch {}
   // Exit 0 to allow build to continue
   process.exit(0);

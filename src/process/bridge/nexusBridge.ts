@@ -2,6 +2,7 @@ import { ipcBridge } from '../../common';
 import { dynamicNexusService, type NexusSetupStatus } from '../services/nexus/DynamicNexusService';
 import { serviceManager } from '../services/serviceManager';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import runtimeVersions from '@/shared/runtime-versions.json';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
@@ -87,9 +88,13 @@ export function initNexusBridge(): void {
       const path = await import('path');
       const { getDataPath } = await import('../utils');
       const dataPath = getDataPath();
+      const binDir = path.join(dataPath, 'bin');
       const envDir = path.join(dataPath, 'nexus_env');
       const pidFile = path.join(dataPath, 'nexusd.pid');
 
+      // Clean new binary path
+      if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
+      // Clean legacy conda env path
       if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
       if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
 
@@ -142,9 +147,9 @@ export function initNexusBridge(): void {
         fs.chmodSync(destPath, 0o755);
       }
 
-      // Write version marker
+      // Write version marker (use nexus runtime version for consistency with DynamicNexusService)
       const markerFile = path.join(binDir, '.nexus-bin-ready');
-      await fs.promises.writeFile(markerFile, app.getVersion());
+      await fs.promises.writeFile(markerFile, runtimeVersions.nexus);
       mainLog('NexusBridge', 'Local file installation complete, starting service...');
 
       await serviceManager.startNexus();
