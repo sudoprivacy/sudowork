@@ -59,9 +59,13 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: TChatCon
       workspaceGroupsByTimeline.set(timeline, []);
     }
 
+    // Prefer stored workspaceDisplayName from conversations, fallback to path-derived name
+    const storedDisplayName = sortedConvs.find((c) => (c.extra as { workspaceDisplayName?: string })?.workspaceDisplayName)?.extra as { workspaceDisplayName?: string } | undefined;
+    const displayName = storedDisplayName?.workspaceDisplayName || getWorkspaceDisplayName(workspace);
+
     workspaceGroupsByTimeline.get(timeline)!.push({
       workspace,
-      displayName: getWorkspaceDisplayName(workspace),
+      displayName,
       conversations: sortedConvs,
     });
   });

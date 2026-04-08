@@ -139,7 +139,38 @@
       "addedToChat": "已添加到聊天",
       "openFailed": "打开失败",
       "revealFailed": "无法打开所在目录",
-      "uploadToBdpan": "上传至百度网盘"
+      "uploadToBdpan": "上传至百度网盘",
+      "newFolder": "新建文件夹"
+    },
+    "newFolder": {
+      "title": "新建文件夹",
+      "placeholder": "请输入文件夹名称",
+      "hint": "在当前目录下创建新文件夹",
+      "success": "文件夹创建成功",
+      "failed": "创建文件夹失败",
+      "invalidName": "文件夹名称包含非法字符",
+      "reservedName": "该名称为系统保留名称，请使用其他名称"
+    },
+    "drafts": {
+      "title": "草稿箱",
+      "description": "Agent 执行过程中产出的中间文件",
+      "empty": "草稿箱为空",
+      "clearAll": "清空草稿箱",
+      "clearConfirm": "确定清空草稿箱中的所有文件吗？",
+      "fileCount": "{{count}} 个中间文件",
+      "clearSuccess": "草稿箱已清空",
+      "deleteFailed": "删除草稿文件失败"
+    },
+    "renameWorkspace": {
+      "title": "重命名工作空间",
+      "placeholder": "请输入显示名称",
+      "hint": "仅更改显示名称，不会修改物理文件夹路径",
+      "success": "工作空间重命名成功",
+      "failed": "重命名失败",
+      "invalidName": "文件夹名称包含非法字符",
+      "alreadyExists": "目标文件夹已存在",
+      "agentRunning": "有正在运行的 Agent，请等待完成后再重命名",
+      "emptyName": "名称不能为空"
     }
   },
   "chat": {
