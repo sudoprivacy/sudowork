@@ -589,12 +589,20 @@ const createWindow = (): void => {
   const fallbackFile = path.join(__dirname, '../renderer/index.html');
 
   if (!app.isPackaged && rendererUrl) {
-    mainWindow.loadURL(rendererUrl).catch((error) => {
-      console.error('[Sudowork] loadURL failed, falling back to file:', error.message || error);
-      mainWindow.loadFile(fallbackFile).catch((e2) => {
-        console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
+    const tryLoadURL = (attempt: number) => {
+      mainWindow.loadURL(rendererUrl).catch((error) => {
+        if (attempt < 5 && !mainWindow.isDestroyed()) {
+          console.warn(`[Sudowork] loadURL attempt ${attempt + 1} failed, retrying in 1s...`, error.message || error);
+          setTimeout(() => tryLoadURL(attempt + 1), 1000);
+        } else {
+          console.error('[Sudowork] loadURL failed after retries, falling back to file:', error.message || error);
+          mainWindow.loadFile(fallbackFile).catch((e2) => {
+            console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
+          });
+        }
       });
-    });
+    };
+    tryLoadURL(0);
   } else {
     mainWindow.loadFile(fallbackFile).catch((error) => {
       console.error('[Sudowork] loadFile failed:', error.message || error);

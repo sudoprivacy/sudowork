@@ -685,5 +685,22 @@
     "agent": "對話Agent",
     "agentDesc": "用於與Channel進行對話"
   },
-  "extensionAssistantReadonly": "擴展助手為唯讀，你可以複製它並編輯副本。"
+  "extensionAssistantReadonly": "擴展助手為唯讀，你可以複製它並編輯副本。",
+  "secrets": "金鑰管理",
+  "secrets.title": "金鑰管理",
+  "secrets.description": "管理各服務的金鑰憑證，金鑰安全儲存在本地 Nexus 金鑰庫中。",
+  "secrets.step1": "選擇服務並填寫金鑰資訊。",
+  "secrets.step2": "點擊儲存完成配置。",
+  "secrets.jsbTitle": "建設庫",
+  "secrets.appKey": "App Key",
+  "secrets.appKeyDesc": "建設庫開放平台的應用標識",
+  "secrets.appKeyPlaceholder": "請輸入 App Key",
+  "secrets.appKeyRequired": "請輸入 App Key",
+  "secrets.appSecret": "App Secret",
+  "secrets.appSecretDesc": "建設庫開放平台的應用金鑰",
+  "secrets.appSecretPlaceholder": "請輸入 App Secret",
+  "secrets.appSecretRequired": "請輸入 App Secret",
+  "secrets.save": "儲存",
+  "secrets.saveSuccess": "金鑰儲存成功",
+  "secrets.saveFailed": "金鑰儲存失敗"
 }

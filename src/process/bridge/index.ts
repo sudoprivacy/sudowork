@@ -42,6 +42,7 @@ import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
+import { initSecretBridge } from './secretBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -85,6 +86,7 @@ export function initAllBridges(): void {
   initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
+  initSecretBridge();
 }
 
 /**
