@@ -1122,6 +1122,53 @@ const migration_v19: IMigration = {
 };
 
 /**
+ * Migration v19 -> v20: Add SudoClaw tables (sudoclaw_state + sudoclaw_memory_log)
+ *
+ * sudoclaw_state  — singleton row holding the SudoClawManager runtime state.
+ * sudoclaw_memory_log — append-only memory entries indexed by date.
+ */
+const migration_v20: IMigration = {
+  version: 20,
+  name: 'Add sudoclaw_state and sudoclaw_memory_log tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sudoclaw_state (
+        id TEXT PRIMARY KEY DEFAULT 'singleton',
+        conversation_id TEXT,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        is_proactive INTEGER NOT NULL DEFAULT 0,
+        tick_interval_ms INTEGER NOT NULL DEFAULT 60000,
+        sleep_until INTEGER,
+        last_tick_at INTEGER,
+        session_state TEXT NOT NULL DEFAULT 'idle',
+        pending_question TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sudoclaw_memory_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sudoclaw_memory_log_date ON sudoclaw_memory_log(date);
+    `);
+    mainLog('Migration v20', 'Created sudoclaw_state and sudoclaw_memory_log tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_sudoclaw_memory_log_date;
+      DROP TABLE IF EXISTS sudoclaw_memory_log;
+      DROP TABLE IF EXISTS sudoclaw_state;
+    `);
+    mainLog('Migration v20', 'Rolled back: Dropped sudoclaw_state and sudoclaw_memory_log tables');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1129,7 +1176,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19,
+  migration_v19, migration_v20,
 ];
 
 /**
