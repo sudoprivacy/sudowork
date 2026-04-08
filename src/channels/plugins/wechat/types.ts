@@ -40,6 +40,38 @@ export interface TextItem {
   text?: string;
 }
 
+/** Image content within a message item */
+export interface ImageItem {
+  url?: string;
+  image_id?: string;
+  width?: number;
+  height?: number;
+}
+
+/** Voice content within a message item */
+export interface VoiceItem {
+  url?: string;
+  voice_id?: string;
+  duration?: number;
+}
+
+/** File content within a message item */
+export interface FileItem {
+  url?: string;
+  file_id?: string;
+  file_name?: string;
+  file_size?: number;
+}
+
+/** Video content within a message item */
+export interface VideoItem {
+  url?: string;
+  video_id?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+}
+
 /** A single item in a message (text, image, etc.) */
 export interface WeChatMessageItem {
   type?: number;
@@ -48,6 +80,10 @@ export interface WeChatMessageItem {
   is_completed?: boolean;
   msg_id?: string;
   text_item?: TextItem;
+  image_item?: ImageItem;
+  voice_item?: VoiceItem;
+  file_item?: FileItem;
+  video_item?: VideoItem;
 }
 
 /** A full message from getUpdates */
@@ -99,6 +135,15 @@ export interface IWeChatGetConfigResponse {
   errcode?: number;
   errmsg?: string;
   typing_ticket?: string;
+}
+
+/** downloadMedia response */
+export interface IWeChatDownloadMediaResponse {
+  ret?: number;
+  errcode?: number;
+  errmsg?: string;
+  file_url?: string;
+  file_data?: string; // base64-encoded file data
 }
 
 // ==================== QR Login Types (flat response, different from API) ====================

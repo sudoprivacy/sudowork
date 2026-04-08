@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { BaseInfo, IWeChatGetConfigResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
+import type { BaseInfo, IWeChatDownloadMediaResponse, IWeChatGetConfigResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
 import { WECHAT_API_BASE_URL, WECHAT_API_TIMEOUT_MS, WECHAT_CHANNEL_VERSION, WECHAT_LONG_POLL_TIMEOUT_MS } from './types';
 
 /**
@@ -162,5 +162,52 @@ export class WeChatApiClient {
     } catch {
       // Best-effort
     }
+  }
+
+  // ==================== Media Download ====================
+
+  /**
+   * Download media from a URL with authentication headers.
+   * Used for downloading images, voice, files, and videos from WeChat CDN.
+   * Returns the raw Buffer of the downloaded file.
+   */
+  async downloadMedia(mediaUrl: string): Promise<Buffer> {
+    // If it's a relative URL, prepend the base URL
+    const fullUrl = mediaUrl.startsWith('http') ? mediaUrl : `${this.baseUrl}/${mediaUrl.replace(/^\//, '')}`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WECHAT_API_TIMEOUT_MS * 2);
+    try {
+      const headers: Record<string, string> = {
+        AuthorizationType: 'ilink_bot_token',
+      };
+      if (this.token?.trim()) {
+        headers.Authorization = `Bearer ${this.token.trim()}`;
+      }
+
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        throw new Error(`Media download failed: HTTP ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      clearTimeout(timer);
+      throw error;
+    }
+  }
+
+  /**
+   * Download media via the iLink Bot API (for media items that provide file_id instead of URL).
+   */
+  async getMediaUrl(fileId: string): Promise<IWeChatDownloadMediaResponse> {
+    return await this.apiFetch<IWeChatDownloadMediaResponse>('ilink/bot/getmedia', { file_id: fileId }, WECHAT_API_TIMEOUT_MS);
   }
 }

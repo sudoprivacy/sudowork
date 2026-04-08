@@ -149,9 +149,10 @@ export class ChannelMessageService {
    * @param conversationId - Conversation ID for context
    * @param message - User message text
    * @param onStream - Callback for streaming updates
+   * @param files - Optional array of local file paths to attach (e.g., downloaded media)
    * @returns Promise that resolves when streaming is complete
    */
-  async sendMessage(_sessionId: string, conversationId: string, message: string, onStream: StreamCallback): Promise<string> {
+  async sendMessage(_sessionId: string, conversationId: string, message: string, onStream: StreamCallback, files?: string[]): Promise<string> {
     // 确保服务已初始化
     // Ensure service is initialized
     this.initialize();
@@ -233,7 +234,12 @@ export class ChannelMessageService {
       });
 
       // Build payload — both ACP and OpenClaw use { content }.
-      const payload = { content: message, msg_id: msgId };
+      // When files are present (e.g., media downloaded from WeChat), include them
+      // so the agent can process images/documents via @file references.
+      const payload: { content: string; msg_id: string; files?: string[] } = { content: message, msg_id: msgId };
+      if (files && files.length > 0) {
+        payload.files = files;
+      }
 
       task.sendMessage(payload).catch((error: Error) => {
         const errorMessage = `Error: ${error.message || 'Failed to send message'}`;

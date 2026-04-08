@@ -36,6 +36,13 @@ function getChannelWorkspacePath(platform: string): string {
   return dir;
 }
 
+/**
+ * Check if a content type represents a media message.
+ */
+function isMediaContentType(type: string): boolean {
+  return type === 'photo' || type === 'document' || type === 'voice' || type === 'audio' || type === 'video';
+}
+
 // ==================== Platform-specific Helpers ====================
 
 /**
@@ -466,6 +473,12 @@ export class ActionExecutor {
       } else if (content.type === 'text' && content.text) {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
+      } else if (isMediaContentType(content.type) && content.attachments && content.attachments.length > 0) {
+        // Media message (photo, document, voice, video) - extract file paths and send to AI
+        const files = content.attachments.map((a) => a.fileId).filter(Boolean);
+        const caption = content.text || '';
+        const messageText = caption || `[${content.type} message]`;
+        await this.handleChatMessage(context, messageText, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -525,8 +538,12 @@ export class ActionExecutor {
    * 1. "⏳ Thinking..." is sent IMMEDIATELY so the user always sees acknowledgment.
    * 2. If a previous message is still being processed, we wait for it to finish
    *    before starting AI generation — prevents concurrent stream overwrites.
+   *
+   * @param context - Action context with platform/session info
+   * @param text - User message text
+   * @param files - Optional array of local file paths (from media downloads)
    */
-  private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+  private async handleChatMessage(context: IActionContext, text: string, files?: string[]): Promise<void> {
     // Update session activity (scoped by chatId)
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
@@ -606,90 +623,45 @@ export class ActionExecutor {
       };
 
       // 发送消息
-      // Send message
-      await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, isInsert: boolean) => {
-        const now = Date.now();
+      // Send message (with optional file attachments for media messages)
+      await messageService.sendMessage(
+        sessionId,
+        conversationId,
+        text,
+        async (message: TMessage, isInsert: boolean) => {
+          const now = Date.now();
 
-        // 转换消息格式（根据平台）
-        // Convert message format (based on platform)
-        const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
+          // 转换消息格式（根据平台）
+          // Convert message format (based on platform)
+          const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
 
-        // Strip replyMarkup during streaming to prevent premature card finalization.
-        // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
-        // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
-        // Channel conversations use yoloMode (auto-approve), so confirmation buttons are unnecessary.
-        const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
+          // Strip replyMarkup during streaming to prevent premature card finalization.
+          // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
+          // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
+          // Channel conversations use yoloMode (auto-approve), so confirmation buttons are unnecessary.
+          const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
 
-        // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
-        // Save last message content (without replyMarkup, final message adds it separately)
-        lastMessageContent = streamOutgoing;
+          // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
+          // Save last message content (without replyMarkup, final message adds it separately)
+          lastMessageContent = streamOutgoing;
 
-        // IMPORTANT: Always treat first streaming message as update to thinking message
-        // This prevents async race condition where first insert's sendMessage takes time
-        // while subsequent messages arrive and get processed as updates
-        // 重要：始终将第一个流式消息视为更新thinking消息
-        // 这可以防止异步竞态条件：第一个insert的sendMessage耗时时，后续消息已到达并被当作update处理
-        if (isInsert && sentMessageIds.length === 1 && thinkingMsgId && supportsEdit) {
-          // First streaming message: update thinking message instead of inserting
-          // 第一个流式消息：更新thinking消息而不是插入新消息
-          pendingMessage = streamOutgoing;
-
-          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-              pendingUpdateTimer = null;
-            }
-            await doEditMessage(streamOutgoing);
-          } else {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-            }
-            const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
-            pendingUpdateTimer = setTimeout(() => {
-              if (pendingMessage) {
-                void doEditMessage(pendingMessage);
-                pendingMessage = null;
-              }
-              pendingUpdateTimer = null;
-            }, delay);
-          }
-        } else if (isInsert) {
-          // 新消息：发送新消息
-          // New message: send new message
-          if (supportsEdit) {
-            try {
-              const newMsgId = await context.sendMessage(streamOutgoing);
-              sentMessageIds.push(newMsgId);
-            } catch {
-              // Ignore send errors
-            }
-          } else {
-            // For non-edit platforms (WeChat), we accumulate text and send at isInsert or end.
-            // But if it's a NEW block, we might want to send the PREVIOUS one if we accumulated it.
-            // However, WeChat is better served by sending the full interaction result at the end
-            // to avoid multiple messages for one response.
-            // So we just track that we HAVE content.
-            if (sentMessageIds.length === 0) {
-              sentMessageIds.push('wechat_placeholder');
-            }
-          }
-        } else {
-          // 更新消息：使用定时器节流，确保最后一条消息能被发送
-          // Update message: throttle with timer to ensure last message is sent
-          if (supportsEdit) {
+          // IMPORTANT: Always treat first streaming message as update to thinking message
+          // This prevents async race condition where first insert's sendMessage takes time
+          // while subsequent messages arrive and get processed as updates
+          // 重要：始终将第一个流式消息视为更新thinking消息
+          // 这可以防止异步竞态条件：第一个insert的sendMessage耗时时，后续消息已到达并被当作update处理
+          if (isInsert && sentMessageIds.length === 1 && thinkingMsgId && supportsEdit) {
+            // First streaming message: update thinking message instead of inserting
+            // 第一个流式消息：更新thinking消息而不是插入新消息
             pendingMessage = streamOutgoing;
 
             if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-              // 距离上次发送超过节流时间，立即发送
-              // Enough time has passed since last send, send immediately
               if (pendingUpdateTimer) {
                 clearTimeout(pendingUpdateTimer);
                 pendingUpdateTimer = null;
               }
               await doEditMessage(streamOutgoing);
             } else {
-              // 在节流时间内，设置定时器延迟发送
-              // Within throttle window, set timer to send later
               if (pendingUpdateTimer) {
                 clearTimeout(pendingUpdateTimer);
               }
@@ -702,9 +674,60 @@ export class ActionExecutor {
                 pendingUpdateTimer = null;
               }, delay);
             }
+          } else if (isInsert) {
+            // 新消息：发送新消息
+            // New message: send new message
+            if (supportsEdit) {
+              try {
+                const newMsgId = await context.sendMessage(streamOutgoing);
+                sentMessageIds.push(newMsgId);
+              } catch {
+                // Ignore send errors
+              }
+            } else {
+              // For non-edit platforms (WeChat), we accumulate text and send at isInsert or end.
+              // But if it's a NEW block, we might want to send the PREVIOUS one if we accumulated it.
+              // However, WeChat is better served by sending the full interaction result at the end
+              // to avoid multiple messages for one response.
+              // So we just track that we HAVE content.
+              if (sentMessageIds.length === 0) {
+                sentMessageIds.push('wechat_placeholder');
+              }
+            }
+          } else {
+            // 更新消息：使用定时器节流，确保最后一条消息能被发送
+            // Update message: throttle with timer to ensure last message is sent
+            if (supportsEdit) {
+              pendingMessage = streamOutgoing;
+
+              if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+                // 距离上次发送超过节流时间，立即发送
+                // Enough time has passed since last send, send immediately
+                if (pendingUpdateTimer) {
+                  clearTimeout(pendingUpdateTimer);
+                  pendingUpdateTimer = null;
+                }
+                await doEditMessage(streamOutgoing);
+              } else {
+                // 在节流时间内，设置定时器延迟发送
+                // Within throttle window, set timer to send later
+                if (pendingUpdateTimer) {
+                  clearTimeout(pendingUpdateTimer);
+                }
+                const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
+                pendingUpdateTimer = setTimeout(() => {
+                  if (pendingMessage) {
+                    void doEditMessage(pendingMessage);
+                    pendingMessage = null;
+                  }
+                  pendingUpdateTimer = null;
+                }, delay);
+              }
+            }
           }
-        }
-      });
+        },
+        files
+      );
 
       // 清除待处理的定时器，确保最后一条消息被处理
       // Clear pending timer and ensure last message is processed

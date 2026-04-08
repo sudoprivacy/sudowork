@@ -4,13 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
+import { getDataPath } from '@/process/utils';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
+import { saveMediaToWorkspace } from '../../utils/mediaDownloader';
 import { BasePlugin } from '../BasePlugin';
-import { splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
+import { getMediaFileId, getMediaUrl, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
 import { WeChatApiClient } from './WeChatApiClient';
 import { WeChatContextTokenStore } from './WeChatContextTokenStore';
-import type { WeChatMessage } from './types';
-import { WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
+import type { WeChatMessage, WeChatMessageItem } from './types';
+import { MessageItemType, WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
 
 /**
  * WeChatPlugin - Native WeChat channel integration for Sudowork.
@@ -234,6 +238,11 @@ export class WeChatPlugin extends BasePlugin {
 
     if (userId) this.activeUsers.add(userId);
 
+    // Download media items before converting to unified message.
+    // This ensures the attachment fileId is replaced with a local file path
+    // that the ActionExecutor can pass to the agent.
+    await this.downloadMediaItems(msg);
+
     // Convert to unified message
     const unified = toUnifiedIncomingMessage(msg);
     if (!unified) return;
@@ -244,6 +253,131 @@ export class WeChatPlugin extends BasePlugin {
         console.error(`[WeChatPlugin] Message handler failed for ${msg.message_id}:`, error);
       });
     }
+  }
+
+  /**
+   * Download all media items in a message and update item URLs to local file paths.
+   * Downloads images, voice, files, and videos from WeChat CDN to the workspace.
+   */
+  private async downloadMediaItems(msg: WeChatMessage): Promise<void> {
+    if (!this.apiClient || !msg.item_list) return;
+
+    for (const item of msg.item_list) {
+      if (!item.type || item.type === MessageItemType.NONE || item.type === MessageItemType.TEXT) {
+        continue;
+      }
+
+      try {
+        const localPath = await this.downloadMediaItem(item);
+        if (localPath) {
+          // Store the local file path back into the item's URL field
+          // so that the adapter can include it in the attachment's fileId.
+          this.setMediaItemLocalPath(item, localPath);
+        }
+      } catch (error) {
+        console.warn(`[WeChatPlugin] Failed to download media item (type=${item.type}):`, error);
+      }
+    }
+  }
+
+  /**
+   * Download a single media item from WeChat to local workspace.
+   * Returns the absolute local file path, or null if download failed.
+   */
+  private async downloadMediaItem(item: WeChatMessageItem): Promise<string | null> {
+    if (!this.apiClient) return null;
+
+    // First try the direct URL from the item
+    let mediaUrl = getMediaUrl(item);
+
+    // If no direct URL, try resolving via file ID
+    if (!mediaUrl) {
+      const fileId = getMediaFileId(item);
+      if (fileId) {
+        try {
+          const response = await this.apiClient.getMediaUrl(fileId);
+          if (response.file_url) {
+            mediaUrl = response.file_url;
+          } else if (response.file_data) {
+            // API returned base64 data directly
+            const buffer = Buffer.from(response.file_data, 'base64');
+            const attachment = this.buildTempAttachment(item);
+            return saveMediaToWorkspace(buffer, this.getWorkspacePath(), 'wechat', attachment);
+          }
+        } catch (error) {
+          console.warn(`[WeChatPlugin] Failed to resolve media URL for fileId=${fileId}:`, error);
+          return null;
+        }
+      }
+    }
+
+    if (!mediaUrl) {
+      console.warn(`[WeChatPlugin] No media URL available for item type=${item.type}`);
+      return null;
+    }
+
+    // Download the media file
+    const buffer = await this.apiClient.downloadMedia(mediaUrl);
+    const attachment = this.buildTempAttachment(item);
+    return saveMediaToWorkspace(buffer, this.getWorkspacePath(), 'wechat', attachment);
+  }
+
+  /**
+   * Build a temporary attachment object for media file saving (before full conversion).
+   */
+  private buildTempAttachment(item: WeChatMessageItem) {
+    switch (item.type) {
+      case MessageItemType.IMAGE:
+        return { type: 'photo' as const, fileId: '', mimeType: 'image/jpeg' };
+      case MessageItemType.VOICE:
+        return { type: 'voice' as const, fileId: '', mimeType: 'audio/amr' };
+      case MessageItemType.FILE:
+        return {
+          type: 'document' as const,
+          fileId: '',
+          fileName: item.file_item?.file_name,
+          size: item.file_item?.file_size,
+        };
+      case MessageItemType.VIDEO:
+        return { type: 'video' as const, fileId: '', mimeType: 'video/mp4' };
+      default:
+        return { type: 'document' as const, fileId: '' };
+    }
+  }
+
+  /**
+   * Update the media item's URL field with the local file path.
+   * This ensures the adapter reads the local path as the fileId.
+   */
+  private setMediaItemLocalPath(item: WeChatMessageItem, localPath: string): void {
+    switch (item.type) {
+      case MessageItemType.IMAGE:
+        if (!item.image_item) item.image_item = {};
+        item.image_item.url = localPath;
+        break;
+      case MessageItemType.VOICE:
+        if (!item.voice_item) item.voice_item = {};
+        item.voice_item.url = localPath;
+        break;
+      case MessageItemType.FILE:
+        if (!item.file_item) item.file_item = {};
+        item.file_item.url = localPath;
+        break;
+      case MessageItemType.VIDEO:
+        if (!item.video_item) item.video_item = {};
+        item.video_item.url = localPath;
+        break;
+    }
+  }
+
+  /**
+   * Get the workspace root path for media downloads.
+   */
+  private getWorkspacePath(): string {
+    // Use the data path's channel-media directory (consistent with ActionExecutor)
+    const dir = path.join(getDataPath(), 'channel-media');
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
   }
 
   private async handlePollError(_error: unknown): Promise<void> {
