@@ -558,6 +558,42 @@ export const sudoclaw = {
   getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
   /** Emitted during WeChat plugin install — delivers QR code data and progress */
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
+
+  // ==================== SudoClaw AskUser ====================
+
+  /** Emitted when the model calls AskUserTool and needs user input */
+  askUserRequest: bridge.buildEmitter<{
+    requestId: string;
+    conversationId: string;
+    question: string;
+    urgency: 'info' | 'action_needed' | 'critical';
+    suggestedActions?: Array<{ label: string; value: string; style?: string }>;
+    context?: { toolName?: string; summary?: string; details?: string };
+    createdAt: number;
+    timeoutMs?: number;
+  }>('sudoclaw.ask-user-request'),
+
+  /** Emitted when a user response is received (for renderer to update UI) */
+  askUserResponse: bridge.buildEmitter<{
+    requestId: string;
+    conversationId: string;
+    responseType: string;
+    message?: string;
+    platform: string;
+  }>('sudoclaw.ask-user-response'),
+
+  /** Send a response from the WebUI renderer to the main process */
+  respondToAskUser: bridge.buildProvider<
+    IBridgeResponse<void>,
+    {
+      requestId: string;
+      conversationId: string;
+      responseType: string;
+      message?: string;
+      userId: string;
+      displayName?: string;
+    }
+  >('sudoclaw.respond-to-ask-user'),
 };
 
 // Initialization status for runtime dependencies

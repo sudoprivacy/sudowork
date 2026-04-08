@@ -305,6 +305,33 @@ export function initSudoclawBridge(): void {
     });
   });
 
+  // ==================== SudoClaw AskUser Response ====================
+
+  ipcBridge.sudoclaw.respondToAskUser.provider(async ({ requestId, conversationId, responseType, message, userId, displayName }) => {
+    try {
+      const { getSudoClawBridge } = await import('@/channels/agent/SudoClawBridge');
+      const bridge = getSudoClawBridge();
+      const success = bridge.routeWebUIResponse(requestId, conversationId, responseType as any, userId, displayName, message);
+
+      if (success) {
+        // Notify all renderer instances that a response was recorded
+        ipcBridge.sudoclaw.askUserResponse.emit({
+          requestId,
+          conversationId,
+          responseType,
+          message,
+          platform: 'webui',
+        });
+        return { success: true };
+      } else {
+        return { success: false, msg: 'Request not found or already expired' };
+      }
+    } catch (err) {
+      mainError('SudoclawBridge', 'respondToAskUser failed', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
   // ==================== WeChat Plugin ====================
 
   const SUDOCLAW_WECHAT_PLUGIN_DIR = path.join(SUDOCLAW_DIR, 'extensions', 'openclaw-weixin');

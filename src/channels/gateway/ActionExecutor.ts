@@ -12,6 +12,7 @@ import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
+import { sudoClawActions } from '../actions/SudoClawActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
@@ -21,11 +22,11 @@ import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
 import type { IChannelUser } from '../types';
 import { resolveChannelConvType } from '../types';
-import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
+import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard, createAskUserCard as createLarkAskUserCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
-import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard } from '../plugins/dingtalk/DingTalkCards';
+import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard, createAskUserCard as createDingTalkAskUserCard } from '../plugins/dingtalk/DingTalkCards';
 import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
-import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
+import { createMainMenuKeyboard, createToolConfirmationKeyboard, createAskUserKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
@@ -74,6 +75,26 @@ function getToolConfirmationMarkup(platform: PluginType, callId: string, options
     return createDingTalkToolConfirmationCard(callId, title || 'Confirmation', description || 'Please confirm', options);
   }
   return createToolConfirmationKeyboard(callId, options);
+}
+
+/**
+ * Get AskUser response markup based on platform.
+ * Used when the model calls AskUserTool and needs user input.
+ */
+function getAskUserMarkup(
+  platform: PluginType,
+  requestId: string,
+  question: string,
+  options?: Array<{ label: string; value: string; style?: 'primary' | 'default' | 'danger' }>,
+  context?: { toolName?: string; summary?: string }
+) {
+  if (platform === 'lark') {
+    return createLarkAskUserCard(requestId, question, options, context);
+  }
+  if (platform === 'dingtalk') {
+    return createDingTalkAskUserCard(requestId, question, options, context);
+  }
+  return createAskUserKeyboard(requestId, options);
 }
 
 /**
@@ -802,6 +823,11 @@ export class ActionExecutor {
 
     // Register platform actions
     for (const action of platformActions) {
+      this.actionRegistry.set(action.name, action);
+    }
+
+    // Register SudoClaw actions
+    for (const action of sudoClawActions) {
       this.actionRegistry.set(action.name, action);
     }
   }

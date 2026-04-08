@@ -137,6 +137,63 @@ export function createToolConfirmationKeyboard(callId: string, options: Array<{ 
   return keyboard;
 }
 
+// ==================== SudoClaw AskUser Keyboards ====================
+
+/**
+ * Create an AskUser response keyboard for SudoClaw.
+ * Shown when the model calls AskUserTool with urgency: 'action_needed'.
+ *
+ * Callback data format: sudoclaw:{requestId}:{action}
+ *
+ * @param requestId - Unique request ID for correlation
+ * @param options - Optional custom response options
+ */
+export function createAskUserKeyboard(
+  requestId: string,
+  options?: Array<{ label: string; value: string }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (options && options.length > 0) {
+    // Custom options provided by the model
+    for (let i = 0; i < options.length; i += 2) {
+      if (i > 0) keyboard.row();
+      keyboard.text(options[i].label, `sudoclaw:${requestId}:${options[i].value}`);
+      if (i + 1 < options.length) {
+        keyboard.text(options[i + 1].label, `sudoclaw:${requestId}:${options[i + 1].value}`);
+      }
+    }
+  } else {
+    // Default Approve / Deny / Reply buttons
+    keyboard
+      .text('✅ Approve', `sudoclaw:${requestId}:approve`)
+      .text('❌ Deny', `sudoclaw:${requestId}:deny`)
+      .row()
+      .text('💬 Reply', `sudoclaw:${requestId}:reply`);
+  }
+
+  return keyboard;
+}
+
+/**
+ * Parse SudoClaw callback data from a Telegram inline button press.
+ *
+ * @param callbackData - Raw callback_query.data string
+ * @returns Parsed data or null if not a SudoClaw callback
+ */
+export function parseSudoClawCallback(callbackData: string): {
+  requestId: string;
+  action: string;
+} | null {
+  if (!callbackData.startsWith('sudoclaw:')) return null;
+  const parts = callbackData.split(':');
+  if (parts.length < 3) return null;
+  return {
+    requestId: parts[1],
+    action: parts.slice(2).join(':'),
+  };
+}
+
 // ==================== Keyboard Utilities ====================
 
 /**
