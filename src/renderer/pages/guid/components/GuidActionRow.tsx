@@ -42,13 +42,16 @@ type GuidActionRowProps = {
   localeKey: string;
   onClosePresetTag: () => void;
 
+  // Skill selector trigger
+  onTriggerSkillSelector?: () => void;
+
   // Send button
   loading: boolean;
   isButtonDisabled: boolean;
   onSend: () => void;
 };
 
-const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, onSelectWorkspace, modelSelectorNode, selectedAgent, effectiveModeAgent, selectedMode, onModeSelect, isPresetAgent, selectedAgentInfo, customAgents, localeKey, onClosePresetTag, loading, isButtonDisabled, onSend }) => {
+const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, onSelectWorkspace, modelSelectorNode, selectedAgent, effectiveModeAgent, selectedMode, onModeSelect, isPresetAgent, selectedAgentInfo, customAgents, localeKey, onClosePresetTag, onTriggerSkillSelector, loading, isButtonDisabled, onSend }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
@@ -130,6 +133,17 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               )}
             </span>
           </Dropdown>
+
+          {onTriggerSkillSelector && (
+            <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
+              <Button
+                type='text'
+                shape='circle'
+                icon={<span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>@</span>}
+                onClick={onTriggerSkillSelector}
+              />
+            </Tooltip>
+          )}
 
           {modelSelectorNode}
 

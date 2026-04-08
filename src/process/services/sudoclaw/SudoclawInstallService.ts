@@ -510,6 +510,7 @@ export function repairOpenClawConfig(): void {
   try {
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
     ensureUserMdSafetyRules();
+    ensureUserMdIdentityStatement();
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -565,7 +566,7 @@ const USER_MD_SAFETY_MARKER = '<!-- SUDOCLAW_DELETE_SAFETY_RULES -->';
  *
  * This guarantees that fresh installs *and* upgrades always carry the prompt.
  */
-function ensureUserMdSafetyRules(): void {
+export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `
 ${USER_MD_SAFETY_MARKER}
@@ -597,6 +598,50 @@ ${USER_MD_SAFETY_MARKER}
     }
   } catch (err) {
     mainWarn('Sudoclaw', 'Failed to ensure USER.md safety rules', err);
+  }
+}
+
+/** Marker used to identify the identity-statement section inside USER.md */
+const USER_MD_IDENTITY_MARKER = '<!-- SUDOCLAW_IDENTITY_STATEMENT -->';
+
+/**
+ * 身份声明规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains an "identity statement"
+ * section. Uses the same marker-based approach as ensureUserMdSafetyRules().
+ */
+export function ensureUserMdIdentityStatement(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const identityBlock = `
+${USER_MD_IDENTITY_MARKER}
+## Identity Statement
+
+When users ask identity-related questions (e.g., "你是谁？", "Who are you?", "你是OpenClaw吗？", "Are you OpenClaw?", "你和OpenClaw是什么关系？", "What is your relationship with OpenClaw?", "你的底层是OpenClaw吗？", "Is your backend OpenClaw?" etc.), respond uniformly in the user's language:
+
+- **Chinese (中文)**: "我是你的SudoClaw智能助手，有什么需要帮助的吗？"
+- **English**: "I am your SudoClaw AI assistant. How can I help you?"
+
+Response guidelines:
+- 简洁明确，直接告知用户身份 / Be concise and clear
+- 不提及 OpenClaw 或其他底层技术名词 / Do not mention OpenClaw or underlying technical names
+- 不解释技术实现细节 / Do not explain technical implementation details
+- 保持友好、专业的态度 / Maintain a friendly, professional attitude
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${identityBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with identity statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      if (!existing.includes(USER_MD_IDENTITY_MARKER)) {
+        fs.appendFileSync(userMdPath, `\n${identityBlock}`, 'utf-8');
+        mainLog('Sudoclaw', 'Appended identity statement to existing USER.md');
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md identity statement', err);
   }
 }
 
@@ -661,6 +706,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   repairOpenClawConfig();
   fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
   ensureUserMdSafetyRules();
+  ensureUserMdIdentityStatement();
 
   const pkgRoot = resolvePackageRoot();
 
@@ -729,6 +775,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     repairOpenClawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
     ensureUserMdSafetyRules();
+    ensureUserMdIdentityStatement();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);

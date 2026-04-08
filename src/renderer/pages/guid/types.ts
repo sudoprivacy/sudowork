@@ -48,6 +48,30 @@ export type EffectiveAgentInfo = {
 };
 
 /**
+ * A single prompt template entry.
+ */
+export type PromptTemplate = {
+  /** i18n key for the display label */
+  labelKey: string;
+  /** i18n key for the prompt content to fill into the input */
+  contentKey: string;
+};
+
+/**
+ * A category of prompt templates.
+ */
+export type PromptCategory = {
+  /** Unique key for the category */
+  key: string;
+  /** i18n key for the category name */
+  labelKey: string;
+  /** Emoji icon */
+  icon: string;
+  /** List of prompts in this category */
+  prompts: PromptTemplate[];
+};
+
+/**
  * Re-export commonly used ACP types for convenience.
  */
 export type { AcpBackend, AcpBackendConfig, AcpModelInfo, PresetAgentType };

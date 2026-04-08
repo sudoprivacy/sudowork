@@ -17,3 +17,6 @@ export { DingTalkPlugin } from './dingtalk/DingTalkPlugin';
 
 // WeChat plugin
 export { WeChatPlugin } from './wechat/WeChatPlugin';
+
+// WeCom (WeChat Work) plugin
+export { WeComPlugin } from './wecom/WeComPlugin';

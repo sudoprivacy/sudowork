@@ -5,7 +5,9 @@
  */
 
 import { app } from 'electron';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
+import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
@@ -316,7 +318,7 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -348,6 +350,17 @@ class ServiceManager {
       initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
       mainLog('ServiceManager', 'Sudoclaw gateway started successfully');
       this.gatewayReadyResolve?.({ host: 'localhost', port: SUDOCLAW_DEFAULT_PORT });
+
+      // Ensure USER.md safety rules after Sudoclaw starts.
+      // Sudoclaw may create a default USER.md template on first run, which could
+      // overwrite rules written before startup. Run again after gateway is healthy.
+      try {
+        fs.mkdirSync(path.join(SUDOCLAW_DIR, 'workspace'), { recursive: true });
+        ensureUserMdSafetyRules();
+        ensureUserMdIdentityStatement();
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
+      }
 
       // Sync image model from sudowork config to sudoclaw.json on every startup.
       // Covers first-time (no prior user interaction) and ensures sudoclaw.json stays in sync.

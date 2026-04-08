@@ -13,6 +13,7 @@
     "specifyWorkspace": "Chat in Folder",
     "currentWorkspace": "Current Workspace",
     "clearWorkspace": "Remove folder",
+    "addSkill": "Add Skill",
     "openFolder": "Open Folder",
     "none": "None",
     "quickActionsTitle": "What can Sudowork do?",
