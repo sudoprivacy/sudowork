@@ -49,11 +49,34 @@ class DynamicNexusService {
   private _setupCallbacks: NexusSetupCallback[] = [];
   private readonly isWindows = process.platform === 'win32';
 
+  // Platform-to-release-binary mapping (matches GitHub release asset names)
+  private static readonly PLATFORM_MAP: Record<string, string> = {
+    'darwin-arm64': 'nexus-cluster-macos-arm64',
+    'darwin-x64': 'nexus-cluster-macos-x86_64',
+    'win32-x64': 'nexus-cluster-windows-x86_64.exe',
+  };
+
   /**
    * Get the nexusd executable name for the current platform.
    */
   private getNexusdName(): string {
     return this.isWindows ? 'nexusd.exe' : 'nexusd';
+  }
+
+  /**
+   * Get the expected versioned resource name for the current platform.
+   * e.g., 'v0.9.27-nexus-cluster-macos-arm64'
+   * Returns null for unsupported platforms or missing version.
+   */
+  getExpectedResourceName(): string | null {
+    const version = runtimeVersions.nexus;
+    if (!version || typeof version !== 'string' || !version.trim()) return null;
+
+    const platformKey = `${process.platform}-${process.arch}`;
+    const releaseName = DynamicNexusService.PLATFORM_MAP[platformKey];
+    if (!releaseName) return null;
+
+    return `v${version}-${releaseName}`;
   }
 
   /**
@@ -229,29 +252,35 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the bundled Nexus resource path (the binary file in resources).
+   * Get the bundled Nexus resource path (the versioned binary file in resources).
+   * Looks for versioned filename (e.g., v0.9.27-nexus-cluster-macos-arm64).
+   * Falls back to legacy unversioned name (nexusd/nexusd.exe) for backward compatibility.
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
-    const binaryName = this.getNexusdName();
+    const resourceName = this.getExpectedResourceName();
+    // Try versioned name first, then legacy unversioned name
+    const candidates = resourceName ? [resourceName, this.getNexusdName()] : [this.getNexusdName()];
 
-    // Packaged app: check resourcesPath
-    if (app.isPackaged) {
-      const packagedPath = path.join(process.resourcesPath, binaryName);
-      if (fs.existsSync(packagedPath)) {
-        const stats = fs.statSync(packagedPath);
-        if (stats.size >= 1024 * 1024) {
-          return packagedPath;
+    for (const binaryName of candidates) {
+      // Packaged app: check resourcesPath
+      if (app.isPackaged) {
+        const packagedPath = path.join(process.resourcesPath, binaryName);
+        if (fs.existsSync(packagedPath)) {
+          const stats = fs.statSync(packagedPath);
+          if (stats.size >= 1024 * 1024) {
+            return packagedPath;
+          }
         }
       }
-    }
 
-    // Development mode: check resources directory
-    const devPath = path.join(app.getAppPath(), 'resources', binaryName);
-    if (fs.existsSync(devPath)) {
-      const stats = fs.statSync(devPath);
-      if (stats.size >= 1024 * 1024) {
-        return devPath;
+      // Development mode: check resources directory
+      const devPath = path.join(app.getAppPath(), 'resources', binaryName);
+      if (fs.existsSync(devPath)) {
+        const stats = fs.statSync(devPath);
+        if (stats.size >= 1024 * 1024) {
+          return devPath;
+        }
       }
     }
 

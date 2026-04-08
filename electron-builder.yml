@@ -138,9 +138,12 @@ extraResources:
     to: openclaw.tgz
   - from: resources/openclaw.manifest.json
     to: openclaw.manifest.json
-  # Nexus binary - optional, may not be available for all platforms
-  - from: resources/nexusd
-    to: nexusd
+  # Nexus binary - versioned (e.g., v0.9.27-nexus-cluster-macos-arm64), optional
+  - from: resources/
+    to: .
+    filter:
+      - "v*-nexus-cluster-*"
+      - "!*.exe"
 
 win:
   legalTrademarks: Copyright © 2024 北京数牍科技有限公司
@@ -157,9 +160,11 @@ win:
     # bdpan installer for Windows (bundled at build time)
     - from: resources/bdpan-installer-windows-${arch}.exe
       to: bdpan-installer-windows-${arch}.exe
-    # Nexus binary for Windows
-    - from: resources/nexusd.exe
-      to: nexusd.exe
+    # Nexus binary for Windows (versioned)
+    - from: resources/
+      to: .
+      filter:
+        - "v*-nexus-cluster-*.exe"
 
 nsis:
   oneClick: false
