@@ -9,7 +9,7 @@ import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspaceHistory';
 
-import type { GroupedHistoryResult, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
+import type { GroupedHistoryResult, ScheduledGroup, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
 
 export const getConversationTimelineLabel = (conversation: TChatConversation, t: (key: string) => string): string => {
@@ -59,9 +59,13 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: TChatCon
       workspaceGroupsByTimeline.set(timeline, []);
     }
 
+    // Prefer stored workspaceDisplayName from conversations, fallback to path-derived name
+    const storedDisplayName = sortedConvs.find((c) => (c.extra as { workspaceDisplayName?: string })?.workspaceDisplayName)?.extra as { workspaceDisplayName?: string } | undefined;
+    const displayName = storedDisplayName?.workspaceDisplayName || getWorkspaceDisplayName(workspace);
+
     workspaceGroupsByTimeline.get(timeline)!.push({
       workspace,
-      displayName: getWorkspaceDisplayName(workspace),
+      displayName,
       conversations: sortedConvs,
     });
   });
@@ -117,8 +121,34 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: TChatCon
   return sections;
 };
 
+const buildScheduledGroups = (cronConvs: TChatConversation[]): ScheduledGroup[] => {
+  const groupMap = new Map<string, TChatConversation[]>();
+
+  cronConvs.forEach((conv) => {
+    const jobName = (conv.extra as any)?.cronJobName as string || 'Scheduled';
+    if (!groupMap.has(jobName)) {
+      groupMap.set(jobName, []);
+    }
+    groupMap.get(jobName)!.push(conv);
+  });
+
+  const groups: ScheduledGroup[] = [];
+  groupMap.forEach((convs, jobName) => {
+    const sorted = [...convs].sort((a, b) => getActivityTime(b) - getActivityTime(a));
+    groups.push({ jobName, conversations: sorted });
+  });
+
+  // Sort groups by most recent conversation within each group
+  groups.sort((a, b) => getActivityTime(b.conversations[0]) - getActivityTime(a.conversations[0]));
+  return groups;
+};
+
 export const buildGroupedHistory = (conversations: TChatConversation[], t: (key: string) => string): GroupedHistoryResult => {
-  const pinnedConversations = conversations
+  // Separate cron-execution conversations — they go to the Scheduled section, not Recents
+  const cronConvs = conversations.filter((conv) => !!(conv.extra as any)?.cronJobId);
+  const regularConvs = conversations.filter((conv) => !(conv.extra as any)?.cronJobId);
+
+  const pinnedConversations = regularConvs
     .filter((conversation) => isConversationPinned(conversation))
     .sort((a, b) => {
       const orderA = getConversationSortOrder(a);
@@ -129,10 +159,11 @@ export const buildGroupedHistory = (conversations: TChatConversation[], t: (key:
       return getConversationPinnedAt(b) - getConversationPinnedAt(a);
     });
 
-  const normalConversations = conversations.filter((conversation) => !isConversationPinned(conversation));
+  const normalConversations = regularConvs.filter((conversation) => !isConversationPinned(conversation));
 
   return {
     pinnedConversations,
     timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations, t),
+    scheduledGroups: buildScheduledGroups(cronConvs),
   };
 };

@@ -373,6 +373,39 @@ $\r$\n\
 !macroend
 
 ; ========================================
+; Custom Finish Page: Fix "Run Sudowork" checkbox color on dark background
+; ========================================
+; The MUI2 finish page uses MUI_BGCOLOR ("161C2D") as background and
+; MUI_TEXTCOLOR ("FFFFFF") for labels, but the "Run" checkbox inherits the
+; default system text colour (black / dark), making it nearly invisible.
+; We define a customFinishPage macro so electron-builder uses our version
+; instead of the default one, allowing us to attach a SHOW callback that
+; forces the checkbox text to white.
+!macro customFinishPage
+  !ifndef HIDE_RUN_AFTER_FINISH
+    Function StartApp
+      ${if} ${isUpdated}
+        StrCpy $1 "--updated"
+      ${else}
+        StrCpy $1 ""
+      ${endif}
+      ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
+    FunctionEnd
+
+    !define MUI_FINISHPAGE_RUN
+    !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
+  !endif
+
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW finishPageShow
+  !insertmacro MUI_PAGE_FINISH
+
+  Function finishPageShow
+    ; Make the "Run" checkbox readable on the dark finish page background
+    SetCtlColors $mui.FinishPage.Run "FFFFFF" "161C2D"
+  FunctionEnd
+!macroend
+
+; ========================================
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall

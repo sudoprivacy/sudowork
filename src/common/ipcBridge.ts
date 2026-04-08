@@ -698,6 +698,10 @@ export const cron = {
   addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>('cron.add-job'),
   updateJob: bridge.buildProvider<ICronJob, { jobId: string; updates: Partial<ICronJob> }>('cron.update-job'),
   removeJob: bridge.buildProvider<void, { jobId: string }>('cron.remove-job'),
+  triggerJob: bridge.buildProvider<void, { jobId: string }>('cron.trigger-job'),
+  // Power management
+  getPowerSaveActive: bridge.buildProvider<boolean, void>('cron.get-power-save-active'),
+  setPowerSave: bridge.buildProvider<void, { enabled: boolean }>('cron.set-power-save'),
   // Events
   onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
@@ -721,6 +725,13 @@ export interface ICronJob {
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
+    /** Execution mode: 'new' creates a fresh conversation each run (default), 'reuse' appends to the bound conversation */
+    conversationMode?: 'new' | 'reuse';
+    /** Working directory to use for execution */
+    workspace?: string;
+    /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time.
+     *  In Partial<ICronJob> updates, pass `null` to explicitly clear (since JSON IPC strips `undefined`). */
+    presetAssistantId?: string | null;
   };
   state: {
     nextRunAtMs?: number;
@@ -730,6 +741,8 @@ export interface ICronJob {
     runCount: number;
     retryCount: number;
     maxRetries: number;
+    /** ID of the most recently created execution conversation (only used when conversationMode === 'new') */
+    lastConversationId?: string;
   };
 }
 
@@ -741,6 +754,9 @@ export interface ICreateCronJobParams {
   conversationTitle?: string;
   agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
+  conversationMode?: 'new' | 'reuse';
+  workspace?: string;
+  presetAssistantId?: string | null;
 }
 
 interface ISendMessageParams {
@@ -805,6 +821,10 @@ export interface ICreateConversationParams {
     };
     /** Explicit marker for temporary health-check conversations */
     isHealthCheck?: boolean;
+    /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+    cronJobId?: string;
+    /** Cron job name that created this conversation */
+    cronJobName?: string;
   };
 }
 interface IResetConversationParams {
@@ -1162,6 +1182,22 @@ export const healthMonitor = {
   enable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.enable'),
   /** Disable health monitor */
   disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
+};
+
+// ==================== Workspace Management API ====================
+// 工作空间管理 API（重命名、草稿箱操作）
+
+export const workspaceManage = {
+  /** Rename workspace directory (physical rename + DB update) / 重命名工作空间目录 */
+  renameDirectory: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { oldPath: string; newName: string }>('workspace-manage.rename-directory'),
+  /** List drafts files / 列出草稿箱文件 */
+  listDrafts: bridge.buildProvider<IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>, { workspace: string }>('workspace-manage.list-drafts'),
+  /** Clear all drafts / 清空草稿箱 */
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
+  /** Delete a specific draft file / 删除指定草稿文件 */
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
+  /** Update workspace display name (no physical rename) / 更新工作空间显示名（不改物理路径） */
+  updateDisplayName: bridge.buildProvider<IBridgeResponse, { workspace: string; displayName: string }>('workspace-manage.update-display-name'),
 };
 
 // ==================== User Phone Storage API ====================

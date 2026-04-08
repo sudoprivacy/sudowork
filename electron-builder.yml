@@ -127,6 +127,10 @@ extraResources:
   # Safety hook for Sudoclaw gateway interception
   - from: hook/node/dist/hook.js
     to: hook.js
+  - from: hook/python/dist/hook-0.0.1-py3-none-any.whl
+    to: hook-0.0.1-py3-none-any.whl
+  - from: hook/python/pythonpath/sitecustomize.py
+    to: pythonpath/sitecustomize.py
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz
