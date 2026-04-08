@@ -5,8 +5,9 @@
  */
 
 import { DRAFTS_DIR_NAME } from '@/common/constants';
-import { getSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
+import type { PresetAgentType } from '@/types/acpTypes';
 
 /**
  * 首次消息处理配置
@@ -19,6 +20,8 @@ export interface FirstMessageConfig {
   enabledSkills?: string[];
   /** 工作空间路径 / Workspace path (used for drafts instruction) */
   workspace?: string;
+  /** 预设 Agent 类型 / Preset agent type - used to control skill injection behavior */
+  presetAgentType?: PresetAgentType | string;
 }
 
 /**
@@ -133,40 +136,45 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
     instructions.push(buildDraftsInstruction(config.workspace));
   }
 
-  // 2. 加载 skills 索引（包括内置 skills + 可选 skills）
-  // Load skills INDEX (including builtin skills + optional skills)
-  // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
-  const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
-  // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
-  await skillManager.discoverSkills(config.enabledSkills);
+  // 2. 当 presetAgentType === 'claude' 时，不使用首次会话注入 skill
+  // When presetAgentType is 'claude', skip first-session skill injection
+  if (config.presetAgentType !== 'claude') {
+    // 加载 skills 索引（包括内置 skills + 可选 skills）
+    // Load skills INDEX (including builtin skills + optional skills)
+    // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
+    const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
+    // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
+    await skillManager.discoverSkills(config.enabledSkills);
 
-  // 只有当有任何 skills 时才注入 / Only inject if there are any skills
-  if (skillManager.hasAnySkills()) {
-    const skillsIndex = skillManager.getSkillsIndex();
-    if (skillsIndex.length > 0) {
-      // getSkillsDir() already returns CLI-safe path (symlink on macOS)
-      // getSkillsDir() 已返回 CLI 安全路径（macOS 上使用符号链接）
-      const skillsDir = getSkillsDir();
-      const builtinSkillsDir = skillsDir + '/_builtin';
-      const indexText = buildSkillsIndexText(skillsIndex);
+    // 只有当有任何 skills 时才注入 / Only inject if there are any skills
+    if (skillManager.hasAnySkills()) {
+      const skillsIndex = skillManager.getSkillsIndex();
+      if (skillsIndex.length > 0) {
+        // 使用分目录结构的路径 / Use categorized subdirectory paths
+        const systemSkillsDir = getBuiltinSkillsDir();
+        const hubSkillsDir = getHubSkillsDir();
+        const customSkillsDir = getCustomSkillsDir();
+        const indexText = buildSkillsIndexText(skillsIndex);
 
-      // 告诉 Agent skills 文件的位置，让它按需读取
-      // Tell Agent where skills files are located for on-demand reading
-      const skillsInstruction = `${indexText}
+        // 告诉 Agent skills 文件的位置，让它按需读取
+        // Tell Agent where skills files are located for on-demand reading
+        const skillsInstruction = `${indexText}
 
 [Skills Location]
-Skills are stored in two locations:
-- Builtin skills (auto-enabled): ${builtinSkillsDir}/{skill-name}/SKILL.md
-- Optional skills: ${skillsDir}/{skill-name}/SKILL.md
+Skills are stored in three locations (by priority):
+- Custom skills: ${customSkillsDir}/{skill-name}/SKILL.md
+- Hub skills: ${hubSkillsDir}/{skill-name}/SKILL.md
+- System skills (auto-enabled): ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
 To use a skill, read its SKILL.md file when needed.
 
 For example:
-- Builtin "cron" skill: ${builtinSkillsDir}/cron/SKILL.md
-- Optional "pptx" skill: ${skillsDir}/pptx/SKILL.md`;
+- System "cron" skill: ${systemSkillsDir}/cron/SKILL.md
+- Hub "pptx" skill: ${hubSkillsDir}/pptx/SKILL.md`;
 
-      instructions.push(skillsInstruction);
+        instructions.push(skillsInstruction);
+      }
     }
   }
 

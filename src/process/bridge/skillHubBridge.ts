@@ -13,7 +13,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import { clearSkillsCache, getSkillsDir } from '@/process/initStorage';
+import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
 import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
@@ -167,39 +167,66 @@ async function removeExistingInstalledSkillDirs(params: { userSkillsDir: string;
   }
 }
 
+/** @deprecated Use resolveInstalledSkillDirAllSubdirs instead */
 async function resolveInstalledSkillDir(userSkillsDir: string, skillName: string): Promise<string | null> {
-  const directDir = path.join(userSkillsDir, skillName);
-  try {
-    await fs.access(directDir);
-    return directDir;
-  } catch {
-    // Fall through to metadata lookup.
-  }
-
-  const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === '_builtin') continue;
-
-    const skillDir = path.join(userSkillsDir, entry.name);
-    try {
-      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-      const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
-      if (meta.name === skillName || meta.display_name === skillName) {
-        return skillDir;
-      }
-    } catch {
-      // Ignore non-hub skills or malformed metadata.
-    }
-  }
-
-  return null;
+  return resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
 }
 
 /**
- * Get user skills directory path (same as AcpSkillManager)
+ * Get user skills root directory path (same as AcpSkillManager)
  */
 function getUserSkillsDir(): string {
   return getSkillsDir();
+}
+
+/**
+ * Resolve the installed skill directory by searching all subdirectories.
+ * Priority: custom > hub > system > legacy flat
+ */
+async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillName: string): Promise<string | null> {
+  const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+
+  for (const subdir of subdirs) {
+    const candidateDir = path.join(userSkillsDir, subdir, skillName);
+    try {
+      await fs.access(candidateDir);
+      return candidateDir;
+    } catch {
+      // Not found in this subdir, continue
+    }
+  }
+
+  // Fallback: search by metadata in all subdirectories
+  for (const subdir of subdirs) {
+    const parentDir = path.join(userSkillsDir, subdir);
+    try {
+      const entries = await fs.readdir(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const skillDir = path.join(parentDir, entry.name);
+        try {
+          const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
+          const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+          if (meta.name === skillName || meta.display_name === skillName) {
+            return skillDir;
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    } catch {
+      // Subdir doesn't exist
+    }
+  }
+
+  // Legacy: check flat directory
+  const legacyDir = path.join(userSkillsDir, skillName);
+  try {
+    await fs.access(legacyDir);
+    return legacyDir;
+  } catch {
+    return null;
+  }
 }
 
 async function reloadSkillRuntime(): Promise<void> {
@@ -456,14 +483,14 @@ export function initSkillHubBridge(): void {
         }
       }
 
-      // Get user skills directory
-      const userSkillsDir = getUserSkillsDir();
-      await fs.mkdir(userSkillsDir, { recursive: true });
+      // Get hub skills subdirectory
+      const hubSkillsDir = getHubSkillsDir();
+      await fs.mkdir(hubSkillsDir, { recursive: true });
 
-      const skillDir = path.join(userSkillsDir, skillName);
+      const skillDir = path.join(hubSkillsDir, skillName);
 
       await removeExistingInstalledSkillDirs({
-        userSkillsDir,
+        userSkillsDir: hubSkillsDir,
         requestedSkillName: skillName,
         finalSkillDirName: skillName,
       });
@@ -564,8 +591,8 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.importSkillZip.provider(async ({ zipPath }) => {
     try {
       const zipBuffer = await fs.readFile(zipPath);
-      const userSkillsDir = getUserSkillsDir();
-      await fs.mkdir(userSkillsDir, { recursive: true });
+      const customSkillsDir = getCustomSkillsDir();
+      await fs.mkdir(customSkillsDir, { recursive: true });
 
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-skill-import-'));
       try {
@@ -592,22 +619,32 @@ export function initSkillHubBridge(): void {
           return { success: false, msg: 'Unable to determine skill name from _sudowork_meta.json or SKILL.md' };
         }
 
-        const builtinDir = path.join(userSkillsDir, '_builtin', skillName);
-        const skillDir = path.join(userSkillsDir, skillName);
+        const systemDir = path.join(getBuiltinSkillsDir(), skillName);
+        const hubDir = path.join(getHubSkillsDir(), skillName);
+        const customDir = path.join(customSkillsDir, skillName);
 
         try {
-          await fs.access(builtinDir);
+          await fs.access(systemDir);
           return { success: false, msg: `Skill "${skillName}" already exists in builtin skills` };
         } catch {
           // builtin skill does not exist
         }
 
         try {
-          await fs.access(skillDir);
-          return { success: false, msg: `Skill "${skillName}" already exists in user skills` };
+          await fs.access(hubDir);
+          return { success: false, msg: `Skill "${skillName}" already exists in hub-installed skills` };
         } catch {
-          // user skill does not exist
+          // hub skill does not exist
         }
+
+        try {
+          await fs.access(customDir);
+          return { success: false, msg: `Skill "${skillName}" already exists in custom skills` };
+        } catch {
+          // custom skill does not exist
+        }
+
+        const skillDir = customDir;
         await fs.rename(tempDir, skillDir);
 
         const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
@@ -728,26 +765,75 @@ export function initSkillHubBridge(): void {
         };
       };
 
-      // 1. First, read skills from _builtin directory (all are builtin)
-      const builtinDir = path.join(userSkillsDir, '_builtin');
+      // 1. Read skills from _my-custom-skill directory (custom uploaded)
+      const customDir = path.join(userSkillsDir, SKILL_SUBDIRS.custom);
       try {
-        await fs.access(builtinDir);
-        const builtinEntries = await fs.readdir(builtinDir, { withFileTypes: true });
-        for (const entry of builtinEntries) {
+        await fs.access(customDir);
+        const customEntries = await fs.readdir(customDir, { withFileTypes: true });
+        for (const entry of customEntries) {
           if (!entry.isDirectory()) continue;
-          const skillDir = path.join(builtinDir, entry.name);
+          const skillDir = path.join(customDir, entry.name);
+          const skill = await readSkill(entry.name, skillDir, false);
+          skills.push(skill);
+        }
+      } catch {
+        // _my-custom-skill directory doesn't exist
+      }
+
+      // 2. Read skills from _hub directory (hub-installed)
+      const hubDir = path.join(userSkillsDir, SKILL_SUBDIRS.hub);
+      try {
+        await fs.access(hubDir);
+        const hubEntries = await fs.readdir(hubDir, { withFileTypes: true });
+        for (const entry of hubEntries) {
+          if (!entry.isDirectory()) continue;
+          const skillDir = path.join(hubDir, entry.name);
+          const skill = await readSkill(entry.name, skillDir, false);
+          skills.push(skill);
+        }
+      } catch {
+        // _hub directory doesn't exist
+      }
+
+      // 3. Read skills from _system directory (builtin)
+      const systemDir = path.join(userSkillsDir, SKILL_SUBDIRS.system);
+      try {
+        await fs.access(systemDir);
+        const systemEntries = await fs.readdir(systemDir, { withFileTypes: true });
+        for (const entry of systemEntries) {
+          if (!entry.isDirectory()) continue;
+          const skillDir = path.join(systemDir, entry.name);
           const skill = await readSkill(entry.name, skillDir, true); // force builtin
           skills.push(skill);
         }
       } catch {
-        // _builtin directory doesn't exist
+        // _system directory doesn't exist
       }
 
-      // 2. Then, read skills from the outer directory (exclude _builtin)
+      // 4. Legacy: read _builtin directory for backward compatibility
+      const legacyBuiltinDir = path.join(userSkillsDir, SKILL_SUBDIRS.legacyBuiltin);
+      try {
+        await fs.access(legacyBuiltinDir);
+        const builtinEntries = await fs.readdir(legacyBuiltinDir, { withFileTypes: true });
+        const existingNames = new Set(skills.map((s) => s.name));
+        for (const entry of builtinEntries) {
+          if (!entry.isDirectory()) continue;
+          if (existingNames.has(entry.name)) continue;
+          const skillDir = path.join(legacyBuiltinDir, entry.name);
+          const skill = await readSkill(entry.name, skillDir, true);
+          skills.push(skill);
+        }
+      } catch {
+        // legacy _builtin directory doesn't exist
+      }
+
+      // 5. Legacy: read flat directories (non-`_` prefixed) for backward compatibility
       const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
+      const existingNames = new Set(skills.map((s) => s.name));
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
-        if (entry.name === '_builtin') continue; // already processed
+        if (entry.name.startsWith('_')) continue; // skip all special directories
+        if (existingNames.has(entry.name)) continue;
 
         const skillDir = path.join(userSkillsDir, entry.name);
         const skill = await readSkill(entry.name, skillDir, false);
@@ -765,7 +851,7 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
     try {
       const userSkillsDir = getUserSkillsDir();
-      const skillDir = await resolveInstalledSkillDir(userSkillsDir, skillName);
+      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
       if (!skillDir) {
         return { success: false, msg: 'Skill not found' };
       }
@@ -807,7 +893,7 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled }) => {
     try {
       const userSkillsDir = getUserSkillsDir();
-      const skillDir = await resolveInstalledSkillDir(userSkillsDir, skillName);
+      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
       if (!skillDir) {
         return { success: false, msg: 'Skill not found' };
       }

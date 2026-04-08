@@ -80,6 +80,8 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Migration flag: skill subdirectory restructuring completed */
+  'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
