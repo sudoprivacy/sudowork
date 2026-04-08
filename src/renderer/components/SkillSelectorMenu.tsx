@@ -48,6 +48,9 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         background: 'color-mix(in srgb, var(--color-bg-1) 78%, transparent)',
         backdropFilter: 'blur(14px) saturate(1.1)',
         WebkitBackdropFilter: 'blur(14px) saturate(1.1)',
+        maxWidth: 'min(380px, calc(100vw - 64px))',
+        width: 'max-content',
+        minWidth: '240px',
       }}
     >
       <div
@@ -92,8 +95,8 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' /> : <span>{item.emoji || '⚡'}</span>}</div>
                   {/* Content */}
                   <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-6px'>
-                      <span className={classNames('text-14px whitespace-nowrap', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{item.displayName}</span>
+                    <div className='flex items-center gap-6px min-w-0'>
+                      <span className={classNames('text-14px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{item.displayName}</span>
                       {isSelected && <span className='px-4px py-0px bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>已添加</span>}
                     </div>
                     {item.description && <div className='text-11px text-t-secondary truncate mt-1px'>{item.description}</div>}
