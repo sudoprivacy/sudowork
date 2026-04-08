@@ -12,7 +12,7 @@ function clamp(percent: number, min: number, max: number): number {
 }
 
 function getProgressBucket(status: NexusSetupStatus): number | undefined {
-  if ((status.stage === 'extracting' || status.stage === 'downloading') && typeof status.percent === 'number') {
+  if ((status.stage === 'installing' || status.stage === 'downloading') && typeof status.percent === 'number') {
     return Math.floor(clamp(status.percent, 0, 100) / 10);
   }
 
@@ -65,12 +65,11 @@ export function getNexusStepProgressFromSetupStatus(status: NexusSetupStatus, pr
       return Math.max(previousProgress, 92);
     case 'idle':
       return Math.max(previousProgress, 88);
-    case 'unpacking':
-      return Math.max(previousProgress, clamp(status.percent ?? 88, 0, 88));
+    case 'installing':
+      return Math.max(previousProgress, clamp(status.percent ?? 50, 0, 88));
     case 'checking':
       return Math.max(previousProgress, clamp(status.percent ?? 5, 0, 88));
     case 'downloading':
-    case 'extracting':
       return Math.max(previousProgress, clamp(status.percent ?? 0, 0, 88));
     case 'error':
       return Math.max(previousProgress, clamp(status.percent ?? previousProgress, 0, 100));

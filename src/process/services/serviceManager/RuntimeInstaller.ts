@@ -31,7 +31,7 @@ class RuntimeInstaller {
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
-    const nexusResPath = path.join(resDir, 'nexus.tar.gz');
+    const nexusResPath = path.join(resDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd');
     const hasNexusResource = (() => {
       if (shouldAssumeBundledResources) {
         return true;
@@ -82,7 +82,7 @@ class RuntimeInstaller {
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
-    const nexusResPath = path.join(resDir, 'nexus.tar.gz');
+    const nexusResPath = path.join(resDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd');
     const hasNexusResource = (() => {
       if (shouldAssumeBundledResources) {
         return true;
