@@ -27,7 +27,7 @@ import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCa
 import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
-import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
+import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, MessageContentType, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
 
@@ -35,6 +35,11 @@ function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/** Check if a content type represents media (photo/document/voice/audio/video) */
+function isMediaContentType(type: MessageContentType): boolean {
+  return type === 'photo' || type === 'document' || type === 'voice' || type === 'audio' || type === 'video';
 }
 
 // ==================== Platform-specific Helpers ====================
@@ -484,6 +489,11 @@ export class ActionExecutor {
       } else if (content.type === 'text' && content.text) {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
+      } else if (isMediaContentType(content.type) && content.attachments?.length) {
+        // Media message (photo/document/voice/video) — extract local file paths and send to AI
+        const files = content.attachments.map((a) => a.fileId).filter(Boolean);
+        const text = content.text || `[Received ${content.type} message]`;
+        await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -544,7 +554,7 @@ export class ActionExecutor {
    * 2. If a previous message is still being processed, we wait for it to finish
    *    before starting AI generation — prevents concurrent stream overwrites.
    */
-  private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+  private async handleChatMessage(context: IActionContext, text: string, files?: string[]): Promise<void> {
     // Update session activity (scoped by chatId)
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
@@ -722,7 +732,7 @@ export class ActionExecutor {
             }
           }
         }
-      });
+      }, files);
 
       // 清除待处理的定时器，确保最后一条消息被处理
       // Clear pending timer and ensure last message is processed
