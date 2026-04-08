@@ -24,26 +24,13 @@ const TAG = 'RuntimeInstaller';
  */
 class RuntimeInstaller {
   primeStatusForStartup(): void {
-    const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
     const shouldAssumeBundledResources = app.isPackaged;
 
     const fastNodeOk = isNodeInstalled();
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
 
-    const nexusResourceName = installedNexusService.getExpectedResourceName();
-    const nexusResPath = nexusResourceName ? path.join(resDir, nexusResourceName) : null;
-    const hasNexusResource = (() => {
-      if (!nexusResourceName) return false;
-      if (shouldAssumeBundledResources) {
-        return true;
-      }
-      try {
-        return nexusResPath !== null && fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
-      } catch {
-        return false;
-      }
-    })();
+    const hasNexusResource = shouldAssumeBundledResources || installedNexusService.hasBundledResource();
     const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
 
     initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk ? 'startup' : 'full');
@@ -83,20 +70,7 @@ class RuntimeInstaller {
 
     const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
     const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
-
-    const nexusResourceName = installedNexusService.getExpectedResourceName();
-    const nexusResPath = nexusResourceName ? path.join(resDir, nexusResourceName) : null;
-    const hasNexusResource = (() => {
-      if (!nexusResourceName) return false;
-      if (shouldAssumeBundledResources) {
-        return true;
-      }
-      try {
-        return nexusResPath !== null && fs.existsSync(nexusResPath) && fs.statSync(nexusResPath).size >= 1024 * 1024;
-      } catch {
-        return false;
-      }
-    })();
+    const hasNexusResource = shouldAssumeBundledResources || installedNexusService.hasBundledResource();
     const fastNexusOk = !hasNexusResource || installedNexusService.checkInstalledSync();
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');

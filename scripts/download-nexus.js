@@ -4,10 +4,7 @@
  * Run during build process: bun run nexus:download
  *
  * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/download/v{version}/
- * Saves as resources/v{version}-{binaryName} (e.g., v0.9.27-nexus-cluster-macos-arm64)
- *
- * The versioned filename acts as a cache key: if the version in runtime-versions.json
- * changes, the old file won't match and a new download is triggered automatically.
+ * Saves with versioned filename: resources/v{version}-nexus-cluster-{os}-{arch}[.exe]
  *
  * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed
  * when platform-specific binaries are not yet available.
@@ -25,48 +22,26 @@ const NEXUS_VERSION = runtimeVersions.nexus;
 const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
 // Platform mappings: direct binary downloads (no tar.gz)
-// outputName is versioned: v{version}-{name} (e.g., v0.9.27-nexus-cluster-macos-arm64)
+// Linux is included for completeness but binaries may not be available.
 const PLATFORMS = {
   'darwin-arm64': { name: 'nexus-cluster-macos-arm64' },
   'darwin-x64': { name: 'nexus-cluster-macos-x86_64' },
   'win32-x64': { name: 'nexus-cluster-windows-x86_64.exe' },
+  'linux-x64': { name: 'nexus-cluster-linux-x86_64' },
 };
 
-function getVersionedName(platform) {
+/**
+ * Get the versioned output filename for the given platform.
+ * e.g. v0.9.27-nexus-cluster-macos-arm64
+ */
+function getVersionedFileName(platform) {
   const config = PLATFORMS[platform];
   if (!config) throw new Error(`Unknown platform: ${platform}`);
   return `v${NEXUS_VERSION}-${config.name}`;
 }
 
 function getOutputFile(platform) {
-  return path.join(RESOURCES_DIR, getVersionedName(platform));
-}
-
-/**
- * Remove old versioned nexus binaries from resources directory.
- * Keeps only the file for the current version to avoid bundling stale binaries.
- */
-function cleanupOldVersions(keepFile) {
-  try {
-    const files = fs.readdirSync(RESOURCES_DIR);
-    for (const file of files) {
-      if (/^v[\d.]+-nexus-cluster-/.test(file)) {
-        const fullPath = path.join(RESOURCES_DIR, file);
-        if (fullPath !== keepFile) {
-          fs.unlinkSync(fullPath);
-          console.log(`Removed old version: ${file}`);
-        }
-      }
-    }
-    // Also clean up legacy unversioned nexusd/nexusd.exe
-    for (const legacy of ['nexusd', 'nexusd.exe']) {
-      const legacyPath = path.join(RESOURCES_DIR, legacy);
-      if (fs.existsSync(legacyPath)) {
-        fs.unlinkSync(legacyPath);
-        console.log(`Removed legacy file: ${legacy}`);
-      }
-    }
-  } catch {}
+  return path.join(RESOURCES_DIR, getVersionedFileName(platform));
 }
 
 function getDownloadUrl(platform) {
@@ -143,9 +118,6 @@ function downloadFile(url, dest) {
 async function downloadNexus(platform, force = false) {
   const outputFile = getOutputFile(platform);
 
-  // Clean up old versioned files and legacy unversioned files
-  cleanupOldVersions(outputFile);
-
   // Skip if already exists
   if (fs.existsSync(outputFile) && !force) {
     console.log(`Already exists: ${outputFile}`);
@@ -179,7 +151,10 @@ async function downloadNexus(platform, force = false) {
 
     if (err.message === 'NOT_FOUND') {
       console.warn(`\n⚠️  Nexus binary not available for platform ${platform}`);
+      console.warn('   Creating empty placeholder file.');
       console.warn('   Users can install Nexus manually from the About page.');
+      // Create empty placeholder file so electron-builder doesn't fail
+      fs.writeFileSync(outputFile, Buffer.alloc(0));
       return false;
     }
 
@@ -208,7 +183,14 @@ async function main() {
       platform = currentPlatform;
     } else {
       console.warn(`⚠️  Unsupported platform: ${currentPlatform}`);
-      console.warn('   Nexus binary not available for this platform.');
+      console.warn('   Creating empty placeholder file.');
+      // Create empty placeholder file so electron-builder doesn't fail
+      fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+      const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+      const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
+      const ext = process.platform === 'win32' ? '.exe' : '';
+      const fallbackOutput = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
+      fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
       process.exit(0);
     }
   }
@@ -225,6 +207,11 @@ async function main() {
     }
   } catch (err) {
     console.error(`\n❌ Failed to download:`, err.message);
+    console.warn('   Creating empty placeholder file.');
+    // Create empty placeholder file so electron-builder doesn't fail
+    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+    const outputFile = getOutputFile(platform);
+    fs.writeFileSync(outputFile, Buffer.alloc(0));
     clearLocalDevRuntimeVersion('nexus');
     // Exit 0 to allow build to continue
   }
@@ -234,7 +221,15 @@ async function main() {
 
 main().catch((err) => {
   console.error('Error:', err.message);
+  console.warn('Creating empty placeholder file.');
+  // Create empty placeholder file so electron-builder doesn't fail
   try {
+    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+    const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const fallbackOutput = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
+    fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
     clearLocalDevRuntimeVersion('nexus');
   } catch {}
   // Exit 0 to allow build to continue
