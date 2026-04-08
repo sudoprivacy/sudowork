@@ -105,9 +105,7 @@ export async function readEnabledState(): Promise<{ enabled: boolean; fastPass: 
 
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
-      const data = Buffer.isBuffer(content)
-        ? JSON.parse(content.toString('utf-8'))
-        : JSON.parse(String(content));
+      const data = Buffer.isBuffer(content) ? JSON.parse(content.toString('utf-8')) : JSON.parse(String(content));
       return {
         enabled: data.enabled === true,
         fastPass: data.fastPass === true,
@@ -126,11 +124,14 @@ export async function readEnabledState(): Promise<{ enabled: boolean; fastPass: 
 export async function writeEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
   try {
     const client = getNexusClient();
-    await client.write(ENABLED_CONFIG_PATH, JSON.stringify({
-      enabled,
-      fastPass,
-      timestamp: Date.now(),
-    }));
+    await client.write(
+      ENABLED_CONFIG_PATH,
+      JSON.stringify({
+        enabled,
+        fastPass,
+        timestamp: Date.now(),
+      })
+    );
     mainLog('SecurityHook', `Wrote state: enabled=${enabled}, fastPass=${fastPass}`);
   } catch (error) {
     mainError('SecurityHook', 'Failed to write state:', error);

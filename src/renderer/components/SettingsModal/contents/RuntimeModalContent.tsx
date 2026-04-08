@@ -35,6 +35,7 @@ const RuntimeModalContent: React.FC = () => {
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
   const [nexusInstalled, setNexusInstalled] = useState<boolean>(false);
+  const [nexusStatusResolved, setNexusStatusResolved] = useState<boolean>(false);
   const [nexusLoad, setNexusLoad] = useState<LoadState>('idle');
   const [nexusPhase, setNexusPhase] = useState<NexusInstallPhase | undefined>(undefined);
   const [nexusPercent, setNexusPercent] = useState<number | undefined>(undefined);
@@ -48,6 +49,7 @@ const RuntimeModalContent: React.FC = () => {
   const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
   const [sudoclawGatewayPort, setSudoclawGatewayPort] = useState<number | undefined>(undefined);
   const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
+  const [sudoclawStatusResolved, setSudoclawStatusResolved] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
   const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
 
@@ -208,17 +210,21 @@ const RuntimeModalContent: React.FC = () => {
   }, [refreshLibreOffice, t]);
 
   const refreshSudoclaw = useCallback(async () => {
-    const res = await sudoclawIpc.getStatus.invoke();
-    if (res?.success && res.data) {
-      setSudoclawInstalled(res.data.installed);
-      setSudoclawVersion(res.data.version);
-      setSudoclawGatewayPort(res.data.gatewayPort);
-      setSudoclawGatewayRunning(!!res.data.gatewayRunning);
-    } else {
-      setSudoclawInstalled(false);
-      setSudoclawVersion(undefined);
-      setSudoclawGatewayPort(undefined);
-      setSudoclawGatewayRunning(false);
+    try {
+      const res = await sudoclawIpc.getStatus.invoke();
+      if (res?.success && res.data) {
+        setSudoclawInstalled(res.data.installed);
+        setSudoclawVersion(res.data.version);
+        setSudoclawGatewayPort(res.data.gatewayPort);
+        setSudoclawGatewayRunning(!!res.data.gatewayRunning);
+      } else {
+        setSudoclawInstalled(false);
+        setSudoclawVersion(undefined);
+        setSudoclawGatewayPort(undefined);
+        setSudoclawGatewayRunning(false);
+      }
+    } finally {
+      setSudoclawStatusResolved(true);
     }
   }, []);
 
@@ -277,17 +283,21 @@ const RuntimeModalContent: React.FC = () => {
   }, [refreshSudoclaw, t]);
 
   const refreshNexus = useCallback(async () => {
-    const res = await nexusIpc.getStatus.invoke();
-    if (res?.success && res.data) {
-      setNexusRunning(res.data.running);
-      setNexusPort(res.data.port);
-      setNexusInstalled(res.data.installed);
-      setNexusVersion(res.data.version);
-    } else {
-      setNexusRunning(false);
-      setNexusPort(undefined);
-      setNexusInstalled(false);
-      setNexusVersion(undefined);
+    try {
+      const res = await nexusIpc.getStatus.invoke();
+      if (res?.success && res.data) {
+        setNexusRunning(res.data.running);
+        setNexusPort(res.data.port);
+        setNexusInstalled(res.data.installed);
+        setNexusVersion(res.data.version);
+      } else {
+        setNexusRunning(false);
+        setNexusPort(undefined);
+        setNexusInstalled(false);
+        setNexusVersion(undefined);
+      }
+    } finally {
+      setNexusStatusResolved(true);
     }
   }, []);
 
@@ -467,6 +477,7 @@ const RuntimeModalContent: React.FC = () => {
       command: 'openclaw',
       badge: 'SC',
       status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
+      statusResolved: sudoclawStatusResolved,
       sudoclawGatewayPort,
       sudoclawGatewayRunning,
       loadState: sudoclawLoad,
@@ -482,6 +493,7 @@ const RuntimeModalContent: React.FC = () => {
       command: 'nexusd',
       badge: 'NX',
       status: nexusInstalled ? { installed: true, source: 'managed', version: nexusVersion } : null,
+      statusResolved: nexusStatusResolved,
       nexusPort,
       nexusRunning,
       nexusInstalled,

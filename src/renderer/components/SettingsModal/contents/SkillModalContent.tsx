@@ -195,12 +195,7 @@ const InstalledSkillCard: React.FC<{
               e.stopPropagation();
             }}
           >
-            <Switch
-              size='small'
-              checked={isEnabled}
-              loading={togglingEnabled}
-              onChange={(checked) => onToggleEnabled?.(checked)}
-            />
+            <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />
           </div>
         )}
       </div>
