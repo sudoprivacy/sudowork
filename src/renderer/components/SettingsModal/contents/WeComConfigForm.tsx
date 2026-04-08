@@ -516,8 +516,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
       </PreferenceRow>
 
-      {/* Connection Status */}
-      {pluginStatus?.enabled && authorizedUsers.length === 0 && (
+      {/* Connection Status - always show when enabled */}
+      {pluginStatus?.enabled && (
         <div className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
           <SectionHeader title={t('settings.wecom.connectionStatus', 'Connection Status')} action={<span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>{pluginStatus?.connected ? t('settings.wecom.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.wecom.statusError', 'Error') : t('settings.wecom.statusConnecting', 'Connecting...')}</span>} />
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
@@ -528,109 +528,11 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
                 <strong>1.</strong> {t('settings.wecom.step1', 'Open WeCom and find your AI bot')}
               </p>
               <p className='m-0'>
-                <strong>2.</strong> {t('settings.wecom.step2', 'Send any message to initiate pairing')}
-              </p>
-              <p className='m-0'>
-                <strong>3.</strong> {t('settings.wecom.step3', 'A pairing request will appear below. Click "Approve" to authorize the user.')}
-              </p>
-              <p className='m-0'>
-                <strong>4.</strong> {t('settings.wecom.step4', 'Once approved, you can start chatting with the AI assistant through WeCom!')}
+                <strong>2.</strong> {t('settings.wecom.step2Chat', 'You can chat with the AI assistant through WeCom!')}
               </p>
             </div>
           )}
           {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-t-secondary'>{t('settings.wecom.waitingConnection', 'Connection is being established. Please wait...')}</div>}
-        </div>
-      )}
-
-      {/* Pending Pairings - always show when plugin is enabled */}
-      {pluginStatus?.enabled && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
-            action={
-              <Button size='mini' type='text' icon={<Refresh size={14} />} loading={pairingLoading} onClick={loadPendingPairings}>
-                {t('conversation.workspace.refresh', 'Refresh')}
-              </Button>
-            }
-          />
-
-          {pairingLoading ? (
-            <div className='flex justify-center py-24px'>
-              <Spin />
-            </div>
-          ) : pendingPairings.length === 0 ? (
-            <Empty description={t('settings.assistant.noPendingPairings', 'No pending pairing requests')} />
-          ) : (
-            <div className='flex flex-col gap-12px'>
-              {pendingPairings.map((pairing) => (
-                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
-                      <span className='text-14px font-500 text-t-primary'>{pairing.displayName || 'Unknown User'}</span>
-                      <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-t-tertiary hover:text-t-primary cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
-                          <Copy size={14} />
-                        </button>
-                      </Tooltip>
-                    </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
-                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
-                      <span className='mx-8px'>|</span>
-                      {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
-                    </div>
-                  </div>
-                  <div className='flex items-center gap-8px'>
-                    <Button type='primary' size='small' icon={<CheckOne size={14} />} onClick={() => handleApprovePairing(pairing.code)}>
-                      {t('settings.assistant.approve', 'Approve')}
-                    </Button>
-                    <Button type='secondary' size='small' status='danger' icon={<CloseOne size={14} />} onClick={() => handleRejectPairing(pairing.code)}>
-                      {t('settings.assistant.reject', 'Reject')}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Authorized Users */}
-      {authorizedUsers.length > 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
-            action={
-              <Button size='mini' type='text' icon={<Refresh size={14} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
-                {t('common.refresh', 'Refresh')}
-              </Button>
-            }
-          />
-
-          {usersLoading ? (
-            <div className='flex justify-center py-24px'>
-              <Spin />
-            </div>
-          ) : authorizedUsers.length === 0 ? (
-            <Empty description={t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')} />
-          ) : (
-            <div className='flex flex-col gap-12px'>
-              {authorizedUsers.map((user) => (
-                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
-                  <div className='flex-1'>
-                    <div className='text-14px font-500 text-t-primary'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
-                      {t('settings.assistant.platform', 'Platform')}: {user.platformType}
-                      <span className='mx-8px'>|</span>
-                      {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}
-                    </div>
-                  </div>
-                  <Tooltip content={t('settings.assistant.revokeAccess', 'Revoke access')}>
-                    <Button type='text' status='danger' size='small' icon={<Delete size={16} />} onClick={() => handleRevokeUser(user.id)} />
-                  </Tooltip>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
