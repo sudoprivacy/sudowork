@@ -85,6 +85,36 @@ export function getAllDirKeys(nodes: IDirOrFile[]): string[] {
 }
 
 /**
+ * 递归收集树中所有文件夹节点的 key 到 Set 中（用于快速查找）
+ * Recursively collect all directory node keys into a Set (for fast lookup)
+ */
+export function getAllDirKeysSet(nodes: IDirOrFile[]): Set<string> {
+  const keys = new Set<string>();
+  const collect = (list: IDirOrFile[]) => {
+    for (const node of list) {
+      if (node.isDir) {
+        keys.add(node.relativePath);
+        if (node.children && node.children.length > 0) {
+          collect(node.children);
+        }
+      }
+    }
+  };
+  collect(nodes);
+  return keys;
+}
+
+/**
+ * 过滤出仍然有效的展开 keys（移除已删除的目录 key）
+ * Filter expanded keys to only include those that still exist in the new tree data
+ * (removes keys for directories that have been deleted)
+ */
+export function filterValidExpandedKeys(expandedKeys: string[], newTreeData: IDirOrFile[]): string[] {
+  const validKeys = getAllDirKeysSet(newTreeData);
+  return expandedKeys.filter((key) => validKeys.has(key));
+}
+
+/**
  * 替换路径列表中的旧路径为新路径
  * Replace old path with new path in path list
  */
