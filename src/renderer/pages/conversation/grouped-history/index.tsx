@@ -41,7 +41,48 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+
+  const SCHEDULED_EXPANSION_KEY = 'aionui_scheduled_expansion';
+  const [expandedScheduled, setExpandedScheduled] = React.useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(SCHEDULED_EXPANSION_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {
+      // ignore
+    }
+    // Default: all expanded — will be populated on first render
+    return [];
+  });
+
+  // Auto-expand all scheduled groups on first load
+  const hasAutoExpandedScheduledRef = React.useRef(false);
+  useEffect(() => {
+    if (hasAutoExpandedScheduledRef.current || scheduledGroups.length === 0) return;
+    const allNames = scheduledGroups.map((g) => g.jobName);
+    setExpandedScheduled(allNames);
+    hasAutoExpandedScheduledRef.current = true;
+    try {
+      localStorage.setItem(SCHEDULED_EXPANSION_KEY, JSON.stringify(allNames));
+    } catch {
+      // ignore
+    }
+  }, [scheduledGroups]);
+
+  const handleToggleScheduled = useCallback((jobName: string) => {
+    setExpandedScheduled((prev) => {
+      const next = prev.includes(jobName) ? prev.filter((n) => n !== jobName) : [...prev, jobName];
+      try {
+        localStorage.setItem(SCHEDULED_EXPANSION_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
   const { selectedConversationIds, setSelectedConversationIds, selectedCount, allSelected, toggleSelectedConversation, handleToggleSelectAll } = useBatchSelection(batchMode, conversations);
 
@@ -219,6 +260,34 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
+        {/* ── SCHEDULED SECTION ── */}
+        {scheduledGroups.length > 0 && (
+          <div className='mb-8px min-w-0'>
+            {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>}
+            {scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
+              const isExpanded = expandedScheduled.includes(jobName);
+              return (
+                <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                  <WorkspaceCollapse
+                    expanded={isExpanded}
+                    onToggle={() => handleToggleScheduled(jobName)}
+                    siderCollapsed={collapsed}
+                    header={
+                      <div className='flex items-center gap-8px text-14px min-w-0'>
+                        <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
+                      </div>
+                    }
+                  >
+                    <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>
+                      {cronConvs.map((conv) => renderConversation(conv))}
+                    </div>
+                  </WorkspaceCollapse>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
             <div className='mb-8px min-w-0'>

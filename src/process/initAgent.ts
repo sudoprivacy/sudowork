@@ -63,6 +63,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       currentModelId: extra.currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
+      // Cron job metadata (set when conversation is created by a cron execution)
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -133,6 +136,9 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       sessionMode: extra.sessionMode,
       // Pre-selected model from Guid page
       currentModelId: extra.currentModelId,
+      // Cron job metadata (set when conversation is created by a cron execution)
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
