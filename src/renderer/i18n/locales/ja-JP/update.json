@@ -21,5 +21,8 @@
   "autoUpdateMode": "自動更新モード",
   "showInFolder": "フォルダーで表示",
   "openFile": "ファイルを開く",
-  "errorTitle": "更新に失敗しました"
+  "errorTitle": "更新に失敗しました",
+  "nightlyBadge": "Nightly プレビュー",
+  "nightlyUpdateNotice": "Nightly ビルドです。Nightly 更新は手動ダウンロードのみ対応しています。",
+  "buildDate": "ビルド日"
 }
