@@ -29,10 +29,6 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Architecture mapping: Node.js process.arch → Nexus binary arch name */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x86_64' };
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export type NexusSetupStage =
   | 'idle'
   | 'checking' // Checking if already installed
@@ -381,10 +377,10 @@ class DynamicNexusService {
     let sourcePath = this.getBundledNexusPath();
 
     if (!sourcePath) {
-      // Download from OSS
+      // Download from OSS to user data directory (not app bundle, which would break code signing)
       const ossUrl = this.getOssDownloadUrl();
       const versionedName = this.getVersionedBinaryName();
-      const downloadDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
+      const downloadDir = path.join(getDataPath(), 'downloads');
       const downloadDest = path.join(downloadDir, versionedName);
 
       mainLog('Nexus', `Bundled resource not found for ${platformKey}, downloading from OSS: ${ossUrl}`);
