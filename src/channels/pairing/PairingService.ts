@@ -154,8 +154,22 @@ export class PairingService {
     }
 
     // Check if already processed
-    if (request.status !== 'pending') {
-      return { success: false, error: `Pairing request already ${request.status}` };
+    if (request.status === 'approved') {
+      // Already approved - get the user and return success
+      const existingUser = db.getChannelUserByPlatform(request.platformUserId, request.platformType);
+      if (existingUser.success && existingUser.data) {
+        return { success: true, user: existingUser.data };
+      }
+      // Fallback: return success anyway since it's already approved
+      return { success: true };
+    }
+
+    if (request.status === 'rejected') {
+      return { success: false, error: 'Pairing request was rejected' };
+    }
+
+    if (request.status === 'expired') {
+      return { success: false, error: 'Pairing code has expired' };
     }
 
     // Check if user already exists

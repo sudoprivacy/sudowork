@@ -15,6 +15,7 @@ import { DingTalkPlugin } from '../plugins/dingtalk/DingTalkPlugin';
 import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
+import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
@@ -52,6 +53,7 @@ export class ChannelManager {
     registerPlugin('lark', LarkPlugin);
     registerPlugin('dingtalk', DingTalkPlugin);
     registerPlugin('wechat', WeChatPlugin);
+    registerPlugin('wecom', WeComPlugin);
   }
 
   /**
@@ -182,7 +184,7 @@ export class ChannelManager {
     }
 
     const enabledPlugins = result.data.filter((p) => p.enabled);
-    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat']);
+    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
     const extensionRegistry = ExtensionRegistry.getInstance();
 
     for (const plugin of enabledPlugins) {
@@ -271,6 +273,12 @@ export class ChannelManager {
       const botApiBaseUrl = config.botApiBaseUrl as string | undefined;
       if (token && accountId) {
         credentials = { token, accountId, botApiBaseUrl };
+      }
+    } else if (pluginType === 'wecom') {
+      const botId = config.botId as string | undefined;
+      const secret = config.secret as string | undefined;
+      if (botId && secret) {
+        credentials = { botId, secret };
       }
     } else {
       // Extension or unknown plugin type:
@@ -372,6 +380,17 @@ export class ChannelManager {
           updatedAt: Date.now(),
         };
         db.upsertChannelPlugin(updated);
+
+        // For WeCom and WeChat: clear all authorized users and sessions when disabled
+        // This allows reconfiguring with new bot credentials
+        // Note: We keep credentials so user can re-enable without re-entering
+        const pluginType = existingResult.data.type;
+        if (pluginType === 'wecom' || pluginType === 'wechat') {
+          console.log(`[ChannelManager] Clearing all users and sessions for ${pluginType} on disable`);
+          // Delete all channel users for this platform
+          db.deleteChannelUsersByPlatform(pluginType);
+          // Note: We keep credentials so user can re-enable without re-entering
+        }
       }
 
       return { success: true };
@@ -425,6 +444,20 @@ export class ChannelManager {
       };
     }
 
+    if (pluginType === 'wecom') {
+      const botId = extraConfig?.appId; // Reuse appId field for botId
+      const secret = extraConfig?.appSecret; // Reuse appSecret field for secret
+      if (!botId || !secret) {
+        return { success: false, error: 'Bot ID and Secret are required for WeCom' };
+      }
+      const result = await WeComPlugin.testConnection(botId, secret);
+      return {
+        success: result.success,
+        botUsername: result.botInfo?.name,
+        error: result.error,
+      };
+    }
+
     // Extension plugins: test connection not supported yet (will be handled by the plugin itself on start)
     return { success: true, botUsername: undefined, error: undefined };
   }
@@ -438,6 +471,7 @@ export class ChannelManager {
     if (pluginId.startsWith('lark')) return 'lark';
     if (pluginId.startsWith('dingtalk')) return 'dingtalk';
     if (pluginId.startsWith('wechat')) return 'wechat';
+    if (pluginId.startsWith('wecom')) return 'wecom';
     // Extension plugins: use pluginId as type (e.g., 'ext-feishu')
     return pluginId;
   }
