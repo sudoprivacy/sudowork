@@ -1,7 +1,7 @@
 import { ipcBridge } from '../../common';
 import { dynamicNexusService, type NexusSetupStatus } from '../services/nexus/DynamicNexusService';
 import { serviceManager } from '../services/serviceManager';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
@@ -87,10 +87,12 @@ export function initNexusBridge(): void {
       const path = await import('path');
       const { getDataPath } = await import('../utils');
       const dataPath = getDataPath();
-      const envDir = path.join(dataPath, 'nexus_env');
+      const binDir = path.join(dataPath, 'bin');
+      const legacyEnvDir = path.join(dataPath, 'nexus_env');
       const pidFile = path.join(dataPath, 'nexusd.pid');
 
-      if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
+      if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
+      if (fs.existsSync(legacyEnvDir)) fs.rmSync(legacyEnvDir, { recursive: true, force: true });
       if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
 
       return { success: true };
@@ -123,98 +125,33 @@ export function initNexusBridge(): void {
     try {
       const fs = await import('fs');
       const path = await import('path');
-      const os = await import('os');
-      const tar = await import('tar');
-      const { execFile } = await import('child_process');
-      const util = await import('util');
-
-      const execFileAsync = util.promisify(execFile);
       const app = await import('electron').then((m) => m.app);
+      const { getDataPath } = await import('../utils');
       const isWindows = process.platform === 'win32';
-      const tempDir = path.join(os.tmpdir(), `nexus-${Date.now()}`);
-      const tempTarGzPath = path.join(tempDir, 'nexus.tar.gz');
-      const formatCommandError = (error: unknown): string => {
-        if (!(error instanceof Error)) {
-          return String(error);
-        }
 
-        const execError = error as Error & { code?: number | string; stdout?: string; stderr?: string };
-        const details = [execError.message, execError.code !== undefined ? `code=${String(execError.code)}` : null, execError.stdout?.trim() ? `stdout=${execError.stdout.trim()}` : null, execError.stderr?.trim() ? `stderr=${execError.stderr.trim()}` : null].filter(Boolean);
+      const dataPath = getDataPath();
+      const binDir = path.join(dataPath, 'bin');
+      const nexusdFilename = isWindows ? 'nexusd.exe' : 'nexusd';
+      const nexusdDest = path.join(binDir, nexusdFilename);
 
-        return details.join(' | ');
-      };
-      const runCondaUnpack = async (): Promise<void> => {
-        const pythonBin = isWindows ? path.join(envDir, 'python.exe') : path.join(envDir, 'bin', 'python');
-        const binDir = isWindows ? path.join(envDir, 'Scripts') : path.join(envDir, 'bin');
-        const condaUnpackScriptCandidates = isWindows ? ['conda-unpack-script.py', 'conda-unpack.py'] : ['conda-unpack'];
-        const condaUnpackScript = condaUnpackScriptCandidates.map((name) => path.join(binDir, name)).find((candidate) => fs.existsSync(candidate));
-        const condaUnpackExe = isWindows ? path.join(binDir, 'conda-unpack.exe') : path.join(binDir, 'conda-unpack');
+      // Ensure bin directory exists
+      await fs.promises.mkdir(binDir, { recursive: true });
 
-        if (condaUnpackScript) {
-          mainLog('NexusBridge', `Running conda-unpack via python: ${pythonBin} ${condaUnpackScript}`);
-          try {
-            await execFileAsync(pythonBin, [condaUnpackScript]);
-            return;
-          } catch (error) {
-            throw new Error(`conda-unpack script failed: ${formatCommandError(error)}`);
-          }
-        }
+      // Copy the binary file directly
+      mainLog('NexusBridge', `Copying local nexus binary to ${nexusdDest}...`);
+      await fs.promises.copyFile(filePath, nexusdDest);
 
-        if (!fs.existsSync(condaUnpackExe)) {
-          mainWarn('NexusBridge', `conda-unpack not found at ${condaUnpackExe} — skipping`);
-          return;
-        }
-
-        if (!isWindows) {
-          fs.chmodSync(condaUnpackExe, 0o755);
-          mainLog('NexusBridge', `Running conda-unpack via python: ${pythonBin} ${condaUnpackExe}`);
-          try {
-            await execFileAsync(pythonBin, [condaUnpackExe]);
-            return;
-          } catch (error) {
-            throw new Error(`conda-unpack failed: ${formatCommandError(error)}`);
-          }
-        }
-
-        mainLog('NexusBridge', `Running conda-unpack executable: ${condaUnpackExe}`);
-        try {
-          await execFileAsync(condaUnpackExe, []);
-        } catch (error) {
-          throw new Error(`conda-unpack executable failed: ${formatCommandError(error)}`);
-        }
-      };
-
-      await fs.promises.mkdir(tempDir, { recursive: true });
-      await fs.promises.copyFile(filePath, tempTarGzPath);
-
-      const envDir = path.join(app.getPath('home'), '.nexus', 'nexus_env');
-      if (fs.existsSync(envDir)) {
-        fs.rmSync(envDir, { recursive: true, force: true });
+      // Ensure executable permission on macOS/Linux
+      if (!isWindows) {
+        fs.chmodSync(nexusdDest, 0o755);
       }
 
-      await fs.promises.mkdir(envDir, { recursive: true });
-      mainLog('NexusBridge', `Extracting local nexus file to ${envDir}...`);
-      await tar.x({ file: tempTarGzPath, cwd: envDir });
-
-      await runCondaUnpack();
-      mainLog('NexusBridge', 'conda-unpack completed');
-
-      const nexusdBin = isWindows ? path.join(envDir, 'Scripts', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd');
-
-      if (!fs.existsSync(nexusdBin)) {
-        throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
-      }
-      if (!isWindows) fs.chmodSync(nexusdBin, 0o755);
-
-      const markerFile = path.join(envDir, '.nexus-conda-ready');
-      await fs.promises.writeFile(markerFile, app.getVersion());
+      // Write version marker
+      const runtimeVersions = await import('@/shared/runtime-versions.json');
+      const version = runtimeVersions.nexus || app.getVersion();
+      const markerFile = path.join(binDir, '.nexus-install-ready');
+      await fs.promises.writeFile(markerFile, version);
       mainLog('NexusBridge', 'Local file installation complete, starting service...');
-
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {
-        // Ignore temp cleanup failures.
-      }
 
       await serviceManager.startNexus();
       mainLog('NexusBridge', 'Nexus service started after local file install');

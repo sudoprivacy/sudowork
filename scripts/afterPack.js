@@ -425,8 +425,8 @@ module.exports = async function afterPack(context) {
       }
     }
 
-    // Fixed name archives
-    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
+    // Fixed name archives (nexusd is a direct binary, not an archive — signed separately below)
+    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
@@ -446,6 +446,17 @@ module.exports = async function afterPack(context) {
       } catch (err) {
         console.warn(`   ⚠️  Failed to sign binaries in ${archiveFile}: ${err.message}`);
         // Don't throw - allow build to continue
+      }
+    }
+
+    // Sign the nexusd binary directly (it's not an archive)
+    const nexusdBinary = path.join(resourcesDir, 'nexusd');
+    if (fs.existsSync(nexusdBinary)) {
+      try {
+        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${nexusdBinary}"`, { stdio: 'pipe' });
+        console.log(`   ✓ Signed: nexusd`);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to sign nexusd binary: ${err.message}`);
       }
     }
   }

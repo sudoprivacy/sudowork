@@ -36,7 +36,9 @@ describe('DynamicNexusService install readiness', () => {
 
     fs.mkdirSync(resourcesDir, { recursive: true });
     fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(path.join(resourcesDir, 'nexus.tar.gz'), Buffer.alloc(1024 * 1024));
+    // Write a binary file (>= 1024 bytes) to simulate bundled nexusd resource
+    const nexusdFilename = process.platform === 'win32' ? 'nexusd.exe' : 'nexusd';
+    fs.writeFileSync(path.join(resourcesDir, nexusdFilename), Buffer.alloc(2048));
 
     vi.doMock('electron', () => ({
       app: {
@@ -70,10 +72,10 @@ describe('DynamicNexusService install readiness', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('treats a nexus env without the ready marker as not installed', async () => {
-    const envDir = path.join(dataDir, 'nexus_env', process.platform === 'win32' ? 'Scripts' : 'bin');
-    fs.mkdirSync(envDir, { recursive: true });
-    fs.writeFileSync(path.join(envDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'), 'binary');
+  it('treats a nexus install without the ready marker as not installed', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'), 'binary');
 
     const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
 
@@ -81,12 +83,22 @@ describe('DynamicNexusService install readiness', () => {
     await expect(dynamicNexusService.checkInstalled()).resolves.toBe(false);
   });
 
-  it('treats a nexus env with the current ready marker as installed', async () => {
-    const envRoot = path.join(dataDir, 'nexus_env');
-    const binDir = path.join(envRoot, process.platform === 'win32' ? 'Scripts' : 'bin');
+  it('treats a nexus install with the current ready marker as installed', async () => {
+    const binDir = path.join(dataDir, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(path.join(binDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'), 'binary');
-    fs.writeFileSync(path.join(envRoot, '.nexus-conda-ready'), String(runtimeVersions.nexus));
+    fs.writeFileSync(path.join(binDir, '.nexus-install-ready'), String(runtimeVersions.nexus));
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    expect(dynamicNexusService.checkInstalledSync()).toBe(true);
+    await expect(dynamicNexusService.checkInstalled()).resolves.toBe(true);
+  });
+
+  it('treats legacy conda env with nexusd binary as installed (backward compat)', async () => {
+    const envDir = path.join(dataDir, 'nexus_env', process.platform === 'win32' ? 'Scripts' : 'bin');
+    fs.mkdirSync(envDir, { recursive: true });
+    fs.writeFileSync(path.join(envDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'), 'binary');
 
     const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
 

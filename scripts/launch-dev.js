@@ -113,9 +113,10 @@ function ensureDevRuntimeResources() {
     downloadScript: path.join('scripts', 'download-openclaw.js'),
   });
 
+  const nexusdFilename = process.platform === 'win32' ? 'nexusd.exe' : 'nexusd';
   ensureBundledRuntimeAsset({
     name: 'nexus',
-    archivePath: path.join(resourcesDir, 'nexus.tar.gz'),
+    archivePath: path.join(resourcesDir, nexusdFilename),
     expectedVersion: runtimeVersions.nexus,
     downloadScript: path.join('scripts', 'download-nexus.js'),
   });

@@ -197,8 +197,9 @@ vx.toml
 .worktrees/
 .claude/worktrees/
 
-# Nexus conda environment bundle (downloaded at build time, not committed)
-resources/nexus.tar.gz
+# Nexus binary (downloaded at build time, not committed)
+resources/nexusd
+resources/nexusd.exe
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-darwin-arm64.tar.gz
