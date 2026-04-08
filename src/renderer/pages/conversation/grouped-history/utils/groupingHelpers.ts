@@ -125,7 +125,7 @@ const buildScheduledGroups = (cronConvs: TChatConversation[]): ScheduledGroup[] 
   const groupMap = new Map<string, TChatConversation[]>();
 
   cronConvs.forEach((conv) => {
-    const jobName = (conv.extra as any)?.cronJobName as string || 'Scheduled';
+    const jobName = ((conv.extra as any)?.cronJobName as string) || 'Scheduled';
     if (!groupMap.has(jobName)) {
       groupMap.set(jobName, []);
     }
