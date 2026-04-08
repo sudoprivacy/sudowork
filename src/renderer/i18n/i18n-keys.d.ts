@@ -309,6 +309,7 @@ export type I18nKey =
   | 'conversation.tabs.closeLeft'
   | 'conversation.tabs.closeOthers'
   | 'conversation.tabs.closeRight'
+  | 'conversation.welcome.addSkill'
   | 'conversation.welcome.clearWorkspace'
   | 'conversation.welcome.currentWorkspace'
   | 'conversation.welcome.linkFolder'
