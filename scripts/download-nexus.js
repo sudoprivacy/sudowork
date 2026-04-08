@@ -51,7 +51,7 @@ const PLATFORMS = {
 
 /**
  * Get the versioned output filename for the given platform.
- * e.g. v0.9.27-nexus-cluster-macos-arm64
+ * e.g. v0.9.28-nexus-cluster-macos-arm64
  */
 function getVersionedFileName(platform) {
   const config = PLATFORMS[platform];

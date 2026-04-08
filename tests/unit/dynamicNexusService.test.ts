@@ -45,7 +45,7 @@ describe('DynamicNexusService install readiness', () => {
 
     fs.mkdirSync(resourcesDir, { recursive: true });
     fs.mkdirSync(dataDir, { recursive: true });
-    // Write the bundled binary with versioned filename (e.g. v0.9.27-nexus-cluster-macos-arm64)
+    // Write the bundled binary with versioned filename (e.g. v0.9.28-nexus-cluster-macos-arm64)
     fs.writeFileSync(path.join(resourcesDir, versionedBinaryName), Buffer.alloc(1024 * 1024));
 
     vi.doMock('electron', () => ({

@@ -77,7 +77,7 @@ class DynamicNexusService {
 
   /**
    * Get the versioned resource filename for the current platform and bundled version.
-   * e.g. 'v0.9.27-nexus-cluster-macos-arm64'
+   * e.g. 'v0.9.28-nexus-cluster-macos-arm64'
    */
   getVersionedBinaryName(): string {
     const version = this.getNexusVersion();
@@ -86,7 +86,7 @@ class DynamicNexusService {
 
   /**
    * Get the OSS download URL for the current platform's Nexus binary.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.27/nexus-cluster-macos-arm64
+   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.28/nexus-cluster-macos-arm64
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
@@ -249,7 +249,7 @@ class DynamicNexusService {
 
   /**
    * Get the bundled Nexus resource path (the versioned binary file in resources).
-   * Looks for versioned filename e.g. v0.9.27-nexus-cluster-macos-arm64.
+   * Looks for versioned filename e.g. v0.9.28-nexus-cluster-macos-arm64.
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
