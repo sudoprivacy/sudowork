@@ -11,6 +11,8 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
+import { emitter } from './utils/emitter';
+import { ConfigStorage } from '@/common/storage';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -116,6 +118,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
@@ -133,6 +139,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();

@@ -41,6 +41,8 @@ interface EventTypes {
   'agent.connection.status': [string, string]; // [conversationId, status]
   'staroffice.install.request': [{ conversationId: string; text: string; detectedUrl?: string | null }];
   'staroffice.install.finished': [{ conversationId: string }];
+  // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
+  'guid.reset': void;
 }
 
 export const emitter = new EventEmitter<EventTypes>();

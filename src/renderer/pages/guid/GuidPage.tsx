@@ -38,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { skillHub } from '@/common/ipcBridge';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
@@ -222,12 +223,36 @@ const GuidPage: React.FC = () => {
     setMentionSelectorOpen: mention.setMentionSelectorOpen,
     setMentionActiveIndex: mention.setMentionActiveIndex,
 
+    // Agent/skills reset
+    resetAgentSelection: agentSelection.resetSelection,
+    setSelectedSkills,
+
     // Navigation & tabs
     navigate,
     closeAllTabs,
     openTab,
     t,
   });
+
+  // 监听 guid.reset 事件，重置所有用户输入状态（新建会话时触发）
+  const handleGuidReset = useCallback(() => {
+    // 重置输入内容
+    guidInput.setInput('');
+    guidInput.setFiles([]);
+    guidInput.setDir('');
+    // 重置助手选择
+    agentSelection.resetSelection();
+    // 重置技能选择
+    setSelectedSkills([]);
+    // 重置 mention 状态
+    mention.setMentionOpen(false);
+    mention.setMentionQuery(null);
+    mention.setMentionSelectorVisible(false);
+    mention.setMentionSelectorOpen(false);
+    mention.setMentionActiveIndex(0);
+  }, [guidInput, agentSelection, mention]);
+
+  useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
   // 通过 @ 按钮触发技能选择器
   const handleTriggerSkillSelector = useCallback(() => {

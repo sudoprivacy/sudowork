@@ -68,6 +68,8 @@ export type GuidAgentSelectionResult = {
   getEffectiveAgentType: (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined) => EffectiveAgentInfo;
   refreshCustomAgents: () => Promise<void>;
   customAgentAvatarMap: Map<string, string | undefined>;
+  /** Reset agent selection to default state and clear persisted storage */
+  resetSelection: () => void;
 };
 
 type UseGuidAgentSelectionOptions = {
@@ -598,6 +600,17 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     void refreshCustomAgents();
   }, [refreshCustomAgents]);
 
+  // Reset agent selection to default state (no assistant selected)
+  const resetSelection = useCallback(() => {
+    _setSelectedAgentKey('openclaw-gateway');
+    _setSelectedMode('default');
+    _setSelectedAcpModel(null);
+    // Clear persisted agent key so it won't be restored on next mount
+    ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
+      console.error('Failed to clear saved agent:', error);
+    });
+  }, []);
+
   return {
     selectedAgentKey,
     setSelectedAgentKey,
@@ -624,5 +637,6 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     getEffectiveAgentType,
     refreshCustomAgents,
     customAgentAvatarMap,
+    resetSelection,
   };
 };
