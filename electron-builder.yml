@@ -138,9 +138,9 @@ extraResources:
     to: openclaw.tgz
   - from: resources/openclaw.manifest.json
     to: openclaw.manifest.json
-  # Nexus is optional - may not be available for all platforms
-  - from: resources/nexus.tar.gz
-    to: nexus.tar.gz
+  # Nexus binary - optional, may not be available for all platforms
+  - from: resources/nexusd
+    to: nexusd
 
 win:
   legalTrademarks: Copyright © 2024 北京数牍科技有限公司
@@ -157,6 +157,9 @@ win:
     # bdpan installer for Windows (bundled at build time)
     - from: resources/bdpan-installer-windows-${arch}.exe
       to: bdpan-installer-windows-${arch}.exe
+    # Nexus binary for Windows
+    - from: resources/nexusd.exe
+      to: nexusd.exe
 
 nsis:
   oneClick: false

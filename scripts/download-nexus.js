@@ -3,8 +3,8 @@
  * Download Nexus binary for bundling with the app.
  * Run during build process: bun run nexus:download
  *
- * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/latest/download/
- * Saves as resources/nexus.tar.gz (single name, platform-specific content)
+ * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/download/v{version}/
+ * Saves as resources/nexusd (macOS/Linux) or resources/nexusd.exe (Windows)
  *
  * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed
  * when platform-specific binaries are not yet available.
@@ -17,18 +17,22 @@ const runtimeVersions = require('../src/shared/runtime-versions.json');
 const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
-const OUTPUT_FILE = path.join(RESOURCES_DIR, 'nexus.tar.gz');
 
 const NEXUS_VERSION = runtimeVersions.nexus;
 const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
-// Platform mappings (nexus uses x86_64 naming convention for x64)
+// Platform mappings: direct binary downloads (no tar.gz)
 const PLATFORMS = {
-  'darwin-arm64': { name: 'nexus-macos-arm64.tar.gz' },
-  'darwin-x64': { name: 'nexus-macos-x86_64.tar.gz' },
-  'win32-x64': { name: 'nexus-windows-x86_64.tar.gz' },
-  'win32-arm64': { name: 'nexus-windows-arm64.tar.gz' },
+  'darwin-arm64': { name: 'nexus-cluster-macos-arm64', outputName: 'nexusd' },
+  'darwin-x64': { name: 'nexus-cluster-macos-x86_64', outputName: 'nexusd' },
+  'win32-x64': { name: 'nexus-cluster-windows-x86_64.exe', outputName: 'nexusd.exe' },
 };
+
+function getOutputFile(platform) {
+  const config = PLATFORMS[platform];
+  if (!config) throw new Error(`Unknown platform: ${platform}`);
+  return path.join(RESOURCES_DIR, config.outputName);
+}
 
 function getDownloadUrl(platform) {
   const config = PLATFORMS[platform];
@@ -102,9 +106,11 @@ function downloadFile(url, dest) {
 }
 
 async function downloadNexus(platform, force = false) {
+  const outputFile = getOutputFile(platform);
+
   // Skip if already exists
-  if (fs.existsSync(OUTPUT_FILE) && !force) {
-    console.log(`Already exists: ${OUTPUT_FILE}`);
+  if (fs.existsSync(outputFile) && !force) {
+    console.log(`Already exists: ${outputFile}`);
     console.log('Use --force to re-download.');
     return true;
   }
@@ -116,14 +122,20 @@ async function downloadNexus(platform, force = false) {
   const url = getDownloadUrl(platform);
 
   try {
-    await downloadFile(url, OUTPUT_FILE);
+    await downloadFile(url, outputFile);
+
+    // Make binary executable on macOS/Linux
+    if (process.platform !== 'win32') {
+      fs.chmodSync(outputFile, 0o755);
+    }
+
     updateLocalDevRuntimeVersion('nexus', NEXUS_VERSION);
-    console.log(`Saved to: ${OUTPUT_FILE}`);
+    console.log(`Saved to: ${outputFile}`);
     return true;
   } catch (err) {
     // Clean up partial download
     try {
-      fs.unlinkSync(OUTPUT_FILE);
+      fs.unlinkSync(outputFile);
     } catch {}
     clearLocalDevRuntimeVersion('nexus');
 
@@ -132,7 +144,7 @@ async function downloadNexus(platform, force = false) {
       console.warn('   Creating empty placeholder file.');
       console.warn('   Users can install Nexus manually from the About page.');
       // Create empty placeholder file so electron-builder doesn't fail
-      fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+      fs.writeFileSync(outputFile, Buffer.alloc(0));
       return false;
     }
 
@@ -164,7 +176,10 @@ async function main() {
       console.warn('   Creating empty placeholder file.');
       // Create empty placeholder file so electron-builder doesn't fail
       fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-      fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+      const fallbackOutput = process.platform === 'win32'
+        ? path.join(RESOURCES_DIR, 'nexusd.exe')
+        : path.join(RESOURCES_DIR, 'nexusd');
+      fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
       process.exit(0);
     }
   }
@@ -184,7 +199,8 @@ async function main() {
     console.warn('   Creating empty placeholder file.');
     // Create empty placeholder file so electron-builder doesn't fail
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-    fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+    const outputFile = getOutputFile(platform);
+    fs.writeFileSync(outputFile, Buffer.alloc(0));
     clearLocalDevRuntimeVersion('nexus');
     // Exit 0 to allow build to continue
   }
@@ -198,7 +214,10 @@ main().catch((err) => {
   // Create empty placeholder file so electron-builder doesn't fail
   try {
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-    fs.writeFileSync(OUTPUT_FILE, Buffer.alloc(0));
+    const fallbackOutput = process.platform === 'win32'
+      ? path.join(RESOURCES_DIR, 'nexusd.exe')
+      : path.join(RESOURCES_DIR, 'nexusd');
+    fs.writeFileSync(fallbackOutput, Buffer.alloc(0));
     clearLocalDevRuntimeVersion('nexus');
   } catch {}
   // Exit 0 to allow build to continue

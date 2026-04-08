@@ -115,7 +115,7 @@ function ensureDevRuntimeResources() {
 
   ensureBundledRuntimeAsset({
     name: 'nexus',
-    archivePath: path.join(resourcesDir, 'nexus.tar.gz'),
+    archivePath: path.join(resourcesDir, process.platform === 'win32' ? 'nexusd.exe' : 'nexusd'),
     expectedVersion: runtimeVersions.nexus,
     downloadScript: path.join('scripts', 'download-nexus.js'),
   });

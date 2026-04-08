@@ -8,12 +8,17 @@ import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-// Marker filename written inside the bin directory to record the version it was installed for.
-const NEXUS_READY_MARKER = '.nexus-bin-ready';
+// Marker filename written inside the extracted env to record the app version it was unpacked for.
+const CONDA_READY_MARKER = '.nexus-conda-ready';
+
+// Marker written after macOS ad-hoc codesign repair. Presence means the repair has already run
+// for this installation, so start() skips it on subsequent launches.
+const CODESIGN_REPAIR_MARKER = '.nexus-codesign-repaired';
 
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
@@ -26,8 +31,9 @@ function wait(ms: number): Promise<void> {
 export type NexusSetupStage =
   | 'idle'
   | 'checking' // Checking if already installed
-  | 'downloading' // Downloading nexusd binary
-  | 'installing' // Copying binary to ~/.nexus/bin/
+  | 'downloading' // Downloading nexus.tar.gz
+  | 'extracting' // tar -xzf in progress
+  | 'unpacking' // conda-unpack in progress
   | 'starting' // server process launched, waiting for port
   | 'ready'
   | 'error';
@@ -50,26 +56,59 @@ class DynamicNexusService {
   private readonly isWindows = process.platform === 'win32';
 
   /**
-   * Get the nexusd executable name for the current platform.
+   * Get the bin/Scripts directory name for the current platform.
+   * Windows uses 'Scripts', macOS/Linux uses 'bin'.
    */
-  private getNexusdName(): string {
-    return this.isWindows ? 'nexusd.exe' : 'nexusd';
+  private getBinDir(): string {
+    return this.isWindows ? 'Scripts' : 'bin';
   }
 
   /**
-   * Get the installed nexusd binary path: ~/.nexus/bin/nexusd (or nexusd.exe on Windows)
+   * Get the nexusd executable path for the current platform.
    */
-  private getInstalledNexusdPath(): string {
-    return path.join(getDataPath(), 'bin', this.getNexusdName());
+  private getNexusdPath(envDir: string): string {
+    const binDir = this.getBinDir();
+    if (this.isWindows) {
+      return path.join(envDir, binDir, 'nexusd.exe');
+    }
+    return path.join(envDir, binDir, 'nexusd');
   }
 
   /**
-   * Get the legacy conda env nexusd path for backward compatibility checks.
+   * Get the conda-unpack executable path for the current platform.
    */
-  private getLegacyNexusdPath(): string {
-    const envDir = path.join(getDataPath(), 'nexus_env');
-    const binDir = this.isWindows ? 'Scripts' : 'bin';
-    return path.join(envDir, binDir, this.getNexusdName());
+  private getCondaUnpackPath(envDir: string): string {
+    const binDir = this.getBinDir();
+    if (this.isWindows) {
+      return path.join(envDir, binDir, 'conda-unpack.exe');
+    }
+    return path.join(envDir, binDir, 'conda-unpack');
+  }
+
+  private getCondaUnpackScriptPath(envDir: string): string | null {
+    const binDir = this.getBinDir();
+    const candidates = this.isWindows ? ['conda-unpack-script.py', 'conda-unpack.py'] : ['conda-unpack'];
+
+    for (const candidate of candidates) {
+      const candidatePath = path.join(envDir, binDir, candidate);
+      if (fs.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get the python executable path for the current platform.
+   * On Windows, python.exe is in the root directory of the conda env.
+   * On macOS/Linux, it's in bin/python.
+   */
+  private getPythonPath(envDir: string): string {
+    if (this.isWindows) {
+      return path.join(envDir, 'python.exe');
+    }
+    return path.join(envDir, 'bin', 'python');
   }
 
   private getPidFilePath(): string {
@@ -78,10 +117,6 @@ class DynamicNexusService {
 
   private getReadyFilePath(): string {
     return path.join(getDataPath(), 'nexusd.ready');
-  }
-
-  private getReadyMarkerPath(): string {
-    return path.join(getDataPath(), 'bin', NEXUS_READY_MARKER);
   }
 
   get isRunning(): boolean {
@@ -157,14 +192,16 @@ class DynamicNexusService {
   }
 
   async getInstalledVersion(): Promise<string | undefined> {
-    const nexusdPath = this.getInstalledNexusdPath();
+    const envDir = this.getCondaEnvDir();
+    const pythonPath = this.getPythonPath(envDir);
+    const nexusdPath = this.getNexusdPath(envDir);
 
-    if (!fs.existsSync(nexusdPath)) {
+    if (!fs.existsSync(pythonPath) || !fs.existsSync(nexusdPath)) {
       return undefined;
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(nexusdPath, ['--version'], {
+      const { stdout, stderr } = await execFileAsync(pythonPath, [nexusdPath, '--version'], {
         timeout: 10_000,
       });
       const raw = `${stdout}\n${stderr}`.trim();
@@ -181,29 +218,83 @@ class DynamicNexusService {
     }
   }
 
+  private getCondaReadyMarkerPath(envDir: string = this.getCondaEnvDir()): string {
+    return path.join(envDir, CONDA_READY_MARKER);
+  }
+
+  private formatCommandError(error: unknown): string {
+    if (!(error instanceof Error)) {
+      return String(error);
+    }
+
+    const execError = error as Error & { code?: number | string; stdout?: string; stderr?: string };
+    const details = [execError.message, execError.code !== undefined ? `code=${String(execError.code)}` : null, execError.stdout?.trim() ? `stdout=${execError.stdout.trim()}` : null, execError.stderr?.trim() ? `stderr=${execError.stderr.trim()}` : null].filter(Boolean);
+
+    return details.join(' | ');
+  }
+
+  /** Timeout for conda-unpack execution (10 minutes). conda-unpack traverses all
+   *  files in the conda environment to fix hardcoded paths, which can be very slow
+   *  on Windows with large environments. */
+  private static readonly CONDA_UNPACK_TIMEOUT_MS = 10 * 60 * 1000;
+
+  private async runCondaUnpack(envDir: string): Promise<void> {
+    const pythonPath = this.getPythonPath(envDir);
+    const condaUnpack = this.getCondaUnpackPath(envDir);
+    const condaUnpackScript = this.getCondaUnpackScriptPath(envDir);
+    const timeout = DynamicNexusService.CONDA_UNPACK_TIMEOUT_MS;
+
+    if (condaUnpackScript) {
+      mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpackScript}`);
+      try {
+        await execFileAsync(pythonPath, [condaUnpackScript], { timeout });
+        return;
+      } catch (error) {
+        throw new Error(`conda-unpack script failed: ${this.formatCommandError(error)}`);
+      }
+    }
+
+    if (!fs.existsSync(condaUnpack)) {
+      mainWarn('Nexus', `conda-unpack not found at ${condaUnpack} — skipping`);
+      return;
+    }
+
+    if (!this.isWindows) {
+      fs.chmodSync(condaUnpack, 0o755);
+      mainLog('Nexus', `Running conda-unpack via python: ${pythonPath} ${condaUnpack}`);
+      try {
+        await execFileAsync(pythonPath, [condaUnpack], { timeout });
+        return;
+      } catch (error) {
+        throw new Error(`conda-unpack failed: ${this.formatCommandError(error)}`);
+      }
+    }
+
+    mainLog('Nexus', `Running conda-unpack executable: ${condaUnpack}`);
+    try {
+      await execFileAsync(condaUnpack, [], { timeout });
+    } catch (error) {
+      throw new Error(`conda-unpack executable failed: ${this.formatCommandError(error)}`);
+    }
+  }
+
   /**
-   * Returns true only when the installed binary exists and its install marker
-   * matches the bundled/runtime version.
-   * Also checks the legacy conda env path for backward compatibility.
+   * Returns true only when the extracted runtime exists and its install marker
+   * matches the bundled/runtime version. This avoids treating a partially
+   * extracted env as ready during startup.
    */
   checkInstalledSync(): boolean {
     if (!this.getBundledNexusPath()) {
       return true;
     }
 
-    // Check new binary path: ~/.nexus/bin/nexusd
-    const nexusdBin = this.getInstalledNexusdPath();
-    if (fs.existsSync(nexusdBin) && this.isMarkerCurrent(this.getReadyMarkerPath())) {
-      return true;
+    const envDir = this.getCondaEnvDir();
+    const nexusdBin = this.getNexusdPath(envDir);
+    if (!fs.existsSync(nexusdBin)) {
+      return false;
     }
 
-    // Check legacy conda env path for backward compatibility
-    const legacyPath = this.getLegacyNexusdPath();
-    if (fs.existsSync(legacyPath)) {
-      return true;
-    }
-
-    return false;
+    return this.isMarkerCurrent(this.getCondaReadyMarkerPath(envDir));
   }
 
   /** Subscribe to setup progress events (fires on stage transitions). */
@@ -223,21 +314,21 @@ class DynamicNexusService {
   /**
    * Checks if nexus is already installed locally.
    * Returns true if no bundled resource is available (Nexus is optional — skip silently).
+   * Requires both the nexusd executable and the current install marker so a
+   * partial extraction is not mistaken for a completed install.
    */
   async checkInstalled(): Promise<boolean> {
     return this.checkInstalledSync();
   }
 
   /**
-   * Get the bundled Nexus resource path (the binary file in resources).
-   * Returns null if not found or too small (placeholder).
+   * Get the bundled Nexus resource path.
+   * Returns null if not found.
    */
   private getBundledNexusPath(): string | null {
-    const binaryName = this.getNexusdName();
-
     // Packaged app: check resourcesPath
     if (app.isPackaged) {
-      const packagedPath = path.join(process.resourcesPath, binaryName);
+      const packagedPath = path.join(process.resourcesPath, 'nexus.tar.gz');
       if (fs.existsSync(packagedPath)) {
         const stats = fs.statSync(packagedPath);
         if (stats.size >= 1024 * 1024) {
@@ -247,7 +338,7 @@ class DynamicNexusService {
     }
 
     // Development mode: check resources directory
-    const devPath = path.join(app.getAppPath(), 'resources', binaryName);
+    const devPath = path.join(app.getAppPath(), 'resources', 'nexus.tar.gz');
     if (fs.existsSync(devPath)) {
       const stats = fs.statSync(devPath);
       if (stats.size >= 1024 * 1024) {
@@ -260,7 +351,6 @@ class DynamicNexusService {
 
   /**
    * Installs nexus for the current platform from bundled resources.
-   * Copies the binary to ~/.nexus/bin/nexusd (or nexusd.exe) and sets executable permission.
    */
   async install(): Promise<void> {
     if (this._running) {
@@ -268,6 +358,9 @@ class DynamicNexusService {
     }
 
     const platformKey = `${os.platform()}-${os.arch()}`;
+    const envDir = this.getCondaEnvDir();
+    const stagingDir = this.getCondaEnvStagingDir();
+    const backupDir = this.getCondaEnvBackupDir();
 
     // Use bundled resource only (no OSS fallback)
     const bundledPath = this.getBundledNexusPath();
@@ -278,33 +371,71 @@ class DynamicNexusService {
     mainLog('Nexus', `Using bundled Nexus from ${bundledPath}...`);
 
     try {
+      let switchedCondaEnv = false;
       this.deletePidFile();
       this.deleteReadyFile();
+      this.removeDirIfExists(stagingDir);
+      this.removeDirIfExists(backupDir);
 
-      const binDir = path.join(getDataPath(), 'bin');
-      const destPath = this.getInstalledNexusdPath();
+      try {
+        // Extract directly from bundled resource (no temp copy needed — extractTarGzWithProgress
+        // uses read-only streams, so permission issues with the original resource do not apply)
+        fs.mkdirSync(stagingDir, { recursive: true });
+        this.emitSetup('extracting', 'Extracting Nexus environment...', 0);
+        await extractTarGzWithProgress(bundledPath, stagingDir, (percent) => {
+          this.emitSetup('extracting', `Extracting Nexus environment... ${percent}%`, percent);
+        });
 
-      // Ensure bin directory exists
-      fs.mkdirSync(binDir, { recursive: true });
+        const stagedNexusdBin = this.getNexusdPath(stagingDir);
+        if (!fs.existsSync(stagedNexusdBin)) {
+          throw new Error(`nexusd not found at ${stagedNexusdBin} after extraction`);
+        }
+        if (!this.isWindows) fs.chmodSync(stagedNexusdBin, 0o755);
 
-      this.emitSetup('installing', 'Copying Nexus binary...', 0);
+        await this.switchCondaEnvDirectory(stagingDir);
+        switchedCondaEnv = true;
 
-      // Copy the binary from bundled resources to ~/.nexus/bin/nexusd
-      fs.copyFileSync(bundledPath, destPath);
+        try {
+          // Run conda-unpack to fix hardcoded paths
+          this.emitSetup('unpacking', 'Running conda-unpack to fix install paths... (this may take several minutes on Windows)');
+          await this.runCondaUnpack(envDir);
 
-      this.emitSetup('installing', 'Setting permissions...', 50);
+          // Repair code signatures on macOS: strip conda-forge Team IDs and ad-hoc re-sign
+          // all native libraries and executables so dlopen succeeds without Team ID conflicts.
+          // force=true because this is always a fresh install — ignore any stale marker.
+          this.emitSetup('unpacking', 'Repairing native library signatures (macOS)...');
+          await this.repairMacOSLibrarySignatures(envDir, true);
 
-      // Make binary executable on macOS/Linux
-      if (!this.isWindows) {
-        fs.chmodSync(destPath, 0o755);
+          // Ensure nexusd is executable
+          const nexusdBin = this.getNexusdPath(envDir);
+          if (!fs.existsSync(nexusdBin)) {
+            throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
+          }
+          if (!this.isWindows) fs.chmodSync(nexusdBin, 0o755);
+
+          // Write version marker (nexus runtime version so upgrades invalidate it)
+          const markerFile = path.join(envDir, CONDA_READY_MARKER);
+          fs.writeFileSync(markerFile, this.getNexusVersion());
+
+          this.removeDirIfExists(backupDir);
+
+          this.emitSetup('idle', 'Nexus installation completed successfully');
+          mainLog('Nexus', 'Installation completed');
+          switchedCondaEnv = false;
+        } catch (err) {
+          if (switchedCondaEnv) {
+            await this.rollbackCondaEnvDirectorySwitch(err);
+            switchedCondaEnv = false;
+          }
+          throw err;
+        }
+      } finally {
+        try {
+          this.removeDirIfExists(stagingDir);
+        } catch {
+          // Ignore staging cleanup errors.
+        }
       }
-
-      // Write version marker
-      const markerFile = this.getReadyMarkerPath();
-      fs.writeFileSync(markerFile, this.getNexusVersion());
-
-      this.emitSetup('idle', 'Nexus installation completed successfully', 100);
-      mainLog('Nexus', `Installation completed: ${destPath}`);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.emitSetup('error', `Installation failed: ${errorMsg}`);
@@ -327,24 +458,6 @@ class DynamicNexusService {
   }
 
   /**
-   * Resolves the nexusd binary path to use for execution.
-   * Prefers the new binary path (~/.nexus/bin/nexusd), falls back to legacy conda env path.
-   */
-  private resolveNexusdBinForExec(): string {
-    const newPath = this.getInstalledNexusdPath();
-    if (fs.existsSync(newPath)) {
-      return newPath;
-    }
-
-    const legacyPath = this.getLegacyNexusdPath();
-    if (fs.existsSync(legacyPath)) {
-      return legacyPath;
-    }
-
-    throw new Error('Nexus not installed. Please install it first.');
-  }
-
-  /**
    * Starts the nexus service (assumes it's installed).
    * If the fixed port is already serving a healthy Nexus instance, reuse it.
    * Otherwise clear the stale listener before spawning a fresh process.
@@ -356,7 +469,18 @@ class DynamicNexusService {
     this._port = NEXUS_DEFAULT_PORT;
     this._running = false;
 
-    const nexusdBin = this.resolveNexusdBinForExec();
+    const envDir = this.getCondaEnvDir();
+    const nexusdBin = this.getNexusdPath(envDir);
+
+    if (!fs.existsSync(nexusdBin)) {
+      throw new Error('Nexus not installed. Please install it first.');
+    }
+
+    // One-time macOS codesign repair for existing installations that were extracted before
+    // this fix was introduced. repairMacOSLibrarySignatures() is a no-op if the marker file
+    // already exists (written by install() or a previous start()), so this adds no overhead
+    // on subsequent launches.
+    await this.repairMacOSLibrarySignatures(envDir);
 
     if (fs.existsSync(this.getPidFilePath())) {
       const stopped = await this.stopManagedPidFromFile('before startup');
@@ -378,23 +502,17 @@ class DynamicNexusService {
       throw new Error(`Port ${this._port} is still in use after pre-start PID stop${pidSummary}`);
     }
 
-    // Directly execute the nexusd binary (no python interpreter needed)
-    const executablePath = nexusdBin;
+    // Use the python interpreter from the extracted conda env to run nexusd.
+    const pythonPath = this.getPythonPath(envDir);
+    const executablePath = pythonPath;
 
     // Use the cluster profile (lite + federation) for local development.
-    const spawnArgs = ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
-
-    // Point Nexus RecordStore to its own SQLite database under ~/.nexus/
-    const nexusDbPath = path.join(getDataPath(), 'nexus_record_store.db');
-    const nexusEnv = {
-      ...process.env,
-      NEXUS_DATABASE_URL: `sqlite:///${nexusDbPath.replace(/\\/g, '/')}`,
-    };
+    const spawnArgs = [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(this._port)];
 
     const spawnStart = Date.now();
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
     mainLog('Nexus', `Spawning: ${executablePath} ${spawnArgs.join(' ')}`);
-    this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe', env: nexusEnv });
+    this.process = spawn(executablePath, spawnArgs, { stdio: 'pipe' });
 
     this.process.stdout?.on('data', (d: Buffer) => {
       mainLog('Nexus:stdout', d.toString().trim());
@@ -402,7 +520,7 @@ class DynamicNexusService {
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
       if (!msg) return;
-      // Nexus writes info/debug logs to stderr; only escalate warnings and errors
+      // Nexus (Python) writes info/debug logs to stderr; only escalate warnings and errors
       if (/\[(warn|warning|error|critical)\s*\]/i.test(msg)) {
         mainError('Nexus:stderr', msg);
       }
@@ -426,10 +544,12 @@ class DynamicNexusService {
   }
 
   getStartCommandPreview(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
-    const nexusdBin = this.getInstalledNexusdPath();
+    const envDir = this.getCondaEnvDir();
+    const pythonPath = this.getPythonPath(envDir);
+    const nexusdBin = this.getNexusdPath(envDir);
     return {
-      command: nexusdBin,
-      args: ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
+      command: pythonPath,
+      args: [nexusdBin, '--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
     };
   }
 
@@ -556,13 +676,10 @@ class DynamicNexusService {
     }
 
     const normalizedCommand = commandLine.replaceAll('\\', '/').toLowerCase();
-    const nexusdName = this.getNexusdName().toLowerCase();
+    const envDir = this.getCondaEnvDir().replaceAll('\\', '/').toLowerCase();
+    const nexusdName = this.isWindows ? 'nexusd.exe' : 'nexusd';
 
-    // Check if the command references nexusd from either the new bin path or legacy conda env path
-    const binDir = path.join(getDataPath(), 'bin').replaceAll('\\', '/').toLowerCase();
-    const legacyEnvDir = path.join(getDataPath(), 'nexus_env').replaceAll('\\', '/').toLowerCase();
-
-    return normalizedCommand.includes(nexusdName) && (normalizedCommand.includes(binDir) || normalizedCommand.includes(legacyEnvDir));
+    return normalizedCommand.includes(envDir) && normalizedCommand.includes(nexusdName);
   }
 
   private deletePidFile(): void {
@@ -674,6 +791,212 @@ class DynamicNexusService {
     }
     this._running = healthy;
     return healthy;
+  }
+
+  /**
+   * Strip existing code signatures and apply a uniform ad-hoc signature to all
+   * native libraries (.dylib / .so) and Mach-O executables inside the conda env.
+   *
+   * Why this is needed on macOS:
+   *   conda-forge signs its libraries with its own Team ID. When the conda env is
+   *   re-signed by the Sudowork build pipeline (afterPack.js), a signing failure on
+   *   any individual file leaves it with the original conda-forge Team ID while
+   *   others receive the Sudowork Team ID. macOS then refuses to dlopen the mismatched
+   *   library ("different Team IDs"). Ad-hoc signing removes Team IDs from all files,
+   *   making them consistent and lifting the restriction.
+   *
+   *   Re-signing executables (python, nexusd …) is equally important: a process signed
+   *   with Hardened Runtime + a Team ID enforces Library Validation and will only load
+   *   dylibs with the SAME Team ID. After ad-hoc re-signing, the process has no Team ID
+   *   and no Hardened Runtime, so Library Validation is not enforced.
+   *
+   * @param envDir  Path to the extracted conda environment directory.
+   * @param force   If false (default) the method is a no-op when the repair marker
+   *                already exists, preventing redundant work on subsequent launches.
+   */
+  async repairMacOSLibrarySignatures(envDir: string, force = false): Promise<void> {
+    if (process.platform !== 'darwin') return;
+
+    const repairMarker = path.join(envDir, CODESIGN_REPAIR_MARKER);
+    if (!force && this.isMarkerCurrent(repairMarker)) {
+      mainLog('Nexus', 'macOS codesign repair already done for this nexus version — skipping');
+      return;
+    }
+
+    mainLog('Nexus', 'Repairing native library code signatures (macOS ad-hoc re-sign)...');
+
+    // Single bash invocation: strip + ad-hoc sign all .dylib / .so files, then all
+    // Mach-O binaries under bin/.  Using process substitution (<(...)) requires bash.
+    const script = `
+SIGNED=0; FAILED=0
+
+# 1. Native libraries
+while IFS= read -r -d '' f; do
+  codesign --remove-signature "$f" 2>/dev/null || true
+  if codesign --force --sign - "$f" 2>/dev/null; then
+    SIGNED=$((SIGNED+1))
+  else
+    echo "  warn: could not sign $f" >&2
+    FAILED=$((FAILED+1))
+  fi
+done < <(find "${envDir}" \\( -name "*.dylib" -o -name "*.so" \\) -print0)
+
+# 2. Mach-O executables in bin/ (removes hardened-runtime so Library Validation is not enforced)
+while IFS= read -r -d '' f; do
+  if file "$f" 2>/dev/null | grep -q "Mach-O"; then
+    codesign --remove-signature "$f" 2>/dev/null || true
+    if codesign --force --sign - "$f" 2>/dev/null; then
+      SIGNED=$((SIGNED+1))
+    else
+      echo "  warn: could not sign $f" >&2
+      FAILED=$((FAILED+1))
+    fi
+  fi
+done < <(find "${envDir}/bin" -maxdepth 1 -type f -print0)
+
+echo "codesign-repair: signed=$$SIGNED failed=$$FAILED"
+`;
+
+    try {
+      const { stdout, stderr } = await execAsync(script, { shell: '/bin/bash', timeout: 180000 });
+      if (stdout.trim()) mainLog('Nexus', stdout.trim());
+      if (stderr.trim()) mainWarn('Nexus', stderr.trim());
+      fs.writeFileSync(repairMarker, this.getNexusVersion());
+      mainLog('Nexus', 'macOS codesign repair complete');
+    } catch (err) {
+      mainWarn('Nexus', `macOS codesign repair encountered errors (non-fatal): ${err}`);
+    }
+  }
+
+  /**
+   * Returns the path to the conda env directory.
+   * Uses ~/.nexus/nexus_env for consistency with other runtime components.
+   */
+  private getCondaEnvDir(): string {
+    return path.join(getDataPath(), 'nexus_env');
+  }
+
+  private getCondaEnvStagingDir(): string {
+    return path.join(getDataPath(), 'nexus_env.new');
+  }
+
+  private getCondaEnvBackupDir(): string {
+    return path.join(getDataPath(), 'nexus_env.old');
+  }
+
+  private removeDirIfExists(targetPath: string): void {
+    if (!fs.existsSync(targetPath)) {
+      return;
+    }
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
+
+  private killWindowsProcessTree(pid: string): void {
+    try {
+      execFile('taskkill', ['/PID', pid, '/T', '/F'], { windowsHide: true }, () => {});
+    } catch {
+      // Best effort only.
+    }
+  }
+
+  private cleanupWindowsInstallLocks(): void {
+    if (!this.isWindows) {
+      return;
+    }
+
+    const pidFromFile = this.readPidFromFile();
+    if (pidFromFile) {
+      this.killWindowsProcessTree(pidFromFile);
+    }
+
+    void this.getPidsOnPort(NEXUS_DEFAULT_PORT).then((pids) => {
+      for (const pid of pids) {
+        this.killWindowsProcessTree(pid);
+      }
+    });
+
+    try {
+      const script = ["$patterns = @('.nexus\\\\nexus_env', 'nexusd.exe', '--profile=cluster', '--port 12012')", 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Where-Object {', '  $cmd = $_.CommandLine', '  foreach ($pattern in $patterns) { if ($cmd -like "*${pattern}*") { return $true } }', '  return $false', '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'].join('; ');
+      execFile('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true }, () => {});
+    } catch {
+      // Best effort only.
+    }
+  }
+
+  private async switchCondaEnvDirectory(stagingDir: string): Promise<void> {
+    const activeDir = this.getCondaEnvDir();
+    const backupDir = this.getCondaEnvBackupDir();
+    const maxAttempts = this.isWindows ? 5 : 1;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        this.removeDirIfExists(backupDir);
+
+        if (fs.existsSync(activeDir)) {
+          fs.renameSync(activeDir, backupDir);
+        }
+
+        fs.renameSync(stagingDir, activeDir);
+        return;
+      } catch (err) {
+        lastError = err;
+
+        if (!fs.existsSync(activeDir) && fs.existsSync(backupDir)) {
+          try {
+            fs.renameSync(backupDir, activeDir);
+          } catch {
+            // Leave backup in place for manual recovery.
+          }
+        }
+
+        if (attempt === maxAttempts || !this.isWindows) {
+          throw err;
+        }
+
+        mainWarn('Nexus', `Environment switch failed on attempt ${attempt}/${maxAttempts}: ${err instanceof Error ? err.message : String(err)}`);
+        await this.stop().catch(() => {});
+        this.cleanupWindowsInstallLocks();
+        await wait(attempt * 500);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  private async rollbackCondaEnvDirectorySwitch(reason: unknown): Promise<void> {
+    const activeDir = this.getCondaEnvDir();
+    const backupDir = this.getCondaEnvBackupDir();
+    const maxAttempts = this.isWindows ? 5 : 1;
+    const reasonText = reason instanceof Error ? reason.message : String(reason);
+
+    if (!fs.existsSync(backupDir)) {
+      mainWarn('Nexus', `Skipping env rollback because no backup directory exists. reason=${reasonText}`);
+      return;
+    }
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        mainWarn('Nexus', `Rolling back failed Nexus environment switch (${attempt}/${maxAttempts}). reason=${reasonText}`);
+
+        if (fs.existsSync(activeDir)) {
+          this.removeDirIfExists(activeDir);
+        }
+
+        fs.renameSync(backupDir, activeDir);
+        mainLog('Nexus', 'Restored previous Nexus environment after install failure');
+        return;
+      } catch (rollbackErr) {
+        if (attempt === maxAttempts || !this.isWindows) {
+          throw rollbackErr;
+        }
+
+        mainWarn('Nexus', `Rollback failed on attempt ${attempt}/${maxAttempts}: ${rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr)}`);
+        await this.stop().catch(() => {});
+        this.cleanupWindowsInstallLocks();
+        await wait(attempt * 500);
+      }
+    }
   }
 
   private async isHealthyNexusServer(port: number): Promise<boolean> {

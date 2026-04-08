@@ -426,7 +426,7 @@ module.exports = async function afterPack(context) {
     }
 
     // Fixed name archives
-    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
+    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexusd'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
