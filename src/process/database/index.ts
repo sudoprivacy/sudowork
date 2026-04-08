@@ -588,18 +588,14 @@ export class AionUIDatabase {
   updateWorkspacePath(oldPath: string, newPath: string): IQueryResult<number> {
     try {
       // Find all conversations with this workspace path in their extra JSON
-      const findStmt = this.db.prepare(
-        `SELECT id, extra FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
-      );
+      const findStmt = this.db.prepare(`SELECT id, extra FROM conversations WHERE json_extract(extra, '$.workspace') = ?`);
       const rows = findStmt.all(oldPath) as Array<{ id: string; extra: string }>;
 
       if (rows.length === 0) {
         return { success: true, data: 0 };
       }
 
-      const updateStmt = this.db.prepare(
-        `UPDATE conversations SET extra = json_set(extra, '$.workspace', ?), updated_at = ? WHERE id = ?`
-      );
+      const updateStmt = this.db.prepare(`UPDATE conversations SET extra = json_set(extra, '$.workspace', ?), updated_at = ? WHERE id = ?`);
 
       const now = Date.now();
       const transaction = this.db.transaction(() => {
@@ -622,18 +618,14 @@ export class AionUIDatabase {
    */
   updateWorkspaceDisplayName(workspace: string, displayName: string): IQueryResult<number> {
     try {
-      const findStmt = this.db.prepare(
-        `SELECT id FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
-      );
+      const findStmt = this.db.prepare(`SELECT id FROM conversations WHERE json_extract(extra, '$.workspace') = ?`);
       const rows = findStmt.all(workspace) as Array<{ id: string }>;
 
       if (rows.length === 0) {
         return { success: true, data: 0 };
       }
 
-      const updateStmt = this.db.prepare(
-        `UPDATE conversations SET extra = json_set(extra, '$.workspaceDisplayName', ?), updated_at = ? WHERE id = ?`
-      );
+      const updateStmt = this.db.prepare(`UPDATE conversations SET extra = json_set(extra, '$.workspaceDisplayName', ?), updated_at = ? WHERE id = ?`);
 
       const now = Date.now();
       const transaction = this.db.transaction(() => {
@@ -1054,6 +1046,22 @@ export class AionUIDatabase {
       return { success: true, data: result.changes > 0 };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete all channel users for a specific platform
+   * Used when disabling a channel to clear all authorized users
+   */
+  deleteChannelUsersByPlatform(platformType: string): IQueryResult<number> {
+    try {
+      // First delete sessions for users of this platform (foreign key constraint)
+      this.db.prepare('DELETE FROM assistant_sessions WHERE user_id IN (SELECT id FROM assistant_users WHERE platform_type = ?)').run(platformType);
+      // Then delete the users
+      const result = this.db.prepare('DELETE FROM assistant_users WHERE platform_type = ?').run(platformType);
+      return { success: true, data: result.changes };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: 0 };
     }
   }
 
