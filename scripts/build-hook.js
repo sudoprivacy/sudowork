@@ -53,4 +53,40 @@ function buildSafetyHook() {
   }
 }
 
+function buildPythonSafetyHook() {
+  const hookDir = path.resolve(__dirname, '../hook/python');
+  const hookDist = path.join(hookDir, 'dist/hook-0.0.1-py3-none-any.whl');
+
+  // Check if hook source exists
+  if (!fs.existsSync(hookDir)) {
+    console.log('⚠️  hook/node directory not found, skipping hook build');
+    return true;
+  }
+
+  console.log('🔨 Building python safety hook...');
+
+  console.log('📦 Installing hook dependencies...');
+  execSync('uv sync', {
+    cwd: hookDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  execSync('uv build', {
+    cwd: hookDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+
+  if (fs.existsSync(hookDist)) {
+    console.log('✅ Python safety hook built successfully');
+    return true;
+  } else {
+    console.log('❌ Python safety hook build failed: whl not generated');
+    return false;
+  }
+}
+
 buildSafetyHook();
+buildPythonSafetyHook()

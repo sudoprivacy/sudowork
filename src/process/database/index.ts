@@ -579,6 +579,77 @@ export class AionUIDatabase {
     }
   }
 
+  /**
+   * Batch update workspace path for all conversations matching the old path
+   * 批量更新所有匹配旧路径的对话的 workspace 路径
+   *
+   * Used when physically renaming a workspace directory.
+   * Only updates extra.workspace, does NOT change conversation.name (title).
+   */
+  updateWorkspacePath(oldPath: string, newPath: string): IQueryResult<number> {
+    try {
+      // Find all conversations with this workspace path in their extra JSON
+      const findStmt = this.db.prepare(
+        `SELECT id, extra FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
+      );
+      const rows = findStmt.all(oldPath) as Array<{ id: string; extra: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: 0 };
+      }
+
+      const updateStmt = this.db.prepare(
+        `UPDATE conversations SET extra = json_set(extra, '$.workspace', ?), updated_at = ? WHERE id = ?`
+      );
+
+      const now = Date.now();
+      const transaction = this.db.transaction(() => {
+        for (const row of rows) {
+          updateStmt.run(newPath, now, row.id);
+        }
+      });
+      transaction();
+
+      return { success: true, data: rows.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update workspace display name for all conversations with the given workspace path.
+   * Only updates the displayName field in extra JSON, does NOT change the physical workspace path.
+   * 更新指定工作空间路径的所有会话的显示名称，不改变物理路径。
+   */
+  updateWorkspaceDisplayName(workspace: string, displayName: string): IQueryResult<number> {
+    try {
+      const findStmt = this.db.prepare(
+        `SELECT id FROM conversations WHERE json_extract(extra, '$.workspace') = ?`
+      );
+      const rows = findStmt.all(workspace) as Array<{ id: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: 0 };
+      }
+
+      const updateStmt = this.db.prepare(
+        `UPDATE conversations SET extra = json_set(extra, '$.workspaceDisplayName', ?), updated_at = ? WHERE id = ?`
+      );
+
+      const now = Date.now();
+      const transaction = this.db.transaction(() => {
+        for (const row of rows) {
+          updateStmt.run(displayName, now, row.id);
+        }
+      });
+      transaction();
+
+      return { success: true, data: rows.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
   deleteConversation(conversationId: string): IQueryResult<boolean> {
     try {
       const stmt = this.db.prepare('DELETE FROM conversations WHERE id = ?');

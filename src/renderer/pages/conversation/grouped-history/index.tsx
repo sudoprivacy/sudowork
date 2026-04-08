@@ -5,15 +5,17 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { CronJobIndicator, useCronJobsMap } from '@/renderer/pages/cron';
+import { emitter } from '@/renderer/utils/emitter';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Modal } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
@@ -41,7 +43,76 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+
+  const SCHEDULED_EXPANSION_KEY = 'aionui_scheduled_expansion';
+  const [expandedScheduled, setExpandedScheduled] = React.useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(SCHEDULED_EXPANSION_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {
+      // ignore
+    }
+    // Default: all expanded — will be populated on first render
+    return [];
+  });
+
+  // Auto-expand all scheduled groups on first load
+  const hasAutoExpandedScheduledRef = React.useRef(false);
+  useEffect(() => {
+    if (hasAutoExpandedScheduledRef.current || scheduledGroups.length === 0) return;
+    const allNames = scheduledGroups.map((g) => g.jobName);
+    setExpandedScheduled(allNames);
+    hasAutoExpandedScheduledRef.current = true;
+    try {
+      localStorage.setItem(SCHEDULED_EXPANSION_KEY, JSON.stringify(allNames));
+    } catch {
+      // ignore
+    }
+  }, [scheduledGroups]);
+
+  const handleToggleScheduled = useCallback((jobName: string) => {
+    setExpandedScheduled((prev) => {
+      const next = prev.includes(jobName) ? prev.filter((n) => n !== jobName) : [...prev, jobName];
+      try {
+        localStorage.setItem(SCHEDULED_EXPANSION_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  // Workspace rename state / 工作空间重命名状态
+  const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; workspace: string; name: string }>({ visible: false, workspace: '', name: '' });
+  const [wsRenameLoading, setWsRenameLoading] = useState(false);
+
+  const handleWorkspaceRenameStart = useCallback((workspacePath: string, currentDisplayName: string) => {
+    setWsRenameModal({ visible: true, workspace: workspacePath, name: currentDisplayName });
+  }, []);
+
+  const handleWorkspaceRenameConfirm = useCallback(async () => {
+    const newName = wsRenameModal.name.trim();
+    if (!newName) return;
+    setWsRenameLoading(true);
+    try {
+      const result = await ipcBridge.workspaceManage.updateDisplayName.invoke({ workspace: wsRenameModal.workspace, displayName: newName });
+      if (result?.success) {
+        Message.success(t('conversation.workspace.renameWorkspace.success'));
+        setWsRenameModal({ visible: false, workspace: '', name: '' });
+        emitter.emit('chat.history.refresh');
+      } else {
+        Message.error(result?.msg || t('conversation.workspace.renameWorkspace.failed'));
+      }
+    } catch (error) {
+      Message.error(t('conversation.workspace.renameWorkspace.failed'));
+    } finally {
+      setWsRenameLoading(false);
+    }
+  }, [wsRenameModal, t]);
 
   const { selectedConversationIds, setSelectedConversationIds, selectedCount, allSelected, toggleSelectedConversation, handleToggleSelectAll } = useBatchSelection(batchMode, conversations);
 
@@ -199,6 +270,24 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
       <DirectorySelectionModal visible={showExportDirectorySelector} onConfirm={handleSelectExportDirectoryFromModal} onCancel={() => setShowExportDirectorySelector(false)} />
 
+      {/* Workspace Rename Modal / 工作空间重命名弹窗 */}
+      <Modal
+        title={t('conversation.workspace.renameWorkspace.title')}
+        visible={wsRenameModal.visible}
+        onOk={handleWorkspaceRenameConfirm}
+        onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })}
+        okText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        confirmLoading={wsRenameLoading}
+        okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
+        style={{ borderRadius: '12px' }}
+        alignCenter
+        getPopupContainer={() => document.body}
+      >
+        <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+        <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
+      </Modal>
+
       {batchMode && !collapsed && (
         <div className='px-12px pb-8px'>
           <div className='rd-8px bg-fill-1 p-10px flex flex-col gap-8px border border-solid border-[rgba(var(--primary-6),0.08)]'>
@@ -219,6 +308,34 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
+        {/* ── SCHEDULED SECTION ── */}
+        {scheduledGroups.length > 0 && (
+          <div className='mb-8px min-w-0'>
+            {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>}
+            {scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
+              const isExpanded = expandedScheduled.includes(jobName);
+              return (
+                <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                  <WorkspaceCollapse
+                    expanded={isExpanded}
+                    onToggle={() => handleToggleScheduled(jobName)}
+                    siderCollapsed={collapsed}
+                    header={
+                      <div className='flex items-center gap-8px text-14px min-w-0'>
+                        <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
+                      </div>
+                    }
+                  >
+                    <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>
+                      {cronConvs.map((conv) => renderConversation(conv))}
+                    </div>
+                  </WorkspaceCollapse>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
             <div className='mb-8px min-w-0'>
@@ -245,7 +362,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               if (item.type === 'workspace' && item.workspaceGroup) {
                 const group = item.workspaceGroup;
                 return (
-                  <div key={group.workspace} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                  <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
                     <WorkspaceCollapse
                       expanded={expandedWorkspaces.includes(group.workspace)}
                       onToggle={() => handleToggleWorkspace(group.workspace)}
@@ -253,6 +370,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                       header={
                         <div className='flex items-center gap-8px text-14px min-w-0'>
                           <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
+                          <button
+                            type='button'
+                            className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
+                            title={t('conversation.workspace.renameWorkspace.title')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWorkspaceRenameStart(group.workspace, group.displayName);
+                            }}
+                          >
+                            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                              <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
+                              <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
+                            </svg>
+                          </button>
                         </div>
                       }
                     >

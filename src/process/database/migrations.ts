@@ -1020,13 +1020,116 @@ const migration_v16: IMigration = {
 };
 
 /**
+ * Migration v16 -> v17: Add conversation_mode and last_conversation_id to cron_jobs
+ * Supports "new conversation per run" (default) vs "reuse existing conversation" mode.
+ */
+const migration_v17: IMigration = {
+  version: 17,
+  name: 'Add conversation_mode and last_conversation_id to cron_jobs',
+  up: (db) => {
+    db.exec(`
+      ALTER TABLE cron_jobs ADD COLUMN conversation_mode TEXT DEFAULT 'reuse';
+      ALTER TABLE cron_jobs ADD COLUMN last_conversation_id TEXT;
+    `);
+    mainLog('Migration v17', 'Added conversation_mode and last_conversation_id to cron_jobs');
+  },
+  down: (db) => {
+    // SQLite does not support DROP COLUMN in older versions, recreate the table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS cron_jobs_v16 AS SELECT
+        id, name, enabled,
+        schedule_kind, schedule_value, schedule_tz, schedule_description,
+        payload_message,
+        conversation_id, conversation_title, agent_type, created_by,
+        created_at, updated_at,
+        next_run_at, last_run_at, last_status, last_error,
+        run_count, retry_count, max_retries
+      FROM cron_jobs;
+      DROP TABLE cron_jobs;
+      ALTER TABLE cron_jobs_v16 RENAME TO cron_jobs;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_conversation ON cron_jobs(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_agent_type ON cron_jobs(agent_type);
+    `);
+    mainLog('Migration v17', 'Rolled back: Removed conversation_mode and last_conversation_id from cron_jobs');
+  },
+};
+
+/**
+ * Migration v17 -> v18: Add workspace column to cron_jobs
+ * Stores the working directory chosen by the user when creating the scheduled task.
+ */
+const migration_v18: IMigration = {
+  version: 18,
+  name: 'Add workspace to cron_jobs',
+  up: (db) => {
+    db.exec(`ALTER TABLE cron_jobs ADD COLUMN workspace TEXT;`);
+    mainLog('Migration v18', 'Added workspace to cron_jobs');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS cron_jobs_v17 AS SELECT
+        id, name, enabled,
+        schedule_kind, schedule_value, schedule_tz, schedule_description,
+        payload_message,
+        conversation_id, conversation_title, agent_type, created_by,
+        created_at, updated_at,
+        next_run_at, last_run_at, last_status, last_error,
+        run_count, retry_count, max_retries,
+        conversation_mode, last_conversation_id
+      FROM cron_jobs;
+      DROP TABLE cron_jobs;
+      ALTER TABLE cron_jobs_v17 RENAME TO cron_jobs;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_conversation ON cron_jobs(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_agent_type ON cron_jobs(agent_type);
+    `);
+    mainLog('Migration v18', 'Rolled back: Removed workspace from cron_jobs');
+  },
+};
+
+/**
+ * Migration v18 -> v19: Add preset_assistant_id column to cron_jobs
+ * Stores the selected preset assistant ID so the correct rules/skills are used at execution time.
+ */
+const migration_v19: IMigration = {
+  version: 19,
+  name: 'Add preset_assistant_id to cron_jobs',
+  up: (db) => {
+    db.exec(`ALTER TABLE cron_jobs ADD COLUMN preset_assistant_id TEXT;`);
+    mainLog('Migration v19', 'Added preset_assistant_id to cron_jobs');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS cron_jobs_v18 AS SELECT
+        id, name, enabled,
+        schedule_kind, schedule_value, schedule_tz, schedule_description,
+        payload_message,
+        conversation_id, conversation_title, agent_type, created_by,
+        created_at, updated_at,
+        next_run_at, last_run_at, last_status, last_error,
+        run_count, retry_count, max_retries,
+        conversation_mode, last_conversation_id, workspace
+      FROM cron_jobs;
+      DROP TABLE cron_jobs;
+      ALTER TABLE cron_jobs_v18 RENAME TO cron_jobs;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_conversation ON cron_jobs(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_agent_type ON cron_jobs(agent_type);
+    `);
+    mainLog('Migration v19', 'Rolled back: Removed preset_assistant_id from cron_jobs');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
+  migration_v19,
 ];
 
 /**

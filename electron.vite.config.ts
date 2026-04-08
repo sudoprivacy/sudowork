@@ -1,8 +1,10 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { resolve } from 'path';
+import { execSync } from 'child_process';
 import UnoCSS from 'unocss/vite';
 import unoConfig from './uno.config.ts';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import packageJson from './package.json';
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
@@ -36,8 +38,45 @@ const mainAliases = {
   '@xterm/headless': resolve('src/shims/xterm-headless.ts'),
 };
 
+/**
+ * Resolve build-time metadata.
+ * CI can override via environment variables; locally we fall back to git.
+ */
+function getBuildMetadata() {
+  const gitExec = (cmd: string, fallback: string): string => {
+    try {
+      return execSync(cmd, { encoding: 'utf-8' }).trim() || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const date = process.env.BUILD_DATE || gitExec('git log -1 --format=%cs', new Date().toISOString().slice(0, 10));
+  const commit = process.env.BUILD_COMMIT || gitExec('git rev-parse --short HEAD', 'unknown');
+  const tag = gitExec('git describe --tags --exact-match', '');
+  // Use injected tag directly; fall back to date-commit for untagged (temporary) builds
+  const version = process.env.BUILD_VERSION || tag || `${date}-${commit}`;
+
+  // Detect nightly: explicit env var, or tag starting with "nightly-"
+  let isNightly = process.env.BUILD_IS_NIGHTLY === 'true';
+  if (!isNightly) {
+    if (/^nightly-/i.test(tag)) isNightly = true;
+  }
+
+  return { version, date, commit, isNightly };
+}
+
 export default defineConfig(({ mode }) => {
   const isDevelopment = mode === 'development';
+  const buildMeta = getBuildMetadata();
+
+  // Shared define constants for build-time injection
+  const buildDefines = {
+    __BUILD_VERSION__: JSON.stringify(buildMeta.version),
+    __BUILD_DATE__: JSON.stringify(buildMeta.date),
+    __BUILD_COMMIT__: JSON.stringify(buildMeta.commit),
+    __BUILD_IS_NIGHTLY__: JSON.stringify(buildMeta.isNightly),
+  };
 
   return {
     main: {
@@ -76,7 +115,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      define: { 'process.env.env': JSON.stringify(process.env.env) },
+      define: { 'process.env.env': JSON.stringify(process.env.env), ...buildDefines },
     },
 
     preload: {
@@ -149,6 +188,7 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.env': JSON.stringify(process.env.env),
         global: 'globalThis',
+        ...buildDefines,
       },
       optimizeDeps: {
         exclude: ['electron'],

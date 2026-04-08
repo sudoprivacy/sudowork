@@ -132,10 +132,41 @@
       "addedToChat": "Sohbete eklendi",
       "openFailed": "Açılamadı",
       "revealFailed": "İçeren klasör açılamadı",
-      "uploadToBdpan": "Baidu Netdisk'e Yükle"
+      "uploadToBdpan": "Baidu Netdisk'e Yükle",
+      "newFolder": "Yeni Klasör"
+    },
+    "newFolder": {
+      "title": "Yeni Klasör",
+      "placeholder": "Klasör adını girin",
+      "hint": "Geçerli dizinde yeni bir klasör oluşturun",
+      "success": "Klasör başarıyla oluşturuldu",
+      "failed": "Klasör oluşturulamadı",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "reservedName": "Bu ad sistem tarafından ayrılmıştır. Lütfen farklı bir ad kullanın."
     },
     "expand": "Çalışma Alanını Genişlet",
-    "collapse": "Çalışma Alanını Daralt"
+    "collapse": "Çalışma Alanını Daralt",
+    "drafts": {
+      "title": "Taslaklar",
+      "description": "Ajan yürütme sırasında üretilen ara dosyalar",
+      "empty": "Taslaklar boş",
+      "clearAll": "Taslakları Temizle",
+      "clearConfirm": "Taslaklardaki tüm dosyaları silmek istediğinizden emin misiniz?",
+      "fileCount": "{{count}} ara dosya",
+      "clearSuccess": "Taslaklar temizlendi",
+      "deleteFailed": "Taslak dosya silinemedi"
+    },
+    "renameWorkspace": {
+      "title": "Çalışma Alanını Yeniden Adlandır",
+      "placeholder": "Görünen adı girin",
+      "hint": "Yalnızca görünen ad değiştirilecektir. Fiziksel klasör yolu değiştirilmeyecektir.",
+      "success": "Çalışma alanı yeniden adlandırıldı",
+      "failed": "Yeniden adlandırma başarısız",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "alreadyExists": "Hedef klasör zaten mevcut",
+      "agentRunning": "Bir Ajan çalışıyor. Yeniden adlandırmadan önce tamamlanmasını bekleyin.",
+      "emptyName": "Ad boş olamaz"
+    }
   },
   "chat": {
     "noModelSelected": "Mevcut oturum için model seçilmedi, mesaj gönderilemiyor",

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
 
@@ -16,6 +17,35 @@ export interface FirstMessageConfig {
   presetContext?: string;
   /** 启用的 skills 列表 / Enabled skills list */
   enabledSkills?: string[];
+  /** 工作空间路径 / Workspace path (used for drafts instruction) */
+  workspace?: string;
+}
+
+/**
+ * 构建草稿箱使用指令
+ * Build drafts box usage instructions for Agent
+ *
+ * 通过系统提示词告诉 Agent：
+ * 1. 中间产物（脚本、临时数据、草稿等）应写入 .drafts/ 目录
+ * 2. 最终结果文件直接写入工作空间根目录
+ *
+ * Via system prompt, instruct the Agent:
+ * 1. Intermediate artifacts (scripts, temp data, drafts) should be written to .drafts/
+ * 2. Final result files should be written directly to workspace root
+ */
+export function buildDraftsInstruction(workspace: string): string {
+  const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
+  return `[Workspace File Management Rules]
+Your workspace is: ${workspace}
+A drafts directory exists at: ${draftsPath}
+
+File output rules:
+- Intermediate/temporary files (scripts, temp data, draft versions, processing steps, helper code) → Write to ${draftsPath}/
+- Final deliverable files (reports, final outputs, completed documents) → Write to ${workspace}/
+- When executing multi-step tasks, save each step's intermediate output to the drafts directory
+- The final completed result should always be in the workspace root, not in drafts
+- Examples of intermediate files: .py scripts, .sh scripts, temp .json/.csv data files, draft .md files
+- Examples of final files: final reports, processed datasets, completed documents`;
 }
 
 /**
@@ -31,6 +61,11 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载并添加 skills 内容 / Load and add skills content
@@ -91,6 +126,11 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
   // 1. 添加预设规则 / Add preset rules
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 1.5 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 2. 加载 skills 索引（包括内置 skills + 可选 skills）
@@ -159,6 +199,11 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载 skills 索引（包括内置 skills + 可选 skills）

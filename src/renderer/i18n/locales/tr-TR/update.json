@@ -21,5 +21,8 @@
   "autoUpdateMode": "Otomatik güncelleme modu",
   "showInFolder": "Klasörde göster",
   "openFile": "Dosyayı aç",
-  "errorTitle": "Güncelleme başarısız"
+  "errorTitle": "Güncelleme başarısız",
+  "nightlyBadge": "Nightly Önizleme",
+  "nightlyUpdateNotice": "Bu bir Nightly sürümdür. Nightly güncellemeleri yalnızca manuel indirme ile desteklenir.",
+  "buildDate": "Derleme tarihi"
 }
