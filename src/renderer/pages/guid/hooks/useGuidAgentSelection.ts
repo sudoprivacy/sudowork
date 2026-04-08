@@ -42,9 +42,13 @@ async function savePreferredModelId(agentKey: string, modelId: string): Promise<
   }
 }
 
+/** Default agent key used when resetting selection */
+const DEFAULT_AGENT_KEY = 'openclaw-gateway';
+
 export type GuidAgentSelectionResult = {
   selectedAgentKey: string;
   setSelectedAgentKey: (key: string) => void;
+  resetSelection: () => void;
   selectedAgent: AcpBackend | 'custom';
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
@@ -80,7 +84,7 @@ type UseGuidAgentSelectionOptions = {
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
 export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(DEFAULT_AGENT_KEY);
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -95,6 +99,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     _setSelectedAgentKey(key);
     ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
       console.error('Failed to save selected agent:', error);
+    });
+  }, []);
+
+  // Reset agent selection to default and clear persisted storage.
+  // Called after a conversation is created so the Guide page starts fresh.
+  const resetSelection = useCallback(() => {
+    _setSelectedAgentKey(DEFAULT_AGENT_KEY);
+    ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
+      console.error('Failed to clear selected agent:', error);
     });
   }, []);
 
@@ -601,6 +614,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   return {
     selectedAgentKey,
     setSelectedAgentKey,
+    resetSelection,
     selectedAgent,
     selectedAgentInfo,
     isPresetAgent,

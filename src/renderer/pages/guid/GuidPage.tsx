@@ -216,6 +216,9 @@ const GuidPage: React.FC = () => {
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
     isGoogleAuth: modelSelection.isGoogleAuth,
 
+    // Agent selection reset (called after conversation creation)
+    resetAgentSelection: agentSelection.resetSelection,
+
     // Mention state reset
     setMentionOpen: mention.setMentionOpen,
     setMentionQuery: mention.setMentionQuery,
