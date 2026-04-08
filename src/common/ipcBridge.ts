@@ -492,6 +492,17 @@ export type SudoclawProvider = {
   api?: string; // e.g. openai, anthropic, google-generative-ai
   models?: SudoclawProviderModel[];
 };
+/**
+ * MCP server config entry in sudoclaw.json.
+ * SudoClaw only supports stdio transport, so only command/args/env fields.
+ * HTTP-based MCP servers are bridged to stdio via mcp-remote at the agent layer.
+ */
+export type SudoclawMcpServerConfig = {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
 export type SudoclawConfig = {
   lastRunMode?: string;
   agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; models?: Record<string, { alias?: string }> } };
@@ -500,6 +511,7 @@ export type SudoclawConfig = {
     providers?: Record<string, SudoclawProvider>;
   };
   env?: { vars?: Record<string, string> };
+  mcpServers?: Record<string, SudoclawMcpServerConfig>;
 };
 
 export type SudoclawTestGatewayResult = {

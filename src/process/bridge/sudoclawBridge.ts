@@ -63,6 +63,13 @@ function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): Su
       base.models.providers = providersWithModels;
     }
   }
+  // Merge mcpServers — null values mean deletion
+  if (patch.mcpServers) {
+    base.mcpServers = { ...base.mcpServers, ...patch.mcpServers };
+    for (const [key, val] of Object.entries(base.mcpServers || {})) {
+      if (val === null) delete base.mcpServers[key];
+    }
+  }
   return base;
 }
 

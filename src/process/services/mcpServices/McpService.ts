@@ -14,7 +14,9 @@ import { IflowMcpAgent } from './agents/IflowMcpAgent';
 import { GeminiMcpAgent } from './agents/GeminiMcpAgent';
 import { AionuiMcpAgent } from './agents/AionuiMcpAgent';
 import { CodexMcpAgent } from './agents/CodexMcpAgent';
+import { SudoclawMcpAgent } from './agents/SudoclawMcpAgent';
 import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncResult, McpSource } from './McpProtocol';
+import { getSudoclawCliPath } from '../sudoclaw/SudoclawInstallService';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /**
@@ -83,6 +85,7 @@ export class McpService {
       ['gemini', new GeminiMcpAgent()],
       ['aionui', new AionuiMcpAgent()], // Sudowork 本地 @office-ai/aioncli-core
       ['codex', new CodexMcpAgent()],
+      ['openclaw-gateway', new SudoclawMcpAgent()], // Sudoclaw Gateway MCP (stdio + mcp-remote bridge)
     ]);
   }
 
@@ -141,6 +144,35 @@ export class McpService {
   }
 
   /**
+   * 确保 Sudoclaw Gateway 在 agent 列表中（如果已安装但不在列表中）
+   * Sudoclaw 管理独立的 MCP 配置（sudoclaw.json），需要始终参与 MCP 同步
+   *
+   * Ensure Sudoclaw Gateway is in the agent list (if installed but not present).
+   * Sudoclaw manages its own MCP config (sudoclaw.json) and must always participate in MCP sync.
+   */
+  private addSudoclawIfNeeded(agents: Array<{ backend: AcpBackend; name: string; cliPath?: string }>): Array<{ backend: AcpBackend; name: string; cliPath?: string }> {
+    const hasSudoclaw = agents.some((a) => a.backend === 'openclaw-gateway');
+    if (hasSudoclaw) return agents;
+
+    try {
+      if (getSudoclawCliPath() === null) return agents;
+
+      const allAgents = [
+        ...agents,
+        {
+          backend: 'openclaw-gateway' as AcpBackend,
+          name: 'Sudoclaw Gateway',
+          cliPath: undefined,
+        },
+      ];
+      mainLog('McpService', 'Added Sudoclaw Gateway to agent list for MCP sync');
+      return allAgents;
+    } catch {
+      return agents;
+    }
+  }
+
+  /**
    * 从检测到的ACP agents中获取MCP配置（并发版本）
    *
    * 注意：此方法还会额外检测原生 Gemini CLI 的 MCP 配置，
@@ -154,8 +186,8 @@ export class McpService {
     }>
   ): Promise<DetectedMcpServer[]> {
     return this.withServiceLock(async () => {
-      // 创建完整的检测列表，包含 ACP agents 和额外的原生 Gemini CLI
-      const allAgentsToCheck = this.addNativeGeminiIfNeeded(agents);
+      // 创建完整的检测列表，包含 ACP agents、额外的原生 Gemini CLI 和 Sudoclaw Gateway
+      const allAgentsToCheck = this.addSudoclawIfNeeded(this.addNativeGeminiIfNeeded(agents));
 
       // 并发执行所有agent的MCP检测
       const promises = allAgentsToCheck.map(async (agent) => {
@@ -234,9 +266,9 @@ export class McpService {
     }
 
     return this.withServiceLock(async () => {
-      // 确保原生 Gemini CLI 也在同步列表中
-      // Ensure native Gemini CLI is also in the sync list
-      const allAgents = this.addNativeGeminiIfNeeded(agents);
+      // 确保原生 Gemini CLI 和 Sudoclaw Gateway 也在同步列表中
+      // Ensure native Gemini CLI and Sudoclaw Gateway are also in the sync list
+      const allAgents = this.addSudoclawIfNeeded(this.addNativeGeminiIfNeeded(agents));
 
       // 并发执行所有agent的MCP同步
       const promises = allAgents.map(async (agent) => {
@@ -287,9 +319,9 @@ export class McpService {
     }>
   ): Promise<McpSyncResult> {
     return this.withServiceLock(async () => {
-      // 确保原生 Gemini CLI 也在删除列表中
-      // Ensure native Gemini CLI is also in the removal list
-      const allAgents = this.addNativeGeminiIfNeeded(agents);
+      // 确保原生 Gemini CLI 和 Sudoclaw Gateway 也在删除列表中
+      // Ensure native Gemini CLI and Sudoclaw Gateway are also in the removal list
+      const allAgents = this.addSudoclawIfNeeded(this.addNativeGeminiIfNeeded(agents));
 
       // 并发执行所有agent的MCP删除
       const promises = allAgents.map(async (agent) => {

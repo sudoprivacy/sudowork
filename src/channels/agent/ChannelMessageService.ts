@@ -168,7 +168,7 @@ export class ChannelMessageService {
       // Check conversation source, enable yoloMode if it's from a Channel
       const db = getDatabase();
       const dbResult = db.getConversation(conversationId);
-      const isFromChannel = dbResult.success && (dbResult.data?.source === 'lark' || dbResult.data?.source === 'telegram' || dbResult.data?.source === 'dingtalk' || dbResult.data?.source === 'wechat');
+      const isFromChannel = dbResult.success && (dbResult.data?.source === 'lark' || dbResult.data?.source === 'telegram' || dbResult.data?.source === 'dingtalk' || dbResult.data?.source === 'wechat' || dbResult.data?.source === 'wecom');
 
       task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
         yoloMode: isFromChannel,
