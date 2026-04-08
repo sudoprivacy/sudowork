@@ -163,4 +163,28 @@ export class WeChatApiClient {
       // Best-effort
     }
   }
+
+  /**
+   * Download media from a CDN URL as a Buffer.
+   * Used for downloading images/voice/file/video from WeChat CDN.
+   */
+  async downloadMedia(url: string): Promise<Buffer> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WECHAT_API_TIMEOUT_MS * 2);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!response.ok) {
+        throw new Error(`Download failed: HTTP ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      clearTimeout(timer);
+      throw error;
+    }
+  }
 }

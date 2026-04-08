@@ -6,11 +6,12 @@
 
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
+import { getMediaUrl, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
 import { WeChatApiClient } from './WeChatApiClient';
 import { WeChatContextTokenStore } from './WeChatContextTokenStore';
-import type { WeChatMessage } from './types';
-import { WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
+import type { WeChatMessage, WeChatMessageItem } from './types';
+import { MessageItemType, WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
+import { saveMediaToWorkspace } from '../../utils/mediaDownloader';
 
 /**
  * WeChatPlugin - Native WeChat channel integration for Sudowork.
@@ -234,6 +235,9 @@ export class WeChatPlugin extends BasePlugin {
 
     if (userId) this.activeUsers.add(userId);
 
+    // Download media items before conversion
+    await this.downloadMediaItems(msg.item_list || []);
+
     // Convert to unified message
     const unified = toUnifiedIncomingMessage(msg);
     if (!unified) return;
@@ -243,6 +247,58 @@ export class WeChatPlugin extends BasePlugin {
       void this.messageHandler(unified).catch((error) => {
         console.error(`[WeChatPlugin] Message handler failed for ${msg.message_id}:`, error);
       });
+    }
+  }
+
+  /**
+   * Download media items from CDN to local workspace.
+   * Sets `_localPath` on each item after successful download.
+   */
+  private async downloadMediaItems(items: WeChatMessageItem[]): Promise<void> {
+    for (const item of items) {
+      if (item.type === MessageItemType.TEXT || item.type === MessageItemType.NONE || !item.type) {
+        continue;
+      }
+
+      const url = getMediaUrl(item);
+      if (!url) {
+        console.warn(`[WeChatPlugin] No media URL available for item type=${item.type}`);
+        continue;
+      }
+
+      try {
+        const data = await this.apiClient!.downloadMedia(url);
+        const ext = this.getFileExtension(item);
+        const localPath = await saveMediaToWorkspace('wechat', data, ext);
+        item._localPath = localPath;
+        console.log(`[WeChatPlugin] Downloaded media (type=${item.type}) to ${localPath} (${data.length} bytes)`);
+      } catch (error) {
+        console.error(`[WeChatPlugin] Failed to download media (type=${item.type}):`, error);
+      }
+    }
+  }
+
+  /**
+   * Get file extension for a media item based on its type.
+   */
+  private getFileExtension(item: WeChatMessageItem): string {
+    switch (item.type) {
+      case MessageItemType.IMAGE:
+        return '.jpg';
+      case MessageItemType.VOICE:
+        return '.mp3';
+      case MessageItemType.FILE: {
+        const fileName = item.file_item?.file_name;
+        if (fileName) {
+          const dotIndex = fileName.lastIndexOf('.');
+          if (dotIndex > 0) return fileName.slice(dotIndex);
+        }
+        return '';
+      }
+      case MessageItemType.VIDEO:
+        return '.mp4';
+      default:
+        return '';
     }
   }
 
