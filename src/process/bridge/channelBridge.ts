@@ -29,7 +29,7 @@ export function initChannelBridge(): void {
    */
   channel.getPluginStatus.provider(async () => {
     try {
-      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat']);
+      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
 
       let dbPlugins: import('@/channels/types').IChannelPluginConfig[] = [];
       try {
@@ -135,6 +135,7 @@ export function initChannelBridge(): void {
         lark: 'Lark',
         dingtalk: 'DingTalk',
         wechat: 'WeChat',
+        wecom: 'WeCom',
       };
       for (const builtinType of BUILTIN_TYPES) {
         if (statusMap.has(builtinType)) continue;
