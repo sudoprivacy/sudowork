@@ -218,6 +218,12 @@ class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
+
+      // Initialize secrets system after Nexus is healthy
+      // This runs migration (if needed) and preloads the secret cache
+      this.initializeSecrets().catch((err) => {
+        mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+      });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
       throw err;
@@ -233,6 +239,23 @@ class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  /**
+   * Initialize the secrets system after Nexus is healthy.
+   * This runs the migration coordinator and preloads the secret cache.
+   */
+  private async initializeSecrets(): Promise<void> {
+    try {
+      const { initializeSecrets } = await import('@common/nexus/secret-migration');
+      mainLog('ServiceManager', 'Initializing secrets system...');
+      await initializeSecrets();
+      mainLog('ServiceManager', 'Secrets system initialized');
+    } catch (err) {
+      // Don't throw - secrets initialization failure should not block startup
+      // The system can operate in fallback mode without the secrets cache
+      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
     }
   }
 

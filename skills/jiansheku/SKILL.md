@@ -22,26 +22,30 @@ description: >
 
 ### 凭证在哪里配置
 
-脚本按以下顺序查找凭证：
+凭证按以下优先级自动获取：
 
-1. **环境变量**（优先）：`JIANSHEKU_APP_KEY` 和 `JIANSHEKU_APP_SECRET`
-2. **`.env` 文件**（回退）：`skills/jiansheku/.env`
+1. **环境变量**（最高优先）：`JIANSHEKU_APP_KEY` 和 `JIANSHEKU_APP_SECRET`
+2. **Nexus 秘钥库**（推荐）：namespace `service:jiansheku`，通过桌面应用设置 UI 配置
+3. **`.env` 文件**（向后兼容）：`skills/jiansheku/.env`
 
-**推荐方式：** 在技能目录下创建 `.env` 文件：
+**推荐方式：** 在桌面应用中配置：**设置 → 远程连接 → 秘钥管理 → 建设库**，填入 App Key 和 App Secret 后保存。凭证安全存储在本地 Nexus 秘钥库中，脚本每次调用时自动读取。
 
-```
-skills/jiansheku/.env
-```
+**其他方式：**
 
-内容格式：
-```
-JIANSHEKU_APP_KEY=你的32位AppKey
-JIANSHEKU_APP_SECRET=你的32位AppSecret
-```
+- 环境变量（用于调试/CI）：
+  ```bash
+  export JIANSHEKU_APP_KEY=你的32位AppKey
+  export JIANSHEKU_APP_SECRET=你的32位AppSecret
+  ```
 
-此文件已被 `.gitignore` 排除，不会提交到代码仓库。App 启动时会自动复制到 `~/.nexus/config/skills/jiansheku/.env`。
+- `.env` 文件（向后兼容）：
+  ```
+  skills/jiansheku/.env
+  JIANSHEKU_APP_KEY=你的32位AppKey
+  JIANSHEKU_APP_SECRET=你的32位AppSecret
+  ```
 
-**如果凭证缺失：** 脚本会报错并提示创建 `.env` 文件。此时应提示用户在 `skills/jiansheku/.env` 中配置凭证，或联系建设库（大司空科技）商务团队获取。
+**如果凭证缺失：** 脚本会报错并列出所有配置方式。此时应引导用户通过桌面应用的秘钥管理页面配置凭证，或联系建设库（大司空科技）商务团队获取。
 
 ### 检查凭证是否可用
 
@@ -67,10 +71,11 @@ python scripts/jiansheku_api.py --endpoint /v1/company/business/base/info --data
 ### Python 代码调用
 
 ```python
-import os
-from jiansheku_api import Jiansheku
+from jiansheku_api import Jiansheku, resolve_credentials
 
-api = Jiansheku(os.environ["JIANSHEKU_APP_KEY"], os.environ["JIANSHEKU_APP_SECRET"])
+# 自动从 Nexus 秘钥库 / 环境变量 / .env 文件获取凭证
+app_key, app_secret = resolve_credentials()
+api = Jiansheku(app_key, app_secret)
 
 # 调用任意接口：传 path + body dict，签名自动完成
 result = api.call("/v1/company/business/base/info", {"companyName": "中建三局集团有限公司"})

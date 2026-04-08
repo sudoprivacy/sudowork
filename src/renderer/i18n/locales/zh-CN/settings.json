@@ -814,5 +814,22 @@
     "expireAt": "过期时间",
     "createOrder": "创建订单",
     "successDesc": "积分已到账，请查收"
-  }
+  },
+  "secrets": "秘钥管理",
+  "secrets.title": "秘钥管理",
+  "secrets.description": "管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。",
+  "secrets.step1": "选择服务并填写秘钥信息。",
+  "secrets.step2": "点击保存完成配置。",
+  "secrets.jsbTitle": "建设库",
+  "secrets.appKey": "App Key",
+  "secrets.appKeyDesc": "建设库开放平台的应用标识",
+  "secrets.appKeyPlaceholder": "请输入 App Key",
+  "secrets.appKeyRequired": "请输入 App Key",
+  "secrets.appSecret": "App Secret",
+  "secrets.appSecretDesc": "建设库开放平台的应用密钥",
+  "secrets.appSecretPlaceholder": "请输入 App Secret",
+  "secrets.appSecretRequired": "请输入 App Secret",
+  "secrets.save": "保存",
+  "secrets.saveSuccess": "秘钥保存成功",
+  "secrets.saveFailed": "秘钥保存失败"
 }
