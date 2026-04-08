@@ -602,6 +602,17 @@ body,
   animation: streaming-border-pulse 2s ease-in-out infinite;
 }
 
+/* SudoClaw persistent mode — green dot pulse animation */
+@keyframes sudoclaw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 .chat-history__item,
 .settings-sider__item {
   transition:
