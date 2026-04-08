@@ -1,4 +1,57 @@
 {
+  "promptTemplates": {
+    "title": "Bilgi İstemi Şablonları",
+    "categories": {
+      "coding": "Programlama",
+      "writing": "Yazarlık",
+      "translation": "Çeviri",
+      "analysis": "Analiz",
+      "creative": "Yaratıcılık",
+      "learning": "Öğrenme"
+    },
+    "coding": {
+      "writeScript": "Bir betik yaz",
+      "writeScriptContent": "Bana bir Python betiği yazın, amacı...",
+      "codeReview": "Kod incelemesi",
+      "codeReviewContent": "Lütfen aşağıdaki kodu inceleyin, olası sorunları belirtin ve iyileştirme önerileri sunun:\n\n```\n// Kodu buraya yapıştırın\n```",
+      "debug": "Hata ayıklama",
+      "debugContent": "Aşağıdaki hatayla karşılaştım, lütfen nedenini analiz edip çözüm sunun:\n\nHata mesajı:",
+      "explain": "Kodu açıkla",
+      "explainContent": "Lütfen aşağıdaki kodun nasıl çalıştığını basit ve anlaşılır bir şekilde açıklayın:\n\n```\n// Kodu buraya yapıştırın\n```"
+    },
+    "writing": {
+      "article": "Makale yaz",
+      "articleContent": "Lütfen ... hakkında bir makale yazın, gereksinimler...",
+      "polish": "Metni düzenle",
+      "polishContent": "Lütfen aşağıdaki metni daha profesyonel ve akıcı hale getirin:\n\n",
+      "email": "E-posta yaz",
+      "emailContent": "Lütfen bir e-posta yazın, konu..., alıcı..."
+    },
+    "translation": {
+      "toEnglish": "İngilizceye çevir",
+      "toEnglishContent": "Lütfen aşağıdaki içeriği İngilizceye çevirin, orijinal tarzı koruyun:\n\n",
+      "toChinese": "Çinceye çevir",
+      "toChineseContent": "Lütfen aşağıdaki içeriği Çinceye çevirin:\n\n"
+    },
+    "analysis": {
+      "data": "Veri analizi",
+      "dataContent": "Lütfen aşağıdaki verileri analiz edin ve temel eğilimleri ve içgörüleri belirleyin:\n\n",
+      "summarize": "Özetleme",
+      "summarizeContent": "Lütfen aşağıdaki içeriğin önemli noktalarını kısa madde işaretleri halinde özetleyin:\n\n"
+    },
+    "creative": {
+      "brainstorm": "Beyin fırtınası",
+      "brainstormContent": "Lütfen ... konusunda beyin fırtınası yapın ve 10 yaratıcı fikir verin",
+      "naming": "İsim bul",
+      "namingContent": "Lütfen ... için güzel ve anlamlı bir isim bulun, 5 seçenek sunun"
+    },
+    "learning": {
+      "explain": "Bir kavramı açıkla",
+      "explainContent": "Lütfen ... kavramını basit bir dille ve örneklerle açıklayın",
+      "compare": "İki şeyi karşılaştır",
+      "compareContent": "Lütfen ... ve ... arasındaki farkları ilkeler, artılar/eksiler ve kullanım alanları açısından analiz edin"
+    }
+  },
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "Kullanılabilir bir Ana Ajan yok. Lütfen Google'a giriş yapın veya Claude/Codex CLI kurun. Ayarlara gitmek ister misiniz?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

@@ -24,6 +24,7 @@ import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
+import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
@@ -385,6 +386,14 @@ const GuidPage: React.FC = () => {
             </p>
 
             {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+
+            <PromptTemplates
+              visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
+              onSelectPrompt={(content) => {
+                guidInput.setInput(content);
+                guidInput.handleTextareaFocus();
+              }}
+            />
 
             <GuidInputCard
               input={guidInput.input}
