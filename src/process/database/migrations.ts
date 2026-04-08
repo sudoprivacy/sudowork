@@ -1122,6 +1122,40 @@ const migration_v19: IMigration = {
 };
 
 /**
+ * Migration v19 -> v20: Add sudoclaw_memory_log table
+ * Append-only daily memory logs for SudoClaw (Kairos pattern).
+ * Dual storage: markdown files (human-readable) + SQLite (searchable).
+ */
+const migration_v20: IMigration = {
+  version: 20,
+  name: 'Add sudoclaw_memory_log table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sudoclaw_memory_log (
+        id TEXT PRIMARY KEY,
+        log_date TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_memory_log_date
+        ON sudoclaw_memory_log(log_date);
+      CREATE INDEX IF NOT EXISTS idx_memory_log_created
+        ON sudoclaw_memory_log(created_at);
+    `);
+    mainLog('Migration v20', 'Created sudoclaw_memory_log table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_memory_log_created;
+      DROP INDEX IF EXISTS idx_memory_log_date;
+      DROP TABLE IF EXISTS sudoclaw_memory_log;
+    `);
+    mainLog('Migration v20', 'Rolled back: Removed sudoclaw_memory_log table');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1129,7 +1163,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19,
+  migration_v19, migration_v20,
 ];
 
 /**

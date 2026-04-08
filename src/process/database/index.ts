@@ -1295,6 +1295,60 @@ export class AionUIDatabase {
   }
 
   /**
+   * ==================
+   * Memory log operations (SudoClaw Kairos)
+   * ==================
+   */
+
+  /**
+   * Insert a memory log entry
+   */
+  insertMemoryLog(entry: { id: string; log_date: string; content: string; created_at: number }): IQueryResult<void> {
+    try {
+      this.db.prepare('INSERT INTO sudoclaw_memory_log (id, log_date, content, created_at) VALUES (?, ?, ?, ?)').run(entry.id, entry.log_date, entry.content, entry.created_at);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get memory log entries for a specific date (YYYY-MM-DD)
+   */
+  getMemoryLogsByDate(logDate: string): IQueryResult<Array<{ id: string; log_date: string; content: string; created_at: number }>> {
+    try {
+      const rows = this.db.prepare('SELECT id, log_date, content, created_at FROM sudoclaw_memory_log WHERE log_date = ? ORDER BY created_at ASC').all(logDate) as Array<{ id: string; log_date: string; content: string; created_at: number }>;
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get memory log entries within a date range (inclusive)
+   */
+  getMemoryLogsByDateRange(fromDate: string, toDate: string): IQueryResult<Array<{ id: string; log_date: string; content: string; created_at: number }>> {
+    try {
+      const rows = this.db.prepare('SELECT id, log_date, content, created_at FROM sudoclaw_memory_log WHERE log_date >= ? AND log_date <= ? ORDER BY created_at ASC').all(fromDate, toDate) as Array<{ id: string; log_date: string; content: string; created_at: number }>;
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Search memory logs by content substring
+   */
+  searchMemoryLogs(query: string, limit = 50): IQueryResult<Array<{ id: string; log_date: string; content: string; created_at: number }>> {
+    try {
+      const rows = this.db.prepare('SELECT id, log_date, content, created_at FROM sudoclaw_memory_log WHERE content LIKE ? ORDER BY created_at DESC LIMIT ?').all(`%${query}%`, limit) as Array<{ id: string; log_date: string; content: string; created_at: number }>;
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Vacuum database to reclaim space
    */
   vacuum(): void {
