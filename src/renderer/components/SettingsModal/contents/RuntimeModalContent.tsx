@@ -10,7 +10,8 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
+import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
@@ -123,6 +124,16 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, []);
 
+  /** Refresh the Guid homepage agent list (best-effort). */
+  const refreshAvailableAgents = useCallback(async () => {
+    try {
+      await acpConversation.refreshCustomAgents.invoke();
+      await mutate('acp.agents.available');
+    } catch {
+      /* silent – agent list refresh is best-effort */
+    }
+  }, []);
+
   const installClaude = useCallback(async () => {
     setClaudeLoad('installing');
     setClaudePhase(undefined);
@@ -131,6 +142,8 @@ const RuntimeModalContent: React.FC = () => {
       if (res?.success) {
         Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Claude Code' }));
         await refreshClaude();
+        // Refresh the Guid homepage agent list so Claude Code appears immediately
+        void refreshAvailableAgents();
       } else {
         Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Claude Code' }));
       }
@@ -140,7 +153,7 @@ const RuntimeModalContent: React.FC = () => {
       setClaudeLoad('idle');
       setClaudePhase(undefined);
     }
-  }, [refreshClaude, t]);
+  }, [refreshClaude, refreshAvailableAgents, t]);
 
   const uninstallClaude = useCallback(async () => {
     setClaudeLoad('loading');
@@ -149,6 +162,8 @@ const RuntimeModalContent: React.FC = () => {
       if (res?.success) {
         Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Claude Code' }));
         await refreshClaude();
+        // Refresh the Guid homepage agent list so Claude Code is removed immediately
+        void refreshAvailableAgents();
       } else {
         Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Claude Code' }));
       }
@@ -157,7 +172,7 @@ const RuntimeModalContent: React.FC = () => {
     } finally {
       setClaudeLoad('idle');
     }
-  }, [refreshClaude, t]);
+  }, [refreshClaude, refreshAvailableAgents, t]);
 
   const refreshLibreOffice = useCallback(async (options?: RefreshOptions) => {
     if (!options?.silent) {
@@ -398,6 +413,8 @@ const RuntimeModalContent: React.FC = () => {
     const unsubClaude = claudeCliIpc.installResult.on(() => {
       setClaudePhase(undefined);
       void refreshClaude();
+      // Also refresh the Guid homepage agent list for background installs
+      void refreshAvailableAgents();
     });
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
@@ -432,7 +449,7 @@ const RuntimeModalContent: React.FC = () => {
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshNode, refreshClaude, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
 
   const tableData: ToolRow[] = [
     {

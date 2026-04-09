@@ -14,6 +14,7 @@ import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, Effect
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
+import { emitter } from '@/renderer/utils/emitter';
 
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
@@ -599,6 +600,19 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   useEffect(() => {
     void refreshCustomAgents();
   }, [refreshCustomAgents]);
+
+  // Defensive: re-scan available agents whenever the user clicks "New Chat"
+  // so that newly installed agents (e.g. Claude Code) appear even if the
+  // Guid page was never unmounted and the mount-only effect didn't re-run.
+  useEffect(() => {
+    const handler = () => {
+      void mutate('acp.agents.available');
+    };
+    emitter.on('guid.reset', handler);
+    return () => {
+      emitter.off('guid.reset', handler);
+    };
+  }, []);
 
   // Reset agent selection to default state (no assistant selected)
   const resetSelection = useCallback(() => {
