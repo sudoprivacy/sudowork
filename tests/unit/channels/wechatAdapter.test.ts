@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getDefaultExtension,
   getMediaUrl,
+  getMediaExtract,
   toUnifiedIncomingMessage,
   toWeChatSendPayload,
   splitMessage,
@@ -67,19 +68,121 @@ describe('WeChatAdapter', () => {
       expect(getMediaUrl(item)).toBeUndefined();
     });
 
-    it('returns undefined when media has no full_url', () => {
+    it('returns undefined when media has no full_url and no cdnBaseUrl', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.IMAGE,
+        image_item: {
+          media: { aes_key: 'some-key', encrypt_query_param: 'enc_param_123' },
+        },
+      };
+      expect(getMediaUrl(item)).toBeUndefined();
+    });
+
+    it('constructs URL from encrypt_query_param when full_url is absent', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.IMAGE,
+        image_item: {
+          media: { encrypt_query_param: 'enc_param_123', aes_key: 'some-key' },
+        },
+      };
+      const url = getMediaUrl(item, 'https://cdn.weixin.qq.com');
+      expect(url).toBe('https://cdn.weixin.qq.com/download?encrypted_query_param=enc_param_123');
+    });
+
+    it('prefers full_url over encrypt_query_param', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.IMAGE,
+        image_item: {
+          media: {
+            full_url: 'https://cdn.weixin.qq.com/image.jpg',
+            encrypt_query_param: 'enc_param_123',
+          },
+        },
+      };
+      const url = getMediaUrl(item, 'https://cdn.weixin.qq.com');
+      expect(url).toBe('https://cdn.weixin.qq.com/image.jpg');
+    });
+
+    it('returns undefined for empty item', () => {
+      const item: WeChatMessageItem = { type: MessageItemType.NONE };
+      expect(getMediaUrl(item)).toBeUndefined();
+    });
+  });
+
+  describe('getMediaExtract', () => {
+    it('returns URL and aes_key from media info', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.VOICE,
+        voice_item: {
+          media: {
+            full_url: 'https://cdn.weixin.qq.com/voice.amr',
+            aes_key: 'dGVzdGtleTEyMzQ1Njc4', // base64
+          },
+        },
+      };
+      const extract = getMediaExtract(item);
+      expect(extract).not.toBeUndefined();
+      expect(extract!.url).toBe('https://cdn.weixin.qq.com/voice.amr');
+      expect(extract!.aesKeyBase64).toBe('dGVzdGtleTEyMzQ1Njc4');
+      expect(extract!.aesKeyIsHex).toBe(false);
+    });
+
+    it('uses ImageItem.aeskey (hex) over media.aes_key', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.IMAGE,
+        image_item: {
+          aeskey: '0123456789abcdef0123456789abcdef', // 32-char hex
+          media: {
+            full_url: 'https://cdn.weixin.qq.com/image.jpg',
+            aes_key: 'should-not-be-used',
+          },
+        },
+      };
+      const extract = getMediaExtract(item);
+      expect(extract).not.toBeUndefined();
+      expect(extract!.aesKeyBase64).toBe('0123456789abcdef0123456789abcdef');
+      expect(extract!.aesKeyIsHex).toBe(true);
+    });
+
+    it('returns null aesKeyBase64 when no key is present', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.FILE,
+        file_item: {
+          media: { full_url: 'https://cdn.weixin.qq.com/doc.pdf' },
+          file_name: 'doc.pdf',
+        },
+      };
+      const extract = getMediaExtract(item);
+      expect(extract).not.toBeUndefined();
+      expect(extract!.url).toBe('https://cdn.weixin.qq.com/doc.pdf');
+      expect(extract!.aesKeyBase64).toBeNull();
+      expect(extract!.aesKeyIsHex).toBe(false);
+    });
+
+    it('uses encrypt_query_param with cdnBaseUrl when full_url is absent', () => {
+      const item: WeChatMessageItem = {
+        type: MessageItemType.VIDEO,
+        video_item: {
+          media: {
+            encrypt_query_param: 'enc_video_param',
+            aes_key: 'dmlkZW9rZXkxMjM0NTY3OA==',
+          },
+        },
+      };
+      const extract = getMediaExtract(item, 'https://cdn.weixin.qq.com');
+      expect(extract).not.toBeUndefined();
+      expect(extract!.url).toBe('https://cdn.weixin.qq.com/download?encrypted_query_param=enc_video_param');
+      expect(extract!.aesKeyBase64).toBe('dmlkZW9rZXkxMjM0NTY3OA==');
+    });
+
+    it('returns undefined when no URL can be resolved', () => {
       const item: WeChatMessageItem = {
         type: MessageItemType.IMAGE,
         image_item: {
           media: { aes_key: 'some-key' },
         },
       };
-      expect(getMediaUrl(item)).toBeUndefined();
-    });
-
-    it('returns undefined for empty item', () => {
-      const item: WeChatMessageItem = { type: MessageItemType.NONE };
-      expect(getMediaUrl(item)).toBeUndefined();
+      expect(getMediaExtract(item)).toBeUndefined();
     });
   });
 

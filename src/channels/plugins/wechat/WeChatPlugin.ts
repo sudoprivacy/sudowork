@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { getDefaultExtension, getMediaUrl, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
+import { getDefaultExtension, getMediaExtract, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
 import { WeChatApiClient } from './WeChatApiClient';
 import { WeChatContextTokenStore } from './WeChatContextTokenStore';
 import type { WeChatMessage, WeChatMessageItem } from './types';
@@ -230,17 +230,21 @@ export class WeChatPlugin extends BasePlugin {
 
   /**
    * Download media files from WeChat CDN to local workspace.
+   * Handles AES-128-ECB decryption using aes_key when present.
    * Sets `_localPath` on each item that was successfully downloaded.
    */
   private async downloadMediaItems(items: WeChatMessageItem[]): Promise<void> {
     if (!this.apiClient) return;
 
+    const cdnBaseUrl = this.apiClient.getBaseUrl();
+
     for (const item of items) {
       const itemType = item.type ?? MessageItemType.NONE;
       if (itemType === MessageItemType.NONE || itemType === MessageItemType.TEXT) continue;
 
-      const mediaUrl = getMediaUrl(item);
-      if (!mediaUrl) {
+      // Extract URL and AES key info from the message item
+      const mediaExtract = getMediaExtract(item, cdnBaseUrl);
+      if (!mediaExtract) {
         console.warn(`[WeChatPlugin] No media URL available for item type=${itemType}`);
         continue;
       }
@@ -258,12 +262,16 @@ export class WeChatPlugin extends BasePlugin {
         const baseName = item.file_item?.file_name || `wechat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
         const filePath = path.join(this.mediaDir, baseName);
 
-        // Download
-        const buffer = await this.apiClient.downloadMedia(mediaUrl);
+        // Download and decrypt (decryption is handled by the API client when AES key is present)
+        const buffer = await this.apiClient.downloadMedia(
+          mediaExtract.url,
+          mediaExtract.aesKeyBase64,
+          mediaExtract.aesKeyIsHex,
+        );
         fs.writeFileSync(filePath, buffer);
 
         item._localPath = filePath;
-        console.log(`[WeChatPlugin] Downloaded media: type=${itemType}, size=${buffer.length}, path=${filePath}`);
+        console.log(`[WeChatPlugin] Downloaded media: type=${itemType}, size=${buffer.length}, encrypted=${!!mediaExtract.aesKeyBase64}, path=${filePath}`);
       } catch (error) {
         console.error(`[WeChatPlugin] Failed to download media for item type=${itemType}:`, error);
       }

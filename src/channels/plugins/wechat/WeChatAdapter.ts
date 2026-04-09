@@ -5,21 +5,89 @@
  */
 
 import type { AttachmentType, IUnifiedAttachment, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, MessageContentType } from '../../types';
-import type { IWeChatSendMessagePayload, WeChatMessage, WeChatMessageItem } from './types';
+import type { IWeChatSendMessagePayload, WeChatMediaInfo, WeChatMessage, WeChatMessageItem } from './types';
 import { MessageItemType, MessageState, MessageType, WECHAT_MESSAGE_LIMIT } from './types';
 
 let clientIdCounter = 0;
 
 /**
- * Extract the CDN download URL from a WeChat message item.
- * Checks image_item, voice_item, file_item, video_item in order.
+ * Media info extracted from a WeChat message item.
  */
-export function getMediaUrl(item: WeChatMessageItem): string | undefined {
-  if (item.image_item?.media?.full_url) return item.image_item.media.full_url;
-  if (item.voice_item?.media?.full_url) return item.voice_item.media.full_url;
-  if (item.file_item?.media?.full_url) return item.file_item.media.full_url;
-  if (item.video_item?.media?.full_url) return item.video_item.media.full_url;
+export interface WeChatMediaExtract {
+  /** The CDN download URL (full_url or constructed from encrypt_query_param) */
+  url: string;
+  /** Base64-encoded AES key for decryption (from media.aes_key), or null if absent */
+  aesKeyBase64: string | null;
+  /** Whether the AES key is hex-encoded (from ImageItem.aeskey) */
+  aesKeyIsHex: boolean;
+}
+
+/**
+ * Get the media info object from a WeChat message item.
+ * Returns the first non-null media from image_item, voice_item, file_item, video_item.
+ */
+function getMediaInfo(item: WeChatMessageItem): WeChatMediaInfo | undefined {
+  return item.image_item?.media || item.voice_item?.media || item.file_item?.media || item.video_item?.media;
+}
+
+/**
+ * Build a CDN download URL from an encrypt_query_param value.
+ * Used as a fallback when full_url is not available.
+ */
+function buildCdnDownloadUrl(media: WeChatMediaInfo, baseUrl: string): string | undefined {
+  if (!media.encrypt_query_param) return undefined;
+  return `${baseUrl}/download?encrypted_query_param=${encodeURIComponent(media.encrypt_query_param)}`;
+}
+
+/**
+ * Extract the CDN download URL from a WeChat message item.
+ * First checks full_url, then falls back to constructing from encrypt_query_param.
+ *
+ * @param item - The message item
+ * @param cdnBaseUrl - Optional CDN base URL for encrypt_query_param fallback
+ */
+export function getMediaUrl(item: WeChatMessageItem, cdnBaseUrl?: string): string | undefined {
+  const media = getMediaInfo(item);
+  if (!media) return undefined;
+
+  // Prefer full_url
+  if (media.full_url) return media.full_url;
+
+  // Fallback: construct from encrypt_query_param
+  if (media.encrypt_query_param && cdnBaseUrl) {
+    return buildCdnDownloadUrl(media, cdnBaseUrl);
+  }
+
   return undefined;
+}
+
+/**
+ * Extract media download info (URL + AES key) from a WeChat message item.
+ * Handles the image-specific aeskey (hex) field and the standard media.aes_key (base64).
+ *
+ * @param item - The message item
+ * @param cdnBaseUrl - Optional CDN base URL for encrypt_query_param fallback
+ */
+export function getMediaExtract(item: WeChatMessageItem, cdnBaseUrl?: string): WeChatMediaExtract | undefined {
+  const url = getMediaUrl(item, cdnBaseUrl);
+  if (!url) return undefined;
+
+  // Image items have a separate hex-encoded aeskey field that takes priority
+  if (item.image_item?.aeskey) {
+    return {
+      url,
+      aesKeyBase64: item.image_item.aeskey,
+      aesKeyIsHex: true,
+    };
+  }
+
+  // Standard media.aes_key (base64-encoded)
+  const media = getMediaInfo(item);
+  return {
+    url,
+    aesKeyBase64: media?.aes_key || null,
+    aesKeyIsHex: false,
+  };
 }
 
 /**

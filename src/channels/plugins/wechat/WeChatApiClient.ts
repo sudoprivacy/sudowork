@@ -6,6 +6,7 @@
 
 import type { BaseInfo, IWeChatGetConfigResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
 import { WECHAT_API_BASE_URL, WECHAT_API_TIMEOUT_MS, WECHAT_CHANNEL_VERSION, WECHAT_LONG_POLL_TIMEOUT_MS } from './types';
+import { decryptAesEcb, normalizeAesKey } from './WeChatCrypto';
 
 /**
  * WeChatApiClient - HTTP client for iLink Bot API (protobuf-over-JSON).
@@ -167,10 +168,17 @@ export class WeChatApiClient {
   // ==================== Media Download ====================
 
   /**
-   * Download a media file from a CDN URL.
-   * Returns the raw binary data as a Buffer.
+   * Download a media file from a CDN URL, with optional AES-128-ECB decryption.
+   *
+   * WeChat CDN media files are typically AES-encrypted. When an AES key is provided,
+   * the downloaded ciphertext is decrypted before being returned.
+   *
+   * @param url - The CDN download URL (full_url or constructed from encrypt_query_param)
+   * @param aesKey - Optional AES key string for decryption
+   * @param aesKeyIsHex - Whether the AES key is hex-encoded (ImageItem.aeskey) vs base64 (media.aes_key)
+   * @returns The decrypted (or raw, if no key) binary data as a Buffer
    */
-  async downloadMedia(url: string): Promise<Buffer> {
+  async downloadMedia(url: string, aesKey?: string | null, aesKeyIsHex = false): Promise<Buffer> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WECHAT_LONG_POLL_TIMEOUT_MS);
     try {
@@ -183,7 +191,24 @@ export class WeChatApiClient {
         throw new Error(`Media download failed: HTTP ${response.status}`);
       }
       const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      let data: Buffer = Buffer.from(arrayBuffer);
+
+      // Decrypt if AES key is provided
+      if (aesKey) {
+        const keyBuffer = normalizeAesKey(aesKey, aesKeyIsHex);
+        if (keyBuffer) {
+          try {
+            data = decryptAesEcb(data, keyBuffer);
+          } catch (decryptError) {
+            console.warn(`[WeChatApiClient] AES decryption failed, returning raw data:`, decryptError);
+            // Return raw data as fallback — some media may not actually be encrypted
+          }
+        } else {
+          console.warn(`[WeChatApiClient] Invalid AES key format, returning raw data`);
+        }
+      }
+
+      return data;
     } catch (error) {
       clearTimeout(timer);
       if (error instanceof Error && error.name === 'AbortError') {
@@ -191,5 +216,12 @@ export class WeChatApiClient {
       }
       throw error;
     }
+  }
+
+  /**
+   * Get the API base URL (used for CDN URL construction fallback).
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 }
