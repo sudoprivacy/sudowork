@@ -328,13 +328,22 @@ class DynamicNexusService {
 
   /**
    * Copy all files from source directory to target directory recursively.
+   * Handles regular files, directories, and symlinks.
    */
   private copyDirectoryContents(srcDir: string, destDir: string): void {
     const entries = fs.readdirSync(srcDir, { withFileTypes: true });
     for (const entry of entries) {
       const srcPath = path.join(srcDir, entry.name);
       const destPath = path.join(destDir, entry.name);
-      if (entry.isDirectory()) {
+      if (entry.isSymbolicLink()) {
+        // Preserve symlinks by recreating them with the same target
+        const linkTarget = fs.readlinkSync(srcPath);
+        // Remove existing destination if present (e.g. from a previous partial install)
+        if (fs.existsSync(destPath)) {
+          fs.rmSync(destPath, { recursive: true, force: true });
+        }
+        fs.symlinkSync(linkTarget, destPath);
+      } else if (entry.isDirectory()) {
         fs.mkdirSync(destPath, { recursive: true });
         this.copyDirectoryContents(srcPath, destPath);
       } else {
@@ -351,6 +360,8 @@ class DynamicNexusService {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
+      // Skip symlinks – they will inherit the permissions of their target
+      if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
         this.setInstalledPermissions(fullPath);
       } else if (
