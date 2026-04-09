@@ -52,6 +52,7 @@
       "compareContent": "請對比...和...的區別，從原理、優缺點、適用場景等方面分析"
     }
   },
+  "trySuggestionPrompts": "試試這些可點擊的案例提示詞：",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "目前沒有可用的主代理。請登入 Google 或安裝 Claude/Codex CLI。要前往設定嗎？",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

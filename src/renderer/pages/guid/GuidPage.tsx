@@ -6,14 +6,20 @@
 
 import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
-import { openExternalUrl, isElectronDesktop } from '@/renderer/utils/platform';
+import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
+import { skillHub } from '@/common/ipcBridge';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
+import AssistantAgentDropdown from './components/AssistantAgentDropdown';
+import AssistantEditDrawer from './components/AssistantEditDrawer';
+import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import SkillSettings from '../settings/SkillSettings';
@@ -32,13 +38,14 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import type { AcpBackendConfig } from './types';
 import { ConfigProvider, Message } from '@arco-design/web-react';
+import { EditTwo, Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ipcBridge } from '@/common';
-import { skillHub } from '@/common/ipcBridge';
 import { useAddEventListener } from '@/renderer/utils/emitter';
+import { mutate } from 'swr';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
@@ -49,21 +56,24 @@ const GuidPage: React.FC = () => {
   const { closeAllTabs, openTab } = useConversationTabs();
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
-  // 从 URL query param 读取当前功能菜单和 skill
+  // Read current menu and skill from URL query params
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
 
-  // 技能选择器状态
+  // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
-  // 关闭功能菜单面板，回到普通 GuidPage
+  // Edit drawer state
+  const [editDrawerVisible, setEditDrawerVisible] = useState(false);
+
+  // Close menu panel, return to normal GuidPage
   const handleBackToChat = useCallback(() => {
     void navigate('/guid', { replace: true });
   }, [navigate]);
 
-  // 获取已安装的技能
+  // Load installed skills
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
   useEffect(() => {
     if (!isElectronDesktop()) return;
@@ -84,10 +94,9 @@ const GuidPage: React.FC = () => {
     void fetchInstalledSkills();
   }, []);
 
-  // 处理 skill 参数 - 自动添加技能到选中列表
+  // Handle skill parameter - auto-add skill to selected list
   useEffect(() => {
     if (skillParam && installedSkillsLoaded) {
-      // 检查技能是否存在于已安装列表中
       const skillExists = installedSkills.some((s) => s.name === skillParam);
       if (skillExists && !selectedSkills.includes(skillParam)) {
         setSelectedSkills([...selectedSkills, skillParam]);
@@ -95,7 +104,6 @@ const GuidPage: React.FC = () => {
       } else if (!skillExists) {
         Message.warning(`技能未安装：${skillParam}`);
       }
-      // 清理 URL 参数
       void navigate('/guid', { replace: true, state: location.state });
     }
   }, [skillParam, installedSkillsLoaded]);
@@ -122,12 +130,12 @@ const GuidPage: React.FC = () => {
     locationState: location.state as { workspace?: string } | null,
   });
 
-  // 获取当前选中助手的 enabledSkills 列表
+  // Get enabled skills list for the selected assistant
   const agentEnabledSkills = useMemo(() => {
     return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
   }, [agentSelection.selectedAgentInfo, agentSelection.resolveEnabledSkills]);
 
-  // 转换已安装技能为选择器项（根据选中助手过滤）
+  // Convert installed skills to selector items (filtered by selected assistant)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
     const items = installedSkills.map((skill) => {
       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
@@ -140,14 +148,13 @@ const GuidPage: React.FC = () => {
         enabled: skill.enabled,
       };
     });
-    // 如果当前助手指定了关联技能列表，则只显示关联的技能
     if (agentEnabledSkills && agentEnabledSkills.length > 0) {
       return items.filter((item) => agentEnabledSkills.includes(item.name));
     }
     return items;
   }, [installedSkills, agentEnabledSkills]);
 
-  // 技能选择器控制器
+  // Skill selector controller
   const skillSelectorController = useSkillSelectorController({
     input: guidInput.input,
     skills: skillSelectorItems,
@@ -163,7 +170,7 @@ const GuidPage: React.FC = () => {
     },
   });
 
-  // 转换为菜单项用于渲染
+  // Convert to menu items for rendering
   const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
     () =>
       skillSelectorController.filteredSkills.map((skill) => ({
@@ -234,17 +241,13 @@ const GuidPage: React.FC = () => {
     t,
   });
 
-  // 监听 guid.reset 事件，重置所有用户输入状态（新建会话时触发）
+  // Listen for guid.reset event to reset all user input state
   const handleGuidReset = useCallback(() => {
-    // 重置输入内容
     guidInput.setInput('');
     guidInput.setFiles([]);
     guidInput.setDir('');
-    // 重置助手选择
     agentSelection.resetSelection();
-    // 重置技能选择
     setSelectedSkills([]);
-    // 重置 mention 状态
     mention.setMentionOpen(false);
     mention.setMentionQuery(null);
     mention.setMentionSelectorVisible(false);
@@ -254,7 +257,7 @@ const GuidPage: React.FC = () => {
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
-  // 通过 @ 按钮触发技能选择器
+  // Trigger skill selector via @ button
   const handleTriggerSkillSelector = useCallback(() => {
     guidInput.setInput('@');
     guidInput.handleTextareaFocus();
@@ -265,7 +268,6 @@ const GuidPage: React.FC = () => {
     (value: string) => {
       guidInput.setInput(value);
       const match = value.match(mention.mentionMatchRegex);
-      // 首页不根据输入 @ 呼起 mention 列表，占位符里的 @agent 仅为提示，选 agent 用顶部栏或下拉手动选
       if (match) {
         mention.setMentionQuery(match[1]);
         mention.setMentionOpen(false);
@@ -279,7 +281,7 @@ const GuidPage: React.FC = () => {
 
   const handleInputKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // 优先处理技能选择器键盘事件
+      // Handle skill selector keyboard events first
       if (skillSelectorController.isOpen) {
         const handled = skillSelectorController.onKeyDown(event);
         if (handled) return;
@@ -365,6 +367,41 @@ const GuidPage: React.FC = () => {
     [agentSelection.setSelectedAgentKey, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
   );
 
+  // Handle back button: deselect assistant and return to normal view
+  const handleBackFromAssistant = useCallback(() => {
+    agentSelection.resetSelection();
+  }, [agentSelection.resetSelection]);
+
+  // Handle changing the assistant's main agent type
+  const handleChangeAssistantAgent = useCallback(
+    async (newAgentType: string) => {
+      const agentInfo = agentSelection.selectedAgentInfo;
+      if (!agentInfo?.customAgentId) return;
+
+      try {
+        const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
+        const updatedAgents = agents.map((a) => (a.id === agentInfo.customAgentId ? { ...a, presetAgentType: newAgentType } : a));
+        await ConfigStorage.set('acp.customAgents', updatedAgents);
+
+        // Refresh agents to pick up the change
+        await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+        await mutate('acp.agents.available');
+
+        // Refresh custom agents in the hook
+        await agentSelection.refreshCustomAgents();
+      } catch (error) {
+        console.error('Failed to change assistant agent type:', error);
+        Message.error(t('common.failed', { defaultValue: 'Failed' }));
+      }
+    },
+    [agentSelection.selectedAgentInfo, agentSelection.refreshCustomAgents, t]
+  );
+
+  // Handle edit drawer saved
+  const handleEditDrawerSaved = useCallback(async () => {
+    await agentSelection.refreshCustomAgents();
+  }, [agentSelection.refreshCustomAgents]);
+
   // Typewriter placeholder
   const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
 
@@ -404,6 +441,49 @@ const GuidPage: React.FC = () => {
     />
   );
 
+  // --- Resolve selected assistant info for header ---
+  const selectedAssistantConfig = useMemo(() => {
+    if (!agentSelection.isPresetAgent || !agentSelection.selectedAgentInfo) return null;
+    const customAgentId = agentSelection.selectedAgentInfo.customAgentId;
+    if (!customAgentId) return null;
+
+    const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
+    const nobuildin = agentSelection.customAgents.filter((a) => a.isPreset).filter((_) => !_.id.startsWith('builtin-'));
+    const filteredAgents = agentSelection.customAgents
+      .filter((a) => a.isPreset)
+      .filter((_) => allowedPresetIds.includes(_.id))
+      .concat(nobuildin);
+
+    return filteredAgents.find((a) => a.id === customAgentId) || null;
+  }, [agentSelection.isPresetAgent, agentSelection.selectedAgentInfo, agentSelection.customAgents]);
+
+  // Resolve avatar for selected assistant header
+  const selectedAssistantAvatar = useMemo(() => {
+    if (!selectedAssistantConfig) return null;
+    const avatarValue = selectedAssistantConfig.avatar?.trim();
+    if (!avatarValue) return null;
+    const mappedAvatar = CUSTOM_AVATAR_IMAGE_MAP[avatarValue];
+    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+    const avatarImage = mappedAvatar || resolvedAvatar;
+    const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+    return { avatarValue, avatarImage, isImageAvatar };
+  }, [selectedAssistantConfig]);
+
+  // Resolve current assistant agent type for dropdown
+  const currentAssistantAgentType = useMemo(() => {
+    if (!selectedAssistantConfig) return 'sudoclaw';
+    return selectedAssistantConfig.presetAgentType || 'sudoclaw';
+  }, [selectedAssistantConfig]);
+
+  // Whether we are in selected assistant mode
+  const isAssistantMode = agentSelection.isPresetAgent && selectedAssistantConfig !== null;
+
+  // Get the suggestion prompts for the selected assistant
+  const assistantPrompts = useMemo(() => {
+    if (!selectedAssistantConfig) return [];
+    return selectedAssistantConfig.promptsI18n?.[localeKey] || selectedAssistantConfig.promptsI18n?.['en-US'] || selectedAssistantConfig.prompts || [];
+  }, [selectedAssistantConfig, localeKey]);
+
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
@@ -411,7 +491,7 @@ const GuidPage: React.FC = () => {
           <ThemeSwitcher />
         </div>
         {selectedMenu ? (
-          /* 功能菜单内容区域 - 完全清空展示新内容 */
+          /* Menu content area */
           <div className={styles.functionMenuContainer}>
             {selectedMenu === 'skill-store' && <SkillSettings />}
             {selectedMenu === 'agent' && <AgentSettings />}
@@ -419,22 +499,78 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'webui' && <WebuiSettings />}
           </div>
         ) : (
-          /* 正常会话区域 */
+          /* Normal/Assistant conversation area */
           <div className={styles.guidLayout}>
-            <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
-              {t('conversation.welcome.title')}
-            </p>
+            {isAssistantMode ? (
+              /* ========== Selected Assistant Mode ========== */
+              <>
+                {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
+                <div className={styles.assistantHeader}>
+                  <div className='flex items-center gap-12px flex-1 min-w-0'>
+                    {/* Back button */}
+                    <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
+                      <Left theme='outline' size={18} style={{ color: 'var(--color-text-2)' }} />
+                    </div>
 
-            {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+                    {/* Avatar */}
+                    <div className='flex-shrink-0'>{selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} /> : selectedAssistantAvatar?.avatarValue ? <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span> : <Robot theme='outline' size={24} />}</div>
 
-            <PromptTemplates
-              visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
-              onSelectPrompt={(content) => {
-                guidInput.setInput(content);
-                guidInput.handleTextareaFocus();
-              }}
-            />
+                    {/* Name */}
+                    <span className='text-xl font-semibold text-t-primary truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
 
+                    {/* Edit button */}
+                    <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
+                      <EditTwo theme='outline' size={16} style={{ color: 'var(--color-text-3)' }} />
+                    </div>
+                  </div>
+
+                  {/* Agent dropdown */}
+                  {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} />}
+                </div>
+
+                {/* Agent Fallback Notice */}
+                {agentSelection.currentEffectiveAgentInfo.isFallback && (
+                  <div
+                    className='mb-12px px-12px py-8px rd-8px text-12px flex items-center gap-8px'
+                    style={{
+                      background: 'rgb(var(--warning-1))',
+                      border: '1px solid rgb(var(--warning-3))',
+                      color: 'rgb(var(--warning-6))',
+                    }}
+                  >
+                    <span>
+                      {t('guid.agentFallbackNotice', {
+                        original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),
+                        fallback: agentSelection.currentEffectiveAgentInfo.agentType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.agentType.slice(1),
+                        defaultValue: `${agentSelection.currentEffectiveAgentInfo.originalType} is unavailable, using ${agentSelection.currentEffectiveAgentInfo.agentType} instead.`,
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div className={styles.assistantDescription}>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
+              </>
+            ) : (
+              /* ========== Normal Mode ========== */
+              <>
+                <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
+                  {t('conversation.welcome.title')}
+                </p>
+
+                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+
+                <PromptTemplates
+                  visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
+                  onSelectPrompt={(content) => {
+                    guidInput.setInput(content);
+                    guidInput.handleTextareaFocus();
+                  }}
+                />
+              </>
+            )}
+
+            {/* ========== Input Card (always shown) ========== */}
             <GuidInputCard
               input={guidInput.input}
               onInputChange={handleInputChange}
@@ -453,7 +589,7 @@ const GuidPage: React.FC = () => {
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
               skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' /> : null}
+              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' /> : null}
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {
@@ -468,11 +604,46 @@ const GuidPage: React.FC = () => {
               actionRow={actionRowNode}
             />
 
-            {agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea isPresetAgent={agentSelection.isPresetAgent} selectedAgentInfo={agentSelection.selectedAgentInfo} customAgents={agentSelection.customAgents} localeKey={localeKey} currentEffectiveAgentInfo={agentSelection.currentEffectiveAgentInfo} onSelectAssistant={handleSelectAssistant} onSetInput={guidInput.setInput} onFocusInput={guidInput.handleTextareaFocus} />}
+            {/* ========== Bottom Section ========== */}
+            {isAssistantMode ? (
+              /* Suggestion prompts for selected assistant */
+              assistantPrompts.length > 0 && (
+                <div className='mt-16px w-full animate-fade-in'>
+                  <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
+                    {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
+                  </div>
+                  <div className='flex flex-wrap gap-8px'>
+                    {assistantPrompts.map((prompt: string, index: number) => (
+                      <div
+                        key={index}
+                        className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                        style={{
+                          background: 'var(--bg-2)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--bg-3)',
+                        }}
+                        onClick={() => {
+                          guidInput.setInput(prompt);
+                          guidInput.handleTextareaFocus();
+                        }}
+                      >
+                        {prompt}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : (
+              /* Assistant selection grid */
+              <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} />}</>
+            )}
           </div>
         )}
 
         <QuickActionButtons onOpenLink={openLink} inactiveBorderColor={inactiveBorderColor} activeShadow={activeShadow} />
+
+        {/* Assistant Edit Drawer */}
+        <AssistantEditDrawer visible={editDrawerVisible} assistantId={selectedAssistantConfig?.id || null} localeKey={localeKey} onClose={() => setEditDrawerVisible(false)} onSaved={handleEditDrawerSaved} />
       </div>
     </ConfigProvider>
   );
