@@ -29,6 +29,27 @@ export type IApprovalResolvedEvent = {
 };
 
 /**
+ * SudoClaw notification urgency levels
+ */
+export type SudoClawUrgency = 'info' | 'action_needed' | 'completed';
+
+/**
+ * SudoClaw notification event data
+ */
+export interface ISudoClawNotificationEvent {
+  /** Notification title */
+  title: string;
+  /** Notification body / message */
+  body: string;
+  /** Urgency level for routing decisions */
+  urgency: SudoClawUrgency;
+  /** Optional conversation ID associated with this notification */
+  conversationId?: string;
+  /** Optional metadata for downstream consumers */
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * Channel 全局事件类型
  * Channel global event types
  */
@@ -39,6 +60,8 @@ export const ChannelEvents = {
   APPROVAL_PENDING: 'channel.approval.pending',
   /** Tool approval resolved — user has approved or denied */
   APPROVAL_RESOLVED: 'channel.approval.resolved',
+  /** SudoClaw 通知事件 / SudoClaw notification event */
+  SUDOCLAW_NOTIFICATION: 'sudoclaw-notification',
 } as const;
 
 /**
@@ -134,6 +157,23 @@ class ChannelEventBus extends EventEmitter {
     this.on(ChannelEvents.APPROVAL_RESOLVED, handler);
     return () => {
       this.off(ChannelEvents.APPROVAL_RESOLVED, handler);
+    };
+  }
+
+  /**
+   * Emit SudoClaw notification event
+   */
+  emitSudoClawNotification(event: ISudoClawNotificationEvent): void {
+    this.emit(ChannelEvents.SUDOCLAW_NOTIFICATION, event);
+  }
+
+  /**
+   * Listen to SudoClaw notification event
+   */
+  onSudoClawNotification(handler: (event: ISudoClawNotificationEvent) => void): () => void {
+    this.on(ChannelEvents.SUDOCLAW_NOTIFICATION, handler);
+    return () => {
+      this.off(ChannelEvents.SUDOCLAW_NOTIFICATION, handler);
     };
   }
 }

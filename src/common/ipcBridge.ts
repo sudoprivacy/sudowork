@@ -568,6 +568,8 @@ export const sudoclaw = {
   persistentStatus: bridge.buildProvider<IBridgeResponse<ISudoClawPersistentStatus>, void>('sudoclaw.persistent-status'),
   /** Emitted when persistent mode status changes (state transitions, tick updates) */
   persistentStatusChanged: bridge.buildEmitter<ISudoClawPersistentStatus>('sudoclaw.persistent-status-changed'),
+  /** Emitted when SudoClaw sends a notification (routed to WebUI via bridge) */
+  notification: bridge.buildEmitter<{ title: string; body: string; urgency: 'info' | 'action_needed' | 'completed'; conversationId?: string; metadata?: Record<string, unknown>; timestamp: number }>('sudoclaw.notification'),
 };
 
 // SudoClaw persistent mode status types
