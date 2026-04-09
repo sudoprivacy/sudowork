@@ -518,7 +518,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       if (!agentInfo) return undefined;
       if (agentInfo.backend !== 'custom') return undefined;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.enabledSkills;
+      // For preset assistants (custom backend), treat missing enabledSkills as
+      // an explicit empty array so that downstream consumers do not fall back to
+      // loading *all* skills.
+      return customAgent?.enabledSkills ?? [];
     },
     [customAgents]
   );
