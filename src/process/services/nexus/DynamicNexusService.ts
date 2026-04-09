@@ -382,7 +382,10 @@ class DynamicNexusService {
    * Any other files in the bin directory (e.g. claude, other tools) are left untouched.
    */
   private cleanNexusFiles(binDir: string, nexusdSourceDir: string): void {
-    // Collect the set of entry names from the extracted archive
+    // Collect only the TOP-LEVEL entry names from the extracted archive directory.
+    // We intentionally use non-recursive readdirSync to get only first-level items
+    // (e.g. _internal/, nexusd, .dylibs/) — do NOT recurse, as the archive may
+    // contain thousands of nested files which would make comparison extremely slow.
     const archiveEntries = new Set<string>();
     try {
       const entries = fs.readdirSync(nexusdSourceDir);
