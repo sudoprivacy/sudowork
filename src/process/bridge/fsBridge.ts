@@ -818,9 +818,9 @@ export function initFsBridge(): void {
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
 
-            // 跳过内置 skills 目录（_builtin），这些 skills 自动注入，不需要用户选择
-            // Skip builtin skills directory (_builtin), these are auto-injected, no user selection needed
-            if (entry.name === '_builtin') continue;
+            // 跳过所有 `_` 前缀目录（_system, _hub, _my-custom-skill, _builtin），使用子目录扫描
+            // Skip all `_` prefixed directories, handle them via subdirectory scanning
+            if (entry.name.startsWith('_')) continue;
 
             const skillMdPath = path.join(skillsDir, entry.name, 'SKILL.md');
 
@@ -850,26 +850,39 @@ export function initFsBridge(): void {
         }
       };
 
-      // 读取内置 skills (isCustom: false)
+      // 读取内置 skills (isCustom: false) from bundled resources
       const builtinSkillsDir = await findBuiltinResourceDir('skills');
       const builtinCountBefore = skills.length;
       await readSkillsFromDir(builtinSkillsDir, false);
       const builtinCount = skills.length - builtinCountBefore;
 
-      // 读取用户自定义 skills (isCustom: true)
+      // 读取用户目录中的 skills（分目录结构 + 旧版扁平结构）
+      // Read user skills (categorized subdirectories + legacy flat structure)
       const userSkillsDir = getUserSkillsDir();
+
+      // Scan _my-custom-skill/ (custom, isCustom: true)
+      const customDir = path.join(userSkillsDir, '_my-custom-skill');
+      await readSkillsFromDir(customDir, true);
+
+      // Scan _hub/ (hub-installed, isCustom: true)
+      const hubDir = path.join(userSkillsDir, '_hub');
+      await readSkillsFromDir(hubDir, true);
+
+      // Scan _system/ (builtin, isCustom: false)
+      const systemDir = path.join(userSkillsDir, '_system');
+      await readSkillsFromDir(systemDir, false);
+
+      // Legacy: scan flat user skills directory
       const userCountBefore = skills.length;
       await readSkillsFromDir(userSkillsDir, true);
       const userCount = skills.length - userCountBefore;
 
-      // 去重：如果 custom skill 和 builtin skill 同名，只保留 builtin
-      // Deduplicate: if custom and builtin skills have same name, keep only builtin
+      // 去重：优先级 自定义 > Hub > 内置
+      // Deduplicate: priority custom > hub > builtin (first occurrence wins for custom)
       const skillMap = new Map<string, { name: string; description: string; location: string; isCustom: boolean }>();
       for (const skill of skills) {
         const existing = skillMap.get(skill.name);
-        // 如果已存在且当前是 builtin，或者不存在，则添加/更新
-        // Add/update if: already exists and current is builtin, or doesn't exist yet
-        if (!existing || !skill.isCustom) {
+        if (!existing) {
           skillMap.set(skill.name, skill);
         }
       }

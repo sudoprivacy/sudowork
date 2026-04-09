@@ -32,6 +32,21 @@ const STORAGE_PATH = {
   skills: 'skills',
 };
 
+/**
+ * Skill subdirectory names for categorized skill storage.
+ * All prefixed with `_` to distinguish from legacy flat skill directories.
+ */
+const SKILL_SUBDIRS = {
+  /** Hub-installed skills (source_type: 'hub') */
+  hub: '_hub',
+  /** Builtin/system skills (is_builtin: true) */
+  system: '_system',
+  /** User-uploaded custom skills (source_type: 'upload') */
+  custom: '_my-custom-skill',
+  /** Legacy builtin directory (pre-migration) */
+  legacyBuiltin: '_builtin',
+} as const;
+
 const getHomePage = getConfigPath;
 
 const mkdirSync = (path: string) => {
@@ -286,12 +301,133 @@ const getSkillsDir = () => {
 };
 
 /**
- * 获取内置技能目录路径（_builtin 子目录）
- * Get builtin skills directory path (_builtin subdirectory)
+ * 获取内置技能目录路径（_system 子目录）
+ * Get builtin skills directory path (_system subdirectory)
  * Skills in this directory are automatically injected for ALL agents and scenarios
  */
 const getBuiltinSkillsDir = () => {
-  return path.join(getSkillsDir(), '_builtin');
+  return path.join(getSkillsDir(), SKILL_SUBDIRS.system);
+};
+
+/**
+ * 获取 Hub 安装技能目录路径
+ * Get hub-installed skills directory path
+ */
+const getHubSkillsDir = () => {
+  return path.join(getSkillsDir(), SKILL_SUBDIRS.hub);
+};
+
+/**
+ * 获取自定义上传技能目录路径
+ * Get custom uploaded skills directory path
+ */
+const getCustomSkillsDir = () => {
+  return path.join(getSkillsDir(), SKILL_SUBDIRS.custom);
+};
+
+/**
+ * 启动时异步迁移旧目录结构到新的分目录结构
+ * Migrate legacy flat skill directory structure to categorized subdirectories on startup
+ *
+ * Migration logic:
+ * 1. Scan ~/.nexus/skills for non-`_` prefixed directories (legacy skills)
+ * 2. Read _sudowork_meta.json from each directory
+ * 3. Move to appropriate subdirectory based on source_type / is_builtin
+ * 4. Move _builtin/ contents to _system/ if _builtin/ still exists
+ */
+const migrateSkillsToSubdirectories = async (): Promise<void> => {
+  const skillsDir = getSkillsDir();
+  if (!existsSync(skillsDir)) {
+    return;
+  }
+
+  mainLog('SkillMigration', 'Starting skill subdirectory migration...');
+
+  const hubDir = getHubSkillsDir();
+  const systemDir = getBuiltinSkillsDir();
+  const customDir = getCustomSkillsDir();
+
+  // Ensure target directories exist
+  for (const dir of [hubDir, systemDir, customDir]) {
+    if (!existsSync(dir)) {
+      mkdirSync(dir);
+    }
+  }
+
+  try {
+    // 1. Migrate _builtin/ contents to _system/ if legacy _builtin directory exists
+    const legacyBuiltinDir = path.join(skillsDir, SKILL_SUBDIRS.legacyBuiltin);
+    if (existsSync(legacyBuiltinDir)) {
+      try {
+        const builtinEntries = readdirSync(legacyBuiltinDir, { withFileTypes: true });
+        for (const entry of builtinEntries) {
+          if (!entry.isDirectory()) continue;
+          const src = path.join(legacyBuiltinDir, entry.name);
+          const dest = path.join(systemDir, entry.name);
+          try {
+            if (existsSync(dest)) {
+              await fs.rm(dest, { recursive: true, force: true });
+            }
+            await fs.rename(src, dest);
+            mainLog('SkillMigration', `Moved builtin skill "${entry.name}" from _builtin to _system`);
+          } catch (error) {
+            mainWarn('SkillMigration', `Failed to move builtin skill "${entry.name}":`, error);
+          }
+        }
+        // Remove empty _builtin directory
+        await fs.rm(legacyBuiltinDir, { recursive: true, force: true }).catch(() => {});
+      } catch (error) {
+        mainWarn('SkillMigration', 'Failed to process legacy _builtin directory:', error);
+      }
+    }
+
+    // 2. Scan for non-`_` prefixed directories (legacy flat skills)
+    const entries = readdirSync(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      // Skip all `_` prefixed directories (new structure or legacy _builtin)
+      if (entry.name.startsWith('_')) continue;
+
+      const skillDir = path.join(skillsDir, entry.name);
+      const metaFilePath = path.join(skillDir, '_sudowork_meta.json');
+
+      let targetParentDir = customDir; // Default: treat as custom if no metadata
+
+      try {
+        const raw = await fs.readFile(metaFilePath, 'utf-8');
+        const meta = JSON.parse(raw) as { source_type?: string; is_builtin?: boolean };
+
+        if (meta.is_builtin === true) {
+          targetParentDir = systemDir;
+        } else if (meta.source_type === 'hub') {
+          targetParentDir = hubDir;
+        } else if (meta.source_type === 'upload') {
+          targetParentDir = customDir;
+        }
+      } catch {
+        // No metadata file - check if there's a SKILL.md (custom skill without meta)
+        if (!existsSync(path.join(skillDir, 'SKILL.md'))) {
+          continue; // Skip directories without SKILL.md
+        }
+        targetParentDir = customDir;
+      }
+
+      const dest = path.join(targetParentDir, entry.name);
+      try {
+        if (existsSync(dest)) {
+          await fs.rm(dest, { recursive: true, force: true });
+        }
+        await fs.rename(skillDir, dest);
+        mainLog('SkillMigration', `Migrated skill "${entry.name}" to ${path.basename(targetParentDir)}/`);
+      } catch (error) {
+        mainWarn('SkillMigration', `Failed to migrate skill "${entry.name}":`, error);
+      }
+    }
+
+    mainLog('SkillMigration', 'Skill subdirectory migration completed');
+  } catch (error) {
+    mainError('SkillMigration', 'Skill subdirectory migration failed:', error);
+  }
 };
 
 /**
@@ -371,17 +507,21 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   const builtinSkillsDir = resolveBuiltinDir('skills');
   const userSkillsDir = getSkillsDir();
 
-  // 复制技能脚本目录到用户配置目录
-  // Copy skills scripts directory to user config directory
+  // 复制技能脚本目录到用户配置目录（_system 子目录）
+  // Copy skills scripts directory to user config directory (_system subdirectory)
   if (existsSync(builtinSkillsDir)) {
     try {
-      // 确保用户技能目录存在
+      // 确保用户技能目录和 _system 子目录存在
       if (!existsSync(userSkillsDir)) {
         mkdirSync(userSkillsDir);
       }
-      // 复制内置技能到用户目录（覆盖同名文件）
-      // Copy builtin skills to user directory (overwrite existing files)
-      await copyDirectoryRecursively(builtinSkillsDir, userSkillsDir, { overwrite: true });
+      const userSystemSkillsDir = getBuiltinSkillsDir();
+      if (!existsSync(userSystemSkillsDir)) {
+        mkdirSync(userSystemSkillsDir);
+      }
+      // 复制内置技能到 _system 子目录（覆盖同名文件）
+      // Copy builtin skills to _system subdirectory (overwrite existing files)
+      await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
     } catch (error) {
       mainWarn('Sudowork', `Failed to copy skills directory:`, error);
     }
@@ -649,6 +789,10 @@ const initStorage = async () => {
   } catch (error) {
     mainError('Sudowork', 'Failed to initialize default MCP servers:', error);
   }
+  // 4.5 异步迁移旧技能目录结构到分目录结构
+  // Async migrate legacy skill directory structure to categorized subdirectories
+  await migrateSkillsToSubdirectories();
+
   // 5. 初始化内置助手（Assistants）— runs in parallel with database init (step 6)
   // PERF: Assistant config + database init are independent; run them concurrently
   const assistantsPromise = (async () => {
@@ -806,7 +950,7 @@ export const getSystemDir = () => {
  * 获取助手规则目录路径（供其他模块使用）
  * Get assistant rules directory path (for use by other modules)
  */
-export { getAssistantsDir, getSkillsDir, getBuiltinSkillsDir };
+export { getAssistantsDir, getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
 
 /**
  * Skills 内容缓存，避免重复从文件系统读取
@@ -816,10 +960,23 @@ const skillsContentCache = new Map<string, string>();
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
-  const skillMetaPath = path.join(getSkillsDir(), skillName, SKILL_HUB_META_FILE);
+  // Search in all subdirectories for the skill metadata
+  const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+  for (const subdir of subdirs) {
+    const skillMetaPath = path.join(getSkillsDir(), subdir, skillName, SKILL_HUB_META_FILE);
+    try {
+      const raw = await fs.readFile(skillMetaPath, 'utf-8');
+      const meta = JSON.parse(raw) as { enabled?: boolean };
+      return meta.enabled !== false;
+    } catch {
+      // Not found in this subdir, continue
+    }
+  }
 
+  // Fallback: check legacy flat path for backward compatibility
+  const legacyMetaPath = path.join(getSkillsDir(), skillName, SKILL_HUB_META_FILE);
   try {
-    const raw = await fs.readFile(skillMetaPath, 'utf-8');
+    const raw = await fs.readFile(legacyMetaPath, 'utf-8');
     const meta = JSON.parse(raw) as { enabled?: boolean };
     return meta.enabled !== false;
   } catch {
@@ -847,32 +1004,30 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
   }
 
   const skillsDir = getSkillsDir();
-  const builtinSkillsDir = getBuiltinSkillsDir();
   const skillContents: string[] = [];
 
   for (const skillName of enabledSkills) {
-    // 优先尝试内置 skills 目录：_builtin/{skillName}/SKILL.md
-    // First try builtin skills directory: _builtin/{skillName}/SKILL.md
-    const builtinSkillFile = path.join(builtinSkillsDir, skillName, 'SKILL.md');
-    // 然后尝试目录结构：{skillName}/SKILL.md（与 aioncli-core 的 loadSkillsFromDir 一致）
-    // Then try directory structure: {skillName}/SKILL.md (consistent with aioncli-core's loadSkillsFromDir)
-    const skillDirFile = path.join(skillsDir, skillName, 'SKILL.md');
-    // 向后兼容：扁平结构 {skillName}.md
-    // Backward compatible: flat structure {skillName}.md
-    const skillFlatFile = path.join(skillsDir, `${skillName}.md`);
+    // 按优先级搜索：自定义 > Hub > 内置 > 旧版扁平结构
+    // Search by priority: custom > hub > builtin > legacy flat structure
+    const candidates = [
+      { file: path.join(skillsDir, SKILL_SUBDIRS.custom, skillName, 'SKILL.md'), checkEnabled: true },
+      { file: path.join(skillsDir, SKILL_SUBDIRS.hub, skillName, 'SKILL.md'), checkEnabled: true },
+      { file: path.join(skillsDir, SKILL_SUBDIRS.system, skillName, 'SKILL.md'), checkEnabled: false },
+      // Legacy paths for backward compatibility
+      { file: path.join(skillsDir, skillName, 'SKILL.md'), checkEnabled: true },
+      { file: path.join(skillsDir, `${skillName}.md`), checkEnabled: false },
+    ];
 
     try {
       let content: string | null = null;
 
-      if (existsSync(builtinSkillFile)) {
-        content = await fs.readFile(builtinSkillFile, 'utf-8');
-      } else if (existsSync(skillDirFile)) {
-        if (!(await isUserSkillEnabled(skillName))) {
+      for (const candidate of candidates) {
+        if (!existsSync(candidate.file)) continue;
+        if (candidate.checkEnabled && !(await isUserSkillEnabled(skillName))) {
           continue;
         }
-        content = await fs.readFile(skillDirFile, 'utf-8');
-      } else if (existsSync(skillFlatFile)) {
-        content = await fs.readFile(skillFlatFile, 'utf-8');
+        content = await fs.readFile(candidate.file, 'utf-8');
+        break;
       }
 
       if (content && content.trim()) {
