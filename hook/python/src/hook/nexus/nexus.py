@@ -5,6 +5,12 @@ This module provides the low-level client for communicating with the Nexus file
 system service over JSON-RPC 2.0. The Nexus service acts as a shared storage
 layer where security events and action decisions are exchanged between the hook
 and the security control plane.
+
+Production integration features:
+- Connection pool: reuses HTTP connections via urllib3.PoolManager to reduce
+  TCP overhead and Nexus-side connection churn (Phase 2.1)
+- Optimized read_until_exists: single RPC per iteration instead of exists+read,
+  with proper TimeoutError on expiry (Phase 3.1 + 3.4)
 """
 
 import json
@@ -16,7 +22,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, List, Union
 from uuid import uuid4
 
-from urllib3 import request
+import urllib3
 
 logger = logging.getLogger("nexus")
 
@@ -28,7 +34,21 @@ class Nexus:
     Provides methods for reading, writing, checking existence, and deleting
     files on the Nexus service. Used by NexusController to exchange security
     event data with the control plane.
+
+    Uses a class-level shared connection pool (urllib3.PoolManager) to reuse
+    HTTP connections across all Nexus instances, reducing TCP connection
+    establishment overhead and Nexus-side concurrent connection count.
     """
+
+    # Class-level shared connection pool (all instances reuse)
+    # - num_pools=2: Nexus typically has one host, small buffer for DNS changes
+    # - maxsize=10: up to 10 concurrent connections per host
+    # - retries=False: retry logic is handled at the application level
+    _pool_manager = urllib3.PoolManager(
+        num_pools=2,
+        maxsize=10,
+        retries=False,
+    )
 
     def __init__(self, url: str):
         """
@@ -40,6 +60,8 @@ class Nexus:
     def call_rpc(self, method: str, params: Dict[str, Any] = None) -> Any:
         """
         Make a JSON-RPC 2.0 call to the Nexus service.
+
+        Uses the shared connection pool for HTTP connection reuse.
 
         Args:
             method: The RPC method name (e.g., "read", "write", "exists").
@@ -54,7 +76,7 @@ class Nexus:
         logger.debug(f"API call: {method} with params: {params}")
 
         try:
-            response = request(
+            response = self._pool_manager.request(
                 method="POST",
                 url=f"{self.base_url}/api/nfs/{method}",
                 json={"jsonrpc": "2.0", "id": str(uuid4()), "method": method, "params": params},
@@ -163,17 +185,29 @@ class Nexus:
         This is used to wait for an asynchronous action decision from the security
         control plane (e.g., waiting for a human to approve/deny an operation).
 
+        Optimized to use a single RPC call (read) per iteration instead of
+        exists + read (2 calls). If the file doesn't exist, read() raises
+        NexusError which is caught and retried.
+
         Args:
             path: The file path to wait for.
             timeout: Maximum time to wait. If None, waits indefinitely.
 
         Returns:
             The file content as bytes once it exists.
+
+        Raises:
+            TimeoutError: If the timeout is reached before the file exists.
         """
         start_time = datetime.now()
-        while not ((timeout and datetime.now() - start_time > timeout) or (self.exists(path))):
-            time.sleep(1)
-        return self.read(path)
+        while True:
+            if timeout and datetime.now() - start_time > timeout:
+                raise TimeoutError(f"Timeout waiting for {path}")
+            try:
+                # Single RPC call: read directly, failure means file doesn't exist yet
+                return self.read(path)
+            except NexusError:
+                time.sleep(1)
 
     def delete_bulk(
         self,
