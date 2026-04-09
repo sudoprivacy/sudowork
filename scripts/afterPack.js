@@ -123,12 +123,21 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   }
 
   const binaries = [];
+  const frameworkBundles = []; // .framework bundles need bundle-level signing
 
   function findBinaries(currentDir) {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
+        // Collect .framework bundles — they must be signed as bundles, not
+        // individual files.  Signing the main binary inside a framework
+        // directly (e.g. Python.framework/Python) causes codesign to fail
+        // with "bundle format is ambiguous (could be app or framework)".
+        if (entry.name.endsWith('.framework')) {
+          frameworkBundles.push(fullPath);
+          continue; // Don't recurse — the bundle will be signed as a whole
+        }
         findBinaries(fullPath);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
@@ -152,7 +161,7 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
 
   findBinaries(dir);
 
-  if (binaries.length === 0) {
+  if (binaries.length === 0 && frameworkBundles.length === 0) {
     return 0;
   }
 
@@ -181,6 +190,25 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
       const msg = err.stderr ? err.stderr.toString().trim() : err.message;
       console.warn(`   ⚠️  Failed to sign ${path.basename(binary)}: ${msg}`);
       failedBinaries.push(path.basename(binary));
+    }
+  }
+
+  // Sign .framework bundles (e.g. Python.framework from PyInstaller one-dir builds).
+  // Framework bundles must be signed at the bundle level — signing the main binary
+  // inside directly causes "bundle format is ambiguous" errors from codesign.
+  // --deep recursively signs all nested code within the framework.
+  for (const fwPath of frameworkBundles) {
+    try {
+      const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
+      execSync(`codesign --sign "${identity}" --force --deep --timestamp --options runtime ${entitlementsFlag} "${fwPath}"`, {
+        stdio: 'pipe',
+      });
+      console.log(`   ✓ Signed framework bundle: ${path.basename(fwPath)}`);
+      signedCount++;
+    } catch (err) {
+      const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+      console.warn(`   ⚠️  Failed to sign framework ${path.basename(fwPath)}: ${msg}`);
+      failedBinaries.push(path.basename(fwPath));
     }
   }
 
