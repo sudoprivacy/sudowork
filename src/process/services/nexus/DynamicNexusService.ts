@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
+import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
 const execAsync = promisify(exec);
@@ -289,67 +289,74 @@ class DynamicNexusService {
   /**
    * Extract the Nexus archive to a target directory.
    * Supports .tar.gz (macOS/Linux) and .zip (Windows).
+   * @param strip – number of leading path components to strip (like tar --strip-components)
    */
-  private async extractArchive(archivePath: string, targetDir: string, onProgress?: (percent: number) => void): Promise<void> {
+  private async extractArchive(archivePath: string, targetDir: string, onProgress?: (percent: number) => void, strip = 0): Promise<void> {
     if (archivePath.endsWith('.zip')) {
-      await extractZipWithProgress(archivePath, targetDir, onProgress);
+      await extractZipWithProgress(archivePath, targetDir, onProgress, { strip });
     } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
-      await extractTarGzWithProgress(archivePath, targetDir, onProgress);
+      await extractTarGzWithProgress(archivePath, targetDir, onProgress, { strip });
     } else {
       throw new Error(`Unsupported archive format: ${archivePath}`);
     }
   }
 
   /**
-   * Find the directory containing the nexusd executable in the extracted archive.
-   * Searches the root and one level of subdirectories.
+   * List all entry paths in the archive without extracting.
    */
-  private findNexusdDirectory(extractDir: string): string {
-    const nexusdName = this.getNexusdName();
-
-    // Check root level
-    if (fs.existsSync(path.join(extractDir, nexusdName))) {
-      return extractDir;
+  private async listArchiveEntries(archivePath: string): Promise<string[]> {
+    if (archivePath.endsWith('.zip')) {
+      return listZipEntries(archivePath);
+    } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
+      return listTarGzEntries(archivePath);
     }
-
-    // Check one level of subdirectories
-    const entries = fs.readdirSync(extractDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const subPath = path.join(extractDir, entry.name);
-        if (fs.existsSync(path.join(subPath, nexusdName))) {
-          return subPath;
-        }
-      }
-    }
-
-    throw new Error(`nexusd executable not found in extracted archive`);
+    throw new Error(`Unsupported archive format: ${archivePath}`);
   }
 
   /**
-   * Copy all files from source directory to target directory recursively.
-   * Handles regular files, directories, and symlinks.
+   * Inspect the archive structure to determine:
+   * 1. Whether a top-level directory should be stripped (strip level)
+   * 2. The set of entry names that will be written into the target dir (after stripping)
+   *
+   * If all entries share a single common top-level directory that contains nexusd,
+   * we strip that directory so files are placed directly into the target.
    */
-  private copyDirectoryContents(srcDir: string, destDir: string): void {
-    const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  private async analyzeArchiveStructure(archivePath: string): Promise<{ strip: number; topLevelNames: Set<string> }> {
+    const entries = await this.listArchiveEntries(archivePath);
+    const nexusdName = this.getNexusdName();
+
+    // Collect unique top-level names
+    const topLevelDirs = new Set<string>();
     for (const entry of entries) {
-      const srcPath = path.join(srcDir, entry.name);
-      const destPath = path.join(destDir, entry.name);
-      if (entry.isSymbolicLink()) {
-        // Preserve symlinks by recreating them with the same target
-        const linkTarget = fs.readlinkSync(srcPath);
-        // Remove existing destination if present (e.g. from a previous partial install)
-        if (fs.existsSync(destPath)) {
-          fs.rmSync(destPath, { recursive: true, force: true });
+      const first = entry.split('/')[0];
+      if (first) topLevelDirs.add(first);
+    }
+
+    // If all entries live under a single top-level directory, strip it
+    if (topLevelDirs.size === 1) {
+      const prefix = [...topLevelDirs][0];
+      const names = new Set<string>();
+      for (const entry of entries) {
+        const rest = entry.slice(prefix.length + 1); // skip "prefix/"
+        if (rest) {
+          const firstPart = rest.split('/')[0];
+          if (firstPart) names.add(firstPart);
         }
-        fs.symlinkSync(linkTarget, destPath);
-      } else if (entry.isDirectory()) {
-        fs.mkdirSync(destPath, { recursive: true });
-        this.copyDirectoryContents(srcPath, destPath);
-      } else {
-        fs.copyFileSync(srcPath, destPath);
+      }
+
+      // Verify that nexusd is present at the stripped level
+      if (names.has(nexusdName)) {
+        return { strip: 1, topLevelNames: names };
       }
     }
+
+    // No stripping – entries go directly into target
+    const names = new Set<string>();
+    for (const entry of entries) {
+      const first = entry.split('/')[0];
+      if (first) names.add(first);
+    }
+    return { strip: 0, topLevelNames: names };
   }
 
   /**
@@ -377,35 +384,28 @@ class DynamicNexusService {
 
   /**
    * Remove only Nexus-specific files and directories from the bin directory.
-   * Deletes items that exist in the extracted archive source directory (i.e. items
-   * that will be replaced during installation), plus the ready marker file.
+   * Deletes items whose names appear in `entryNames` (the set of top-level names
+   * that will be written during installation), plus the ready marker file.
    * Any other files in the bin directory (e.g. claude, other tools) are left untouched.
+   *
+   * On Windows, running executables cannot be deleted. If a deletion fails the
+   * error is logged as a warning and installation continues – the extraction
+   * step will overwrite the file instead.
    */
-  private cleanNexusFiles(binDir: string, nexusdSourceDir: string): void {
-    // Collect only the TOP-LEVEL entry names from the extracted archive directory.
-    // We intentionally use non-recursive readdirSync to get only first-level items
-    // (e.g. _internal/, nexusd, .dylibs/) — do NOT recurse, as the archive may
-    // contain thousands of nested files which would make comparison extremely slow.
-    const archiveEntries = new Set<string>();
-    try {
-      const entries = fs.readdirSync(nexusdSourceDir);
-      for (const name of entries) {
-        archiveEntries.add(name);
-      }
-    } catch {
-      // If we can't read the source dir, fall back to known Nexus items
-    }
-
+  private cleanNexusFiles(binDir: string, entryNames: Set<string>): void {
     // Always include the ready marker and the nexusd executable
-    archiveEntries.add(NEXUS_READY_MARKER);
-    archiveEntries.add(this.getNexusdName());
+    const toRemove = new Set(entryNames);
+    toRemove.add(NEXUS_READY_MARKER);
+    toRemove.add(this.getNexusdName());
 
-    for (const name of archiveEntries) {
+    for (const name of toRemove) {
       const target = path.join(binDir, name);
       if (fs.existsSync(target)) {
         try {
           fs.rmSync(target, { recursive: true, force: true });
         } catch (err) {
+          // On Windows the executable may be locked if the process is still running.
+          // Log and continue – the extractor will attempt to overwrite.
           mainWarn('Nexus', `Failed to remove ${target}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
@@ -414,39 +414,38 @@ class DynamicNexusService {
 
   /**
    * Install Nexus from an archive file (bundled, downloaded, or user-provided).
-   * Extracts the archive, finds nexusd, and copies contents to ~/.nexus/bin/.
+   * Inspects the archive, cleans stale Nexus files, then extracts directly into
+   * ~/.nexus/bin/ — no intermediate temp directory or file copy needed.
    */
   async installFromArchive(archivePath: string): Promise<void> {
     this.deletePidFile();
     this.deleteReadyFile();
 
     const binDir = path.join(getDataPath(), 'bin');
-    const tempExtractDir = path.join(getDataPath(), 'downloads', `nexus-extract-${Date.now()}`);
 
     try {
-      fs.mkdirSync(tempExtractDir, { recursive: true });
+      this.emitSetup('installing', 'Analyzing Nexus archive...', 0);
 
-      this.emitSetup('installing', 'Extracting Nexus archive...', 0);
-      await this.extractArchive(archivePath, tempExtractDir, (percent) => {
-        this.emitSetup('installing', `Extracting Nexus archive... ${percent}%`, Math.round(percent * 0.5));
-      });
+      // Inspect archive to determine strip level and which entries will be installed
+      const { strip, topLevelNames } = await this.analyzeArchiveStructure(archivePath);
+      mainLog('Nexus', `Archive analysis: strip=${strip}, entries=[${[...topLevelNames].join(', ')}]`);
 
-      // Find the directory containing nexusd in the extracted archive
-      const nexusdSourceDir = this.findNexusdDirectory(tempExtractDir);
-      mainLog('Nexus', `Found nexusd in extracted archive: ${nexusdSourceDir}`);
+      // Ensure the bin directory exists
+      fs.mkdirSync(binDir, { recursive: true });
 
       // Remove only Nexus-specific files/directories from the bin directory.
       // Other programs (e.g. claude) may also live in ~/.nexus/bin/, so we must
       // not wipe the entire directory.
-      fs.mkdirSync(binDir, { recursive: true });
-      this.cleanNexusFiles(binDir, nexusdSourceDir);
+      this.emitSetup('installing', 'Cleaning old Nexus files...', 5);
+      this.cleanNexusFiles(binDir, topLevelNames);
 
-      this.emitSetup('installing', 'Copying Nexus files...', 60);
+      // Extract directly to the target bin directory (with strip if needed)
+      this.emitSetup('installing', 'Extracting Nexus archive...', 10);
+      await this.extractArchive(archivePath, binDir, (percent) => {
+        this.emitSetup('installing', `Extracting Nexus archive... ${percent}%`, 10 + Math.round(percent * 0.7));
+      }, strip);
 
-      // Copy all contents from the extracted nexusd directory to bin
-      this.copyDirectoryContents(nexusdSourceDir, binDir);
-
-      this.emitSetup('installing', 'Setting permissions...', 80);
+      this.emitSetup('installing', 'Setting permissions...', 85);
 
       // Set executable permissions on nexusd and shared libraries (Unix only)
       this.setInstalledPermissions(binDir);
@@ -461,15 +460,6 @@ class DynamicNexusService {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.emitSetup('error', `Installation failed: ${errorMsg}`);
       throw err;
-    } finally {
-      // Cleanup temp extraction directory
-      try {
-        if (fs.existsSync(tempExtractDir)) {
-          fs.rmSync(tempExtractDir, { recursive: true, force: true });
-        }
-      } catch {
-        mainWarn('Nexus', `Failed to clean up temp extraction directory: ${tempExtractDir}`);
-      }
     }
   }
 
@@ -690,10 +680,7 @@ class DynamicNexusService {
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      const msg = d.toString().trim();
-      // Filter out noisy Nexus HTTP access logs and request_completed metrics
-      if (!msg || msg.includes('request_completed') || /^INFO:\s+\d+\.\d+\.\d+\.\d+:\d+ - "POST \/api\/nfs\/\w+ HTTP\/\d\.\d" \d+ OK$/.test(msg)) return;
-      mainLog('Nexus:stdout', msg);
+      mainLog('Nexus:stdout', d.toString().trim());
     });
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
