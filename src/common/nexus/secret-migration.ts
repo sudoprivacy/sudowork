@@ -59,6 +59,7 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
   lark: ['appSecret', 'encryptKey', 'verificationToken'],
   dingtalk: ['clientSecret'],
   wechat: [], // WeChat uses token-based auth, no separate secret
+  zentao: ['zentaoPassword'],
 };
 
 // ============================================================================
