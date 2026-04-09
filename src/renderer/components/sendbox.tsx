@@ -8,7 +8,8 @@ import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
@@ -326,20 +327,39 @@ const SendBox: React.FC<{
     [installedSkills]
   );
 
+  // Fetch workspace files for @ file references
+  const workspaceFiles = useWorkspaceFiles();
+
   const skillSelectorController = useSkillSelectorController({
     input,
     skills: skillSelectorItems,
+    files: workspaceFiles.files,
+    hasFiles: workspaceFiles.hasWorkspace,
     selectedSkills,
     onSelectSkill: (skillName) => {
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      setInput('');
+      // Strip the @query from input
+      const cleaned = stripAtQuery(input);
+      setInput(cleaned.trim() ? cleaned : '');
+    },
+    onSelectFile: (_file, newInput) => {
+      setInput(newInput);
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
   });
+
+  // Tab definitions for the selector menu
+  const selectorTabs = useMemo(() => {
+    if (!skillSelectorController.showFilesTab) return undefined;
+    return [
+      { key: 'skills' as const, label: t('messages.skills.title', { defaultValue: 'Skills' }) },
+      { key: 'files' as const, label: t('messages.files.title', { defaultValue: 'Files' }) },
+    ];
+  }, [skillSelectorController.showFilesTab, t]);
 
   // Transform to menu items for rendering
   const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
@@ -513,7 +533,7 @@ const SendBox: React.FC<{
             />
           </div>
         )}
-        {/* Skill Selector Menu */}
+        {/* Skill / File Selector Menu */}
         {skillSelectorController.isOpen && (
           <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             <SkillSelectorMenu
@@ -532,6 +552,18 @@ const SendBox: React.FC<{
                 }
               }}
               emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
+              tabs={selectorTabs}
+              activeTab={skillSelectorController.activeTab}
+              onTabChange={skillSelectorController.setActiveTab}
+              fileItems={skillSelectorController.filteredFiles}
+              onSelectFile={(file) => {
+                const idx = skillSelectorController.filteredFiles.findIndex((f) => f.fullPath === file.fullPath);
+                if (idx >= 0) {
+                  skillSelectorController.onSelectByIndex(idx);
+                }
+              }}
+              fileEmptyText={t('messages.files.empty', { defaultValue: 'No files found' })}
+              fileLoading={workspaceFiles.loading}
             />
           </div>
         )}

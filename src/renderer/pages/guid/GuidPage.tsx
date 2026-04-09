@@ -10,7 +10,8 @@ import { openExternalUrl, isElectronDesktop } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import { useDirectoryFiles } from '@/renderer/hooks/useWorkspaceFiles';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
@@ -147,21 +148,40 @@ const GuidPage: React.FC = () => {
     return items;
   }, [installedSkills, agentEnabledSkills]);
 
+  // Fetch workspace files for @ file references (only when dir is set)
+  const dirFiles = useDirectoryFiles(guidInput.dir);
+
   // 技能选择器控制器
   const skillSelectorController = useSkillSelectorController({
     input: guidInput.input,
     skills: skillSelectorItems,
+    files: dirFiles.files,
+    hasFiles: !!guidInput.dir,
     selectedSkills,
     onSelectSkill: (skillName) => {
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      guidInput.setInput('');
+      // Strip @query from input
+      const cleaned = stripAtQuery(guidInput.input);
+      guidInput.setInput(cleaned.trim() ? cleaned : '');
+    },
+    onSelectFile: (_file, newInput) => {
+      guidInput.setInput(newInput);
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
   });
+
+  // Tab definitions for the selector menu
+  const guidSelectorTabs = useMemo(() => {
+    if (!skillSelectorController.showFilesTab) return undefined;
+    return [
+      { key: 'skills' as const, label: t('messages.skills.title', { defaultValue: 'Skills' }) },
+      { key: 'files' as const, label: t('messages.files.title', { defaultValue: 'Files' }) },
+    ];
+  }, [skillSelectorController.showFilesTab, t]);
 
   // 转换为菜单项用于渲染
   const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
@@ -453,7 +473,36 @@ const GuidPage: React.FC = () => {
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
               skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' /> : null}
+              skillSelectorMenu={
+                skillSelectorController.isOpen ? (
+                  <SkillSelectorMenu
+                    title='技能'
+                    items={skillMenuItems}
+                    selectedKeys={selectedSkills}
+                    activeIndex={skillSelectorController.activeIndex}
+                    onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
+                    onSelectItem={(item) => {
+                      const targetIndex = skillSelectorController.filteredSkills.findIndex((skill) => skill.name === item.name);
+                      if (targetIndex >= 0) {
+                        skillSelectorController.onSelectByIndex(targetIndex);
+                      }
+                    }}
+                    emptyText='暂无技能'
+                    tabs={guidSelectorTabs}
+                    activeTab={skillSelectorController.activeTab}
+                    onTabChange={skillSelectorController.setActiveTab}
+                    fileItems={skillSelectorController.filteredFiles}
+                    onSelectFile={(file) => {
+                      const idx = skillSelectorController.filteredFiles.findIndex((f) => f.fullPath === file.fullPath);
+                      if (idx >= 0) {
+                        skillSelectorController.onSelectByIndex(idx);
+                      }
+                    }}
+                    fileEmptyText='暂无文件'
+                    fileLoading={dirFiles.loading}
+                  />
+                ) : null
+              }
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {

@@ -6,15 +6,49 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
-// Match @ followed by skill name (alphanumeric, underscore, hyphen, Chinese characters)
-// 匹配 @ 后跟技能名（允许字母数字、下划线、连字符、中文）
-const SKILL_QUERY_RE = /^@([a-zA-Z0-9_\u4e00-\u9fa5-]*)$/;
+// Match @ followed by query text anywhere in the input (at start or after whitespace)
+// Captures the query text after @ until end of input
+const AT_QUERY_RE = /(?:^|\s)@([^\s]*)$/;
 
-export function matchSkillQuery(input: string): string | null {
-  const match = input.match(SKILL_QUERY_RE);
+/**
+ * Extract the @query from the input (at end of string, preceded by start or whitespace).
+ * Returns the query text (without @) or null if no match.
+ */
+export function matchAtQuery(input: string): string | null {
+  const match = input.match(AT_QUERY_RE);
   return match ? match[1] : null;
 }
+
+/**
+ * Strip the @query from the end of input.
+ * Example: "hello @ski" → "hello "
+ */
+export function stripAtQuery(input: string): string {
+  return input.replace(AT_QUERY_RE, (match) => {
+    // Preserve leading whitespace, remove @query
+    const firstChar = match[0];
+    if (firstChar === ' ' || firstChar === '\t' || firstChar === '\n') {
+      return firstChar;
+    }
+    return '';
+  });
+}
+
+/**
+ * Replace the @query at end of input with a new @reference.
+ * Example: "hello @fi" + "file.txt" → "hello @file.txt "
+ */
+export function replaceAtQuery(input: string, replacement: string): string {
+  return input.replace(AT_QUERY_RE, (match) => {
+    const firstChar = match[0];
+    const prefix = firstChar === ' ' || firstChar === '\t' || firstChar === '\n' ? firstChar : '';
+    return prefix + '@' + replacement + ' ';
+  });
+}
+
+export type AtSelectorTab = 'skills' | 'files';
 
 export interface SkillSelectorItem {
   name: string;
@@ -28,18 +62,25 @@ export interface SkillSelectorItem {
 interface UseSkillSelectorControllerOptions {
   input: string;
   skills: SkillSelectorItem[];
+  files?: WorkspaceFileItem[];
   selectedSkills: string[];
   onSelectSkill: (skillName: string) => void;
+  onSelectFile?: (file: WorkspaceFileItem, newInput: string) => void;
   onRemoveSkill?: (skillName: string) => void;
+  hasFiles?: boolean;
 }
 
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill } = options;
-  const query = useMemo(() => matchSkillQuery(input), [input]);
+  const { input, skills, files = [], selectedSkills, onSelectSkill, onSelectFile, onRemoveSkill, hasFiles = false } = options;
+  const query = useMemo(() => matchAtQuery(input), [input]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const [activeTab, setActiveTab] = useState<AtSelectorTab>('skills');
 
-  // Reset state only when query changes
+  // Whether the files tab should be available
+  const showFilesTab = hasFiles || files.length > 0;
+
+  // Reset state when query changes
   useEffect(() => {
     setActiveIndex((prev) => (prev !== 0 ? 0 : prev));
     setDismissed((prev) => (prev !== false ? false : prev));
@@ -64,7 +105,25 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     });
   }, [skills, query]);
 
-  const isOpen = query !== null && !dismissed && filteredSkills.length > 0;
+  const filteredFiles = useMemo(() => {
+    if (query === null || files.length === 0) {
+      return [];
+    }
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) {
+      return files;
+    }
+    return files.filter((file) => {
+      const nameMatch = file.name.toLowerCase().includes(keyword);
+      const pathMatch = file.relativePath.toLowerCase().includes(keyword);
+      return nameMatch || pathMatch;
+    });
+  }, [files, query]);
+
+  // Items for the currently active tab
+  const currentItemCount = activeTab === 'skills' ? filteredSkills.length : filteredFiles.length;
+
+  const isOpen = query !== null && !dismissed && (filteredSkills.length > 0 || filteredFiles.length > 0 || showFilesTab);
 
   const executeSkill = useCallback(
     (index: number) => {
@@ -79,6 +138,35 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     [filteredSkills, onSelectSkill]
   );
 
+  const executeFile = useCallback(
+    (index: number) => {
+      const file = filteredFiles[index];
+      if (!file) {
+        return false;
+      }
+      const newInput = replaceAtQuery(input, file.relativePath);
+      onSelectFile?.(file, newInput);
+      setDismissed(true);
+      return true;
+    },
+    [filteredFiles, input, onSelectFile]
+  );
+
+  const executeByIndex = useCallback(
+    (index: number) => {
+      if (activeTab === 'skills') {
+        return executeSkill(index);
+      }
+      return executeFile(index);
+    },
+    [activeTab, executeSkill, executeFile]
+  );
+
+  const switchTab = useCallback((tab: AtSelectorTab) => {
+    setActiveTab(tab);
+    setActiveIndex(0);
+  }, []);
+
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {
       if (!isOpen) {
@@ -91,21 +179,33 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
         return true;
       }
 
+      // Tab key switches between tabs
+      if (event.key === 'Tab' && showFilesTab) {
+        event.preventDefault();
+        const nextTab = activeTab === 'skills' ? 'files' : 'skills';
+        switchTab(nextTab);
+        return true;
+      }
+
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setActiveIndex((prev) => (prev + 1) % filteredSkills.length);
+        if (currentItemCount > 0) {
+          setActiveIndex((prev) => (prev + 1) % currentItemCount);
+        }
         return true;
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setActiveIndex((prev) => (prev - 1 + filteredSkills.length) % filteredSkills.length);
+        if (currentItemCount > 0) {
+          setActiveIndex((prev) => (prev - 1 + currentItemCount) % currentItemCount);
+        }
         return true;
       }
 
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        return executeSkill(activeIndex);
+        return executeByIndex(activeIndex);
       }
 
       if (event.key === 'Backspace' && query === '') {
@@ -118,16 +218,20 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
       return false;
     },
-    [activeIndex, executeSkill, filteredSkills.length, isOpen, query, selectedSkills, onRemoveSkill]
+    [activeIndex, activeTab, currentItemCount, executeByIndex, isOpen, onRemoveSkill, query, selectedSkills, showFilesTab, switchTab]
   );
 
   return {
     isOpen,
     activeIndex,
+    activeTab,
     filteredSkills,
+    filteredFiles,
+    showFilesTab,
     onKeyDown,
-    onSelectByIndex: executeSkill,
+    onSelectByIndex: executeByIndex,
     setDismissed,
     setActiveIndex,
+    setActiveTab: switchTab,
   };
 }
