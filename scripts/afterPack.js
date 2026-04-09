@@ -262,6 +262,11 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   function findBinaries(currentDir) {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
+      // Skip symlinks — they point to files signed through their primary location.
+      // e.g. PyInstaller may place a symlink _internal/Python → Python.framework/Versions/A/Python;
+      // codesign follows the symlink, sees .framework in the resolved path, and fails with
+      // "bundle format is ambiguous".  The real binary is signed as part of the framework bundle.
+      if (entry.isSymbolicLink()) continue;
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         // Skip .framework dirs — they are signed as bundles in step 5
@@ -328,13 +333,52 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
-  // ── 5. Sign .framework bundles as legitimate Apple bundles ───────────
-  // Now that the structure has been fixed (Versions/A/, Info.plist, symlinks),
-  // codesign can properly identify and sign the bundle.
-  // --deep ensures all nested code within the framework is also signed.
+  // ── 5. Sign .framework bundles (inside-out, Apple-compliant) ─────────
+  // Apple requires signing from the inside out: sign every Mach-O binary
+  // inside the framework individually first, then sign the framework bundle
+  // itself so its seal covers the already-signed contents.
+  // NOTE: --deep is deprecated by Apple for production use and is unreliable
+  // with non-standard framework structures (e.g. PyInstaller output).
   for (const fwPath of frameworkBundles) {
     try {
-      execSync(`codesign --sign "${identity}" --force --deep --timestamp --options runtime "${fwPath}"`, {
+      const versionsADir = path.join(fwPath, 'Versions', 'A');
+
+      // 5a. Sign all Mach-O binaries inside the framework individually
+      if (fs.existsSync(versionsADir)) {
+        const innerBinaries = [];
+        const walkInner = (innerDir) => {
+          let innerEntries;
+          try { innerEntries = fs.readdirSync(innerDir, { withFileTypes: true }); } catch { return; }
+          for (const ie of innerEntries) {
+            if (ie.isSymbolicLink()) continue;
+            const innerPath = path.join(innerDir, ie.name);
+            if (ie.isDirectory()) {
+              walkInner(innerPath);
+            } else if (ie.isFile() && isMachOBinary(innerPath)) {
+              innerBinaries.push(innerPath);
+            }
+          }
+        };
+        walkInner(versionsADir);
+
+        for (const innerBin of innerBinaries) {
+          try {
+            // Remove any existing signature first (clean slate)
+            try { execSync(`codesign --remove-signature "${innerBin}"`, { stdio: 'pipe' }); } catch { /* no existing sig */ }
+            execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${innerBin}"`, {
+              stdio: 'pipe',
+            });
+            console.log(`   ✓ Signed (framework): ${path.relative(fwPath, innerBin)}`);
+            signedCount++;
+          } catch (innerErr) {
+            const innerMsg = innerErr.stderr ? innerErr.stderr.toString().trim() : innerErr.message;
+            console.warn(`   ⚠️  Failed to sign framework binary ${path.relative(fwPath, innerBin)}: ${innerMsg}`);
+          }
+        }
+      }
+
+      // 5b. Sign the framework bundle itself (outer seal)
+      execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${fwPath}"`, {
         stdio: 'pipe',
       });
       console.log(`   ✓ Signed framework bundle: ${path.basename(fwPath)}`);
