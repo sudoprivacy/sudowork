@@ -21,5 +21,8 @@
   "autoUpdateMode": "自動更新模式",
   "showInFolder": "在資料夾中顯示",
   "openFile": "開啟檔案",
-  "errorTitle": "更新失敗"
+  "errorTitle": "更新失敗",
+  "nightlyBadge": "Nightly 預覽版",
+  "nightlyUpdateNotice": "目前為 Nightly 建置版本，僅支援手動下載更新。",
+  "buildDate": "建置日期"
 }

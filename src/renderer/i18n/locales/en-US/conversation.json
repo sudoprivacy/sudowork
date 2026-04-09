@@ -13,6 +13,7 @@
     "specifyWorkspace": "Chat in Folder",
     "currentWorkspace": "Current Workspace",
     "clearWorkspace": "Remove folder",
+    "addSkill": "Add Skill",
     "openFolder": "Open Folder",
     "none": "None",
     "quickActionsTitle": "What can Sudowork do?",
@@ -139,7 +140,38 @@
       "addedToChat": "Added to chat",
       "openFailed": "Failed to open",
       "revealFailed": "Failed to open containing folder",
-      "uploadToBdpan": "Upload to Baidu Netdisk"
+      "uploadToBdpan": "Upload to Baidu Netdisk",
+      "newFolder": "New Folder"
+    },
+    "newFolder": {
+      "title": "New Folder",
+      "placeholder": "Enter folder name",
+      "hint": "Create a new folder in the current directory",
+      "success": "Folder created successfully",
+      "failed": "Failed to create folder",
+      "invalidName": "Folder name contains invalid characters",
+      "reservedName": "This name is reserved by the system. Please use a different name."
+    },
+    "drafts": {
+      "title": "Drafts",
+      "description": "Intermediate files produced during Agent execution",
+      "empty": "Drafts is empty",
+      "clearAll": "Clear Drafts",
+      "clearConfirm": "Are you sure you want to clear all files in Drafts?",
+      "fileCount": "{{count}} intermediate file(s)",
+      "clearSuccess": "Drafts cleared",
+      "deleteFailed": "Failed to delete draft file"
+    },
+    "renameWorkspace": {
+      "title": "Rename Workspace",
+      "placeholder": "Enter display name",
+      "hint": "This only changes the display name. The physical folder path will not be modified.",
+      "success": "Workspace renamed successfully",
+      "failed": "Rename failed",
+      "invalidName": "Folder name contains invalid characters",
+      "alreadyExists": "Target folder already exists",
+      "agentRunning": "An Agent is running. Please wait for it to finish before renaming.",
+      "emptyName": "Name cannot be empty"
     }
   },
   "chat": {

@@ -21,6 +21,10 @@ export interface ConversationTab {
   type: 'acp' | 'openclaw-gateway';
   /** 是否有未保存的修改 / Whether there are unsaved changes */
   isDirty?: boolean;
+  /** 会话创建时间 / Conversation creation time */
+  createTime?: number;
+  /** 会话最后修改时间 / Last modification time */
+  modifyTime?: number;
 }
 
 export interface ConversationTabsContextValue {
@@ -125,6 +129,8 @@ export const ConversationTabsProvider: React.FC<{ children: React.ReactNode }> =
           name: conversation.name,
           workspace: conversation.extra?.workspace || '',
           type: conversation.type,
+          createTime: conversation.createTime,
+          modifyTime: conversation.modifyTime,
         },
       ];
     });

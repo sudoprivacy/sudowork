@@ -413,6 +413,8 @@ module.exports = async function afterPack(context) {
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
   if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
+    const identity = process.env.CSC_NAME;
+
     // Sign bundled bdpan installer binary directly (it's a plain binary, not an archive)
     const bdpanBinary = path.join(resourcesDir, `bdpan-installer-darwin-${targetArch}`);
     if (fs.existsSync(bdpanBinary)) {
@@ -425,14 +427,32 @@ module.exports = async function afterPack(context) {
       }
     }
 
+    // Sign versioned nexus binaries directly (they are plain Mach-O executables, not archives)
+    try {
+      const nexusBinaries = fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-/.test(f));
+      for (const nexusBin of nexusBinaries) {
+        const nexusBinPath = path.join(resourcesDir, nexusBin);
+        if (fs.existsSync(nexusBinPath)) {
+          console.log(`\n🔐 Signing nexus binary: ${nexusBin}...`);
+          try {
+            execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${nexusBinPath}"`, { stdio: 'pipe' });
+            console.log(`   ✓ Signed: ${nexusBin}`);
+          } catch (err) {
+            console.warn(`   ⚠️  Failed to sign nexus binary ${nexusBin}: ${err.message}`);
+          }
+        }
+      }
+    } catch {
+      // Resources dir not readable — nexus binaries will be skipped
+    }
+
     // Fixed name archives
-    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz', 'nexus.tar.gz'];
+    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
 
     const archivesToSign = [...fixedArchives, nodeArchive];
-    const identity = process.env.CSC_NAME;
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');

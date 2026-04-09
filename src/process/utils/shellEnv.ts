@@ -433,9 +433,17 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
   try {
     if (isNodeInstalled()) {
       const bundledNodePath = getNodeBinaryPath();
-      const bundledNpx = path.join(path.dirname(bundledNodePath), npxName);
+      const bundledNodeDir = path.dirname(bundledNodePath);
+      const bundledNpx = path.join(bundledNodeDir, npxName);
       if (existsSync(bundledNpx)) {
         mainLog('ShellEnv', `Using bundled npx: ${bundledNpx}`);
+        // Prepend the bundled node directory to PATH so that npx.cmd (and any
+        // child processes it spawns) can find `node` without requiring a
+        // system-wide Node.js installation.  This mirrors how
+        // ensureMinNodeVersion() mutates env.PATH.
+        const sep = isWindows ? ';' : ':';
+        env.PATH = bundledNodeDir + sep + (env.PATH || '');
+        mainLog('ShellEnv', `Prepended bundled node dir to PATH: ${bundledNodeDir}`);
         return bundledNpx;
       }
     }
@@ -458,12 +466,7 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
   }
 
   // 4. Nothing found — warn clearly and return bare name as last resort
-  mainWarn(
-    'ShellEnv',
-    `Node.js/npx could not be found on this system. ` +
-    `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` +
-    `Returning bare '${npxName}' which will likely fail.`
-  );
+  mainWarn('ShellEnv', `Node.js/npx could not be found on this system. ` + `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` + `Returning bare '${npxName}' which will likely fail.`);
   return npxName;
 }
 

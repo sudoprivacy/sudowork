@@ -4,15 +4,167 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IUnifiedIncomingMessage, IUnifiedOutgoingMessage } from '../../types';
-import type { IWeChatSendMessagePayload, WeChatMessage } from './types';
+import type { AttachmentType, IUnifiedAttachment, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, MessageContentType } from '../../types';
+import type { IWeChatSendMessagePayload, WeChatMediaInfo, WeChatMessage, WeChatMessageItem } from './types';
 import { MessageItemType, MessageState, MessageType, WECHAT_MESSAGE_LIMIT } from './types';
 
 let clientIdCounter = 0;
 
 /**
+ * Media info extracted from a WeChat message item.
+ */
+export interface WeChatMediaExtract {
+  /** The CDN download URL (full_url or constructed from encrypt_query_param) */
+  url: string;
+  /** Base64-encoded AES key for decryption (from media.aes_key), or null if absent */
+  aesKeyBase64: string | null;
+  /** Whether the AES key is hex-encoded (from ImageItem.aeskey) */
+  aesKeyIsHex: boolean;
+}
+
+/**
+ * Get the media info object from a WeChat message item.
+ * Returns the first non-null media from image_item, voice_item, file_item, video_item.
+ */
+function getMediaInfo(item: WeChatMessageItem): WeChatMediaInfo | undefined {
+  return item.image_item?.media || item.voice_item?.media || item.file_item?.media || item.video_item?.media;
+}
+
+/**
+ * Build a CDN download URL from an encrypt_query_param value.
+ * Used as a fallback when full_url is not available.
+ */
+function buildCdnDownloadUrl(media: WeChatMediaInfo, baseUrl: string): string | undefined {
+  if (!media.encrypt_query_param) return undefined;
+  return `${baseUrl}/download?encrypted_query_param=${encodeURIComponent(media.encrypt_query_param)}`;
+}
+
+/**
+ * Extract the CDN download URL from a WeChat message item.
+ * First checks full_url, then falls back to constructing from encrypt_query_param.
+ *
+ * @param item - The message item
+ * @param cdnBaseUrl - Optional CDN base URL for encrypt_query_param fallback
+ */
+export function getMediaUrl(item: WeChatMessageItem, cdnBaseUrl?: string): string | undefined {
+  const media = getMediaInfo(item);
+  if (!media) return undefined;
+
+  // Prefer full_url
+  if (media.full_url) return media.full_url;
+
+  // Fallback: construct from encrypt_query_param
+  if (media.encrypt_query_param && cdnBaseUrl) {
+    return buildCdnDownloadUrl(media, cdnBaseUrl);
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract media download info (URL + AES key) from a WeChat message item.
+ * Handles the image-specific aeskey (hex) field and the standard media.aes_key (base64).
+ *
+ * @param item - The message item
+ * @param cdnBaseUrl - Optional CDN base URL for encrypt_query_param fallback
+ */
+export function getMediaExtract(item: WeChatMessageItem, cdnBaseUrl?: string): WeChatMediaExtract | undefined {
+  const url = getMediaUrl(item, cdnBaseUrl);
+  if (!url) return undefined;
+
+  // Image items have a separate hex-encoded aeskey field that takes priority
+  if (item.image_item?.aeskey) {
+    return {
+      url,
+      aesKeyBase64: item.image_item.aeskey,
+      aesKeyIsHex: true,
+    };
+  }
+
+  // Standard media.aes_key (base64-encoded)
+  const media = getMediaInfo(item);
+  return {
+    url,
+    aesKeyBase64: media?.aes_key || null,
+    aesKeyIsHex: false,
+  };
+}
+
+/**
+ * Map a WeChat MessageItemType to a unified content type.
+ */
+function itemTypeToContentType(itemType: number): MessageContentType {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'photo';
+    case MessageItemType.VOICE:
+      return 'voice';
+    case MessageItemType.FILE:
+      return 'document';
+    case MessageItemType.VIDEO:
+      return 'video';
+    default:
+      return 'text';
+  }
+}
+
+/**
+ * Map a WeChat MessageItemType to an attachment type.
+ */
+function itemTypeToAttachmentType(itemType: number): AttachmentType {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'photo';
+    case MessageItemType.VOICE:
+      return 'voice';
+    case MessageItemType.FILE:
+      return 'document';
+    case MessageItemType.VIDEO:
+      return 'video';
+    default:
+      return 'document';
+  }
+}
+
+/**
+ * Get a default file extension based on item type.
+ */
+export function getDefaultExtension(itemType: number): string {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return '.jpg';
+    case MessageItemType.VOICE:
+      return '.amr';
+    case MessageItemType.FILE:
+      return '';
+    case MessageItemType.VIDEO:
+      return '.mp4';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Get default MIME type based on item type.
+ */
+function getDefaultMimeType(itemType: number): string {
+  switch (itemType) {
+    case MessageItemType.IMAGE:
+      return 'image/jpeg';
+    case MessageItemType.VOICE:
+      return 'audio/amr';
+    case MessageItemType.FILE:
+      return 'application/octet-stream';
+    case MessageItemType.VIDEO:
+      return 'video/mp4';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+/**
  * Convert a WeChatMessage (from getUpdates) to a unified incoming message.
- * Only processes USER messages with text items in Phase 1.
+ * Supports text, image, voice, file, and video message items.
  */
 export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMessage | null {
   // Only handle user messages
@@ -23,20 +175,39 @@ export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMe
   const userId = msg.from_user_id || '';
   if (!userId) return null;
 
-  // Extract text from item_list
+  // Extract text and media from item_list
   const textParts: string[] = [];
-  let hasMedia = false;
+  const attachments: IUnifiedAttachment[] = [];
+  let contentType: MessageContentType = 'text';
 
   for (const item of msg.item_list || []) {
     if (item.type === MessageItemType.TEXT && item.text_item?.text) {
       textParts.push(item.text_item.text);
     } else if (item.type && item.type !== MessageItemType.NONE && item.type !== MessageItemType.TEXT) {
-      hasMedia = true;
+      // Media item — use _localPath (set by WeChatPlugin after download) or CDN URL as fileId
+      const fileId = item._localPath || getMediaUrl(item) || '';
+      if (fileId) {
+        const fileName = item.file_item?.file_name || undefined;
+        attachments.push({
+          type: itemTypeToAttachmentType(item.type),
+          fileId,
+          fileName,
+          mimeType: getDefaultMimeType(item.type),
+          size: item.image_item?.hd_size || item.file_item?.file_size || undefined,
+          duration: item.voice_item?.voice_length || item.video_item?.video_length || undefined,
+        });
+        // Set the content type to the first media type encountered
+        if (contentType === 'text') {
+          contentType = itemTypeToContentType(item.type);
+        }
+      }
     }
   }
 
-  const text = textParts.join('\n') || (hasMedia ? '[Media message — not yet supported. Please send text.]' : '');
-  if (!text) return null;
+  const text = textParts.join('\n');
+
+  // If no text and no attachments, nothing to process
+  if (!text && attachments.length === 0) return null;
 
   return {
     id: String(msg.message_id || msg.seq || Date.now()),
@@ -47,8 +218,9 @@ export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMe
       displayName: userId,
     },
     content: {
-      type: 'text',
-      text,
+      type: contentType,
+      text: text || (attachments.length > 0 ? '' : ''),
+      attachments: attachments.length > 0 ? attachments : undefined,
     },
     timestamp: msg.create_time_ms || Date.now(),
     raw: msg,

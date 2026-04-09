@@ -49,6 +49,20 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
+function getHookPythonWhlPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
+  }
+  return path.join(app.getAppPath(), 'hook/python/dist/hook-0.0.1-py3-none-any.whl');
+}
+
+function getHookPythonPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pythonpath');
+  }
+  return path.join(app.getAppPath(), 'hook/python/pythonpath');
+}
+
 /**
  * OpenClaw Gateway Process Manager
  *
@@ -181,11 +195,11 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origArgv = [...process.argv];
     const origCwd = process.cwd();
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
-    const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+    const origConfigPath = process.env.SUDOCLAW_CONFIG_PATH;
 
     process.argv = ['node', entryPath, ...buildGatewayArgs(this.port)];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
-    process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
+    process.env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
 
     // Load safety hook before gateway entry (for in-process mode)
@@ -219,8 +233,8 @@ export class OpenClawGatewayManager extends EventEmitter {
       process.chdir(origCwd);
       if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
       else delete process.env.OPENCLAW_STATE_DIR;
-      if (origConfigPath !== undefined) process.env.OPENCLAW_CONFIG_PATH = origConfigPath;
-      else delete process.env.OPENCLAW_CONFIG_PATH;
+      if (origConfigPath !== undefined) process.env.SUDOCLAW_CONFIG_PATH = origConfigPath;
+      else delete process.env.SUDOCLAW_CONFIG_PATH;
     }
   }
 
@@ -251,27 +265,12 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       if (this.stateDir) {
         env.OPENCLAW_STATE_DIR = this.stateDir;
-        env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
+        env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
 
-      // Inject sudorouter credentials so skills (e.g. image-analysis) can access them
-      // Read directly from sudoclaw.json to avoid cross-layer import issues
-      try {
-        const configPath = this.stateDir ? path.join(this.stateDir, 'sudoclaw.json') : '';
-        if (configPath && fs.existsSync(configPath)) {
-          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-          const sr = config?.models?.providers?.sudorouter;
-          if (sr?.apiKey) {
-            env.SUDOROUTER_BASE_URL = (sr.baseUrl || 'https://hk.sudorouter.ai/v1').replace(/\/+$/, '');
-            env.SUDOROUTER_API_KEY = sr.apiKey;
-            console.log('[OpenClawGatewayManager] Injected SUDOROUTER env vars, baseUrl:', env.SUDOROUTER_BASE_URL);
-          }
-          // CHAT_MODEL is not injected here — it would go stale if user changes model mid-session.
-          // Scripts read the current model from sudoclaw.json via OPENCLAW_CONFIG_PATH instead.
-        }
-      } catch (e) {
-        console.warn('[OpenClawGatewayManager] Failed to read sudoclaw.json for env injection:', e);
-      }
+      // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
+      // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
+      // so no env var injection is needed here.
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
 
@@ -290,6 +289,12 @@ export class OpenClawGatewayManager extends EventEmitter {
         console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
         mainWarn('OpenClawGatewayManager', 'Safety hook not found, starting without preload hook', { hookJsPath });
       }
+
+      const pythonpath = getHookPythonPath();
+      env.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+      env.PYTHONPATH = pythonpath;
+      console.log('[OpenClawGatewayManager] Injecting python safety hook:', pythonpath);
+
       console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${nodeArgs.join(' ')} ${args.join(' ')}`);
       this.lastLaunchCommand = {
         command: bundledNode,

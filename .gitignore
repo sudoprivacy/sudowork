@@ -197,14 +197,19 @@ vx.toml
 .worktrees/
 .claude/worktrees/
 
-# Nexus conda environment bundle (downloaded at build time, not committed)
+# Nexus binary (downloaded at build time, not committed)
 resources/nexus.tar.gz
+resources/nexusd
+resources/nexusd.exe
+resources/v*-nexus-cluster-*
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-darwin-arm64.tar.gz
 resources/bdpan-installer-*
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
+resources/installerSidebar.bmp
+resources/installerHeader.bmp
 tests/e2e/ops/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/

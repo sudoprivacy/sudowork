@@ -1,5 +1,5 @@
 import { ipcBridge } from '@/common';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Avatar, Progress, Table, Tag, Button, Input, Modal, Message } from '@arco-design/web-react';
 import { User, Phone, Wechat, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser, refresh } = useAuth();
+  const { user: currentUser, refresh, ensureValidToken, forceRefreshToken } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [ledger, setLedger] = useState<any[]>([]);
@@ -18,14 +18,54 @@ const UserProfile: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [rechargeModalVisible, setRechargeModalVisible] = useState(false);
 
+  // 带自动刷新的 fetch 封装
+  const fetchWithAuth = useCallback(
+    async (url: string, options: RequestInit = {}, retry = true): Promise<Response> => {
+      const token = await ensureValidToken();
+      if (!token) {
+        throw new Error('NO_TOKEN');
+      }
+
+      const headers = {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, { ...options, headers });
+
+      // 如果返回 401，尝试强制刷新 token 后重试一次
+      if (response.status === 401 && retry) {
+        console.log('[UserProfile] Got 401, attempting force token refresh...');
+        const newToken = await forceRefreshToken();
+        if (newToken) {
+          // 用新 token 重试
+          const retryHeaders = {
+            ...options.headers,
+            Authorization: `Bearer ${newToken}`,
+          };
+          return fetch(url, { ...options, headers: retryHeaders });
+        }
+      }
+
+      return response;
+    },
+    [ensureValidToken, forceRefreshToken]
+  );
+
   const fetchProfile = async () => {
     setLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const headers = { Authorization: `Bearer ${currentUser?.token}` };
 
       // 并行调用：用户信息 + 仪表盘数据（积分、今日统计、使用流水）
-      const [profileRes, dashboardRes] = await Promise.all([fetch(`${serverConfig.baseUrl}/api/v1/user/profile`, { headers }), fetch(`${serverConfig.baseUrl}/api/v1/user/dashboard`, { headers })]);
+      const [profileRes, dashboardRes] = await Promise.all([fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/profile`), fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`)]);
+
+      // 检查是否有 401 响应
+      if (profileRes.status === 401 || dashboardRes.status === 401) {
+        console.warn('[UserProfile] Unauthorized after retry, user may need to re-login');
+        setLoading(false);
+        return;
+      }
 
       const profileData = await profileRes.json();
       const dashboardData = await dashboardRes.json();
@@ -49,10 +89,10 @@ const UserProfile: React.FC = () => {
     if (currentUser?.token) void fetchProfile();
   }, [currentUser]);
 
-  const usedPoints = stats?.used || 0;
-  const totalPoints = stats?.total || 100;
-  const remainingPoints = stats?.remaining || 0;
-  const bonusPoints = stats?.bonus || 1000;
+  const usedPoints = stats?.used ?? 0;
+  const totalPoints = stats?.total ?? 0;
+  const remainingPoints = stats?.remaining ?? 0;
+  const bonusPoints = stats?.bonus ?? 0;
   const usedPercent = totalPoints > 0 ? Math.round((usedPoints / totalPoints) * 100) : 0;
 
   const handleEditNickname = () => {
@@ -68,27 +108,29 @@ const UserProfile: React.FC = () => {
 
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const headers = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentUser?.token}`,
-      };
 
-      const res = await fetch(`${serverConfig.baseUrl}/api/v1/user/update-profile`, {
+      const res = await fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/update-profile`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname: editingNickname.trim() }),
       });
+
+      // 检查 401
+      if (res.status === 401) {
+        Message.error('登录状态已过期，请重新登录');
+        return;
+      }
 
       const data = await res.json();
       if (data.success) {
         Message.success('昵称已更新');
         setEditModalVisible(false);
         // 更新本地存储的用户信息
-        const stored = localStorage.getItem('sudowork_auth_v1');
+        const stored = localStorage.getItem('sudowork_auth_v2');
         if (stored) {
           const authData = JSON.parse(stored);
-          authData.nickname = editingNickname.trim();
-          localStorage.setItem('sudowork_auth_v1', JSON.stringify(authData));
+          authData.user.nickname = editingNickname.trim();
+          localStorage.setItem('sudowork_auth_v2', JSON.stringify(authData));
         }
         // 刷新页面数据
         await fetchProfile();
@@ -181,7 +223,7 @@ const UserProfile: React.FC = () => {
         </div>
 
         {/* Ledger Table */}
-        <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
+        {/* <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
           <div className='px-20px py-16px border-b border-border-base font-600 text-14px text-t-primary'>使用流水</div>
           {ledger.length > 0 ? (
             <table className='w-full'>
@@ -207,7 +249,7 @@ const UserProfile: React.FC = () => {
           ) : (
             <div className='py-24px text-center text-t-tertiary'>暂无使用记录</div>
           )}
-        </div>
+        </div> */}
       </div>
 
       {/* Edit Nickname Modal */}

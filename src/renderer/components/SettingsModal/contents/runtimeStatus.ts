@@ -14,6 +14,7 @@ export interface ToolRow {
   command: string;
   badge: string;
   status: ICliStatus | null;
+  statusResolved?: boolean;
   nexusPort?: number;
   nexusRunning?: boolean;
   nexusInstalled?: boolean;
@@ -71,6 +72,9 @@ export function resolveRuntimeStatus(record: ToolRow): RuntimeResolvedStatus {
   }
 
   if (record.key === 'nexus' || record.key === 'sudoclaw') {
+    if (record.statusResolved === false) {
+      return 'checking';
+    }
     return isInstalled(record) ? 'installed' : 'notInstalled';
   }
 

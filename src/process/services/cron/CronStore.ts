@@ -30,6 +30,12 @@ export interface CronJob {
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
+    /** Execution mode: 'new' creates a fresh conversation each run, 'reuse' appends to the bound conversation */
+    conversationMode?: 'new' | 'reuse';
+    /** Working directory for execution */
+    workspace?: string;
+    /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time */
+    presetAssistantId?: string;
   };
   state: {
     nextRunAtMs?: number;
@@ -39,6 +45,8 @@ export interface CronJob {
     runCount: number;
     retryCount: number;
     maxRetries: number;
+    /** ID of the most recently created execution conversation (only used when conversationMode === 'new') */
+    lastConversationId?: string;
   };
 }
 
@@ -67,6 +75,10 @@ interface CronJobRow {
   run_count: number;
   retry_count: number;
   max_retries: number;
+  conversation_mode: string | null;
+  last_conversation_id: string | null;
+  workspace: string | null;
+  preset_assistant_id: string | null;
 }
 
 /**
@@ -106,6 +118,10 @@ function jobToRow(job: CronJob): CronJobRow {
     run_count: job.state.runCount,
     retry_count: job.state.retryCount,
     max_retries: job.state.maxRetries,
+    conversation_mode: job.metadata.conversationMode ?? null,
+    last_conversation_id: job.state.lastConversationId ?? null,
+    workspace: job.metadata.workspace ?? null,
+    preset_assistant_id: job.metadata.presetAssistantId ?? null,
   };
 }
 
@@ -143,6 +159,9 @@ function rowToJob(row: CronJobRow): CronJob {
       createdBy: row.created_by as 'user' | 'agent',
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      conversationMode: (row.conversation_mode as 'new' | 'reuse' | null) ?? undefined,
+      workspace: row.workspace ?? undefined,
+      presetAssistantId: row.preset_assistant_id ?? undefined,
     },
     state: {
       nextRunAtMs: row.next_run_at ?? undefined,
@@ -152,6 +171,7 @@ function rowToJob(row: CronJobRow): CronJob {
       runCount: row.run_count,
       retryCount: row.retry_count,
       maxRetries: row.max_retries,
+      lastConversationId: row.last_conversation_id ?? undefined,
     },
   };
 }
@@ -178,11 +198,12 @@ class CronStore {
         conversation_id, conversation_title, agent_type, created_by,
         created_at, updated_at,
         next_run_at, last_run_at, last_status, last_error,
-        run_count, retry_count, max_retries
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        run_count, retry_count, max_retries,
+        conversation_mode, last_conversation_id, workspace, preset_assistant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
       )
-      .run(row.id, row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_id, row.conversation_title, row.agent_type, row.created_by, row.created_at, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries);
+      .run(row.id, row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_id, row.conversation_title, row.agent_type, row.created_by, row.created_at, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries, row.conversation_mode, row.last_conversation_id, row.workspace, row.preset_assistant_id);
   }
 
   /**
@@ -227,11 +248,13 @@ class CronStore {
         conversation_title = ?,
         updated_at = ?,
         next_run_at = ?, last_run_at = ?, last_status = ?, last_error = ?,
-        run_count = ?, retry_count = ?, max_retries = ?
+        run_count = ?, retry_count = ?, max_retries = ?,
+        conversation_mode = ?, last_conversation_id = ?,
+        workspace = ?, preset_assistant_id = ?
       WHERE id = ?
     `
       )
-      .run(row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_title, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries, jobId);
+      .run(row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_title, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries, row.conversation_mode, row.last_conversation_id, row.workspace, row.preset_assistant_id, jobId);
   }
 
   /**

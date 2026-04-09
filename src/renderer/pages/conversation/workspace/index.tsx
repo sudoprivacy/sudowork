@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -52,7 +53,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -68,6 +69,34 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [searchText, setSearchText] = useState('');
   const [showSearch, setShowSearch] = useState(true);
   const searchInputRef = useRef<RefInputType | null>(null);
+
+  // Workspace rename modal state (for root directory rename)
+  const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
+  const [wsRenameLoading, setWsRenameLoading] = useState(false);
+
+  // New folder modal state
+  const [newFolderModal, setNewFolderModal] = useState<{ visible: boolean; name: string; parentPath: string }>({ visible: false, name: '', parentPath: '' });
+  const [newFolderLoading, setNewFolderLoading] = useState(false);
+
+  const handleWorkspaceRenameConfirm = useCallback(async () => {
+    const newName = wsRenameModal.name.trim();
+    if (!newName) return;
+    setWsRenameLoading(true);
+    try {
+      const result = await ipcBridge.workspaceManage.updateDisplayName.invoke({ workspace, displayName: newName });
+      if (result?.success) {
+        Message.success(t('conversation.workspace.renameWorkspace.success'));
+        setWsRenameModal({ visible: false, name: '' });
+        emitter.emit('chat.history.refresh');
+      } else {
+        Message.error(result?.msg || t('conversation.workspace.renameWorkspace.failed'));
+      }
+    } catch {
+      Message.error(t('conversation.workspace.renameWorkspace.failed'));
+    } finally {
+      setWsRenameLoading(false);
+    }
+  }, [wsRenameModal, workspace, t]);
 
   // Workspace migration modal state
   const [showMigrationModal, setShowMigrationModal] = useState(false);
@@ -124,6 +153,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     t,
     onFilesDropped: pasteHook.handleFilesToAdd,
   });
+
+  // New folder creation handler
+  const handleNewFolderConfirm = useCallback(async () => {
+    const folderName = newFolderModal.name.trim();
+    if (!folderName) return;
+
+    // Validate folder name characters
+    const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1f]/;
+    if (invalidCharsRegex.test(folderName)) {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    if (folderName === '.' || folderName === '..') {
+      Message.error(t('conversation.workspace.newFolder.invalidName'));
+      return;
+    }
+    // Prevent creating folder named .drafts (reserved)
+    if (folderName === DRAFTS_DIR_NAME) {
+      Message.error(t('conversation.workspace.newFolder.reservedName'));
+      return;
+    }
+
+    setNewFolderLoading(true);
+    try {
+      const targetPath = newFolderModal.parentPath ? `${newFolderModal.parentPath}/${folderName}` : `${workspace}/${folderName}`;
+      const result = await ipcBridge.fs.createDir.invoke({ path: targetPath });
+      if (result) {
+        Message.success(t('conversation.workspace.newFolder.success'));
+        setNewFolderModal({ visible: false, name: '', parentPath: '' });
+        treeHook.refreshWorkspace();
+      } else {
+        Message.error(t('conversation.workspace.newFolder.failed'));
+      }
+    } catch {
+      Message.error(t('conversation.workspace.newFolder.failed'));
+    } finally {
+      setNewFolderLoading(false);
+    }
+  }, [newFolderModal, workspace, t, treeHook.refreshWorkspace]);
+
+  // Open new folder modal for a given parent directory
+  const openNewFolderModal = useCallback(
+    (parentNode?: IDirOrFile) => {
+      const parentPath = parentNode?.fullPath ?? workspace;
+      setNewFolderModal({ visible: true, name: '', parentPath });
+      modalsHook.closeContextMenu();
+    },
+    [workspace, modalsHook.closeContextMenu]
+  );
 
   // 只在用户主动打开搜索时聚焦，不在会话切换时自动聚焦
   // Only focus search input when user actively opens search, not on conversation switch
@@ -214,13 +292,16 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Check if this is a temporary workspace (check both path and root folder name)
   const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
 
-  // Get workspace display name using shared utility
+  // Get workspace display name - prefer stored display name, fallback to path-derived name
   const workspaceDisplayName = useMemo(() => {
+    if (storedDisplayName) {
+      return storedDisplayName;
+    }
     if (isTemporaryWorkspace) {
       return t('conversation.workspace.temporarySpace');
     }
     return getDisplayName(workspace);
-  }, [workspace, isTemporaryWorkspace, t]);
+  }, [storedDisplayName, workspace, isTemporaryWorkspace, t]);
 
   // Workspace migration handlers
   // const handleOpenMigrationModal = useCallback(() => {
@@ -407,6 +488,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const contextMenuNode = modalsHook.contextMenu.node;
   const isContextMenuNodeFile = !!contextMenuNode?.isFile;
   const isContextMenuNodeRoot = !!contextMenuNode && (!contextMenuNode.relativePath || contextMenuNode.relativePath === '');
+  // Drafts directory (.drafts/) should not be renameable or deleteable
+  // 草稿箱目录不支持重命名和删除
+  const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === '.drafts' && !contextMenuNode.isFile;
 
   // Check if file supports preview
   const isPreviewSupported = (() => {
@@ -650,6 +734,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
         </Modal>
 
+        {/* Workspace Rename Modal (root directory) */}
+        <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+          <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
+        </Modal>
+
+        {/* New Folder Modal */}
+        <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
+          <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
+        </Modal>
+
         {/* Delete Modal */}
         <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
           <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
@@ -825,6 +921,25 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       >
                         {t('conversation.workspace.contextMenu.open')}
                       </button>
+                      <button
+                        type='button'
+                        className={menuButtonBase}
+                        onClick={() => {
+                          openNewFolderModal(contextMenuNode);
+                        }}
+                      >
+                        {t('conversation.workspace.contextMenu.newFolder')}
+                      </button>
+                      <button
+                        type='button'
+                        className={menuButtonBase}
+                        onClick={() => {
+                          setWsRenameModal({ visible: true, name: workspaceDisplayName });
+                          modalsHook.closeContextMenu();
+                        }}
+                      >
+                        {t('conversation.workspace.contextMenu.rename')}
+                      </button>
                       <div className='h-1px bg-3 my-2px'></div>
                       <button
                         type='button'
@@ -880,6 +995,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                           {t('conversation.workspace.contextMenu.preview')}
                         </button>
                       )}
+                      {!isContextMenuNodeFile && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            openNewFolderModal(contextMenuNode);
+                          }}
+                        >
+                          {t('conversation.workspace.contextMenu.newFolder')}
+                        </button>
+                      )}
                       <div className='h-1px bg-3 my-2px'></div>
                       <button
                         type='button'
@@ -891,24 +1017,28 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         {t('conversation.workspace.contextMenu.uploadToBdpan')}
                       </button>
                       <div className='h-1px bg-3 my-2px'></div>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          fileOpsHook.handleDeleteNode(contextMenuNode);
-                        }}
-                      >
-                        {t('common.delete')}
-                      </button>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          fileOpsHook.openRenameModal(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.rename')}
-                      </button>
+                      {!isContextMenuNodeDrafts && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            fileOpsHook.handleDeleteNode(contextMenuNode);
+                          }}
+                        >
+                          {t('common.delete')}
+                        </button>
+                      )}
+                      {!isContextMenuNodeDrafts && (
+                        <button
+                          type='button'
+                          className={menuButtonBase}
+                          onClick={() => {
+                            fileOpsHook.openRenameModal(contextMenuNode);
+                          }}
+                        >
+                          {t('conversation.workspace.contextMenu.rename')}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -947,6 +1077,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const isFile = node.dataRef.isFile;
                   const isPasteTarget = !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
+                  // Display .drafts with i18n name / 草稿箱目录显示本地化名称
+                  const isDraftsDir = node.title === '.drafts' && !isFile;
+                  const displayTitle = isDraftsDir ? t('conversation.workspace.drafts.title') : node.title;
 
                   return (
                     <div
@@ -964,7 +1097,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       }}
                     >
                       <span className='flex items-center gap-4px min-w-0'>
-                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{node.title}</span>
+                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{displayTitle}</span>
                         {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded'>PASTE</span>}
                       </span>
                       {isMobile && (

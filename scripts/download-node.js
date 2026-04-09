@@ -68,12 +68,17 @@ function downloadFile(url, dest) {
 
           const totalSize = parseInt(response.headers['content-length'] || '0', 10);
           let downloaded = 0;
+          let lastPrintedPercent = -1;
 
           response.on('data', (chunk) => {
             downloaded += chunk.length;
             if (totalSize > 0) {
               const percent = Math.round((downloaded / totalSize) * 100);
-              process.stdout.write(`\rDownloading: ${percent}%`);
+              // Only print every 5%
+              if (percent - lastPrintedPercent >= 5 || percent === 100) {
+                lastPrintedPercent = percent;
+                process.stdout.write(`\rDownloading: ${percent}%`);
+              }
             }
           });
 

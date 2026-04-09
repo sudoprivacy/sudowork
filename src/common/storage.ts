@@ -80,6 +80,8 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Migration flag: skill subdirectory restructuring completed */
+  'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
@@ -132,6 +134,17 @@ export interface IConfigStorageRefer {
   };
   // WeChat assistant agent selection / 微信助手所使用的 Agent
   'assistant.wechat.agent'?: {
+    backend: AcpBackendAll;
+    customAgentId?: string;
+    name?: string;
+  };
+  // WeCom assistant default model / 企业微信助手默认模型
+  'assistant.wecom.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // WeCom assistant agent selection / 企业微信助手所使用的 Agent
+  'assistant.wecom.agent'?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
@@ -210,6 +223,12 @@ export type TChatConversation =
           currentModelId?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
+          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
+          workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -263,6 +282,12 @@ export type TChatConversation =
           isHealthCheck?: boolean;
           /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
           openclawModelId?: string;
+          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
+          workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -358,7 +383,7 @@ export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string }
 export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image generation via SudoRouter */
-export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
+export const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5';
 
 // MCP Server Configuration Types
 export type McpTransportType = 'stdio' | 'sse' | 'http';

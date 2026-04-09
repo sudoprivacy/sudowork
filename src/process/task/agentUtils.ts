@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
+import type { PresetAgentType } from '@/types/acpTypes';
 
 /**
  * 首次消息处理配置
@@ -16,6 +18,37 @@ export interface FirstMessageConfig {
   presetContext?: string;
   /** 启用的 skills 列表 / Enabled skills list */
   enabledSkills?: string[];
+  /** 工作空间路径 / Workspace path (used for drafts instruction) */
+  workspace?: string;
+  /** 预设 Agent 类型 / Preset agent type - used to control skill injection behavior */
+  presetAgentType?: PresetAgentType | string;
+}
+
+/**
+ * 构建草稿箱使用指令
+ * Build drafts box usage instructions for Agent
+ *
+ * 通过系统提示词告诉 Agent：
+ * 1. 中间产物（脚本、临时数据、草稿等）应写入 .drafts/ 目录
+ * 2. 最终结果文件直接写入工作空间根目录
+ *
+ * Via system prompt, instruct the Agent:
+ * 1. Intermediate artifacts (scripts, temp data, drafts) should be written to .drafts/
+ * 2. Final result files should be written directly to workspace root
+ */
+export function buildDraftsInstruction(workspace: string): string {
+  const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
+  return `[Workspace File Management Rules]
+Your workspace is: ${workspace}
+A drafts directory exists at: ${draftsPath}
+
+File output rules:
+- Intermediate/temporary files (scripts, temp data, draft versions, processing steps, helper code) → Write to ${draftsPath}/
+- Final deliverable files (reports, final outputs, completed documents) → Write to ${workspace}/
+- When executing multi-step tasks, save each step's intermediate output to the drafts directory
+- The final completed result should always be in the workspace root, not in drafts
+- Examples of intermediate files: .py scripts, .sh scripts, temp .json/.csv data files, draft .md files
+- Examples of final files: final reports, processed datasets, completed documents`;
 }
 
 /**
@@ -31,6 +64,11 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载并添加 skills 内容 / Load and add skills content
@@ -93,40 +131,50 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
     instructions.push(config.presetContext);
   }
 
-  // 2. 加载 skills 索引（包括内置 skills + 可选 skills）
-  // Load skills INDEX (including builtin skills + optional skills)
-  // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
-  const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
-  // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
-  await skillManager.discoverSkills(config.enabledSkills);
+  // 1.5 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
+  }
 
-  // 只有当有任何 skills 时才注入 / Only inject if there are any skills
-  if (skillManager.hasAnySkills()) {
-    const skillsIndex = skillManager.getSkillsIndex();
-    if (skillsIndex.length > 0) {
-      // getSkillsDir() already returns CLI-safe path (symlink on macOS)
-      // getSkillsDir() 已返回 CLI 安全路径（macOS 上使用符号链接）
-      const skillsDir = getSkillsDir();
-      const builtinSkillsDir = skillsDir + '/_builtin';
-      const indexText = buildSkillsIndexText(skillsIndex);
+  // 2. 当 presetAgentType === 'claude' 时，不使用首次会话注入 skill
+  // When presetAgentType is 'claude', skip first-session skill injection
+  if (config.presetAgentType !== 'claude') {
+    // 加载 skills 索引（包括内置 skills + 可选 skills）
+    // Load skills INDEX (including builtin skills + optional skills)
+    // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
+    const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
+    // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
+    await skillManager.discoverSkills(config.enabledSkills);
 
-      // 告诉 Agent skills 文件的位置，让它按需读取
-      // Tell Agent where skills files are located for on-demand reading
-      const skillsInstruction = `${indexText}
+    // 只有当有任何 skills 时才注入 / Only inject if there are any skills
+    if (skillManager.hasAnySkills()) {
+      const skillsIndex = skillManager.getSkillsIndex();
+      if (skillsIndex.length > 0) {
+        // 使用分目录结构的路径 / Use categorized subdirectory paths
+        const systemSkillsDir = getBuiltinSkillsDir();
+        const hubSkillsDir = getHubSkillsDir();
+        const customSkillsDir = getCustomSkillsDir();
+        const indexText = buildSkillsIndexText(skillsIndex);
+
+        // 告诉 Agent skills 文件的位置，让它按需读取
+        // Tell Agent where skills files are located for on-demand reading
+        const skillsInstruction = `${indexText}
 
 [Skills Location]
-Skills are stored in two locations:
-- Builtin skills (auto-enabled): ${builtinSkillsDir}/{skill-name}/SKILL.md
-- Optional skills: ${skillsDir}/{skill-name}/SKILL.md
+Skills are stored in three locations (by priority):
+- Custom skills: ${customSkillsDir}/{skill-name}/SKILL.md
+- Hub skills: ${hubSkillsDir}/{skill-name}/SKILL.md
+- System skills (auto-enabled): ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
 To use a skill, read its SKILL.md file when needed.
 
 For example:
-- Builtin "cron" skill: ${builtinSkillsDir}/cron/SKILL.md
-- Optional "pptx" skill: ${skillsDir}/pptx/SKILL.md`;
+- System "cron" skill: ${systemSkillsDir}/cron/SKILL.md
+- Hub "pptx" skill: ${hubSkillsDir}/pptx/SKILL.md`;
 
-      instructions.push(skillsInstruction);
+        instructions.push(skillsInstruction);
+      }
     }
   }
 
@@ -159,6 +207,11 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载 skills 索引（包括内置 skills + 可选 skills）

@@ -15,11 +15,11 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
-import { getSkillsDir, getBuiltinSkillsDir, ProcessChat } from '../initStorage';
+import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage } from '../task/agentUtils';
+import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex } from '../task/agentUtils';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
@@ -130,30 +130,6 @@ function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation 
     });
 
   workspaceSkillSyncTasks.set(workspace, task);
-}
-
-/**
- * Discover builtin skill names by listing _builtin/ directory entries that have SKILL.md.
- */
-async function discoverBuiltinSkillNames(): Promise<string[]> {
-  const builtinDir = getBuiltinSkillsDir();
-  try {
-    const entries = await fs.readdir(builtinDir, { withFileTypes: true });
-    const names: string[] = [];
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        try {
-          await fs.access(path.join(builtinDir, entry.name, 'SKILL.md'));
-          names.push(entry.name);
-        } catch {
-          /* no SKILL.md, skip */
-        }
-      }
-    }
-    return names;
-  } catch {
-    return [];
-  }
 }
 
 export function initConversationBridge(): void {
@@ -842,16 +818,22 @@ export function initConversationBridge(): void {
     // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
     let presetContext: string | undefined;
     let enabledSkills: string[] | undefined;
+    let conversation: TChatConversation | undefined;
     try {
       const db = getDatabase();
       const convResult = db.getConversation(conversation_id);
       if (convResult.success && convResult.data) {
-        presetContext = convResult.data.extra?.presetContext;
-        enabledSkills = convResult.data.extra?.enabledSkills;
+        conversation = convResult.data;
+        presetContext = conversation.extra?.presetContext;
+        enabledSkills = conversation.extra?.enabledSkills;
       }
     } catch {
       // ignore
     }
+
+    // Ensure workspace skills symlinks exist before dispatching to the gateway.
+    // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
+    await syncConversationWorkspaceSkills(conversation);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
@@ -866,17 +848,17 @@ export function initConversationBridge(): void {
       if (task.type === 'openclaw-gateway') {
         let agentContent = other.input;
 
-        // Inject preset context and full skills content (OpenClaw's LLM can't read files on its own)
-        // 注入预设上下文和完整技能内容（OpenClaw 的 LLM 无法自行读取文件）
-        const builtinSkillNames = await discoverBuiltinSkillNames();
-        const userSkills = other.skills?.length ? other.skills : enabledSkills || [];
-        const allSkills = [...new Set([...builtinSkillNames, ...userSkills])];
-        agentContent = await prepareFirstMessage(agentContent, {
-          presetContext,
-          enabledSkills: allSkills,
-        });
-        const skillsDir = getSkillsDir();
-        agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
+        // Inject preset context and enabled skills for preset assistants
+        // 为预设助手注入 presetContext 和 enabledSkills
+        const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
+        if (presetContext || skillsToInject?.length) {
+          agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
+            presetContext,
+            enabledSkills: skillsToInject,
+          });
+          const skillsDir = path.join(workspace, 'skills');
+          agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
+        }
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
           const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;

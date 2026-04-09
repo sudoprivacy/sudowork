@@ -5,6 +5,7 @@
  */
 
 import { acpDetector } from '@/agent/acp/AcpDetector';
+import { database as databaseBridge } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
@@ -42,7 +43,7 @@ export async function getChannelDefaultModel(platform: PluginType): Promise<TPro
     };
 
     // Try to get saved model selection
-    const savedModel = platform === 'lark' ? await ProcessConfig.get('assistant.lark.defaultModel') : platform === 'dingtalk' ? await ProcessConfig.get('assistant.dingtalk.defaultModel') : await ProcessConfig.get('assistant.telegram.defaultModel');
+    const savedModel = platform === 'lark' ? await ProcessConfig.get('assistant.lark.defaultModel') : platform === 'dingtalk' ? await ProcessConfig.get('assistant.dingtalk.defaultModel') : platform === 'wecom' ? await ProcessConfig.get('assistant.wecom.defaultModel') : await ProcessConfig.get('assistant.telegram.defaultModel');
     if (savedModel?.id && savedModel?.useModel) {
       // Google Auth is frontend-only (OAuth browser flow), not usable in channels.
       // Fall through to find a provider with a valid API key instead.
@@ -141,7 +142,7 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Selected agent (defaults to claude)
   let savedAgent: unknown = undefined;
   try {
-    savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : ProcessConfig.get('assistant.telegram.agent'));
+    savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
   } catch {
     // ignore
   }
@@ -186,6 +187,13 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Create session with the new conversation ID (scoped by chatId)
   const agentType = convType as ChannelAgentType;
   const session = sessionManager.createSessionWithConversation(context.channelUser, result.conversation.id, agentType, undefined, channelChatId);
+
+  // 通知渲染进程刷新对话列表
+  databaseBridge.conversationChanged.emit({
+    conversationId: result.conversation.id,
+    source,
+    action: 'created',
+  });
 
   const markup = context.platform === 'lark' ? createMainMenuCard() : context.platform === 'dingtalk' ? createDingTalkMainMenuCard() : createMainMenuKeyboard();
   return createSuccessResponse({

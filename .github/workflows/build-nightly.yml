@@ -6,13 +6,14 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    # 北京时间 00:00 = UTC 16:00 (前一天)
+    - cron: '0 16 * * *'
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to build from'
         required: true
-        default: 'main'
+        default: 'dev'
         type: string
       platform:
         description: 'Platform to build'
@@ -53,7 +54,7 @@ jobs:
             BRANCH="${{ inputs.branch }}"
             SKIP_CODE_QUALITY="${{ inputs.skip_code_quality }}"
           else
-            BRANCH="main"
+            BRANCH="dev"
             SKIP_CODE_QUALITY="true"
           fi
 

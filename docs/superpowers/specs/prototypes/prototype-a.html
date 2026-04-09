@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秘钥管理 - 原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #FFFFFF;
+    color: #1D2129;
+    font-size: 14px;
+    line-height: 1.5715;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(29, 33, 41, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    width: 720px;
+    max-height: 80vh;
+    background: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #E5E6EB;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h2 { font-size: 16px; font-weight: 600; color: #1D2129; }
+
+  .modal-close {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; border: none; background: none;
+    color: #86909C; cursor: pointer; font-size: 16px;
+  }
+  .modal-close:hover { background: #F2F3F5; color: #1D2129; }
+
+  .modal-body {
+    padding: 0;
+    overflow-y: auto; flex: 1;
+  }
+
+  /* === Tabs === */
+  .tabs-bar {
+    display: flex; gap: 0;
+    border-bottom: 1px solid #E5E6EB;
+    margin-bottom: 12px;
+    padding: 0 28px;
+  }
+
+  .tab-item {
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #86909C;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    user-select: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab-item:hover { color: #4E5969; }
+  .tab-item.active {
+    color: #1D2129;
+    border-bottom-color: #165DFF;
+    font-weight: 600;
+  }
+
+  .tab-logo-badges {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-left: 2px;
+  }
+  .tab-logo-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 1px solid #E5E6EB;
+    background: #F7F8FA;
+  }
+  .tab-logo-badge img {
+    width: 14px; height: 14px;
+    object-fit: contain;
+  }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* === Content area === */
+  .content-area {
+    padding: 0 28px 16px;
+  }
+
+  /* === Section title === */
+  .section-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #1D2129;
+    margin: 0;
+  }
+
+  .guide-section { margin-top: 10px; }
+
+  .guide-text {
+    font-size: 13px;
+    color: #86909C;
+    line-height: 1.625;
+  }
+
+  .setup-steps {
+    display: flex; flex-wrap: wrap; gap: 6px 12px;
+    margin-top: 8px;
+  }
+
+  .step-item {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    font-size: 10px; font-weight: 600;
+    background: rgba(22, 93, 255, 0.12);
+    color: #165DFF;
+  }
+
+  .step-check { width: 12px; height: 12px; color: #165DFF; }
+
+  .step-label { font-size: 12px; color: #86909C; }
+
+  /* === Channel list === */
+  .channel-list {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-top: 12px;
+  }
+
+  /* === Collapse === */
+  .collapse-item {
+    border: 1px solid #E5E6EB;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .collapse-item:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+
+  .collapse-header {
+    display: flex; align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    background: #FFFFFF;
+    user-select: none;
+  }
+  .collapse-header:hover { background: #F7F8FA; }
+
+  .collapse-arrow {
+    width: 12px; height: 12px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    transition: transform 0.2s;
+    color: #86909C;
+  }
+  .collapse-arrow.open { transform: rotate(90deg); }
+
+  .collapse-header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    flex: 1; min-width: 0;
+  }
+
+  .collapse-header-left {
+    display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  }
+
+  .collapse-logo {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  .collapse-title {
+    font-size: 14px;
+    color: #1D2129;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* === Tag === */
+  .tag {
+    display: inline-flex; align-items: center;
+    height: 20px; padding: 0 8px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+  .tag-gray { background: #F2F3F5; color: #86909C; }
+
+  /* === Switch === */
+  .switch {
+    width: 28px; height: 16px;
+    border-radius: 8px;
+    background: #C9CDD4;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .switch.on { background: #165DFF; }
+  .switch::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    top: 2px; left: 2px;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .switch.on::after { left: 14px; }
+
+  .collapse-body {
+    display: none;
+    padding: 0 16px 12px;
+  }
+  .collapse-body.open { display: block; }
+
+  /* === Config section === */
+  .config-section {
+    background: #F7F8FA;
+    border-radius: 12px;
+    padding: 16px 16px 16px 0;
+  }
+
+  /* === PreferenceRow === */
+  .preference-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+  }
+
+  .preference-label { flex: 1; min-width: 0; }
+
+  .preference-label .label-text {
+    font-size: 14px;
+    color: #1D2129;
+    display: flex; align-items: center; gap: 2px;
+  }
+  .preference-label .label-text .required { color: #F53F3F; margin-left: 2px; }
+
+  .preference-label .label-desc {
+    font-size: 12px;
+    color: #86909C;
+    margin-top: 2px;
+  }
+
+  .preference-value { display: flex; align-items: center; flex-shrink: 0; }
+
+  /* === Input === */
+  .input-wrap { width: 240px; position: relative; }
+
+  .input-field {
+    width: 100%; height: 32px;
+    padding: 0 12px;
+    border: 1px solid #E5E6EB;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1D2129;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #FFFFFF;
+  }
+  .input-field::placeholder { color: #C9CDD4; }
+  .input-field:hover { border-color: #C9CDD4; }
+  .input-field:focus {
+    border-color: #165DFF;
+    box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+  }
+  .input-password { padding-right: 36px; }
+
+  .toggle-visibility {
+    position: absolute; right: 8px; top: 50%;
+    transform: translateY(-50%);
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: none;
+    color: #86909C; cursor: pointer;
+    border-radius: 4px;
+  }
+  .toggle-visibility:hover { color: #4E5969; background: #F2F3F5; }
+
+  /* === Save Button === */
+  .save-section {
+    padding-top: 12px;
+    display: flex; justify-content: flex-end;
+  }
+
+  .btn-primary {
+    height: 32px; padding: 0 20px;
+    background: #165DFF; color: #FFFFFF;
+    border: 1px solid #165DFF;
+    border-radius: 6px;
+    font-size: 14px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover { background: #0E42D2; border-color: #0E42D2; }
+
+  /* === Logos === */
+  .logo-wechat { background: #07C160; }
+  .logo-telegram { background: #2AABEE; }
+  .logo-lark { background: #3370FF; }
+  .logo-dingtalk { background: #3296FA; }
+  .logo-jsb { background: linear-gradient(135deg, #165DFF, #0FC6C2); }
+</style>
+</head>
+<body>
+
+<div class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>远程连接设置</h2>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Tabs -->
+      <div class="tabs-bar">
+        <div class="tab-item active" onclick="switchTab('channels')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>渠道配置</span>
+          <span class="tab-logo-badges">
+            <span class="tab-logo-badge"><div class="logo-wechat" style="width:14px;height:14px;border-radius:3px;"></div></span>
+            <span class="tab-logo-badge"><div class="logo-telegram" style="width:14px;height:14px;border-radius:3px;"></div></span>
+            <span class="tab-logo-badge"><div class="logo-lark" style="width:14px;height:14px;border-radius:3px;"></div></span>
+            <span class="tab-logo-badge"><div class="logo-dingtalk" style="width:14px;height:14px;border-radius:3px;"></div></span>
+          </span>
+        </div>
+        <div class="tab-item" onclick="switchTab('secrets')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>秘钥管理</span>
+        </div>
+      </div>
+
+      <!-- ========== 渠道配置 ========== -->
+      <div class="tab-pane active" id="pane-channels">
+        <div class="content-area">
+          <h2 class="section-title">渠道配置</h2>
+          <div class="guide-section">
+            <div class="guide-text">
+              连接 Telegram、飞书、钉钉和微信，在 IM 应用中与 Sudowork 助手交互。
+            </div>
+            <div class="setup-steps">
+              <div class="step-item">
+                <span class="step-num">1</span>
+                <svg class="step-check" viewBox="0 0 24 24" fill="currentColor"><path d="M9.97 16.97a.75.75 0 0 1-1.06 0l-3.72-3.72a.75.75 0 0 1 1.06-1.06l3.19 3.19 7.19-7.19a.75.75 0 1 1 1.06 1.06l-7.72 7.72z"/></svg>
+                <span class="step-label">选择渠道并配置凭证。</span>
+              </div>
+              <div class="step-item">
+                <span class="step-num">2</span>
+                <svg class="step-check" viewBox="0 0 24 24" fill="currentColor"><path d="M9.97 16.97a.75.75 0 0 1-1.06 0l-3.72-3.72a.75.75 0 0 1 1.06-1.06l3.19 3.19 7.19-7.19a.75.75 0 1 1 1.06 1.06l-7.72 7.72z"/></svg>
+                <span class="step-label">启用渠道并开始与 AI 助手对话。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="channel-list">
+            <!-- Telegram -->
+            <div class="collapse-item">
+              <div class="collapse-header" onclick="toggleCollapse(this)">
+                <svg class="collapse-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 4.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8.5 6.22 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+                <div class="collapse-header-inner">
+                  <div class="collapse-header-left">
+                    <div class="collapse-logo logo-telegram"></div>
+                    <span class="collapse-title">Telegram</span>
+                  </div>
+                  <div class="switch on" onclick="event.stopPropagation()"></div>
+                </div>
+              </div>
+              <div class="collapse-body">
+                <div class="config-section">
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">Bot Token<span class="required">*</span></div>
+                      <div class="label-desc">通过 @BotFather 创建的 Bot Token</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap"><input class="input-field" type="text" placeholder="请输入 Bot Token"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 飞书 -->
+            <div class="collapse-item">
+              <div class="collapse-header" onclick="toggleCollapse(this)">
+                <svg class="collapse-arrow open" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 4.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8.5 6.22 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+                <div class="collapse-header-inner">
+                  <div class="collapse-header-left">
+                    <div class="collapse-logo logo-lark"></div>
+                    <span class="collapse-title">飞书</span>
+                    <span class="tag tag-gray">已配置</span>
+                  </div>
+                  <div class="switch on" onclick="event.stopPropagation()"></div>
+                </div>
+              </div>
+              <div class="collapse-body open">
+                <div class="config-section">
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">App ID<span class="required">*</span></div>
+                      <div class="label-desc">飞书应用的应用 ID</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap"><input class="input-field" type="text" value="cli_a9216be9ebf85bc7"></div>
+                    </div>
+                  </div>
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">App Secret<span class="required">*</span></div>
+                      <div class="label-desc">飞书应用的应用密钥</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap">
+                        <input class="input-field input-password" type="password" value="X4jZ7HQyT7aGQ0Zar5P6ncVJEud2QS1N">
+                        <button class="toggle-visibility" onclick="togglePassword(this)" title="显示/隐藏密码">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 钉钉 -->
+            <div class="collapse-item">
+              <div class="collapse-header" onclick="toggleCollapse(this)">
+                <svg class="collapse-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 4.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8.5 6.22 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+                <div class="collapse-header-inner">
+                  <div class="collapse-header-left">
+                    <div class="collapse-logo logo-dingtalk"></div>
+                    <span class="collapse-title">钉钉</span>
+                  </div>
+                  <div class="switch" onclick="event.stopPropagation()"></div>
+                </div>
+              </div>
+              <div class="collapse-body">
+                <div class="config-section">
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">Client ID<span class="required">*</span></div>
+                      <div class="label-desc">钉钉应用 Client ID</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap"><input class="input-field" type="text" placeholder="请输入 Client ID"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 个人微信 -->
+            <div class="collapse-item">
+              <div class="collapse-header" onclick="toggleCollapse(this)">
+                <svg class="collapse-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 4.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8.5 6.22 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+                <div class="collapse-header-inner">
+                  <div class="collapse-header-left">
+                    <div class="collapse-logo logo-wechat"></div>
+                    <span class="collapse-title">个人微信</span>
+                  </div>
+                  <div class="switch on" onclick="event.stopPropagation()"></div>
+                </div>
+              </div>
+              <div class="collapse-body">
+                <div class="config-section">
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">Webhook URL<span class="required">*</span></div>
+                      <div class="label-desc">企微回调地址</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap"><input class="input-field" type="text" placeholder="请输入 Webhook URL"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 秘钥管理 ========== -->
+      <div class="tab-pane" id="pane-secrets">
+        <div class="content-area">
+          <h2 class="section-title">秘钥管理</h2>
+          <div class="guide-section">
+            <div class="guide-text">
+              管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。
+            </div>
+            <div class="setup-steps">
+              <div class="step-item">
+                <span class="step-num">1</span>
+                <svg class="step-check" viewBox="0 0 24 24" fill="currentColor"><path d="M9.97 16.97a.75.75 0 0 1-1.06 0l-3.72-3.72a.75.75 0 0 1 1.06-1.06l3.19 3.19 7.19-7.19a.75.75 0 1 1 1.06 1.06l-7.72 7.72z"/></svg>
+                <span class="step-label">选择服务并填写秘钥信息。</span>
+              </div>
+              <div class="step-item">
+                <span class="step-num">2</span>
+                <svg class="step-check" viewBox="0 0 24 24" fill="currentColor"><path d="M9.97 16.97a.75.75 0 0 1-1.06 0l-3.72-3.72a.75.75 0 0 1 1.06-1.06l3.19 3.19 7.19-7.19a.75.75 0 1 1 1.06 1.06l-7.72 7.72z"/></svg>
+                <span class="step-label">点击保存完成配置。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="channel-list">
+            <!-- 建设库 -->
+            <div class="collapse-item">
+              <div class="collapse-header" onclick="toggleCollapse(this)">
+                <svg class="collapse-arrow open" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 4.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8.5 6.22 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+                <div class="collapse-header-inner">
+                  <div class="collapse-header-left">
+                    <div class="collapse-logo logo-jsb"></div>
+                    <span class="collapse-title">建设库</span>
+                  </div>
+                </div>
+              </div>
+              <div class="collapse-body open">
+                <div class="config-section">
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">App Key<span class="required">*</span></div>
+                      <div class="label-desc">建设库开放平台的应用标识</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap"><input class="input-field" type="text" placeholder="请输入 App Key" value="jsb_a8f2c9e1d3b4"></div>
+                    </div>
+                  </div>
+                  <div class="preference-row">
+                    <div class="preference-label">
+                      <div class="label-text">App Secret<span class="required">*</span></div>
+                      <div class="label-desc">建设库开放平台的应用密钥</div>
+                    </div>
+                    <div class="preference-value">
+                      <div class="input-wrap">
+                        <input class="input-field input-password" type="password" placeholder="请输入 App Secret" value="sk_x7k9m2n4p6q8">
+                        <button class="toggle-visibility" onclick="togglePassword(this)" title="显示/隐藏密码">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="save-section">
+                  <button class="btn-primary">保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
+}
+
+function toggleCollapse(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.collapse-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function togglePassword(btn) {
+  const input = btn.parentElement.querySelector('input');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+  } else {
+    input.type = 'password';
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  }
+}
+</script>
+
+</body>
+</html>

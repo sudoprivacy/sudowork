@@ -24,8 +24,10 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
-import { mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { buildDraftsInstruction } from './agentUtils';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import * as nodePath from 'node:path';
 
 export interface OpenClawAgentData {
@@ -234,11 +236,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
       // On the first message, prepend a workspace directive so the agent uses the
       // per-conversation workspace dir for all file operations and bash commands.
+      // Also inject drafts instruction for intermediate file management.
       let processedContent = data.agentContent || data.content;
       if (this.isFirstMessage && this.workspace) {
         this.isFirstMessage = false;
         const configuredWorkspace = getSudoclawWorkspaceRoot();
-        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + processedContent;
+        const draftsInstruction = buildDraftsInstruction(this.workspace);
+        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}\n\n` + processedContent;
       } else {
         this.isFirstMessage = false;
       }
@@ -448,26 +452,33 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleEvent(evt: EventFrame): void {
-    switch (evt.event) {
-      case 'chat':
-      case 'chat.event':
-        this.handleChatEvent(evt.payload as ChatEvent);
-        break;
-      case 'agent':
-      case 'agent.event':
-        this.handleAgentEvent(evt.payload);
-        break;
-      case 'exec.approval.request':
-        this.handleApprovalRequest(evt.payload);
-        break;
-      case 'shutdown':
-        this.handleDisconnect('Gateway shutdown');
-        break;
-      case 'health':
-      case 'tick':
-        break;
-      default:
-        break;
+    try {
+      switch (evt.event) {
+        case 'chat':
+        case 'chat.event':
+          this.handleChatEvent(evt.payload as ChatEvent);
+          break;
+        case 'agent':
+        case 'agent.event':
+          this.handleAgentEvent(evt.payload);
+          break;
+        case 'exec.approval.request':
+          this.handleApprovalRequest(evt.payload);
+          break;
+        case 'shutdown':
+          this.handleDisconnect('Gateway shutdown');
+          break;
+        case 'health':
+        case 'tick':
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      mainError('OpenClawAgent', `Unhandled error in event handler (${evt.event}):`, error);
+      // Emit error to UI and force end turn to prevent hanging
+      this.emitErrorMessage(`Internal error processing event: ${error instanceof Error ? error.message : String(error)}`);
+      this.handleEndTurn();
     }
   }
 
@@ -758,6 +769,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     // Clear busy guard
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
+    // Post-cleanup: move intermediate files from workspace root to .drafts/
+    if (this.workspace) {
+      cleanupIntermediateFiles(this.workspace).catch((err) => {
+        mainError('OpenClawAgent', 'Post-cleanup failed:', err);
+      });
+    }
+
     // Emit signal events to frontend + channels
     ipcBridge.openclawConversation.responseStream.emit(msg);
     ipcBridge.conversation.responseStream.emit(msg);
@@ -823,36 +841,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Stream & Signal Emission (merged from Manager) ==========
 
-  /**
-   * Replace OpenClaw variants with SudoClaw in user-facing message content.
-   * Maintains case mapping: OpenClaw → SudoClaw, openClaw → sudoClaw, Openclaw → Sudoclaw, openclaw → sudoclaw
-   */
-  private sanitizeDisplayText(msg: IResponseMessage): void {
-    const replaceBrandName = (text: string): string => {
-      return text.replace(/\b(OpenClaw|openClaw|Openclaw|openclaw)\b/g, (match) => {
-        if (match === 'OpenClaw') return 'SudoClaw';
-        if (match === 'openClaw') return 'sudoClaw';
-        if (match === 'Openclaw') return 'Sudoclaw';
-        return 'sudoclaw'; // openclaw
-      });
-    };
-
-    if (msg.type === 'error' && typeof msg.data === 'string') {
-      (msg as { data: string }).data = replaceBrandName(msg.data);
-    } else if ((msg.type === 'content' || msg.type === 'user_content') && msg.data) {
-      const d = msg.data as string | { content?: string };
-      if (typeof d === 'string') {
-        (msg as { data: string }).data = replaceBrandName(d);
-      } else if (d && typeof (d as { content?: string }).content === 'string') {
-        (d as { content: string }).content = replaceBrandName((d as { content: string }).content);
-      }
-    }
-  }
-
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
     const msg = { ...message, conversation_id: this.conversation_id };
-    this.sanitizeDisplayText(msg);
 
     // Mark as finished when content is output
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];

@@ -2,7 +2,7 @@
   "name": "sudowork",
   "productName": "sudowork",
   "version": "0.1.3",
-  "description": "Transform your command-line AI agent into a modern, efficient AI Chat interface.",
+  "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
   "engines": {
     "node": ">=22 <26"
@@ -26,6 +26,7 @@
     "claude:download:force": "node scripts/download-claude-code.js --force",
     "openclaw:download": "node scripts/download-openclaw.js",
     "openclaw:download:force": "node scripts/download-openclaw.js --force",
+    "openclaw:bundle": "node scripts/bundle-openclaw.js",
     "nexus:download": "node scripts/download-nexus.js",
     "nexus:download:force": "node scripts/download-nexus.js --force",
     "node:download": "node scripts/download-node.js",
@@ -66,7 +67,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "Sudowork",
+    "name": "北京数牍科技有限公司",
     "email": "service@sudoprivacy.com"
   },
   "license": "Apache-2.0",

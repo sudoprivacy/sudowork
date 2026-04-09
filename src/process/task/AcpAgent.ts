@@ -36,6 +36,7 @@ import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -618,6 +619,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
+            workspace: this.workspace,
+            presetAgentType: this.options.backend,
           });
         }
 
@@ -1350,6 +1353,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+
+      // Post-cleanup: move intermediate files from workspace root to .drafts/
+      if (this.workspace) {
+        cleanupIntermediateFiles(this.workspace).catch((err) => {
+          mainError('AcpAgent', 'Post-cleanup failed:', err);
+        });
+      }
     }
 
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent && hasCronCommands(this.cronAccumulator.currentMsgContent)) {

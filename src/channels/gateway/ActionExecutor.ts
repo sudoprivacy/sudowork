@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -19,6 +20,7 @@ import { getChannelMessageService } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
+import type { IChannelUser, ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
@@ -26,7 +28,6 @@ import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCa
 import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
-import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
 
@@ -34,6 +35,13 @@ function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Check if a content type is a media type (photo, document, voice, video, audio).
+ */
+function isMediaContentType(type: string): boolean {
+  return type === 'photo' || type === 'document' || type === 'voice' || type === 'audio' || type === 'video';
 }
 
 // ==================== Platform-specific Helpers ====================
@@ -268,6 +276,13 @@ export class ActionExecutor {
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
+  /**
+   * Per-conversation mutex to serialize message processing.
+   * Prevents concurrent AI generations on the same conversation (e.g., from Feishu retries).
+   * Each entry holds a Promise that resolves when the current message finishes processing.
+   */
+  private conversationLocks: Map<string, Promise<void>> = new Map();
+
   constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
@@ -314,42 +329,17 @@ export class ActionExecutor {
     try {
       // Check if user is authorized
       const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
+      console.log(`[ActionExecutor] processMessage: platform=${platform}, userId=${user.id}, chatId=${chatId}, isAuthorized=${isAuthorized}`);
 
-      // Handle /start command - always show pairing (except for WeChat which auto-authorizes)
-      if (content.type === 'command' && content.text === '/start' && platform !== 'wechat') {
-        const result = await handlePairingShow(context);
-        if (result.message) {
-          await context.sendMessage(result.message);
-        }
-        return;
-      }
-
-      // If not authorized, handle based on platform
-      if (!isAuthorized) {
-        // WeChat: auto-authorize user without pairing flow
-        if (platform === 'wechat') {
-          const db = getDatabase();
-          const now = Date.now();
-          const newUserId = `wechat_${user.id}_${now}`;
-          const createResult = db.createChannelUser({
-            id: newUserId,
-            platformUserId: user.id,
-            platformType: 'wechat',
-            displayName: user.displayName || user.id,
-            authorizedAt: now,
-          });
-          if (!createResult.success) {
-            console.error(`[ActionExecutor] Failed to create WeChat user: ${createResult.error}`);
-            await context.sendMessage({
-              type: 'text',
-              text: '❌ Failed to authorize. Please try again.',
-              parseMode: 'HTML',
-            });
-            return;
-          }
-          console.log(`[ActionExecutor] Auto-authorized WeChat user: ${user.id}`);
+      // Handle /start command
+      // WeChat & WeCom: skip pairing, auto-authorize and continue
+      // Other platforms: show pairing flow
+      if (content.type === 'command' && content.text === '/start') {
+        if (platform === 'wechat' || platform === 'wecom') {
+          console.log(`[ActionExecutor] processMessage: /start for ${platform}, auto-authorizing user`);
+          // Auto-authorize and continue to process message
         } else {
-          // Other platforms: show pairing flow
+          console.log(`[ActionExecutor] processMessage: handling /start command, showing pairing`);
           const result = await handlePairingShow(context);
           if (result.message) {
             await context.sendMessage(result.message);
@@ -358,33 +348,75 @@ export class ActionExecutor {
         }
       }
 
-      // User is authorized - look up the assistant user
-      const db = getDatabase();
-      const userResult = db.getChannelUserByPlatform(user.id, platform);
-      const channelUser = userResult.data;
-
-      if (!channelUser) {
-        console.error(`[ActionExecutor] Authorized user not found in database: ${user.id}`);
-        await context.sendMessage({
-          type: 'text',
-          text: '❌ User data error. Please re-pair your account.',
-          parseMode: 'HTML',
-        });
-        return;
+      // If not authorized, handle based on platform
+      if (!isAuthorized) {
+        console.log(`[ActionExecutor] processMessage: user not authorized, platform=${platform}`);
+        // WeChat & WeCom: auto-authorize user without pairing flow
+        // Enterprise admin controls access via WeCom console "visible range" settings
+        if (platform === 'wechat' || platform === 'wecom') {
+          const db = getDatabase();
+          const now = Date.now();
+          const newUserId = `${platform}_${user.id}_${now}`;
+          const channelUser: IChannelUser = {
+            id: newUserId,
+            platformUserId: user.id,
+            platformType: platform,
+            displayName: user.displayName || user.id,
+            authorizedAt: now,
+          };
+          const createResult = db.createChannelUser(channelUser);
+          if (!createResult.success) {
+            console.error(`[ActionExecutor] Failed to create ${platform} user: ${createResult.error}`);
+            await context.sendMessage({
+              type: 'text',
+              text: '❌ Authorization failed. Please try again.',
+              parseMode: 'HTML',
+            });
+            return;
+          }
+          console.log(`[ActionExecutor] Auto-authorized ${platform} user: ${user.id}`);
+          // Set the channel user in context directly, no need to re-query
+          context.channelUser = channelUser;
+        } else {
+          // Other platforms (dingtalk, lark, telegram): show pairing flow
+          console.log(`[ActionExecutor] processMessage: showing pairing flow for platform=${platform}`);
+          const result = await handlePairingShow(context);
+          if (result.message) {
+            await context.sendMessage(result.message);
+          }
+          return;
+        }
       }
 
-      // Set the assistant user in context
-      context.channelUser = channelUser;
+      // User is authorized - look up the assistant user if not already set
+      if (!context.channelUser) {
+        const db = getDatabase();
+        const userResult = db.getChannelUserByPlatform(user.id, platform);
+        const channelUser = userResult.data;
+
+        if (!channelUser) {
+          console.error(`[ActionExecutor] Authorized user not found in database: ${user.id}`);
+          await context.sendMessage({
+            type: 'text',
+            text: '❌ User data error. Please try again.',
+            parseMode: 'HTML',
+          });
+          return;
+        }
+        context.channelUser = channelUser;
+      }
+
+      const channelUser = context.channelUser;
 
       // Get or create session (scoped by chatId for per-chat isolation)
       let session = this.sessionManager.getSession(channelUser.id, chatId);
       if (!session || !session.conversationId) {
-        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : 'telegram';
+        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : platform === 'wecom' ? 'wecom' : 'telegram';
 
         // Read selected agent for this platform (defaults to claude)
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
         } catch {
           // ignore
         }
@@ -436,6 +468,15 @@ export class ActionExecutor {
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
           session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), chatId);
+
+          // 通知渲染进程刷新对话列表（仅新建对话时）
+          if (!existing) {
+            databaseBridge.conversationChanged.emit({
+              conversationId: result.conversation.id,
+              source,
+              action: 'created',
+            });
+          }
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
@@ -459,6 +500,11 @@ export class ActionExecutor {
       } else if (content.type === 'text' && content.text) {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
+      } else if (isMediaContentType(content.type)) {
+        // Media message (photo, document, voice, video) - extract file paths and send to AI
+        const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
+        const text = content.text || `[${content.type} message]`;
+        await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -512,15 +558,21 @@ export class ActionExecutor {
   }
 
   /**
-   * Handle chat message - send to AI and stream response
+   * Handle chat message - send to AI and stream response.
+   *
+   * Uses a per-conversation mutex to serialize processing:
+   * 1. "⏳ Thinking..." is sent IMMEDIATELY so the user always sees acknowledgment.
+   * 2. If a previous message is still being processed, we wait for it to finish
+   *    before starting AI generation — prevents concurrent stream overwrites.
    */
-  private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+  private async handleChatMessage(context: IActionContext, text: string, files?: string[]): Promise<void> {
     // Update session activity (scoped by chatId)
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
-    // Send "thinking" indicator (skip for platforms that don't support editing)
+    // Send "thinking" indicator IMMEDIATELY (before acquiring lock)
+    // This ensures the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
     let thinkingMsgId = '';
     if (supportsEdit) {
@@ -530,6 +582,25 @@ export class ActionExecutor {
         parseMode: 'HTML',
       });
     }
+
+    // Per-conversation mutex: wait for any previous message to finish processing.
+    // This prevents concurrent AI generations that cause stream overwrites and hung promises.
+    const conversationId = context.conversationId || context.chatId;
+    const previousLock = this.conversationLocks.get(conversationId);
+    if (previousLock) {
+      try {
+        await previousLock;
+      } catch {
+        // Ignore errors from previous message processing
+      }
+    }
+
+    // Create a new lock for this message
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.conversationLocks.set(conversationId, lockPromise);
 
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
@@ -575,7 +646,7 @@ export class ActionExecutor {
 
       // 发送消息
       // Send message
-      await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, isInsert: boolean) => {
+      await messageService.sendMessage(sessionId, conversationId, text, files, async (message: TMessage, isInsert: boolean) => {
         const now = Date.now();
 
         // 转换消息格式（根据平台）
@@ -716,8 +787,23 @@ export class ActionExecutor {
         await context.sendMessage(errorResponse);
       }
     } finally {
+      // Release per-conversation lock so the next queued message can proceed
+      releaseLock!();
+      if (this.conversationLocks.get(conversationId) === lockPromise) {
+        this.conversationLocks.delete(conversationId);
+      }
+
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
+
+      // 通知渲染进程对话已更新（updated_at 变化影响列表排序）
+      if (conversationId) {
+        databaseBridge.conversationChanged.emit({
+          conversationId,
+          source: context.platform,
+          action: 'updated',
+        });
+      }
     }
   }
 

@@ -708,10 +708,12 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               } as React.CSSProperties
             }
           >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>{showReinstallActions ? '手动重装' : t('common.skip')}</div>
-              <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>{showReinstallActions ? '启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。' : t('common.setupContinuesInBackground')}</div>
-            </div>
+            {showReinstallActions && (
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>手动重装</div>
+                <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。</div>
+              </div>
+            )}
             <div
               style={
                 {

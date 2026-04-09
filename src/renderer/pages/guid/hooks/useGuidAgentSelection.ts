@@ -14,6 +14,7 @@ import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, Effect
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
+import { emitter } from '@/renderer/utils/emitter';
 
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
@@ -68,6 +69,8 @@ export type GuidAgentSelectionResult = {
   getEffectiveAgentType: (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined) => EffectiveAgentInfo;
   refreshCustomAgents: () => Promise<void>;
   customAgentAvatarMap: Map<string, string | undefined>;
+  /** Reset agent selection to default state and clear persisted storage */
+  resetSelection: () => void;
 };
 
 type UseGuidAgentSelectionOptions = {
@@ -515,7 +518,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       if (!agentInfo) return undefined;
       if (agentInfo.backend !== 'custom') return undefined;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.enabledSkills;
+      // For preset assistants (custom backend), treat missing enabledSkills as
+      // an explicit empty array so that downstream consumers do not fall back to
+      // loading *all* skills.
+      return customAgent?.enabledSkills ?? [];
     },
     [customAgents]
   );
@@ -598,6 +604,34 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     void refreshCustomAgents();
   }, [refreshCustomAgents]);
 
+  // Defensive: re-scan available agents whenever the user clicks "New Chat"
+  // so that newly installed agents (e.g. Claude Code) appear even if the
+  // Guid page was never unmounted and the mount-only effect didn't re-run.
+  // Uses rescanAgents to re-run full CLI detection on the main process,
+  // then revalidates the SWR cache so the UI picks up the change.
+  useEffect(() => {
+    const handler = () => {
+      void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
+        void mutate('acp.agents.available');
+      });
+    };
+    emitter.on('guid.reset', handler);
+    return () => {
+      emitter.off('guid.reset', handler);
+    };
+  }, []);
+
+  // Reset agent selection to default state (no assistant selected)
+  const resetSelection = useCallback(() => {
+    _setSelectedAgentKey('openclaw-gateway');
+    _setSelectedMode('default');
+    _setSelectedAcpModel(null);
+    // Clear persisted agent key so it won't be restored on next mount
+    ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
+      console.error('Failed to clear saved agent:', error);
+    });
+  }, []);
+
   return {
     selectedAgentKey,
     setSelectedAgentKey,
@@ -624,5 +658,6 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     getEffectiveAgentType,
     refreshCustomAgents,
     customAgentAvatarMap,
+    resetSelection,
   };
 };

@@ -104,6 +104,9 @@ jobs:
       - name: Run postinstall
         run: npm run postinstall || true
 
+      - name: Install hook dependencies
+        run: cd hook/node && bun install --no-frozen-lockfile
+
       - name: Install Linux dependencies
         if: matrix.platform == 'linux'
         run: |

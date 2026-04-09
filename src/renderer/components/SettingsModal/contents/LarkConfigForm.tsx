@@ -119,6 +119,28 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
+  // Load saved credentials for backfill
+  useEffect(() => {
+    // Only load if plugin has credentials configured and no values are currently entered
+    if (!pluginStatus?.hasToken || appId || appSecret) return;
+
+    const loadCredentials = async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        if (result.success && result.data) {
+          if (result.data.appId) setAppId(result.data.appId);
+          if (result.data.appSecret) setAppSecret(result.data.appSecret);
+          if (result.data.encryptKey) setEncryptKey(result.data.encryptKey);
+          if (result.data.verificationToken) setVerificationToken(result.data.verificationToken);
+        }
+      } catch (error) {
+        console.error('[LarkConfig] Failed to load credentials:', error);
+      }
+    };
+
+    void loadCredentials();
+  }, [pluginStatus]);
+
   // Load available agents + saved selection
   useEffect(() => {
     const loadAgentsAndSelection = async () => {

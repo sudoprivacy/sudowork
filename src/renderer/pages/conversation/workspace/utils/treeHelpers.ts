@@ -68,6 +68,53 @@ export function getFirstLevelKeys(nodes: IDirOrFile[]): string[] {
 }
 
 /**
+ * 递归收集树中所有文件夹节点的 key（用于搜索时全部展开）
+ * Recursively collect all directory node keys in the tree (for expanding all on search)
+ */
+export function getAllDirKeys(nodes: IDirOrFile[]): string[] {
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.isDir) {
+      keys.push(node.relativePath);
+      if (node.children && node.children.length > 0) {
+        keys.push(...getAllDirKeys(node.children));
+      }
+    }
+  }
+  return keys;
+}
+
+/**
+ * 收集树中所有目录节点的 key 到 Set（用于验证展开状态）
+ * Collect all directory node keys into a Set (for validating expanded state)
+ */
+export function getAllDirKeysSet(nodes: IDirOrFile[]): Set<string> {
+  const keys = new Set<string>();
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node.isDir) {
+      keys.add(node.relativePath);
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          stack.push(child);
+        }
+      }
+    }
+  }
+  return keys;
+}
+
+/**
+ * 过滤出仍然有效的展开 key（移除已删除目录的 key）
+ * Filter expanded keys to only keep those that still exist in the new tree data
+ */
+export function filterValidExpandedKeys(expandedKeys: string[], newTreeData: IDirOrFile[]): string[] {
+  const validDirKeys = getAllDirKeysSet(newTreeData);
+  return expandedKeys.filter((key) => validDirKeys.has(key));
+}
+
+/**
  * 替换路径列表中的旧路径为新路径
  * Replace old path with new path in path list
  */

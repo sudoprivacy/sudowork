@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
+// Tracks dev-time runtime assets whose filenames do not fully encode version metadata.
+// Nexus is intentionally excluded because its resource filename already includes version.
 const DEV_RUNTIME_STATE_PATH = path.join(RESOURCES_DIR, '.dev-runtime-versions.json');
 
 function normalizeVersion(value) {

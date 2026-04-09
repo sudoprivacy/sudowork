@@ -29,7 +29,7 @@ export function initChannelBridge(): void {
    */
   channel.getPluginStatus.provider(async () => {
     try {
-      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat']);
+      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
 
       let dbPlugins: import('@/channels/types').IChannelPluginConfig[] = [];
       try {
@@ -135,6 +135,7 @@ export function initChannelBridge(): void {
         lark: 'Lark',
         dingtalk: 'DingTalk',
         wechat: 'WeChat',
+        wecom: 'WeCom',
       };
       for (const builtinType of BUILTIN_TYPES) {
         if (statusMap.has(builtinType)) continue;
@@ -154,6 +155,33 @@ export function initChannelBridge(): void {
       return { success: true, data: Array.from(statusMap.values()) };
     } catch (error: any) {
       mainError('ChannelBridge', 'getPluginStatus error:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  /**
+   * Get decrypted credentials for a plugin (for backfill in settings UI)
+   */
+  channel.getPluginCredentials.provider(async ({ pluginId }) => {
+    try {
+      const db = getDatabase();
+      // getChannelPlugin already decrypts credentials via decryptCredentials
+      const result = db.getChannelPlugin(pluginId);
+
+      if (!result.success || !result.data) {
+        return { success: false, msg: result.error || 'Plugin not found' };
+      }
+
+      const plugin = result.data;
+      if (!plugin.credentials) {
+        return { success: true, data: null };
+      }
+
+      // Credentials are already decrypted by getChannelPlugin (via decryptCredentials)
+      // Just return them directly
+      return { success: true, data: plugin.credentials };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'getPluginCredentials error:', error);
       return { success: false, msg: error.message };
     }
   });
@@ -219,6 +247,11 @@ export function initChannelBridge(): void {
     try {
       const db = getDatabase();
       const result = db.getPendingPairingRequests();
+
+      mainLog('ChannelBridge', `getPendingPairings: success=${result.success}, count=${result.data?.length || 0}`);
+      if (result.data && result.data.length > 0) {
+        mainLog('ChannelBridge', `getPendingPairings: codes=${result.data.map((p) => `${p.code}(${p.platformType})`).join(', ')}`);
+      }
 
       if (!result.success || !result.data) {
         return { success: false, msg: result.error };

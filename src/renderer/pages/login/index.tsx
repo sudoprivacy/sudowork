@@ -35,12 +35,14 @@ const LoginPage: React.FC = () => {
   const { status, login, register } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [phone, setPhone] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [registerPhone, setRegisterPhone] = useState('');
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [loginCountdown, setLoginCountdown] = useState(0);
+  const [registerCountdown, setRegisterCountdown] = useState(0);
   // 保存注册凭证，避免重复验证验证码
   const [savedRegisterToken, setSavedRegisterToken] = useState<string | null>(null);
 
@@ -72,38 +74,35 @@ const LoginPage: React.FC = () => {
 
   // 页面加载时重置倒计时
   useEffect(() => {
-    setCountdown(0);
+    setLoginCountdown(0);
+    setRegisterCountdown(0);
   }, []);
 
   // 手机号变化时清除 register_token（token 绑定特定手机号）
   const handlePhoneChange = (value: string) => {
-    setPhone(value);
+    if (mode === 'login') {
+      setLoginPhone(value);
+    } else {
+      setRegisterPhone(value);
+    }
     if (savedRegisterToken) {
       setSavedRegisterToken(null);
     }
   };
 
+  const currentPhone = mode === 'login' ? loginPhone : registerPhone;
+
   // 倒计时定时器
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [countdown]);
+    const timer = setInterval(() => {
+      setLoginCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      setRegisterCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSendCode = async () => {
-    if (!isValidPhone(phone)) {
+    if (!isValidPhone(currentPhone)) {
       Message.error('请输入正确的 11 位手机号');
       return;
     }
@@ -116,14 +115,19 @@ const LoginPage: React.FC = () => {
       const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: currentPhone }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         Message.success('验证码已发送');
-        setCountdown(data.next_send_in || 60);
+        const nextSendIn = data.next_send_in || 60;
+        if (mode === 'login') {
+          setLoginCountdown(nextSendIn);
+        } else {
+          setRegisterCountdown(nextSendIn);
+        }
       } else {
         Message.error(data.msg || '发送失败');
       }
@@ -137,7 +141,7 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!phone || !code) {
+    if (!currentPhone || !code) {
       Message.warning('请填写所有必填项');
       return;
     }
@@ -182,7 +186,7 @@ const LoginPage: React.FC = () => {
     }
 
     // 否则先验证验证码
-    const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE });
+    const result = await login({ phone: currentPhone, code, enterprise_code: ENTERPRISE_CODE });
 
     if (result.success) {
       if (mode === 'register') {
@@ -248,6 +252,8 @@ const LoginPage: React.FC = () => {
     }
     setLoading(false);
   };
+
+  const currentCountdown = mode === 'login' ? loginCountdown : registerCountdown;
 
   if (status === 'checking') return <AppLoader />;
 
@@ -325,15 +331,15 @@ const LoginPage: React.FC = () => {
         <div className='flex flex-col gap-20px mt-24px'>
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={phone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
+            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>身份验证</div>
             <Space size='small' className='w-full'>
               <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
-              <Button size='large' disabled={countdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
-                {countdown > 0 ? `${countdown}s` : '发送验证码'}
+              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
+                {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
             </Space>
           </div>

@@ -21,5 +21,8 @@
   "autoUpdateMode": "자동 업데이트 모드",
   "showInFolder": "폴더에서 보기",
   "openFile": "파일 열기",
-  "errorTitle": "업데이트 실패"
+  "errorTitle": "업데이트 실패",
+  "nightlyBadge": "Nightly 미리보기",
+  "nightlyUpdateNotice": "Nightly 빌드입니다. Nightly 업데이트는 수동 다운로드만 지원됩니다.",
+  "buildDate": "빌드 날짜"
 }

@@ -451,26 +451,26 @@ export function registerAuthRoutes(app: Express): void {
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      min-height: 100vh; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: 20px;
       transition: background 0.3s ease;
     }
     [data-theme='dark'] body {
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     }
-    .login-card { 
-      background: rgba(255, 255, 255, 0.95); 
-      backdrop-filter: blur(20px); 
-      border-radius: 24px; 
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); 
-      padding: 40px; 
-      width: 100%; 
+    .login-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      width: 100%;
       max-width: 400px;
       transition: background 0.3s ease, box-shadow 0.3s ease;
     }
@@ -499,14 +499,14 @@ export function registerAuthRoutes(app: Express): void {
     [data-theme='dark'] .label {
       color: rgba(255, 255, 255, 0.7);
     }
-    .input { 
-      width: 100%; 
-      height: 48px; 
-      padding: 12px 16px; 
-      border: 1px solid #e0e0e0; 
-      border-radius: 12px; 
-      font-size: 15px; 
-      transition: border-color 0.2s, background 0.2s; 
+    .input {
+      width: 100%;
+      height: 48px;
+      padding: 12px 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 15px;
+      transition: border-color 0.2s, background 0.2s;
       background: #fafafa;
       color: #333;
     }
@@ -528,18 +528,18 @@ export function registerAuthRoutes(app: Express): void {
     [data-theme='dark'] .input::placeholder {
       color: rgba(255, 255, 255, 0.4);
     }
-    .submit-btn { 
-      width: 100%; 
-      height: 52px; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      border: none; 
-      border-radius: 12px; 
-      color: white; 
-      font-size: 16px; 
-      font-weight: 700; 
-      cursor: pointer; 
-      transition: opacity 0.2s; 
-      margin-top: 8px; 
+    .submit-btn {
+      width: 100%;
+      height: 52px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 8px;
     }
     [data-theme='dark'] .submit-btn {
       background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
@@ -563,29 +563,29 @@ export function registerAuthRoutes(app: Express): void {
     <h1 class="title">Sudowork</h1>
     <p class="subtitle">WebUI Remote Access</p>
     <p class="hint">使用远程连接设置中的管理员凭证登录</p>
-    
+
     <form id="loginForm">
       <div class="form-group">
         <label class="label" for="username">用户名</label>
         <input class="input" id="username" type="text" placeholder="请输入用户名" autocomplete="username" required />
       </div>
-      
+
       <div class="form-group">
         <label class="label" for="password">密码</label>
         <input class="input" id="password" type="password" placeholder="请输入密码" autocomplete="current-password" required />
       </div>
-      
+
       <button class="submit-btn" type="submit" id="submitBtn">登录</button>
     </form>
-    
+
     <div id="message" class="message"></div>
-    
+
     <div class="footer">
       <p>提示：首次启动时，密码显示在远程连接设置中</p>
       <p>如需修改密码，请在登录后前往设置页面</p>
     </div>
   </div>
-  
+
   <script>
     (function() {
       var form = document.getElementById('loginForm');
@@ -593,28 +593,28 @@ export function registerAuthRoutes(app: Express): void {
       var message = document.getElementById('message');
       var usernameInput = document.getElementById('username');
       var passwordInput = document.getElementById('password');
-      
+
       function showMessage(text, type) {
         message.textContent = text;
         message.className = 'message ' + type;
         message.style.display = 'block';
       }
-      
+
       form.addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         var username = usernameInput.value.trim();
         var password = passwordInput.value;
-        
+
         if (!username || !password) {
           showMessage('请填写用户名和密码', 'error');
           return;
         }
-        
+
         submitBtn.disabled = true;
         submitBtn.textContent = '登录中...';
         message.style.display = 'none';
-        
+
         try {
           var response = await fetch('/login', {
             method: 'POST',
@@ -622,9 +622,9 @@ export function registerAuthRoutes(app: Express): void {
             credentials: 'include',
             body: JSON.stringify({ username: username, password: password })
           });
-          
+
           var data = await response.json();
-          
+
           if (data.success) {
             showMessage('登录成功！正在跳转...', 'success');
             setTimeout(function() {
@@ -632,7 +632,7 @@ export function registerAuthRoutes(app: Express): void {
             }, 1000);
           } else {
             // 使用 i18n 翻译的错误消息
-            var errorMsg = data.message === 'Invalid username or password' 
+            var errorMsg = data.message === 'Invalid username or password'
               ? '用户名或密码错误'
               : (data.message || '登录失败，请稍后再试');
             showMessage(errorMsg, 'error');

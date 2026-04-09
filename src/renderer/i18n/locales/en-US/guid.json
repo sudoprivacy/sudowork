@@ -1,4 +1,57 @@
 {
+  "promptTemplates": {
+    "title": "Prompt Templates",
+    "categories": {
+      "coding": "Coding",
+      "writing": "Writing",
+      "translation": "Translation",
+      "analysis": "Analysis",
+      "creative": "Creative",
+      "learning": "Learning"
+    },
+    "coding": {
+      "writeScript": "Write a script",
+      "writeScriptContent": "Help me write a Python script to...",
+      "codeReview": "Code review",
+      "codeReviewContent": "Please review the following code, identify potential issues and suggest improvements:\n\n```\n// Paste code here\n```",
+      "debug": "Debug an error",
+      "debugContent": "I encountered the following error, please help me analyze the cause and provide a solution:\n\nError message:",
+      "explain": "Explain code",
+      "explainContent": "Please explain how the following code works in a clear and simple way:\n\n```\n// Paste code here\n```"
+    },
+    "writing": {
+      "article": "Write an article",
+      "articleContent": "Please help me write an article about..., requirements...",
+      "polish": "Polish text",
+      "polishContent": "Please help me polish the following text to make it more professional and fluent:\n\n",
+      "email": "Write an email",
+      "emailContent": "Please help me write an email, subject is..., recipient is..."
+    },
+    "translation": {
+      "toEnglish": "Translate to English",
+      "toEnglishContent": "Please translate the following content to English, maintaining the original style:\n\n",
+      "toChinese": "Translate to Chinese",
+      "toChineseContent": "Please translate the following content to Chinese with faithfulness, expressiveness, and elegance:\n\n"
+    },
+    "analysis": {
+      "data": "Analyze data trends",
+      "dataContent": "Please analyze the following data and identify key trends and insights:\n\n",
+      "summarize": "Summarize key points",
+      "summarizeContent": "Please summarize the key points of the following content using concise bullet points:\n\n"
+    },
+    "creative": {
+      "brainstorm": "Brainstorm",
+      "brainstormContent": "Please brainstorm on the topic of... and give me 10 creative ideas",
+      "naming": "Name something",
+      "namingContent": "Please help me come up with a meaningful name for..., provide 5 options"
+    },
+    "learning": {
+      "explain": "Explain a concept",
+      "explainContent": "Please explain the concept of... in simple terms with examples",
+      "compare": "Compare two things",
+      "compareContent": "Please compare... and..., analyzing their principles, pros/cons, and use cases"
+    }
+  },
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "No Main Agent is available. Please login to Google or install Claude/Codex CLI. Go to settings?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

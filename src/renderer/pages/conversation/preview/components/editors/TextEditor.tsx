@@ -7,7 +7,8 @@
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { EditorView } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
+import { useCodeMirrorScroll, useScrollSyncTarget } from '../../hooks/useScrollSyncHelpers';
 
 interface TextEditorProps {
   value: string; // 编辑器内容 / Editor content
@@ -26,19 +27,19 @@ interface TextEditorProps {
  */
 const TextEditor: React.FC<TextEditorProps> = ({ value, onChange, readOnly = false, containerRef, onScroll }) => {
   const { theme } = useThemeContext();
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
 
-  // 监听容器滚动事件 / Listen to container scroll events
-  React.useEffect(() => {
-    const container = containerRef?.current;
-    if (!container || !onScroll) return;
+  // 使用 CodeMirror 滚动 Hook / Use CodeMirror scroll hook
+  const { setScrollPercent } = useCodeMirrorScroll(editorWrapperRef, onScroll);
 
-    const handleScroll = () => {
-      onScroll(container.scrollTop, container.scrollHeight, container.clientHeight);
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [containerRef, onScroll]);
+  // 监听外部滚动同步请求 / Listen for external scroll sync requests
+  const handleTargetScroll = useCallback(
+    (targetPercent: number) => {
+      setScrollPercent(targetPercent);
+    },
+    [setScrollPercent]
+  );
+  useScrollSyncTarget(containerRef, handleTargetScroll);
 
   // 使用 useCallback 包装 onChange，避免每次渲染都创建新函数 / Use useCallback to avoid creating new function on each render
   const handleChange = useCallback(
@@ -70,8 +71,10 @@ const TextEditor: React.FC<TextEditorProps> = ({ value, onChange, readOnly = fal
   );
 
   return (
-    <div ref={containerRef} className='h-full w-full overflow-auto text-left'>
-      <CodeMirror value={value} height='100%' theme={theme === 'dark' ? 'dark' : 'light'} extensions={[EditorView.lineWrapping]} onChange={handleChange} readOnly={readOnly} basicSetup={basicSetupConfig} style={editorStyle} />
+    <div ref={containerRef} className='h-full w-full overflow-hidden text-left'>
+      <div ref={editorWrapperRef} className='h-full w-full'>
+        <CodeMirror value={value} height='100%' theme={theme === 'dark' ? 'dark' : 'light'} extensions={[EditorView.lineWrapping]} onChange={handleChange} readOnly={readOnly} basicSetup={basicSetupConfig} style={editorStyle} />
+      </div>
     </div>
   );
 };

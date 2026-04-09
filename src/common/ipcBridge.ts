@@ -35,6 +35,7 @@ export const shell = {
 export const openclaw = {
   getModels: bridge.buildProvider<IOpenClawModelsResponse, void>('openclaw.get-models'),
   selectModel: bridge.buildProvider<void, { conversationId: string; modelId: string; modelRatio: number }>('openclaw.select-model'),
+  updateImageModel: bridge.buildProvider<void, { modelId: string | null }>('openclaw.update-image-model'),
 };
 
 //通用会话能力
@@ -301,6 +302,8 @@ export const acpConversation = {
   >('acp.get-available-agents'),
   checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
   refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
+  /** Re-run full CLI agent detection (after install/uninstall) */
+  rescanAgents: bridge.buildProvider<IBridgeResponse, void>('acp.rescan-agents'),
   checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
   // Set session mode for ACP agents (claude, qwen, etc.)
   // 设置 ACP 代理的会话模式（claude、qwen 等）
@@ -336,6 +339,25 @@ export const mcpService = {
   loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
   logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
+};
+
+// mcporter 服务相关接口
+export interface IMcporterDaemonStatus {
+  running: boolean;
+  pid?: number;
+  socketPath?: string;
+  uptime?: number;
+}
+
+export const mcporterService = {
+  isAvailable: bridge.buildProvider<IBridgeResponse<boolean>, void>('mcporter.is-available'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.install'),
+  syncConfig: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.sync-config'),
+  startDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.start-daemon'),
+  stopDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.stop-daemon'),
+  getDaemonStatus: bridge.buildProvider<IBridgeResponse<IMcporterDaemonStatus>, void>('mcporter.get-daemon-status'),
+  getConfigPath: bridge.buildProvider<IBridgeResponse<string>, void>('mcporter.get-config-path'),
+  initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
 };
 
 // OpenClaw 对话相关接口 - 复用统一的conversation接口
@@ -407,6 +429,12 @@ export const openclawConversation = {
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
+  /** 渠道对话创建/更新时，主进程通知渲染进程刷新对话列表 */
+  conversationChanged: bridge.buildEmitter<{
+    conversationId: string;
+    source?: string;
+    action: 'created' | 'updated';
+  }>('database.conversation-changed'),
 };
 
 export const previewHistory = {
@@ -493,7 +521,7 @@ export type SudoclawProvider = {
 };
 export type SudoclawConfig = {
   lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; models?: Record<string, { alias?: string }> } };
+  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; models?: Record<string, { alias?: string }> } };
   models?: {
     mode?: 'merge' | 'replace';
     providers?: Record<string, SudoclawProvider>;
@@ -697,6 +725,10 @@ export const cron = {
   addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>('cron.add-job'),
   updateJob: bridge.buildProvider<ICronJob, { jobId: string; updates: Partial<ICronJob> }>('cron.update-job'),
   removeJob: bridge.buildProvider<void, { jobId: string }>('cron.remove-job'),
+  triggerJob: bridge.buildProvider<void, { jobId: string }>('cron.trigger-job'),
+  // Power management
+  getPowerSaveActive: bridge.buildProvider<boolean, void>('cron.get-power-save-active'),
+  setPowerSave: bridge.buildProvider<void, { enabled: boolean }>('cron.set-power-save'),
   // Events
   onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
@@ -720,6 +752,13 @@ export interface ICronJob {
     createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
+    /** Execution mode: 'new' creates a fresh conversation each run (default), 'reuse' appends to the bound conversation */
+    conversationMode?: 'new' | 'reuse';
+    /** Working directory to use for execution */
+    workspace?: string;
+    /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time.
+     *  In Partial<ICronJob> updates, pass `null` to explicitly clear (since JSON IPC strips `undefined`). */
+    presetAssistantId?: string | null;
   };
   state: {
     nextRunAtMs?: number;
@@ -729,6 +768,8 @@ export interface ICronJob {
     runCount: number;
     retryCount: number;
     maxRetries: number;
+    /** ID of the most recently created execution conversation (only used when conversationMode === 'new') */
+    lastConversationId?: string;
   };
 }
 
@@ -740,6 +781,9 @@ export interface ICreateCronJobParams {
   conversationTitle?: string;
   agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
+  conversationMode?: 'new' | 'reuse';
+  workspace?: string;
+  presetAssistantId?: string | null;
 }
 
 interface ISendMessageParams {
@@ -804,6 +848,10 @@ export interface ICreateConversationParams {
     };
     /** Explicit marker for temporary health-check conversations */
     isHealthCheck?: boolean;
+    /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+    cronJobId?: string;
+    /** Cron job name that created this conversation */
+    cronJobName?: string;
   };
 }
 interface IResetConversationParams {
@@ -1072,11 +1120,12 @@ export const skillHub = {
 
 // ==================== Channel API ====================
 
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser } from '@/channels/types';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
 
 export const channel = {
   // Plugin Management
   getPluginStatus: bridge.buildProvider<IBridgeResponse<IChannelPluginStatus[]>, void>('channel.get-plugin-status'),
+  getPluginCredentials: bridge.buildProvider<IBridgeResponse<IPluginCredentials | null>, { pluginId: string }>('channel.get-plugin-credentials'),
   enablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string; config: Record<string, unknown> }>('channel.enable-plugin'),
   disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.disable-plugin'),
   testPlugin: bridge.buildProvider<IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>, { pluginId: string; token: string; extraConfig?: { appId?: string; appSecret?: string } }>('channel.test-plugin'),
@@ -1162,6 +1211,22 @@ export const healthMonitor = {
   disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
 };
 
+// ==================== Workspace Management API ====================
+// 工作空间管理 API（重命名、草稿箱操作）
+
+export const workspaceManage = {
+  /** Rename workspace directory (physical rename + DB update) / 重命名工作空间目录 */
+  renameDirectory: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { oldPath: string; newName: string }>('workspace-manage.rename-directory'),
+  /** List drafts files / 列出草稿箱文件 */
+  listDrafts: bridge.buildProvider<IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>, { workspace: string }>('workspace-manage.list-drafts'),
+  /** Clear all drafts / 清空草稿箱 */
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
+  /** Delete a specific draft file / 删除指定草稿文件 */
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
+  /** Update workspace display name (no physical rename) / 更新工作空间显示名（不改物理路径） */
+  updateDisplayName: bridge.buildProvider<IBridgeResponse, { workspace: string; displayName: string }>('workspace-manage.update-display-name'),
+};
+
 // ==================== User Phone Storage API ====================
 // Store user phone (RSA encrypted) for skill access
 // Skill reads encrypted content and sends to server for decryption
@@ -1175,4 +1240,28 @@ export const sudoworkAuth = {
   clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
   /** Get public key for encryption */
   getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
+};
+
+// ==================== Secret Management API ====================
+// Manage service secrets stored in Nexus secret store
+
+export interface ISecretMetadata {
+  id: string;
+  namespace: string;
+  key: string;
+  description?: string;
+  enabled: boolean;
+  currentVersion: number;
+  deletedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const secret = {
+  /** Get a secret value by namespace and key */
+  get: bridge.buildProvider<IBridgeResponse<string | null>, { namespace: string; key: string }>('secret.get'),
+  /** Put (create or update) a secret value */
+  put: bridge.buildProvider<IBridgeResponse, { namespace: string; key: string; value: string; description?: string }>('secret.put'),
+  /** List all secrets in a namespace */
+  list: bridge.buildProvider<IBridgeResponse<ISecretMetadata[]>, { namespace: string }>('secret.list'),
 };
