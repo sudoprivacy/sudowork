@@ -687,7 +687,10 @@ class DynamicNexusService {
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      mainLog('Nexus:stdout', d.toString().trim());
+      const msg = d.toString().trim();
+      // Filter out noisy Nexus HTTP access logs and request_completed metrics
+      if (!msg || msg.includes('request_completed') || /^INFO:\s+\d+\.\d+\.\d+\.\d+:\d+ - "POST \/api\/nfs\/\w+ HTTP\/\d\.\d" \d+ OK$/.test(msg)) return;
+      mainLog('Nexus:stdout', msg);
     });
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
