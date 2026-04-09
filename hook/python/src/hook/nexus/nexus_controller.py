@@ -6,6 +6,12 @@ operation is not auto-allowed by local rules (blacklist or localhost exemptions)
 the controller writes a security event to the Nexus service and waits for an
 action decision (allow/deny) from the security control plane, which may involve
 human review.
+
+Production integration features (aligned with Node hook):
+- FastPass mode: bypasses all interception when enabled
+- Blacklist cache decoupling: uses HookState's polled blacklist instead of
+  synchronous Nexus reads on each request
+- Localhost whitelist: auto-allows all localhost/loopback network requests
 """
 
 import json
@@ -21,16 +27,26 @@ from hook.nexus.nexus import Nexus, NexusError
 
 logger = logging.getLogger("nexus")
 
+# Localhost patterns that should always be allowed (system-level whitelist)
+# Matches Node hook's LOCALHOST_PATTERNS in NexusController.ts
+LOCALHOST_PATTERNS = frozenset({
+    "127.0.0.1",
+    "localhost",
+    "[::1]",
+    "::1",
+})
+
 
 class NexusController(Nexus):
     """
     Security controller that evaluates intercepted operations against policies.
 
-    Extends the Nexus client with security-specific logic: local blacklist filtering,
-    localhost exemptions, and an event-driven allow/deny workflow via the Nexus service.
+    Extends the Nexus client with security-specific logic: FastPass bypass,
+    local blacklist filtering, localhost exemptions, and an event-driven
+    allow/deny workflow via the Nexus service.
 
-    The blacklist is periodically refreshed from the Nexus service to stay in sync
-    with the latest security policies.
+    The blacklist is now sourced from HookState's polling cache (Phase 2.3),
+    eliminating synchronous Nexus reads from the request path.
     """
 
     def __init__(self, url: str, timeout: Optional[timedelta] = None):
@@ -43,21 +59,29 @@ class NexusController(Nexus):
         super().__init__(url)
         self.timeout = timeout
 
-        # Blacklist is refreshed from the Nexus service at this interval
+        # Fallback blacklist for when HookState is not available
         self.blacklist_update_interval = timedelta(seconds=5)
         self.blacklist: List[BlacklistRule] = []
-        self.blacklist_lock = threading.Lock()  # Guards concurrent blacklist updates
+        self.blacklist_lock = threading.Lock()
         self.blacklist_update_time = datetime.now()
-        self._update_blacklist()
+        self._init_blacklist()
+
+    def _init_blacklist(self):
+        """Initialize blacklist on first load, with error tolerance."""
+        try:
+            self._update_blacklist()
+        except Exception:
+            pass
 
     def control(self, payload: NexusPayload) -> Optional[str]:
         """
         Main entry point: evaluate an intercepted operation and return allow/deny decision.
 
         Flow:
-        1. Check if the payload is auto-allowed (localhost, blacklist not matched).
-        2. If not auto-allowed, write a security event to Nexus and wait for a decision.
-        3. Clean up the action file after reading the decision.
+        1. Check FastPass mode — if enabled, allow immediately.
+        2. Check if the payload is auto-allowed (localhost, blacklist not matched).
+        3. If not auto-allowed, write a security event to Nexus and wait for a decision.
+        4. Clean up the action file after reading the decision.
 
         Args:
             payload: The intercepted operation data (file, network, or process).
@@ -65,6 +89,13 @@ class NexusController(Nexus):
         Returns:
             None if the operation is allowed, or a denial reason string if blocked.
         """
+        # FastPass: bypass all interception (aligned with Node hook NexusController.ts L96-98)
+        from hook.state import HookState
+
+        state = HookState.get_instance()
+        if state and state.is_fast_pass():
+            return None
+
         if self.allow_payload(payload):
             return None
 
@@ -100,6 +131,10 @@ class NexusController(Nexus):
         - Network requests to localhost/loopback addresses.
         - Operations not matching any enabled blacklist rule.
 
+        Blacklist source priority:
+        1. HookState polled cache (zero Nexus I/O on request path)
+        2. Local fallback blacklist (synchronous Nexus read, legacy behavior)
+
         Args:
             payload: The intercepted operation payload.
 
@@ -111,20 +146,32 @@ class NexusController(Nexus):
             # Always allow requests to the Nexus service itself to prevent recursion
             if url_origin(url) == self.base_url:
                 return True
-            # Always allow localhost/loopback traffic
-            if url.host.lower() in ("127.0.0.1", "localhost", "[::1]", "::1"):
+            # Always allow localhost/loopback traffic (system-level whitelist)
+            if url.host and url.host.lower() in LOCALHOST_PATTERNS:
                 return True
 
-        # Check against the locally-cached blacklist rules
-        try:
-            self._update_blacklist()
-        except Exception as e:
-            logger.error(f"update blacklist failed, error: {e}")
-        return allow_data(self.blacklist, payload)
+        # Get blacklist from HookState cache (Phase 2.3: decoupled from request path)
+        from hook.state import HookState
+
+        state = HookState.get_instance()
+        if state:
+            blacklist = state.get_blacklist()
+        else:
+            # Fallback: synchronous update (legacy behavior for backward compatibility)
+            try:
+                self._update_blacklist()
+            except Exception as e:
+                logger.error(f"update blacklist failed, error: {e}")
+            blacklist = self.blacklist
+
+        return allow_data(blacklist, payload)
 
     def _update_blacklist(self):
         """
         Refresh the blacklist from the Nexus service if the update interval has elapsed.
+
+        This is the fallback path used only when HookState is not available.
+        In normal operation, blacklist updates are handled by HookState's polling thread.
 
         Uses a threading lock to prevent concurrent updates. Errors during refresh
         are logged but do not interrupt the hook's operation (stale blacklist is kept).
