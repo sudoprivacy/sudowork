@@ -15,6 +15,8 @@ const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 const VERSION_FILE_NAME = 'version.txt';
+/** Legacy version file written by older install flows. Kept for backward compatibility reads. */
+const LEGACY_VERSION_FILE_NAME = 'sudowork-version';
 
 // Skill 分类
 export type SkillCategory = 'custom' | 'hub' | 'system';
@@ -171,18 +173,23 @@ export class SkillManager {
   private async readSkillInfo(skillDir: string, category: SkillCategory, forceBuiltin = false): Promise<ISkillInfo | null> {
     const dirName = path.basename(skillDir);
 
-    // 读取版本
+    // 读取版本 — try version.txt first, then legacy sudowork-version, then SKILL.md frontmatter
     let version = '';
     try {
       version = (await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8')).trim();
     } catch {
-      // 尝试从 SKILL.md frontmatter 读取
+      // Try legacy version file (sudowork-version) written by older install flows
       try {
-        const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
-        const m = content.match(/^version:\s*(.+)$/m);
-        if (m) version = m[1].trim();
+        version = (await fs.readFile(path.join(skillDir, LEGACY_VERSION_FILE_NAME), 'utf-8')).trim();
       } catch {
-        /* ignore */
+        // 尝试从 SKILL.md frontmatter 读取
+        try {
+          const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+          const m = content.match(/^version:\s*(.+)$/m);
+          if (m) version = m[1].trim();
+        } catch {
+          /* ignore */
+        }
       }
     }
 
