@@ -427,23 +427,15 @@ module.exports = async function afterPack(context) {
       }
     }
 
-    // Sign versioned nexus binaries directly (they are plain Mach-O executables, not archives)
+    // Sign versioned nexus archives by unpacking and re-signing their bundled binaries.
+    // Current macOS resources ship Nexus as .tar.gz/.tgz archives, not plain executables.
+    const nexusArchives = [];
     try {
-      const nexusBinaries = fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-/.test(f));
-      for (const nexusBin of nexusBinaries) {
-        const nexusBinPath = path.join(resourcesDir, nexusBin);
-        if (fs.existsSync(nexusBinPath)) {
-          console.log(`\n🔐 Signing nexus binary: ${nexusBin}...`);
-          try {
-            execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${nexusBinPath}"`, { stdio: 'pipe' });
-            console.log(`   ✓ Signed: ${nexusBin}`);
-          } catch (err) {
-            console.warn(`   ⚠️  Failed to sign nexus binary ${nexusBin}: ${err.message}`);
-          }
-        }
-      }
+      nexusArchives.push(
+        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
+      );
     } catch {
-      // Resources dir not readable — nexus binaries will be skipped
+      // Resources dir not readable — nexus archives will be skipped
     }
 
     // Fixed name archives
@@ -452,7 +444,7 @@ module.exports = async function afterPack(context) {
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive];
+    const archivesToSign = [...fixedArchives, nodeArchive, ...nexusArchives];
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');
