@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
 import { app } from 'electron';
-import { spawn, exec, execFile } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
@@ -13,7 +13,6 @@ import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, lis
 import runtimeVersions from '@/shared/runtime-versions.json';
 
 const execAsync = promisify(exec);
-const execFileAsync = promisify(execFile);
 
 // Marker filename written inside the bin directory to record the version it was installed for.
 const NEXUS_READY_MARKER = '.nexus-bin-ready';
@@ -177,9 +176,24 @@ class DynamicNexusService {
     return matched?.[1] || trimmed.replace(/^v/i, '');
   }
 
+  private getInstalledMarkerVersion(): string | undefined {
+    const markerPath = this.getReadyMarkerPath();
+    if (!fs.existsSync(markerPath)) {
+      return undefined;
+    }
+
+    try {
+      const content = fs.readFileSync(markerPath, 'utf-8').trim();
+      return this.normalizeVersion(content);
+    } catch (error) {
+      mainWarn('Nexus', `Failed to read Nexus ready marker: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+
   async getVersionState(): Promise<{ installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }> {
     const bundledVersion = this.normalizeVersion(this.getBundledVersion());
-    const installedVersion = this.normalizeVersion(await this.getInstalledVersion());
+    const installedVersion = this.getInstalledMarkerVersion();
 
     if (!bundledVersion || !installedVersion) {
       return {
@@ -197,32 +211,11 @@ class DynamicNexusService {
   }
 
   async getInstalledVersion(): Promise<string | undefined> {
-    const nexusdPath = this.getInstalledNexusdPath();
-
-    if (!fs.existsSync(nexusdPath)) {
+    if (!fs.existsSync(this.getInstalledNexusdPath())) {
       return undefined;
     }
 
-    if (this.isMarkerCurrent(this.getReadyMarkerPath())) {
-      return this.normalizeVersion(this.getNexusVersion());
-    }
-
-    try {
-      const { stdout, stderr } = await execFileAsync(nexusdPath, ['--version'], {
-        timeout: 10_000,
-      });
-      const raw = `${stdout}\n${stderr}`.trim();
-      if (!raw) return undefined;
-      const firstLine = raw
-        .split('\n')
-        .map((line) => line.trim())
-        .find(Boolean);
-      if (!firstLine) return undefined;
-      return this.normalizeVersion(firstLine);
-    } catch (error) {
-      mainWarn('Nexus', `Failed to get nexusd version: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
-    }
+    return this.getInstalledMarkerVersion();
   }
 
   /**
@@ -371,12 +364,7 @@ class DynamicNexusService {
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
         this.setInstalledPermissions(fullPath);
-      } else if (
-        entry.name === this.getNexusdName() ||
-        entry.name.endsWith('.so') ||
-        entry.name.includes('.so.') ||
-        entry.name.endsWith('.dylib')
-      ) {
+      } else if (entry.name === this.getNexusdName() || entry.name.endsWith('.so') || entry.name.includes('.so.') || entry.name.endsWith('.dylib')) {
         fs.chmodSync(fullPath, 0o755);
       }
     }
@@ -441,9 +429,14 @@ class DynamicNexusService {
 
       // Extract directly to the target bin directory (with strip if needed)
       this.emitSetup('installing', 'Extracting Nexus archive...', 10);
-      await this.extractArchive(archivePath, binDir, (percent) => {
-        this.emitSetup('installing', `Extracting Nexus archive... ${percent}%`, 10 + Math.round(percent * 0.7));
-      }, strip);
+      await this.extractArchive(
+        archivePath,
+        binDir,
+        (percent) => {
+          this.emitSetup('installing', `Extracting Nexus archive... ${percent}%`, 10 + Math.round(percent * 0.7));
+        },
+        strip
+      );
 
       this.emitSetup('installing', 'Setting permissions...', 85);
 
@@ -513,14 +506,18 @@ class DynamicNexusService {
             file.on('error', (err) => {
               try {
                 fs.unlinkSync(destPath);
-              } catch {}
+              } catch {
+                // Ignore cleanup failures for partially downloaded archives.
+              }
               reject(err);
             });
           })
           .on('error', (err) => {
             try {
               fs.unlinkSync(destPath);
-            } catch {}
+            } catch {
+              // Ignore cleanup failures for partially downloaded archives.
+            }
             reject(err);
           });
       };

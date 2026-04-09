@@ -114,6 +114,34 @@ describe('DynamicNexusService install readiness', () => {
     await expect(dynamicNexusService.getInstalledVersion()).resolves.toBe(String(runtimeVersions.nexus));
   });
 
+  it('returns the marker version even when it differs from the bundled version', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), '0.9.28');
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    await expect(dynamicNexusService.getInstalledVersion()).resolves.toBe('0.9.28');
+    await expect(dynamicNexusService.getVersionState()).resolves.toEqual({
+      installedVersion: '0.9.28',
+      bundledVersion: String(runtimeVersions.nexus),
+      needsUpgrade: true,
+    });
+  });
+
+  it('does not treat a mismatched marker version as installed', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), '0.9.28');
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    expect(dynamicNexusService.checkInstalledSync()).toBe(false);
+    await expect(dynamicNexusService.checkInstalled()).resolves.toBe(false);
+  });
+
   it('ignores a legacy nexus_env nexusd when checking installation status', async () => {
     const legacyBinDir = path.join(dataDir, 'nexus_env', process.platform === 'win32' ? 'Scripts' : 'bin');
     fs.mkdirSync(legacyBinDir, { recursive: true });
