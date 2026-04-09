@@ -22,6 +22,7 @@ on:
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  UV_DEFAULT_INDEX: 'https://pypi.org/simple/'
 
 jobs:
   code-quality:
