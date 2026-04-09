@@ -80,6 +80,8 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Migration flag: skill subdirectory restructuring completed */
+  'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
@@ -132,6 +134,17 @@ export interface IConfigStorageRefer {
   };
   // WeChat assistant agent selection / 微信助手所使用的 Agent
   'assistant.wechat.agent'?: {
+    backend: AcpBackendAll;
+    customAgentId?: string;
+    name?: string;
+  };
+  // WeCom assistant default model / 企业微信助手默认模型
+  'assistant.wecom.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // WeCom assistant agent selection / 企业微信助手所使用的 Agent
+  'assistant.wecom.agent'?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;

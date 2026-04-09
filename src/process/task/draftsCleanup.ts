@@ -46,33 +46,13 @@ const INTERMEDIATE_EXTENSIONS = new Set([
  * File name patterns that indicate intermediate files
  * 表示中间文件的文件名模式
  */
-const INTERMEDIATE_PATTERNS = [
-  /^temp[_-]/i,
-  /^tmp[_-]/i,
-  /[_-]draft\./i,
-  /[_-]temp\./i,
-  /[_-]tmp\./i,
-  /^scratch[_-]/i,
-  /^test_script/i,
-  /^helper[_-]/i,
-  /^step[_-]?\d+/i,
-];
+const INTERMEDIATE_PATTERNS = [/^temp[_-]/i, /^tmp[_-]/i, /[_-]draft\./i, /[_-]temp\./i, /[_-]tmp\./i, /^scratch[_-]/i, /^test_script/i, /^helper[_-]/i, /^step[_-]?\d+/i];
 
 /**
  * Files/directories that should never be moved
  * 永远不应被移动的文件/目录
  */
-const EXCLUDED_NAMES = new Set([
-  DRAFTS_DIR_NAME,
-  '.git',
-  '.gitignore',
-  '.env',
-  'README.md',
-  'readme.md',
-  'LICENSE',
-  'package.json',
-  'node_modules',
-]);
+const EXCLUDED_NAMES = new Set([DRAFTS_DIR_NAME, '.git', '.gitignore', '.env', 'README.md', 'readme.md', 'LICENSE', 'package.json', 'node_modules']);
 
 /**
  * Check if a file is an intermediate file based on its extension and name

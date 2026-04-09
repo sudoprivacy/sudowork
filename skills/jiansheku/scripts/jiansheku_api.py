@@ -239,29 +239,52 @@ class Jiansheku:
         raise JianshekuError(code, result.get("msg", ""))
 
 
-# ── CLI ────────────────────────────────────────────────────────────────
+# ── Credential Resolution ────────────────────────────────────────────
 
-if __name__ == "__main__":
-    import argparse
-    import os
-    import sys
+def resolve_credentials() -> tuple[str, str]:
+    """
+    Resolve AppKey/AppSecret from (in priority order):
+      1. Environment variables JIANSHEKU_APP_KEY / JIANSHEKU_APP_SECRET
+      2. Nexus secret store  (namespace: service:jiansheku)
+      3. .env file           (next to this script or in skill root)
 
-    parser = argparse.ArgumentParser(description="Jiansheku API CLI")
-    parser.add_argument("--endpoint", required=True, help="API path, e.g. /v1/company/business/base/info")
-    parser.add_argument("--data", default="{}", help="JSON request body")
-    parser.add_argument("--raw", action="store_true", help="Return full response (code+msg+data)")
-    parser.add_argument("--lookup", metavar="KEYWORD", help="Look up company cid/eid by name")
-    parser.add_argument("--env", default="production", choices=["production", "testing"])
-    args = parser.parse_args()
+    Returns (app_key, app_secret).
+    Raises RuntimeError if credentials cannot be found.
+    """
+    import os as _os
 
-    app_key = os.environ.get("JIANSHEKU_APP_KEY")
-    app_secret = os.environ.get("JIANSHEKU_APP_SECRET")
+    app_key = _os.environ.get("JIANSHEKU_APP_KEY")
+    app_secret = _os.environ.get("JIANSHEKU_APP_SECRET")
 
-    # Fallback: read from .env file next to this script or in skill root
+    # Fallback 2: Nexus secret store
     if not app_key or not app_secret:
-        for env_dir in [os.path.dirname(os.path.abspath(__file__)), os.path.dirname(os.path.dirname(os.path.abspath(__file__)))]:
-            env_file = os.path.join(env_dir, ".env")
-            if os.path.isfile(env_file):
+        try:
+            nexus_url = _os.environ.get("NEXUS_URL", "http://localhost:12012")
+            if not app_key:
+                resp = requests.get(
+                    f"{nexus_url}/api/v2/secrets/service:jiansheku/app_key",
+                    headers={"Accept": "application/json"},
+                    timeout=3,
+                )
+                if resp.status_code == 200:
+                    app_key = resp.json().get("value")
+            if not app_secret:
+                resp = requests.get(
+                    f"{nexus_url}/api/v2/secrets/service:jiansheku/app_secret",
+                    headers={"Accept": "application/json"},
+                    timeout=3,
+                )
+                if resp.status_code == 200:
+                    app_secret = resp.json().get("value")
+        except (requests.RequestException, KeyError, ValueError):
+            pass
+
+    # Fallback 3: .env file
+    if not app_key or not app_secret:
+        for env_dir in [_os.path.dirname(_os.path.abspath(__file__)),
+                        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))]:
+            env_file = _os.path.join(env_dir, ".env")
+            if _os.path.isfile(env_file):
                 with open(env_file) as f:
                     for line in f:
                         line = line.strip()
@@ -276,12 +299,36 @@ if __name__ == "__main__":
                     break
 
     if not app_key or not app_secret:
-        print("Error: JIANSHEKU_APP_KEY and JIANSHEKU_APP_SECRET not found.\n"
-              "Set them as environment variables, or create a .env file in the skill directory:\n"
-              "  skills/jiansheku/.env\n"
-              "with contents:\n"
-              "  JIANSHEKU_APP_KEY=your_key\n"
-              "  JIANSHEKU_APP_SECRET=your_secret", file=sys.stderr)
+        raise RuntimeError(
+            "JIANSHEKU_APP_KEY and JIANSHEKU_APP_SECRET not found.\n"
+            "Please configure credentials using one of the following methods:\n"
+            "  1. Desktop app: Settings → Remote Connection → Secret Management (recommended)\n"
+            "  2. Environment variables: JIANSHEKU_APP_KEY and JIANSHEKU_APP_SECRET\n"
+            "  3. .env file: skills/jiansheku/.env\n"
+            "     JIANSHEKU_APP_KEY=your_key\n"
+            "     JIANSHEKU_APP_SECRET=your_secret"
+        )
+    return app_key, app_secret
+
+
+# ── CLI ────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Jiansheku API CLI")
+    parser.add_argument("--endpoint", required=True, help="API path, e.g. /v1/company/business/base/info")
+    parser.add_argument("--data", default="{}", help="JSON request body")
+    parser.add_argument("--raw", action="store_true", help="Return full response (code+msg+data)")
+    parser.add_argument("--lookup", metavar="KEYWORD", help="Look up company cid/eid by name")
+    parser.add_argument("--env", default="production", choices=["production", "testing"])
+    args = parser.parse_args()
+
+    try:
+        app_key, app_secret = resolve_credentials()
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     api = Jiansheku(app_key, app_secret, env=args.env)

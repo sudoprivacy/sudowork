@@ -19,6 +19,7 @@ import { getChannelMessageService } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
+import type { IChannelUser } from '../types';
 import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
@@ -321,42 +322,17 @@ export class ActionExecutor {
     try {
       // Check if user is authorized
       const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
+      console.log(`[ActionExecutor] processMessage: platform=${platform}, userId=${user.id}, chatId=${chatId}, isAuthorized=${isAuthorized}`);
 
-      // Handle /start command - always show pairing (except for WeChat which auto-authorizes)
-      if (content.type === 'command' && content.text === '/start' && platform !== 'wechat') {
-        const result = await handlePairingShow(context);
-        if (result.message) {
-          await context.sendMessage(result.message);
-        }
-        return;
-      }
-
-      // If not authorized, handle based on platform
-      if (!isAuthorized) {
-        // WeChat: auto-authorize user without pairing flow
-        if (platform === 'wechat') {
-          const db = getDatabase();
-          const now = Date.now();
-          const newUserId = `wechat_${user.id}_${now}`;
-          const createResult = db.createChannelUser({
-            id: newUserId,
-            platformUserId: user.id,
-            platformType: 'wechat',
-            displayName: user.displayName || user.id,
-            authorizedAt: now,
-          });
-          if (!createResult.success) {
-            console.error(`[ActionExecutor] Failed to create WeChat user: ${createResult.error}`);
-            await context.sendMessage({
-              type: 'text',
-              text: '❌ Failed to authorize. Please try again.',
-              parseMode: 'HTML',
-            });
-            return;
-          }
-          console.log(`[ActionExecutor] Auto-authorized WeChat user: ${user.id}`);
+      // Handle /start command
+      // WeChat & WeCom: skip pairing, auto-authorize and continue
+      // Other platforms: show pairing flow
+      if (content.type === 'command' && content.text === '/start') {
+        if (platform === 'wechat' || platform === 'wecom') {
+          console.log(`[ActionExecutor] processMessage: /start for ${platform}, auto-authorizing user`);
+          // Auto-authorize and continue to process message
         } else {
-          // Other platforms: show pairing flow
+          console.log(`[ActionExecutor] processMessage: handling /start command, showing pairing`);
           const result = await handlePairingShow(context);
           if (result.message) {
             await context.sendMessage(result.message);
@@ -365,33 +341,75 @@ export class ActionExecutor {
         }
       }
 
-      // User is authorized - look up the assistant user
-      const db = getDatabase();
-      const userResult = db.getChannelUserByPlatform(user.id, platform);
-      const channelUser = userResult.data;
-
-      if (!channelUser) {
-        console.error(`[ActionExecutor] Authorized user not found in database: ${user.id}`);
-        await context.sendMessage({
-          type: 'text',
-          text: '❌ User data error. Please re-pair your account.',
-          parseMode: 'HTML',
-        });
-        return;
+      // If not authorized, handle based on platform
+      if (!isAuthorized) {
+        console.log(`[ActionExecutor] processMessage: user not authorized, platform=${platform}`);
+        // WeChat & WeCom: auto-authorize user without pairing flow
+        // Enterprise admin controls access via WeCom console "visible range" settings
+        if (platform === 'wechat' || platform === 'wecom') {
+          const db = getDatabase();
+          const now = Date.now();
+          const newUserId = `${platform}_${user.id}_${now}`;
+          const channelUser: IChannelUser = {
+            id: newUserId,
+            platformUserId: user.id,
+            platformType: platform,
+            displayName: user.displayName || user.id,
+            authorizedAt: now,
+          };
+          const createResult = db.createChannelUser(channelUser);
+          if (!createResult.success) {
+            console.error(`[ActionExecutor] Failed to create ${platform} user: ${createResult.error}`);
+            await context.sendMessage({
+              type: 'text',
+              text: '❌ Authorization failed. Please try again.',
+              parseMode: 'HTML',
+            });
+            return;
+          }
+          console.log(`[ActionExecutor] Auto-authorized ${platform} user: ${user.id}`);
+          // Set the channel user in context directly, no need to re-query
+          context.channelUser = channelUser;
+        } else {
+          // Other platforms (dingtalk, lark, telegram): show pairing flow
+          console.log(`[ActionExecutor] processMessage: showing pairing flow for platform=${platform}`);
+          const result = await handlePairingShow(context);
+          if (result.message) {
+            await context.sendMessage(result.message);
+          }
+          return;
+        }
       }
 
-      // Set the assistant user in context
-      context.channelUser = channelUser;
+      // User is authorized - look up the assistant user if not already set
+      if (!context.channelUser) {
+        const db = getDatabase();
+        const userResult = db.getChannelUserByPlatform(user.id, platform);
+        const channelUser = userResult.data;
+
+        if (!channelUser) {
+          console.error(`[ActionExecutor] Authorized user not found in database: ${user.id}`);
+          await context.sendMessage({
+            type: 'text',
+            text: '❌ User data error. Please try again.',
+            parseMode: 'HTML',
+          });
+          return;
+        }
+        context.channelUser = channelUser;
+      }
+
+      const channelUser = context.channelUser;
 
       // Get or create session (scoped by chatId for per-chat isolation)
       let session = this.sessionManager.getSession(channelUser.id, chatId);
       if (!session || !session.conversationId) {
-        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : 'telegram';
+        const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : platform === 'wecom' ? 'wecom' : 'telegram';
 
         // Read selected agent for this platform (defaults to claude)
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
         } catch {
           // ignore
         }

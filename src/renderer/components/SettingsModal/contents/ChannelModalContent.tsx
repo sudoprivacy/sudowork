@@ -23,8 +23,9 @@ import DingTalkConfigForm from './DingTalkConfigForm';
 import LarkConfigForm from './LarkConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
 import WeChatConfigForm from './WeChatConfigForm';
+import WeComConfigForm from './WeComConfigForm';
 
-type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel';
+type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
 
 type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
 
@@ -39,7 +40,7 @@ type ExtensionFieldSchema = {
 
 type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
 
-const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat']);
+const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
 
 /**
  * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence
@@ -156,8 +157,15 @@ const ChannelModalContent: React.FC = () => {
   const [wechatPluginStatus, setWechatPluginStatus] = useState<IChannelPluginStatus | null>(null);
   const [wechatEnableLoading, setWechatEnableLoading] = useState(false);
 
+  // WeCom plugin state
+  const [wecomPluginStatus, setWecomPluginStatus] = useState<IChannelPluginStatus | null>(null);
+  const [wecomEnableLoading, setWecomEnableLoading] = useState(false);
+
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
+
+  // Track WeCom credentials entered in WeComConfigForm
+  const wecomCredentialsRef = React.useRef<{ botId: string; secret: string }>({ botId: '', secret: '' });
 
   // Collapse state - true means collapsed (closed), false means expanded (open)
   const [collapseKeys, setCollapseKeys] = useState<Record<string, boolean>>({
@@ -165,6 +173,7 @@ const ChannelModalContent: React.FC = () => {
     lark: true,
     dingtalk: true,
     wechat: true,
+    wecom: true,
   });
 
   // Model selection state — uses unified hook with ConfigStorage persistence
@@ -172,6 +181,7 @@ const ChannelModalContent: React.FC = () => {
   const larkModelSelection = useChannelModelSelection('assistant.lark.defaultModel');
   const dingtalkModelSelection = useChannelModelSelection('assistant.dingtalk.defaultModel');
   const wechatModelSelection = useChannelModelSelection('assistant.wechat.defaultModel');
+  const wecomModelSelection = useChannelModelSelection('assistant.wecom.defaultModel');
 
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
@@ -182,12 +192,14 @@ const ChannelModalContent: React.FC = () => {
         const larkPlugin = result.data.find((p) => p.type === 'lark');
         const dingtalkPlugin = result.data.find((p) => p.type === 'dingtalk');
         const wechatPlugin = result.data.find((p) => p.type === 'wechat');
+        const wecomPlugin = result.data.find((p) => p.type === 'wecom');
         const extensionPlugins = result.data.filter((p) => !BUILTIN_CHANNEL_TYPES.has(p.type));
 
         setPluginStatus(telegramPlugin || null);
         setLarkPluginStatus(larkPlugin || null);
         setDingtalkPluginStatus(dingtalkPlugin || null);
         setWechatPluginStatus(wechatPlugin || null);
+        setWecomPluginStatus(wecomPlugin || null);
         setExtensionStatuses(() => {
           const next: Record<string, IChannelPluginStatus> = {};
           for (const plugin of extensionPlugins) {
@@ -247,6 +259,8 @@ const ChannelModalContent: React.FC = () => {
         setDingtalkPluginStatus(status);
       } else if (status.type === 'wechat') {
         setWechatPluginStatus(status);
+      } else if (status.type === 'wecom') {
+        setWecomPluginStatus(status);
       } else if (!BUILTIN_CHANNEL_TYPES.has(status.type)) {
         setExtensionStatuses((prev) => ({
           ...prev,
@@ -442,6 +456,69 @@ const ChannelModalContent: React.FC = () => {
       } finally {
         setWechatEnableLoading(false);
       }
+    }
+  };
+
+  // Enable/Disable WeCom plugin
+  const handleToggleWecomPlugin = async (enabled: boolean) => {
+    setWecomEnableLoading(true);
+    try {
+      if (enabled) {
+        // Check if we have credentials from form input
+        const pendingBotId = wecomCredentialsRef.current.botId.trim();
+        const pendingSecret = wecomCredentialsRef.current.secret.trim();
+
+        // If no pending credentials, try to get saved credentials from database
+        if (!pendingBotId || !pendingSecret) {
+          const credResult = await channel.getPluginCredentials.invoke({ pluginId: 'wecom_default' });
+          if (credResult.success && credResult.data?.botId && credResult.data?.secret) {
+            // Found saved credentials, use them
+            const result = await channel.enablePlugin.invoke({
+              pluginId: 'wecom_default',
+              config: {},
+            });
+
+            if (result.success) {
+              Message.success(t('settings.wecom.pluginEnabled', 'WeCom bot enabled'));
+              await loadPluginStatus();
+            } else {
+              Message.error(result.msg || t('settings.wecom.enableFailed', 'Failed to enable WeCom plugin'));
+            }
+            return;
+          }
+
+          // No saved credentials and no pending credentials - show warning
+          Message.warning(t('settings.wecom.credentialsRequired', 'Please configure WeCom credentials first'));
+          setWecomEnableLoading(false);
+          return;
+        }
+
+        // Pass credentials from form input
+        const result = await channel.enablePlugin.invoke({
+          pluginId: 'wecom_default',
+          config: { botId: pendingBotId, secret: pendingSecret },
+        });
+
+        if (result.success) {
+          Message.success(t('settings.wecom.pluginEnabled', 'WeCom bot enabled'));
+          await loadPluginStatus();
+        } else {
+          Message.error(result.msg || t('settings.wecom.enableFailed', 'Failed to enable WeCom plugin'));
+        }
+      } else {
+        const result = await channel.disablePlugin.invoke({ pluginId: 'wecom_default' });
+
+        if (result.success) {
+          Message.success(t('settings.wecom.pluginDisabled', 'WeCom bot disabled'));
+          await loadPluginStatus();
+        } else {
+          Message.error(result.msg || t('settings.wecom.disableFailed', 'Failed to disable WeCom plugin'));
+        }
+      }
+    } catch (error: any) {
+      Message.error(error.message);
+    } finally {
+      setWecomEnableLoading(false);
     }
   };
 
@@ -642,6 +719,27 @@ const ChannelModalContent: React.FC = () => {
       content: <WeChatConfigForm pluginStatus={wechatPluginStatus} modelSelection={wechatModelSelection} onStatusChange={setWechatPluginStatus} />,
     };
 
+    const wecomChannel: ChannelConfig = {
+      id: 'wecom',
+      title: t('settings.channels.wecomTitle', 'WeCom'),
+      description: t('settings.channels.wecomDesc', 'Chat with Sudowork assistant via WeCom (WeChat Work)'),
+      status: 'active',
+      enabled: wecomPluginStatus?.enabled || false,
+      disabled: wecomEnableLoading,
+      isConnected: wecomPluginStatus?.connected || false,
+      defaultModel: wecomModelSelection.currentModel?.useModel,
+      content: (
+        <WeComConfigForm
+          pluginStatus={wecomPluginStatus}
+          modelSelection={wecomModelSelection}
+          onStatusChange={setWecomPluginStatus}
+          onCredentialsChange={(creds) => {
+            wecomCredentialsRef.current = creds;
+          }}
+        />
+      ),
+    };
+
     const extensionChannels: ChannelConfig[] = Object.values(extensionStatuses)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((status) => ({
@@ -659,8 +757,8 @@ const ChannelModalContent: React.FC = () => {
 
     const extensionTypeSet = new Set(extensionChannels.map((channel) => String(channel.id).toLowerCase()));
 
-    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, ...extensionChannels];
-  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wechatEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
+    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
+  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection, wechatEnableLoading, wecomEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {
@@ -668,6 +766,7 @@ const ChannelModalContent: React.FC = () => {
     if (channelId === 'lark') return handleToggleLarkPlugin;
     if (channelId === 'dingtalk') return handleToggleDingtalkPlugin;
     if (channelId === 'wechat') return handleToggleWechatPlugin;
+    if (channelId === 'wecom') return handleToggleWecomPlugin;
     if (extensionStatuses[channelId]) {
       return (enabled: boolean) => {
         void handleToggleExtensionPlugin(channelId, enabled);

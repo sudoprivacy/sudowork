@@ -28,10 +28,7 @@ async function findBuiltinResourceDir(resourceType: ResourceType): Promise<strin
   if (app.isPackaged) {
     const appPath = app.getAppPath();
     const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-    const candidates = [
-      path.join(unpackedPath, resourceType),
-      path.join(appPath, resourceType),
-    ];
+    const candidates = [path.join(unpackedPath, resourceType), path.join(appPath, resourceType)];
     for (const candidate of candidates) {
       try {
         await fs.access(candidate);
@@ -44,12 +41,7 @@ async function findBuiltinResourceDir(resourceType: ResourceType): Promise<strin
     return candidates[0];
   }
   const appPath = app.getAppPath();
-  const candidates = [
-    path.join(appPath, resourceType),
-    path.join(appPath, '..', resourceType),
-    path.join(appPath, '..', '..', resourceType),
-    path.join(appPath, '..', '..', '..', resourceType),
-  ];
+  const candidates = [path.join(appPath, resourceType), path.join(appPath, '..', resourceType), path.join(appPath, '..', '..', resourceType), path.join(appPath, '..', '..', '..', resourceType)];
   for (const candidate of candidates) {
     try {
       await fs.access(candidate);

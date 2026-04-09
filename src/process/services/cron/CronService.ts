@@ -10,7 +10,7 @@ import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import type { AcpBackendConfig, AcpBackendAll } from '@/types/acpTypes';
 import { powerSaveBlocker, app } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
@@ -20,7 +20,6 @@ import { readBuiltinResource, readAssistantResource, ruleFilePattern, skillFileP
 import { getPresetById } from '@/common/presets/presetResolver';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { cronBusyGuard } from './CronBusyGuard';
-import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { createConversation } from '../conversationService';
 
@@ -393,8 +392,7 @@ class CronService {
       let presetCliPath: string | undefined;
       // Normalize stored agentType — legacy jobs may have 'sudoclaw-gateway' which is not a valid conv type
       const storedAgentType = job.metadata.agentType;
-      const normalizedAgentType: AcpBackendAll =
-        (!storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway') ? 'openclaw-gateway' : storedAgentType;
+      const normalizedAgentType: AcpBackendAll = !storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway' ? 'openclaw-gateway' : storedAgentType;
       let resolvedAgentType: AcpBackendAll = normalizedAgentType;
       // convType must be 'openclaw-gateway' or 'acp' — default to openclaw-gateway (Sudoclaw)
       let convType: string = normalizedAgentType === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
