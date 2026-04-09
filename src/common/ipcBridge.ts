@@ -408,6 +408,12 @@ export const openclawConversation = {
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
+  /** Emitted by main process when a conversation is created or updated from channel sources (DingTalk, Telegram, Lark, WeChat, etc.) */
+  conversationChanged: bridge.buildEmitter<{
+    conversationId: string;
+    source?: string;
+    action: 'created' | 'updated';
+  }>('database.conversation-changed'),
 };
 
 export const previewHistory = {

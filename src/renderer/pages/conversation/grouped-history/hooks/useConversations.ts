@@ -57,7 +57,17 @@ export const useConversations = () => {
     };
 
     refresh();
-    return addEventListener('chat.history.refresh', refresh);
+    const removeEventListener = addEventListener('chat.history.refresh', refresh);
+
+    // Listen for IPC events from main process (channel conversations: DingTalk, Telegram, Lark, WeChat, etc.)
+    const removeIpcListener = ipcBridge.database.conversationChanged.on(() => {
+      refresh();
+    });
+
+    return () => {
+      removeEventListener();
+      removeIpcListener();
+    };
   }, []);
 
   // Scroll active conversation into view

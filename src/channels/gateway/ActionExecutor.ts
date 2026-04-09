@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -461,6 +462,15 @@ export class ActionExecutor {
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
           session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), chatId);
+
+          // Notify renderer process to refresh chat history when a new conversation is created from a channel
+          if (!existing) {
+            databaseBridge.conversationChanged.emit({
+              conversationId: result.conversation.id,
+              source,
+              action: 'created',
+            });
+          }
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
@@ -774,6 +784,15 @@ export class ActionExecutor {
 
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
+
+      // Notify renderer process that conversation was updated (updated_at changed)
+      if (conversationId) {
+        databaseBridge.conversationChanged.emit({
+          conversationId,
+          source: context.platform,
+          action: 'updated',
+        });
+      }
     }
   }
 
