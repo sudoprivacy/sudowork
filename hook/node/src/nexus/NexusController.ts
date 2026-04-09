@@ -5,8 +5,8 @@ import { shouldTriggerPopup } from '../blacklist/BlacklistMatcher';
 import type { BlacklistConfig } from '../blacklist/types';
 import { isFastPassEnabled } from '../index';
 
-/** Path to blacklist config in Nexus filesystem */
-const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
+/** Unified hook config path (blacklist is stored alongside enabled state) */
+const HOOK_CONFIG_PATH = '/safe/config/hook';
 
 /** Localhost patterns that should always be allowed (system-level whitelist) */
 const LOCALHOST_PATTERNS = [
@@ -49,25 +49,25 @@ export function getBlacklistConfig(): BlacklistConfig | null {
 }
 
 /**
- * Read blacklist config from Nexus filesystem
+ * Read blacklist config from unified hook config in Nexus filesystem
  */
 async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
   try {
     const nexus = new Nexus(this.serverUrl, this.apikey);
-    const result = await nexus.read(BLACKLIST_CONFIG_PATH, false);
+    const result = await nexus.read(HOOK_CONFIG_PATH, false);
 
-    // Handle Buffer result
+    let data: Record<string, unknown> | null = null;
     if (Buffer.isBuffer(result)) {
-      return JSON.parse(result.toString('utf-8')) as BlacklistConfig;
-    }
-
-    // Handle object result with content
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = result.content;
-      const data = Buffer.isBuffer(content)
+      data = JSON.parse(result.toString('utf-8'));
+    } else if (result && typeof result === 'object' && 'content' in result) {
+      const content = (result as { content: unknown }).content;
+      data = Buffer.isBuffer(content)
         ? JSON.parse(content.toString('utf-8'))
         : JSON.parse(String(content));
-      return data as BlacklistConfig;
+    }
+
+    if (data && data.blacklist) {
+      return data.blacklist as BlacklistConfig;
     }
 
     return null;

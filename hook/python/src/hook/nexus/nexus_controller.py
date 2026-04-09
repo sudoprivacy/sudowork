@@ -175,11 +175,18 @@ class NexusController(Nexus):
 
         Uses a threading lock to prevent concurrent updates. Errors during refresh
         are logged but do not interrupt the hook's operation (stale blacklist is kept).
+
+        Reads from the unified hook config (/safe/config/hook) and extracts the
+        blacklist section.
         """
         if datetime.now() < self.blacklist_update_time:
             return
 
         with self.blacklist_lock:
-            data = json.loads(self.read("/safe/config/blacklist", return_metadata=False))
-            self.blacklist = [BlacklistRule.from_dict(rule) for rule in data.get("rules", [])]
+            from hook.state import HOOK_CONFIG_PATH
+
+            config = json.loads(self.read(HOOK_CONFIG_PATH, return_metadata=False))
+            blacklist_data = config.get("blacklist", {})
+            rules = blacklist_data.get("rules", []) if isinstance(blacklist_data, dict) else []
+            self.blacklist = [BlacklistRule.from_dict(rule) for rule in rules]
             self.blacklist_update_time = datetime.now() + self.blacklist_update_interval

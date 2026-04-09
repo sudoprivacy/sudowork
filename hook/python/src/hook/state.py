@@ -7,7 +7,7 @@ from the Node hook (hook/node/src/index.ts) to ensure consistent behavior
 across both hook implementations.
 
 Key responsibilities:
-- Poll Nexus for enabled/fastPass state changes at configurable intervals
+- Poll Nexus unified config (/safe/config/hook) for state + blacklist in a single RPC call
 - Cache blacklist rules in memory for zero-latency request-path evaluation
 - Provide thread-safe access to state and blacklist from interceptor callbacks
 """
@@ -22,12 +22,12 @@ from hook.nexus.nexus import Nexus, NexusError
 
 logger = logging.getLogger("hook")
 
-# Nexus filesystem paths for configuration
-ENABLED_CONFIG_PATH = "/safe/config/enabled"
-BLACKLIST_CONFIG_PATH = "/safe/config/blacklist"
+# Unified hook config path: combines enabled state + blacklist in one file
+HOOK_CONFIG_PATH = "/safe/config/hook"
 
-# Default state for first run (matches Node hook DEFAULT_STATE)
+# Default unified config for first run (matches Node hook DEFAULT_STATE + empty blacklist)
 DEFAULT_STATE = {"enabled": True, "fastPass": False}
+DEFAULT_HOOK_CONFIG = {"enabled": True, "fastPass": False, "blacklist": {"rules": []}}
 
 
 class HookState:
@@ -102,47 +102,59 @@ class HookState:
         with self._blacklist_lock:
             return list(self._blacklist)
 
-    def read_state(self) -> Optional[dict]:
+    def read_hook_config(self) -> Optional[dict]:
         """
-        Read the current enabled/fastPass state from Nexus.
+        Read the unified hook config from Nexus.
 
         Returns:
-            A dict with 'enabled' and 'fastPass' keys, or None if unavailable.
+            The full config dict (enabled, fastPass, blacklist, etc.), or None if unavailable.
         """
         try:
             nexus = Nexus(self.nexus_url)
-            data = nexus.read(ENABLED_CONFIG_PATH)
+            data = nexus.read(HOOK_CONFIG_PATH)
             if isinstance(data, bytes):
                 return json.loads(data.decode("utf-8"))
             return None
         except (NexusError, Exception):
             return None
 
+    def read_state(self) -> Optional[dict]:
+        """
+        Read the current enabled/fastPass state from Nexus (unified config).
+
+        Returns:
+            A dict with 'enabled' and 'fastPass' keys, or None if unavailable.
+        """
+        config = self.read_hook_config()
+        if config is not None:
+            return {"enabled": config.get("enabled", True), "fastPass": config.get("fastPass", False)}
+        return None
+
     def ensure_state(self) -> dict:
         """
-        Read state from Nexus, creating a default state if none exists.
+        Read state from Nexus, creating a default unified config if none exists.
 
-        Mirrors the Node hook's ensureState() function. If no state exists
-        in Nexus, writes the DEFAULT_STATE and returns it.
+        Mirrors the Node hook's ensureState() function. If no config exists
+        in Nexus, writes the DEFAULT_HOOK_CONFIG and returns the state portion.
 
         Returns:
             A dict with 'enabled' and 'fastPass' keys.
         """
-        state = self.read_state()
-        if state is not None:
-            return state
+        config = self.read_hook_config()
+        if config is not None:
+            return {"enabled": config.get("enabled", True), "fastPass": config.get("fastPass", False)}
 
-        # No state exists, write default (matches Node hook behavior)
+        # No config exists, write default unified config (matches Node hook behavior)
         try:
             nexus = Nexus(self.nexus_url)
             nexus.write(
-                ENABLED_CONFIG_PATH,
-                json.dumps({**DEFAULT_STATE, "timestamp": int(time.time() * 1000)}),
+                HOOK_CONFIG_PATH,
+                json.dumps({**DEFAULT_HOOK_CONFIG, "timestamp": int(time.time() * 1000)}),
             )
-            logger.info("Created default state in Nexus")
+            logger.info("Created default unified config in Nexus")
             return dict(DEFAULT_STATE)
         except (NexusError, Exception):
-            logger.warning("Failed to create default state in Nexus")
+            logger.warning("Failed to create default config in Nexus")
             return dict(DEFAULT_STATE)
 
     def start_polling(self):
@@ -170,40 +182,35 @@ class HookState:
         """
         Main polling loop that refreshes state and blacklist from Nexus.
 
-        Combines state and blacklist polling into a single loop to minimize
-        the number of polling threads and coordinate update timing. Each
-        iteration makes at most 2 Nexus RPC calls (state + blacklist).
+        Reads the unified hook config in a single RPC call per iteration,
+        then updates both enabled/fastPass state and blacklist cache from
+        the same response. This minimizes Nexus request volume.
         """
         while not self._stop_event.is_set():
-            self._update_state()
-            self._update_blacklist()
+            self._update_config()
             self._stop_event.wait(self.polling_interval)
 
-    def _update_state(self):
-        """Refresh enabled/fastPass state from Nexus."""
-        try:
-            state = self.read_state()
-            if state:
-                self.fast_pass = state.get("fastPass", False)
-                self.enabled = state.get("enabled", True)
-        except Exception:
-            pass
-
-    def _update_blacklist(self):
+    def _update_config(self):
         """
-        Refresh blacklist rules from Nexus into the in-memory cache.
+        Refresh both enabled/fastPass state and blacklist from Nexus in a single RPC call.
 
-        The blacklist is stored as a list of dicts (raw Nexus format) and
-        deserialized into BlacklistRule objects by the caller (NexusController).
-        This avoids importing BlacklistRule here and keeps the dependency
-        direction clean (state -> nexus only).
+        Reads the unified hook config (/safe/config/hook) once and extracts:
+        - enabled/fastPass state for FastPass bypass and hook enable/disable
+        - blacklist rules for in-memory cache used by NexusController
         """
         try:
-            nexus = Nexus(self.nexus_url)
-            data = nexus.read(BLACKLIST_CONFIG_PATH)
-            if isinstance(data, bytes):
-                parsed = json.loads(data.decode("utf-8"))
-                rules = parsed.get("rules", [])
+            config = self.read_hook_config()
+            if not config:
+                return
+
+            # Update state
+            self.fast_pass = config.get("fastPass", False)
+            self.enabled = config.get("enabled", True)
+
+            # Update blacklist
+            blacklist_data = config.get("blacklist", {})
+            if isinstance(blacklist_data, dict):
+                rules = blacklist_data.get("rules", [])
                 # Import here to avoid circular dependency
                 from hook.nexus.blacklist import BlacklistRule
 

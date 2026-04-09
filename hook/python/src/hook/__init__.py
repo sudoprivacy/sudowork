@@ -53,10 +53,11 @@ def wait_for_nexus(nexus_url: str, max_retries: int = DEFAULT_MAX_RETRIES) -> bo
         True if Nexus is ready, False if all retries exhausted.
     """
     from hook.nexus.nexus import Nexus, NexusError
+    from hook.state import HOOK_CONFIG_PATH
 
     for i in range(max_retries):
         try:
-            Nexus(nexus_url).read("/safe/config/enabled")
+            Nexus(nexus_url).read(HOOK_CONFIG_PATH)
             return True
         except (NexusError, Exception):
             if i < max_retries - 1:
