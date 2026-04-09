@@ -71,12 +71,30 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     }
   };
 
+  // 扫描子目录（排除 _disable 目录）
   const scanSubdir = async (subdirName: string, forceBuiltin: boolean): Promise<void> => {
     const dir = path.join(skillsDir, subdirName);
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
+      // 跳过 _disable 目录（禁用技能）
+      if (entry.name === '_disable') continue;
       await addSkillDir(entry.name, path.join(dir, entry.name), forceBuiltin);
+    }
+  };
+
+  // 扫描 _system/_builtin 子目录
+  const scanSystemBuiltinSubdir = async (): Promise<void> => {
+    const builtinDir = path.join(skillsDir, SKILL_SUBDIRS.system, '_builtin');
+    try {
+      const entries = await fs.readdir(builtinDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name === '_disable') continue;
+        await addSkillDir(entry.name, path.join(builtinDir, entry.name), true);
+      }
+    } catch {
+      // 目录不存在，跳过
     }
   };
 
@@ -86,6 +104,9 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     await scanSubdir(SKILL_SUBDIRS.custom, false);
     await scanSubdir(SKILL_SUBDIRS.hub, false);
     await scanSubdir(SKILL_SUBDIRS.system, true);
+
+    // 扫描 _system/_builtin/ 子目录（内置技能）
+    await scanSystemBuiltinSubdir();
 
     // Legacy: scan _builtin/ for backward compatibility
     await scanSubdir(SKILL_SUBDIRS.legacyBuiltin, true);

@@ -14,6 +14,7 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
+import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
 import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
@@ -699,226 +700,81 @@ export function initSkillHubBridge(): void {
     }
   });
 
-  // Get installed skills with versions
+  // Get installed skills with versions (using SkillManager)
   ipcBridge.skillHub.getInstalledSkills.provider(async () => {
     try {
-      const userSkillsDir = getUserSkillsDir();
-      const skills: import('@/common/ipcBridge').IInstalledSkillInfo[] = [];
-
-      try {
-        await fs.access(userSkillsDir);
-      } catch {
-        return { success: true, data: [] };
-      }
-
-      // Helper to read a single skill directory
-      const readSkill = async (dirName: string, skillDir: string, forceBuiltin = false) => {
-        // Read version
-        let version = '';
-        try {
-          version = normalizeInstalledSkillVersion(await fs.readFile(path.join(skillDir, VERSION_FILE_NAME), 'utf-8'));
-        } catch {
-          // fallback: try SKILL.md frontmatter
-          try {
-            const content = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
-            const m = content.match(/^version:\s*(.+)$/m);
-            if (m) version = normalizeInstalledSkillVersion(m[1]);
-          } catch {
-            /* ignore */
-          }
-        }
-
-        // Try to read hub metadata file
-        let meta: import('@/common/ipcBridge').ISkillHubMeta | undefined;
-        let isHubInstalled = false;
-        let isBuiltin = forceBuiltin;
-        let enabled = true;
-        try {
-          const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-          meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
-          isHubInstalled = meta.source_type === 'hub' || meta.source_type === undefined;
-          // Use meta.is_builtin if set, otherwise use forceBuiltin
-          if (meta.is_builtin !== undefined) {
-            isBuiltin = meta.is_builtin === true;
-          }
-          enabled = meta.enabled !== false;
-          // Use stored version as source of truth
-          version = normalizeInstalledSkillVersion(meta.installed_version) || version;
-          // Resolve local icon path if icon is a relative path (e.g., "icon.svg")
-          if (meta.icon === UPLOAD_SKILL_DEFAULT_ICON_FILE && meta.source_type === 'upload') {
-            meta.icon = toAssetUrl(getUploadSkillDefaultIconPath());
-          } else if (meta.icon && !meta.icon.startsWith('http') && !meta.icon.startsWith('/') && !meta.icon.startsWith('aion-asset://') && !meta.icon.startsWith('data:')) {
-            const iconAbsPath = path.join(skillDir, meta.icon);
-            meta.icon = toAssetUrl(iconAbsPath);
-          }
-        } catch {
-          // No meta file → locally created skill (not builtin, not hub-installed)
-        }
-
-        return {
-          name: meta?.name?.trim() || dirName,
-          version,
-          isBuiltin,
-          isHubInstalled,
-          enabled,
-          meta,
-        };
-      };
-
-      // 1. Read skills from _my-custom-skill directory (custom uploaded)
-      const customDir = path.join(userSkillsDir, SKILL_SUBDIRS.custom);
-      try {
-        await fs.access(customDir);
-        const customEntries = await fs.readdir(customDir, { withFileTypes: true });
-        for (const entry of customEntries) {
-          if (!entry.isDirectory()) continue;
-          const skillDir = path.join(customDir, entry.name);
-          const skill = await readSkill(entry.name, skillDir, false);
-          skills.push(skill);
-        }
-      } catch {
-        // _my-custom-skill directory doesn't exist
-      }
-
-      // 2. Read skills from _hub directory (hub-installed)
-      const hubDir = path.join(userSkillsDir, SKILL_SUBDIRS.hub);
-      try {
-        await fs.access(hubDir);
-        const hubEntries = await fs.readdir(hubDir, { withFileTypes: true });
-        for (const entry of hubEntries) {
-          if (!entry.isDirectory()) continue;
-          const skillDir = path.join(hubDir, entry.name);
-          const skill = await readSkill(entry.name, skillDir, false);
-          skills.push(skill);
-        }
-      } catch {
-        // _hub directory doesn't exist
-      }
-
-      // 3. Read skills from _system directory (builtin)
-      const systemDir = path.join(userSkillsDir, SKILL_SUBDIRS.system);
-      try {
-        await fs.access(systemDir);
-        const systemEntries = await fs.readdir(systemDir, { withFileTypes: true });
-        for (const entry of systemEntries) {
-          if (!entry.isDirectory()) continue;
-          const skillDir = path.join(systemDir, entry.name);
-          const skill = await readSkill(entry.name, skillDir, true); // force builtin
-          skills.push(skill);
-        }
-      } catch {
-        // _system directory doesn't exist
-      }
-
-      // 4. Legacy: read _builtin directory for backward compatibility
-      const legacyBuiltinDir = path.join(userSkillsDir, SKILL_SUBDIRS.legacyBuiltin);
-      try {
-        await fs.access(legacyBuiltinDir);
-        const builtinEntries = await fs.readdir(legacyBuiltinDir, { withFileTypes: true });
-        const existingNames = new Set(skills.map((s) => s.name));
-        for (const entry of builtinEntries) {
-          if (!entry.isDirectory()) continue;
-          if (existingNames.has(entry.name)) continue;
-          const skillDir = path.join(legacyBuiltinDir, entry.name);
-          const skill = await readSkill(entry.name, skillDir, true);
-          skills.push(skill);
-        }
-      } catch {
-        // legacy _builtin directory doesn't exist
-      }
-
-      // 5. Legacy: read flat directories (non-`_` prefixed) for backward compatibility
-      const entries = await fs.readdir(userSkillsDir, { withFileTypes: true });
-      const existingNames = new Set(skills.map((s) => s.name));
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        if (entry.name.startsWith('_')) continue; // skip all special directories
-        if (existingNames.has(entry.name)) continue;
-
-        const skillDir = path.join(userSkillsDir, entry.name);
-        const skill = await readSkill(entry.name, skillDir, false);
-        skills.push(skill);
-      }
-
-      return { success: true, data: skills };
+      const skills = await skillManager.getInstalledSkills();
+      // 转换为前端需要的格式，补充 ISkillHubMeta 需要的必填字段
+      const result: import('@/common/ipcBridge').IInstalledSkillInfo[] = skills.map((skill) => ({
+        name: skill.name,
+        version: skill.version,
+        isBuiltin: skill.isBuiltin,
+        isHubInstalled: skill.isHubInstalled,
+        enabled: skill.enabled,
+        meta: skill.meta
+          ? {
+              ...skill.meta,
+              // 补充 ISkillHubMeta 必填字段
+              name: skill.meta.name || skill.name,
+              id: skill.meta.id || skill.name,
+              display_name: skill.meta.display_name || skill.name,
+              description: skill.meta.description || '',
+              icon: skill.meta.icon || '',
+              emoji: skill.meta.emoji ?? null,
+              category: skill.meta.category || '',
+              categories: skill.meta.categories || [],
+              applicable_scenarios: skill.meta.applicable_scenarios ?? null,
+              core_features: skill.meta.core_features ?? null,
+              homepage: skill.meta.homepage ?? null,
+              author_id: skill.meta.author_id || '',
+              installed_version: skill.meta.installed_version || skill.version,
+              installed_at: skill.meta.installed_at || '',
+            }
+          : undefined,
+      }));
+      return { success: true, data: result };
     } catch (error) {
       mainError('SkillHub', 'Failed to get installed skills:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  // Uninstall a hub-installed skill (built-in skills are rejected)
+  // Uninstall a skill (using SkillManager)
   ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
     try {
-      const userSkillsDir = getUserSkillsDir();
-      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
-      if (!skillDir) {
-        return { success: false, msg: 'Skill not found' };
+      const result = await skillManager.uninstallSkill(skillName);
+      if (result.success) {
+        void (async () => {
+          try {
+            await reloadSkillRuntime();
+          } catch (err) {
+            mainWarn('SkillHub', 'Reload after uninstall failed:', err);
+            await WorkerManage.restartOpenClawGateways();
+          }
+        })();
       }
-
-      // Safety check: must be within user skills dir
-      const resolvedSkillDir = path.resolve(skillDir);
-      const resolvedSkillsDir = path.resolve(userSkillsDir);
-      if (!resolvedSkillDir.startsWith(resolvedSkillsDir + path.sep)) {
-        return { success: false, msg: 'Invalid skill path' };
-      }
-
-      // Check if skill is built-in via meta file
-      try {
-        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
-        if (meta.is_builtin === true) {
-          return { success: false, msg: '该技能为内置技能，无法卸载' };
-        }
-      } catch {
-        // No meta file → locally created skill, allow uninstall
-      }
-
-      await fs.rm(skillDir, { recursive: true, force: true });
-      void (async () => {
-        try {
-          await reloadSkillRuntime();
-        } catch (err) {
-          mainWarn('SkillHub', 'Reload after uninstall failed:', err);
-          await WorkerManage.restartOpenClawGateways();
-        }
-      })();
-      return { success: true };
+      return result;
     } catch (error) {
       mainError('SkillHub', 'Failed to uninstall skill:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
 
+  // Enable/disable a skill (using SkillManager)
   ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled }) => {
     try {
-      const userSkillsDir = getUserSkillsDir();
-      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
-      if (!skillDir) {
-        return { success: false, msg: 'Skill not found' };
+      const result = enabled ? await skillManager.enableSkill(skillName) : await skillManager.disableSkill(skillName);
+      if (result.success) {
+        void (async () => {
+          try {
+            await reloadSkillRuntime();
+          } catch (err) {
+            mainWarn('SkillHub', 'Reload after enable toggle failed:', err);
+            await WorkerManage.restartOpenClawGateways();
+          }
+        })();
       }
-
-      const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
-      const raw = await fs.readFile(metaFilePath, 'utf-8');
-      const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
-
-      if (meta.is_builtin === true) {
-        return { success: false, msg: '内置技能无法禁用' };
-      }
-
-      meta.enabled = enabled;
-      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-
-      void (async () => {
-        try {
-          await reloadSkillRuntime();
-        } catch (err) {
-          mainWarn('SkillHub', 'Reload after enable toggle failed:', err);
-          await WorkerManage.restartOpenClawGateways();
-        }
-      })();
-
-      return { success: true };
+      return result;
     } catch (error) {
       mainError('SkillHub', 'Failed to update skill enabled state:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };

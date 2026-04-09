@@ -336,13 +336,8 @@ const getCustomSkillsDir = () => {
  * 4. Move _builtin/ contents to _system/ if _builtin/ still exists
  */
 const migrateSkillsToSubdirectories = async (): Promise<void> => {
-  const MIGRATION_KEY = 'migration.skillSubdirectoriesMigrated';
-  const migrationDone = await configFile.get(MIGRATION_KEY).catch(() => false);
-  if (migrationDone) return;
-
   const skillsDir = getSkillsDir();
   if (!existsSync(skillsDir)) {
-    await configFile.set(MIGRATION_KEY, true);
     return;
   }
 
@@ -433,8 +428,6 @@ const migrateSkillsToSubdirectories = async (): Promise<void> => {
   } catch (error) {
     mainError('SkillMigration', 'Skill subdirectory migration failed:', error);
   }
-
-  await configFile.set(MIGRATION_KEY, true);
 };
 
 /**
