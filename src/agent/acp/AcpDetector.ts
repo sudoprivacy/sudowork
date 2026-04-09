@@ -320,6 +320,16 @@ class AcpDetector {
     // Re-add custom agents with current config
     await this.addCustomAgentsToList(this.detectedAgents);
   }
+
+  /**
+   * Re-run full agent detection (e.g. after CLI install/uninstall).
+   * Resets the detection flag and re-initializes so that newly installed
+   * or removed CLI agents are picked up immediately.
+   */
+  async rescanCliAgents(): Promise<void> {
+    this.isDetected = false;
+    await this.initialize();
+  }
 }
 
 // 单例实例

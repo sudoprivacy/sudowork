@@ -119,7 +119,10 @@ const SkillCard: React.FC<{
   installProgress: number;
   onInstall: (e: React.MouseEvent) => void;
   onClick: () => void;
-}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick }) => {
+  hasUpdate?: boolean;
+  onUpdate?: (e: React.MouseEvent) => void;
+  updating?: boolean;
+}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating }) => {
   const { t } = useTranslation();
 
   return (
@@ -127,7 +130,11 @@ const SkillCard: React.FC<{
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
-        {isInstalled && <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
+        {isInstalled && (
+          <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>
+            {hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}
+          </span>
+        )}
       </div>
 
       {/* Content */}
@@ -140,10 +147,15 @@ const SkillCard: React.FC<{
 
       {/* Action - top right */}
       <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
-        {installing ? (
+        {installing || updating ? (
           <div className='w-52px'>
             <Progress percent={installProgress} size='mini' />
           </div>
+        ) : isInstalled && hasUpdate ? (
+          <button type='button' className='h-24px px-8px rd-full border-none bg-warning-light text-warning text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:opacity-80' onClick={onUpdate}>
+            <Install size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.update', { defaultValue: '更新' })}</span>
+          </button>
         ) : !isInstalled && hasVersion ? (
           <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
             <Install size='13' />
@@ -164,7 +176,10 @@ const InstalledSkillCard: React.FC<{
   onToggleEnabled?: (enabled: boolean) => void;
   togglingEnabled: boolean;
   onClick?: () => void;
-}> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick }) => {
+  hasUpdate?: boolean;
+  onUpdate?: () => void;
+  updating?: boolean;
+}> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating }) => {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
   const canUninstall = !skill.isBuiltin;
@@ -211,7 +226,20 @@ const InstalledSkillCard: React.FC<{
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
-        <div className='h-18px mt-2px flex items-center'>{!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}</div>
+        <div className='h-18px mt-2px flex items-center gap-4px'>
+          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {hasUpdate && (
+            <span
+              className='px-5px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px cursor-pointer hover:opacity-80 transition-opacity'
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate?.();
+              }}
+            >
+              {updating ? <Spin size={10} /> : t('settings.skill.updateAvailable', { defaultValue: '可更新' })}
+            </span>
+          )}
+        </div>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
@@ -259,6 +287,12 @@ const SkillDetailModal: React.FC<{
   uninstalling: boolean;
   /** Callback when "Go Use" button is clicked */
   onGoUse?: () => void;
+  /** Callback when "Update" button is clicked */
+  onUpdate?: () => void;
+  /** Whether an update is currently in progress */
+  updating?: boolean;
+  /** The currently installed version string (for update comparison) */
+  installedVersion?: string;
   /**
    * When true, skip the remote API fetch for detail.
    * Use this when opening from the installed tab where all data is
@@ -267,7 +301,7 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, skipApiFetch = false, hideActions = false }) => {
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -310,7 +344,7 @@ const SkillDetailModal: React.FC<{
 
   const coreFeatures = parseCoreFeatures(skill.core_features);
   const applicableScenarios = parseJsonArray(skill.applicable_scenarios);
-  const hasUpdate = isInstalled && latestVersionInfo;
+  const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
     <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='skill-detail-modal' wrapClassName='skill-detail-modal-wrap'>
@@ -390,9 +424,18 @@ const SkillDetailModal: React.FC<{
           <div className='flex gap-8px items-center'>
             {isInstalled ? (
               <>
-                <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                  {t('settings.skill.goUse', { defaultValue: '去使用' })}
-                </Button>
+                {hasUpdate ? (
+                  <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
+                    <span className='flex items-center gap-6px justify-center'>
+                      <Install size='15' />
+                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
+                    </span>
+                  </Button>
+                ) : (
+                  <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
+                    {t('settings.skill.goUse', { defaultValue: '去使用' })}
+                  </Button>
+                )}
                 {canUninstall &&
                   (uninstalling ? (
                     <div className='w-36px h-36px flex items-center justify-center'>
@@ -472,6 +515,7 @@ const SkillModalContent: React.FC = () => {
   const [installProgress, setInstallProgress] = useState(0);
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
   const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
+  const [updatingSkillId, setUpdatingSkillId] = useState<string | null>(null);
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
@@ -493,6 +537,9 @@ const SkillModalContent: React.FC = () => {
   const latestVersionsRef = useRef(latestVersions);
   latestVersionsRef.current = latestVersions;
 
+  // Track whether the installed-skill comparison map has been loaded at least once
+  const [installedSkillsReady, setInstalledSkillsReady] = useState(false);
+
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
     if (!isElectronDesktop()) return;
@@ -500,11 +547,18 @@ const SkillModalContent: React.FC = () => {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
         const map = new Map<string, string>();
-        for (const s of res.data) map.set(s.name, s.version);
+        // Only hub-installed skills should participate in the store comparison
+        for (const s of res.data) {
+          if (s.meta?.source_type === 'hub' || (!s.meta?.source_type && s.isHubInstalled)) {
+            map.set(s.name, s.version);
+          }
+        }
         setInstalledSkills(map);
       }
     } catch (err) {
       console.error('Failed to fetch installed skills:', err);
+    } finally {
+      setInstalledSkillsReady(true);
     }
   }, []);
 
@@ -774,6 +828,23 @@ const SkillModalContent: React.FC = () => {
     }
   }, [activeTab, fetchInstalledList]);
 
+  // Fetch latest hub versions for installed hub skills so we can detect updates
+  useEffect(() => {
+    if (installedList.length === 0) return;
+    const hubInstalled = installedList.filter((s) => s.isHubInstalled && s.meta?.id);
+    if (hubInstalled.length === 0) return;
+
+    // Build minimal synthetic skill objects so we can reuse fetchLatestVersions
+    const syntheticSkills = hubInstalled.map(
+      (s) =>
+        ({
+          id: s.meta!.id,
+          name: s.name,
+        }) as ISkillHubSkill
+    );
+    void fetchLatestVersions(syntheticSkills, latestVersionsRef.current);
+  }, [installedList, fetchLatestVersions]);
+
   // ---- Install handler ----
   const handleInstall = useCallback(
     async (skillId: string) => {
@@ -903,6 +974,67 @@ const SkillModalContent: React.FC = () => {
     [fetchInstalledSkills, fetchInstalledList, detailSkill]
   );
 
+  // ---- Update handler (reuses install flow to replace installed skill with newer version) ----
+  const handleUpdate = useCallback(
+    async (skillId: string, skillName?: string, skillMeta?: ISkillHubMeta) => {
+      if (!isElectronDesktop()) return;
+
+      const versionInfo = latestVersions.get(skillId);
+      if (!versionInfo) return;
+
+      // Resolve skill name and meta from either the store list or the installed list
+      const storeSkill = skills.find((s) => s.id === skillId);
+      const installedSkill = installedList.find((s) => s.meta?.id === skillId);
+      const resolvedName = skillName || storeSkill?.name || installedSkill?.name;
+      const resolvedDisplayName = storeSkill?.display_name || installedSkill?.meta?.display_name || resolvedName || '';
+
+      if (!resolvedName) return;
+
+      setUpdatingSkillId(skillId);
+      setInstallProgress(0);
+      try {
+        const res = await skillHub.downloadAndInstallSkill.invoke({
+          skillName: resolvedName,
+          displayName: resolvedDisplayName,
+          sourceUrl: versionInfo.sourceUrl,
+          version: versionInfo.version,
+          checksum: versionInfo.checksum,
+          skillMeta: storeSkill || (skillMeta as unknown as ISkillHubSkill),
+        });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.updateSuccess', {
+              name: resolvedDisplayName,
+              version: versionInfo.version,
+              defaultValue: `已更新 ${resolvedDisplayName} 至 v${versionInfo.version}`,
+            })
+          );
+          await fetchInstalledSkills();
+          await fetchInstalledList();
+        } else {
+          Message.error(
+            t('settings.skill.updateFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `更新失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to update skill:', err);
+        Message.error(
+          t('settings.skill.updateFailed', {
+            msg: String(err),
+            defaultValue: `更新失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setUpdatingSkillId(null);
+        setInstallProgress(0);
+      }
+    },
+    [skills, installedList, latestVersions, fetchInstalledSkills, fetchInstalledList, t]
+  );
+
   const handleToggleSkillEnabled = useCallback(
     async (skillName: string, enabled: boolean) => {
       if (!isElectronDesktop()) return;
@@ -963,24 +1095,33 @@ const SkillModalContent: React.FC = () => {
 
   const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[]) => (
     <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-      {skillList.map((skill) => (
-        <InstalledSkillCard
-          key={skill.name}
-          skill={skill}
-          onUninstall={() => void handleUninstall(skill.name)}
-          uninstalling={uninstallingSkillName === skill.name}
-          onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled)}
-          togglingEnabled={togglingSkillName === skill.name}
-          onClick={
-            skill.meta
-              ? () => {
-                  setInstalledDetailInfo(skill);
-                  setInstalledDetailVisible(true);
-                }
-              : undefined
-          }
-        />
-      ))}
+      {skillList.map((skill) => {
+        const skillHubId = skill.meta?.id;
+        const latestVer = skillHubId ? latestVersions.get(skillHubId) : undefined;
+        const installedVer = normalizeSkillVersion(skill.version);
+        const skillHasUpdate = skill.isHubInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
+        return (
+          <InstalledSkillCard
+            key={skill.name}
+            skill={skill}
+            onUninstall={() => void handleUninstall(skill.name)}
+            uninstalling={uninstallingSkillName === skill.name}
+            onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled)}
+            togglingEnabled={togglingSkillName === skill.name}
+            hasUpdate={skillHasUpdate}
+            onUpdate={() => skillHubId && void handleUpdate(skillHubId, skill.name, skill.meta)}
+            updating={updatingSkillId === skillHubId}
+            onClick={
+              skill.meta
+                ? () => {
+                    setInstalledDetailInfo(skill);
+                    setInstalledDetailVisible(true);
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
     </div>
   );
 
@@ -1030,7 +1171,7 @@ const SkillModalContent: React.FC = () => {
 
           {/* Skill grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleScroll}>
-            {loading ? (
+            {loading || !installedSkillsReady ? (
               <div className='flex justify-center items-center py-48px'>
                 <Spin size={28} />
               </div>
@@ -1045,6 +1186,10 @@ const SkillModalContent: React.FC = () => {
                   const isInstalled = installedSkills.has(skill.name);
                   const hasVersion = latestVersions.has(skill.id);
                   const isInstalling = installingSkillId === skill.id;
+                  const isUpdating = updatingSkillId === skill.id;
+                  const installedVer = normalizeSkillVersion(installedSkills.get(skill.name));
+                  const latestVer = latestVersions.get(skill.id);
+                  const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
                   return (
                     <SkillCard
                       key={skill.id}
@@ -1058,6 +1203,12 @@ const SkillModalContent: React.FC = () => {
                         void handleInstall(skill.id);
                       }}
                       onClick={() => openDetail(skill)}
+                      hasUpdate={skillHasUpdate}
+                      onUpdate={(e) => {
+                        e.stopPropagation();
+                        void handleUpdate(skill.id);
+                      }}
+                      updating={isUpdating}
                     />
                   );
                 })}
@@ -1135,30 +1286,45 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} onGoUse={handleGoUse} />
+      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} onGoUse={handleGoUse} onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)} updating={detailSkill ? updatingSkillId === detailSkill.id : false} installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined} />
 
-      {/* Installed skill detail modal — data from local _sudowork_meta.json, no action buttons */}
-      <SkillDetailModal
-        skill={installedDetailInfo?.meta ? installedInfoToSkill(installedDetailInfo) : null}
-        visible={installedDetailVisible}
-        onClose={() => {
-          setInstalledDetailVisible(false);
-          setInstalledDetailInfo(null);
-        }}
-        isInstalled
-        isHubInstalled={false}
-        hasVersion={false}
-        latestVersionInfo={undefined}
-        installing={false}
-        downloading={false}
-        installProgress={0}
-        onInstall={() => {}}
-        onDownload={() => {}}
-        onUninstall={() => {}}
-        uninstalling={false}
-        skipApiFetch
-        hideActions
-      />
+      {/* Installed skill detail modal — data from local _sudowork_meta.json */}
+      {(() => {
+        const installedDetailHubId = installedDetailInfo?.meta?.id;
+        const installedDetailLatestVer = installedDetailHubId ? latestVersions.get(installedDetailHubId) : undefined;
+        const installedDetailInstalledVer = normalizeSkillVersion(installedDetailInfo?.version);
+        const installedDetailHasUpdate = !!installedDetailInfo?.isHubInstalled && !!installedDetailLatestVer && (!installedDetailInstalledVer || installedDetailLatestVer.version !== installedDetailInstalledVer);
+        return (
+          <SkillDetailModal
+            skill={installedDetailInfo?.meta ? installedInfoToSkill(installedDetailInfo) : null}
+            visible={installedDetailVisible}
+            onClose={() => {
+              setInstalledDetailVisible(false);
+              setInstalledDetailInfo(null);
+            }}
+            isInstalled
+            isHubInstalled={installedDetailInfo?.isHubInstalled ?? false}
+            hasVersion={false}
+            latestVersionInfo={installedDetailLatestVer}
+            installing={false}
+            downloading={false}
+            installProgress={0}
+            onInstall={() => {}}
+            onDownload={() => {}}
+            onUninstall={() => installedDetailInfo && void handleUninstall(installedDetailInfo.name)}
+            uninstalling={installedDetailInfo ? uninstallingSkillName === installedDetailInfo.name : false}
+            onGoUse={installedDetailInfo ? () => {
+              setInstalledDetailVisible(false);
+              void navigate(`/guid?skill=${encodeURIComponent(installedDetailInfo.name)}`);
+            } : undefined}
+            onUpdate={() => installedDetailHubId && void handleUpdate(installedDetailHubId, installedDetailInfo?.name, installedDetailInfo?.meta)}
+            updating={installedDetailHubId ? updatingSkillId === installedDetailHubId : false}
+            installedVersion={installedDetailInstalledVer}
+            skipApiFetch
+            hideActions={!installedDetailHasUpdate && !installedDetailInfo?.isHubInstalled}
+          />
+        );
+      })()}
     </div>
   );
 };
