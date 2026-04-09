@@ -165,7 +165,7 @@ win:
     - from: resources
       to: .
       filter:
-        - v*-nexus-cluster-windows-*.exe
+        - v*-nexus-cluster-windows-*
 
 nsis:
   oneClick: false

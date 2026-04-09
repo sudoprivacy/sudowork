@@ -4,7 +4,9 @@
  * Run during build process: bun run nexus:download
  *
  * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/download/v{version}/
- * Saves with versioned filename: resources/v{version}-nexus-cluster-{os}-{arch}[.exe]
+ * Saves with versioned filename:
+ * - Windows: resources/v{version}-nexus-cluster-{os}-{arch}.zip
+ * - macOS/Linux: resources/v{version}-nexus-cluster-{os}-{arch}.tar.gz
  *
  * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed
  * when platform-specific binaries are not yet available.
