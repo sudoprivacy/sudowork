@@ -400,8 +400,18 @@ $\r$\n\
   !insertmacro MUI_PAGE_FINISH
 
   Function finishPageShow
-    ; Make the "Run" checkbox readable on the dark finish page background
-    SetCtlColors $mui.FinishPage.Run "FFFFFF" "161C2D"
+    ; Make the "Run" checkbox readable on the dark finish page background.
+    ;
+    ; On Windows 10/11 with visual styles enabled, checkbox controls are
+    ; drawn by the theme engine (uxtheme.dll), which ignores the text/bg
+    ; colours set via SetCtlColors (WM_CTLCOLORSTATIC).  Calling
+    ; SetWindowTheme(hwnd, L" ", L" ") disables the visual style for this
+    ; specific control, falling back to classic rendering that honours
+    ; SetCtlColors.
+    ${If} $mui.FinishPage.Run != 0
+      System::Call 'uxtheme::SetWindowTheme(p $mui.FinishPage.Run, w " ", w " ")'
+      SetCtlColors $mui.FinishPage.Run "FFFFFF" "161C2D"
+    ${EndIf}
   FunctionEnd
 !macroend
 
