@@ -20,6 +20,7 @@ import { initFileWatchBridge } from './fileWatchBridge';
 import { initFsBridge } from './fsBridge';
 import { initGeminiBridge } from './geminiBridge';
 import { initMcpBridge } from './mcpBridge';
+import { initMcporterBridge } from './mcporterBridge';
 import { initModelBridge } from './modelBridge';
 import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
@@ -64,6 +65,7 @@ export function initAllBridges(): void {
   initAuthBridge();
   initModelBridge();
   initMcpBridge();
+  initMcporterBridge();
   initDatabaseBridge();
   initPreviewHistoryBridge();
   initDocumentBridge();

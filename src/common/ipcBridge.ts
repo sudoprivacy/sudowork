@@ -339,6 +339,25 @@ export const mcpService = {
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
 };
 
+// mcporter 服务相关接口
+export interface IMcporterDaemonStatus {
+  running: boolean;
+  pid?: number;
+  socketPath?: string;
+  uptime?: number;
+}
+
+export const mcporterService = {
+  isAvailable: bridge.buildProvider<IBridgeResponse<boolean>, void>('mcporter.is-available'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.install'),
+  syncConfig: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.sync-config'),
+  startDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.start-daemon'),
+  stopDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.stop-daemon'),
+  getDaemonStatus: bridge.buildProvider<IBridgeResponse<IMcporterDaemonStatus>, void>('mcporter.get-daemon-status'),
+  getConfigPath: bridge.buildProvider<IBridgeResponse<string>, void>('mcporter.get-config-path'),
+  initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
+};
+
 // OpenClaw 对话相关接口 - 复用统一的conversation接口
 export const openclawConversation = {
   sendMessage: conversation.sendMessage,
