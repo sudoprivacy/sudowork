@@ -43,6 +43,10 @@ class ServiceManager {
   private gatewayReadyResolve: ((value: { host: string; port: number } | null) => void) | null = null;
   private gatewayReadyPromise: Promise<{ host: string; port: number } | null> | null = null;
 
+  // Deferred promise resolved when secrets are initialized (or failed).
+  private secretsReadyResolve: ((value: boolean) => void) | null = null;
+  private secretsReadyPromise: Promise<boolean> | null = null;
+
   private buildSudoclawStartDiagnostics(lastHealth: SudoclawHealthCheckResult): {
     launchCommand: ReturnType<OpenClawGateway['getLastLaunchCommand']>;
     lastHealth: SudoclawHealthCheckResult;
@@ -218,11 +222,18 @@ class ServiceManager {
 
       // Initialize secrets system after Nexus is healthy
       // This runs migration (if needed) and preloads the secret cache
-      this.initializeSecrets().catch((err) => {
-        mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
       });
+      this.initializeSecrets()
+        .then(() => this.secretsReadyResolve?.(true))
+        .catch((err) => {
+          mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+          this.secretsReadyResolve?.(false);
+        });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
+      this.secretsReadyResolve?.(false);
       throw err;
     }
   }
@@ -658,6 +669,27 @@ class ServiceManager {
       return null;
     }
     return this.gatewayReadyPromise;
+  }
+
+  /**
+   * Wait for the secrets system to be initialized.
+   * Channel plugins call this before loading to ensure credentials are available.
+   * Polls until the promise is created (Nexus may still be starting),
+   * then awaits its resolution.
+   */
+  async waitForSecrets(): Promise<boolean> {
+    // Poll until the promise is created by startNexusOnce()
+    const POLL_INTERVAL_MS = 200;
+    const MAX_POLL_MS = 120_000;
+    const deadline = Date.now() + MAX_POLL_MS;
+    while (!this.secretsReadyPromise && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+    if (!this.secretsReadyPromise) {
+      // Timeout or startup never reached secrets initialization.
+      return false;
+    }
+    return this.secretsReadyPromise;
   }
 
   /** Send SIGUSR1 to the gateway for hot-reload (skills/config). */
