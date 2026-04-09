@@ -2,7 +2,6 @@ import { ipcBridge } from '../../common';
 import { dynamicNexusService, type NexusSetupStatus } from '../services/nexus/DynamicNexusService';
 import { serviceManager } from '../services/serviceManager';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import runtimeVersions from '@/shared/runtime-versions.json';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
@@ -126,34 +125,17 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.installFromLocalFile.provider(async ({ filePath }) => {
     try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const app = await import('electron').then((m) => m.app);
-      const isWindows = process.platform === 'win32';
-
-      const binDir = path.join(app.getPath('home'), '.nexus', 'bin');
-      const nexusdName = isWindows ? 'nexusd.exe' : 'nexusd';
-      const destPath = path.join(binDir, nexusdName);
-
-      // Ensure bin directory exists
-      await fs.promises.mkdir(binDir, { recursive: true });
-
-      // Copy the binary file to ~/.nexus/bin/nexusd
-      mainLog('NexusBridge', `Copying local nexus binary to ${destPath}...`);
-      await fs.promises.copyFile(filePath, destPath);
-
-      // Make binary executable on macOS/Linux
-      if (!isWindows) {
-        fs.chmodSync(destPath, 0o755);
+      const isArchive = filePath.endsWith('.tar.gz') || filePath.endsWith('.tgz') || filePath.endsWith('.zip');
+      if (!isArchive) {
+        return { success: false, msg: 'Unsupported file format. Please provide a .tar.gz or .zip archive.' };
       }
 
-      // Write version marker (use nexus runtime version for consistency with DynamicNexusService)
-      const markerFile = path.join(binDir, '.nexus-bin-ready');
-      await fs.promises.writeFile(markerFile, runtimeVersions.nexus);
-      mainLog('NexusBridge', 'Local file installation complete, starting service...');
+      mainLog('NexusBridge', `Installing Nexus from local archive: ${filePath}...`);
+      await dynamicNexusService.installFromArchive(filePath);
+      mainLog('NexusBridge', 'Local archive installation complete, starting service...');
 
       await serviceManager.startNexus();
-      mainLog('NexusBridge', 'Nexus service started after local file install');
+      mainLog('NexusBridge', 'Nexus service started after local archive install');
 
       return { success: true, msg: 'Nexus 安装并启动成功' };
     } catch (err) {

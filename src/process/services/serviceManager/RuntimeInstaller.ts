@@ -378,6 +378,15 @@ class RuntimeInstaller {
           initStatusManager.setStepProgress('claude', 10, `正在准备 Claude Code CLI... ${percent ?? 0}%`);
         });
 
+        try {
+          const { acpDetector } = await import('@/agent/acp/AcpDetector');
+          await acpDetector.rescanCliAgents();
+          initStatusManager.addLog('✓ Claude Code CLI agent 列表已刷新');
+        } catch (error) {
+          mainWarn(TAG, 'Claude Code CLI installed but agent rescan failed', error);
+          initStatusManager.addLog(`⚠ Claude Code CLI 安装完成，但 agent 列表刷新失败: ${error instanceof Error ? error.message : String(error)}`);
+        }
+
         markStepDone('claude', 'Claude Code CLI 已安装');
         initStatusManager.addLog('✓ Claude Code CLI 安装完成');
         return { step: 'claude', ok: true, required: false };

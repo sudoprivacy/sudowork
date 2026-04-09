@@ -27,13 +27,13 @@ describe('DynamicNexusService install readiness', () => {
   let originalResourcesPath: PropertyDescriptor | undefined;
   const nexusdName = process.platform === 'win32' ? 'nexusd.exe' : 'nexusd';
 
-  // Construct the versioned binary name used in resources/
+  // Construct the versioned archive name used in resources/
   const osNameMap: Record<string, string> = { darwin: 'macos', win32: 'windows' };
   const archNameMap: Record<string, string> = { arm64: 'arm64', x64: 'x86_64' };
   const osName = osNameMap[process.platform] ?? process.platform;
   const archName = archNameMap[process.arch] ?? process.arch;
-  const ext = process.platform === 'win32' ? '.exe' : '';
-  const versionedBinaryName = `v${runtimeVersions.nexus}-nexus-cluster-${osName}-${archName}${ext}`;
+  const archiveExt = process.platform === 'win32' ? '.zip' : '.tar.gz';
+  const versionedArchiveName = `v${runtimeVersions.nexus}-nexus-cluster-${osName}-${archName}${archiveExt}`;
 
   beforeEach(() => {
     vi.resetModules();
@@ -45,8 +45,8 @@ describe('DynamicNexusService install readiness', () => {
 
     fs.mkdirSync(resourcesDir, { recursive: true });
     fs.mkdirSync(dataDir, { recursive: true });
-    // Write the bundled binary with versioned filename (e.g. v0.9.28-nexus-cluster-macos-arm64)
-    fs.writeFileSync(path.join(resourcesDir, versionedBinaryName), Buffer.alloc(1024 * 1024));
+    // Write the bundled archive with versioned filename (e.g. v0.9.29-nexus-cluster-macos-arm64.tar.gz)
+    fs.writeFileSync(path.join(resourcesDir, versionedArchiveName), Buffer.alloc(1024 * 1024));
 
     vi.doMock('electron', () => ({
       app: {
@@ -112,6 +112,34 @@ describe('DynamicNexusService install readiness', () => {
     const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
 
     await expect(dynamicNexusService.getInstalledVersion()).resolves.toBe(String(runtimeVersions.nexus));
+  });
+
+  it('returns the marker version even when it differs from the bundled version', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), '0.9.28');
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    await expect(dynamicNexusService.getInstalledVersion()).resolves.toBe('0.9.28');
+    await expect(dynamicNexusService.getVersionState()).resolves.toEqual({
+      installedVersion: '0.9.28',
+      bundledVersion: String(runtimeVersions.nexus),
+      needsUpgrade: true,
+    });
+  });
+
+  it('does not treat a mismatched marker version as installed', async () => {
+    const binDir = path.join(dataDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, nexusdName), 'binary');
+    fs.writeFileSync(path.join(binDir, '.nexus-bin-ready'), '0.9.28');
+
+    const { dynamicNexusService } = await import('@/process/services/nexus/DynamicNexusService');
+
+    expect(dynamicNexusService.checkInstalledSync()).toBe(false);
+    await expect(dynamicNexusService.checkInstalled()).resolves.toBe(false);
   });
 
   it('ignores a legacy nexus_env nexusd when checking installation status', async () => {

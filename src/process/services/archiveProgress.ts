@@ -41,15 +41,23 @@ async function isNativeTarAvailable(): Promise<boolean> {
   }
 }
 
-export async function extractTarGzWithProgress(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+export async function extractTarGzWithProgress(
+  archivePath: string,
+  targetDir: string,
+  onProgress?: ArchiveProgressCallback,
+  options?: { strip?: number },
+): Promise<void> {
   const totalBytes = fs.statSync(archivePath).size;
   const reportProgress = createProgressReporter(onProgress);
+  const strip = options?.strip ?? 0;
 
   reportProgress(0, totalBytes);
 
   // On Windows, prefer native tar.exe for better performance (2-5x faster than Node.js tar)
   if (await isNativeTarAvailable()) {
-    await execFileAsync('tar', ['-xzf', archivePath, '-C', targetDir]);
+    const args = ['-xzf', archivePath, '-C', targetDir];
+    if (strip > 0) args.push(`--strip-components=${strip}`);
+    await execFileAsync('tar', args);
     reportProgress(totalBytes, totalBytes);
     return;
   }
@@ -64,7 +72,7 @@ export async function extractTarGzWithProgress(archivePath: string, targetDir: s
     reportProgress(processedBytes, totalBytes);
   });
 
-  await pipeline(readStream, zlib.createGunzip({ chunkSize: BUFFER_SIZE }), tar.x({ cwd: targetDir }));
+  await pipeline(readStream, zlib.createGunzip({ chunkSize: BUFFER_SIZE }), tar.x({ cwd: targetDir, strip }));
   reportProgress(totalBytes, totalBytes);
 }
 
@@ -118,6 +126,29 @@ async function collectZipEntries(zipPath: string): Promise<{ zipFile: yauzl.ZipF
   });
 }
 
+/**
+ * List all entry paths in a .tar.gz archive without extracting.
+ */
+export async function listTarGzEntries(archivePath: string): Promise<string[]> {
+  const entries: string[] = [];
+  await tar.t({
+    file: archivePath,
+    onReadEntry: (entry: tar.ReadEntry) => {
+      entries.push(entry.path);
+    },
+  });
+  return entries;
+}
+
+/**
+ * List all entry paths in a .zip archive without extracting.
+ */
+export async function listZipEntries(zipPath: string): Promise<string[]> {
+  const { zipFile, entries } = await collectZipEntries(zipPath);
+  zipFile.close();
+  return entries.map((e) => e.fileName);
+}
+
 function openZipReadStream(zipFile: yauzl.ZipFile, entry: yauzl.Entry): Promise<fs.ReadStream> {
   return new Promise((resolve, reject) => {
     zipFile.openReadStream(entry, (err, stream) => {
@@ -130,16 +161,45 @@ function openZipReadStream(zipFile: yauzl.ZipFile, entry: yauzl.Entry): Promise<
   });
 }
 
-export async function extractZipWithProgress(zipPath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+/**
+ * Strip leading path components from a zip entry filename.
+ * e.g. strip=1: "dir/sub/file.txt" → "sub/file.txt", "dir/" → ""
+ */
+function stripZipEntryPath(fileName: string, strip: number): string {
+  if (strip <= 0) return fileName;
+  const parts = fileName.split('/');
+  // If the original entry ends with '/', it's a directory – preserve that
+  const isDir = fileName.endsWith('/');
+  const stripped = parts.slice(strip);
+  if (stripped.length === 0 || (stripped.length === 1 && stripped[0] === '')) return '';
+  return stripped.join('/') + (isDir && !stripped[stripped.length - 1].endsWith('/') ? '' : '');
+}
+
+export async function extractZipWithProgress(
+  zipPath: string,
+  targetDir: string,
+  onProgress?: ArchiveProgressCallback,
+  options?: { strip?: number },
+): Promise<void> {
   const { zipFile, entries, totalCompressedSize } = await collectZipEntries(zipPath);
   const reportProgress = createProgressReporter(onProgress);
+  const strip = options?.strip ?? 0;
   let processedCompressedSize = 0;
 
   reportProgress(0, totalCompressedSize || 1);
 
   try {
     for (const item of entries) {
-      const targetPath = path.join(targetDir, item.fileName);
+      const strippedName = strip > 0 ? stripZipEntryPath(item.fileName, strip) : item.fileName;
+
+      // Skip entries that are fully stripped away (e.g. the top-level dir itself)
+      if (!strippedName) {
+        processedCompressedSize += item.compressedSize;
+        reportProgress(processedCompressedSize, totalCompressedSize || processedCompressedSize || 1);
+        continue;
+      }
+
+      const targetPath = path.join(targetDir, strippedName);
 
       if (item.isDirectory) {
         fs.mkdirSync(targetPath, { recursive: true });
