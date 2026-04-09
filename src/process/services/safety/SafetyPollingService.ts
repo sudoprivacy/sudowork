@@ -17,19 +17,7 @@
 
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
-import {
-  readEnabledState,
-  writeEnabledState,
-  ensureEnabledState,
-  ensureSecurityHookDirs,
-  listEventFilenames,
-  readEventFile,
-  writeActionFile,
-  deleteEventFile,
-  actionExists,
-  readNexusFileAsUtf8,
-  eventToSafetyStatus,
-} from './SecurityHookFile';
+import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readNexusFileAsUtf8, eventToSafetyStatus } from './SecurityHookFile';
 import { initBlacklist, BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 

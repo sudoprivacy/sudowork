@@ -7,18 +7,10 @@
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
-import type { AcpBackendAll } from '@/types/acpTypes';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
-import {
-  type FrequencyPreset,
-  FREQUENCY_PRESETS,
-  WEEKDAYS,
-  frequencyToSchedule,
-  getJobStatusFlags,
-  scheduleToFrequency,
-} from '@/renderer/pages/cron/utils/cronUtils';
+import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Drawer, Empty, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
 import { Add, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
@@ -38,16 +30,12 @@ const DEFAULT_ASSISTANT = '__default__';
 function useAssistantsForCron(): AcpBackendConfig[] {
   const [assistants, setAssistants] = useState<AcpBackendConfig[]>([]);
   useEffect(() => {
-    Promise.all([
-      ConfigStorage.get('acp.customAgents'),
-      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
-    ]).then(([local, ext]) => {
-      const merged: AcpBackendConfig[] = [
-        ...((local as AcpBackendConfig[]) || []),
-        ...((ext as unknown as AcpBackendConfig[]) || []),
-      ];
-      setAssistants(merged.filter((a) => a.isPreset === true));
-    }).catch(() => {});
+    Promise.all([ConfigStorage.get('acp.customAgents'), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
+      .then(([local, ext]) => {
+        const merged: AcpBackendConfig[] = [...((local as AcpBackendConfig[]) || []), ...((ext as unknown as AcpBackendConfig[]) || [])];
+        setAssistants(merged.filter((a) => a.isPreset === true));
+      })
+      .catch(() => {});
   }, []);
   return assistants;
 }
@@ -58,41 +46,50 @@ const TextArea = Input.TextArea;
 
 function useFrequencyLabels(): Record<FrequencyPreset, string> {
   const { t } = useTranslation();
-  return useMemo(() => ({
-    manual: t('cron.create.frequency.manual'),
-    hourly: t('cron.create.frequency.hourly'),
-    daily: t('cron.create.frequency.daily'),
-    weekdays: t('cron.create.frequency.weekdays'),
-    weekly: t('cron.create.frequency.weekly'),
-  }), [t]);
+  return useMemo(
+    () => ({
+      manual: t('cron.create.frequency.manual'),
+      hourly: t('cron.create.frequency.hourly'),
+      daily: t('cron.create.frequency.daily'),
+      weekdays: t('cron.create.frequency.weekdays'),
+      weekly: t('cron.create.frequency.weekly'),
+    }),
+    [t]
+  );
 }
 
 function useWeekdayLabels(): Record<string, string> {
   const { t } = useTranslation();
-  return useMemo(() => ({
-    SUN: t('cron.create.weekday.SUN'),
-    MON: t('cron.create.weekday.MON'),
-    TUE: t('cron.create.weekday.TUE'),
-    WED: t('cron.create.weekday.WED'),
-    THU: t('cron.create.weekday.THU'),
-    FRI: t('cron.create.weekday.FRI'),
-    SAT: t('cron.create.weekday.SAT'),
-  }), [t]);
+  return useMemo(
+    () => ({
+      SUN: t('cron.create.weekday.SUN'),
+      MON: t('cron.create.weekday.MON'),
+      TUE: t('cron.create.weekday.TUE'),
+      WED: t('cron.create.weekday.WED'),
+      THU: t('cron.create.weekday.THU'),
+      FRI: t('cron.create.weekday.FRI'),
+      SAT: t('cron.create.weekday.SAT'),
+    }),
+    [t]
+  );
 }
 
 // ─── Helper: format relative next run ───
 
 function useFormatNextRunRelative() {
   const { t } = useTranslation();
-  return useCallback((nextRunAtMs?: number): string => {
-    if (!nextRunAtMs) return '';
-    const d = dayjs(nextRunAtMs);
-    const now = dayjs();
-    const time = d.format('HH:mm');
-    if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
-    if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
-    return d.format('MM-DD HH:mm');
-  }, [t]);
+  return useCallback(
+    (nextRunAtMs?: number): string => {
+      if (!nextRunAtMs) return '';
+      const d = dayjs(nextRunAtMs);
+      const now = dayjs();
+      const time = d.format('HH:mm');
+      if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
+      if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
+      return d.format('MM-DD HH:mm');
+    },
+    [t]
+  );
 }
 
 // ─── Time options ───
@@ -115,15 +112,9 @@ const CronJobCardGrid: React.FC<{
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
         return (
-          <div
-            key={job.id}
-            className='bg-2 rd-12px px-20px py-16px cursor-pointer hover:bg-3 transition-colors border border-transparent hover:border-border-2'
-            onClick={() => onSelectJob(job)}
-          >
+          <div key={job.id} className='bg-2 rd-12px px-20px py-16px cursor-pointer hover:bg-3 transition-colors border border-transparent hover:border-border-2' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-t-primary mb-8px'>{job.name}</div>
-            {!isPaused && job.schedule.description && (
-              <div className='text-13px text-t-secondary mb-8px'>{job.schedule.description}</div>
-            )}
+            {!isPaused && job.schedule.description && <div className='text-13px text-t-secondary mb-8px'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (
               <div className='text-13px text-t-secondary'>
                 {t('cron.create.nextRun')} <span className='font-medium text-t-primary'>{formatNextRun(job.state.nextRunAtMs)}</span>
@@ -156,15 +147,12 @@ const CronJobDetail: React.FC<{
   const assistants = useAssistantsForCron();
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
-  const assistantName = selectedAssistant ? (selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudoclaw') : 'Sudoclaw';
+  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudoclaw' : 'Sudoclaw';
 
   return (
     <div className='space-y-24px'>
       {/* Back nav */}
-      <div
-        className='flex items-center gap-4px text-13px text-t-secondary cursor-pointer hover:text-t-primary'
-        onClick={onBack}
-      >
+      <div className='flex items-center gap-4px text-13px text-t-secondary cursor-pointer hover:text-t-primary' onClick={onBack}>
         <ArrowLeft theme='outline' size={14} />
         <span>{t('cron.allScheduledTasks', { defaultValue: '全部定时任务' })}</span>
       </div>
@@ -189,13 +177,7 @@ const CronJobDetail: React.FC<{
           <Popconfirm title={t('cron.confirmDelete')} onOk={() => onDelete(job.id)}>
             <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
           </Popconfirm>
-          <Button
-            type='primary'
-            size='small'
-            shape='round'
-            icon={<PlayOne theme='outline' size={14} />}
-            onClick={() => onTrigger(job.id)}
-          >
+          <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' size={14} />} onClick={() => onTrigger(job.id)}>
             {t('cron.actions.runNow', { defaultValue: '立即执行' })}
           </Button>
         </div>
@@ -211,18 +193,12 @@ const CronJobDetail: React.FC<{
         {/* Instructions / Prompt */}
         <div>
           <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
-          <div className='bg-2 rd-8px px-12px py-8px text-13px text-t-primary break-words whitespace-pre-wrap max-h-120px overflow-y-auto'>
-            {job.target.payload.text}
-          </div>
+          <div className='bg-2 rd-8px px-12px py-8px text-13px text-t-primary break-words whitespace-pre-wrap max-h-120px overflow-y-auto'>{job.target.payload.text}</div>
         </div>
         {/* Execution mode */}
         <div>
           <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
-          <div className='text-14px text-t-primary'>
-            {(job.metadata.conversationMode ?? 'new') === 'new'
-              ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' })
-              : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}
-          </div>
+          <div className='text-14px text-t-primary'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
         </div>
         {/* Working directory */}
         {job.metadata.workspace && (
@@ -262,20 +238,13 @@ const CronJobDetail: React.FC<{
       {/* Conversation link */}
       {(() => {
         const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
-        const targetConvId = isNewMode
-          ? job.state.lastConversationId
-          : job.metadata.conversationId;
-        const targetConvTitle = isNewMode
-          ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' })
-          : job.metadata.conversationTitle;
+        const targetConvId = isNewMode ? job.state.lastConversationId : job.metadata.conversationId;
+        const targetConvTitle = isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle;
         if (!targetConvId) return null;
         return (
           <div>
             <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
-            <span
-              className='text-14px text-primary cursor-pointer hover:underline'
-              onClick={() => onNavigate(targetConvId)}
-            >
+            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(targetConvId)}>
               {targetConvTitle}
             </span>
           </div>
@@ -423,11 +392,12 @@ const CronJobFormDrawer: React.FC<{
       width={520}
       title={
         <>
-          <span className='text-16px font-medium'>
-            {editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}
-          </span>
+          <span className='text-16px font-medium'>{editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}</span>
           <div
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
             style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
@@ -440,7 +410,9 @@ const CronJobFormDrawer: React.FC<{
       onCancel={onClose}
       footer={
         <div className='flex justify-end gap-8px'>
-          <Button shape='round' onClick={onClose}>{t('cron.create.cancel', { defaultValue: '取消' })}</Button>
+          <Button shape='round' onClick={onClose}>
+            {t('cron.create.cancel', { defaultValue: '取消' })}
+          </Button>
           <Button type='primary' shape='round' loading={saving} onClick={handleSave}>
             {t('cron.drawer.save')}
           </Button>
@@ -460,10 +432,7 @@ const CronJobFormDrawer: React.FC<{
 
         {/* Prompt */}
         <Form.Item label={t('cron.create.prompt', { defaultValue: '指令' })} field='prompt' rules={[{ required: true }]}>
-          <TextArea
-            placeholder={t('cron.create.promptPlaceholder', { defaultValue: '输入触发时要发送的指令...' })}
-            autoSize={{ minRows: 4, maxRows: 10 }}
-          />
+          <TextArea placeholder={t('cron.create.promptPlaceholder', { defaultValue: '输入触发时要发送的指令...' })} autoSize={{ minRows: 4, maxRows: 10 }} />
         </Form.Item>
 
         {/* Frequency */}
@@ -482,13 +451,17 @@ const CronJobFormDrawer: React.FC<{
             <div className='flex items-center gap-8px mt-8px'>
               <Select value={hour} onChange={(v) => setHour(v)} style={{ width: 80 }}>
                 {HOUR_OPTIONS.map((o) => (
-                  <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>
+                  <Select.Option key={o.value} value={o.value}>
+                    {o.label}
+                  </Select.Option>
                 ))}
               </Select>
               <span className='text-t-secondary'>:</span>
               <Select value={minute} onChange={(v) => setMinute(v)} style={{ width: 80 }}>
                 {MINUTE_OPTIONS.map((o) => (
-                  <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>
+                  <Select.Option key={o.value} value={o.value}>
+                    {o.label}
+                  </Select.Option>
                 ))}
               </Select>
             </div>
@@ -499,23 +472,20 @@ const CronJobFormDrawer: React.FC<{
             <div className='mt-8px'>
               <Select value={weekday} onChange={(v) => setWeekday(v)}>
                 {WEEKDAYS.map((day) => (
-                  <Select.Option key={day} value={day}>{weekdayLabels[day]}</Select.Option>
+                  <Select.Option key={day} value={day}>
+                    {weekdayLabels[day]}
+                  </Select.Option>
                 ))}
               </Select>
             </div>
           )}
 
-          <div className='text-12px text-t-secondary mt-4px'>
-            {t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}
-          </div>
+          <div className='text-12px text-t-secondary mt-4px'>{t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}</div>
         </div>
 
         {/* More options */}
         <div>
-          <div
-            className='flex items-center gap-4px text-14px text-t-secondary cursor-pointer hover:text-t-primary mb-12px'
-            onClick={() => setShowMore(!showMore)}
-          >
+          <div className='flex items-center gap-4px text-14px text-t-secondary cursor-pointer hover:text-t-primary mb-12px' onClick={() => setShowMore(!showMore)}>
             <span>{t('cron.create.moreOptions', { defaultValue: '更多选项' })}</span>
             <span className={`transition-transform ${showMore ? 'rotate-180' : ''}`}>▾</span>
           </div>
@@ -544,11 +514,7 @@ const CronJobFormDrawer: React.FC<{
               <div>
                 <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
                 <Button long onClick={handleSelectFolder} className='!justify-start !text-left'>
-                  {workspace ? (
-                    <span className='truncate'>{workspace.split('/').pop()}</span>
-                  ) : (
-                    <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>
-                  )}
+                  {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
                 </Button>
               </div>
 
@@ -582,9 +548,12 @@ const CronModalContent: React.FC = () => {
   // Keep-awake toggle state
   const [keepAwake, setKeepAwake] = useState(false);
   useEffect(() => {
-    ipcBridge.cron.getPowerSaveActive.invoke().then((active) => {
-      setKeepAwake(active);
-    }).catch(() => {});
+    ipcBridge.cron.getPowerSaveActive
+      .invoke()
+      .then((active) => {
+        setKeepAwake(active);
+      })
+      .catch(() => {});
   }, []);
 
   const handleKeepAwakeChange = async (checked: boolean) => {
@@ -661,15 +630,7 @@ const CronModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         {/* ── DETAIL VIEW ── */}
         {currentJob ? (
-          <CronJobDetail
-            job={currentJob}
-            onBack={() => setSelectedJob(null)}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onToggle={handleToggle}
-            onTrigger={handleTrigger}
-            onNavigate={handleNavigate}
-          />
+          <CronJobDetail job={currentJob} onBack={() => setSelectedJob(null)} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />
         ) : (
           /* ── LIST VIEW ── */
           <div className='space-y-16px'>
@@ -677,9 +638,7 @@ const CronModalContent: React.FC = () => {
             <div className='flex items-start justify-between'>
               <div>
                 <h2 className='text-20px font-bold text-t-primary m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
-                <div className='text-13px text-t-secondary'>
-                  {t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}
-                </div>
+                <div className='text-13px text-t-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
               </div>
               <Button type='primary' shape='round' icon={<Add theme='outline' size={14} />} onClick={handleCreate}>
                 {t('cron.create.button', { defaultValue: '新建任务' })}
@@ -714,12 +673,7 @@ const CronModalContent: React.FC = () => {
         )}
       </AionScrollArea>
 
-      <CronJobFormDrawer
-        visible={drawerVisible}
-        editJob={editingJob}
-        onClose={() => setDrawerVisible(false)}
-        onSaved={() => void refetch()}
-      />
+      <CronJobFormDrawer visible={drawerVisible} editJob={editingJob} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
     </div>
   );
 };

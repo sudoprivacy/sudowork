@@ -200,6 +200,7 @@ const InstalledSkillCard: React.FC<{
               checked={isEnabled}
               loading={togglingEnabled}
               onChange={(checked) => onToggleEnabled?.(checked)}
+              className={isEnabled ? '!bg-primary !border-primary' : ''}
             />
           </div>
         )}
@@ -956,7 +957,8 @@ const SkillModalContent: React.FC = () => {
   const detailIsHubInstalled = detailSkill ? (installedList.find((s) => s.name === detailSkill.name)?.isHubInstalled ?? false) : false;
   const detailLatestVersion = detailSkill ? latestVersions.get(detailSkill.id) : undefined;
   const detailHasVersion = !!detailLatestVersion;
-  const downloadableInstalledSkills = installedList.filter((skill) => !skill.isBuiltin);
+  const customInstalledSkills = installedList.filter((skill) => !skill.isBuiltin && skill.meta?.source_type === 'upload');
+  const hubInstalledSkills = installedList.filter((skill) => !skill.isBuiltin && (!skill.meta?.source_type || skill.meta?.source_type === 'hub'));
   const builtinInstalledSkills = installedList.filter((skill) => skill.isBuiltin);
 
   const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[]) => (
@@ -1106,9 +1108,17 @@ const SkillModalContent: React.FC = () => {
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
                     <div className='text-13px font-medium text-t-primary'>{t('settings.customSkills')}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{downloadableInstalledSkills.length}</span>
+                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                   </div>
-                  {downloadableInstalledSkills.length > 0 ? renderInstalledSkillGrid(downloadableInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                  {customInstalledSkills.length > 0 ? renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                </section>
+
+                <section>
+                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                    <div className='text-13px font-medium text-t-primary'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
+                  </div>
+                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
                 </section>
 
                 <section>

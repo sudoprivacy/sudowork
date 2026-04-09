@@ -620,6 +620,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
             workspace: this.workspace,
+            presetAgentType: this.options.backend,
           });
         }
 

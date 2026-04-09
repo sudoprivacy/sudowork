@@ -43,6 +43,10 @@ class ServiceManager {
   private gatewayReadyResolve: ((value: { host: string; port: number } | null) => void) | null = null;
   private gatewayReadyPromise: Promise<{ host: string; port: number } | null> | null = null;
 
+  // Deferred promise resolved when secrets are initialized (or failed).
+  private secretsReadyResolve: ((value: boolean) => void) | null = null;
+  private secretsReadyPromise: Promise<boolean> | null = null;
+
   private buildSudoclawStartDiagnostics(lastHealth: SudoclawHealthCheckResult): {
     launchCommand: ReturnType<OpenClawGateway['getLastLaunchCommand']>;
     lastHealth: SudoclawHealthCheckResult;
@@ -152,19 +156,21 @@ class ServiceManager {
   private async startNexusWithRetries(): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
-    if (!dynamicNexusService.hasBundledResource()) {
-      mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-      initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-      return;
-    }
-
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
-          initStatusManager.setStepState('nexus', 'active', phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail =
+            attempt > 1
+              ? phase === 'reinstall'
+                ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`
+                : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`
+              : phase === 'reinstall'
+                ? '重装后正在启动 Nexus 服务...'
+                : '正在启动 Nexus 服务...';
+          initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
           await this.startNexusOnce();
           return;
@@ -193,11 +199,6 @@ class ServiceManager {
   private async startNexusOnce(): Promise<void> {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-      if (!dynamicNexusService.hasBundledResource()) {
-        mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-        initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-        return;
-      }
 
       if (!(await dynamicNexusService.checkInstalled())) {
         throw new Error('Nexus runtime is missing after startup installation');
@@ -218,8 +219,21 @@ class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
+
+      // Initialize secrets system after Nexus is healthy
+      // This runs migration (if needed) and preloads the secret cache
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
+      });
+      this.initializeSecrets()
+        .then(() => this.secretsReadyResolve?.(true))
+        .catch((err) => {
+          mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+          this.secretsReadyResolve?.(false);
+        });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
+      this.secretsReadyResolve?.(false);
       throw err;
     }
   }
@@ -233,6 +247,23 @@ class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  /**
+   * Initialize the secrets system after Nexus is healthy.
+   * This runs the migration coordinator and preloads the secret cache.
+   */
+  private async initializeSecrets(): Promise<void> {
+    try {
+      const { initializeSecrets } = await import('@common/nexus/secret-migration');
+      mainLog('ServiceManager', 'Initializing secrets system...');
+      await initializeSecrets();
+      mainLog('ServiceManager', 'Secrets system initialized');
+    } catch (err) {
+      // Don't throw - secrets initialization failure should not block startup
+      // The system can operate in fallback mode without the secrets cache
+      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
     }
   }
 
@@ -261,7 +292,15 @@ class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(17863, 'Sudoclaw');
-          initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail =
+            attempt > 1
+              ? phase === 'reinstall'
+                ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
+                : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
+              : phase === 'reinstall'
+                ? '重装后正在启动 Sudoclaw 服务...'
+                : '正在启动 Sudoclaw 服务...';
+          initStatusManager.setStepState('sudoclaw', 'active', startupDetail);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
           await this.startOpenClawOnce();
           return;
@@ -556,12 +595,12 @@ class ServiceManager {
 
     while (Date.now() < deadline) {
       const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
-      const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
+      const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
         { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
-        { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
+        { name: 'Nexus', ok: nexusHealthy },
       ];
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
@@ -630,6 +669,27 @@ class ServiceManager {
       return null;
     }
     return this.gatewayReadyPromise;
+  }
+
+  /**
+   * Wait for the secrets system to be initialized.
+   * Channel plugins call this before loading to ensure credentials are available.
+   * Polls until the promise is created (Nexus may still be starting),
+   * then awaits its resolution.
+   */
+  async waitForSecrets(): Promise<boolean> {
+    // Poll until the promise is created by startNexusOnce()
+    const POLL_INTERVAL_MS = 200;
+    const MAX_POLL_MS = 120_000;
+    const deadline = Date.now() + MAX_POLL_MS;
+    while (!this.secretsReadyPromise && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+    if (!this.secretsReadyPromise) {
+      // Timeout or startup never reached secrets initialization.
+      return false;
+    }
+    return this.secretsReadyPromise;
   }
 
   /** Send SIGUSR1 to the gateway for hot-reload (skills/config). */
