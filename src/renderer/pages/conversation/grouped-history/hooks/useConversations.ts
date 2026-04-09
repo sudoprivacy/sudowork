@@ -62,9 +62,16 @@ export const useConversations = () => {
     const removeBridgeListener = ipcBridge.database.conversationChanged.on(() => {
       refresh();
     });
+
+    // 低频轮询兜底：防止 WebSocket/IPC 事件丢失导致渠道对话列表不更新
+    // Low-frequency polling fallback: prevent channel conversation list from not updating
+    // when WebSocket/IPC events are lost
+    const pollInterval = setInterval(refresh, 30_000);
+
     return () => {
       removeLocalListener();
       removeBridgeListener();
+      clearInterval(pollInterval);
     };
   }, []);
 
