@@ -242,24 +242,38 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
 
     // Walk the ENTIRE .framework directory tree to find all Mach-O binaries.
     // This handles both flat (Python.framework/Python) and structured
-    // (Python.framework/Versions/A/Python) layouts from PyInstaller.
+    // (Python.framework/Versions/3.12/Python) layouts from PyInstaller.
+    //
+    // IMPORTANT: Use fs.lstatSync() for symlink detection instead of
+    // Dirent.isSymbolicLink(), which can be unreliable on macOS APFS.
+    // We also collect symlinks so we can replace them with copies of
+    // the signed binary after signing — Apple notarization validates
+    // Python.framework/Python (a symlink) and rejects it if the path
+    // goes through .framework without a proper bundle signature.
     const innerBinaries = [];
+    const symlinkEntries = [];
     const walkFramework = (currentDir) => {
       let entries;
       try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
       for (const entry of entries) {
-        // Skip symlinks — they resolve to the same real binary we'll sign directly
-        if (entry.isSymbolicLink()) continue;
         const fullPath = path.join(currentDir, entry.name);
-        if (entry.isDirectory()) {
+        // Use lstatSync for reliable symlink detection on macOS
+        let stat;
+        try { stat = fs.lstatSync(fullPath); } catch { continue; }
+        if (stat.isSymbolicLink()) {
+          symlinkEntries.push(fullPath);
+          continue;
+        }
+        if (stat.isDirectory()) {
           walkFramework(fullPath);
-        } else if (entry.isFile() && isMachOBinary(fullPath)) {
+        } else if (stat.isFile() && isMachOBinary(fullPath)) {
           innerBinaries.push(fullPath);
         }
       }
     };
     walkFramework(fwPath);
 
+    // ── 4a. Sign real (non-symlink) Mach-O binaries inside .framework ──
     for (const innerBin of innerBinaries) {
       try {
         // Remove any existing signature first (clean slate — prevents Team ID mismatch)
@@ -278,8 +292,33 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
       }
     }
 
-    if (fwSignedCount > 0) {
-      console.log(`   ✓ Framework ${path.basename(fwPath)}: signed ${fwSignedCount} inner binary(ies) (bundle signing skipped)`);
+    // ── 4b. Replace symlinks with copies of the signed binary ──────────
+    // Apple notarization follows symlinks inside .framework bundles and
+    // validates them according to framework bundle rules.  A symlink like
+    // Python.framework/Python → Versions/Current/Python causes:
+    //   "The signature of the binary is invalid."
+    // because the path traverses .framework without a proper bundle seal.
+    //
+    // Fix: replace each symlink-to-Mach-O with a copy of the signed real
+    // binary.  This way Apple sees a real signed file at every path.
+    let replacedSymlinks = 0;
+    for (const symlinkPath of symlinkEntries) {
+      try {
+        const realPath = fs.realpathSync(symlinkPath);
+        // Only replace symlinks that point to Mach-O binaries
+        if (isMachOBinary(realPath)) {
+          fs.unlinkSync(symlinkPath);       // Remove the symlink
+          fs.copyFileSync(realPath, symlinkPath);  // Copy the signed binary
+          console.log(`   ✓ Replaced symlink with signed copy: ${path.relative(fwPath, symlinkPath)}`);
+          replacedSymlinks++;
+        }
+      } catch {
+        // Symlink target doesn't exist, is a directory, or can't be read — skip
+      }
+    }
+
+    if (fwSignedCount > 0 || replacedSymlinks > 0) {
+      console.log(`   ✓ Framework ${path.basename(fwPath)}: signed ${fwSignedCount} binary(ies), replaced ${replacedSymlinks} symlink(s)`);
     } else {
       console.warn(`   ⚠️  Framework ${path.basename(fwPath)}: no Mach-O binaries found inside`);
     }
