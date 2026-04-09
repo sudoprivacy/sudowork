@@ -6,6 +6,7 @@
  */
 import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import { V1_VISIBLE_AGENT_BACKENDS } from '@/renderer/shared/agents/availableAgents';
 import { Alert, Input, Spin, Collapse } from '@arco-design/web-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -85,6 +86,8 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         // 只展示第三方独立 CLI（goose, auggie, kimi, opencode）
         // Only show third-party standalone CLIs (goose, auggie, kimi, opencode)
         const filteredAgents = response.data.filter((a) => {
+          // v1.0.3: Only show SudoClaw and Claude Code agents
+          if (!V1_VISIBLE_AGENT_BACKENDS.has(a.backend)) return false;
           if (['gemini', 'custom', 'codex'].includes(a.backend)) return false;
           const backendConfig = ACP_BACKENDS_ALL[a.backend];
           return backendConfig && !backendConfig.authRequired;

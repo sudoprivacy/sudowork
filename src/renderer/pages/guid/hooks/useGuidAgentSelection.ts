@@ -11,6 +11,7 @@ import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import { filterAvailableAgentsForUi } from '@/renderer/shared/agents/availableAgents';
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
@@ -181,7 +182,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   const { data: availableAgentsData } = useSWR('acp.agents.available', async () => {
     const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
     if (result.success) {
-      return result.data.filter((agent) => !(agent.backend === 'gemini' && agent.cliPath));
+      return filterAvailableAgentsForUi(result.data);
     }
     return [];
   });

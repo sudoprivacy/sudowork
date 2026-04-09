@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '../../src/renderer/shared/agents/availableAgents';
+import { AVAILABLE_AGENTS_SWR_KEY, V1_VISIBLE_AGENT_BACKENDS, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '../../src/renderer/shared/agents/availableAgents';
 import type { AvailableAgent } from '../../src/renderer/shared/agents/types';
 
 describe('availableAgents helpers', () => {
@@ -13,6 +13,8 @@ describe('availableAgents helpers', () => {
     { backend: 'gemini', name: 'Gemini' },
     { backend: 'gemini', name: 'Gemini CLI', cliPath: '/usr/local/bin/gemini' },
     { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+    { backend: 'openclaw-gateway', name: 'Sudoclaw' },
+    { backend: 'qwen', name: 'Qwen Code', cliPath: '/usr/local/bin/qwen' },
     { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
     { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
     { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
@@ -22,25 +24,31 @@ describe('availableAgents helpers', () => {
     expect(AVAILABLE_AGENTS_SWR_KEY).toBe('acp.agents.available');
   });
 
-  it('filters out gemini cli entries but keeps builtin gemini', () => {
+  it('v1.0.3: only exposes claude and openclaw-gateway as visible backends', () => {
+    expect(V1_VISIBLE_AGENT_BACKENDS.has('claude')).toBe(true);
+    expect(V1_VISIBLE_AGENT_BACKENDS.has('openclaw-gateway')).toBe(true);
+    expect(V1_VISIBLE_AGENT_BACKENDS.has('gemini')).toBe(false);
+    expect(V1_VISIBLE_AGENT_BACKENDS.has('qwen')).toBe(false);
+    expect(V1_VISIBLE_AGENT_BACKENDS.has('codex')).toBe(false);
+  });
+
+  it('filters to only show SudoClaw, Claude Code, and custom/preset agents', () => {
     expect(filterAvailableAgentsForUi(agents)).toEqual([
-      { backend: 'gemini', name: 'Gemini' },
       { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+      { backend: 'openclaw-gateway', name: 'Sudoclaw' },
       { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
       { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
-      { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
     ]);
   });
 
   it('splits conversation dropdown agents into cli and preset groups', () => {
     expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
       cliAgents: [
-        { backend: 'gemini', name: 'Gemini' },
         { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+        { backend: 'openclaw-gateway', name: 'Sudoclaw' },
       ],
       presetAssistants: [
         { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
-        { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
       ],
     });
   });

@@ -747,12 +747,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
               <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonlyAssistant}>
                 {[
-                  { value: 'gemini', label: 'Gemini CLI' },
                   { value: 'claude', label: 'Claude Code' },
-                  { value: 'qwen', label: 'Qwen Code' },
-                  { value: 'codex', label: 'Codex' },
-                  { value: 'codebuddy', label: 'CodeBuddy' },
-                  { value: 'opencode', label: 'OpenCode' },
                   { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
                 ]
                   .filter((opt) => availableBackends.has(opt.backendId || opt.value))
