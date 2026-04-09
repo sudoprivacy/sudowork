@@ -7,13 +7,36 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-// Match @ followed by skill name (alphanumeric, underscore, hyphen, Chinese characters)
-// 匹配 @ 后跟技能名（允许字母数字、下划线、连字符、中文）
-const SKILL_QUERY_RE = /^@([a-zA-Z0-9_\u4e00-\u9fa5-]*)$/;
+// Match @ followed by query text at any position (start of input or after whitespace)
+// 匹配输入中任意位置（开头或空白字符后）的 @ 及其后跟的查询文本
+const AT_QUERY_RE = /(?:^|\s)@([^\s@]*)$/;
 
 export function matchSkillQuery(input: string): string | null {
-  const match = input.match(SKILL_QUERY_RE);
+  const match = input.match(AT_QUERY_RE);
   return match ? match[1] : null;
+}
+
+/**
+ * Strip the @query token from the end of input, preserving preceding text.
+ * 从输入末尾移除 @query 令牌，保留前面的文本。
+ */
+export function stripAtQuery(input: string): string {
+  return input.replace(AT_QUERY_RE, (match) => {
+    const firstChar = match[0];
+    return /\s/.test(firstChar) ? firstChar : '';
+  });
+}
+
+/**
+ * Replace the @query token at the end of input with a replacement string.
+ * 将输入末尾的 @query 令牌替换为指定字符串。
+ */
+export function replaceAtQuery(input: string, replacement: string): string {
+  return input.replace(AT_QUERY_RE, (match) => {
+    const firstChar = match[0];
+    const prefix = /\s/.test(firstChar) ? firstChar : '';
+    return prefix + replacement;
+  });
 }
 
 export interface SkillSelectorItem {

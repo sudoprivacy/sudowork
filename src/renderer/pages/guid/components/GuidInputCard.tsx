@@ -39,9 +39,9 @@ type GuidInputCardProps = {
   mentionSelectorBadge: React.ReactNode;
   mentionDropdown: React.ReactNode;
 
-  // Skill selector state
-  skillSelectorOpen?: boolean;
-  skillSelectorMenu?: React.ReactNode;
+  // @ mention (skill + file) selector state
+  atMentionOpen?: boolean;
+  atMentionDropdown?: React.ReactNode;
   selectedSkills?: string[];
   onRemoveSkill?: (skillName: string) => void;
   getSkillDisplayName?: (skillName: string) => { displayName: string; emoji: string };
@@ -58,7 +58,7 @@ type GuidInputCardProps = {
   actionRow: React.ReactNode;
 };
 
-const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
+const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, atMentionOpen, atMentionDropdown, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -106,7 +106,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
 
   return (
     <div
-      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen || atMentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -166,9 +166,9 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
           {mentionDropdown}
         </div>
       )}
-      {skillSelectorOpen && skillSelectorMenu && (
+      {atMentionOpen && atMentionDropdown && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
-          {skillSelectorMenu}
+          {atMentionDropdown}
         </div>
       )}
       {files.length > 0 && (

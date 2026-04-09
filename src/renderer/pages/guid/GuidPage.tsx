@@ -10,8 +10,10 @@ import { openExternalUrl, isElectronDesktop } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
-import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { useSkillSelectorController, type SkillSelectorItem, replaceAtQuery, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import AtMentionDropdown, { type AtMentionTab } from '@/renderer/components/AtMentionDropdown';
+import type { SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { useWorkspaceFiles, type WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
@@ -156,7 +158,8 @@ const GuidPage: React.FC = () => {
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      guidInput.setInput('');
+      // Strip @query from input, preserving preceding text
+      guidInput.setInput(stripAtQuery(guidInput.input));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
@@ -176,6 +179,48 @@ const GuidPage: React.FC = () => {
         enabled: skill.enabled,
       })),
     [skillSelectorController.filteredSkills]
+  );
+
+  // @ mention file reference state
+  const { files: workspaceFiles, loading: workspaceFilesLoading } = useWorkspaceFiles(guidInput.dir || undefined);
+  const [atMentionTab, setAtMentionTab] = useState<AtMentionTab>('skills');
+  const [fileActiveIndex, setFileActiveIndex] = useState(0);
+
+  // Filter workspace files by @ query
+  const filteredWorkspaceFiles = useMemo<WorkspaceFileItem[]>(() => {
+    const match = guidInput.input.match(/(?:^|\s)@([^\s@]*)$/);
+    if (!match) return [];
+    const keyword = match[1].trim().toLowerCase();
+    if (!keyword) return workspaceFiles;
+    return workspaceFiles.filter((file) => file.name.toLowerCase().includes(keyword) || file.relativePath.toLowerCase().includes(keyword));
+  }, [workspaceFiles, guidInput.input]);
+
+  // Determine if the @ mention dropdown should be open
+  const isAtMentionOpen = skillSelectorController.isOpen || (guidInput.input.match(/(?:^|\s)@([^\s@]*)$/) !== null && filteredWorkspaceFiles.length > 0 && !skillSelectorController.isOpen);
+
+  // Reset file active index when filtered files change
+  useEffect(() => {
+    setFileActiveIndex(0);
+  }, [filteredWorkspaceFiles.length]);
+
+  // Auto-switch to files tab if no skills match but files do
+  useEffect(() => {
+    if (!isAtMentionOpen) return;
+    if (atMentionTab === 'skills' && skillSelectorController.filteredSkills.length === 0 && filteredWorkspaceFiles.length > 0) {
+      setAtMentionTab('files');
+    } else if (atMentionTab === 'files' && filteredWorkspaceFiles.length === 0 && skillSelectorController.filteredSkills.length > 0) {
+      setAtMentionTab('skills');
+    }
+  }, [isAtMentionOpen, atMentionTab, skillSelectorController.filteredSkills.length, filteredWorkspaceFiles.length]);
+
+  // Handle file selection from @ mention dropdown
+  const handleAtMentionFileSelect = useCallback(
+    (file: WorkspaceFileItem) => {
+      const newInput = replaceAtQuery(guidInput.input, '@' + file.relativePath + ' ');
+      guidInput.setInput(newInput);
+      skillSelectorController.setDismissed(true);
+    },
+    [guidInput.input, guidInput.setInput, skillSelectorController.setDismissed]
   );
 
   const mention = useGuidMention({
@@ -277,11 +322,67 @@ const GuidPage: React.FC = () => {
     [mention.mentionMatchRegex, guidInput.setInput, mention.setMentionQuery, mention.setMentionOpen]
   );
 
+  // Extended keyboard handler for @ mention with tabs (skills + files)
+  const handleAtMentionKeyDown = useCallback(
+    (event: React.KeyboardEvent): boolean => {
+      if (!isAtMentionOpen) return false;
+
+      // Tab key to switch between skills and files tabs
+      if (event.key === 'Tab' && !event.shiftKey) {
+        event.preventDefault();
+        const nextTab: AtMentionTab = atMentionTab === 'skills' ? 'files' : 'skills';
+        const hasNextItems = nextTab === 'skills' ? skillSelectorController.filteredSkills.length > 0 : filteredWorkspaceFiles.length > 0;
+        if (hasNextItems) {
+          setAtMentionTab(nextTab);
+          if (nextTab === 'files') setFileActiveIndex(0);
+          if (nextTab === 'skills') skillSelectorController.setActiveIndex(0);
+        }
+        return true;
+      }
+
+      // When files tab is active, handle keyboard navigation
+      if (atMentionTab === 'files' && filteredWorkspaceFiles.length > 0) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          skillSelectorController.setDismissed(true);
+          return true;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setFileActiveIndex((prev) => (prev + 1) % filteredWorkspaceFiles.length);
+          return true;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setFileActiveIndex((prev) => (prev - 1 + filteredWorkspaceFiles.length) % filteredWorkspaceFiles.length);
+          return true;
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          const file = filteredWorkspaceFiles[fileActiveIndex];
+          if (file) {
+            handleAtMentionFileSelect(file);
+          }
+          return true;
+        }
+        return false;
+      }
+
+      // Delegate to skill selector controller for skills tab
+      if (atMentionTab === 'skills') {
+        return skillSelectorController.onKeyDown(event);
+      }
+
+      return false;
+    },
+    [isAtMentionOpen, atMentionTab, filteredWorkspaceFiles, fileActiveIndex, handleAtMentionFileSelect, skillSelectorController]
+  );
+
   const handleInputKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // 优先处理技能选择器键盘事件
-      if (skillSelectorController.isOpen) {
-        const handled = skillSelectorController.onKeyDown(event);
+      // 优先处理 @ mention 下拉菜单键盘事件 (技能 + 文件)
+      if (isAtMentionOpen) {
+        const handled = handleAtMentionKeyDown(event);
         if (handled) return;
       }
 
@@ -340,7 +441,7 @@ const GuidPage: React.FC = () => {
         send.sendMessageHandler();
       }
     },
-    [mention, guidInput.input, send.sendMessageHandler]
+    [mention, guidInput.input, send.sendMessageHandler, isAtMentionOpen, handleAtMentionKeyDown]
   );
 
   const handleSelectAgentFromPillBar = useCallback(
@@ -452,8 +553,34 @@ const GuidPage: React.FC = () => {
               mentionOpen={mention.mentionOpen}
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
-              skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' /> : null}
+              atMentionOpen={isAtMentionOpen}
+              atMentionDropdown={
+                isAtMentionOpen ? (
+                  <AtMentionDropdown
+                    activeTab={atMentionTab}
+                    onTabChange={(tab) => {
+                      setAtMentionTab(tab);
+                      if (tab === 'files') setFileActiveIndex(0);
+                      if (tab === 'skills') skillSelectorController.setActiveIndex(0);
+                    }}
+                    skillItems={skillMenuItems}
+                    selectedSkillKeys={selectedSkills}
+                    onSelectSkill={(item) => {
+                      const idx = skillSelectorController.filteredSkills.findIndex((s) => s.name === item.name);
+                      if (idx >= 0) skillSelectorController.onSelectByIndex(idx);
+                    }}
+                    fileItems={filteredWorkspaceFiles}
+                    filesLoading={workspaceFilesLoading}
+                    hasWorkspace={Boolean(guidInput.dir)}
+                    onSelectFile={handleAtMentionFileSelect}
+                    activeIndex={atMentionTab === 'skills' ? skillSelectorController.activeIndex : fileActiveIndex}
+                    onHoverItem={(index) => {
+                      if (atMentionTab === 'skills') skillSelectorController.setActiveIndex(index);
+                      else setFileActiveIndex(index);
+                    }}
+                  />
+                ) : null
+              }
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {
