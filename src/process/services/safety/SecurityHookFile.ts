@@ -9,7 +9,7 @@
  *
  * Nexus is the SINGLE SOURCE OF TRUTH for all state.
  *
- * State file: /safe/config/enabled
+ * Unified config file: /safe/config/hook (enabled state + blacklist)
  * Event files: /safe/event/{uuid}
  * Action files: /safe/action/{uuid}
  */
@@ -24,11 +24,20 @@ export const EVENT_DIR = '/safe/event';
 export const ACTION_DIR = '/safe/action';
 export const CONFIG_DIR = '/safe/config';
 export const ENABLED_CONFIG_PATH = '/safe/config/enabled';
+/** Unified hook config path: combines enabled state + blacklist in one file */
+export const HOOK_CONFIG_PATH = '/safe/config/hook';
 
 /** Default state for first run */
 export const DEFAULT_ENABLED_STATE = {
   enabled: true,
   fastPass: false,
+};
+
+/** Default unified hook config (enabled state + empty blacklist) */
+export const DEFAULT_HOOK_CONFIG = {
+  enabled: true,
+  fastPass: false,
+  blacklist: { rules: [] as unknown[] },
 };
 
 /**
@@ -87,51 +96,37 @@ export async function ensureSecurityHookDirs(): Promise<void> {
 // ============================================================================
 
 /**
- * Read enabled state from Nexus filesystem
+ * Read enabled state from Nexus filesystem (unified config path)
  * Returns null if state file doesn't exist or Nexus is unavailable
  */
 export async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean } | null> {
   try {
-    const client = getNexusClient();
-    const result = await client.read(ENABLED_CONFIG_PATH, false);
-
-    if (Buffer.isBuffer(result)) {
-      const data = JSON.parse(result.toString('utf-8'));
-      return {
-        enabled: data.enabled === true,
-        fastPass: data.fastPass === true,
-      };
-    }
-
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = result.content;
-      const data = Buffer.isBuffer(content) ? JSON.parse(content.toString('utf-8')) : JSON.parse(String(content));
-      return {
-        enabled: data.enabled === true,
-        fastPass: data.fastPass === true,
-      };
-    }
-
-    return null;
+    const config = await readHookConfig();
+    if (!config) return null;
+    return {
+      enabled: config.enabled === true,
+      fastPass: config.fastPass === true,
+    };
   } catch (error) {
     return null;
   }
 }
 
 /**
- * Write enabled state to Nexus filesystem
+ * Write enabled state to Nexus filesystem (unified config: read-merge-write)
  */
 export async function writeEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
   try {
     const client = getNexusClient();
-    await client.write(
-      ENABLED_CONFIG_PATH,
-      JSON.stringify({
-        enabled,
-        fastPass,
-        timestamp: Date.now(),
-      })
-    );
+    // Read-merge-write: preserve existing blacklist data
+    const existing = await readHookConfig();
+    const merged = {
+      ...(existing || DEFAULT_HOOK_CONFIG),
+      enabled,
+      fastPass,
+      timestamp: Date.now(),
+    };
+    await client.write(HOOK_CONFIG_PATH, JSON.stringify(merged));
     mainLog('SecurityHook', `Wrote state: enabled=${enabled}, fastPass=${fastPass}`);
   } catch (error) {
     mainError('SecurityHook', 'Failed to write state:', error);
@@ -153,6 +148,32 @@ export async function ensureEnabledState(): Promise<{ enabled: boolean; fastPass
   mainLog('SecurityHook', `No existing state, initializing with default: enabled=${DEFAULT_ENABLED_STATE.enabled}`);
   await writeEnabledState(DEFAULT_ENABLED_STATE.enabled, DEFAULT_ENABLED_STATE.fastPass);
   return { ...DEFAULT_ENABLED_STATE };
+}
+
+// ============================================================================
+// Unified Hook Config (combines enabled state + blacklist in single Nexus file)
+// ============================================================================
+
+/**
+ * Read the unified hook config from Nexus.
+ * Returns the parsed config object or null if unavailable.
+ */
+export async function readHookConfig(): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readNexusFileAsUtf8(HOOK_CONFIG_PATH);
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write the unified hook config to Nexus (full replacement).
+ */
+export async function writeHookConfig(config: Record<string, unknown>): Promise<void> {
+  const client = getNexusClient();
+  await client.write(HOOK_CONFIG_PATH, JSON.stringify(config));
 }
 
 // ============================================================================
