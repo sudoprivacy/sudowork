@@ -70,108 +70,12 @@ function removeUnnotarizableFiles(dir) {
   return removed;
 }
 
-/**
- * Fix a .framework bundle to have a proper Apple-compliant directory structure.
- * PyInstaller creates minimal .framework bundles (e.g. Python.framework/Python)
- * that lack the required Versions/A/ hierarchy and Info.plist.  Without these,
- * codesign fails with "bundle format is ambiguous" and notarization rejects
- * the binary with "The signature of the binary is invalid."
- *
- * This function restructures the bundle:
- *   Before:  Python.framework/Python  (flat, invalid)
- *   After:   Python.framework/
- *              Versions/
- *                A/
- *                  Python          ← moved here
- *                  Resources/
- *                    Info.plist    ← generated
- *                Current -> A     ← symlink
- *              Python -> Versions/A/Python   ← symlink
- *              Resources -> Versions/A/Resources  ← symlink
- *
- * @param {string} fwPath - Absolute path to the .framework directory
- */
-function fixFrameworkStructure(fwPath) {
-  const fwName = path.basename(fwPath, '.framework'); // e.g. "Python"
-  const versionsDir = path.join(fwPath, 'Versions');
-  const versionsADir = path.join(versionsDir, 'A');
-
-  // If Versions/A already exists, assume the structure is already proper —
-  // just ensure Info.plist is present.
-  if (fs.existsSync(versionsADir)) {
-    const resourcesDir = path.join(versionsADir, 'Resources');
-    fs.mkdirSync(resourcesDir, { recursive: true });
-    _ensureFrameworkInfoPlist(resourcesDir, fwName);
-    return;
-  }
-
-  // Create Versions/A
-  fs.mkdirSync(versionsADir, { recursive: true });
-
-  // Move ALL existing contents (except the Versions dir we just created) into Versions/A/
-  const entries = fs.readdirSync(fwPath, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === 'Versions') continue;
-    const src = path.join(fwPath, entry.name);
-    const dest = path.join(versionsADir, entry.name);
-    fs.renameSync(src, dest);
-  }
-
-  // Ensure Resources directory exists inside Versions/A
-  const resourcesInA = path.join(versionsADir, 'Resources');
-  fs.mkdirSync(resourcesInA, { recursive: true });
-
-  // Create Info.plist
-  _ensureFrameworkInfoPlist(resourcesInA, fwName);
-
-  // Create top-level symlinks (Apple-required framework layout)
-  // 1. Python.framework/Python -> Versions/A/Python
-  const mainBinaryInA = path.join(versionsADir, fwName);
-  if (fs.existsSync(mainBinaryInA)) {
-    fs.symlinkSync(path.join('Versions', 'A', fwName), path.join(fwPath, fwName));
-  }
-
-  // 2. Python.framework/Resources -> Versions/A/Resources
-  const topResources = path.join(fwPath, 'Resources');
-  if (!fs.existsSync(topResources)) {
-    fs.symlinkSync(path.join('Versions', 'A', 'Resources'), topResources);
-  }
-
-  // 3. Versions/Current -> A
-  fs.symlinkSync('A', path.join(versionsDir, 'Current'));
-}
-
-/**
- * Ensure an Info.plist exists in a framework's Resources directory.
- * @param {string} resourcesDir - Path to the Resources directory
- * @param {string} bundleName - The framework name (e.g. "Python")
- */
-function _ensureFrameworkInfoPlist(resourcesDir, bundleName) {
-  const plistPath = path.join(resourcesDir, 'Info.plist');
-  if (fs.existsSync(plistPath)) return;
-
-  const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>${bundleName}</string>
-    <key>CFBundleIdentifier</key>
-    <string>org.python.${bundleName.toLowerCase()}</string>
-    <key>CFBundleVersion</key>
-    <string>1.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundlePackageType</key>
-    <string>FMWK</string>
-    <key>CFBundleSignature</key>
-    <string>????</string>
-</dict>
-</plist>
-`;
-  fs.writeFileSync(plistPath, plistContent);
-}
+// NOTE: fixFrameworkStructure / _ensureFrameworkInfoPlist have been intentionally
+// removed.  PyInstaller creates non-standard .framework bundles that cannot be
+// made Apple-compliant reliably (EEXIST on existing symlinks, missing Info.plist
+// still triggers "bundle format is ambiguous").  Instead we sign every Mach-O
+// binary *inside* the .framework individually and never attempt to codesign the
+// .framework directory itself.  The outer .app signature covers the bundle.
 
 /**
  * Sign all binary files recursively in a directory
@@ -226,8 +130,9 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   }
 
   // ── 1. Collect .framework bundles ──────────────────────────────────────
-  // .framework dirs need special handling: fix their structure to be
-  // Apple-compliant, then sign as whole bundles instead of individual files.
+  // .framework dirs need special handling: we sign every Mach-O binary inside
+  // them individually, but never codesign the .framework directory itself
+  // (PyInstaller's non-standard structure causes "bundle format is ambiguous").
   const frameworkBundles = [];
   function findFrameworks(currentDir) {
     let entries;
@@ -246,17 +151,7 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   }
   findFrameworks(dir);
 
-  // ── 2. Fix .framework structure ──────────────────────────────────────
-  for (const fwPath of frameworkBundles) {
-    try {
-      fixFrameworkStructure(fwPath);
-      console.log(`   🔧 Fixed framework structure: ${path.basename(fwPath)}`);
-    } catch (err) {
-      console.warn(`   ⚠️  Could not fix framework structure for ${path.basename(fwPath)}: ${err.message}`);
-    }
-  }
-
-  // ── 3. Find individual Mach-O binaries (skip .framework dirs) ────────
+  // ── 2. Find individual Mach-O binaries (skip .framework dirs) ────────
   const binaries = [];
 
   function findBinaries(currentDir) {
@@ -269,7 +164,7 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
       if (entry.isSymbolicLink()) continue;
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
-        // Skip .framework dirs — they are signed as bundles in step 5
+        // Skip .framework dirs — inner binaries are signed in step 4
         if (entry.name.endsWith('.framework')) continue;
         findBinaries(fullPath);
       } else if (entry.isFile()) {
@@ -305,7 +200,7 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     console.log(`   Found ${frameworkBundles.length} .framework bundle(s) to sign`);
   }
 
-  // ── 4. Sign individual binaries ──────────────────────────────────────
+  // ── 3. Sign individual binaries ──────────────────────────────────────
   let signedCount = 0;
   const failedBinaries = [];
 
@@ -333,67 +228,61 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
-  // ── 5. Sign .framework bundles (inside-out, individual binaries only) ─
+  // ── 4. Sign Mach-O binaries inside .framework bundles ─────────────────
   // PyInstaller creates non-standard .framework bundles that macOS codesign
   // cannot classify ("bundle format is ambiguous — could be app or framework").
-  // Even after restructuring with Versions/A/ layout and Info.plist, the outer
-  // `codesign ... Python.framework` call still fails on these bundles.
   //
-  // Solution: sign every Mach-O binary INSIDE the framework individually.
-  // Apple notarization validates that each Mach-O binary has a valid signature —
-  // it does NOT require a separate framework-level code seal.  The top-level
-  // symlink (Python.framework/Python → Versions/A/Python) correctly resolves
-  // to the signed binary, satisfying notarization checks.
+  // Strategy: sign every Mach-O binary INSIDE the framework individually.
+  // ❌ Do NOT sign the .framework directory itself — it will always fail.
+  // ❌ Do NOT attempt to "fix" the framework structure — it causes EEXIST
+  //    errors and still doesn't make codesign happy.
+  // ✅ The outer .app signature (electron-builder) covers everything.
   for (const fwPath of frameworkBundles) {
-    const versionsADir = path.join(fwPath, 'Versions', 'A');
     let fwSignedCount = 0;
 
-    // Find and sign all Mach-O binaries inside the framework individually
-    if (fs.existsSync(versionsADir)) {
-      const innerBinaries = [];
-      const walkInner = (innerDir) => {
-        let innerEntries;
-        try { innerEntries = fs.readdirSync(innerDir, { withFileTypes: true }); } catch { return; }
-        for (const ie of innerEntries) {
-          if (ie.isSymbolicLink()) continue;
-          const innerPath = path.join(innerDir, ie.name);
-          if (ie.isDirectory()) {
-            walkInner(innerPath);
-          } else if (ie.isFile() && isMachOBinary(innerPath)) {
-            innerBinaries.push(innerPath);
-          }
+    // Walk the ENTIRE .framework directory tree to find all Mach-O binaries.
+    // This handles both flat (Python.framework/Python) and structured
+    // (Python.framework/Versions/A/Python) layouts from PyInstaller.
+    const innerBinaries = [];
+    const walkFramework = (currentDir) => {
+      let entries;
+      try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        // Skip symlinks — they resolve to the same real binary we'll sign directly
+        if (entry.isSymbolicLink()) continue;
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          walkFramework(fullPath);
+        } else if (entry.isFile() && isMachOBinary(fullPath)) {
+          innerBinaries.push(fullPath);
         }
-      };
-      walkInner(versionsADir);
+      }
+    };
+    walkFramework(fwPath);
 
-      for (const innerBin of innerBinaries) {
-        try {
-          // Remove any existing signature first (clean slate)
-          try { execSync(`codesign --remove-signature "${innerBin}"`, { stdio: 'pipe' }); } catch { /* no existing sig */ }
-          execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${innerBin}"`, {
-            stdio: 'pipe',
-          });
-          console.log(`   ✓ Signed (framework): ${path.relative(fwPath, innerBin)}`);
-          signedCount++;
-          fwSignedCount++;
-        } catch (innerErr) {
-          const innerMsg = innerErr.stderr ? innerErr.stderr.toString().trim() : innerErr.message;
-          console.warn(`   ⚠️  Failed to sign framework binary ${path.relative(fwPath, innerBin)}: ${innerMsg}`);
-          failedBinaries.push(`${path.basename(fwPath)}/${path.relative(fwPath, innerBin)}`);
-        }
+    for (const innerBin of innerBinaries) {
+      try {
+        // Remove any existing signature first (clean slate — prevents Team ID mismatch)
+        try { execSync(`codesign --remove-signature "${innerBin}"`, { stdio: 'pipe' }); } catch { /* no existing sig */ }
+        const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
+        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime ${entitlementsFlag} "${innerBin}"`, {
+          stdio: 'pipe',
+        });
+        console.log(`   ✓ Signed (framework): ${path.relative(fwPath, innerBin)}`);
+        signedCount++;
+        fwSignedCount++;
+      } catch (innerErr) {
+        const innerMsg = innerErr.stderr ? innerErr.stderr.toString().trim() : innerErr.message;
+        console.warn(`   ⚠️  Failed to sign framework binary ${path.relative(fwPath, innerBin)}: ${innerMsg}`);
+        failedBinaries.push(`${path.basename(fwPath)}/${path.relative(fwPath, innerBin)}`);
       }
     }
 
     if (fwSignedCount > 0) {
-      console.log(`   ✓ Framework ${path.basename(fwPath)}: ${fwSignedCount} inner binary/binaries signed`);
+      console.log(`   ✓ Framework ${path.basename(fwPath)}: signed ${fwSignedCount} inner binary(ies) (bundle signing skipped)`);
     } else {
-      console.warn(`   ⚠️  Framework ${path.basename(fwPath)}: no Mach-O binaries found to sign`);
+      console.warn(`   ⚠️  Framework ${path.basename(fwPath)}: no Mach-O binaries found inside`);
     }
-
-    // NOTE: We intentionally do NOT sign the .framework bundle itself.
-    // PyInstaller's non-standard framework structure causes codesign to fail with
-    // "bundle format is ambiguous (could be app or framework)".  Since all inner
-    // Mach-O binaries are individually signed, notarization will pass.
   }
 
   if (failedBinaries.length > 0) {
