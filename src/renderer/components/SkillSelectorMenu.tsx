@@ -17,6 +17,11 @@ export interface SkillSelectorMenuItem {
   enabled?: boolean;
 }
 
+export interface TabConfig {
+  key: string;
+  label: string;
+}
+
 interface SkillSelectorMenuProps {
   title: string;
   hint?: string;
@@ -28,9 +33,15 @@ interface SkillSelectorMenuProps {
   onHoverItem: (index: number) => void;
   onSelectItem: (item: SkillSelectorMenuItem) => void;
   emptyText: string;
+  /** Tab configuration — when provided, tab header is rendered */
+  tabs?: TabConfig[];
+  /** Currently active tab key */
+  activeTab?: string;
+  /** Callback when tab is clicked */
+  onTabChange?: (key: string) => void;
 }
 
-const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText }) => {
+const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText, tabs, activeTab, onTabChange }) => {
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
@@ -39,6 +50,8 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
       current.scrollIntoView({ block: 'nearest' });
     }
   }, [activeIndex, items.length]);
+
+  const showTabs = tabs && tabs.length > 0;
 
   return (
     <div
@@ -60,8 +73,28 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
           background: 'color-mix(in srgb, var(--color-bg-1) 84%, transparent)',
         }}
       >
-        <div className='text-13px font-semibold text-t-primary'>{title}</div>
-        {hint && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
+        {showTabs ? (
+          <div className='flex items-center gap-2px'>
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type='button'
+                className={classNames('px-8px py-2px rounded-6px text-13px font-medium cursor-pointer border-none outline-none transition-all', activeTab === tab.key ? 'bg-primary text-white' : 'bg-transparent text-t-secondary hover:text-t-primary hover:bg-fill-2')}
+                onMouseDown={(e) => {
+                  // Prevent input blur when clicking tab
+                  e.preventDefault();
+                }}
+                onClick={() => onTabChange?.(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className='text-13px font-semibold text-t-primary'>{title}</div>
+        )}
+        {hint && !showTabs && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
+        {showTabs && <div className='text-11px text-t-secondary truncate'>Tab 切换</div>}
       </div>
       <div role='listbox' aria-busy={loading} className='overflow-y-auto p-6px' style={{ maxHeight: 'min(34vh, 260px)' }}>
         {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{loadingText}</div>}
@@ -86,6 +119,10 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   minHeight: '42px',
                   background: index === activeIndex ? 'color-mix(in srgb, var(--aou-2) 88%, transparent)' : isSelected ? 'color-mix(in srgb, var(--color-primary-light-1) 50%, transparent)' : 'transparent',
                   boxShadow: undefined,
+                }}
+                onMouseDown={(e) => {
+                  // Prevent input blur when clicking item
+                  e.preventDefault();
                 }}
                 onMouseEnter={() => onHoverItem(index)}
                 onClick={() => onSelectItem(item)}

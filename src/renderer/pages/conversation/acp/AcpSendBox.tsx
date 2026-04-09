@@ -30,6 +30,7 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -414,6 +415,7 @@ const AcpSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+  const workspaceFiles = useWorkspaceFiles(conversation_id);
 
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
@@ -781,6 +783,7 @@ const AcpSendBox: React.FC<{
           // For now, they're passed directly to onSend
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}
