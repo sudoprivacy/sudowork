@@ -32,6 +32,8 @@ import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { AIProcessingContext } from './OpenClawChat';
+import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 
 interface OpenClawDraftData {
   _type: 'openclaw-gateway';
@@ -100,6 +102,9 @@ const OpenClawSendBox: React.FC<{
   const aiProcessingContext = React.useContext(AIProcessingContext);
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
+  // Fetch workspace files for @ mention file references
+  const conversationContext = useConversationContextSafe();
+  const wsFiles = useWorkspaceFiles(conversation_id, conversationContext?.workspace);
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
@@ -714,6 +719,7 @@ const OpenClawSendBox: React.FC<{
           // Store skills in ref or state if needed for session management
           // For now, they're passed directly to onSend
         }}
+        workspaceFiles={wsFiles}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

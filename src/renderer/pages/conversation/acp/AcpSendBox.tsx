@@ -30,6 +30,8 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -415,6 +417,10 @@ const AcpSendBox: React.FC<{
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
 
+  // Fetch workspace files for @ mention file references
+  const conversationContext = useConversationContextSafe();
+  const workspaceFiles = useWorkspaceFiles(conversation_id, conversationContext?.workspace);
+
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
 
@@ -781,6 +787,7 @@ const AcpSendBox: React.FC<{
           // For now, they're passed directly to onSend
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}
