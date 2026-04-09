@@ -165,6 +165,24 @@ interface PreviewToolbarProps {
    * Extra content rendered on the right section
    */
   rightExtra?: React.ReactNode;
+
+  /**
+   * 是否有未保存的修改
+   * Whether there are unsaved changes
+   */
+  isDirty?: boolean;
+
+  /**
+   * 保存按钮点击回调
+   * Save button click callback
+   */
+  onSave?: () => void;
+
+  /**
+   * 是否正在保存
+   * Whether saving is in progress
+   */
+  isSaving?: boolean;
 }
 
 /**
@@ -175,7 +193,7 @@ interface PreviewToolbarProps {
  * Contains filename, view mode toggle, edit button, snapshot/history buttons, download button, close button, etc.
  */
 // eslint-disable-next-line max-len
-const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra }) => {
+const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra, isDirty, onSave, isSaving }) => {
   const { t } = useTranslation();
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
@@ -218,22 +236,35 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                 </div>
               </div>
               {!isDiff && (
-                <div
-                  className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-t-secondary hover:bg-bg-3'}`}
-                  onClick={() => {
-                    try {
-                      onSplitScreenToggle();
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                  title={isSplitScreenEnabled ? t('preview.closeSplitScreen') : t('preview.openSplitScreen')}
-                >
-                  <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
-                    <rect x='3' y='3' width='18' height='18' rx='2' />
-                    <line x1='12' y1='3' x2='12' y2='21' />
-                  </svg>
-                </div>
+                <>
+                  {/* 保存按钮：Markdown/HTML 在 source 或分屏模式下有变更时显示 / Save button: shown for Markdown/HTML in source or split mode with changes */}
+                  {(isMarkdown || isHTML) && (viewMode === 'source' || isSplitScreenEnabled) && isDirty && onSave && (
+                    <div className={`${toolbarBtn} !text-white bg-green-600 hover:!text-white hover:bg-green-700`} onClick={() => void onSave()} title={t('common.save')}>
+                      <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-white'>
+                        <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' />
+                        <polyline points='17 21 17 13 7 13 7 21' />
+                        <polyline points='7 3 7 8 15 8' />
+                      </svg>
+                      <span>{isSaving ? t('common.saving') : t('common.save')}</span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-t-secondary hover:bg-bg-3'}`}
+                    onClick={() => {
+                      try {
+                        onSplitScreenToggle();
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    title={isSplitScreenEnabled ? t('preview.closeSplitScreen') : t('preview.openSplitScreen')}
+                  >
+                    <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                      <rect x='3' y='3' width='18' height='18' rx='2' />
+                      <line x1='12' y1='3' x2='12' y2='21' />
+                    </svg>
+                  </div>
+                </>
               )}
             </>
           )}
@@ -245,6 +276,18 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                 <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
               </svg>
               <span>{isEditMode ? t('preview.exitEdit') : t('preview.edit')}</span>
+            </div>
+          )}
+
+          {/* 保存按钮：编辑模式下且有修改时显示 / Save button: shown in edit mode with unsaved changes */}
+          {isEditable && isEditMode && isDirty && onSave && (
+            <div className={`${toolbarBtn} !text-white bg-green-600 hover:!text-white hover:bg-green-700`} onClick={() => void onSave()} title={t('common.save')}>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-white'>
+                <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' />
+                <polyline points='17 21 17 13 7 13 7 21' />
+                <polyline points='7 3 7 8 15 8' />
+              </svg>
+              <span>{isSaving ? t('common.saving') : t('common.save')}</span>
             </div>
           )}
 
