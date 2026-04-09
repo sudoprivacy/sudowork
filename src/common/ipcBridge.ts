@@ -302,6 +302,8 @@ export const acpConversation = {
   >('acp.get-available-agents'),
   checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
   refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
+  /** Re-run full CLI agent detection (after install/uninstall) */
+  rescanAgents: bridge.buildProvider<IBridgeResponse, void>('acp.rescan-agents'),
   checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
   // Set session mode for ACP agents (claude, qwen, etc.)
   // 设置 ACP 代理的会话模式（claude、qwen 等）

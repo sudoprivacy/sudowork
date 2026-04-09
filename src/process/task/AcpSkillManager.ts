@@ -125,7 +125,9 @@ export class AcpSkillManager {
    * @returns AcpSkillManager 实例 / AcpSkillManager instance
    */
   static getInstance(enabledSkills?: string[]): AcpSkillManager {
-    const cacheKey = enabledSkills?.sort().join(',') || 'all';
+    // Distinguish between undefined (non-preset → load all) and [] (preset with
+    // no skills → load none).  An empty array must NOT map to 'all'.
+    const cacheKey = enabledSkills ? (enabledSkills.length > 0 ? [...enabledSkills].sort().join(',') : '__none__') : 'all';
 
     // 如果缓存键变化，需要重新创建实例
     // If cache key changed, need to recreate instance
@@ -219,8 +221,9 @@ export class AcpSkillManager {
 
       for (const extSkill of extSkills) {
         // 如果指定了 enabledSkills，只加载被启用的扩展 skills
-        // If enabledSkills is specified, only load enabled extension skills
-        if (enabledSkills && enabledSkills.length > 0 && !enabledSkills.includes(extSkill.name)) {
+        // If enabledSkills is specified, only load enabled extension skills.
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(extSkill.name)) {
           continue;
         }
 
@@ -266,7 +269,8 @@ export class AcpSkillManager {
         if (!entry.isDirectory()) continue;
         const skillName = entry.name;
 
-        if (enabledSkills && enabledSkills.length > 0 && !enabledSkills.includes(skillName)) {
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(skillName)) {
           continue;
         }
 
@@ -350,7 +354,8 @@ export class AcpSkillManager {
         // Skip if already found in subdirectories
         if (this.skills.has(skillName)) continue;
 
-        if (enabledSkills && enabledSkills.length > 0 && !enabledSkills.includes(skillName)) {
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(skillName)) {
           continue;
         }
 
