@@ -5,6 +5,7 @@
  */
 
 import { getDatabase } from '@/process/database';
+import { serviceManager } from '@process/services/serviceManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelDefaultModel } from '../actions/SystemActions';
@@ -120,15 +121,37 @@ export class ChannelManager {
       });
 
       // Load and start enabled plugins from database
+      // Wait for secrets first to ensure credentials are available
+      this.initialized = true;
+      await this.waitForSecretsReady();
       await this.loadEnabledPlugins();
 
-      this.initialized = true;
       console.log('[ChannelManager] Initialized successfully');
+
     } catch (error) {
       console.error('[ChannelManager] Initialization failed:', error);
       throw error;
     }
   }
+
+  /**
+   * Wait for secrets to be available before loading plugins.
+   * This ensures credentials are populated in SecretCache before
+   * channel plugins attempt to read them via resolveSecret().
+   */
+  private async waitForSecretsReady(): Promise<boolean> {
+    try {
+      const secretsReady = await serviceManager.waitForSecrets();
+      if (!secretsReady) {
+        console.warn('[ChannelManager] Secrets not available, loading plugins with fallback credentials');
+      }
+      return secretsReady;
+    } catch (err) {
+      console.warn('[ChannelManager] Error waiting for secrets, proceeding with fallback:', err);
+      return false;
+    }
+  }
+
 
   /**
    * Shutdown the assistant subsystem
