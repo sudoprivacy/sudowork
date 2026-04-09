@@ -557,7 +557,36 @@ export const sudoclaw = {
   getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
   /** Emitted during WeChat plugin install — delivers QR code data and progress */
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
+
+  // ── Persistent Mode (SudoClaw Agent Loop) ──────────────────────────
+
+  /** Enable SudoClaw persistent mode — starts the always-on agent loop */
+  persistentEnable: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.persistent-enable'),
+  /** Disable SudoClaw persistent mode — stops the agent loop */
+  persistentDisable: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.persistent-disable'),
+  /** Get current persistent mode status (enabled, sessionState, tickCount, etc.) */
+  persistentStatus: bridge.buildProvider<IBridgeResponse<ISudoClawPersistentStatus>, void>('sudoclaw.persistent-status'),
+  /** Emitted when persistent mode status changes (state transitions, tick updates) */
+  persistentStatusChanged: bridge.buildEmitter<ISudoClawPersistentStatus>('sudoclaw.persistent-status-changed'),
 };
+
+// SudoClaw persistent mode status types
+export type SudoClawSessionState = 'idle' | 'running' | 'sleeping' | 'requires_action' | 'error';
+
+export interface ISudoClawPersistentStatus {
+  /** Whether persistent mode is enabled */
+  enabled: boolean;
+  /** Current session state */
+  sessionState: SudoClawSessionState;
+  /** Number of ticks (iterations) the agent has completed */
+  tickCount: number;
+  /** ISO timestamp — if the agent is sleeping, when it will wake up */
+  sleepUntil: string | null;
+  /** If sessionState is 'requires_action', the question awaiting user input */
+  pendingQuestion: string | null;
+  /** Optional error message when sessionState is 'error' */
+  error?: string;
+}
 
 // Initialization status for runtime dependencies
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';

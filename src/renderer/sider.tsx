@@ -1,7 +1,7 @@
 import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
@@ -11,6 +11,10 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
+import { emitter } from './utils/emitter';
+import { ConfigStorage } from '@/common/storage';
+import { sudoclaw as sudoclawIpc } from '@/common/ipcBridge';
+import type { ISudoClawPersistentStatus, SudoClawSessionState } from '@/common/ipcBridge';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -39,6 +43,43 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };
+
+  // ── SudoClaw persistent mode status ──
+  const [sudoClawStatus, setSudoClawStatus] = useState<ISudoClawPersistentStatus | null>(null);
+
+  const refreshSudoClawStatus = useCallback(async () => {
+    try {
+      const res = await sudoclawIpc.persistentStatus.invoke();
+      if (res?.success && res.data) {
+        setSudoClawStatus(res.data);
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSudoClawStatus();
+  }, [refreshSudoClawStatus]);
+
+  useEffect(() => {
+    const unsubscribe = sudoclawIpc.persistentStatusChanged.on((newStatus) => {
+      setSudoClawStatus(newStatus);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  /** Dot color for SudoClaw persistent mode status */
+  const sudoClawDotColor: string | null = (() => {
+    if (!sudoClawStatus?.enabled) return null;
+    const state = sudoClawStatus.sessionState;
+    if (state === 'running' || state === 'sleeping') return '#52c41a'; // green
+    if (state === 'requires_action') return '#fa8c16'; // orange
+    if (state === 'error') return '#f5222d'; // red
+    return null;
+  })();
 
   // 功能菜单项定义 / Function menu items definition
   const functionMenus = [
@@ -175,6 +216,37 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 );
               })}
             </div>
+
+            {/* SudoClaw persistent mode status indicator */}
+            {sudoClawDotColor && (
+              <Tooltip
+                {...siderTooltipProps}
+                content={
+                  sudoClawStatus?.sessionState === 'requires_action'
+                    ? t('sudoclaw.persistent.state.requiresAction', { defaultValue: 'SudoClaw: Action required' })
+                    : t('sudoclaw.persistent.state.running', { defaultValue: 'SudoClaw: Running' })
+                }
+                position='right'
+              >
+                <div className={classNames('mb-8px px-8px flex items-center gap-8px rd-8px py-6px transition-colors hover:bg-hover', collapsed && 'justify-center px-0')}>
+                  <span
+                    className='inline-block rd-50% shrink-0'
+                    style={{
+                      width: 8,
+                      height: 8,
+                      backgroundColor: sudoClawDotColor,
+                      animation: sudoClawStatus?.sessionState === 'running' ? 'sudoclaw-pulse 2s ease-in-out infinite' : undefined,
+                    }}
+                  />
+                  {!collapsed && (
+                    <span className='text-13px text-t-secondary truncate'>
+                      {t('sudoclaw.persistent.label', { defaultValue: 'SudoClaw' })}
+                      {sudoClawStatus?.pendingQuestion && <span className='text-warning ml-4px'>⚠</span>}
+                    </span>
+                  )}
+                </div>
+              </Tooltip>
+            )}
 
             {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>

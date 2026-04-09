@@ -13,6 +13,7 @@ import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
+import { sudoClawManager } from '../services/sudoclaw/SudoClawManager';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 
@@ -439,5 +440,44 @@ export function initSudoclawBridge(): void {
 
       child.on('close', () => clearTimeout(timeout));
     });
+  });
+
+  // ==================== Persistent Mode (SudoClaw Agent Loop) ====================
+
+  ipcBridge.sudoclaw.persistentEnable.provider(async () => {
+    try {
+      mainLog('SudoclawBridge', 'Enabling persistent mode...');
+      await sudoClawManager.enable();
+      return { success: true };
+    } catch (err) {
+      mainError('SudoclawBridge', 'Failed to enable persistent mode', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.persistentDisable.provider(async () => {
+    try {
+      mainLog('SudoclawBridge', 'Disabling persistent mode...');
+      await sudoClawManager.disable();
+      return { success: true };
+    } catch (err) {
+      mainError('SudoclawBridge', 'Failed to disable persistent mode', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcBridge.sudoclaw.persistentStatus.provider(async () => {
+    try {
+      const status = sudoClawManager.getStatus();
+      return { success: true, data: status };
+    } catch (err) {
+      mainError('SudoclawBridge', 'Failed to get persistent status', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // Forward SudoClawManager status changes to the renderer via IPC emitter
+  sudoClawManager.onStatusChange((status) => {
+    ipcBridge.sudoclaw.persistentStatusChanged.emit(status);
   });
 }
