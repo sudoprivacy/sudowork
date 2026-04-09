@@ -8,12 +8,37 @@ import { EventEmitter } from 'events';
 import type { IResponseMessage } from '@/common/ipcBridge';
 
 /**
+ * Approval event data — emitted when a tool requires user confirmation
+ */
+export type IApprovalPendingEvent = {
+  conversationId: string;
+  requestId: string;
+  callId: string;
+  toolName: string;
+  description: string;
+};
+
+/**
+ * Approval resolved event data — emitted when user approves or denies
+ */
+export type IApprovalResolvedEvent = {
+  conversationId: string;
+  requestId: string;
+  callId: string;
+  optionId: string;
+};
+
+/**
  * Channel 全局事件类型
  * Channel global event types
  */
 export const ChannelEvents = {
   /** Agent 消息事件 / Agent message event */
   AGENT_MESSAGE: 'channel.agent.message',
+  /** Tool approval pending — agent is waiting for user confirmation */
+  APPROVAL_PENDING: 'channel.approval.pending',
+  /** Tool approval resolved — user has approved or denied */
+  APPROVAL_RESOLVED: 'channel.approval.resolved',
 } as const;
 
 /**
@@ -76,6 +101,40 @@ class ChannelEventBus extends EventEmitter {
    */
   offAgentMessage(handler: (event: IAgentMessageEvent) => void): void {
     this.off(ChannelEvents.AGENT_MESSAGE, handler);
+  }
+
+  /**
+   * Emit approval-pending event (tool requires user confirmation)
+   */
+  emitApprovalPending(event: IApprovalPendingEvent): void {
+    this.emit(ChannelEvents.APPROVAL_PENDING, event);
+  }
+
+  /**
+   * Listen for approval-pending events
+   */
+  onApprovalPending(handler: (event: IApprovalPendingEvent) => void): () => void {
+    this.on(ChannelEvents.APPROVAL_PENDING, handler);
+    return () => {
+      this.off(ChannelEvents.APPROVAL_PENDING, handler);
+    };
+  }
+
+  /**
+   * Emit approval-resolved event (user approved or denied)
+   */
+  emitApprovalResolved(event: IApprovalResolvedEvent): void {
+    this.emit(ChannelEvents.APPROVAL_RESOLVED, event);
+  }
+
+  /**
+   * Listen for approval-resolved events
+   */
+  onApprovalResolved(handler: (event: IApprovalResolvedEvent) => void): () => void {
+    this.on(ChannelEvents.APPROVAL_RESOLVED, handler);
+    return () => {
+      this.off(ChannelEvents.APPROVAL_RESOLVED, handler);
+    };
   }
 }
 
