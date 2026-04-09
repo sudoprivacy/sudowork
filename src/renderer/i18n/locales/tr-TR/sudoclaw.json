@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "Kontrol Paneli",
+  "memoryViewer": "Bellek Görüntüleyici",
+  "status": {
+    "title": "Durum",
+    "enabled": "Etkin",
+    "disabled": "Devre dışı",
+    "sessionState": "Oturum Durumu",
+    "tickCount": "Yürütme Sayısı",
+    "lastActivity": "Son Etkinlik",
+    "noActivity": "Etkinlik kaydı yok",
+    "gatewayRunning": "Ağ Geçidi Çalışıyor",
+    "gatewayPort": "Ağ Geçidi Portu",
+    "version": "Sürüm",
+    "notInstalled": "Yüklü değil"
+  },
+  "session": {
+    "idle": "Boşta",
+    "active": "Aktif",
+    "paused": "Duraklatıldı"
+  },
+  "toggle": {
+    "enable": "SudoClaw'u Etkinleştir",
+    "disable": "SudoClaw'u Devre Dışı Bırak",
+    "enableSuccess": "SudoClaw etkinleştirildi",
+    "disableSuccess": "SudoClaw devre dışı bırakıldı",
+    "toggleFailed": "SudoClaw geçiş hatası"
+  },
+  "memory": {
+    "title": "Bellek Günlükleri",
+    "selectDate": "Tarih seçin",
+    "searchPlaceholder": "Bellek girişlerini ara...",
+    "noEntries": "Bu tarihte bellek girişi yok",
+    "noResults": "Aramayla eşleşen giriş yok",
+    "loading": "Bellek girişleri yükleniyor...",
+    "entryCount": "{{count}} giriş",
+    "category": "Kategori",
+    "tags": "Etiketler",
+    "viewEntry": "Girişi görüntüle",
+    "browseByDate": "Tarihe göre gözat",
+    "today": "Bugün",
+    "loadFailed": "Bellek girişleri yüklenemedi"
+  }
+}

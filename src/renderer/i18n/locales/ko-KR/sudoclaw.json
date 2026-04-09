@@ -1,0 +1,45 @@
+{
+  "title": "SudoClaw",
+  "dashboard": "대시보드",
+  "memoryViewer": "메모리 뷰어",
+  "status": {
+    "title": "상태",
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
+    "sessionState": "세션 상태",
+    "tickCount": "실행 횟수",
+    "lastActivity": "마지막 활동",
+    "noActivity": "활동 기록 없음",
+    "gatewayRunning": "게이트웨이 실행 중",
+    "gatewayPort": "게이트웨이 포트",
+    "version": "버전",
+    "notInstalled": "설치되지 않음"
+  },
+  "session": {
+    "idle": "대기",
+    "active": "활성",
+    "paused": "일시 중지"
+  },
+  "toggle": {
+    "enable": "SudoClaw 활성화",
+    "disable": "SudoClaw 비활성화",
+    "enableSuccess": "SudoClaw가 활성화되었습니다",
+    "disableSuccess": "SudoClaw가 비활성화되었습니다",
+    "toggleFailed": "SudoClaw 전환 실패"
+  },
+  "memory": {
+    "title": "메모리 로그",
+    "selectDate": "날짜 선택",
+    "searchPlaceholder": "메모리 항목 검색...",
+    "noEntries": "이 날짜에 메모리 항목이 없습니다",
+    "noResults": "검색과 일치하는 항목이 없습니다",
+    "loading": "메모리 항목 로딩 중...",
+    "entryCount": "{{count}}개 항목",
+    "category": "카테고리",
+    "tags": "태그",
+    "viewEntry": "항목 보기",
+    "browseByDate": "날짜별 탐색",
+    "today": "오늘",
+    "loadFailed": "메모리 항목 로딩 실패"
+  }
+}
