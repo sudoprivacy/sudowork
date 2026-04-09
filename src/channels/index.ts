@@ -36,3 +36,9 @@ export * from './actions';
 
 // Agent exports
 export { ChannelMessageService, getChannelMessageService } from './agent/ChannelMessageService';
+
+// SudoClaw exports
+export { getSudoClawBridge } from './agent/SudoClawBridge';
+export { SudoClawManager, getSudoClawManager } from './agent/sudoclaw/SudoClawManager';
+export type { ISudoClawAskUserRequest, ISudoClawUserResponse, SudoClawSessionState, SudoClawResponseType } from './agent/sudoclaw/types';
+export { SudoClawEvents } from './agent/sudoclaw/types';

@@ -669,6 +669,143 @@ export function createSettingsCard(): LarkCard {
   };
 }
 
+// ==================== SudoClaw AskUser Cards ====================
+
+/**
+ * Create an AskUser response card for SudoClaw.
+ * Shown when the model calls AskUserTool with urgency: 'action_needed'.
+ *
+ * @param requestId - Unique request ID for correlation
+ * @param question - The model's question to the user
+ * @param options - Optional custom response options
+ * @param context - Optional context (tool name, summary)
+ */
+export function createAskUserCard(
+  requestId: string,
+  question: string,
+  options?: Array<{ label: string; value: string; style?: 'primary' | 'default' | 'danger' }>,
+  context?: { toolName?: string; summary?: string }
+): LarkCard {
+  const elements: LarkCardElement[] = [];
+
+  // Context info (if provided)
+  if (context?.toolName || context?.summary) {
+    const contextLines: string[] = [];
+    if (context.toolName) contextLines.push(`**Tool:** \`${context.toolName}\``);
+    if (context.summary) contextLines.push(`**Summary:** ${context.summary}`);
+    elements.push({
+      tag: 'markdown',
+      content: contextLines.join('\n'),
+    });
+    elements.push({ tag: 'hr' });
+  }
+
+  // Question
+  elements.push({
+    tag: 'markdown',
+    content: question,
+  });
+
+  // Action buttons
+  if (options && options.length > 0) {
+    // Custom options
+    const buttons: LarkButtonElement[] = options.map((opt) => ({
+      tag: 'button',
+      text: { tag: 'plain_text', content: opt.label },
+      type: opt.style === 'danger' ? 'danger' : opt.style === 'primary' ? 'primary' : 'default',
+      value: { action: 'sudoclaw.respond', requestId, responseType: opt.value },
+    }));
+
+    // Split buttons into rows of 3
+    for (let i = 0; i < buttons.length; i += 3) {
+      elements.push({
+        tag: 'action',
+        actions: buttons.slice(i, i + 3),
+      });
+    }
+  } else {
+    // Default Approve / Deny / Reply
+    elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '✅ Approve' },
+          type: 'primary',
+          value: { action: 'sudoclaw.respond', requestId, responseType: 'approve' },
+        },
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '❌ Deny' },
+          type: 'danger',
+          value: { action: 'sudoclaw.respond', requestId, responseType: 'deny' },
+        },
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '💬 Reply' },
+          type: 'default',
+          value: { action: 'sudoclaw.respond', requestId, responseType: 'reply' },
+        },
+      ],
+    });
+  }
+
+  // Footer note
+  elements.push({
+    tag: 'note',
+    elements: [
+      {
+        tag: 'plain_text',
+        content: 'SudoClaw · Action Required',
+      },
+    ],
+  });
+
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: '🔔 Action Required' },
+      template: 'orange',
+    },
+    elements,
+  };
+}
+
+/**
+ * Create a card shown after the user responds to an AskUser request.
+ * Replaces the interactive card to show the response was recorded.
+ *
+ * @param responseType - How the user responded
+ * @param question - Original question
+ */
+export function createAskUserResponsedCard(responseType: string, question: string): LarkCard {
+  const icon = responseType === 'approve' ? '✅' : responseType === 'deny' ? '❌' : '💬';
+  const label = responseType === 'approve' ? 'Approved' : responseType === 'deny' ? 'Denied' : 'Replied';
+
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: `${icon} ${label}` },
+      template: responseType === 'approve' ? 'green' : responseType === 'deny' ? 'red' : 'blue',
+    },
+    elements: [
+      {
+        tag: 'markdown',
+        content: question.length > 200 ? question.slice(0, 200) + '...' : question,
+      },
+      {
+        tag: 'note',
+        elements: [
+          {
+            tag: 'plain_text',
+            content: `Response: ${label}`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 // ==================== Utilities ====================
 
 /**

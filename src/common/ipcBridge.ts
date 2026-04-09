@@ -570,6 +570,42 @@ export const sudoclaw = {
   persistentStatusChanged: bridge.buildEmitter<ISudoClawPersistentStatus>('sudoclaw.persistent-status-changed'),
   /** Emitted when SudoClaw sends a notification (routed to WebUI via bridge) */
   notification: bridge.buildEmitter<{ title: string; body: string; urgency: 'info' | 'action_needed' | 'completed'; conversationId?: string; metadata?: Record<string, unknown>; timestamp: number }>('sudoclaw.notification'),
+
+  // ── SudoClaw AskUser ──────────────────────────────────────────────
+
+  /** Emitted when the model calls AskUserTool and needs user input */
+  askUserRequest: bridge.buildEmitter<{
+    requestId: string;
+    conversationId: string;
+    question: string;
+    urgency: 'info' | 'action_needed' | 'critical';
+    suggestedActions?: Array<{ label: string; value: string; style?: string }>;
+    context?: { toolName?: string; summary?: string; details?: string };
+    createdAt: number;
+    timeoutMs?: number;
+  }>('sudoclaw.ask-user-request'),
+
+  /** Emitted when a user response is received (for renderer to update UI) */
+  askUserResponse: bridge.buildEmitter<{
+    requestId: string;
+    conversationId: string;
+    responseType: string;
+    message?: string;
+    platform: string;
+  }>('sudoclaw.ask-user-response'),
+
+  /** Send a response from the WebUI renderer to the main process */
+  respondToAskUser: bridge.buildProvider<
+    IBridgeResponse<void>,
+    {
+      requestId: string;
+      conversationId: string;
+      responseType: string;
+      message?: string;
+      userId: string;
+      displayName?: string;
+    }
+  >('sudoclaw.respond-to-ask-user'),
 };
 
 // SudoClaw persistent mode status types

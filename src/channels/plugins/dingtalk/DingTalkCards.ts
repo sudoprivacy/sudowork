@@ -261,6 +261,69 @@ export function createSettingsCard(): DingTalkCard {
   };
 }
 
+// ==================== SudoClaw AskUser Cards ====================
+
+/**
+ * Create an AskUser response card for SudoClaw.
+ * Shown when the model calls AskUserTool with urgency: 'action_needed'.
+ *
+ * @param requestId - Unique request ID for correlation
+ * @param question - The model's question to the user
+ * @param options - Optional custom response options
+ * @param context - Optional context (tool name, summary)
+ */
+export function createAskUserCard(
+  requestId: string,
+  question: string,
+  options?: Array<{ label: string; value: string }>,
+  context?: { toolName?: string; summary?: string }
+): DingTalkCard {
+  const textParts: string[] = ['### 🔔 Action Required'];
+
+  if (context?.toolName || context?.summary) {
+    if (context.toolName) textParts.push(`**Tool:** \`${context.toolName}\``);
+    if (context.summary) textParts.push(`**Summary:** ${context.summary}`);
+    textParts.push('---');
+  }
+
+  textParts.push(question);
+
+  let buttons: DingTalkButton[];
+  if (options && options.length > 0) {
+    buttons = options.map((opt) => btn(opt.label, 'sudoclaw.respond', { requestId, responseType: opt.value }));
+  } else {
+    buttons = [
+      btn('✅ Approve', 'sudoclaw.respond', { requestId, responseType: 'approve' }),
+      btn('❌ Deny', 'sudoclaw.respond', { requestId, responseType: 'deny' }),
+      btn('💬 Reply', 'sudoclaw.respond', { requestId, responseType: 'reply' }),
+    ];
+  }
+
+  return {
+    title: 'Action Required - SudoClaw',
+    text: textParts.join('\n\n'),
+    btnOrientation: '1',
+    btns: buttons,
+  };
+}
+
+/**
+ * Create a card shown after the user responds to an AskUser request.
+ *
+ * @param responseType - How the user responded
+ * @param question - Original question
+ */
+export function createAskUserRespondedCard(responseType: string, question: string): DingTalkCard {
+  const icon = responseType === 'approve' ? '✅' : responseType === 'deny' ? '❌' : '💬';
+  const label = responseType === 'approve' ? 'Approved' : responseType === 'deny' ? 'Denied' : 'Replied';
+  const truncatedQuestion = question.length > 200 ? question.slice(0, 200) + '...' : question;
+
+  return {
+    title: `${icon} ${label}`,
+    text: [`### ${icon} ${label}`, '', truncatedQuestion, '', `---`, `Response: **${label}**`].join('\n'),
+  };
+}
+
 // ==================== Utilities ====================
 
 /**
