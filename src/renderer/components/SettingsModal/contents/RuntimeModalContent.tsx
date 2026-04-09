@@ -124,10 +124,12 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, []);
 
-  /** Refresh the Guid homepage agent list (best-effort). */
+  /** Refresh the Guid homepage agent list (best-effort).
+   *  Uses rescanAgents to re-run full CLI detection so that newly
+   *  installed / uninstalled CLI agents (e.g. Claude Code) are picked up. */
   const refreshAvailableAgents = useCallback(async () => {
     try {
-      await acpConversation.refreshCustomAgents.invoke();
+      await acpConversation.rescanAgents.invoke();
       await mutate('acp.agents.available');
     } catch {
       /* silent – agent list refresh is best-effort */

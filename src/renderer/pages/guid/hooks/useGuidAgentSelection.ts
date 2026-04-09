@@ -604,9 +604,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   // Defensive: re-scan available agents whenever the user clicks "New Chat"
   // so that newly installed agents (e.g. Claude Code) appear even if the
   // Guid page was never unmounted and the mount-only effect didn't re-run.
+  // Uses rescanAgents to re-run full CLI detection on the main process,
+  // then revalidates the SWR cache so the UI picks up the change.
   useEffect(() => {
     const handler = () => {
-      void mutate('acp.agents.available');
+      void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
+        void mutate('acp.agents.available');
+      });
     };
     emitter.on('guid.reset', handler);
     return () => {
