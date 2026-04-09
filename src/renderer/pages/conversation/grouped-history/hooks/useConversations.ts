@@ -57,7 +57,15 @@ export const useConversations = () => {
     };
 
     refresh();
-    return addEventListener('chat.history.refresh', refresh);
+    const removeLocalListener = addEventListener('chat.history.refresh', refresh);
+    // 监听主进程的渠道对话变更事件（钉钉、飞书、Telegram 等渠道对话创建/更新时触发）
+    const removeBridgeListener = ipcBridge.database.conversationChanged.on(() => {
+      refresh();
+    });
+    return () => {
+      removeLocalListener();
+      removeBridgeListener();
+    };
   }, []);
 
   // Scroll active conversation into view

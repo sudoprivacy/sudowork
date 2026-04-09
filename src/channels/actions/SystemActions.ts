@@ -5,6 +5,7 @@
  */
 
 import { acpDetector } from '@/agent/acp/AcpDetector';
+import { database as databaseBridge } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
@@ -186,6 +187,13 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Create session with the new conversation ID (scoped by chatId)
   const agentType = convType as ChannelAgentType;
   const session = sessionManager.createSessionWithConversation(context.channelUser, result.conversation.id, agentType, undefined, channelChatId);
+
+  // 通知渲染进程刷新对话列表
+  databaseBridge.conversationChanged.emit({
+    conversationId: result.conversation.id,
+    source,
+    action: 'created',
+  });
 
   const markup = context.platform === 'lark' ? createMainMenuCard() : context.platform === 'dingtalk' ? createDingTalkMainMenuCard() : createMainMenuKeyboard();
   return createSuccessResponse({

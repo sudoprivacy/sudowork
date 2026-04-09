@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -467,6 +468,15 @@ export class ActionExecutor {
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
           session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), chatId);
+
+          // 通知渲染进程刷新对话列表（仅新建对话时）
+          if (!existing) {
+            databaseBridge.conversationChanged.emit({
+              conversationId: result.conversation.id,
+              source,
+              action: 'created',
+            });
+          }
         } else {
           console.error(`[ActionExecutor] Failed to create conversation: ${result.error}`);
           await context.sendMessage({
@@ -785,6 +795,15 @@ export class ActionExecutor {
 
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
+
+      // 通知渲染进程对话已更新（updated_at 变化影响列表排序）
+      if (conversationId) {
+        databaseBridge.conversationChanged.emit({
+          conversationId,
+          source: context.platform,
+          action: 'updated',
+        });
+      }
     }
   }
 
