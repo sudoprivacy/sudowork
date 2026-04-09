@@ -14,6 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { app } from 'electron';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { getDatabase } from '@process/database';
 
 interface GatewayManagerConfig {
   /** Gateway port (default: 17863 for Sudoclaw) */
@@ -176,6 +177,25 @@ export class OpenClawGatewayManager extends EventEmitter {
     }
   }
 
+  /** Inject enabled plugin credentials (e.g. Chandao) into gateway env */
+  private injectPluginCredentials(env: Record<string, string>): void {
+    try {
+      const pluginsResult = getDatabase().getPluginCredentialsDirect('zentao');
+      if (pluginsResult) {
+        if (pluginsResult.serverUrl) env.CHANDAO_BASE_URL = pluginsResult.serverUrl;
+        if (pluginsResult.zentaoUsername) env.CHANDAO_ACCOUNT = pluginsResult.zentaoUsername;
+        if (pluginsResult.zentaoPassword) env.CHANDAO_PASSWORD = pluginsResult.zentaoPassword;
+        console.log('[OpenClawGatewayManager] Injected Zentao credentials:', {
+          hasUrl: !!pluginsResult.serverUrl,
+          hasUser: !!pluginsResult.zentaoUsername,
+          hasPass: !!pluginsResult.zentaoPassword,
+        });
+      }
+    } catch (error) {
+      console.error('[OpenClawGatewayManager] Failed to inject plugin credentials:', error);
+    }
+  }
+
   private canUseInProcess(): boolean {
     // Always use subprocess mode for safety hook to work properly.
     // In-process mode runs gateway in Electron main process, where
@@ -200,6 +220,7 @@ export class OpenClawGatewayManager extends EventEmitter {
     process.argv = ['node', entryPath, ...buildGatewayArgs(this.port)];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
     process.env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
+    this.injectPluginCredentials(process.env as Record<string, string>);
     process.chdir(pkgRoot);
 
     // Load safety hook before gateway entry (for in-process mode)
@@ -271,6 +292,9 @@ export class OpenClawGatewayManager extends EventEmitter {
       // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
       // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
       // so no env var injection is needed here.
+      // However, plugin credentials (e.g. Chandao) are stored in the app database
+      // and need to be injected as env vars for skills that read them.
+      this.injectPluginCredentials(env);
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
       mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
 

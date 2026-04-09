@@ -891,6 +891,33 @@ export class AionUIDatabase {
   }
 
   /**
+   * Get plugin credentials directly from SQLite (bypasses Nexus secret cache).
+   * Used for injecting credentials into agent subprocess environments where
+   * Nexus migration may not have completed.
+   */
+  getPluginCredentialsDirect(pluginType: string): Record<string, string> | null {
+    try {
+      const row = this.db.prepare(
+        'SELECT config FROM assistant_plugins WHERE type = ? LIMIT 1',
+      ).get(pluginType) as { config: string } | undefined;
+      if (!row) return null;
+      const storedConfig = JSON.parse(row.config || '{}');
+      const creds = storedConfig.credentials;
+      if (!creds || typeof creds !== 'object') return null;
+      // Return all credential fields as strings
+      const result: Record<string, string> = {};
+      for (const [key, value] of Object.entries(creds)) {
+        if (typeof value === 'string' && value) {
+          result[key] = value;
+        }
+      }
+      return Object.keys(result).length > 0 ? result : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Get assistant plugin by ID
    *
    * After migration:
@@ -983,20 +1010,19 @@ export class AionUIDatabase {
           updated_at = excluded.updated_at
       `);
 
-      // Store non-credential config in SQLite
-      // Also store ID fields (not in credentialFields) that should be preserved but not stored in Nexus
-      const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(plugin.type);
-      const idFields: Record<string, string> = {};
+      // Store all credential fields in SQLite config for direct access
+      // (needed by gateway env injection which runs before Nexus secret cache is populated)
+      const allCredFields: Record<string, string> = {};
       if (plugin.credentials) {
         for (const [key, value] of Object.entries(plugin.credentials)) {
-          if (!credentialFields.includes(key) && typeof value === 'string' && value) {
-            idFields[key] = value;
+          if (typeof value === 'string' && value) {
+            allCredFields[key] = value;
           }
         }
       }
       const storedConfig = {
         config: plugin.config,
-        credentials: idFields, // Store ID fields that are not in Nexus
+        credentials: allCredFields,
       };
 
       stmt.run(plugin.id, plugin.type, plugin.name, plugin.enabled ? 1 : 0, JSON.stringify(storedConfig), plugin.status, plugin.lastConnected ?? null, plugin.createdAt || now, now);

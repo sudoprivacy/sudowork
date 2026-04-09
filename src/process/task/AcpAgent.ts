@@ -272,6 +272,19 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       });
       customEnv = { ...customEnv, ...presetResult.envOverrides };
+
+      // Inject plugin credentials (e.g. Chandao) into agent subprocess environment
+      try {
+        const zentaoCreds = getDatabase().getPluginCredentialsDirect('zentao');
+        if (zentaoCreds) {
+          if (zentaoCreds.serverUrl) customEnv.CHANDAO_BASE_URL = zentaoCreds.serverUrl;
+          if (zentaoCreds.zentaoUsername) customEnv.CHANDAO_ACCOUNT = zentaoCreds.zentaoUsername;
+          if (zentaoCreds.zentaoPassword) customEnv.CHANDAO_PASSWORD = zentaoCreds.zentaoPassword;
+        }
+      } catch (error) {
+        mainWarn('[AcpAgent]', 'Failed to inject plugin credentials:', error);
+      }
+
       if (presetResult.contextAppendix && this.options.presetContext) {
         this.options.presetContext += presetResult.contextAppendix;
       }

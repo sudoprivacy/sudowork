@@ -23,20 +23,12 @@ description: >
 
 脚本按以下顺序查找凭证：
 
-1. **环境变量**（优先）：`CHANDAO_BASE_URL`、`CHANDAO_ACCOUNT`、`CHANDAO_PASSWORD`
+1. **环境变量**（优先）：`CHANDAO_BASE_URL`、`CHANDAO_ACCOUNT`、`CHANDAO_PASSWORD` — 如果用户已在 SudoClaw 设置中配置禅道插件，这些环境变量会自动注入，无需手动配置。
 2. **`.env` 文件**（回退）：`skills/chandao-api/.env`
 
-**推荐方式：** 在技能目录下创建 `.env` 文件：
+### 重要：先检查凭证，不要直接向用户索取
 
-```
-CHANDAO_BASE_URL=https://your-site.chandao.net
-CHANDAO_ACCOUNT=your_username
-CHANDAO_PASSWORD=your_password
-```
-
-**如果凭证缺失：** 脚本会报错并提示。此时应向用户索取禅道实例地址、用户名和密码。
-
-### 检查凭证是否可用
+**在使用禅道 API 之前，必须先运行 `python scripts/chandao.py --check` 检查凭证是否已配置。** 凭证通常已通过环境变量自动注入。只有在检查失败时才向用户索取凭证。
 
 ```bash
 python scripts/chandao.py --check
