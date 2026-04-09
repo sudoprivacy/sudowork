@@ -17,6 +17,7 @@ import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
+import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
@@ -55,6 +56,7 @@ export class ChannelManager {
     registerPlugin('dingtalk', DingTalkPlugin);
     registerPlugin('wechat', WeChatPlugin);
     registerPlugin('wecom', WeComPlugin);
+    registerPlugin('zentao', ZentaoPlugin);
   }
 
   /**
@@ -207,7 +209,7 @@ export class ChannelManager {
     }
 
     const enabledPlugins = result.data.filter((p) => p.enabled);
-    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
+    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao']);
     const extensionRegistry = ExtensionRegistry.getInstance();
 
     for (const plugin of enabledPlugins) {
@@ -302,6 +304,13 @@ export class ChannelManager {
       const secret = config.secret as string | undefined;
       if (botId && secret) {
         credentials = { botId, secret };
+      }
+    } else if (pluginType === 'zentao') {
+      const serverUrl = config.serverUrl as string | undefined;
+      const zentaoUsername = config.zentaoUsername as string | undefined;
+      const zentaoPassword = config.zentaoPassword as string | undefined;
+      if (serverUrl && zentaoUsername && zentaoPassword) {
+        credentials = { serverUrl: serverUrl.replace(/\/+$/, ''), zentaoUsername, zentaoPassword };
       }
     } else {
       // Extension or unknown plugin type:
@@ -481,6 +490,21 @@ export class ChannelManager {
       };
     }
 
+    if (pluginType === 'zentao') {
+      const serverUrl = extraConfig?.appId;
+      const zentaoUsername = token;
+      const zentaoPassword = extraConfig?.appSecret;
+      if (!serverUrl || !zentaoUsername || !zentaoPassword) {
+        return { success: false, error: 'Server URL, username and password are required for Zentao' };
+      }
+      const result = await ZentaoPlugin.testConnection(serverUrl, zentaoUsername, zentaoPassword);
+      return {
+        success: result.success,
+        botUsername: result.botInfo?.name,
+        error: result.error,
+      };
+    }
+
     // Extension plugins: test connection not supported yet (will be handled by the plugin itself on start)
     return { success: true, botUsername: undefined, error: undefined };
   }
@@ -495,6 +519,7 @@ export class ChannelManager {
     if (pluginId.startsWith('dingtalk')) return 'dingtalk';
     if (pluginId.startsWith('wechat')) return 'wechat';
     if (pluginId.startsWith('wecom')) return 'wecom';
+    if (pluginId.startsWith('zentao')) return 'zentao';
     // Extension plugins: use pluginId as type (e.g., 'ext-feishu')
     return pluginId;
   }

@@ -30,16 +30,13 @@ let fileInterceptor: FileInterceptor | null = null;
 let processInterceptor: ProcessInterceptor | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
-let statePollingTimer: NodeJS.Timeout | null = null;
+let configPollingTimer: NodeJS.Timeout | null = null;
 let currentNexusUrl: string = 'http://127.0.0.1:12012';
 let currentStatePollingInterval: number = 3000;
 let fastPassEnabled = false;
 
-/** Path in Nexus filesystem for enabled state */
-const ENABLED_CONFIG_PATH = '/safe/config/enabled';
-
-/** Path in Nexus filesystem for blacklist config */
-const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
+/** Unified hook config path: combines enabled state + blacklist in one file */
+const HOOK_CONFIG_PATH = '/safe/config/hook';
 
 /** Default state for first run */
 const DEFAULT_STATE = { enabled: true, fastPass: false };
@@ -105,11 +102,8 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
   isApplied = true;
   console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
-  if (!process.parentPort) {
-    startStatePolling();
-  }
-
-  startBlacklistPolling();
+  // Start unified config polling (state + blacklist in one timer)
+  startConfigPolling();
 }
 
 /**
@@ -148,100 +142,116 @@ export function disposeSafetyHook(): void {
 }
 
 /**
- * Start polling for enabled state changes from Nexus
+ * Read the unified hook config from Nexus filesystem.
+ * Returns the full parsed config or null if unavailable.
  */
-function startStatePolling(): void {
-  if (statePollingTimer) {
-    return;
+async function readHookConfig(): Promise<Record<string, unknown> | null> {
+  try {
+    const nexus = new Nexus(currentNexusUrl);
+    const result = await nexus.read(HOOK_CONFIG_PATH, false);
+
+    let data: Record<string, unknown> | null = null;
+    if (Buffer.isBuffer(result)) {
+      data = JSON.parse(result.toString('utf-8'));
+    } else if (result && typeof result === 'object' && 'content' in result) {
+      const content = (result as { content: unknown }).content;
+      data = Buffer.isBuffer(content)
+        ? JSON.parse(content.toString('utf-8'))
+        : JSON.parse(String(content));
+    }
+    return data;
+  } catch {
+    return null;
   }
-
-  console.error(`[SafetyHook] Starting state polling (interval: ${currentStatePollingInterval}ms)`);
-
-  checkStateAndAct();
-
-  statePollingTimer = setInterval(checkStateAndAct, currentStatePollingInterval);
 }
 
 /**
- * Check enabled state from Nexus and act accordingly
+ * Start unified config polling (combines state + blacklist in a single timer).
+ * Replaces the previous separate startStatePolling() and startBlacklistPolling().
  */
-async function checkStateAndAct(): Promise<void> {
-  try {
-    const state = await readEnabledState();
+function startConfigPolling(): void {
+  if (configPollingTimer) {
+    return;
+  }
 
-    if (state === null) {
+  console.error(`[SafetyHook] Starting unified config polling (interval: ${currentStatePollingInterval}ms)`);
+
+  pollConfig();
+
+  configPollingTimer = setInterval(pollConfig, currentStatePollingInterval);
+}
+
+/**
+ * Single polling callback: reads unified config once, updates both state and blacklist.
+ */
+async function pollConfig(): Promise<void> {
+  try {
+    const config = await readHookConfig();
+
+    if (config === null) {
       // Nexus unavailable, keep current state and retry next polling
       return;
     }
 
-    fastPassEnabled = state.fastPass;
+    // --- State update ---
+    const enabled = config.enabled === true;
+    const fastPass = config.fastPass === true;
+    fastPassEnabled = fastPass;
 
-    if (state.fastPass) {
-      if (isApplied) {
+    if (!process.parentPort) {
+      if (fastPass) {
+        if (isApplied) {
+          disposeSafetyHook();
+          console.error('[SafetyHook] FastPass detected, disposed interceptors');
+        }
+      } else if (!enabled && isApplied) {
         disposeSafetyHook();
-        console.error('[SafetyHook] FastPass detected, disposed interceptors');
+      } else if (enabled && !isApplied) {
+        initSafetyHook({
+          nexusUrl: currentNexusUrl,
+          statePollingInterval: currentStatePollingInterval,
+        });
       }
-      return;
     }
 
-    if (!state.enabled && isApplied) {
-      disposeSafetyHook();
-    } else if (state.enabled && !isApplied) {
-      initSafetyHook({
-        nexusUrl: currentNexusUrl,
-        statePollingInterval: currentStatePollingInterval,
-      });
+    // --- Blacklist update ---
+    const blacklist = config.blacklist as BlacklistConfig | undefined;
+    if (blacklist) {
+      updateBlacklistConfig(blacklist);
     }
-  } catch (error) {
+  } catch {
     // Ignore errors during polling
   }
 }
 
 /**
- * Read enabled state from Nexus filesystem
+ * Read enabled state from unified hook config
  * Returns null if Nexus is unavailable
  */
 async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean } | null> {
-  try {
-    const nexus = new Nexus(currentNexusUrl);
-    const result = await nexus.read(ENABLED_CONFIG_PATH, false);
-
-    if (Buffer.isBuffer(result)) {
-      const data = JSON.parse(result.toString('utf-8'));
-      return { enabled: data.enabled === true, fastPass: data.fastPass === true };
-    }
-
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = result.content;
-      const data = Buffer.isBuffer(content)
-        ? JSON.parse(content.toString('utf-8'))
-        : JSON.parse(String(content));
-      return { enabled: data.enabled === true, fastPass: data.fastPass === true };
-    }
-
-    return null;
-  } catch (error) {
-    return null;
-  }
+  const config = await readHookConfig();
+  if (!config) return null;
+  return { enabled: config.enabled === true, fastPass: config.fastPass === true };
 }
 
 /**
  * Ensure state exists in Nexus, create default if not
  */
 async function ensureState(): Promise<{ enabled: boolean; fastPass: boolean }> {
-  const state = await readEnabledState();
-  if (state !== null) {
-    return state;
+  const config = await readHookConfig();
+  if (config !== null) {
+    return { enabled: config.enabled === true, fastPass: config.fastPass === true };
   }
 
-  // No state exists, write default
+  // No state exists, write default unified config
   try {
     const nexus = new Nexus(currentNexusUrl);
-    await nexus.write(ENABLED_CONFIG_PATH, JSON.stringify({
+    await nexus.write(HOOK_CONFIG_PATH, JSON.stringify({
       ...DEFAULT_STATE,
       timestamp: Date.now(),
+      blacklist: { rules: [] },
     }));
-    console.error('[SafetyHook] Created default state in Nexus');
+    console.error('[SafetyHook] Created default unified config in Nexus');
     return { ...DEFAULT_STATE };
   } catch (error) {
     console.error('[SafetyHook] Failed to create default state:', error);
@@ -256,8 +266,7 @@ async function waitForNexusReady(maxRetries: number): Promise<boolean> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const nexus = new Nexus(currentNexusUrl);
-      // Try to read any file to check if Nexus is responding
-      await nexus.read(ENABLED_CONFIG_PATH, false);
+      await nexus.read(HOOK_CONFIG_PATH, false);
       return true;
     } catch (error) {
       if (i < maxRetries - 1) {
@@ -266,56 +275,6 @@ async function waitForNexusReady(maxRetries: number): Promise<boolean> {
     }
   }
   return false;
-}
-
-/**
- * Read blacklist config from Nexus filesystem
- */
-async function readBlacklistConfig(): Promise<BlacklistConfig | null> {
-  try {
-    const nexus = new Nexus(currentNexusUrl);
-    const result = await nexus.read(BLACKLIST_CONFIG_PATH, false);
-
-    if (Buffer.isBuffer(result)) {
-      return JSON.parse(result.toString('utf-8')) as BlacklistConfig;
-    }
-
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = result.content;
-      const data = Buffer.isBuffer(content)
-        ? JSON.parse(content.toString('utf-8'))
-        : JSON.parse(String(content));
-      return data as BlacklistConfig;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Start polling for blacklist config changes
- */
-function startBlacklistPolling(): void {
-  readBlacklistConfig()
-    .then((config) => {
-      if (config) {
-        updateBlacklistConfig(config);
-      }
-    })
-    .catch(() => {});
-
-  setInterval(async () => {
-    try {
-      const config = await readBlacklistConfig();
-      if (config) {
-        updateBlacklistConfig(config);
-      }
-    } catch {
-      // Ignore errors
-    }
-  }, currentStatePollingInterval);
 }
 
 /**
@@ -360,8 +319,7 @@ async function bootstrap(): Promise<void> {
   const nexusReady = await waitForNexusReady(maxRetries);
   if (!nexusReady) {
     console.error('[SafetyHook] Nexus not ready after retries, starting polling anyway');
-    startStatePolling();
-    startBlacklistPolling();
+    startConfigPolling();
     return;
   }
 
@@ -374,16 +332,14 @@ async function bootstrap(): Promise<void> {
   if (state.fastPass) {
     // fastPass=true: skip initialization, just start polling
     console.error('[SafetyHook] FastPass enabled, skipping initialization');
-    startStatePolling();
-    startBlacklistPolling();
+    startConfigPolling();
   } else if (state.enabled) {
     // enabled=true: initialize hook
     initSafetyHook();
   } else {
     // enabled=false, fastPass=false: just start polling
     console.error('[SafetyHook] Disabled, starting polling only');
-    startStatePolling();
-    startBlacklistPolling();
+    startConfigPolling();
   }
 }
 
@@ -402,8 +358,7 @@ if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
     bootstrap().catch((error) => {
       console.error('[SafetyHook] Bootstrap failed:', error);
       // Fallback: start polling anyway
-      startStatePolling();
-      startBlacklistPolling();
+      startConfigPolling();
     });
   }
 }

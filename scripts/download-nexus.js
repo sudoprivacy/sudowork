@@ -33,8 +33,8 @@ function createFallbackPlaceholder(platform) {
   } else {
     const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
     const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
-    const ext = process.platform === 'win32' ? '.exe' : '';
-    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${ext}`);
+    const archiveExt = process.platform === 'win32' ? '.zip' : '.tar.gz';
+    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${archiveExt}`);
   }
   fs.writeFileSync(outputFile, Buffer.alloc(0));
   return outputFile;
@@ -42,13 +42,13 @@ function createFallbackPlaceholder(platform) {
 
 const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
-// Platform mappings: direct binary downloads (no tar.gz)
-// Linux is included for completeness but binaries may not be available.
+// Platform mappings: archive downloads (.tar.gz for macOS/Linux, .zip for Windows)
+// Linux is included for completeness but archives may not be available.
 const PLATFORMS = {
-  'darwin-arm64': { name: 'nexus-cluster-macos-arm64' },
-  'darwin-x64': { name: 'nexus-cluster-macos-x86_64' },
-  'win32-x64': { name: 'nexus-cluster-windows-x86_64.exe' },
-  'linux-x64': { name: 'nexus-cluster-linux-x86_64' },
+  'darwin-arm64': { name: 'nexus-cluster-macos-arm64.tar.gz' },
+  'darwin-x64': { name: 'nexus-cluster-macos-x86_64.tar.gz' },
+  'win32-x64': { name: 'nexus-cluster-windows-x86_64.zip' },
+  'linux-x64': { name: 'nexus-cluster-linux-x86_64.tar.gz' },
 };
 
 /**
@@ -160,11 +160,7 @@ async function downloadNexus(platform, force = false) {
   try {
     await downloadFile(url, outputFile);
 
-    // Make binary executable on macOS/Linux
-    if (process.platform !== 'win32') {
-      fs.chmodSync(outputFile, 0o755);
-    }
-
+    // No chmod needed - this is an archive, not an executable
     console.log(`Saved to: ${outputFile}`);
     return true;
   } catch (err) {

@@ -17,8 +17,8 @@
 
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
-import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readNexusFileAsUtf8, eventToSafetyStatus } from './SecurityHookFile';
-import { initBlacklist, BLACKLIST_CONFIG_PATH } from './SafetyBlacklistService';
+import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
+import { initBlacklist } from './SafetyBlacklistService';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 export interface SafetyPollingConfig {
@@ -322,13 +322,13 @@ export class SafetyPollingService {
     }
 
     try {
-      const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
-      if (!configStr) {
+      const hookConfig = await readHookConfig();
+      if (!hookConfig || !hookConfig.blacklist) {
         this.cachedBlacklistEnabled = false;
         return false;
       }
-      const config = JSON.parse(configStr) as { rules?: { enabled?: boolean }[] };
-      const hasActive = config?.rules?.some((rule: { enabled?: boolean }) => rule.enabled) ?? false;
+      const blacklist = hookConfig.blacklist as { rules?: { enabled?: boolean }[] };
+      const hasActive = blacklist?.rules?.some((rule: { enabled?: boolean }) => rule.enabled) ?? false;
       this.cachedBlacklistEnabled = hasActive;
       return hasActive;
     } catch {

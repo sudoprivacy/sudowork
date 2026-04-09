@@ -499,11 +499,9 @@ export function initSkillHubBridge(): void {
 
       await extractSkillZipToDirectory(zipBuffer, skillDir);
 
-      // Write version file
-      const versionFilePath = path.join(skillDir, VERSION_FILE_NAME);
-      await fs.writeFile(versionFilePath, version, 'utf-8');
-
       // Write hub metadata file so installed skills can be displayed with full info
+      // NOTE: _sudowork_meta.json is the single source of truth for installed version.
+      // The standalone sudowork-version file is no longer written for new installs.
       const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
       const meta = {
         id: skillMeta?.id ?? '',
@@ -671,9 +669,8 @@ export function initSkillHubBridge(): void {
         };
         await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-        if (installedVersion) {
-          await fs.writeFile(path.join(skillDir, VERSION_FILE_NAME), installedVersion, 'utf-8');
-        }
+        // NOTE: _sudowork_meta.json is the single source of truth for installed version.
+        // The standalone sudowork-version file is no longer written for new imports.
 
         void (async () => {
           try {

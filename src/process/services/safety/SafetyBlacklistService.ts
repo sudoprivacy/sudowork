@@ -13,11 +13,11 @@
 
 import type { BlacklistConfig, BlacklistRule } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import { getNexusClient, CONFIG_DIR, readNexusFileAsUtf8 } from './SecurityHookFile';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
-/** Path in Nexus filesystem for blacklist config */
-export const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
+/** Unified hook config path (blacklist is stored alongside enabled state) */
+export const BLACKLIST_CONFIG_PATH = HOOK_CONFIG_PATH;
 
 /**
  * Generate a unique ID for a blacklist rule
@@ -27,17 +27,17 @@ export function generateRuleId(): string {
 }
 
 /**
- * Load blacklist configuration from Nexus
+ * Load blacklist configuration from unified Nexus config
  */
 export async function loadBlacklist(): Promise<BlacklistConfig> {
   try {
-    const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
-    if (configStr) {
-      const config = JSON.parse(configStr) as BlacklistConfig;
+    const hookConfig = await readHookConfig();
+    if (hookConfig) {
+      const blacklist = (hookConfig.blacklist || {}) as BlacklistConfig;
       return {
         ...DEFAULT_BLACKLIST_CONFIG,
-        ...config,
-        rules: config.rules || [],
+        ...blacklist,
+        rules: blacklist.rules || [],
       };
     }
   } catch (error) {
@@ -47,13 +47,19 @@ export async function loadBlacklist(): Promise<BlacklistConfig> {
 }
 
 /**
- * Save blacklist configuration to Nexus
+ * Save blacklist configuration to Nexus (read-merge-write into unified config)
  */
 export async function saveBlacklist(config: BlacklistConfig): Promise<boolean> {
   try {
     const client = getNexusClient();
     await client.mkdir(CONFIG_DIR, true);
-    await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
+    // Read-merge-write: preserve existing enabled/fastPass state
+    const existing = await readHookConfig();
+    const merged = {
+      ...(existing || DEFAULT_HOOK_CONFIG),
+      blacklist: config,
+    };
+    await writeHookConfig(merged);
     mainLog('SafetyBlacklist', 'Saved to Nexus');
     return true;
   } catch (error) {
@@ -108,21 +114,25 @@ export async function deleteBlacklistRule(ruleId: string): Promise<BlacklistConf
 
 /**
  * Initialize blacklist on app start
- * Ensures Nexus has a valid blacklist config file
+ * Ensures unified hook config contains a blacklist section
  */
 export async function initBlacklist(): Promise<void> {
   try {
-    const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
-    if (configStr) {
+    const hookConfig = await readHookConfig();
+    if (hookConfig && hookConfig.blacklist) {
       mainLog('SafetyBlacklist', 'Blacklist config exists in Nexus');
       return;
     }
 
-    // No config exists, create empty config
+    // No blacklist in unified config, add empty blacklist section
     const client = getNexusClient();
     await client.mkdir(CONFIG_DIR, true);
-    await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify({ rules: [] }, null, 2));
-    mainLog('SafetyBlacklist', 'Initialized empty config in Nexus');
+    const merged = {
+      ...(hookConfig || DEFAULT_HOOK_CONFIG),
+      blacklist: { rules: [] },
+    };
+    await writeHookConfig(merged);
+    mainLog('SafetyBlacklist', 'Initialized empty blacklist in unified config');
   } catch (error) {
     mainError('SafetyBlacklist', 'Failed to initialize:', error);
   }

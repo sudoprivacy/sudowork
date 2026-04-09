@@ -39,23 +39,25 @@ class NexusPayload:
     type: NexusPayloadType
     data: Union[NetworkData, FileData, ProcessData]
 
-    # noinspection PyTypeChecker
     def marshal(self) -> str:
         """
         Serialize the payload to a JSON string for transmission to the Nexus service.
 
         Converts non-serializable fields (Url, Path) to their string representations
-        before JSON encoding.
+        in the serialized dict without modifying the original data object. This
+        prevents issues where subsequent code (e.g., blacklist checks) expects the
+        original types (Url.host, Path methods) to still be available.
 
         Returns:
             A JSON string representation of the payload.
         """
-        # Convert complex types to strings for JSON serialization
+        # Create a dict copy and convert complex types without modifying the original object
+        d = asdict(self)
         if self.type == NexusPayloadType.NETWORK:
-            self.data.url = str(self.data.url)
+            d["data"]["url"] = str(self.data.url)
         elif self.type == NexusPayloadType.FILE:
-            self.data.path = str(self.data.path)
-        return json.dumps(asdict(self))
+            d["data"]["path"] = str(self.data.path)
+        return json.dumps(d)
 
 
 def url_origin(url: Url) -> str:
