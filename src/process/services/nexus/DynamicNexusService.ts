@@ -376,6 +376,40 @@ class DynamicNexusService {
   }
 
   /**
+   * Remove only Nexus-specific files and directories from the bin directory.
+   * Deletes items that exist in the extracted archive source directory (i.e. items
+   * that will be replaced during installation), plus the ready marker file.
+   * Any other files in the bin directory (e.g. claude, other tools) are left untouched.
+   */
+  private cleanNexusFiles(binDir: string, nexusdSourceDir: string): void {
+    // Collect the set of entry names from the extracted archive
+    const archiveEntries = new Set<string>();
+    try {
+      const entries = fs.readdirSync(nexusdSourceDir);
+      for (const name of entries) {
+        archiveEntries.add(name);
+      }
+    } catch {
+      // If we can't read the source dir, fall back to known Nexus items
+    }
+
+    // Always include the ready marker and the nexusd executable
+    archiveEntries.add(NEXUS_READY_MARKER);
+    archiveEntries.add(this.getNexusdName());
+
+    for (const name of archiveEntries) {
+      const target = path.join(binDir, name);
+      if (fs.existsSync(target)) {
+        try {
+          fs.rmSync(target, { recursive: true, force: true });
+        } catch (err) {
+          mainWarn('Nexus', `Failed to remove ${target}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+  }
+
+  /**
    * Install Nexus from an archive file (bundled, downloaded, or user-provided).
    * Extracts the archive, finds nexusd, and copies contents to ~/.nexus/bin/.
    */
@@ -398,11 +432,11 @@ class DynamicNexusService {
       const nexusdSourceDir = this.findNexusdDirectory(tempExtractDir);
       mainLog('Nexus', `Found nexusd in extracted archive: ${nexusdSourceDir}`);
 
-      // Clear and recreate the bin directory
-      if (fs.existsSync(binDir)) {
-        fs.rmSync(binDir, { recursive: true, force: true });
-      }
+      // Remove only Nexus-specific files/directories from the bin directory.
+      // Other programs (e.g. claude) may also live in ~/.nexus/bin/, so we must
+      // not wipe the entire directory.
       fs.mkdirSync(binDir, { recursive: true });
+      this.cleanNexusFiles(binDir, nexusdSourceDir);
 
       this.emitSetup('installing', 'Copying Nexus files...', 60);
 
