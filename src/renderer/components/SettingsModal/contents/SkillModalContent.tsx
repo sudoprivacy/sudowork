@@ -493,6 +493,9 @@ const SkillModalContent: React.FC = () => {
   const latestVersionsRef = useRef(latestVersions);
   latestVersionsRef.current = latestVersions;
 
+  // Track whether the installed-skill comparison map has been loaded at least once
+  const [installedSkillsReady, setInstalledSkillsReady] = useState(false);
+
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
     if (!isElectronDesktop()) return;
@@ -500,11 +503,18 @@ const SkillModalContent: React.FC = () => {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
         const map = new Map<string, string>();
-        for (const s of res.data) map.set(s.name, s.version);
+        // Only hub-installed skills should participate in the store comparison
+        for (const s of res.data) {
+          if (s.meta?.source_type === 'hub' || (!s.meta?.source_type && s.isHubInstalled)) {
+            map.set(s.name, s.version);
+          }
+        }
         setInstalledSkills(map);
       }
     } catch (err) {
       console.error('Failed to fetch installed skills:', err);
+    } finally {
+      setInstalledSkillsReady(true);
     }
   }, []);
 
@@ -1030,7 +1040,7 @@ const SkillModalContent: React.FC = () => {
 
           {/* Skill grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleScroll}>
-            {loading ? (
+            {loading || !installedSkillsReady ? (
               <div className='flex justify-center items-center py-48px'>
                 <Spin size={28} />
               </div>
