@@ -62,7 +62,13 @@ export const useMcpServers = () => {
         // 异步保存到存储（在微任务中执行）
         queueMicrotask(() => {
           ConfigStorage.set('mcp.config', newServers)
-            .then(() => resolve())
+            .then(() => {
+              // 同步到 mcporter（静默失败，不影响主流程）
+              ipcBridge.mcporterService.syncConfig.invoke(newServers).catch((error) => {
+                console.warn('[useMcpServers] Failed to sync to mcporter:', error);
+              });
+              resolve();
+            })
             .catch((error) => {
               console.error('Failed to save MCP servers:', error);
               reject(error);

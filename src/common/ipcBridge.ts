@@ -302,6 +302,8 @@ export const acpConversation = {
   >('acp.get-available-agents'),
   checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
   refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
+  /** Re-run full CLI agent detection (after install/uninstall) */
+  rescanAgents: bridge.buildProvider<IBridgeResponse, void>('acp.rescan-agents'),
   checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
   // Set session mode for ACP agents (claude, qwen, etc.)
   // 设置 ACP 代理的会话模式（claude、qwen 等）
@@ -337,6 +339,25 @@ export const mcpService = {
   loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
   logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
   getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
+};
+
+// mcporter 服务相关接口
+export interface IMcporterDaemonStatus {
+  running: boolean;
+  pid?: number;
+  socketPath?: string;
+  uptime?: number;
+}
+
+export const mcporterService = {
+  isAvailable: bridge.buildProvider<IBridgeResponse<boolean>, void>('mcporter.is-available'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.install'),
+  syncConfig: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.sync-config'),
+  startDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.start-daemon'),
+  stopDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.stop-daemon'),
+  getDaemonStatus: bridge.buildProvider<IBridgeResponse<IMcporterDaemonStatus>, void>('mcporter.get-daemon-status'),
+  getConfigPath: bridge.buildProvider<IBridgeResponse<string>, void>('mcporter.get-config-path'),
+  initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
 };
 
 // OpenClaw 对话相关接口 - 复用统一的conversation接口

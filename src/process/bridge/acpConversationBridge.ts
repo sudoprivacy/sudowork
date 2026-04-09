@@ -70,6 +70,19 @@ export function initAcpConversationBridge(): void {
     }
   });
 
+  // Re-run full CLI agent detection - called after CLI install/uninstall
+  ipcBridge.acpConversation.rescanAgents.provider(async () => {
+    try {
+      await acpDetector.rescanCliAgents();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
   // Check agent health by sending a real test message
   // This is the most reliable way to verify an agent can actually respond
   ipcBridge.acpConversation.checkAgentHealth.provider(async ({ backend }) => {

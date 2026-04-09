@@ -20,7 +20,7 @@ import { getChannelMessageService } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
-import type { IChannelUser } from '../types';
+import type { IChannelUser, ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
@@ -28,7 +28,6 @@ import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCa
 import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
-import type { ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
 
@@ -36,6 +35,13 @@ function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Check if a content type is a media type (photo, document, voice, video, audio).
+ */
+function isMediaContentType(type: string): boolean {
+  return type === 'photo' || type === 'document' || type === 'voice' || type === 'audio' || type === 'video';
 }
 
 // ==================== Platform-specific Helpers ====================
@@ -494,6 +500,11 @@ export class ActionExecutor {
       } else if (content.type === 'text' && content.text) {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
+      } else if (isMediaContentType(content.type)) {
+        // Media message (photo, document, voice, video) - extract file paths and send to AI
+        const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
+        const text = content.text || `[${content.type} message]`;
+        await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -554,7 +565,7 @@ export class ActionExecutor {
    * 2. If a previous message is still being processed, we wait for it to finish
    *    before starting AI generation — prevents concurrent stream overwrites.
    */
-  private async handleChatMessage(context: IActionContext, text: string): Promise<void> {
+  private async handleChatMessage(context: IActionContext, text: string, files?: string[]): Promise<void> {
     // Update session activity (scoped by chatId)
     if (context.channelUser) {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
@@ -635,7 +646,7 @@ export class ActionExecutor {
 
       // 发送消息
       // Send message
-      await messageService.sendMessage(sessionId, conversationId, text, async (message: TMessage, isInsert: boolean) => {
+      await messageService.sendMessage(sessionId, conversationId, text, files, async (message: TMessage, isInsert: boolean) => {
         const now = Date.now();
 
         // 转换消息格式（根据平台）

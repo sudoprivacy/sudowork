@@ -789,9 +789,26 @@ const initStorage = async () => {
   } catch (error) {
     mainError('Sudowork', 'Failed to initialize default MCP servers:', error);
   }
+
   // 4.5 异步迁移旧技能目录结构到分目录结构
   // Async migrate legacy skill directory structure to categorized subdirectories
   await migrateSkillsToSubdirectories();
+
+  // 4.6 初始化 mcporter（后台执行，不阻塞启动）
+  void (async () => {
+    try {
+      const mcpConfig = await configFile.get('mcp.config').catch((): undefined => undefined);
+      if (mcpConfig && Array.isArray(mcpConfig) && mcpConfig.length > 0) {
+        // 动态导入避免循环依赖
+        const { mcporterService } = await import('./services/mcporter');
+        await mcporterService.initialize(mcpConfig);
+        mainLog('Sudowork', 'mcporter initialized');
+      }
+    } catch (error) {
+      // mcporter 初始化失败不影响应用启动
+      mainWarn('Sudowork', 'Failed to initialize mcporter (non-critical):', error);
+    }
+  })();
 
   // 5. 初始化内置助手（Assistants）— runs in parallel with database init (step 6)
   // PERF: Assistant config + database init are independent; run them concurrently
