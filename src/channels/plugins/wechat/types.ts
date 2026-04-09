@@ -40,6 +40,48 @@ export interface TextItem {
   text?: string;
 }
 
+/** Media info within image/voice/file/video items */
+export interface WeChatMediaInfo {
+  encrypt_query_param?: string;
+  aes_key?: string;
+  full_url?: string;
+}
+
+/** Image content within a message item */
+export interface ImageItem {
+  aeskey?: string;
+  media?: WeChatMediaInfo;
+  mid_size?: number;
+  thumb_size?: number;
+  thumb_height?: number;
+  thumb_width?: number;
+  hd_size?: number;
+}
+
+/** Voice content within a message item */
+export interface VoiceItem {
+  media?: WeChatMediaInfo;
+  voice_length?: number;
+  voice_format?: string;
+}
+
+/** File content within a message item */
+export interface FileItem {
+  media?: WeChatMediaInfo;
+  file_name?: string;
+  file_size?: number;
+  file_type?: string;
+}
+
+/** Video content within a message item */
+export interface VideoItem {
+  media?: WeChatMediaInfo;
+  thumb_media?: WeChatMediaInfo;
+  video_length?: number;
+  video_width?: number;
+  video_height?: number;
+}
+
 /** A single item in a message (text, image, etc.) */
 export interface WeChatMessageItem {
   type?: number;
@@ -48,6 +90,12 @@ export interface WeChatMessageItem {
   is_completed?: boolean;
   msg_id?: string;
   text_item?: TextItem;
+  image_item?: ImageItem;
+  voice_item?: VoiceItem;
+  file_item?: FileItem;
+  video_item?: VideoItem;
+  /** Local file path set after media download (not from API) */
+  _localPath?: string;
 }
 
 /** A full message from getUpdates */
