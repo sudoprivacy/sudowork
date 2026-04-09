@@ -122,22 +122,51 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
+  // Temporarily rename .framework directories so that codesign does not
+  // detect them as bundles.  Without this, codesign fails with
+  // "bundle format is ambiguous (could be app or framework)" when signing
+  // Mach-O binaries inside a framework (e.g. Python.framework/Python from
+  // PyInstaller one-dir builds).  After all binaries are signed we rename
+  // the directories back.
+  const renamedFrameworks = []; // [{original, renamed}]
+  function renameFrameworkDirs(currentDir) {
+    let entries;
+    try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name.endsWith('.framework')) {
+          const renamedPath = fullPath + '.codesign-tmp';
+          fs.renameSync(fullPath, renamedPath);
+          renamedFrameworks.push({ original: fullPath, renamed: renamedPath });
+          // Recurse into renamed dir in case of nested frameworks
+          renameFrameworkDirs(renamedPath);
+        } else {
+          renameFrameworkDirs(fullPath);
+        }
+      }
+    }
+  }
+  renameFrameworkDirs(dir);
+
+  // Helper: restore all renamed .framework dirs (reverse order for nesting)
+  function restoreFrameworkDirs() {
+    for (const { original, renamed } of renamedFrameworks.reverse()) {
+      try {
+        fs.renameSync(renamed, original);
+      } catch (err) {
+        console.warn(`   ⚠️  Could not restore framework dir ${path.basename(original)}: ${err.message}`);
+      }
+    }
+  }
+
   const binaries = [];
-  const frameworkBundles = []; // .framework bundles need bundle-level signing
 
   function findBinaries(currentDir) {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
-        // Collect .framework bundles — they must be signed as bundles, not
-        // individual files.  Signing the main binary inside a framework
-        // directly (e.g. Python.framework/Python) causes codesign to fail
-        // with "bundle format is ambiguous (could be app or framework)".
-        if (entry.name.endsWith('.framework')) {
-          frameworkBundles.push(fullPath);
-          continue; // Don't recurse — the bundle will be signed as a whole
-        }
         findBinaries(fullPath);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
@@ -161,7 +190,8 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
 
   findBinaries(dir);
 
-  if (binaries.length === 0 && frameworkBundles.length === 0) {
+  if (binaries.length === 0) {
+    restoreFrameworkDirs();
     return 0;
   }
 
@@ -193,31 +223,15 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
-  // Sign .framework bundles (e.g. Python.framework from PyInstaller one-dir builds).
-  // Framework bundles must be signed at the bundle level — signing the main binary
-  // inside directly causes "bundle format is ambiguous" errors from codesign.
-  // --deep recursively signs all nested code within the framework.
-  for (const fwPath of frameworkBundles) {
-    try {
-      const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
-      execSync(`codesign --sign "${identity}" --force --deep --timestamp --options runtime ${entitlementsFlag} "${fwPath}"`, {
-        stdio: 'pipe',
-      });
-      console.log(`   ✓ Signed framework bundle: ${path.basename(fwPath)}`);
-      signedCount++;
-    } catch (err) {
-      const msg = err.stderr ? err.stderr.toString().trim() : err.message;
-      console.warn(`   ⚠️  Failed to sign framework ${path.basename(fwPath)}: ${msg}`);
-      failedBinaries.push(path.basename(fwPath));
-    }
-  }
-
   if (failedBinaries.length > 0) {
     console.warn(`   ⚠️  ${failedBinaries.length} binary/binaries could NOT be signed (Team ID mismatch risk):`);
     for (const name of failedBinaries) {
       console.warn(`        - ${name}`);
     }
   }
+
+  // Restore .framework directory names before returning
+  restoreFrameworkDirs();
 
   return signedCount;
 }
