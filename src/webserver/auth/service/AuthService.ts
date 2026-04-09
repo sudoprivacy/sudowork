@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import type { AuthUser } from '../repository/UserRepository';
 import { UserRepository } from '../repository/UserRepository';
 import { AUTH_CONFIG } from '../../config/constants';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 
 interface TokenPayload {
   userId: string;
@@ -154,6 +155,13 @@ export class AuthService {
       return this.jwtSecret;
     }
 
+    // Check Nexus cache for migrated JWT secret
+    const cachedSecret = resolveSecret('auth:jwt', 'webui_secret', '');
+    if (cachedSecret) {
+      this.jwtSecret = cachedSecret;
+      return this.jwtSecret;
+    }
+
     // 优先使用环境变量，方便部署覆盖 / Prefer env var for deploy-time override
     if (process.env.JWT_SECRET) {
       this.jwtSecret = process.env.JWT_SECRET;
@@ -175,6 +183,8 @@ export class AuthService {
         const newSecret = this.generateSecretKey();
         UserRepository.updateJwtSecret(adminUser.id, newSecret);
         this.jwtSecret = newSecret;
+        // Sync to Nexus cache after successful database write
+        cachePut('auth:jwt', 'webui_secret', newSecret);
         return this.jwtSecret;
       }
 
@@ -192,18 +202,18 @@ export class AuthService {
   /**
    * 通过旋转密钥的方式让所有现有 Token 失效
    * Rotate the JWT secret to invalidate all existing tokens
+   *
+   * After migration:
+   * - JWT secret is stored ONLY in Nexus (Nexus is source of truth)
+   * - Original storage (SQLite) is frozen for JWT secret, kept only for rollback
    */
   public static invalidateAllTokens(): void {
     try {
-      const adminUser = UserRepository.findByUsername(AUTH_CONFIG.DEFAULT_USER.USERNAME);
-      if (!adminUser) {
-        console.warn('[AuthService] Admin user not found, cannot invalidate tokens');
-        return;
-      }
-
       const newSecret = this.generateSecretKey();
-      UserRepository.updateJwtSecret(adminUser.id, newSecret);
       this.jwtSecret = newSecret;
+      // JWT secret is stored ONLY in Nexus after migration
+      // Original storage (SQLite) is frozen - no longer maintained
+      cachePut('auth:jwt', 'webui_secret', newSecret);
     } catch (error) {
       console.error('Failed to invalidate tokens:', error);
     }

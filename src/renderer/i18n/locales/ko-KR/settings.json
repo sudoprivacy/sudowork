@@ -687,5 +687,22 @@
     "agent": "에이전트",
     "agentDesc": "DingTalk 대화에 사용"
   },
-  "extensionAssistantReadonly": "확장 어시스턴트는 읽기 전용입니다. 복제하여 편집할 수 있습니다."
+  "extensionAssistantReadonly": "확장 어시스턴트는 읽기 전용입니다. 복제하여 편집할 수 있습니다.",
+  "secrets": "시크릿 관리",
+  "secrets.title": "시크릿 관리",
+  "secrets.description": "서비스 자격 증명 및 API 키를 관리합니다. 시크릿은 로컬 Nexus vault에 안전하게 저장됩니다.",
+  "secrets.step1": "서비스를 선택하고 자격 증명을 입력하세요.",
+  "secrets.step2": "저장을 클릭하여 설정을 완료하세요.",
+  "secrets.jsbTitle": "Jiansheku",
+  "secrets.appKey": "App Key",
+  "secrets.appKeyDesc": "Jiansheku 오픈 플랫폼의 애플리케이션 식별자",
+  "secrets.appKeyPlaceholder": "App Key 입력",
+  "secrets.appKeyRequired": "App Key을 입력해주세요",
+  "secrets.appSecret": "App Secret",
+  "secrets.appSecretDesc": "Jiansheku 오픈 플랫폼의 애플리케이션 시크릿",
+  "secrets.appSecretPlaceholder": "App Secret 입력",
+  "secrets.appSecretRequired": "App Secret을 입력해주세요",
+  "secrets.save": "저장",
+  "secrets.saveSuccess": "시크릿이 저장되었습니다",
+  "secrets.saveFailed": "시크릿 저장에 실패했습니다"
 }

@@ -814,5 +814,22 @@
     "expireAt": "Expires at",
     "createOrder": "Create Order",
     "successDesc": "Points have been credited to your account"
-  }
+  },
+  "secrets": "Secrets",
+  "secrets.title": "Secrets",
+  "secrets.description": "Manage service credentials and API keys. Secrets are securely stored in the local Nexus vault.",
+  "secrets.step1": "Select a service and fill in credentials.",
+  "secrets.step2": "Click Save to confirm.",
+  "secrets.jsbTitle": "Jiansheku",
+  "secrets.appKey": "App Key",
+  "secrets.appKeyDesc": "Application identifier from Jiansheku Open Platform",
+  "secrets.appKeyPlaceholder": "Enter App Key",
+  "secrets.appKeyRequired": "Please enter App Key",
+  "secrets.appSecret": "App Secret",
+  "secrets.appSecretDesc": "Application secret from Jiansheku Open Platform",
+  "secrets.appSecretPlaceholder": "Enter App Secret",
+  "secrets.appSecretRequired": "Please enter App Secret",
+  "secrets.save": "Save",
+  "secrets.saveSuccess": "Secrets saved successfully",
+  "secrets.saveFailed": "Failed to save secrets"
 }

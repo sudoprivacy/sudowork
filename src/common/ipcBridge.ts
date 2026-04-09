@@ -1214,3 +1214,27 @@ export const sudoworkAuth = {
   /** Get public key for encryption */
   getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
 };
+
+// ==================== Secret Management API ====================
+// Manage service secrets stored in Nexus secret store
+
+export interface ISecretMetadata {
+  id: string;
+  namespace: string;
+  key: string;
+  description?: string;
+  enabled: boolean;
+  currentVersion: number;
+  deletedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const secret = {
+  /** Get a secret value by namespace and key */
+  get: bridge.buildProvider<IBridgeResponse<string | null>, { namespace: string; key: string }>('secret.get'),
+  /** Put (create or update) a secret value */
+  put: bridge.buildProvider<IBridgeResponse, { namespace: string; key: string; value: string; description?: string }>('secret.put'),
+  /** List all secrets in a namespace */
+  list: bridge.buildProvider<IBridgeResponse<ISecretMetadata[]>, { namespace: string }>('secret.list'),
+};

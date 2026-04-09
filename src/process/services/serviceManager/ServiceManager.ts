@@ -152,19 +152,21 @@ class ServiceManager {
   private async startNexusWithRetries(): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
-    if (!dynamicNexusService.hasBundledResource()) {
-      mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-      initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-      return;
-    }
-
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
-          initStatusManager.setStepState('nexus', 'active', phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail =
+            attempt > 1
+              ? phase === 'reinstall'
+                ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`
+                : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`
+              : phase === 'reinstall'
+                ? '重装后正在启动 Nexus 服务...'
+                : '正在启动 Nexus 服务...';
+          initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
           await this.startNexusOnce();
           return;
@@ -193,11 +195,6 @@ class ServiceManager {
   private async startNexusOnce(): Promise<void> {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-      if (!dynamicNexusService.hasBundledResource()) {
-        mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-        initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-        return;
-      }
 
       if (!(await dynamicNexusService.checkInstalled())) {
         throw new Error('Nexus runtime is missing after startup installation');
@@ -218,6 +215,12 @@ class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
+
+      // Initialize secrets system after Nexus is healthy
+      // This runs migration (if needed) and preloads the secret cache
+      this.initializeSecrets().catch((err) => {
+        mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+      });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
       throw err;
@@ -233,6 +236,23 @@ class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  /**
+   * Initialize the secrets system after Nexus is healthy.
+   * This runs the migration coordinator and preloads the secret cache.
+   */
+  private async initializeSecrets(): Promise<void> {
+    try {
+      const { initializeSecrets } = await import('@common/nexus/secret-migration');
+      mainLog('ServiceManager', 'Initializing secrets system...');
+      await initializeSecrets();
+      mainLog('ServiceManager', 'Secrets system initialized');
+    } catch (err) {
+      // Don't throw - secrets initialization failure should not block startup
+      // The system can operate in fallback mode without the secrets cache
+      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
     }
   }
 
@@ -261,7 +281,15 @@ class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(17863, 'Sudoclaw');
-          initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail =
+            attempt > 1
+              ? phase === 'reinstall'
+                ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
+                : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`
+              : phase === 'reinstall'
+                ? '重装后正在启动 Sudoclaw 服务...'
+                : '正在启动 Sudoclaw 服务...';
+          initStatusManager.setStepState('sudoclaw', 'active', startupDetail);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
           await this.startOpenClawOnce();
           return;
@@ -295,7 +323,7 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -334,6 +362,7 @@ class ServiceManager {
       try {
         fs.mkdirSync(path.join(SUDOCLAW_DIR, 'workspace'), { recursive: true });
         ensureUserMdSafetyRules();
+        ensureUserMdIdentityStatement();
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
       }
@@ -555,12 +584,12 @@ class ServiceManager {
 
     while (Date.now() < deadline) {
       const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
-      const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
+      const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
         { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
-        { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
+        { name: 'Nexus', ok: nexusHealthy },
       ];
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);

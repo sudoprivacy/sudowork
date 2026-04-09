@@ -93,13 +93,18 @@ export function encryptCredentials(credentials: Record<string, string | number |
 
 /**
  * Decode credentials object
+ * Decrypts all string-type credential fields (not just token).
  */
 export function decryptCredentials(credentials: Record<string, string | number | boolean | undefined> | undefined): Record<string, string | number | boolean | undefined> | undefined {
   if (!credentials) return undefined;
 
-  const token = credentials.token;
-  return {
-    ...credentials,
-    token: typeof token === 'string' && token ? decryptString(token) : token,
-  };
+  const result: Record<string, string | number | boolean | undefined> = {};
+  for (const [key, value] of Object.entries(credentials)) {
+    if (typeof value === 'string') {
+      result[key] = decryptString(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }

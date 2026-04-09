@@ -406,11 +406,7 @@ const UpdateModal: React.FC = () => {
             )}
 
             {/* Nightly build notice */}
-            {isNightlyBuild && (
-              <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>
-                {t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}
-              </div>
-            )}
+            {isNightlyBuild && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
 
             {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-[rgb(var(--warning-6))]/10 text-[rgb(var(--warning-6))]'>{t('update.noCompatibleAssetManual')}</div>}
 

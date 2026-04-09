@@ -42,6 +42,7 @@ import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
+import { initSecretBridge } from './secretBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
 
 /**
@@ -86,6 +87,7 @@ export function initAllBridges(): void {
   initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
+  initSecretBridge();
   initWorkspaceBridge();
 }
 

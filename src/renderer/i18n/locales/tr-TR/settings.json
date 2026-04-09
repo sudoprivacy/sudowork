@@ -683,5 +683,22 @@
     "agent": "Ajan",
     "agentDesc": "DingTalk sohbetleri icin kullanilir"
   },
-  "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz."
+  "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz.",
+  "secrets": "Gizli Anahtarlar",
+  "secrets.title": "Gizli Anahtarlar",
+  "secrets.description": "Hizmet kimlik bilgilerini ve API anahtarlarını yönetin. Gizli anahtarlar yerel Nexus kasasında güvenli bir şekilde saklanır.",
+  "secrets.step1": "Bir hizmet seçin ve kimlik bilgilerini doldurun.",
+  "secrets.step2": "Kaydet'e tıklayarak yapılandırmayı tamamlayın.",
+  "secrets.jsbTitle": "Jiansheku",
+  "secrets.appKey": "App Key",
+  "secrets.appKeyDesc": "Jiansheku Açık Platform uygulama tanımlayıcısı",
+  "secrets.appKeyPlaceholder": "App Key girin",
+  "secrets.appKeyRequired": "Lütfen App Key girin",
+  "secrets.appSecret": "App Secret",
+  "secrets.appSecretDesc": "Jiansheku Açık Platform uygulama gizli anahtarı",
+  "secrets.appSecretPlaceholder": "App Secret girin",
+  "secrets.appSecretRequired": "Lütfen App Secret girin",
+  "secrets.save": "Kaydet",
+  "secrets.saveSuccess": "Gizli anahtarlar başarıyla kaydedildi",
+  "secrets.saveFailed": "Gizli anahtarlar kaydedilemedi"
 }

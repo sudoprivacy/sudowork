@@ -271,19 +271,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       <DirectorySelectionModal visible={showExportDirectorySelector} onConfirm={handleSelectExportDirectoryFromModal} onCancel={() => setShowExportDirectorySelector(false)} />
 
       {/* Workspace Rename Modal / 工作空间重命名弹窗 */}
-      <Modal
-        title={t('conversation.workspace.renameWorkspace.title')}
-        visible={wsRenameModal.visible}
-        onOk={handleWorkspaceRenameConfirm}
-        onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })}
-        okText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        confirmLoading={wsRenameLoading}
-        okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
-        style={{ borderRadius: '12px' }}
-        alignCenter
-        getPopupContainer={() => document.body}
-      >
+      <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
         <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
         <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
       </Modal>
@@ -326,9 +314,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                       </div>
                     }
                   >
-                    <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>
-                      {cronConvs.map((conv) => renderConversation(conv))}
-                    </div>
+                    <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv))}</div>
                   </WorkspaceCollapse>
                 </div>
               );
