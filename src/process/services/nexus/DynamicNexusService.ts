@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
 const execAsync = promisify(exec);
@@ -64,38 +65,45 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the platform-specific binary name used in download URLs and versioned resource filenames.
-   * e.g. 'nexus-cluster-macos-arm64' or 'nexus-cluster-windows-x86_64.exe'
+   * Get the archive file extension for the current platform.
+   * macOS/Linux: .tar.gz, Windows: .zip
    */
-  getPlatformBinaryName(): string {
+  private getArchiveExtension(): string {
+    return this.isWindows ? '.zip' : '.tar.gz';
+  }
+
+  /**
+   * Get the platform-specific archive name used in download URLs and versioned resource filenames.
+   * e.g. 'nexus-cluster-macos-arm64.tar.gz' or 'nexus-cluster-windows-x86_64.zip'
+   */
+  getPlatformArchiveName(): string {
     const osName = OS_NAME_MAP[process.platform];
     const archName = ARCH_NAME_MAP[process.arch];
     if (!osName || !archName) throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
-    const base = `nexus-cluster-${osName}-${archName}`;
-    return this.isWindows ? `${base}.exe` : base;
+    return `nexus-cluster-${osName}-${archName}${this.getArchiveExtension()}`;
   }
 
   /**
    * Get the versioned resource filename for the current platform and bundled version.
-   * e.g. 'v0.9.28-nexus-cluster-macos-arm64'
+   * e.g. 'v0.9.29-nexus-cluster-macos-arm64.tar.gz'
    */
-  getVersionedBinaryName(): string {
+  getVersionedArchiveName(): string {
     const version = this.getNexusVersion();
-    return `v${version}-${this.getPlatformBinaryName()}`;
+    return `v${version}-${this.getPlatformArchiveName()}`;
   }
 
   /**
-   * Get the OSS download URL for the current platform's Nexus binary.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.28/nexus-cluster-macos-arm64
+   * Get the OSS download URL for the current platform's Nexus archive.
+   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
+    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
   }
 
   private getGitHubDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_GITHUB_RELEASE_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
+    return `${NEXUS_GITHUB_RELEASE_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
   }
 
   /**
@@ -248,12 +256,12 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the bundled Nexus resource path (the versioned binary file in resources).
-   * Looks for versioned filename e.g. v0.9.28-nexus-cluster-macos-arm64.
+   * Get the bundled Nexus resource path (the versioned archive file in resources).
+   * Looks for versioned filename e.g. v0.9.29-nexus-cluster-macos-arm64.tar.gz.
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
-    const versionedName = this.getVersionedBinaryName();
+    const versionedName = this.getVersionedArchiveName();
 
     // Packaged app: check resourcesPath
     if (app.isPackaged) {
@@ -276,6 +284,145 @@ class DynamicNexusService {
     }
 
     return null;
+  }
+
+  /**
+   * Extract the Nexus archive to a target directory.
+   * Supports .tar.gz (macOS/Linux) and .zip (Windows).
+   */
+  private async extractArchive(archivePath: string, targetDir: string, onProgress?: (percent: number) => void): Promise<void> {
+    if (archivePath.endsWith('.zip')) {
+      await extractZipWithProgress(archivePath, targetDir, onProgress);
+    } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
+      await extractTarGzWithProgress(archivePath, targetDir, onProgress);
+    } else {
+      throw new Error(`Unsupported archive format: ${archivePath}`);
+    }
+  }
+
+  /**
+   * Find the directory containing the nexusd executable in the extracted archive.
+   * Searches the root and one level of subdirectories.
+   */
+  private findNexusdDirectory(extractDir: string): string {
+    const nexusdName = this.getNexusdName();
+
+    // Check root level
+    if (fs.existsSync(path.join(extractDir, nexusdName))) {
+      return extractDir;
+    }
+
+    // Check one level of subdirectories
+    const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const subPath = path.join(extractDir, entry.name);
+        if (fs.existsSync(path.join(subPath, nexusdName))) {
+          return subPath;
+        }
+      }
+    }
+
+    throw new Error(`nexusd executable not found in extracted archive`);
+  }
+
+  /**
+   * Copy all files from source directory to target directory recursively.
+   */
+  private copyDirectoryContents(srcDir: string, destDir: string): void {
+    const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(srcDir, entry.name);
+      const destPath = path.join(destDir, entry.name);
+      if (entry.isDirectory()) {
+        fs.mkdirSync(destPath, { recursive: true });
+        this.copyDirectoryContents(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
+  }
+
+  /**
+   * Set executable permissions on nexusd and shared libraries in a directory (Unix only).
+   */
+  private setInstalledPermissions(dir: string): void {
+    if (this.isWindows) return;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        this.setInstalledPermissions(fullPath);
+      } else if (
+        entry.name === this.getNexusdName() ||
+        entry.name.endsWith('.so') ||
+        entry.name.includes('.so.') ||
+        entry.name.endsWith('.dylib')
+      ) {
+        fs.chmodSync(fullPath, 0o755);
+      }
+    }
+  }
+
+  /**
+   * Install Nexus from an archive file (bundled, downloaded, or user-provided).
+   * Extracts the archive, finds nexusd, and copies contents to ~/.nexus/bin/.
+   */
+  async installFromArchive(archivePath: string): Promise<void> {
+    this.deletePidFile();
+    this.deleteReadyFile();
+
+    const binDir = path.join(getDataPath(), 'bin');
+    const tempExtractDir = path.join(getDataPath(), 'downloads', `nexus-extract-${Date.now()}`);
+
+    try {
+      fs.mkdirSync(tempExtractDir, { recursive: true });
+
+      this.emitSetup('installing', 'Extracting Nexus archive...', 0);
+      await this.extractArchive(archivePath, tempExtractDir, (percent) => {
+        this.emitSetup('installing', `Extracting Nexus archive... ${percent}%`, Math.round(percent * 0.5));
+      });
+
+      // Find the directory containing nexusd in the extracted archive
+      const nexusdSourceDir = this.findNexusdDirectory(tempExtractDir);
+      mainLog('Nexus', `Found nexusd in extracted archive: ${nexusdSourceDir}`);
+
+      // Clear and recreate the bin directory
+      if (fs.existsSync(binDir)) {
+        fs.rmSync(binDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(binDir, { recursive: true });
+
+      this.emitSetup('installing', 'Copying Nexus files...', 60);
+
+      // Copy all contents from the extracted nexusd directory to bin
+      this.copyDirectoryContents(nexusdSourceDir, binDir);
+
+      this.emitSetup('installing', 'Setting permissions...', 80);
+
+      // Set executable permissions on nexusd and shared libraries (Unix only)
+      this.setInstalledPermissions(binDir);
+
+      // Write version marker
+      const markerFile = this.getReadyMarkerPath();
+      fs.writeFileSync(markerFile, this.getNexusVersion());
+
+      this.emitSetup('idle', 'Nexus installation completed successfully', 100);
+      mainLog('Nexus', `Installation completed: ${binDir}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.emitSetup('error', `Installation failed: ${errorMsg}`);
+      throw err;
+    } finally {
+      // Cleanup temp extraction directory
+      try {
+        if (fs.existsSync(tempExtractDir)) {
+          fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        }
+      } catch {
+        mainWarn('Nexus', `Failed to clean up temp extraction directory: ${tempExtractDir}`);
+      }
+    }
   }
 
   /**
@@ -347,7 +494,7 @@ class DynamicNexusService {
   /**
    * Installs nexus for the current platform.
    * Prefers bundled resources, then OSS, then GitHub release assets.
-   * Copies the binary to ~/.nexus/bin/nexusd (or nexusd.exe) and sets executable permission.
+   * Downloads the archive, extracts it, and installs contents to ~/.nexus/bin/.
    */
   async install(): Promise<void> {
     if (this._running) {
@@ -355,15 +502,15 @@ class DynamicNexusService {
     }
 
     const platformKey = `${os.platform()}-${os.arch()}`;
-    let sourcePath: string | null = null;
+    let archivePath: string | null = null;
 
-    const versionedName = this.getVersionedBinaryName();
+    const versionedName = this.getVersionedArchiveName();
     const downloadDir = path.join(getDataPath(), 'downloads');
     const downloadDest = path.join(downloadDir, versionedName);
     const bundledPath = this.getBundledNexusPath();
     if (bundledPath) {
-      sourcePath = bundledPath;
-      mainLog('Nexus', `Using bundled Nexus binary from ${bundledPath}`);
+      archivePath = bundledPath;
+      mainLog('Nexus', `Using bundled Nexus archive from ${bundledPath}`);
     } else {
       fs.mkdirSync(downloadDir, { recursive: true });
 
@@ -375,16 +522,13 @@ class DynamicNexusService {
       let lastError: string | null = null;
 
       for (const attempt of downloadAttempts) {
-        this.emitSetup('downloading', `Downloading Nexus binary from ${attempt.label}...`, 0);
+        this.emitSetup('downloading', `Downloading Nexus archive from ${attempt.label}...`, 0);
         mainLog('Nexus', `Downloading Nexus from ${attempt.label} for ${platformKey}: ${attempt.url}`);
 
         try {
           await this.downloadFile(attempt.url, downloadDest);
-          if (!this.isWindows) {
-            fs.chmodSync(downloadDest, 0o755);
-          }
-          sourcePath = downloadDest;
-          mainLog('Nexus', `Downloaded Nexus binary from ${attempt.label} to ${downloadDest}`);
+          archivePath = downloadDest;
+          mainLog('Nexus', `Downloaded Nexus archive from ${attempt.label} to ${downloadDest}`);
           break;
         } catch (err) {
           lastError = err instanceof Error ? err.message : String(err);
@@ -392,47 +536,23 @@ class DynamicNexusService {
         }
       }
 
-      if (!sourcePath) {
+      if (!archivePath) {
         const errorMsg = lastError ?? 'unknown error';
         this.emitSetup('error', `Failed to download Nexus runtime: ${errorMsg}`);
-        throw new Error(`Nexus binary not available for platform ${platformKey}. Resource missing, OSS download failed, and GitHub download failed: ${errorMsg}`);
+        throw new Error(`Nexus archive not available for platform ${platformKey}. Resource missing, OSS download failed, and GitHub download failed: ${errorMsg}`);
       }
     }
 
-    mainLog('Nexus', `Using Nexus binary from ${sourcePath}...`);
+    mainLog('Nexus', `Installing Nexus from archive: ${archivePath}...`);
+    await this.installFromArchive(archivePath);
 
-    try {
-      this.deletePidFile();
-      this.deleteReadyFile();
-
-      const binDir = path.join(getDataPath(), 'bin');
-      const destPath = this.getInstalledNexusdPath();
-
-      // Ensure bin directory exists
-      fs.mkdirSync(binDir, { recursive: true });
-
-      this.emitSetup('installing', 'Copying Nexus binary...', 0);
-
-      // Copy the binary to ~/.nexus/bin/nexusd
-      fs.copyFileSync(sourcePath, destPath);
-
-      this.emitSetup('installing', 'Setting permissions...', 50);
-
-      // Make binary executable on macOS/Linux
-      if (!this.isWindows) {
-        fs.chmodSync(destPath, 0o755);
+    // Clean up downloaded archive (not the bundled one)
+    if (archivePath === downloadDest && fs.existsSync(downloadDest)) {
+      try {
+        fs.unlinkSync(downloadDest);
+      } catch {
+        mainWarn('Nexus', `Failed to clean up downloaded archive: ${downloadDest}`);
       }
-
-      // Write version marker
-      const markerFile = this.getReadyMarkerPath();
-      fs.writeFileSync(markerFile, this.getNexusVersion());
-
-      this.emitSetup('idle', 'Nexus installation completed successfully', 100);
-      mainLog('Nexus', `Installation completed: ${destPath}`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.emitSetup('error', `Installation failed: ${errorMsg}`);
-      throw err;
     }
   }
 
