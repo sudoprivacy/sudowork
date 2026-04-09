@@ -71,6 +71,109 @@ function removeUnnotarizableFiles(dir) {
 }
 
 /**
+ * Fix a .framework bundle to have a proper Apple-compliant directory structure.
+ * PyInstaller creates minimal .framework bundles (e.g. Python.framework/Python)
+ * that lack the required Versions/A/ hierarchy and Info.plist.  Without these,
+ * codesign fails with "bundle format is ambiguous" and notarization rejects
+ * the binary with "The signature of the binary is invalid."
+ *
+ * This function restructures the bundle:
+ *   Before:  Python.framework/Python  (flat, invalid)
+ *   After:   Python.framework/
+ *              Versions/
+ *                A/
+ *                  Python          ← moved here
+ *                  Resources/
+ *                    Info.plist    ← generated
+ *                Current -> A     ← symlink
+ *              Python -> Versions/A/Python   ← symlink
+ *              Resources -> Versions/A/Resources  ← symlink
+ *
+ * @param {string} fwPath - Absolute path to the .framework directory
+ */
+function fixFrameworkStructure(fwPath) {
+  const fwName = path.basename(fwPath, '.framework'); // e.g. "Python"
+  const versionsDir = path.join(fwPath, 'Versions');
+  const versionsADir = path.join(versionsDir, 'A');
+
+  // If Versions/A already exists, assume the structure is already proper —
+  // just ensure Info.plist is present.
+  if (fs.existsSync(versionsADir)) {
+    const resourcesDir = path.join(versionsADir, 'Resources');
+    fs.mkdirSync(resourcesDir, { recursive: true });
+    _ensureFrameworkInfoPlist(resourcesDir, fwName);
+    return;
+  }
+
+  // Create Versions/A
+  fs.mkdirSync(versionsADir, { recursive: true });
+
+  // Move ALL existing contents (except the Versions dir we just created) into Versions/A/
+  const entries = fs.readdirSync(fwPath, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === 'Versions') continue;
+    const src = path.join(fwPath, entry.name);
+    const dest = path.join(versionsADir, entry.name);
+    fs.renameSync(src, dest);
+  }
+
+  // Ensure Resources directory exists inside Versions/A
+  const resourcesInA = path.join(versionsADir, 'Resources');
+  fs.mkdirSync(resourcesInA, { recursive: true });
+
+  // Create Info.plist
+  _ensureFrameworkInfoPlist(resourcesInA, fwName);
+
+  // Create top-level symlinks (Apple-required framework layout)
+  // 1. Python.framework/Python -> Versions/A/Python
+  const mainBinaryInA = path.join(versionsADir, fwName);
+  if (fs.existsSync(mainBinaryInA)) {
+    fs.symlinkSync(path.join('Versions', 'A', fwName), path.join(fwPath, fwName));
+  }
+
+  // 2. Python.framework/Resources -> Versions/A/Resources
+  const topResources = path.join(fwPath, 'Resources');
+  if (!fs.existsSync(topResources)) {
+    fs.symlinkSync(path.join('Versions', 'A', 'Resources'), topResources);
+  }
+
+  // 3. Versions/Current -> A
+  fs.symlinkSync('A', path.join(versionsDir, 'Current'));
+}
+
+/**
+ * Ensure an Info.plist exists in a framework's Resources directory.
+ * @param {string} resourcesDir - Path to the Resources directory
+ * @param {string} bundleName - The framework name (e.g. "Python")
+ */
+function _ensureFrameworkInfoPlist(resourcesDir, bundleName) {
+  const plistPath = path.join(resourcesDir, 'Info.plist');
+  if (fs.existsSync(plistPath)) return;
+
+  const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>${bundleName}</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.python.${bundleName.toLowerCase()}</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+</dict>
+</plist>
+`;
+  fs.writeFileSync(plistPath, plistContent);
+}
+
+/**
  * Sign all binary files recursively in a directory
  * @param {string} dir - Directory to search for binaries
  * @param {string} identity - Code signing identity
@@ -122,44 +225,38 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
-  // Temporarily rename .framework directories so that codesign does not
-  // detect them as bundles.  Without this, codesign fails with
-  // "bundle format is ambiguous (could be app or framework)" when signing
-  // Mach-O binaries inside a framework (e.g. Python.framework/Python from
-  // PyInstaller one-dir builds).  After all binaries are signed we rename
-  // the directories back.
-  const renamedFrameworks = []; // [{original, renamed}]
-  function renameFrameworkDirs(currentDir) {
+  // ── 1. Collect .framework bundles ──────────────────────────────────────
+  // .framework dirs need special handling: fix their structure to be
+  // Apple-compliant, then sign as whole bundles instead of individual files.
+  const frameworkBundles = [];
+  function findFrameworks(currentDir) {
     let entries;
     try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name.endsWith('.framework')) {
-          const renamedPath = fullPath + '.codesign-tmp';
-          fs.renameSync(fullPath, renamedPath);
-          renamedFrameworks.push({ original: fullPath, renamed: renamedPath });
-          // Recurse into renamed dir in case of nested frameworks
-          renameFrameworkDirs(renamedPath);
+          frameworkBundles.push(fullPath);
+          // Don't recurse — contents will be signed as part of the bundle
         } else {
-          renameFrameworkDirs(fullPath);
+          findFrameworks(fullPath);
         }
       }
     }
   }
-  renameFrameworkDirs(dir);
+  findFrameworks(dir);
 
-  // Helper: restore all renamed .framework dirs (reverse order for nesting)
-  function restoreFrameworkDirs() {
-    for (const { original, renamed } of renamedFrameworks.reverse()) {
-      try {
-        fs.renameSync(renamed, original);
-      } catch (err) {
-        console.warn(`   ⚠️  Could not restore framework dir ${path.basename(original)}: ${err.message}`);
-      }
+  // ── 2. Fix .framework structure ──────────────────────────────────────
+  for (const fwPath of frameworkBundles) {
+    try {
+      fixFrameworkStructure(fwPath);
+      console.log(`   🔧 Fixed framework structure: ${path.basename(fwPath)}`);
+    } catch (err) {
+      console.warn(`   ⚠️  Could not fix framework structure for ${path.basename(fwPath)}: ${err.message}`);
     }
   }
 
+  // ── 3. Find individual Mach-O binaries (skip .framework dirs) ────────
   const binaries = [];
 
   function findBinaries(currentDir) {
@@ -167,6 +264,8 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
+        // Skip .framework dirs — they are signed as bundles in step 5
+        if (entry.name.endsWith('.framework')) continue;
         findBinaries(fullPath);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
@@ -190,15 +289,21 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
 
   findBinaries(dir);
 
-  if (binaries.length === 0) {
-    restoreFrameworkDirs();
+  if (binaries.length === 0 && frameworkBundles.length === 0) {
     return 0;
   }
 
-  console.log(`   Found ${binaries.length} binaries to sign in ${path.basename(dir)}`);
+  if (binaries.length > 0) {
+    console.log(`   Found ${binaries.length} binaries to sign in ${path.basename(dir)}`);
+  }
+  if (frameworkBundles.length > 0) {
+    console.log(`   Found ${frameworkBundles.length} .framework bundle(s) to sign`);
+  }
 
+  // ── 4. Sign individual binaries ──────────────────────────────────────
   let signedCount = 0;
   const failedBinaries = [];
+
   for (const binary of binaries) {
     try {
       // Strip any existing signature first (e.g. conda-forge Team ID) so that
@@ -223,15 +328,30 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
 
+  // ── 5. Sign .framework bundles as legitimate Apple bundles ───────────
+  // Now that the structure has been fixed (Versions/A/, Info.plist, symlinks),
+  // codesign can properly identify and sign the bundle.
+  // --deep ensures all nested code within the framework is also signed.
+  for (const fwPath of frameworkBundles) {
+    try {
+      execSync(`codesign --sign "${identity}" --force --deep --timestamp --options runtime "${fwPath}"`, {
+        stdio: 'pipe',
+      });
+      console.log(`   ✓ Signed framework bundle: ${path.basename(fwPath)}`);
+      signedCount++;
+    } catch (err) {
+      const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+      console.warn(`   ⚠️  Failed to sign framework ${path.basename(fwPath)}: ${msg}`);
+      failedBinaries.push(path.basename(fwPath));
+    }
+  }
+
   if (failedBinaries.length > 0) {
     console.warn(`   ⚠️  ${failedBinaries.length} binary/binaries could NOT be signed (Team ID mismatch risk):`);
     for (const name of failedBinaries) {
       console.warn(`        - ${name}`);
     }
   }
-
-  // Restore .framework directory names before returning
-  restoreFrameworkDirs();
 
   return signedCount;
 }
