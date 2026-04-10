@@ -442,4 +442,26 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': ['查询中建三局集团有限公司的工商基本信息', '查找广东省拥有建筑工程施工总承包特级资质的企业', '对中国建筑第二工程局有限公司进行风险扫描'],
     },
   },
+  {
+    id: 'ui-designer',
+    avatar: '✨',
+    presetAgentType: 'sudoclaw',
+    resourceDir: 'assistant/ui-designer',
+    ruleFiles: {
+      'en-US': 'ui-designer.md',
+      'zh-CN': 'ui-designer.md',
+    },
+    nameI18n: {
+      'en-US': 'UI Designer Assistant',
+      'zh-CN': 'UI设计师助手',
+    },
+    descriptionI18n: {
+      'en-US': 'Professional UI/UX designer assistant providing design suggestions, visual reviews, component design, and translation to Tailwind CSS code.',
+      'zh-CN': '专业的 UI/UX 设计师助手，提供界面设计建议、视觉评审、组件设计以及转换为 Tailwind CSS 代码。',
+    },
+    promptsI18n: {
+      'en-US': ['Review this dashboard layout and suggest improvements', 'Design a high-converting pricing card', 'How do I implement a glassmorphism navbar in Tailwind CSS?'],
+      'zh-CN': ['评审这个仪表板布局并提供改进建议', '设计一个高转化率的定价卡片', '如何使用 Tailwind CSS 实现玻璃拟物化的导航栏？'],
+    },
+  },
 ];
