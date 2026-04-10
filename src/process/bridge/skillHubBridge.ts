@@ -413,14 +413,15 @@ export function initSkillHubBridge(): void {
   mainLog('SkillHub', 'Initializing SkillHub bridge...');
 
   // Fetch skills list from Skill Hub API with cursor-based pagination
-  ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '' }) => {
+  ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
-      mainLog('SkillHub', 'Fetching skills with params:', { cursor, limit, query, category });
+      mainLog('SkillHub', 'Fetching skills with params:', { cursor, limit, query, category, tenantId });
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
       if (query) params.set('query', query);
       if (category) params.set('categories', category);
+      if (typeof tenantId === 'string' && tenantId.trim()) params.set('tenant_id', tenantId.trim());
       const response = await fetch(`${SKILL_HUB_CURSOR_URL}?${params}`, {
         headers: { Authorization: AUTHORIZATION },
       });
@@ -706,6 +707,7 @@ export function initSkillHubBridge(): void {
         name: skill.name,
         version: skill.version,
         isBuiltin: skill.isBuiltin,
+        isAutoInjectedBuiltin: skill.isAutoInjectedBuiltin === true,
         isHubInstalled: skill.isHubInstalled,
         enabled: skill.enabled,
         meta: skill.meta

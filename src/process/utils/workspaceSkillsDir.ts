@@ -1,0 +1,25 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { TChatConversation } from '@/common/storage';
+import path from 'path';
+
+export function resolveWorkspaceSkillsDir(conversation: Pick<TChatConversation, 'type' | 'extra'> | undefined): string | undefined {
+  const workspace = conversation?.extra?.workspace;
+  if (!workspace) {
+    return undefined;
+  }
+
+  if (conversation.type === 'openclaw-gateway') {
+    return path.join(workspace, 'skills');
+  }
+
+  if (conversation.extra?.backend === 'claude') {
+    return path.join(workspace, '.claude', 'skills');
+  }
+
+  return path.join(workspace, 'skills');
+}

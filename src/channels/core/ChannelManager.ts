@@ -129,7 +129,6 @@ export class ChannelManager {
       await this.loadEnabledPlugins();
 
       console.log('[ChannelManager] Initialized successfully');
-
     } catch (error) {
       console.error('[ChannelManager] Initialization failed:', error);
       throw error;
@@ -153,7 +152,6 @@ export class ChannelManager {
       return false;
     }
   }
-
 
   /**
    * Shutdown the assistant subsystem

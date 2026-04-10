@@ -81,20 +81,12 @@ export function convertToMcporterConfig(servers: IMcpServer[]): McporterConfig {
  * Check if server needs keep-alive lifecycle
  */
 function isKeepAliveServer(server: IMcpServer): boolean {
-  const keepAlivePatterns = [
-    'chrome-devtools',
-    'playwright',
-    'mobile-mcp',
-    'puppeteer',
-    'browser',
-  ];
+  const keepAlivePatterns = ['chrome-devtools', 'playwright', 'mobile-mcp', 'puppeteer', 'browser'];
 
   const name = server.name.toLowerCase();
   const command = server.transport.type === 'stdio' ? server.transport.command.toLowerCase() : '';
 
-  return keepAlivePatterns.some(
-    (pattern) => name.includes(pattern) || command.includes(pattern)
-  );
+  return keepAlivePatterns.some((pattern) => name.includes(pattern) || command.includes(pattern));
 }
 
 /**

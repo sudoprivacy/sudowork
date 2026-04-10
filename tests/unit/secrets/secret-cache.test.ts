@@ -74,9 +74,9 @@ describe('SecretCache', () => {
         putSecret: vi.fn().mockResolvedValue({}),
       };
       (secretCache as any).client = mockClient;
-      
+
       cachePut('ns', 'k1', 'new-val');
-      
+
       expect(secretCache.get('ns', 'k1')).toBe('new-val');
       expect(mockClient.putSecret).toHaveBeenCalledWith('ns', 'k1', 'new-val');
     });

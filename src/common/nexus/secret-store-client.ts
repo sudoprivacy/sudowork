@@ -59,12 +59,7 @@ export class SecretStoreClient {
     });
   }
 
-  async putSecret(
-    namespace: string,
-    key: string,
-    value: string,
-    description?: string,
-  ): Promise<SecretMetadata> {
+  async putSecret(namespace: string, key: string, value: string, description?: string): Promise<SecretMetadata> {
     return this.client.put<SecretMetadata>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`, {
       value,
       description,
@@ -73,40 +68,27 @@ export class SecretStoreClient {
 
   async getSecret(namespace: string, key: string, version?: number): Promise<string> {
     const params = version !== undefined ? `?version=${version}` : '';
-    const result = await this.client.get<{ namespace: string; key: string; value: string; version?: number }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}${params}`,
-    );
+    const result = await this.client.get<{ namespace: string; key: string; value: string; version?: number }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}${params}`);
     return result.value;
   }
 
   async deleteSecret(namespace: string, key: string): Promise<boolean> {
-    const result = await this.client.delete<{ namespace: string; key: string; deleted: boolean }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`,
-    );
+    const result = await this.client.delete<{ namespace: string; key: string; deleted: boolean }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`);
     return result.deleted;
   }
 
   async restoreSecret(namespace: string, key: string): Promise<boolean> {
-    const result = await this.client.post<{ namespace: string; key: string; restored: boolean }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/restore`,
-      undefined,
-    );
+    const result = await this.client.post<{ namespace: string; key: string; restored: boolean }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/restore`, undefined);
     return result.restored;
   }
 
   async enableSecret(namespace: string, key: string): Promise<boolean> {
-    const result = await this.client.put<{ namespace: string; key: string; enabled: boolean }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/enable`,
-      undefined,
-    );
+    const result = await this.client.put<{ namespace: string; key: string; enabled: boolean }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/enable`, undefined);
     return result.enabled;
   }
 
   async disableSecret(namespace: string, key: string): Promise<boolean> {
-    const result = await this.client.put<{ namespace: string; key: string; enabled: boolean }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/disable`,
-      undefined,
-    );
+    const result = await this.client.put<{ namespace: string; key: string; enabled: boolean }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/disable`, undefined);
     return !result.enabled;
   }
 
@@ -120,24 +102,17 @@ export class SecretStoreClient {
   }
 
   async listVersions(namespace: string, key: string): Promise<VersionMetadata[]> {
-    const result = await this.client.get<{ namespace: string; key: string; versions: VersionMetadata[]; count: number }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/versions`,
-    );
+    const result = await this.client.get<{ namespace: string; key: string; versions: VersionMetadata[]; count: number }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/versions`);
     return result.versions;
   }
 
   async deleteVersion(namespace: string, key: string, version: number): Promise<boolean> {
-    const result = await this.client.delete<{ namespace: string; key: string; version: number; deleted: boolean }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/versions/${version}`,
-    );
+    const result = await this.client.delete<{ namespace: string; key: string; version: number; deleted: boolean }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/versions/${version}`);
     return result.deleted;
   }
 
   async updateDescription(namespace: string, key: string, description: string): Promise<boolean> {
-    const result = await this.client.put<{ namespace: string; key: string; description: string }>(
-      `/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/description`,
-      { description },
-    );
+    const result = await this.client.put<{ namespace: string; key: string; description: string }>(`/api/v2/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/description`, { description });
     return result.description === description;
   }
 
