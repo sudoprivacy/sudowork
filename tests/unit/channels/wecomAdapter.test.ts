@@ -269,6 +269,42 @@ describe('WeComAdapter', () => {
       expect(result!.content.attachments![1].fileId).toBe('/tmp/2.jpg');
     });
 
+    it('supports "item" (singular) field name for WeCom API compatibility', () => {
+      const msg = makeMsg({
+        msgtype: 'mixed',
+        mixed: {
+          item: [
+            { msgtype: 'text', text: { content: 'Hello from item' } },
+            {
+              msgtype: 'image',
+              image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' },
+            },
+          ],
+        },
+      } as any);
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.content.text).toBe('Hello from item');
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.attachments).toHaveLength(1);
+      expect(result!.content.attachments![0].fileId).toBe('https://cdn.example.com/img.jpg');
+    });
+
+    it('returns placeholder text when mixed items cannot be parsed', () => {
+      const msg = makeMsg({
+        msgtype: 'mixed',
+        mixed: {
+          msg_item: [
+            { msgtype: 'unknown_type' },
+          ],
+        },
+      });
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('text');
+      expect(result!.content.text).toBe('[图文消息]');
+    });
+
     it('supports "type" field (alternative to "msgtype") for mixed items', () => {
       const msg = makeMsg({
         msgtype: 'mixed',

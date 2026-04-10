@@ -57,6 +57,14 @@ export type WeComMsgCallback = {
       image?: { url: string; aeskey: string };
       _localPath?: string;
     }>;
+    /** Some WeCom API versions use singular "item" instead of "items" */
+    item?: Array<{
+      msgtype?: string;
+      type?: string;
+      text?: { content: string };
+      image?: { url: string; aeskey: string };
+      _localPath?: string;
+    }>;
   };
   voice?: { content: string }; // voice-to-text transcription
   file?: { url: string; aeskey: string; filename?: string; filesize?: number };
@@ -229,16 +237,16 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
 
     case 'mixed': {
       // Mixed message: combine text parts and extract image attachments
+      // WeCom API uses "msg_item"; fall back to "items" / "item" for backward compatibility
+      const mixedItems = data.mixed?.msg_item || data.mixed?.items || data.mixed?.item || [];
       const textParts: string[] = [];
       const attachments: Array<{ type: 'photo'; fileId: string }> = [];
 
-      // WeCom API uses "msg_item"; fall back to "items" for backward compatibility
-      const items = data.mixed?.msg_item || data.mixed?.items || [];
-      if (items.length > 0) {
-        console.log(`[WeComAdapter] mixed items (${items.length}): ${JSON.stringify(items.map((i) => ({ msgtype: i.msgtype, type: i.type, hasText: !!i.text, hasImage: !!i.image, hasLocalPath: !!i._localPath })))}`);
+      if (mixedItems.length > 0) {
+        console.log(`[WeComAdapter] mixed items (${mixedItems.length}): ${JSON.stringify(mixedItems.map((i) => ({ msgtype: i.msgtype, type: i.type, hasText: !!i.text, hasImage: !!i.image, hasLocalPath: !!i._localPath })))}`);
       }
 
-      for (const item of items) {
+      for (const item of mixedItems) {
         const itemType = getMixedItemType(item);
         if (itemType === 'text' && item.text?.content) {
           textParts.push(item.text.content);
@@ -259,6 +267,13 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
       if (attachments.length > 0) {
         return { type: 'photo', text, attachments };
       }
+
+      // Fallback: if we couldn't extract any content from the mixed message,
+      // use a placeholder so ActionExecutor doesn't reject it as "unsupported"
+      if (!text && mixedItems.length > 0) {
+        text = '[图文消息]';
+      }
+
       return { type: 'text', text };
     }
 

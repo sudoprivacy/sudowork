@@ -314,9 +314,9 @@ export class WeComPlugin extends BasePlugin {
         aeskey: body.video.aeskey,
         msgtype: 'video',
       });
-    } else if (body.msgtype === 'mixed' && (body.mixed?.msg_item || body.mixed?.items)) {
-      // WeCom API uses "msg_item"; fall back to "items" for backward compatibility
-      const mixedItems = body.mixed.msg_item || body.mixed.items || [];
+    } else if (body.msgtype === 'mixed' && (body.mixed?.msg_item || body.mixed?.items || body.mixed?.item)) {
+      // WeCom API uses "msg_item"; fall back to "items" / "item" for backward compatibility
+      const mixedItems = body.mixed.msg_item || body.mixed.items || body.mixed.item || [];
       for (let i = 0; i < mixedItems.length; i++) {
         const item = mixedItems[i];
         // WeCom may use "msgtype" or "type" for mixed item type
@@ -335,10 +335,15 @@ export class WeComPlugin extends BasePlugin {
     if (mediaItems.length === 0) return;
 
     // Ensure media directory exists
-    if (!this.mediaDir) {
-      const { getDataPath } = await import('@/process/utils');
-      this.mediaDir = path.join(getDataPath(), 'channel-media', 'wecom');
-      fs.mkdirSync(this.mediaDir, { recursive: true });
+    try {
+      if (!this.mediaDir) {
+        const { getDataPath } = await import('@/process/utils');
+        this.mediaDir = path.join(getDataPath(), 'channel-media', 'wecom');
+        fs.mkdirSync(this.mediaDir, { recursive: true });
+      }
+    } catch (error) {
+      console.error('[WeComPlugin] Failed to create media directory:', error);
+      return; // Skip download but don't block message processing
     }
 
     // Download and decrypt each media item
@@ -352,9 +357,9 @@ export class WeComPlugin extends BasePlugin {
         fs.writeFileSync(filePath, buffer);
 
         // Write local path back to the message body
-        const mixedArr = body.mixed?.msg_item || body.mixed?.items;
-        if (item.mixedIndex !== undefined && mixedArr?.[item.mixedIndex]) {
-          mixedArr[item.mixedIndex]._localPath = filePath;
+        const mixedItemsRef = body.mixed?.msg_item || body.mixed?.items || body.mixed?.item;
+        if (item.mixedIndex !== undefined && mixedItemsRef?.[item.mixedIndex]) {
+          mixedItemsRef[item.mixedIndex]._localPath = filePath;
         } else {
           switch (item.msgtype) {
             case 'image':
@@ -534,10 +539,16 @@ export class WeComPlugin extends BasePlugin {
       }
 
       // Download and decrypt media files before converting to unified message
-      await this.downloadMediaItems(body);
+      // Wrapped in try-catch so download failures don't block message processing
+      try {
+        await this.downloadMediaItems(body);
+      } catch (error) {
+        console.error('[WeComPlugin] Media download failed, continuing with original URLs:', error);
+      }
 
       // Convert to unified message (now with local paths for media)
       const unifiedMessage = toUnifiedIncomingMessage(body);
+      console.log(`[WeComPlugin] Unified message: type=${unifiedMessage?.content.type}, text=${unifiedMessage?.content.text?.slice(0, 100)}, attachments=${unifiedMessage?.content.attachments?.length || 0}`);
       if (unifiedMessage && this.messageHandler) {
         // Check for menu button commands
         if (unifiedMessage.content.type === 'text' && unifiedMessage.content.text) {
