@@ -97,16 +97,60 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
 const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
   const [expanded, setExpanded] = React.useState(false);
   const hasDetail = item.input || item.output;
+  const itemRef = React.useRef<HTMLDivElement>(null);
+
+  const handleToggleDetail = React.useCallback(() => {
+    const willExpand = !expanded;
+    
+    if (!itemRef.current) {
+      setExpanded(!expanded);
+      return;
+    }
+
+    // 展开前记录当前项相对于滚动容器的位置
+    const itemRectBefore = itemRef.current.getBoundingClientRect();
+    let scrollParent: Element | null = itemRef.current.parentElement;
+    while (scrollParent) {
+      const style = window.getComputedStyle(scrollParent);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll') && scrollParent.scrollHeight > scrollParent.clientHeight) {
+        break;
+      }
+      scrollParent = scrollParent.parentElement;
+    }
+
+    if (!scrollParent) {
+      setExpanded(!expanded);
+      return;
+    }
+
+    const scrollRectBefore = scrollParent.getBoundingClientRect();
+    const itemOffsetTopBefore = itemRectBefore.top - scrollRectBefore.top + scrollParent.scrollTop;
+    const scrollTopBefore = scrollParent.scrollTop;
+
+    setExpanded(!expanded);
+
+    // 在下一帧立即恢复滚动位置，避免视觉闪烁
+    requestAnimationFrame(() => {
+      const itemRectAfter = itemRef.current!.getBoundingClientRect();
+      const scrollRectAfter = scrollParent!.getBoundingClientRect();
+      const itemOffsetTopAfter = itemRectAfter.top - scrollRectAfter.top + scrollParent!.scrollTop;
+
+      const delta = itemOffsetTopAfter - itemOffsetTopBefore;
+      if (Math.abs(delta) > 1) {
+        scrollParent.scrollTop = scrollTopBefore + delta;
+      }
+    });
+  }, [expanded]);
 
   return (
-    <div className='flex flex-col'>
+    <div ref={itemRef} className='flex flex-col'>
       <div className='flex flex-row color-#86909C gap-12px items-center'>
         <Badge status={item.status} className={item.status === 'processing' ? 'badge-breathing' : ''}></Badge>
-        <span className={'flex-1 min-w-0' + (expanded ? ' break-all' : ' truncate') + (hasDetail ? ' cursor-pointer hover:color-#4E5969' : '')} onClick={hasDetail ? () => setExpanded(!expanded) : undefined}>
+        <span className={'flex-1 min-w-0' + (expanded ? ' break-all' : ' truncate') + (hasDetail ? ' cursor-pointer hover:color-#4E5969' : '')} onClick={hasDetail ? handleToggleDetail : undefined}>
           {`${item.name}(${item.desc})`}
         </span>
         {hasDetail && (
-          <span className='flex-shrink-0 cursor-pointer hover:color-#4E5969 transition-colors' onClick={() => setExpanded(!expanded)}>
+          <span className='flex-shrink-0 cursor-pointer hover:color-#4E5969 transition-colors' onClick={handleToggleDetail}>
             {expanded ? <IconDown style={{ fontSize: 12 }} /> : <IconRight style={{ fontSize: 12 }} />}
           </span>
         )}
