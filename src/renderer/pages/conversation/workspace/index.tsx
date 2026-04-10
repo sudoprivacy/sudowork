@@ -840,7 +840,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
 
         {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
-        <TaskPanel workspaceFiles={treeHook.files} />
+        <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
 
         {/* Search Input */}
         <div className='px-12px'>
