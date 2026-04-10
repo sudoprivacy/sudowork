@@ -70,12 +70,13 @@ function removeUnnotarizableFiles(dir) {
   return removed;
 }
 
-// NOTE: fixFrameworkStructure / _ensureFrameworkInfoPlist have been intentionally
-// removed.  PyInstaller creates non-standard .framework bundles that cannot be
-// made Apple-compliant reliably (EEXIST on existing symlinks, missing Info.plist
-// still triggers "bundle format is ambiguous").  Instead we sign every Mach-O
-// binary *inside* the .framework individually and never attempt to codesign the
-// .framework directory itself.  The outer .app signature covers the bundle.
+// NOTE: .framework bundles from PyInstaller are non-standard. macOS `codesign`
+// refuses to sign files at `Foo.framework/Foo` paths ("bundle format is
+// ambiguous"). Additionally, `tar` extraction may dereference symlinks, turning
+// them into real file copies. The solution: sign each Mach-O binary inside the
+// framework individually. If direct codesign fails due to path-based bundle
+// detection, the binary is copied to a temp path (outside .framework), signed
+// there, and copied back. See signBinariesInDir() step 4 for details.
 
 /**
  * Sign all binary files recursively in a directory
@@ -232,36 +233,38 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
   // PyInstaller creates non-standard .framework bundles that macOS codesign
   // cannot classify ("bundle format is ambiguous — could be app or framework").
   //
-  // Strategy: sign every Mach-O binary INSIDE the framework individually.
-  // ❌ Do NOT sign the .framework directory itself — it will always fail.
-  // ❌ Do NOT attempt to "fix" the framework structure — it causes EEXIST
-  //    errors and still doesn't make codesign happy.
-  // ✅ The outer .app signature (electron-builder) covers everything.
+  // ROOT CAUSE (after 12+ debugging iterations):
+  //   - `tar` extraction dereferences symlinks, so Python.framework/Python,
+  //     Versions/Current/, etc. become REAL file/directory copies (not symlinks).
+  //   - `codesign` has path-based bundle detection: when it sees the pattern
+  //     `Foo.framework/Foo`, it tries bundle signing → fails on PyInstaller's
+  //     non-standard structure with "bundle format is ambiguous".
+  //   - Binaries deeper in the tree (Versions/3.12/Python) sign fine because
+  //     codesign's heuristic doesn't trigger for those paths.
+  //   - Apple notarization validates EVERY Mach-O file path, including
+  //     Python.framework/Python — if unsigned/badly signed, the whole app fails.
+  //
+  // SOLUTION: Try direct codesign first. If it fails (path triggers bundle
+  // detection), copy the binary to a temp path OUTSIDE .framework, sign it
+  // there, and copy the signed binary back. This bypasses codesign's
+  // path-based bundle detection while producing a validly signed file.
   for (const fwPath of frameworkBundles) {
     let fwSignedCount = 0;
 
-    // Walk the ENTIRE .framework directory tree to find all Mach-O binaries.
-    // This handles both flat (Python.framework/Python) and structured
-    // (Python.framework/Versions/3.12/Python) layouts from PyInstaller.
-    //
-    // IMPORTANT: Use fs.lstatSync() for symlink detection instead of
-    // Dirent.isSymbolicLink(), which can be unreliable on macOS APFS.
-    // We also collect symlinks so we can replace them with copies of
-    // the signed binary after signing — Apple notarization validates
-    // Python.framework/Python (a symlink) and rejects it if the path
-    // goes through .framework without a proper bundle signature.
+    // Walk the .framework directory tree to find all Mach-O binaries.
+    // Handles both real files and symlinks (tar may dereference symlinks,
+    // so we cannot assume symlinks exist — treat everything found).
     const innerBinaries = [];
-    const symlinkEntries = [];
     const walkFramework = (currentDir) => {
       let entries;
       try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
       for (const entry of entries) {
         const fullPath = path.join(currentDir, entry.name);
-        // Use lstatSync for reliable symlink detection on macOS
         let stat;
         try { stat = fs.lstatSync(fullPath); } catch { continue; }
         if (stat.isSymbolicLink()) {
-          symlinkEntries.push(fullPath);
+          // If it IS a real symlink (rare after tar extraction), skip it —
+          // the target file will be found and signed at its real location.
           continue;
         }
         if (stat.isDirectory()) {
@@ -273,8 +276,11 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     };
     walkFramework(fwPath);
 
-    // ── 4a. Sign real (non-symlink) Mach-O binaries inside .framework ──
+    // Sign each Mach-O binary inside the framework.
+    // Strategy: try direct codesign first; if it fails (typically for
+    // Foo.framework/Foo pattern), fall back to temp-path signing.
     for (const innerBin of innerBinaries) {
+      const relPath = path.relative(fwPath, innerBin);
       try {
         // Remove any existing signature first (clean slate — prevents Team ID mismatch)
         try { execSync(`codesign --remove-signature "${innerBin}"`, { stdio: 'pipe' }); } catch { /* no existing sig */ }
@@ -282,43 +288,42 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
         execSync(`codesign --sign "${identity}" --force --timestamp --options runtime ${entitlementsFlag} "${innerBin}"`, {
           stdio: 'pipe',
         });
-        console.log(`   ✓ Signed (framework): ${path.relative(fwPath, innerBin)}`);
+        console.log(`   ✓ Signed (framework): ${relPath}`);
         signedCount++;
         fwSignedCount++;
-      } catch (innerErr) {
-        const innerMsg = innerErr.stderr ? innerErr.stderr.toString().trim() : innerErr.message;
-        console.warn(`   ⚠️  Failed to sign framework binary ${path.relative(fwPath, innerBin)}: ${innerMsg}`);
-        failedBinaries.push(`${path.basename(fwPath)}/${path.relative(fwPath, innerBin)}`);
-      }
-    }
-
-    // ── 4b. Replace symlinks with copies of the signed binary ──────────
-    // Apple notarization follows symlinks inside .framework bundles and
-    // validates them according to framework bundle rules.  A symlink like
-    // Python.framework/Python → Versions/Current/Python causes:
-    //   "The signature of the binary is invalid."
-    // because the path traverses .framework without a proper bundle seal.
-    //
-    // Fix: replace each symlink-to-Mach-O with a copy of the signed real
-    // binary.  This way Apple sees a real signed file at every path.
-    let replacedSymlinks = 0;
-    for (const symlinkPath of symlinkEntries) {
-      try {
-        const realPath = fs.realpathSync(symlinkPath);
-        // Only replace symlinks that point to Mach-O binaries
-        if (isMachOBinary(realPath)) {
-          fs.unlinkSync(symlinkPath);       // Remove the symlink
-          fs.copyFileSync(realPath, symlinkPath);  // Copy the signed binary
-          console.log(`   ✓ Replaced symlink with signed copy: ${path.relative(fwPath, symlinkPath)}`);
-          replacedSymlinks++;
-        }
       } catch {
-        // Symlink target doesn't exist, is a directory, or can't be read — skip
+        // Direct signing failed — path contains .framework and triggers
+        // codesign's bundle detection ("bundle format is ambiguous").
+        // Fallback: sign via a temp path that doesn't contain .framework.
+        let tmpSignDir;
+        try {
+          tmpSignDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fw-sign-'));
+          const tmpPath = path.join(tmpSignDir, path.basename(innerBin));
+          fs.copyFileSync(innerBin, tmpPath);
+          try { execSync(`codesign --remove-signature "${tmpPath}"`, { stdio: 'pipe' }); } catch { /* ok */ }
+          const entitlementsFlag = entitlementsPath ? `--entitlements "${entitlementsPath}"` : '';
+          execSync(`codesign --sign "${identity}" --force --timestamp --options runtime ${entitlementsFlag} "${tmpPath}"`, {
+            stdio: 'pipe',
+          });
+          // Copy the signed binary back to its original location
+          fs.copyFileSync(tmpPath, innerBin);
+          console.log(`   ✓ Signed (framework, via temp): ${relPath}`);
+          signedCount++;
+          fwSignedCount++;
+        } catch (tmpErr) {
+          const tmpMsg = tmpErr.stderr ? tmpErr.stderr.toString().trim() : tmpErr.message;
+          console.warn(`   ⚠️  Failed to sign framework binary ${relPath}: ${tmpMsg}`);
+          failedBinaries.push(`${path.basename(fwPath)}/${relPath}`);
+        } finally {
+          if (tmpSignDir) {
+            try { fs.rmSync(tmpSignDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+          }
+        }
       }
     }
 
-    if (fwSignedCount > 0 || replacedSymlinks > 0) {
-      console.log(`   ✓ Framework ${path.basename(fwPath)}: signed ${fwSignedCount} binary(ies), replaced ${replacedSymlinks} symlink(s)`);
+    if (fwSignedCount > 0) {
+      console.log(`   ✓ Framework ${path.basename(fwPath)}: signed ${fwSignedCount} inner binary(ies)`);
     } else {
       console.warn(`   ⚠️  Framework ${path.basename(fwPath)}: no Mach-O binaries found inside`);
     }
