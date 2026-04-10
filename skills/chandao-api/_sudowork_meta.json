@@ -3,7 +3,7 @@
   "name": "chandao-api",
   "display_name": "禅道",
   "description": "禅道REST API v1集成。管理产品、项目、迭代、任务、Bug、需求等项目管理数据",
-  "icon": "icon.svg",
+  "icon": "zentao.svg",
   "emoji": "📋",
   "category": "",
   "categories": ["效率工具"],
