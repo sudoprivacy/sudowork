@@ -296,31 +296,62 @@ jobs:
           echo "🔐 Configuring coscmd..."
           coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -r $COS_REGION
 
-          # 【变更】仅正式版会进入此步骤，固定使用 release/latest
           COS_PATH="sudowork/release/latest"
 
-          echo "📤 Uploading build artifacts to COS..."
+          echo "📤 Uploading all release assets to COS..."
           echo "Target path: $COS_PATH"
 
-          # Upload all release assets to COS with standardized naming
-          # Target names: Sudowork-latest-win-x64.exe, Sudowork-latest-mac-arm64.dmg
+          # Upload all release assets to COS
+          # - yml files: update url field to match latest naming, then upload
+          # - installers: convert to latest naming format
+          # - blockmaps: convert naming to match installer
           for file in release-assets/**/*; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
 
-              # Skip non-main installer files (blockmap, yml, zip, etc.)
-              if [[ ! "$filename" =~ \.(exe|dmg)$ ]]; then
-                echo "  Skipping: $filename (not main installer)"
+              # yml files: update url/path to match latest naming
+              if [[ "$filename" == *.yml ]]; then
+                echo "  Processing yml: $filename"
+                # Replace version numbers with 'latest' in url/path fields, normalize platform names
+                # Sudowork-0.1.2-win-x64.exe -> Sudowork-latest-win-x64.exe
+                # Sudowork-0.1.2-darwin-arm64.dmg -> Sudowork-latest-mac-arm64.dmg
+                # For macOS yml files: change .zip to .dmg (electron-builder generates .zip but we upload .dmg)
+                if [[ "$filename" == *"-mac.yml" ]]; then
+                  # macOS yml: replace .zip with .dmg
+                  sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
+                      -e 's/-darwin-/-mac-/g' \
+                      -e 's/-win32-/-win-/g' \
+                      -e 's/\.zip/.dmg/g' \
+                      "$file" > /tmp/updated.yml
+                else
+                  # Windows/Linux yml: just normalize version and platform names
+                  sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
+                      -e 's/-darwin-/-mac-/g' \
+                      -e 's/-win32-/-win-/g' \
+                      "$file" > /tmp/updated.yml
+                fi
+                coscmd upload /tmp/updated.yml "$COS_PATH/$filename" || echo "⚠️ Failed to upload $filename"
                 continue
               fi
 
-              # Convert versioned filename to latest format with platform normalization
-              # e.g., Sudowork-0.1.2-darwin-arm64.dmg -> Sudowork-latest-mac-arm64.dmg
-              # e.g., Sudowork-0.1.2-win32-x64.exe -> Sudowork-latest-win-x64.exe
-              latest_name=$(echo "$filename" | sed 's/[0-9]\+\.[0-9]\+\.[0-9]\+/latest/' | sed 's/darwin/mac/' | sed 's/win32/win/')
+              # Installers (exe, dmg): convert to latest naming
+              if [[ "$filename" =~ \.(exe|dmg)$ ]]; then
+                latest_name=$(echo "$filename" | sed 's/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/latest/' | sed 's/darwin/mac/' | sed 's/win32/win/')
+                echo "  Uploading: $filename -> $latest_name"
+                coscmd upload "$file" "$COS_PATH/$latest_name" || echo "⚠️ Failed to upload $filename"
+                continue
+              fi
 
-              echo "  Uploading: $filename -> $latest_name"
-              coscmd upload "$file" "$COS_PATH/$latest_name" || echo "⚠️ Failed to upload $filename"
+              # Other files (blockmap, etc.): convert naming to match installer
+              if [[ "$filename" =~ \.blockmap$ ]]; then
+                latest_name=$(echo "$filename" | sed 's/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/latest/' | sed 's/darwin/mac/' | sed 's/win32/win/')
+                echo "  Uploading: $filename -> $latest_name"
+                coscmd upload "$file" "$COS_PATH/$latest_name" || echo "⚠️ Failed to upload $filename"
+                continue
+              fi
+
+              # Skip other files (zip, etc.)
+              echo "  Skipping: $filename (not required for auto-update)"
             fi
           done
 

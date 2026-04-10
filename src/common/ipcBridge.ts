@@ -144,6 +144,8 @@ export const autoUpdate = {
   getDownloadedFilePath: bridge.buildProvider<IBridgeResponse<{ path: string | null }>, void>('auto-update.get-downloaded-file-path'),
   /** Auto-update status events */
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
+  /** Get current mirror source status (for Chinese users) */
+  getMirrorStatus: bridge.buildProvider<IBridgeResponse<{ useMirror: boolean; reason: string }>, void>('auto-update.get-mirror-status'),
 };
 
 export const starOffice = {
