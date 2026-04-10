@@ -73,10 +73,94 @@ function removeUnnotarizableFiles(dir) {
 // NOTE: .framework bundles from PyInstaller are non-standard. macOS `codesign`
 // refuses to sign files at `Foo.framework/Foo` paths ("bundle format is
 // ambiguous"). Additionally, `tar` extraction may dereference symlinks, turning
-// them into real file copies. The solution: sign each Mach-O binary inside the
-// framework individually. If direct codesign fails due to path-based bundle
-// detection, the binary is copied to a temp path (outside .framework), signed
-// there, and copied back. See signBinariesInDir() step 4 for details.
+// them into real file copies.
+//
+// PRIMARY FIX: restoreFrameworkSymlinks() runs BEFORE signing and converts
+// dereferenced copies back into proper symlinks. After restoration the only
+// real Mach-O binary is at Versions/<ver>/Python — a deep path that does NOT
+// trigger codesign's bundle-detection heuristic. The repacked tar preserves
+// symlinks, so Apple notarytool sees a correctly structured framework.
+//
+// FALLBACK: If a framework has no Versions/ directory (flat layout), the
+// inner-binary walker (step 4) tries direct codesign first, then falls back
+// to temp-path signing (copy binary outside .framework, sign, copy back).
+
+/**
+ * Restore proper symlink structure inside a .framework bundle.
+ *
+ * Problem: tar extraction (or PyInstaller's own build) may dereference
+ * symlinks, turning Python.framework/Python into a real Mach-O copy instead
+ * of a symlink to Versions/Current/Python.  macOS codesign sees the path
+ * pattern Foo.framework/Foo → triggers bundle-level signing → fails with
+ * "bundle format is ambiguous" because the PyInstaller structure is non-standard.
+ *
+ * Fix: restore the standard Apple framework symlink layout:
+ *   Versions/Current → <version>                      (symlink)
+ *   <BinaryName>     → Versions/Current/<BinaryName>   (symlink)
+ *   Resources        → Versions/Current/Resources      (symlink)
+ *
+ * After restoration the only real Mach-O sits at Versions/<ver>/<BinaryName>,
+ * a deep path that does NOT trigger codesign's Foo.framework/Foo heuristic.
+ * The repacked tarball preserves symlinks, so Apple notarytool sees a properly
+ * structured framework whose canonical binary is validly signed.
+ *
+ * @param {string} fwPath - Absolute path to the .framework directory
+ * @returns {boolean} Whether any symlinks were restored
+ */
+function restoreFrameworkSymlinks(fwPath) {
+  const versionsDir = path.join(fwPath, 'Versions');
+  if (!fs.existsSync(versionsDir)) return false;
+
+  // Find the real version directory (e.g. "3.12", "A") — skip "Current"
+  let realVersionName = null;
+  try {
+    for (const name of fs.readdirSync(versionsDir)) {
+      if (name === 'Current') continue;
+      const full = path.join(versionsDir, name);
+      try {
+        const st = fs.lstatSync(full);
+        if (st.isDirectory() && !st.isSymbolicLink()) { realVersionName = name; break; }
+      } catch { /* skip */ }
+    }
+  } catch { return false; }
+
+  if (!realVersionName) return false;
+
+  let restored = 0;
+
+  // Idempotent helper: replace whatever is at linkPath with a symlink → target
+  function safeSymlink(target, linkPath) {
+    try {
+      const st = fs.lstatSync(linkPath);
+      if (st.isSymbolicLink()) return false; // already correct
+      if (st.isDirectory()) {
+        fs.rmSync(linkPath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(linkPath);
+      }
+    } catch { /* path does not exist — that is fine */ }
+    fs.symlinkSync(target, linkPath);
+    return true;
+  }
+
+  // 1. Versions/Current → <realVersionName>   (e.g. Current → 3.12)
+  if (safeSymlink(realVersionName, path.join(versionsDir, 'Current'))) restored++;
+
+  // Derive the binary name from the directory name  (Python.framework → "Python")
+  const fwBinaryName = path.basename(fwPath).replace(/\.framework$/, '');
+
+  // 2. <fw>.framework/<Binary> → Versions/Current/<Binary>
+  if (fs.existsSync(path.join(versionsDir, realVersionName, fwBinaryName))) {
+    if (safeSymlink(path.join('Versions', 'Current', fwBinaryName), path.join(fwPath, fwBinaryName))) restored++;
+  }
+
+  // 3. <fw>.framework/Resources → Versions/Current/Resources
+  if (fs.existsSync(path.join(versionsDir, realVersionName, 'Resources'))) {
+    if (safeSymlink(path.join('Versions', 'Current', 'Resources'), path.join(fwPath, 'Resources'))) restored++;
+  }
+
+  return restored > 0;
+}
 
 /**
  * Sign all binary files recursively in a directory
@@ -151,6 +235,23 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
     }
   }
   findFrameworks(dir);
+
+  // ── 1b. Restore framework symlinks ─────────────────────────────────────
+  // tar extraction dereferences symlinks → Python.framework/Python becomes a
+  // real Mach-O copy → codesign sees Foo.framework/Foo → "bundle format is
+  // ambiguous".  Restoring symlinks ensures only Versions/<ver>/Python is a
+  // real file (signable at a deep path) and all top-level references are
+  // symlinks that the walker skips.  The repacked tar preserves symlinks,
+  // giving Apple notarytool a properly structured framework.
+  for (const fwPath of frameworkBundles) {
+    try {
+      if (restoreFrameworkSymlinks(fwPath)) {
+        console.log(`   🔗 Restored framework symlinks: ${path.basename(fwPath)}`);
+      }
+    } catch (err) {
+      console.warn(`   ⚠️  Could not restore symlinks for ${path.basename(fwPath)}: ${err.message}`);
+    }
+  }
 
   // ── 2. Find individual Mach-O binaries (skip .framework dirs) ────────
   const binaries = [];
