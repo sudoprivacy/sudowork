@@ -10,10 +10,10 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dag } from '../TaskPanel';
 
-/** 在目录树中找出所有 .tasks/dag_xxx/dag_xxx.json 文件节点 */
+/** 在目录树根层级找出 .tasks/dag_xxx/dag_xxx.json 文件节点（不递归子目录） */
 function findDagJsonNodes(nodes: IDirOrFile[]): IDirOrFile[] {
   for (const node of nodes) {
-    // 找到 .tasks/ 节点
+    // 只在根节点的直接子节点中查找 .tasks/ 目录
     if (node.isDir && node.name === '.tasks') {
       const results: IDirOrFile[] = [];
       for (const dagDir of node.children ?? []) {
@@ -26,19 +26,24 @@ function findDagJsonNodes(nodes: IDirOrFile[]): IDirOrFile[] {
       }
       return results;
     }
-    // 递归（工作空间根节点可能是 wrapper）
-    if (node.isDir && (node.children?.length ?? 0) > 0) {
-      const found = findDagJsonNodes(node.children!);
-      if (found.length > 0) return found;
-    }
   }
   return [];
 }
 
-export function useTaskDags(workspaceFiles: IDirOrFile[]) {
+export function useTaskDags(workspaceFiles: IDirOrFile[], workspace: string) {
   const [dags, setDags] = useState<Dag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const watchedRef = useRef<Set<string>>(new Set());
+
+  // workspace 切换时立即重置 dags 并清理所有 watchers，避免显示上一个工作区的残留数据
+  useEffect(() => {
+    setDags([]);
+    setIsLoading(false);
+    for (const p of watchedRef.current) {
+      ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+    }
+    watchedRef.current.clear();
+  }, [workspace]);
 
   const loadDag = useCallback(async (path: string): Promise<Dag | null> => {
     try {
