@@ -157,7 +157,11 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           return res;
         })
         .finally(() => {
-          setLoadingHandler(false);
+          // Only clear loading for the latest request — stale/aborted requests
+          // must not prematurely cancel the spinner while a newer request is in flight.
+          if (seq === loadSeqRef.current) {
+            setLoadingHandler(false);
+          }
         });
     },
     [conversation_id, workspace, setLoadingHandler]
