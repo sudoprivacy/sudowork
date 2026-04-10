@@ -8,6 +8,7 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
+import type { IChannelPluginConfig } from '@/channels/types';
 
 /**
  * 首次消息处理配置
@@ -235,4 +236,54 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   }
 
   return instructions.join('\n\n');
+}
+
+/**
+ * 构建 Channel 配置上下文指令
+ * Build channel configuration context for LLM awareness
+ *
+ * 让 LLM 了解当前已配置的 Channel（IM 渠道）状态，
+ * 以便在用户询问时能提供准确的配置信息。
+ * This allows the LLM to provide accurate channel config info when users ask.
+ *
+ * 注意：仅暴露非敏感的元数据，不包含任何 credentials 信息。
+ * Note: Only exposes non-sensitive metadata, no credentials are included.
+ *
+ * @param plugins - Channel 插件配置列表 / Channel plugin configurations
+ * @returns 格式化的 Channel 配置上下文字符串 / Formatted channel config context string
+ */
+export function buildChannelConfigInstruction(plugins: IChannelPluginConfig[]): string {
+  if (!plugins || plugins.length === 0) {
+    return `[Channel Configuration]\nNo channels are currently configured.`;
+  }
+
+  const channelLines = plugins.map((p) => {
+    // 构建状态标识 / Build status indicator
+    const status = p.enabled
+      ? p.status === 'running'
+        ? '✅ Running'
+        : `⚠️ ${p.status || 'unknown'}`
+      : '❌ Disabled';
+
+    // 构建详情字段（仅非敏感元数据）/ Build detail fields (non-sensitive metadata only)
+    const details: string[] = [status];
+
+    if (p.lastConnected) {
+      details.push(`Last connected: ${new Date(p.lastConnected).toLocaleString()}`);
+    } else {
+      details.push('Never connected');
+    }
+
+    if (p.config?.mode) {
+      details.push(`Mode: ${p.config.mode}`);
+    }
+
+    return `- **${p.name}** (${p.type}): ${details.join(' | ')}`;
+  });
+
+  return `[Channel Configuration]
+The following IM channels are configured in the system:
+${channelLines.join('\n')}
+
+Note: Credential details (tokens, secrets) are not shown for security reasons.`;
 }

@@ -35,7 +35,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { buildChannelConfigInstruction, injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
@@ -275,6 +275,23 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       customEnv = { ...customEnv, ...presetResult.envOverrides };
       if (presetResult.contextAppendix && this.options.presetContext) {
         this.options.presetContext += presetResult.contextAppendix;
+      }
+
+      // Inject channel configuration context so LLM is aware of configured channels
+      // 注入 Channel 配置上下文，让 LLM 了解已配置的 IM 渠道状态
+      try {
+        const db = getDatabase();
+        const channelResult = db.getChannelPlugins();
+        if (channelResult.success && channelResult.data && channelResult.data.length > 0) {
+          const channelInstruction = buildChannelConfigInstruction(channelResult.data);
+          if (this.options.presetContext) {
+            this.options.presetContext += '\n\n' + channelInstruction;
+          } else {
+            this.options.presetContext = channelInstruction;
+          }
+        }
+      } catch (error) {
+        mainWarn('[AcpAgent]', 'Failed to inject channel config context:', error);
       }
 
       // Store resolved config for connection
