@@ -102,7 +102,7 @@ function generatePotentialAcpClis(): PotentialAcpCli[] {
       // 排除没有 CLI 命令的后端（gemini 内置，custom 用户配置）
       // Exclude backends without CLI command (gemini is built-in, custom is user-configured)
       if (!config.cliCommand) return false;
-      if (id === 'gemini' || id === 'custom') return false;
+      if (id === 'custom') return false;
       return config.enabled;
     })
     .map(([id, config]) => ({
@@ -324,7 +324,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Google CLI',
     cliCommand: 'gemini',
     authRequired: true,
-    enabled: false,
+    enabled: true, // ✅ 内置 Gemini 后端，使用 `gemini` 命令启动（无需安装 CLI）
     supportsStreaming: true,
   },
   qwen: {
