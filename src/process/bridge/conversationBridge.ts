@@ -19,7 +19,7 @@ import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { buildChannelConfigInstruction, prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
@@ -855,6 +855,25 @@ export function initConversationBridge(): void {
       }
     } catch {
       // ignore
+    }
+
+    // Inject channel configuration context for OpenClaw agents
+    // 为 OpenClaw Agent 注入 Channel 配置上下文（AcpAgent 在 initAgent 中单独注入）
+    if (task.type === 'openclaw-gateway') {
+      try {
+        const db = getDatabase();
+        const channelResult = db.getChannelPlugins();
+        if (channelResult.success && channelResult.data) {
+          const channelInstruction = buildChannelConfigInstruction(channelResult.data);
+          if (presetContext) {
+            presetContext += '\n\n' + channelInstruction;
+          } else {
+            presetContext = channelInstruction;
+          }
+        }
+      } catch {
+        // ignore - channel config is supplementary
+      }
     }
 
     // Ensure workspace skills symlinks exist before dispatching to the gateway.

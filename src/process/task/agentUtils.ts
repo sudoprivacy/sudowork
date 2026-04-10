@@ -8,6 +8,7 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
+import type { IChannelPluginConfig } from '@/channels/types';
 
 /**
  * 首次消息处理配置
@@ -235,4 +236,49 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   }
 
   return instructions.join('\n\n');
+}
+
+/**
+ * 构建 Channel 配置上下文指令（仅暴露非敏感元数据）
+ * Build channel configuration context for LLM awareness (non-sensitive metadata only)
+ *
+ * 让 LLM 了解当前已配置的 Channel（IM 渠道）状态，
+ * 以便在用户询问时能提供准确的配置信息。
+ * This allows the LLM to provide accurate channel config info when users ask.
+ *
+ * ⚠️ 安全设计：不暴露任何 credentials（token, appSecret, 密码等）
+ * ⚠️ Security: No credentials (tokens, appSecrets, passwords) are exposed
+ */
+export function buildChannelConfigInstruction(plugins: IChannelPluginConfig[]): string {
+  if (!plugins || plugins.length === 0) {
+    return `[Channel Configuration]\nNo channels are currently configured.`;
+  }
+
+  const channelLines = plugins.map((p) => {
+    // Status display
+    let statusText: string;
+    if (!p.enabled) {
+      statusText = '❌ Disabled';
+    } else if (p.status === 'running') {
+      statusText = '✅ Running';
+    } else {
+      statusText = `⚠️ ${p.status || 'unknown'}`;
+    }
+
+    // Last connected time
+    const lastConn = p.lastConnected ? `Last connected: ${new Date(p.lastConnected).toLocaleString()}` : 'Never connected';
+
+    // Connection mode (non-sensitive config field)
+    const mode = p.config?.mode ? `Mode: ${p.config.mode}` : '';
+
+    const details = [statusText, lastConn, mode].filter(Boolean).join(' | ');
+    return `- **${p.name}** (${p.type}): ${details}`;
+  });
+
+  return `[Channel Configuration]
+The following IM channels are configured in the system:
+${channelLines.join('\n')}
+
+Note: Credential details (tokens, secrets) are not shown for security reasons.
+When answering questions about channel configuration, base your response on this information.`;
 }
