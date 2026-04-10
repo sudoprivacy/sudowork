@@ -65,6 +65,16 @@ export function isNightlyTag(tag: string): boolean {
 }
 
 /**
+ * Parse a nightly tag to extract its commit hash component.
+ * Expected format: nightly-YYYY-MM-DD-SHORTHASH
+ * Returns the short hash string or null if not present.
+ */
+export function parseNightlyCommit(tag: string): string | null {
+  const m = tag.match(/^nightly-\d{4}-\d{2}-\d{2}-([a-f0-9]+)$/i);
+  return m ? m[1] : null;
+}
+
+/**
  * Compare two nightly tags by their embedded date (and optional hash).
  * Returns positive if `a` is newer, negative if `b` is newer, 0 if equal.
  */
