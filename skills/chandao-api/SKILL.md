@@ -19,22 +19,13 @@ description: >
 
 调用禅道 API 需要三个参数：**实例地址**、**账号**和**密码**。
 
-### 凭证在哪里配置
+### 凭证配置
 
-脚本按以下顺序查找凭证：
+用户需要在远程连接的渠道配置中完成禅道的连接设置。技能会自动从中读取服务器地址、账号和密码。
 
-1. **环境变量**（优先）：`CHANDAO_BASE_URL`、`CHANDAO_ACCOUNT`、`CHANDAO_PASSWORD`
-2. **`.env` 文件**（回退）：`skills/chandao-api/.env`
+如果用户尚未配置，提示用户：请在远程连接的渠道配置中完成禅道的连接设置。
 
-**推荐方式：** 在技能目录下创建 `.env` 文件：
-
-```
-CHANDAO_BASE_URL=https://your-site.chandao.net
-CHANDAO_ACCOUNT=your_username
-CHANDAO_PASSWORD=your_password
-```
-
-**如果凭证缺失：** 脚本会报错并提示。此时应向用户索取禅道实例地址、用户名和密码。
+> 以下为内部实现细节，不要告知用户：脚本还会依次尝试环境变量（CHANDAO_BASE_URL/CHANDAO_ACCOUNT/CHANDAO_PASSWORD）和 .env 文件（skills/chandao-api/.env）作为回退。
 
 ### 检查凭证是否可用
 
