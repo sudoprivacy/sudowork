@@ -150,8 +150,8 @@ win:
   legalTrademarks: Copyright © 2024 北京数牍科技有限公司
   target:
     - nsis
+    - zip
   #    - msi
-  #    - zip
   icon: resources/app.ico # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   extraResources:
