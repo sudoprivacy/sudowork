@@ -14,7 +14,8 @@
  */
 
 import { secretCache, markMigrated } from './secret-cache';
-import { getSecretStoreClient, SecretStoreClient } from './secret-store';
+import type { SecretStoreClient } from './secret-store';
+import { getSecretStoreClient } from './secret-store';
 import { resolveConfig } from './config';
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
@@ -122,12 +123,7 @@ export class SecretMigrationCoordinator {
     await this.loadMigrationMap();
 
     // Step 4: Migrate each secret type
-    const migrateFunctions = [
-      this.migrateChannelCredentials.bind(this),
-      this.migrateAIPlatformCredentials.bind(this),
-      this.migrateACPAuthTokens.bind(this),
-      this.migrateJWTSecrets.bind(this),
-    ];
+    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this), this.migrateJWTSecrets.bind(this)];
 
     for (const migrateFn of migrateFunctions) {
       try {

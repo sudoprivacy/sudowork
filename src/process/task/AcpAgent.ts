@@ -35,7 +35,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
@@ -44,6 +44,7 @@ import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -622,6 +623,19 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             workspace: this.workspace,
             presetAgentType: this.options.backend,
           });
+
+          if (this.options.backend === 'claude') {
+            const skillsDir = resolveWorkspaceSkillsDir({
+              type: 'acp',
+              extra: {
+                workspace: this.workspace,
+                backend: this.options.backend,
+              },
+            });
+            if (skillsDir) {
+              contentToSend = injectSkillsDirectoryHint(contentToSend, skillsDir);
+            }
+          }
         }
 
         if (data.files && data.files.length > 0) {

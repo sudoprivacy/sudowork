@@ -41,12 +41,7 @@ async function isNativeTarAvailable(): Promise<boolean> {
   }
 }
 
-export async function extractTarGzWithProgress(
-  archivePath: string,
-  targetDir: string,
-  onProgress?: ArchiveProgressCallback,
-  options?: { strip?: number },
-): Promise<void> {
+export async function extractTarGzWithProgress(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback, options?: { strip?: number }): Promise<void> {
   const totalBytes = fs.statSync(archivePath).size;
   const reportProgress = createProgressReporter(onProgress);
   const strip = options?.strip ?? 0;
@@ -175,12 +170,7 @@ function stripZipEntryPath(fileName: string, strip: number): string {
   return stripped.join('/') + (isDir && !stripped[stripped.length - 1].endsWith('/') ? '' : '');
 }
 
-export async function extractZipWithProgress(
-  zipPath: string,
-  targetDir: string,
-  onProgress?: ArchiveProgressCallback,
-  options?: { strip?: number },
-): Promise<void> {
+export async function extractZipWithProgress(zipPath: string, targetDir: string, onProgress?: ArchiveProgressCallback, options?: { strip?: number }): Promise<void> {
   const { zipFile, entries, totalCompressedSize } = await collectZipEntries(zipPath);
   const reportProgress = createProgressReporter(onProgress);
   const strip = options?.strip ?? 0;

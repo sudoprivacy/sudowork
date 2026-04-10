@@ -563,11 +563,7 @@ const USER_MD_IDENTITY_MARKER = '<!-- SUDOCLAW_IDENTITY_STATEMENT -->';
  * Update or insert a marker-based block in USER.md
  * If marker exists, replace the entire block; if not, append it
  */
-function updateMarkerBlock(
-  existingContent: string,
-  marker: string,
-  newBlock: string
-): string {
+function updateMarkerBlock(existingContent: string, marker: string, newBlock: string): string {
   if (!existingContent.includes(marker)) {
     // Marker not found - append the new block
     return existingContent + '\n' + newBlock;

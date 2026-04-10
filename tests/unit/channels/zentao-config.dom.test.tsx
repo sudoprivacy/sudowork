@@ -124,12 +124,14 @@ describe('ZentaoConfigForm', () => {
   it('should show connection status when plugin is enabled and connected', () => {
     render(
       <ZentaoConfigForm
-        pluginStatus={{
-          type: 'zentao',
-          enabled: true,
-          connected: true,
-          hasToken: true,
-        } as any}
+        pluginStatus={
+          {
+            type: 'zentao',
+            enabled: true,
+            connected: true,
+            hasToken: true,
+          } as any
+        }
         onStatusChange={vi.fn()}
       />
     );
