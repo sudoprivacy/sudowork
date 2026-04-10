@@ -58,6 +58,16 @@ export function parseNightlyDate(tag: string): string | null {
 }
 
 /**
+ * Parse a nightly tag to extract its commit hash component.
+ * Expected format: nightly-YYYY-MM-DD-SHORTHASH
+ * Returns the short hash or null if not present.
+ */
+export function parseNightlyCommit(tag: string): string | null {
+  const m = tag.match(/^nightly-\d{4}-\d{2}-\d{2}-([a-f0-9]+)$/i);
+  return m ? m[1] : null;
+}
+
+/**
  * Check if a tag represents a nightly release.
  */
 export function isNightlyTag(tag: string): boolean {

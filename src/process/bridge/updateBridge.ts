@@ -13,7 +13,7 @@ import * as path from 'path';
 import semver from 'semver';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { isNightlyBuild, buildDate, isNightlyTag, parseNightlyDate, compareNightlyTags } from '@/common/buildInfo';
+import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit, compareNightlyTags } from '@/common/buildInfo';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -291,7 +291,10 @@ const mapNightlyRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
 
 /**
  * Check for nightly-to-nightly updates.
- * Only returns an update if a newer nightly tag exists (compared by embedded date).
+ * Returns an update if:
+ * 1. A nightly with a newer date exists, OR
+ * 2. A nightly with the same date but a different commit hash exists
+ *    (picks the most recently published release).
  */
 const checkNightlyUpdate = async (repo: string, currentBuildDate: string): Promise<UpdateCheckResult> => {
   const currentVersion = app.getVersion();
@@ -306,19 +309,48 @@ const checkNightlyUpdate = async (repo: string, currentBuildDate: string): Promi
     return { currentVersion, updateAvailable: false };
   }
 
-  // Sort by tag date descending
-  nightlyCandidates.sort((a, b) => compareNightlyTags(b.tagName, a.tagName));
-  const latest = nightlyCandidates[0];
+  // Filter to candidates with date >= current build date
+  const currentNorm = currentBuildDate.replace(/-/g, '');
+  const eligible = nightlyCandidates.filter((r) => {
+    const d = parseNightlyDate(r.tagName);
+    if (!d) return false;
+    return d.replace(/-/g, '') >= currentNorm;
+  });
 
+  if (eligible.length === 0) {
+    return { currentVersion, updateAvailable: false };
+  }
+
+  // Sort by publishedAt descending to pick the most recently published release
+  eligible.sort((a, b) => {
+    // Primary: date descending (newer date first)
+    const cmp = compareNightlyTags(b.tagName, a.tagName);
+    if (cmp !== 0) return cmp;
+    // Secondary: publishedAt descending (most recently published first)
+    const pa = a.publishedAt || '';
+    const pb = b.publishedAt || '';
+    return pb.localeCompare(pa);
+  });
+
+  const latest = eligible[0];
   const latestDate = parseNightlyDate(latest.tagName);
   if (!latestDate) {
     return { currentVersion, updateAvailable: false };
   }
 
-  // Compare dates: normalize both to YYYYMMDD
   const latestNorm = latestDate.replace(/-/g, '');
-  const currentNorm = currentBuildDate.replace(/-/g, '');
-  const updateAvailable = latestNorm > currentNorm;
+
+  let updateAvailable = false;
+  if (latestNorm > currentNorm) {
+    // Newer date → always update
+    updateAvailable = true;
+  } else if (latestNorm === currentNorm) {
+    // Same date → compare commit hash; update if different
+    const latestCommit = parseNightlyCommit(latest.tagName);
+    if (latestCommit && buildCommit && latestCommit !== buildCommit) {
+      updateAvailable = true;
+    }
+  }
 
   return {
     currentVersion,
