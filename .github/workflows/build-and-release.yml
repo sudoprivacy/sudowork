@@ -49,16 +49,17 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BUILD_BRANCH="${{ inputs.branch }}"
+            BUILD_REF="${{ inputs.branch }}"
             IS_MANUAL_DEV="true"
           else
-            BUILD_BRANCH="main"
+            # Tag release: checkout the tag itself (github.ref) to get correct version
+            BUILD_REF="${{ github.ref }}"
             IS_MANUAL_DEV="false"
           fi
 
-          echo "build_branch=$BUILD_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "build_branch=$BUILD_REF" >> "$GITHUB_OUTPUT"
           echo "is_manual_dev=$IS_MANUAL_DEV" >> "$GITHUB_OUTPUT"
-          echo "Build branch: $BUILD_BRANCH"
+          echo "Build ref: $BUILD_REF"
           echo "Is manual dev build: $IS_MANUAL_DEV"
 
       - name: Generate build matrix
@@ -300,6 +301,9 @@ jobs:
 
           echo "📤 Uploading all release assets to COS..."
           echo "Target path: $COS_PATH"
+
+          # Enable globstar for ** pattern support
+          shopt -s globstar
 
           # Upload all release assets to COS
           # - yml files: update url field to match latest naming, then upload
