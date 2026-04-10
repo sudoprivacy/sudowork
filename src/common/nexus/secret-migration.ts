@@ -501,24 +501,8 @@ export function getMigrationCoordinator(): SecretMigrationCoordinator {
  * This should be called after Nexus is healthy.
  */
 export async function initializeSecrets(): Promise<void> {
-  const config = resolveConfig();
-
-  const hasIdentityHeaders = !!(config.subject || config.agentId || config.zoneId);
-  const hasApiKey = !!config.apiKey;
-
-  // Skip if neither apiKey nor identity headers are configured
-  if (!hasApiKey && !hasIdentityHeaders) {
-    console.warn('[SecretMigration] No Nexus credentials found (apiKey or identity headers). Skipping secret migration.');
-    return;
-  }
-
   const coordinator = getMigrationCoordinator();
-  coordinator.initialize({
-    apiKey: config.apiKey,
-    subject: config.subject,
-    agentId: config.agentId,
-    zoneId: config.zoneId,
-  });
+  coordinator.initialize();
 
   // Run migration if needed
   const migrationResult = await coordinator.migrateAll();
