@@ -7,9 +7,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync, existsSync as fsExistsSync } from 'fs';
 import { app } from 'electron';
-import { getSkillsDir, getHubSkillsDir, getBuiltinSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS } from './initStorage';
+import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import { mainLog, mainWarn, mainError } from './utils/mainLogger';
+import { mainLog, mainError } from './utils/mainLogger';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -69,7 +69,7 @@ export class SkillManager {
   constructor() {
     this.skillsDir = getSkillsDir();
     this.hubDir = getHubSkillsDir();
-    this.systemDir = getBuiltinSkillsDir();
+    this.systemDir = getSystemSkillsDir();
     this.customDir = getCustomSkillsDir();
     this.ensureDirs();
   }
@@ -96,11 +96,7 @@ export class SkillManager {
     }
 
     const appPath = app.getAppPath();
-    const candidates = [
-      path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-      path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-      path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-    ];
+    const candidates = [path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE)];
 
     const existing = candidates.find((candidate) => fsExistsSync(candidate));
     return existing || candidates[0];

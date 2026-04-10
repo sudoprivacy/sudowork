@@ -16,7 +16,7 @@ import fs from 'fs/promises';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled, SKILL_SUBDIRS } from '../initStorage';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 
 /**
