@@ -4,16 +4,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
-// Match @ followed by skill name (alphanumeric, underscore, hyphen, Chinese characters)
-// 匹配 @ 后跟技能名（允许字母数字、下划线、连字符、中文）
-const SKILL_QUERY_RE = /^@([a-zA-Z0-9_\u4e00-\u9fa5-]*)$/;
+// Match @ followed by query at any position in input (at start or after whitespace)
+const AT_QUERY_RE = /(?:^|\s)@([^\s@]*)$/;
 
 export function matchSkillQuery(input: string): string | null {
-  const match = input.match(SKILL_QUERY_RE);
+  const match = input.match(AT_QUERY_RE);
   return match ? match[1] : null;
+}
+
+/**
+ * Replace the @query at the end of input with @replacement + trailing space
+ */
+export function replaceAtQuery(input: string, replacement: string): string {
+  const match = input.match(AT_QUERY_RE);
+  if (!match) return input;
+  const query = match[1];
+  const atIndex = input.length - query.length - 1;
+  return input.slice(0, atIndex) + '@' + replacement + ' ';
+}
+
+/**
+ * Strip the @query from the end of input, keeping text before it
+ */
+export function stripAtQuery(input: string): string {
+  const match = input.match(AT_QUERY_RE);
+  if (!match) return input;
+  const query = match[1];
+  const atIndex = input.length - query.length - 1;
+  return input.slice(0, atIndex);
 }
 
 export interface SkillSelectorItem {
@@ -31,18 +53,35 @@ interface UseSkillSelectorControllerOptions {
   selectedSkills: string[];
   onSelectSkill: (skillName: string) => void;
   onRemoveSkill?: (skillName: string) => void;
+  workspaceFiles?: WorkspaceFileItem[];
+  onSelectFile?: (file: WorkspaceFileItem) => void;
 }
 
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill } = options;
+  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile } = options;
   const query = useMemo(() => matchSkillQuery(input), [input]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'skills' | 'files'>('skills');
 
-  // Reset state only when query changes
+  const showTabs = workspaceFiles.length > 0;
+
+  // Track previous query to detect new @ trigger (reset tab to skills)
+  const prevQueryNullRef = useRef(query === null);
+
+  // Reset state when query changes
   useEffect(() => {
     setActiveIndex((prev) => (prev !== 0 ? 0 : prev));
     setDismissed((prev) => (prev !== false ? false : prev));
+  }, [query]);
+
+  // Reset tab to skills when dropdown opens from closed state
+  useEffect(() => {
+    const wasNull = prevQueryNullRef.current;
+    prevQueryNullRef.current = query === null;
+    if (wasNull && query !== null) {
+      setActiveTab('skills');
+    }
   }, [query]);
 
   const filteredSkills = useMemo(() => {
@@ -64,19 +103,49 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     });
   }, [skills, query]);
 
-  const isOpen = query !== null && !dismissed && filteredSkills.length > 0;
+  const filteredFiles = useMemo(() => {
+    if (query === null) {
+      return [];
+    }
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) {
+      return workspaceFiles;
+    }
+    return workspaceFiles.filter((file) => {
+      return file.name.toLowerCase().includes(keyword) || file.relativePath.toLowerCase().includes(keyword);
+    });
+  }, [workspaceFiles, query]);
 
-  const executeSkill = useCallback(
+  const currentItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
+
+  // Dropdown is open when:
+  // 1. There is an active @ query
+  // 2. Not dismissed
+  // 3. Either there are items to show OR tabs are available (user can switch to the other tab)
+  const hasAnyContent = filteredSkills.length > 0 || filteredFiles.length > 0;
+  const isOpen = query !== null && !dismissed && (hasAnyContent || showTabs);
+
+  const executeSelection = useCallback(
     (index: number) => {
-      const skill = filteredSkills[index];
-      if (!skill) {
-        return false;
+      if (activeTab === 'skills') {
+        const skill = filteredSkills[index];
+        if (!skill) {
+          return false;
+        }
+        onSelectSkill(skill.name);
+        setDismissed(true);
+        return true;
+      } else {
+        const file = filteredFiles[index];
+        if (!file) {
+          return false;
+        }
+        onSelectFile?.(file);
+        setDismissed(true);
+        return true;
       }
-      onSelectSkill(skill.name);
-      setDismissed(true);
-      return true;
     },
-    [filteredSkills, onSelectSkill]
+    [activeTab, filteredSkills, filteredFiles, onSelectSkill, onSelectFile]
   );
 
   const onKeyDown = useCallback(
@@ -91,21 +160,28 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
         return true;
       }
 
+      if (event.key === 'Tab' && showTabs) {
+        event.preventDefault();
+        setActiveTab((prev) => (prev === 'skills' ? 'files' : 'skills'));
+        setActiveIndex(0);
+        return true;
+      }
+
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setActiveIndex((prev) => (prev + 1) % filteredSkills.length);
+        setActiveIndex((prev) => Math.min(prev + 1, currentItems.length - 1));
         return true;
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setActiveIndex((prev) => (prev - 1 + filteredSkills.length) % filteredSkills.length);
+        setActiveIndex((prev) => Math.max(prev - 1, 0));
         return true;
       }
 
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        return executeSkill(activeIndex);
+        return executeSelection(activeIndex);
       }
 
       if (event.key === 'Backspace' && query === '') {
@@ -118,15 +194,19 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
       return false;
     },
-    [activeIndex, executeSkill, filteredSkills.length, isOpen, query, selectedSkills, onRemoveSkill]
+    [activeIndex, currentItems.length, executeSelection, isOpen, query, selectedSkills, onRemoveSkill, showTabs]
   );
 
   return {
     isOpen,
     activeIndex,
     filteredSkills,
+    filteredFiles,
+    activeTab,
+    showTabs,
+    setActiveTab,
     onKeyDown,
-    onSelectByIndex: executeSkill,
+    onSelectByIndex: executeSelection,
     setDismissed,
     setActiveIndex,
   };

@@ -30,6 +30,7 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -409,6 +410,7 @@ const AcpSendBox: React.FC<{
   agentName?: string;
 }> = ({ conversation_id, backend, sessionMode, agentName }) => {
   const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
+  const workspaceFiles = useWorkspaceFiles();
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
@@ -781,6 +783,7 @@ const AcpSendBox: React.FC<{
           // For now, they're passed directly to onSend
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

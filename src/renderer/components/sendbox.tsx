@@ -8,7 +8,8 @@ import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
@@ -54,7 +55,8 @@ const SendBox: React.FC<{
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
   onSkillsChange?: (skills: string[]) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange }) => {
+  workspaceFiles?: WorkspaceFileItem[];
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -334,10 +336,14 @@ const SendBox: React.FC<{
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      setInput('');
+      setInput(stripAtQuery(input));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
+    },
+    workspaceFiles,
+    onSelectFile: (file) => {
+      setInput(replaceAtQuery(input, file.relativePath));
     },
   });
 
@@ -522,7 +528,7 @@ const SendBox: React.FC<{
               items={skillMenuItems}
               selectedKeys={selectedSkills}
               activeIndex={skillSelectorController.activeIndex}
-              loading={loadingSkills}
+              loading={loadingSkills && skillSelectorController.activeTab === 'skills'}
               loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
               onHoverItem={skillSelectorController.setActiveIndex}
               onSelectItem={(item) => {
@@ -532,6 +538,23 @@ const SendBox: React.FC<{
                 }
               }}
               emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
+              showTabs={skillSelectorController.showTabs}
+              activeTab={skillSelectorController.activeTab}
+              onTabChange={(tab) => {
+                skillSelectorController.setActiveTab(tab);
+                skillSelectorController.setActiveIndex(0);
+              }}
+              fileItems={skillSelectorController.filteredFiles}
+              fileEmptyText={t('messages.files.empty', { defaultValue: 'No files' })}
+              onHoverFileItem={skillSelectorController.setActiveIndex}
+              onSelectFileItem={(file) => {
+                const targetIndex = skillSelectorController.filteredFiles.findIndex((f) => f.relativePath === file.relativePath);
+                if (targetIndex >= 0) {
+                  skillSelectorController.onSelectByIndex(targetIndex);
+                }
+              }}
+              skillsTabLabel={t('messages.skills.title', { defaultValue: 'Skills' })}
+              filesTabLabel={t('messages.files.title', { defaultValue: 'Files' })}
             />
           </div>
         )}
