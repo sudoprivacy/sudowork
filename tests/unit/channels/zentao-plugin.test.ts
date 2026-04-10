@@ -63,10 +63,7 @@ describe('ZentaoPlugin.testConnection', () => {
 
     await ZentaoPlugin.testConnection('https://zentao.example.com/', 'admin', 'password123');
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://zentao.example.com/api.php/v1/tokens',
-      expect.anything()
-    );
+    expect(mockFetch).toHaveBeenCalledWith('https://zentao.example.com/api.php/v1/tokens', expect.anything());
   });
 
   it('should fall back to legacy API when v1 returns 404', async () => {

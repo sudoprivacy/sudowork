@@ -50,10 +50,4 @@ export function initializeSecretStoreClient(options?: Partial<SecretStoreClientO
 
 // Re-export types
 export { SecretStoreClient } from './secret-store-client.js';
-export type {
-  SecretMetadata,
-  VersionMetadata,
-  PutSecretRequest,
-  GetSecretRequest,
-  SecretStoreClientOptions,
-} from './secret-store-client.js';
+export type { SecretMetadata, VersionMetadata, PutSecretRequest, GetSecretRequest, SecretStoreClientOptions } from './secret-store-client.js';

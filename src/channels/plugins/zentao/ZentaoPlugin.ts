@@ -64,11 +64,7 @@ export class ZentaoPlugin extends BasePlugin {
    *
    * Legacy API (<16.5): GET {url}/api-getsessionid.json -> POST {url}/user-login.json
    */
-  static async testConnection(
-    url?: string,
-    username?: string,
-    password?: string
-  ): Promise<{ success: boolean; botInfo?: { name?: string; username?: string }; error?: string }> {
+  static async testConnection(url?: string, username?: string, password?: string): Promise<{ success: boolean; botInfo?: { name?: string; username?: string }; error?: string }> {
     if (!url || !username || !password) {
       return { success: false, error: 'Server URL, username and password are required for Zentao' };
     }
@@ -120,11 +116,7 @@ export class ZentaoPlugin extends BasePlugin {
     }
   }
 
-  private static async testLegacyConnection(
-    baseUrl: string,
-    username: string,
-    password: string
-  ): Promise<{ success: boolean; botInfo?: { name?: string }; error?: string }> {
+  private static async testLegacyConnection(baseUrl: string, username: string, password: string): Promise<{ success: boolean; botInfo?: { name?: string }; error?: string }> {
     try {
       // Step 1: Get session ID
       const sessionRes = await fetch(`${baseUrl}/api-getsessionid.json`, {

@@ -39,10 +39,7 @@ const JsbConfigForm: React.FC = () => {
   const loadCredentials = useCallback(async () => {
     setLoading(true);
     try {
-      const [keyResult, secretResult] = await Promise.all([
-        secret.get.invoke({ namespace: NAMESPACE, key: 'app_key' }),
-        secret.get.invoke({ namespace: NAMESPACE, key: 'app_secret' }),
-      ]);
+      const [keyResult, secretResult] = await Promise.all([secret.get.invoke({ namespace: NAMESPACE, key: 'app_key' }), secret.get.invoke({ namespace: NAMESPACE, key: 'app_secret' })]);
       if (keyResult.success && keyResult.data) setAppKey(keyResult.data);
       if (secretResult.success && secretResult.data) setAppSecret(secretResult.data);
     } catch (error) {
@@ -99,31 +96,11 @@ const JsbConfigForm: React.FC = () => {
   return (
     <div className='flex flex-col gap-24px'>
       <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-        <PreferenceRow
-          label={t('settings.secrets.appKey', 'App Key')}
-          description={t('settings.secrets.appKeyDesc', '建设库开放平台的应用标识')}
-          required
-        >
-          <Input
-            value={appKey}
-            onChange={setAppKey}
-            placeholder={t('settings.secrets.appKeyPlaceholder', '请输入 App Key')}
-            style={{ width: 240 }}
-            disabled={loading}
-          />
+        <PreferenceRow label={t('settings.secrets.appKey', 'App Key')} description={t('settings.secrets.appKeyDesc', '建设库开放平台的应用标识')} required>
+          <Input value={appKey} onChange={setAppKey} placeholder={t('settings.secrets.appKeyPlaceholder', '请输入 App Key')} style={{ width: 240 }} disabled={loading} />
         </PreferenceRow>
-        <PreferenceRow
-          label={t('settings.secrets.appSecret', 'App Secret')}
-          description={t('settings.secrets.appSecretDesc', '建设库开放平台的应用密钥')}
-          required
-        >
-          <Input.Password
-            value={appSecret}
-            onChange={setAppSecret}
-            placeholder={t('settings.secrets.appSecretPlaceholder', '请输入 App Secret')}
-            style={{ width: 240 }}
-            disabled={loading}
-          />
+        <PreferenceRow label={t('settings.secrets.appSecret', 'App Secret')} description={t('settings.secrets.appSecretDesc', '建设库开放平台的应用密钥')} required>
+          <Input.Password value={appSecret} onChange={setAppSecret} placeholder={t('settings.secrets.appSecretPlaceholder', '请输入 App Secret')} style={{ width: 240 }} disabled={loading} />
         </PreferenceRow>
       </div>
       <div className='flex justify-end'>

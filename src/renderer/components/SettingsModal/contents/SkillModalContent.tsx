@@ -130,11 +130,7 @@ const SkillCard: React.FC<{
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
-        {isInstalled && (
-          <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>
-            {hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}
-          </span>
-        )}
+        {isInstalled && <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>{hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
       </div>
 
       {/* Content */}
@@ -210,13 +206,7 @@ const InstalledSkillCard: React.FC<{
               e.stopPropagation();
             }}
           >
-            <Switch
-              size='small'
-              checked={isEnabled}
-              loading={togglingEnabled}
-              onChange={(checked) => onToggleEnabled?.(checked)}
-              className={isEnabled ? '!bg-primary !border-primary' : ''}
-            />
+            <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
           </div>
         )}
       </div>
@@ -1286,7 +1276,26 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} onGoUse={handleGoUse} onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)} updating={detailSkill ? updatingSkillId === detailSkill.id : false} installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined} />
+      <SkillDetailModal
+        skill={detailSkill}
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        isInstalled={detailIsInstalled}
+        isHubInstalled={detailIsHubInstalled}
+        hasVersion={detailHasVersion}
+        latestVersionInfo={detailLatestVersion}
+        installing={installingSkillId === detailSkill?.id}
+        downloading={downloadingSkillId === detailSkill?.id}
+        installProgress={installProgress}
+        onInstall={() => detailSkill && void handleInstall(detailSkill.id)}
+        onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)}
+        onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)}
+        uninstalling={uninstallingSkillName === detailSkill?.name}
+        onGoUse={handleGoUse}
+        onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)}
+        updating={detailSkill ? updatingSkillId === detailSkill.id : false}
+        installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined}
+      />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json */}
       {(() => {
@@ -1313,10 +1322,14 @@ const SkillModalContent: React.FC = () => {
             onDownload={() => {}}
             onUninstall={() => installedDetailInfo && void handleUninstall(installedDetailInfo.name)}
             uninstalling={installedDetailInfo ? uninstallingSkillName === installedDetailInfo.name : false}
-            onGoUse={installedDetailInfo ? () => {
-              setInstalledDetailVisible(false);
-              void navigate(`/guid?skill=${encodeURIComponent(installedDetailInfo.name)}`);
-            } : undefined}
+            onGoUse={
+              installedDetailInfo
+                ? () => {
+                    setInstalledDetailVisible(false);
+                    void navigate(`/guid?skill=${encodeURIComponent(installedDetailInfo.name)}`);
+                  }
+                : undefined
+            }
             onUpdate={() => installedDetailHubId && void handleUpdate(installedDetailHubId, installedDetailInfo?.name, installedDetailInfo?.meta)}
             updating={installedDetailHubId ? updatingSkillId === installedDetailHubId : false}
             installedVersion={installedDetailInstalledVer}

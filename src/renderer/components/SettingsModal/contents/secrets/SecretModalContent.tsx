@@ -24,10 +24,7 @@ const SecretModalContent: React.FC = () => {
   const [jsbCollapsed, setJsbCollapsed] = useState(true);
 
   const guideText = t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
-  const setupSteps = [
-    t('settings.secrets.step1', '选择服务并填写秘钥信息。'),
-    t('settings.secrets.step2', '点击保存完成配置。'),
-  ];
+  const setupSteps = [t('settings.secrets.step1', '选择服务并填写秘钥信息。'), t('settings.secrets.step2', '点击保存完成配置。')];
 
   return (
     <AionScrollArea className={isPageMode ? 'h-full' : ''}>
@@ -48,11 +45,7 @@ const SecretModalContent: React.FC = () => {
 
         <div className='space-y-12px mt-12px'>
           {/* 建设库 */}
-          <Collapse
-            activeKey={jsbCollapsed ? [] : ['jsb']}
-            onChange={() => setJsbCollapsed((prev) => !prev)}
-            className='[&_div.arco-collapse-item-header-title]:flex-1'
-          >
+          <Collapse activeKey={jsbCollapsed ? [] : ['jsb']} onChange={() => setJsbCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1'>
             <Collapse.Item
               header={
                 <div className='flex items-center gap-8px'>

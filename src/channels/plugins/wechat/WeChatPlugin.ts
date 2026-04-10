@@ -263,11 +263,7 @@ export class WeChatPlugin extends BasePlugin {
         const filePath = path.join(this.mediaDir, baseName);
 
         // Download and decrypt (decryption is handled by the API client when AES key is present)
-        const buffer = await this.apiClient.downloadMedia(
-          mediaExtract.url,
-          mediaExtract.aesKeyBase64,
-          mediaExtract.aesKeyIsHex,
-        );
+        const buffer = await this.apiClient.downloadMedia(mediaExtract.url, mediaExtract.aesKeyBase64, mediaExtract.aesKeyIsHex);
         fs.writeFileSync(filePath, buffer);
 
         item._localPath = filePath;

@@ -222,9 +222,7 @@ describe('useConversations - IPC channel conversation refresh', () => {
   });
 
   it('should refresh conversations when IPC conversationChanged event fires', async () => {
-    const conversations = [
-      { id: 'conv-1', name: 'DingTalk Chat', source: 'dingtalk', updated_at: Date.now() },
-    ];
+    const conversations = [{ id: 'conv-1', name: 'DingTalk Chat', source: 'dingtalk', updated_at: Date.now() }];
     mockInvoke.mockResolvedValue([]);
 
     renderHook(() => useConversations());
