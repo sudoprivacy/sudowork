@@ -8,7 +8,8 @@ import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
@@ -54,7 +55,9 @@ const SendBox: React.FC<{
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
   onSkillsChange?: (skills: string[]) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange }) => {
+  /** Workspace files for @ file references */
+  workspaceFiles?: WorkspaceFileItem[];
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -334,10 +337,17 @@ const SendBox: React.FC<{
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      setInput('');
+      // Strip the @query from input when selecting a skill
+      setInput(stripAtQuery(input));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
+    },
+    workspaceFiles,
+    onSelectFile: (file) => {
+      // Replace @query with @relativePath in input
+      const newInput = replaceAtQuery(input, `@${file.relativePath}`);
+      setInput(newInput);
     },
   });
 
@@ -513,7 +523,7 @@ const SendBox: React.FC<{
             />
           </div>
         )}
-        {/* Skill Selector Menu */}
+        {/* Skill Selector Menu (with optional file tabs) */}
         {skillSelectorController.isOpen && (
           <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             <SkillSelectorMenu
@@ -532,6 +542,19 @@ const SendBox: React.FC<{
                 }
               }}
               emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
+              showTabs={skillSelectorController.showTabs}
+              activeTab={skillSelectorController.activeTab}
+              onTabChange={skillSelectorController.setActiveTab}
+              fileItems={skillSelectorController.filteredFiles}
+              onSelectFile={(file) => {
+                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.fullPath === file.fullPath);
+                if (fileIndex >= 0) {
+                  skillSelectorController.onSelectByIndex(fileIndex);
+                }
+              }}
+              skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
+              filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
+              filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
             />
           </div>
         )}
