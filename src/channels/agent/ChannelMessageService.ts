@@ -17,7 +17,7 @@ import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
 /** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
-const STREAM_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (reduced from 5 for faster recovery)
+const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * 消息流状态
