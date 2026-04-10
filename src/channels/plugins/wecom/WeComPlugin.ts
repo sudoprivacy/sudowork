@@ -317,7 +317,9 @@ export class WeComPlugin extends BasePlugin {
     } else if (body.msgtype === 'mixed' && body.mixed?.items) {
       for (let i = 0; i < body.mixed.items.length; i++) {
         const item = body.mixed.items[i];
-        if (item.msgtype === 'image' && item.image?.url) {
+        // WeCom may use "msgtype" or "type" for mixed item type
+        const itemType = item.msgtype || item.type || '';
+        if (itemType === 'image' && item.image?.url) {
           mediaItems.push({
             url: item.image.url,
             aeskey: item.image.aeskey,

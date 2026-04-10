@@ -39,7 +39,10 @@ export type WeComMsgCallback = {
   image?: { url: string; aeskey: string };
   mixed?: {
     items: Array<{
-      msgtype: string;
+      /** Item type – WeCom may use "msgtype" or "type" depending on API version */
+      msgtype?: string;
+      /** Alternative item type field used by some WeCom API versions */
+      type?: string;
       text?: { content: string };
       image?: { url: string; aeskey: string };
       /** Local file path after download+decrypt (set by WeComPlugin) */
@@ -188,6 +191,14 @@ export function getDefaultExtension(msgtype: string): string {
 }
 
 /**
+ * Get the type of a mixed message item.
+ * WeCom may use "msgtype" or "type" depending on the API version / endpoint.
+ */
+function getMixedItemType(item: NonNullable<WeComMsgCallback['mixed']>['items'][number]): string {
+  return item.msgtype || item.type || '';
+}
+
+/**
  * Extract message content from WeCom message.
  *
  * Prefers local file paths (_localPath / _imageLocalPath / _fileLocalPath / _videoLocalPath)
@@ -212,10 +223,16 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
       const textParts: string[] = [];
       const attachments: Array<{ type: 'photo'; fileId: string }> = [];
 
-      for (const item of data.mixed?.items || []) {
-        if (item.msgtype === 'text' && item.text?.content) {
+      const items = data.mixed?.items || [];
+      if (items.length > 0) {
+        console.log(`[WeComAdapter] mixed items (${items.length}): ${JSON.stringify(items.map((i) => ({ msgtype: i.msgtype, type: i.type, hasText: !!i.text, hasImage: !!i.image, hasLocalPath: !!i._localPath })))}`);
+      }
+
+      for (const item of items) {
+        const itemType = getMixedItemType(item);
+        if (itemType === 'text' && item.text?.content) {
           textParts.push(item.text.content);
-        } else if (item.msgtype === 'image') {
+        } else if (itemType === 'image') {
           // Prefer local path (after download+decrypt), fall back to URL
           const fileId = item._localPath || item.image?.url || '';
           if (fileId) {

@@ -246,6 +246,48 @@ describe('WeComAdapter', () => {
       expect(result!.content.attachments![0].fileId).toBe('/tmp/1.jpg');
       expect(result!.content.attachments![1].fileId).toBe('/tmp/2.jpg');
     });
+
+    it('supports "type" field (alternative to "msgtype") for mixed items', () => {
+      const msg = makeMsg({
+        msgtype: 'mixed',
+        mixed: {
+          items: [
+            { type: 'text', text: { content: 'Hello from type field' } },
+            {
+              type: 'image',
+              image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' },
+              _localPath: '/tmp/channel-media/wecom/img_type.jpg',
+            },
+          ],
+        },
+      });
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.content.text).toBe('Hello from type field');
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.attachments).toHaveLength(1);
+      expect(result!.content.attachments![0].fileId).toBe('/tmp/channel-media/wecom/img_type.jpg');
+    });
+
+    it('handles image-only mixed message (no text parts)', () => {
+      const msg = makeMsg({
+        msgtype: 'mixed',
+        mixed: {
+          items: [
+            {
+              type: 'image',
+              image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' },
+            },
+          ],
+        },
+      });
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.text).toBe('');
+      expect(result!.content.attachments).toHaveLength(1);
+      expect(result!.content.attachments![0].fileId).toBe('https://cdn.example.com/img.jpg');
+    });
   });
 
   describe('toUnifiedIncomingMessage - edge cases', () => {
