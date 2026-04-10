@@ -17,4 +17,4 @@
  * after code updates. The server URL should be controlled by code,
  * not by user configuration.
  */
-export const SUDOWORK_SERVER_BASE_URL = 'http://localhost:3000';
+export const SUDOWORK_SERVER_BASE_URL = 'https://sudoclaw-server.sudoprivacy.com';
