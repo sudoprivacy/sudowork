@@ -229,9 +229,13 @@ export class FetchClient {
 
   private buildHeaders(method: string, options?: RequestOptions): Record<string, string> {
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.apiKey}`,
       Accept: 'application/json',
     };
+
+    // Only add Authorization header when apiKey is present (supports open-access mode)
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
 
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
       headers['Content-Type'] = 'application/json';

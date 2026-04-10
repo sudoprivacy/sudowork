@@ -26,7 +26,7 @@ POST(application/json)
 
 ```
 {
-  	"cid":"11627",	
+  	"cid":"11627",
 	"creditCode":"91510000201803520Y",
 	"provinceId":"510000"
 }

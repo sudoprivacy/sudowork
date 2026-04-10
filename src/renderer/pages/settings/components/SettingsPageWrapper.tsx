@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -45,7 +45,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       skill: { id: 'skill', label: '技能商店', icon: <Lightning theme='outline' size='16' />, path: 'skill' },
       security: { id: 'security', label: '安全防护', icon: <Shield theme='outline' size='16' />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
-      copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
+      // copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
       webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='16' />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
@@ -53,7 +53,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     };
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
-    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'runtime', 'system', 'about'] as const;
+    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
     const builtins: NavItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Insert extension tabs before system (unanchored default) or at anchor position

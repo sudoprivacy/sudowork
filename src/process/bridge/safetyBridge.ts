@@ -11,14 +11,10 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ProcessConfig } from '@/process/initStorage';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { getNexusClient, CONFIG_DIR, readNexusFileAsUtf8 } from '../services/safety/SecurityHookFile';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from '../services/safety/SecurityHookFile';
 import type { BlacklistConfig } from '@/common/safetyTypes';
-
-const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
-const BLACKLIST_STORAGE_KEY = 'safetyHook.blacklist';
 
 export function initSafetyBridge(): void {
   // Get current safety status
@@ -70,10 +66,8 @@ export function initSafetyBridge(): void {
     try {
       const service = SafetyPollingService.getInstance();
       if (enabled) {
-        // Stop first if already running (skip persist since we'll start immediately)
         mainLog('SafetyBridge', 'Starting safety hook service...');
-        await service.stop(false);
-        await service.start({ pollingIntervalMs: 5000 });
+        await service.start({ pollingIntervalMs: 3000 }, true);
       } else {
         mainLog('SafetyBridge', 'Stopping safety hook service...');
         await service.stop(true);
@@ -87,15 +81,14 @@ export function initSafetyBridge(): void {
     }
   });
 
-  // Get blacklist configuration - read directly from Nexus for consistency
+  // Get blacklist configuration - read from unified hook config
   ipcBridge.safety.getBlacklist.provider(async () => {
     try {
-      const configStr = await readNexusFileAsUtf8(BLACKLIST_CONFIG_PATH);
-      if (!configStr) {
+      const hookConfig = await readHookConfig();
+      if (!hookConfig || !hookConfig.blacklist) {
         return { success: true, data: { rules: [] } };
       }
-      const config = JSON.parse(configStr);
-      return { success: true, data: config || { rules: [] } };
+      return { success: true, data: (hookConfig.blacklist as BlacklistConfig) || { rules: [] } };
     } catch (err) {
       // If file doesn't exist, return empty config
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -109,16 +102,21 @@ export function initSafetyBridge(): void {
     }
   });
 
-  // Set blacklist configuration - write to Nexus only
+  // Set blacklist configuration - write to unified hook config (read-merge-write)
   ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: BlacklistConfig }) => {
     try {
-      // Sync to Nexus (single source of truth)
       const client = getNexusClient();
       await client.mkdir(CONFIG_DIR, true);
-      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
+      // Read-merge-write: preserve existing enabled/fastPass state
+      const existing = await readHookConfig();
+      const merged = {
+        ...(existing || DEFAULT_HOOK_CONFIG),
+        blacklist: config,
+      };
+      await writeHookConfig(merged);
 
-      // Also save to local storage for persistence across app restarts
-      await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
+      // Invalidate cache so next poll will pick up the new config
+      SafetyPollingService.getInstance().invalidateBlacklistCache();
 
       return { success: true };
     } catch (err) {

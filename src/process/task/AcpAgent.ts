@@ -35,7 +35,8 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -43,6 +44,7 @@ import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -259,6 +261,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       let cdpPort = 9230;
       try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
       } catch {
         /* use default */
@@ -617,7 +620,22 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
+            workspace: this.workspace,
+            presetAgentType: this.options.backend,
           });
+
+          if (this.options.backend === 'claude') {
+            const skillsDir = resolveWorkspaceSkillsDir({
+              type: 'acp',
+              extra: {
+                workspace: this.workspace,
+                backend: this.options.backend,
+              },
+            });
+            if (skillsDir) {
+              contentToSend = injectSkillsDirectoryHint(contentToSend, skillsDir);
+            }
+          }
         }
 
         if (data.files && data.files.length > 0) {
@@ -1349,6 +1367,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+
+      // Post-cleanup: move intermediate files from workspace root to .drafts/
+      if (this.workspace) {
+        cleanupIntermediateFiles(this.workspace).catch((err) => {
+          mainError('AcpAgent', 'Post-cleanup failed:', err);
+        });
+      }
     }
 
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent && hasCronCommands(this.cronAccumulator.currentMsgContent)) {

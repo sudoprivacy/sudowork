@@ -19,6 +19,7 @@ import { app } from 'electron';
 import os from 'os';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
@@ -399,6 +400,8 @@ function parseEnvOutput(output: string): Record<string, string> {
 export function resolveNpxPath(env: Record<string, string | undefined>): string {
   const isWindows = process.platform === 'win32';
   const npxName = isWindows ? 'npx.cmd' : 'npx';
+
+  // 1. Try to find node on PATH and use its co-located npx
   try {
     const whichCmd = isWindows ? 'where' : 'which';
     const nodePath = execFileSync(whichCmd, ['node'], {
@@ -423,8 +426,47 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
     }
     mainWarn('ShellEnv', `npx at ${npxCandidate} is v${versionOutput} (too old), falling back to PATH lookup`);
   } catch {
-    // which/node/npx resolution failed
+    // which/node/npx resolution failed — try bundled Node.js next
   }
+
+  // 2. Try bundled Node.js (shipped with the app in resources)
+  try {
+    if (isNodeInstalled()) {
+      const bundledNodePath = getNodeBinaryPath();
+      const bundledNodeDir = path.dirname(bundledNodePath);
+      const bundledNpx = path.join(bundledNodeDir, npxName);
+      if (existsSync(bundledNpx)) {
+        mainLog('ShellEnv', `Using bundled npx: ${bundledNpx}`);
+        // Prepend the bundled node directory to PATH so that npx.cmd (and any
+        // child processes it spawns) can find `node` without requiring a
+        // system-wide Node.js installation.  This mirrors how
+        // ensureMinNodeVersion() mutates env.PATH.
+        const sep = isWindows ? ';' : ':';
+        env.PATH = bundledNodeDir + sep + (env.PATH || '');
+        mainLog('ShellEnv', `Prepended bundled node dir to PATH: ${bundledNodeDir}`);
+        return bundledNpx;
+      }
+    }
+  } catch {
+    // Bundled Node.js check failed
+  }
+
+  // 3. Verify the bare fallback npx actually exists on PATH
+  try {
+    const whichCmd = isWindows ? 'where' : 'which';
+    execFileSync(whichCmd, [npxName], {
+      env,
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return npxName;
+  } catch {
+    // npx not found on PATH either
+  }
+
+  // 4. Nothing found — warn clearly and return bare name as last resort
+  mainWarn('ShellEnv', `Node.js/npx could not be found on this system. ` + `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` + `Returning bare '${npxName}' which will likely fail.`);
   return npxName;
 }
 

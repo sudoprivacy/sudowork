@@ -10,6 +10,10 @@ import * as zlib from 'zlib';
 import { pipeline } from 'stream/promises';
 import * as tar from 'tar';
 import * as yauzl from 'yauzl';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 export type ArchiveProgressCallback = (percent: number) => void;
 
@@ -24,20 +28,46 @@ function createProgressReporter(onProgress?: ArchiveProgressCallback): (processe
   };
 }
 
-export async function extractTarGzWithProgress(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+/**
+ * Check if Windows native tar.exe is available (Windows 10 1803+).
+ */
+async function isNativeTarAvailable(): Promise<boolean> {
+  if (process.platform !== 'win32') return false;
+  try {
+    await execFileAsync('tar', ['--version']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function extractTarGzWithProgress(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback, options?: { strip?: number }): Promise<void> {
   const totalBytes = fs.statSync(archivePath).size;
   const reportProgress = createProgressReporter(onProgress);
-  let processedBytes = 0;
+  const strip = options?.strip ?? 0;
 
   reportProgress(0, totalBytes);
 
-  const readStream = fs.createReadStream(archivePath);
+  // On Windows, prefer native tar.exe for better performance (2-5x faster than Node.js tar)
+  if (await isNativeTarAvailable()) {
+    const args = ['-xzf', archivePath, '-C', targetDir];
+    if (strip > 0) args.push(`--strip-components=${strip}`);
+    await execFileAsync('tar', args);
+    reportProgress(totalBytes, totalBytes);
+    return;
+  }
+
+  // Fallback: Node.js tar with optimized buffer sizes (1MB chunk size for better throughput)
+  const BUFFER_SIZE = 1024 * 1024; // 1MB
+  let processedBytes = 0;
+
+  const readStream = fs.createReadStream(archivePath, { highWaterMark: BUFFER_SIZE });
   readStream.on('data', (chunk: Buffer) => {
     processedBytes += chunk.length;
     reportProgress(processedBytes, totalBytes);
   });
 
-  await pipeline(readStream, zlib.createGunzip(), tar.x({ cwd: targetDir }));
+  await pipeline(readStream, zlib.createGunzip({ chunkSize: BUFFER_SIZE }), tar.x({ cwd: targetDir, strip }));
   reportProgress(totalBytes, totalBytes);
 }
 
@@ -91,6 +121,29 @@ async function collectZipEntries(zipPath: string): Promise<{ zipFile: yauzl.ZipF
   });
 }
 
+/**
+ * List all entry paths in a .tar.gz archive without extracting.
+ */
+export async function listTarGzEntries(archivePath: string): Promise<string[]> {
+  const entries: string[] = [];
+  await tar.t({
+    file: archivePath,
+    onReadEntry: (entry: tar.ReadEntry) => {
+      entries.push(entry.path);
+    },
+  });
+  return entries;
+}
+
+/**
+ * List all entry paths in a .zip archive without extracting.
+ */
+export async function listZipEntries(zipPath: string): Promise<string[]> {
+  const { zipFile, entries } = await collectZipEntries(zipPath);
+  zipFile.close();
+  return entries.map((e) => e.fileName);
+}
+
 function openZipReadStream(zipFile: yauzl.ZipFile, entry: yauzl.Entry): Promise<fs.ReadStream> {
   return new Promise((resolve, reject) => {
     zipFile.openReadStream(entry, (err, stream) => {
@@ -103,16 +156,40 @@ function openZipReadStream(zipFile: yauzl.ZipFile, entry: yauzl.Entry): Promise<
   });
 }
 
-export async function extractZipWithProgress(zipPath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+/**
+ * Strip leading path components from a zip entry filename.
+ * e.g. strip=1: "dir/sub/file.txt" → "sub/file.txt", "dir/" → ""
+ */
+function stripZipEntryPath(fileName: string, strip: number): string {
+  if (strip <= 0) return fileName;
+  const parts = fileName.split('/');
+  // If the original entry ends with '/', it's a directory – preserve that
+  const isDir = fileName.endsWith('/');
+  const stripped = parts.slice(strip);
+  if (stripped.length === 0 || (stripped.length === 1 && stripped[0] === '')) return '';
+  return stripped.join('/') + (isDir && !stripped[stripped.length - 1].endsWith('/') ? '' : '');
+}
+
+export async function extractZipWithProgress(zipPath: string, targetDir: string, onProgress?: ArchiveProgressCallback, options?: { strip?: number }): Promise<void> {
   const { zipFile, entries, totalCompressedSize } = await collectZipEntries(zipPath);
   const reportProgress = createProgressReporter(onProgress);
+  const strip = options?.strip ?? 0;
   let processedCompressedSize = 0;
 
   reportProgress(0, totalCompressedSize || 1);
 
   try {
     for (const item of entries) {
-      const targetPath = path.join(targetDir, item.fileName);
+      const strippedName = strip > 0 ? stripZipEntryPath(item.fileName, strip) : item.fileName;
+
+      // Skip entries that are fully stripped away (e.g. the top-level dir itself)
+      if (!strippedName) {
+        processedCompressedSize += item.compressedSize;
+        reportProgress(processedCompressedSize, totalCompressedSize || processedCompressedSize || 1);
+        continue;
+      }
+
+      const targetPath = path.join(targetDir, strippedName);
 
       if (item.isDirectory) {
         fs.mkdirSync(targetPath, { recursive: true });

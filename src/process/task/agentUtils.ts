@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
+import type { PresetAgentType } from '@/types/acpTypes';
 
 /**
  * 首次消息处理配置
@@ -16,6 +18,37 @@ export interface FirstMessageConfig {
   presetContext?: string;
   /** 启用的 skills 列表 / Enabled skills list */
   enabledSkills?: string[];
+  /** 工作空间路径 / Workspace path (used for drafts instruction) */
+  workspace?: string;
+  /** 预设 Agent 类型 / Preset agent type - used to control skill injection behavior */
+  presetAgentType?: PresetAgentType | string;
+}
+
+/**
+ * 构建草稿箱使用指令
+ * Build drafts box usage instructions for Agent
+ *
+ * 通过系统提示词告诉 Agent：
+ * 1. 中间产物（脚本、临时数据、草稿等）应写入 .drafts/ 目录
+ * 2. 最终结果文件直接写入工作空间根目录
+ *
+ * Via system prompt, instruct the Agent:
+ * 1. Intermediate artifacts (scripts, temp data, drafts) should be written to .drafts/
+ * 2. Final result files should be written directly to workspace root
+ */
+export function buildDraftsInstruction(workspace: string): string {
+  const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
+  return `[Workspace File Management Rules]
+Your workspace is: ${workspace}
+A drafts directory exists at: ${draftsPath}
+
+File output rules:
+- Intermediate/temporary files (scripts, temp data, draft versions, processing steps, helper code) → Write to ${draftsPath}/
+- Final deliverable files (reports, final outputs, completed documents) → Write to ${workspace}/
+- When executing multi-step tasks, save each step's intermediate output to the drafts directory
+- The final completed result should always be in the workspace root, not in drafts
+- Examples of intermediate files: .py scripts, .sh scripts, temp .json/.csv data files, draft .md files
+- Examples of final files: final reports, processed datasets, completed documents`;
 }
 
 /**
@@ -31,6 +64,11 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载并添加 skills 内容 / Load and add skills content
@@ -72,14 +110,16 @@ export async function prepareFirstMessage(content: string, config: FirstMessageC
 }
 
 /**
- * 为首条消息准备内容：注入规则 + skills 索引（而非完整内容）
- * Prepare first message: inject rules + skills INDEX (not full content)
+ * 为首条消息准备内容：注入规则 + 内置 skills 索引（而非完整内容）
+ * Prepare first message: inject rules + builtin skills INDEX (not full content)
  *
  * 用于 ACP agents (Claude/OpenCode) 和 Codex，Agent 通过 Read 工具按需读取 skill 文件
  * Used for ACP agents (Claude/OpenCode) and Codex, Agent reads skill files on-demand using Read tool
  *
- * 注意：内置 skills（_builtin/ 目录下）会自动注入，不需要在 enabledSkills 中指定
- * Note: Builtin skills (in _builtin/ directory) are auto-injected, no need to specify in enabledSkills
+ * 注意：针对 ACP/OpenClaw 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
+ * Hub/custom/system 下的非 builtin skills 不会通过首条消息注入给 agent。
+ * Note: For ACP/OpenClaw assistants, only builtin skills under _system/_builtin are exposed here.
+ * Non-builtin skills from hub/custom/system are not injected via the first message.
  *
  * @param content - 原始消息内容 / Original message content
  * @param config - 首次消息配置 / First message configuration
@@ -93,41 +133,36 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
     instructions.push(config.presetContext);
   }
 
-  // 2. 加载 skills 索引（包括内置 skills + 可选 skills）
-  // Load skills INDEX (including builtin skills + optional skills)
-  // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
-  const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
-  // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
-  await skillManager.discoverSkills(config.enabledSkills);
+  // 1.5 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
+  }
 
-  // 只有当有任何 skills 时才注入 / Only inject if there are any skills
-  if (skillManager.hasAnySkills()) {
-    const skillsIndex = skillManager.getSkillsIndex();
-    if (skillsIndex.length > 0) {
-      // getSkillsDir() already returns CLI-safe path (symlink on macOS)
-      // getSkillsDir() 已返回 CLI 安全路径（macOS 上使用符号链接）
-      const skillsDir = getSkillsDir();
-      const builtinSkillsDir = skillsDir + '/_builtin';
-      const indexText = buildSkillsIndexText(skillsIndex);
+  // 2. 仅加载内置 skills 索引
+  // Load builtin skills index only
+  const skillManager = AcpSkillManager.getInstance();
+  await skillManager.discoverBuiltinSkills();
 
-      // 告诉 Agent skills 文件的位置，让它按需读取
-      // Tell Agent where skills files are located for on-demand reading
-      const skillsInstruction = `${indexText}
+  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
+  if (builtinSkillsIndex.length > 0) {
+    const systemSkillsDir = getBuiltinSkillsDir();
+    const indexText = buildSkillsIndexText(builtinSkillsIndex);
+
+    // 告诉 Agent 只从 builtin skills 目录按需读取
+    // Tell Agent to read only from the builtin skills directory on demand
+    const skillsInstruction = `${indexText}
 
 [Skills Location]
-Skills are stored in two locations:
-- Builtin skills (auto-enabled): ${builtinSkillsDir}/{skill-name}/SKILL.md
-- Optional skills: ${skillsDir}/{skill-name}/SKILL.md
+Builtin skills are stored at:
+- ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
 To use a skill, read its SKILL.md file when needed.
 
 For example:
-- Builtin "cron" skill: ${builtinSkillsDir}/cron/SKILL.md
-- Optional "pptx" skill: ${skillsDir}/pptx/SKILL.md`;
+- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
 
-      instructions.push(skillsInstruction);
-    }
+    instructions.push(skillsInstruction);
   }
 
   if (instructions.length === 0) {
@@ -136,6 +171,22 @@ For example:
 
   const systemInstructions = instructions.join('\n\n');
   return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+}
+
+/**
+ * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
+ * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ */
+export function injectSkillsDirectoryHint(content: string, skillsDir: string): string {
+  const hint = `[Skills Directory]
+Skills are installed at: ${skillsDir}
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
+
+  if (content.includes('[User Request]')) {
+    return content.replace('[User Request]', `${hint}\n\n[User Request]`);
+  }
+
+  return `${hint}\n\n${content}`;
 }
 
 /**
@@ -159,6 +210,11 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   // 添加预设上下文 / Add preset context
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 添加草稿箱使用指令 / Add drafts box instructions
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
   }
 
   // 加载 skills 索引（包括内置 skills + 可选 skills）

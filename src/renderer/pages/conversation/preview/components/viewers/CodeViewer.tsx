@@ -9,6 +9,7 @@ import { useTextSelection } from '@/renderer/hooks/useTextSelection';
 import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
 import { iconColors } from '@/renderer/theme/colors';
 import { LARGE_TEXT_VIEWER_RENDER_LIMIT, LARGE_TEXT_VIEWER_THRESHOLD } from '../../constants';
+import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
 import { Close } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +24,8 @@ interface CodePreviewProps {
   hideToolbar?: boolean; // 隐藏工具栏 / Hide toolbar
   viewMode?: 'source' | 'preview'; // 外部控制的视图模式 / External view mode
   onViewModeChange?: (mode: 'source' | 'preview') => void; // 视图模式改变回调 / View mode change callback
+  containerRef?: React.RefObject<HTMLDivElement>; // 外部容器引用，用于滚动同步 / External container ref for scroll sync
+  onScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void; // 滚动回调 / Scroll callback
 }
 
 /**
@@ -32,9 +35,10 @@ interface CodePreviewProps {
  * 使用 SyntaxHighlighter 渲染代码块，支持原文/预览切换和下载功能
  * Uses SyntaxHighlighter to render code block, supports source/preview toggle and download
  */
-const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', onClose, hideToolbar = false, viewMode: externalViewMode, onViewModeChange }) => {
+const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', onClose, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, containerRef: externalContainerRef, onScroll }) => {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const internalContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = externalContainerRef || internalContainerRef;
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });
@@ -42,6 +46,10 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', o
 
   // 使用外部传入的 viewMode，否则使用内部状态 / Use external viewMode if provided, otherwise use internal state
   const viewMode = externalViewMode !== undefined ? externalViewMode : internalViewMode;
+
+  // 使用滚动同步 Hooks / Use scroll sync hooks
+  useContainerScroll(containerRef, onScroll);
+  useContainerScrollTarget(containerRef);
 
   // 对大文本禁用高亮与动画，避免 SyntaxHighlighter 导致卡顿
   // Disable highlight/animation for large texts to avoid UI freezes in SyntaxHighlighter

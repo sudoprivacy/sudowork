@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge, type IOpenClawModelsResponse } from '../../common';
+import type { SudoclawConfig } from '@/common/ipcBridge';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
 
 const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
@@ -65,12 +66,11 @@ export function initOpenClawBridge(): void {
     // 修改 sudoclaw.json 配置文件
     const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
     const fs = await import('fs');
-    const path = await import('path');
 
     if (fs.existsSync(SUDOCLAW_CONFIG_PATH)) {
       try {
         const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-        const config = JSON.parse(raw) as Record<string, unknown>;
+        const config = JSON.parse(raw) as SudoclawConfig;
 
         // 1. 确定 API 类型
         let apiType: string;
@@ -79,7 +79,7 @@ export function initOpenClawBridge(): void {
         } else if (params.modelId.includes('claude')) {
           apiType = 'anthropic-messages';
         } else {
-          apiType = 'openai-responses';
+          apiType = 'openai-completions';
         }
 
         // 2. 创建对应的 provider 名称（如 sudorouter-gemini-3-pro-preview）
@@ -89,39 +89,40 @@ export function initOpenClawBridge(): void {
         if (!config.models) {
           config.models = { providers: {} };
         }
-        const models = config.models as { providers?: Record<string, any> };
+        const models = config.models as NonNullable<SudoclawConfig['models']>;
         if (!models.providers) {
           models.providers = {};
         }
 
-        // 4. 确保该 provider 存在，并且只包含当前模型
-        if (!models.providers[providerName]) {
-          models.providers[providerName] = {
-            baseUrl: 'https://hk.sudorouter.ai/v1',
-            api: apiType,
+        const providers = models.providers;
+        const providerEntries = Object.entries(providers) as Array<[string, NonNullable<SudoclawConfig['models']>['providers'][string]]>;
+
+        // 4. 确保该 provider 存在，并始终使用最新的 baseUrl 和 api 类型
+        if (!providers[providerName]) {
+          providers[providerName] = {
             models: [],
           };
         }
-        const provider = models.providers[providerName];
-        // 确保 provider 只包含当前模型
-        if (!Array.isArray(provider.models) || !provider.models.some((m: any) => m.id === params.modelId)) {
-          provider.models = [{ id: params.modelId, name: params.modelId }];
+        const provider = providers[providerName];
+        provider.baseUrl = 'https://hk.sudorouter.ai/v1';
+        provider.api = apiType;
 
-          // 如果没有 apiKey，从已配置的模型中获取第一个（如果有）
-          if (!provider.apiKey) {
-            const allProviders = Object.values(models.providers) as any[];
-            const existingApiKey = allProviders.find((p: any) => p.apiKey)?.apiKey;
-            if (existingApiKey) {
-              provider.apiKey = existingApiKey;
-            }
-          }
+        // 5. 确保 provider 只包含当前模型
+        provider.models = [{ id: params.modelId, name: params.modelId }];
+
+        // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
+        const canonicalApiKey = providers['sudorouter']?.apiKey || providerEntries.map(([, item]) => item?.apiKey).find((key): key is string => typeof key === 'string' && key.trim().length > 0);
+
+        // 始终刷新 apiKey 以保持同步
+        if (canonicalApiKey) {
+          provider.apiKey = canonicalApiKey;
         }
 
-        // 5. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
+        // 7. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
         if (!config.agents) {
           config.agents = { defaults: {} };
         }
-        const agents = config.agents as { defaults?: any };
+        const agents = config.agents as NonNullable<SudoclawConfig['agents']>;
         if (!agents.defaults) {
           agents.defaults = {};
         }
@@ -133,12 +134,29 @@ export function initOpenClawBridge(): void {
           agents.defaults.model.primary = fullModelPath;
         }
 
-        // 6. 保存修改后的配置
+        // 8. 保存修改后的配置
         fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
         mainLog('OpenClawBridge', 'Updated sudoclaw.json config');
       } catch (error) {
         mainError('OpenClawBridge', 'Failed to update sudoclaw.json config', error);
       }
+    }
+  });
+
+  ipcBridge.openclaw.updateImageModel.provider(async (params) => {
+    const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    const fs = await import('fs');
+    if (!fs.existsSync(SUDOCLAW_CONFIG_PATH)) return;
+    try {
+      const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as SudoclawConfig;
+      if (!config.agents) config.agents = { defaults: {} };
+      if (!config.agents.defaults) config.agents.defaults = {};
+      config.agents.defaults.imageModel = params.modelId ?? '';
+      fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+      mainLog('OpenClawBridge', 'Updated image model in sudoclaw.json:', params.modelId);
+    } catch (error) {
+      mainError('OpenClawBridge', 'Failed to update image model in sudoclaw.json', error);
     }
   });
 }

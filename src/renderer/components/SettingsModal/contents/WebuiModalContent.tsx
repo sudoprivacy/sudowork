@@ -8,6 +8,7 @@ import { shell, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
+import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
@@ -40,9 +41,11 @@ const CHANNEL_LOGOS = [
   { src: ChannelTelegramLogo, alt: 'Telegram' },
   { src: ChannelLarkLogo, alt: 'Lark' },
   { src: ChannelDingTalkLogo, alt: 'DingTalk' },
+  { src: ChannelZentaoLogo, alt: 'Zentao' },
 ] as const;
 
 const ChannelModalContentLazy = React.lazy(() => import('./ChannelModalContent'));
+const SecretModalContentLazy = React.lazy(() => import('./secrets/SecretModalContent'));
 const QRCodeSVGLazy = React.lazy(async () => {
   const mod = await import('qrcode.react');
   return { default: mod.QRCodeSVG };
@@ -56,7 +59,7 @@ const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-  const [activeTab, setActiveTab] = useState<'channels'>('channels');
+  const [activeTab, setActiveTab] = useState<'channels' | 'secrets'>('channels');
 
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
@@ -695,7 +698,7 @@ const WebuiModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'channels') || 'channels')} type='line' className='mb-12px settings-remote-tabs'>
+      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab(key as 'channels' | 'secrets')} type='line' className='mb-12px settings-remote-tabs'>
         {/* <Tabs.TabPane
           key='webui'
           title={
@@ -721,15 +724,29 @@ const WebuiModalContent: React.FC = () => {
             </span>
           }
         />
+        <Tabs.TabPane
+          key='secrets'
+          title={
+            <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+              <span className='text-14px'>{t('settings.secrets', '秘钥管理')}</span>
+            </span>
+          }
+        />
       </Tabs>
 
       {/* {activeTab === 'webui' ? (
         webuiPanel
       ) : ( */}
       <div className='flex-1 min-h-0'>
-        <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
-          <ChannelModalContentLazy />
-        </Suspense>
+        {activeTab === 'secrets' ? (
+          <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
+            <SecretModalContentLazy />
+          </Suspense>
+        ) : (
+          <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
+            <ChannelModalContentLazy />
+          </Suspense>
+        )}
       </div>
       {/* )} */}
 

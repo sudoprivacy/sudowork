@@ -327,8 +327,10 @@ export class LarkPlugin extends BasePlugin {
     // Register event handlers on the EventDispatcher
     this.eventDispatcher.register({
       // Handle incoming messages
+      // Fire-and-forget: do NOT await — avoids blocking the Lark WebSocket event loop
+      // during AI generation (10-30s), which would trigger Feishu's 3s timeout and retries.
       'im.message.receive_v1': async (data: Record<string, unknown>) => {
-        await this.handleMessageEvent({ event: data });
+        void this.handleMessageEvent({ event: data });
       },
 
       // Handle card action callbacks (button clicks)
@@ -343,8 +345,9 @@ export class LarkPlugin extends BasePlugin {
 
       // Handle bot menu clicks (custom menu in chat)
       // Event name: application.bot.menu_v6
+      // Fire-and-forget: same reason as im.message.receive_v1
       'application.bot.menu_v6': async (data: Record<string, unknown>) => {
-        await this.handleBotMenuEvent({ event: data });
+        void this.handleBotMenuEvent({ event: data });
       },
     });
   }
@@ -628,13 +631,22 @@ export class LarkPlugin extends BasePlugin {
       });
 
       // Try to get tenant access token to verify credentials
-      // The SDK will throw if credentials are invalid
-      await client.auth.tenantAccessToken.internal({
+      // Note: Lark API returns HTTP 200 even for invalid credentials,
+      // with the actual error in the response body's code field
+      const response = await client.auth.tenantAccessToken.internal({
         data: {
           app_id: appId,
           app_secret: appSecret,
         },
       });
+
+      // code === 0 means success; any other value indicates failure
+      if (response?.code !== undefined && response.code !== 0) {
+        return {
+          success: false,
+          error: response.msg || `Lark API error (code: ${response.code})`,
+        };
+      }
 
       return { success: true, botInfo: { name: 'Lark Bot' } };
     } catch (error: any) {

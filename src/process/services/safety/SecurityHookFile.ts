@@ -5,16 +5,18 @@
  */
 
 /**
- * Safety Hook Service - Nexus RPC Implementation
+ * Safety Hook File Operations
  *
- * Communicates via Nexus RPC file system:
- * - Event files: /safe/event/{uuid} (counterparty → Sudowork)
- * - Action files: /safe/action/{uuid} (Sudowork → counterparty)
+ * Nexus is the SINGLE SOURCE OF TRUTH for all state.
+ *
+ * Unified config file: /safe/config/hook (enabled state + blacklist)
+ * Event files: /safe/event/{uuid}
+ * Action files: /safe/action/{uuid}
  */
 
 import type { Nexus } from '@/common/nexus';
 import { getNexusRpcClient } from '@/common/nexus';
-import type { SafetyStatus, SafetyConfirmationAction, EventFileData, ActionFileData, EventType, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@/common/safetyTypes';
+import type { SafetyStatus, EventFileData, ActionFileData, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@/common/safetyTypes';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Nexus security hook directory paths */
@@ -22,6 +24,21 @@ export const EVENT_DIR = '/safe/event';
 export const ACTION_DIR = '/safe/action';
 export const CONFIG_DIR = '/safe/config';
 export const ENABLED_CONFIG_PATH = '/safe/config/enabled';
+/** Unified hook config path: combines enabled state + blacklist in one file */
+export const HOOK_CONFIG_PATH = '/safe/config/hook';
+
+/** Default state for first run */
+export const DEFAULT_ENABLED_STATE = {
+  enabled: true,
+  fastPass: false,
+};
+
+/** Default unified hook config (enabled state + empty blacklist) */
+export const DEFAULT_HOOK_CONFIG = {
+  enabled: true,
+  fastPass: false,
+  blacklist: { rules: [] as unknown[] },
+};
 
 /**
  * Get Nexus RPC client instance
@@ -32,8 +49,6 @@ export function getNexusClient(): Nexus {
 
 /**
  * Read a Nexus file as UTF-8, normalizing RPC shapes (Buffer vs `{ content }`).
- * Matches handling in readEventFile / readEnabledState so callers do not skip logic
- * when the server returns a non-Buffer result.
  */
 export async function readNexusFileAsUtf8(filePath: string): Promise<string | null> {
   try {
@@ -76,68 +91,130 @@ export async function ensureSecurityHookDirs(): Promise<void> {
   }
 }
 
+// ============================================================================
+// State Management - Nexus is the SINGLE SOURCE OF TRUTH
+// ============================================================================
+
 /**
- * Write safety hook enabled state to Nexus filesystem
- * This allows hook.js in Agent CLI processes to detect state changes
- * @param enabled - Whether safety hook is enabled
- * @param fastPass - If true, hook.js will immediately allow all requests without waiting for polling
+ * Read enabled state from Nexus filesystem (unified config path)
+ * Returns null if state file doesn't exist or Nexus is unavailable
  */
-export async function writeEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
+export async function readEnabledState(): Promise<{ enabled: boolean; fastPass: boolean } | null> {
   try {
-    const client = getNexusClient();
-    await client.write(ENABLED_CONFIG_PATH, JSON.stringify({ enabled, fastPass, timestamp: Date.now() }));
-    mainLog('SecurityHook', `Wrote enabled state: ${enabled}${fastPass ? ' (fastPass)' : ''}`);
+    const config = await readHookConfig();
+    if (!config) return null;
+    return {
+      enabled: config.enabled === true,
+      fastPass: config.fastPass === true,
+    };
   } catch (error) {
-    mainError('SecurityHook', 'Failed to write enabled state:', error);
+    return null;
   }
 }
 
 /**
- * Read safety hook enabled state from Nexus filesystem
+ * Write enabled state to Nexus filesystem (unified config: read-merge-write)
  */
-export async function readEnabledState(): Promise<boolean> {
+export async function writeEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
   try {
     const client = getNexusClient();
-    const result = await client.read(ENABLED_CONFIG_PATH, false);
-
-    // Handle Buffer result
-    if (Buffer.isBuffer(result)) {
-      const data = JSON.parse(result.toString('utf-8'));
-      return data.enabled === true;
-    }
-
-    // Handle object result with content
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = result.content;
-      const data = Buffer.isBuffer(content) ? JSON.parse(content.toString('utf-8')) : JSON.parse(String(content));
-      return data.enabled === true;
-    }
-
-    return true; // Default to enabled
+    // Read-merge-write: preserve existing blacklist data
+    const existing = await readHookConfig();
+    const merged = {
+      ...(existing || DEFAULT_HOOK_CONFIG),
+      enabled,
+      fastPass,
+      timestamp: Date.now(),
+    };
+    await client.write(HOOK_CONFIG_PATH, JSON.stringify(merged));
+    mainLog('SecurityHook', `Wrote state: enabled=${enabled}, fastPass=${fastPass}`);
   } catch (error) {
-    // File may not exist yet, default to enabled
-    return true;
+    mainError('SecurityHook', 'Failed to write state:', error);
+    throw error;
+  }
+}
+
+/**
+ * Initialize state if not exists
+ * Returns the current state (existing or newly created)
+ */
+export async function ensureEnabledState(): Promise<{ enabled: boolean; fastPass: boolean }> {
+  const existingState = await readEnabledState();
+  if (existingState !== null) {
+    mainLog('SecurityHook', `Existing state: enabled=${existingState.enabled}, fastPass=${existingState.fastPass}`);
+    return existingState;
+  }
+
+  mainLog('SecurityHook', `No existing state, initializing with default: enabled=${DEFAULT_ENABLED_STATE.enabled}`);
+  await writeEnabledState(DEFAULT_ENABLED_STATE.enabled, DEFAULT_ENABLED_STATE.fastPass);
+  return { ...DEFAULT_ENABLED_STATE };
+}
+
+// ============================================================================
+// Unified Hook Config (combines enabled state + blacklist in single Nexus file)
+// ============================================================================
+
+/**
+ * Read the unified hook config from Nexus.
+ * Returns the parsed config object or null if unavailable.
+ */
+export async function readHookConfig(): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readNexusFileAsUtf8(HOOK_CONFIG_PATH);
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write the unified hook config to Nexus (full replacement).
+ */
+export async function writeHookConfig(config: Record<string, unknown>): Promise<void> {
+  const client = getNexusClient();
+  await client.write(HOOK_CONFIG_PATH, JSON.stringify(config));
+}
+
+// ============================================================================
+// Event/Action File Operations
+// ============================================================================
+
+/**
+ * List all event filenames in event directory via Nexus RPC
+ */
+export async function listEventFilenames(): Promise<string[]> {
+  try {
+    const client = getNexusClient();
+    const items = await client.list(EVENT_DIR);
+    return items.map((item) => {
+      const name = item.name || '';
+      const path = item.path || '';
+      if (name && !name.includes('/')) {
+        return name;
+      }
+      return (path || name).split('/').pop() || name;
+    });
+  } catch (error) {
+    mainError('SecurityHook', 'Failed to list event filenames:', error);
+    return [];
   }
 }
 
 /**
  * Read and parse an event file via Nexus RPC
- * @param eventUuidOrPath - Event UUID or full path to event file
  */
 export async function readEventFile(eventUuidOrPath: string): Promise<EventFileData | null> {
   try {
     const client = getNexusClient();
-    // Determine if it's a full path or just a UUID
     const filePath = eventUuidOrPath.startsWith('/') ? eventUuidOrPath : `${EVENT_DIR}/${eventUuidOrPath}`;
 
     const result = await client.read(filePath, false);
 
-    // Handle Buffer result
     if (Buffer.isBuffer(result)) {
       return JSON.parse(result.toString('utf-8')) as EventFileData;
     }
 
-    // Handle object result with content
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
       if (Buffer.isBuffer(content)) {
@@ -156,85 +233,20 @@ export async function readEventFile(eventUuidOrPath: string): Promise<EventFileD
 /**
  * Write action file to action directory via Nexus RPC
  */
-export async function writeActionFile(eventUuid: string, data: ActionFileData): Promise<string | null> {
+export async function writeActionFile(eventUuid: string, data: ActionFileData): Promise<boolean> {
   try {
     const filePath = `${ACTION_DIR}/${eventUuid}`;
     const client = getNexusClient();
     await client.write(filePath, JSON.stringify(data, null, 2));
-    return filePath;
+    return true;
   } catch (error) {
     mainError('SecurityHook', 'Failed to write action file:', error);
-    return null;
+    return false;
   }
 }
 
 /**
- * List all event filenames in event directory via Nexus RPC
- * Returns array of filenames only (no content reading)
- */
-export async function listEventFilenames(): Promise<string[]> {
-  return listFilenames(EVENT_DIR);
-}
-
-/**
- * List all action filenames in action directory via Nexus RPC
- * Returns array of filenames only
- */
-export async function listActionFilenames(): Promise<string[]> {
-  return listFilenames(ACTION_DIR);
-}
-
-/**
- * Generic list filenames helper
- * Returns only the filename (not full path) for each item
- */
-async function listFilenames(dirPath: string): Promise<string[]> {
-  try {
-    const client = getNexusClient();
-    const items = await client.list(dirPath);
-    return items.map((item) => {
-      const name = item.name || '';
-      const path = item.path || '';
-      // Return just the filename (from name field, extracted from path if needed)
-      if (name && !name.includes('/')) {
-        return name;
-      }
-      // If name contains path or is empty, extract from path
-      return (path || name).split('/').pop() || name;
-    });
-  } catch (error) {
-    mainError('SecurityHook', `Failed to list filenames in ${dirPath}:`, error);
-    return [];
-  }
-}
-
-/**
- * List all event files in event directory via Nexus RPC
- * Returns array of { filename, filePath, data }
- * @deprecated Use listEventFilenames() + readEventFile() for minimal API calls
- */
-export async function listEventFiles(): Promise<Array<{ filename: string; filePath: string; data: EventFileData | null }>> {
-  try {
-    const client = getNexusClient();
-    const items = await client.list(EVENT_DIR);
-
-    const files: Array<{ filename: string; filePath: string; data: EventFileData | null }> = [];
-
-    for (const item of items) {
-      const filePath = `${EVENT_DIR}/${item.name}`;
-      const data = await readEventFile(item.name);
-      files.push({ filename: item.name, filePath, data });
-    }
-
-    return files;
-  } catch (error) {
-    mainError('SecurityHook', 'Failed to list event files:', error);
-    return [];
-  }
-}
-
-/**
- * Delete a processed event file via Nexus RPC
+ * Delete an event file via Nexus RPC
  */
 export async function deleteEventFile(eventUuid: string): Promise<boolean> {
   try {
@@ -249,31 +261,21 @@ export async function deleteEventFile(eventUuid: string): Promise<boolean> {
 }
 
 /**
- * Check if a file exists via Nexus RPC
- */
-export async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    const client = getNexusClient();
-    return await client.exists(filePath);
-  } catch (error) {
-    mainError('SecurityHook', 'Failed to check file existence:', error);
-    return false;
-  }
-}
-
-/**
  * Check if action file exists for given event UUID
  */
 export async function actionExists(eventUuid: string): Promise<boolean> {
-  const filePath = `${ACTION_DIR}/${eventUuid}`;
-  return fileExists(filePath);
+  try {
+    const client = getNexusClient();
+    return await client.exists(`${ACTION_DIR}/${eventUuid}`);
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
  * Convert event file data to SafetyStatus
  */
 export function eventToSafetyStatus(eventUuid: string, data: EventFileData): SafetyStatus {
-  // Determine risk level based on event type and flags
   let level: RiskLevel = 'medium';
   let code = 'UNKNOWN_EVENT';
   let message = 'Unknown event detected';
@@ -287,7 +289,6 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
     const fileData = data.data as FileEventData;
     const flags = fileData.flags || [];
 
-    // Determine risk level based on file operation flags
     if (flags.includes('O_WRONLY') || flags.includes('O_RDWR')) {
       if (flags.includes('O_TRUNC')) {
         level = 'high';
@@ -314,7 +315,7 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
     const processData = data.data as ProcessEventData;
     code = 'PROCESS_EXEC';
     message = `Process execution: ${processData.command}${processData.args.length > 0 ? ' ' + processData.args.join(' ') : ''}`;
-    level = 'high'; // Process execution defaults to high risk
+    level = 'high';
   }
 
   return {

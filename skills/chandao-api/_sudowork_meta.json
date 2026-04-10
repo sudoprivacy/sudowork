@@ -1,0 +1,17 @@
+{
+  "id": "b7cf3b74-9abc-4ed3-bb99-6749cd2976b2",
+  "name": "chandao-api",
+  "display_name": "禅道",
+  "description": "禅道REST API v1集成。管理产品、项目、迭代、任务、Bug、需求等项目管理数据",
+  "icon": "icon.svg",
+  "emoji": "📋",
+  "category": "",
+  "categories": ["效率工具"],
+  "applicable_scenarios": "[\"项目管理：创建和管理产品、项目、迭代(Sprint)\",\"任务跟踪：创建、分配、开始、完成任务，记录工时\",\"缺陷管理：提交Bug、确认、解决、关闭，全生命周期管理\",\"需求管理：创建用户故事/需求，关联到迭代和任务\",\"进度查询：查看项目进度、迭代完成率、团队工作量\"]",
+  "core_features": "[{\"title\": \"任务管理\", \"desc\": \"创建、分配、跟踪任务全生命周期\"}, {\"title\": \"Bug管理\", \"desc\": \"Bug提交到关闭的完整工作流\"}, {\"title\": \"迭代管理\", \"desc\": \"Sprint规划、团队分配、进度跟踪\"}, {\"title\": \"浏览器自动化\", \"desc\": \"API不支持的操作通过浏览器完成\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-04-08T00:00:00.000Z"
+}

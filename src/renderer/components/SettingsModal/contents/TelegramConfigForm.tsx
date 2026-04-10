@@ -105,6 +105,25 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
+  // Load saved credentials for backfill
+  useEffect(() => {
+    // Only load if plugin has token configured and no token is currently entered
+    if (!pluginStatus?.hasToken || telegramToken) return;
+
+    const loadCredentials = async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'telegram_default' });
+        if (result.success && result.data?.token) {
+          setTelegramToken(result.data.token);
+        }
+      } catch (error) {
+        console.error('[TelegramConfig] Failed to load credentials:', error);
+      }
+    };
+
+    void loadCredentials();
+  }, [pluginStatus]);
+
   // Load available agents + saved selection
   useEffect(() => {
     const loadAgentsAndSelection = async () => {

@@ -589,12 +589,20 @@ const createWindow = (): void => {
   const fallbackFile = path.join(__dirname, '../renderer/index.html');
 
   if (!app.isPackaged && rendererUrl) {
-    mainWindow.loadURL(rendererUrl).catch((error) => {
-      console.error('[Sudowork] loadURL failed, falling back to file:', error.message || error);
-      mainWindow.loadFile(fallbackFile).catch((e2) => {
-        console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
+    const tryLoadURL = (attempt: number) => {
+      mainWindow.loadURL(rendererUrl).catch((error) => {
+        if (attempt < 5 && !mainWindow.isDestroyed()) {
+          console.warn(`[Sudowork] loadURL attempt ${attempt + 1} failed, retrying in 1s...`, error.message || error);
+          setTimeout(() => tryLoadURL(attempt + 1), 1000);
+        } else {
+          console.error('[Sudowork] loadURL failed after retries, falling back to file:', error.message || error);
+          mainWindow.loadFile(fallbackFile).catch((e2) => {
+            console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
+          });
+        }
       });
-    });
+    };
+    tryLoadURL(0);
   } else {
     mainWindow.loadFile(fallbackFile).catch((error) => {
       console.error('[Sudowork] loadFile failed:', error.message || error);
@@ -720,15 +728,16 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
-  try {
-    await initializeProcess();
-  } catch (error) {
-    console.error('Failed to initialize process:', error);
-    app.exit(1);
-    return;
-  }
-
   if (isResetPasswordMode) {
+    // Password reset and WebUI modes need initializeProcess() before proceeding
+    try {
+      await initializeProcess();
+    } catch (error) {
+      console.error('Failed to initialize process:', error);
+      app.exit(1);
+      return;
+    }
+
     // Handle password reset without creating window
     try {
       // Get username argument, filtering out flags (--xxx)
@@ -746,6 +755,14 @@ const handleAppReady = async (): Promise<void> => {
       app.exit(1);
     }
   } else if (isWebUIMode) {
+    try {
+      await initializeProcess();
+    } catch (error) {
+      console.error('Failed to initialize process:', error);
+      app.exit(1);
+      return;
+    }
+
     const userConfigInfo = loadUserWebUIConfig();
     if (userConfigInfo.exists && userConfigInfo.path) {
       // Config file loaded from user directory
@@ -765,18 +782,22 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
-    // Start ACP detection immediately but do NOT await it before createWindow().
-    // Detection calls execSync for every potential CLI (claude, gemini, goose …) and
-    // on Windows each call can block the Node.js event loop for up to 1 s.
-    // With 10+ CLIs that adds up to 10+ s of frozen UI before the window appears.
-    //
-    // Sudoclaw is always inserted into the detected list unconditionally (no execSync
-    // needed), so it will show up immediately.  Other agents (claude, gemini, …) may
-    // appear slightly later once detection finishes and the renderer's SWR revalidates
-    // on window focus - this is an acceptable trade-off.
+    // PERF: Create window FIRST so user sees the InitLoading UI immediately (~200ms),
+    // then initialize backend in parallel. The renderer's InitContext uses exponential
+    // backoff retry for IPC calls, so it gracefully handles bridges not being ready yet.
+    createWindow();
+
+    // Start backend initialization in parallel with window rendering
+    const initDone = initializeProcess().catch((error) => {
+      console.error('Failed to initialize process:', error);
+      app.exit(1);
+    });
+
+    // Start ACP detection in background (uses execSync internally, which blocks event loop)
     const acpDetectionDone = initializeAcpDetector();
 
-    createWindow();
+    // Wait for backend initialization to complete before proceeding with tray/settings
+    await initDone;
 
     // Keep detection running in background; log when it finishes.
     void acpDetectionDone.then(() => {
@@ -794,7 +815,6 @@ const handleAppReady = async (): Promise<void> => {
 
         // 无论设置如何，启动时都创建托盘图标（确保图标常驻）
         // Regardless of setting, create tray icon on startup (ensure it's persistent)
-        await new Promise((resolve) => setTimeout(resolve, 100));
         createOrUpdateTray();
       } catch {
         // Ignore storage read errors, default to false

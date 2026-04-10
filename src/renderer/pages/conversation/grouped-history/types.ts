@@ -12,6 +12,11 @@ export type WorkspaceGroup = {
   conversations: TChatConversation[];
 };
 
+export type ScheduledGroup = {
+  jobName: string;
+  conversations: TChatConversation[]; // sorted newest-first
+};
+
 export type TimelineItem = {
   type: 'workspace' | 'conversation';
   time: number;
@@ -27,6 +32,7 @@ export type TimelineSection = {
 export type GroupedHistoryResult = {
   pinnedConversations: TChatConversation[];
   timelineSections: TimelineSection[];
+  scheduledGroups: ScheduledGroup[];
 };
 
 export type ExportZipFile = {

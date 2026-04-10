@@ -67,10 +67,18 @@ function hasDistEntry(pkgRoot: string): boolean {
   return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
 }
 
+/** Check if the esbuild-bundled openclaw.mjs exists (produced by bundle-openclaw.js) */
+function hasBundledEntry(pkgRoot: string): boolean {
+  return fs.existsSync(path.join(pkgRoot, 'openclaw.mjs'));
+}
+
 /**
  * Check if node_modules exists with correct platform-specific bindings.
  * Checks for the @snazzah/davey binding for the current platform/arch.
  * Returns false if the correct binding is missing (triggers npm install).
+ *
+ * In bundled mode (openclaw.mjs exists), only native bindings are required
+ * since JS dependencies like chalk are inlined into the bundle.
  */
 function hasNodeModules(pkgRoot: string): boolean {
   const nm = path.join(pkgRoot, 'node_modules');
@@ -81,7 +89,10 @@ function hasNodeModules(pkgRoot: string): boolean {
   const daveyPath = path.join(nm, daveyBinding);
   if (!fs.existsSync(daveyPath)) return false;
 
-  // Also check for chalk (dependency used by OpenClaw)
+  // In bundled mode, chalk and other JS deps are inlined - only native bindings matter
+  if (hasBundledEntry(pkgRoot)) return true;
+
+  // Legacy (unbundled) mode: also check for chalk
   const chalk = path.join(nm, 'chalk');
   return fs.existsSync(chalk);
 }
@@ -102,8 +113,19 @@ function getDaveyBindingName(): string {
 function checkPlatformDependencies(pkgRoot: string): boolean {
   const daveyBinding = getDaveyBindingName();
   const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
-  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
 
+  // In bundled mode, only native bindings are required
+  if (hasBundledEntry(pkgRoot)) {
+    if (fs.existsSync(daveyPath)) {
+      mainLog('Sudoclaw', 'Platform dependencies OK (bundled mode)');
+      return true;
+    }
+    mainWarn('Sudoclaw', `Platform dependencies missing (bundled mode): ${daveyPath}`);
+    return false;
+  }
+
+  // Legacy (unbundled) mode: check both native bindings and JS deps
+  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
   if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
     mainLog('Sudoclaw', 'Platform dependencies OK');
     return true;
@@ -118,9 +140,13 @@ function resolvePackageRootFrom(cliDir: string): string | null {
   const packageDir = path.join(cliDir, 'package');
   const pkgJson = path.join(packageDir, 'package.json');
   if (fs.existsSync(pkgJson)) return packageDir;
+  const launcherPath = path.join(packageDir, 'launcher.mjs');
+  if (fs.existsSync(launcherPath)) return packageDir;
   // Fallback: maybe extracted flat
   const flatPkg = path.join(cliDir, 'package.json');
   if (fs.existsSync(flatPkg)) return cliDir;
+  const flatLauncherPath = path.join(cliDir, 'launcher.mjs');
+  if (fs.existsSync(flatLauncherPath)) return cliDir;
   return null;
 }
 
@@ -382,6 +408,10 @@ function hasLauncher(pkgRoot: string): boolean {
   return fs.existsSync(path.join(pkgRoot, 'launcher.mjs'));
 }
 
+function getLauncherPath(pkgRoot: string): string {
+  return path.join(pkgRoot, 'launcher.mjs');
+}
+
 /** Check if bin wrapper exists in package (created at pack time) */
 function hasBinWrapper(pkgRoot: string): boolean {
   const binDir = path.join(pkgRoot, 'bin');
@@ -473,6 +503,17 @@ export function repairOpenClawConfig(): void {
   } catch {
     // ignore parse errors
   }
+
+  // Ensure workspace directory and USER.md safety rules exist on every startup.
+  // This covers scenarios where macOS upgrades or filesystem changes remove the
+  // workspace directory or USER.md file after the initial installation.
+  try {
+    fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    ensureUserMdSafetyRules();
+    ensureUserMdIdentityStatement();
+  } catch (err) {
+    mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function ensureDefaultConfig(): void {
@@ -509,6 +550,165 @@ function ensureDefaultConfig(): void {
     } catch {
       // ignore
     }
+  }
+}
+
+/** Marker used to identify the safety-rules section inside USER.md */
+const USER_MD_SAFETY_MARKER = '<!-- SUDOCLAW_DELETE_SAFETY_RULES -->';
+
+/** Marker used to identify the identity-statement section inside USER.md */
+const USER_MD_IDENTITY_MARKER = '<!-- SUDOCLAW_IDENTITY_STATEMENT -->';
+
+/**
+ * Update or insert a marker-based block in USER.md
+ * If marker exists, replace the entire block; if not, append it
+ */
+function updateMarkerBlock(existingContent: string, marker: string, newBlock: string): string {
+  if (!existingContent.includes(marker)) {
+    // Marker not found - append the new block
+    return existingContent + '\n' + newBlock;
+  }
+
+  // Find all markers in the file to determine boundaries
+  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER];
+  const markerPositions: { marker: string; pos: number }[] = [];
+
+  for (const m of markers) {
+    const pos = existingContent.indexOf(m);
+    if (pos !== -1) {
+      markerPositions.push({ marker: m, pos });
+    }
+  }
+
+  // Sort by position
+  markerPositions.sort((a, b) => a.pos - b.pos);
+
+  // Find the start position of the current marker's block
+  const currentMarkerIndex = markerPositions.findIndex((m) => m.marker === marker);
+  const startPos = markerPositions[currentMarkerIndex].pos;
+
+  // Find the end position (start of next marker block, or end of file)
+  let endPos: number;
+  if (currentMarkerIndex + 1 < markerPositions.length) {
+    endPos = markerPositions[currentMarkerIndex + 1].pos;
+  } else {
+    endPos = existingContent.length;
+  }
+
+  // Replace the block
+  const before = existingContent.substring(0, startPos);
+  const after = existingContent.substring(endPos);
+  return before + newBlock + after;
+}
+
+/**
+ * 文件删除安全规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "file deletion safety rules"
+ * section. If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ *
+ * This guarantees that fresh installs *and* upgrades always have the latest prompt.
+ */
+export function ensureUserMdSafetyRules(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const safetyRulesBlock = `
+${USER_MD_SAFETY_MARKER}
+## 文件删除安全规则 / File Deletion Safety Rules
+
+**中文：**
+
+在执行任何文件或文件夹删除操作前，必须先向用户确认。你需要：
+
+1. **停止操作**并告知用户即将删除的具体路径；
+2. **明确请求用户确认**（如：确认删除 /path/to/file？请回复"确认"或"取消"）；
+3. **等待用户明确同意**后才执行删除；
+4. 若用户**拒绝或未确认**，则放弃删除操作。
+
+此规则适用于所有删除场景：单文件删除、文件夹递归删除、批量删除、rm/rmdir/del 等命令。
+
+**English:**
+
+Before performing any file or folder deletion, you must first confirm with the user. You need to:
+
+1. **Stop the operation** and inform the user of the specific path to be deleted;
+2. **Explicitly request user confirmation** (e.g., "Confirm deletion of /path/to/file? Please reply 'confirm' or 'cancel'");
+3. **Wait for explicit user consent** before executing the deletion;
+4. If the user **refuses or does not confirm**, abandon the deletion operation.
+
+This rule applies to all deletion scenarios: single file deletion, recursive folder deletion, batch deletion, rm/rmdir/del commands, etc.
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      // USER.md does not exist — create it with a header + safety rules
+      const content = `# User\n${safetyRulesBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with file-deletion safety rules');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_SAFETY_MARKER, safetyRulesBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_SAFETY_MARKER)) {
+          mainLog('Sudoclaw', 'Updated file-deletion safety rules in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended file-deletion safety rules to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md safety rules', err);
+  }
+}
+
+/**
+ * 身份声明规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains an "identity statement"
+ * section. If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdIdentityStatement(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const identityBlock = `
+${USER_MD_IDENTITY_MARKER}
+## Identity Statement
+
+When users ask identity-related questions, respond uniformly in the user's language:
+
+**General identity questions** (e.g., "你是谁？", "Who are you?"):
+- **Chinese (中文)**: "我是你的SudoClaw智能助手，有什么需要帮助的吗？"
+- **English**: "I am your SudoClaw AI assistant. How can I help you?"
+
+**OpenClaw-related questions** (e.g., "你是OpenClaw吗？", "Are you OpenClaw?", "你和OpenClaw是什么关系？", "What is your relationship with OpenClaw?", "你的底层是OpenClaw吗？", "Is your backend OpenClaw?"):
+- **Chinese (中文)**: "我是SudoClaw智能助手。OpenClaw是SudoClaw平台中的AI引擎组件之一。SudoClaw是一个个人AI助手平台，有什么可以帮助你的吗？"
+- **English**: "I am the SudoClaw AI assistant. OpenClaw is one of the AI engine components within the SudoClaw platform. SudoClaw is a personal AI assistant platform. How can I help you?"
+
+Response guidelines:
+- 简洁明确，直接告知用户身份 / Be concise and clear
+- 保持友好、专业的态度 / Maintain a friendly, professional attitude
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${identityBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with identity statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_IDENTITY_MARKER, identityBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_IDENTITY_MARKER)) {
+          mainLog('Sudoclaw', 'Updated identity statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended identity statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md identity statement', err);
   }
 }
 
@@ -572,20 +772,18 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureDefaultConfig();
   repairOpenClawConfig();
   fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+  ensureUserMdSafetyRules();
+  ensureUserMdIdentityStatement();
 
   const pkgRoot = resolvePackageRoot();
 
   // Check if already fully installed with all required files (tgz includes launcher and bin)
-  if (!forceReinstall && pkgRoot && hasDistEntry(pkgRoot) && hasNodeModules(pkgRoot) && hasLauncher(pkgRoot) && hasBinWrapper(pkgRoot)) {
-    if (checkPlatformDependencies(pkgRoot)) {
-      if (!isSudoclawInstallManifestCurrent()) {
-        writeSudoclawInstallManifest();
-      }
-      mainLog('Sudoclaw', 'Already installed');
-      const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-      return { installed: true, cliPath: path.join(pkgRoot, 'bin', binName) };
+  if (!forceReinstall && pkgRoot && hasLauncher(pkgRoot)) {
+    if (!isSudoclawInstallManifestCurrent()) {
+      writeSudoclawInstallManifest();
     }
-    mainLog('Sudoclaw', 'Platform dependencies missing, will re-extract...');
+    mainLog('Sudoclaw', 'Existing launcher detected, skipping re-extract');
+    return { installed: true, cliPath: getLauncherPath(pkgRoot) };
   }
 
   try {
@@ -625,7 +823,8 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     }
 
     if (!checkPlatformDependencies(newPkgRoot)) {
-      const error = `Platform dependencies missing after extraction (${getDaveyBindingName()}, chalk)`;
+      const deps = hasBundledEntry(newPkgRoot) ? getDaveyBindingName() : `${getDaveyBindingName()}, chalk`;
+      const error = `Platform dependencies missing after extraction (${deps})`;
       mainError('Sudoclaw', error);
       return { installed: false, cliPath: null, error };
     }
@@ -642,6 +841,8 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureDefaultConfig();
     repairOpenClawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    ensureUserMdSafetyRules();
+    ensureUserMdIdentityStatement();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
@@ -663,11 +864,10 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
 /** Get the Sudoclaw CLI path if installed */
 export function getSudoclawCliPath(): string | null {
   const pkgRoot = resolvePackageRoot();
-  if (!pkgRoot || !hasDistEntry(pkgRoot) || !hasNodeModules(pkgRoot) || !hasLauncher(pkgRoot) || !hasBinWrapper(pkgRoot)) {
+  if (!pkgRoot || !hasLauncher(pkgRoot)) {
     return null;
   }
-  const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-  return path.join(pkgRoot, 'bin', binName);
+  return getLauncherPath(pkgRoot);
 }
 
 /**

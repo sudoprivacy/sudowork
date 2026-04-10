@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -11,6 +11,8 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
+import { emitter } from './utils/emitter';
+import { ConfigStorage } from '@/common/storage';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -46,6 +48,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
     { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
     { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
+    { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
   ];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
@@ -116,6 +119,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
@@ -133,6 +140,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();

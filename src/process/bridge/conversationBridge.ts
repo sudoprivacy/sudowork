@@ -15,28 +15,54 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
-import { getSkillsDir, getBuiltinSkillsDir, ProcessChat } from '../initStorage';
+import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage } from '../task/agentUtils';
+import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
+import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
-async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined): Promise<void> {
-  if (!shouldSyncWorkspaceSkills(conversation)) return;
+async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
   const workspace = conversation.extra.workspace;
   const startedAt = Date.now();
+  const latestEnabledSkills = await resolveLatestConversationEnabledSkills(conversation);
 
-  const workspaceSkillsDir = path.join(workspace, 'skills');
+  if (conversation?.id && !areSkillSelectionsEqual(conversation.extra?.enabledSkills, latestEnabledSkills)) {
+    const db = getDatabase();
+    const updateResult = db.updateConversation(conversation.id, {
+      extra: {
+        ...conversation.extra,
+        enabledSkills: latestEnabledSkills,
+      },
+    } as Partial<TChatConversation>);
+
+    if (!updateResult.success) {
+      mainWarn('ConversationSkillSync', `Failed to refresh enabled skills cache for conversation ${conversation.id}: ${updateResult.error}`);
+    } else {
+      conversation = {
+        ...conversation,
+        extra: {
+          ...conversation.extra,
+          enabledSkills: latestEnabledSkills,
+        },
+      };
+    }
+  }
+
+  const workspaceSkillsDir = resolveWorkspaceSkillsDir(conversation);
+  if (!workspaceSkillsDir) return;
   await fs.mkdir(workspaceSkillsDir, { recursive: true });
 
-  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), resolveConversationEnabledSkillNames(conversation));
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), resolveConversationEnabledSkillNames(conversation, requestedSkillNames));
   const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
   const existingNames = new Set(existingEntries.map((entry) => entry.name));
   let removedCount = 0;
@@ -130,30 +156,6 @@ function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation 
     });
 
   workspaceSkillSyncTasks.set(workspace, task);
-}
-
-/**
- * Discover builtin skill names by listing _builtin/ directory entries that have SKILL.md.
- */
-async function discoverBuiltinSkillNames(): Promise<string[]> {
-  const builtinDir = getBuiltinSkillsDir();
-  try {
-    const entries = await fs.readdir(builtinDir, { withFileTypes: true });
-    const names: string[] = [];
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        try {
-          await fs.access(path.join(builtinDir, entry.name, 'SKILL.md'));
-          names.push(entry.name);
-        } catch {
-          /* no SKILL.md, skip */
-        }
-      }
-    }
-    return names;
-  } catch {
-    return [];
-  }
 }
 
 export function initConversationBridge(): void {
@@ -689,10 +691,13 @@ export function initConversationBridge(): void {
         },
       }).then((res) => (res ? [res] : []));
     } catch (error) {
-      if (error instanceof Error && error.message.includes('aborted')) {
-        return [];
+      // Always return [] on error — throwing from a bridge provider
+      // leaves the renderer invoke() promise hanging forever because
+      // the bridge subscribe handler has no .catch() on the provider call.
+      if (error instanceof Error && !error.message.includes('aborted')) {
+        mainWarn('conversationBridge', 'getWorkspace failed:', error.message);
       }
-      throw error;
+      return [];
     }
   });
 
@@ -842,16 +847,22 @@ export function initConversationBridge(): void {
     // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
     let presetContext: string | undefined;
     let enabledSkills: string[] | undefined;
+    let conversation: TChatConversation | undefined;
     try {
       const db = getDatabase();
       const convResult = db.getConversation(conversation_id);
       if (convResult.success && convResult.data) {
-        presetContext = convResult.data.extra?.presetContext;
-        enabledSkills = convResult.data.extra?.enabledSkills;
+        conversation = convResult.data;
+        presetContext = conversation.extra?.presetContext;
+        enabledSkills = await resolveLatestConversationEnabledSkills(conversation);
       }
     } catch {
       // ignore
     }
+
+    // Ensure workspace skills symlinks exist before dispatching to the gateway.
+    // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
+    await syncConversationWorkspaceSkills(conversation, other.skills);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
@@ -866,17 +877,15 @@ export function initConversationBridge(): void {
       if (task.type === 'openclaw-gateway') {
         let agentContent = other.input;
 
-        // Inject preset context and full skills content (OpenClaw's LLM can't read files on its own)
-        // 注入预设上下文和完整技能内容（OpenClaw 的 LLM 无法自行读取文件）
-        const builtinSkillNames = await discoverBuiltinSkillNames();
-        const userSkills = other.skills?.length ? other.skills : enabledSkills || [];
-        const allSkills = [...new Set([...builtinSkillNames, ...userSkills])];
-        agentContent = await prepareFirstMessage(agentContent, {
+        const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
+        agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
           presetContext,
-          enabledSkills: allSkills,
+          enabledSkills: skillsToInject,
         });
-        const skillsDir = getSkillsDir();
-        agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
+        const skillsDir = resolveWorkspaceSkillsDir(conversation);
+        if (skillsDir) {
+          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir);
+        }
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
           const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;

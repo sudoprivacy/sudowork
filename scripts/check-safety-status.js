@@ -33,36 +33,44 @@ function decodeBase64(data) {
 async function main() {
   console.log('=== Safety Hook Status ===\n');
 
-  // 1. Check if safety hook is enabled
-  console.log('1. Safety Hook Enabled State (/safe/config/enabled):');
+  // 1. Check unified hook config (enabled state + blacklist)
+  console.log('1. Unified Hook Config (/safe/config/hook):');
   try {
-    const enabledResult = await callRPC('read', { path: '/safe/config/enabled' });
-    if (enabledResult && enabledResult.__type__ === 'bytes') {
-      const content = decodeBase64(enabledResult.data);
-      console.log(`   ${content}`);
-    } else if (enabledResult && enabledResult.content) {
-      const content = Buffer.isBuffer(enabledResult.content)
-        ? enabledResult.content.toString()
-        : decodeBase64(enabledResult.content);
-      console.log(`   ${content}`);
-    } else {
-      console.log('   (not found)');
-    }
-  } catch (e) {
-    console.log('   (not found)');
-  }
-
-  // 2. Check blacklist config
-  console.log('\n2. Blacklist Config (/safe/config/blacklist):');
-  try {
-    const blacklistResult = await callRPC('read', { path: '/safe/config/blacklist' });
-    if (blacklistResult && blacklistResult.__type__ === 'bytes') {
-      const content = decodeBase64(blacklistResult.data);
+    const configResult = await callRPC('read', { path: '/safe/config/hook' });
+    if (configResult && configResult.__type__ === 'bytes') {
+      const content = decodeBase64(configResult.data);
       const config = JSON.parse(content);
-      console.log(`   Rules count: ${config.rules?.length || 0}`);
-      if (config.rules?.length > 0) {
-        config.rules.forEach((rule, i) => {
-          console.log(`   [${i + 1}] ${rule.type}: ${rule.pattern} (${rule.enabled ? 'enabled' : 'disabled'})`);
+      console.log(`   Enabled: ${config.enabled}`);
+      console.log(`   FastPass: ${config.fastPass}`);
+      if (config.timestamp) {
+        const date = new Date(config.timestamp);
+        console.log(`   Timestamp: ${date.toISOString()}`);
+      }
+      // Show blacklist info
+      const blacklist = config.blacklist || { rules: [] };
+      console.log(`   Blacklist Rules: ${blacklist.rules?.length || 0}`);
+      if (blacklist.rules?.length > 0) {
+        blacklist.rules.forEach((rule, i) => {
+          console.log(`     [${i + 1}] ${rule.type}: ${rule.pattern} (${rule.enabled ? 'enabled' : 'disabled'})`);
+        });
+      }
+    } else if (configResult && configResult.content) {
+      const content = Buffer.isBuffer(configResult.content)
+        ? configResult.content.toString()
+        : decodeBase64(configResult.content);
+      const config = JSON.parse(content);
+      console.log(`   Enabled: ${config.enabled}`);
+      console.log(`   FastPass: ${config.fastPass}`);
+      if (config.timestamp) {
+        const date = new Date(config.timestamp);
+        console.log(`   Timestamp: ${date.toISOString()}`);
+      }
+      // Show blacklist info
+      const blacklist = config.blacklist || { rules: [] };
+      console.log(`   Blacklist Rules: ${blacklist.rules?.length || 0}`);
+      if (blacklist.rules?.length > 0) {
+        blacklist.rules.forEach((rule, i) => {
+          console.log(`     [${i + 1}] ${rule.type}: ${rule.pattern} (${rule.enabled ? 'enabled' : 'disabled'})`);
         });
       }
     } else {
@@ -72,8 +80,8 @@ async function main() {
     console.log('   (not found or parse error)');
   }
 
-  // 3. List event files
-  console.log('\n3. Event Files (/safe/event):');
+  // 2. List event files
+  console.log('\n2. Event Files (/safe/event):');
   try {
     const eventResult = await callRPC('list', { path: '/safe/event' });
     if (eventResult && eventResult.files) {
@@ -94,8 +102,8 @@ async function main() {
     console.log('   (not found)');
   }
 
-  // 4. List action files
-  console.log('\n4. Action Files (/safe/action):');
+  // 3. List action files
+  console.log('\n3. Action Files (/safe/action):');
   try {
     const actionResult = await callRPC('list', { path: '/safe/action' });
     if (actionResult && actionResult.files) {

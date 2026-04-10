@@ -12,6 +12,7 @@ import { AnthropicRotatingClient, type AnthropicClientConfig } from './adapters/
 import type { RotatingApiClientOptions } from './RotatingApiClient';
 import { getProviderAuthType } from './utils/platformAuthType';
 import { isNewApiPlatform } from './utils/platformConstants';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 
 export interface ClientOptions {
   timeout?: number;
@@ -68,6 +69,10 @@ export class ClientFactory {
     const isNewApi = isNewApiPlatform(provider.platform);
     const baseUrl = isNewApi ? normalizeNewApiBaseUrl(provider.baseUrl, authType) : provider.baseUrl;
 
+    // Resolve API key from Nexus cache, fallback to provider.apiKey if not migrated
+    // After migration, Nexus is the source of truth - ConfigStorage is frozen
+    const cachedApiKey = resolveSecret(`provider:${provider.id}`, 'api_key', provider.apiKey);
+
     switch (authType) {
       case AuthType.USE_OPENAI: {
         const clientConfig: OpenAIClientConfig = {
@@ -86,7 +91,7 @@ export class ClientFactory {
           clientConfig.httpAgent = new HttpsProxyAgent(options.proxy);
         }
 
-        return new OpenAIRotatingClient(provider.apiKey, clientConfig, rotatingOptions);
+        return new OpenAIRotatingClient(cachedApiKey, clientConfig, rotatingOptions);
       }
 
       case AuthType.USE_GEMINI: {
@@ -96,7 +101,7 @@ export class ClientFactory {
           ...(options.baseConfig as GeminiClientConfig),
         };
 
-        return new GeminiRotatingClient(provider.apiKey, clientConfig, rotatingOptions, authType);
+        return new GeminiRotatingClient(cachedApiKey, clientConfig, rotatingOptions, authType);
       }
 
       case AuthType.USE_VERTEX_AI: {
@@ -106,7 +111,7 @@ export class ClientFactory {
           ...(options.baseConfig as GeminiClientConfig),
         };
 
-        return new GeminiRotatingClient(provider.apiKey, clientConfig, rotatingOptions, authType);
+        return new GeminiRotatingClient(cachedApiKey, clientConfig, rotatingOptions, authType);
       }
 
       case AuthType.USE_ANTHROPIC: {
@@ -117,7 +122,7 @@ export class ClientFactory {
           ...(options.baseConfig as AnthropicClientConfig),
         };
 
-        return new AnthropicRotatingClient(provider.apiKey, clientConfig, rotatingOptions);
+        return new AnthropicRotatingClient(cachedApiKey, clientConfig, rotatingOptions);
       }
 
       default: {
@@ -138,7 +143,7 @@ export class ClientFactory {
           clientConfig.httpAgent = new HttpsProxyAgent(options.proxy);
         }
 
-        return new OpenAIRotatingClient(provider.apiKey, clientConfig, rotatingOptions);
+        return new OpenAIRotatingClient(cachedApiKey, clientConfig, rotatingOptions);
       }
     }
   }

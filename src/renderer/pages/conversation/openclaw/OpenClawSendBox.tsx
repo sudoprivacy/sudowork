@@ -31,6 +31,7 @@ import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 import { AIProcessingContext } from './OpenClawChat';
 
 interface OpenClawDraftData {
@@ -93,13 +94,14 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const OpenClawSendBox: React.FC<{ 
-  conversation_id: string; 
+const OpenClawSendBox: React.FC<{
+  conversation_id: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, onAiProcessingChange }) => {
   const aiProcessingContext = React.useContext(AIProcessingContext);
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
+  const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
@@ -714,6 +716,7 @@ const OpenClawSendBox: React.FC<{
           // Store skills in ref or state if needed for session management
           // For now, they're passed directly to onSend
         }}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

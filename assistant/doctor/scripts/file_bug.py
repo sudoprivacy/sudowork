@@ -1,23 +1,28 @@
 """File a bug: create GitHub issue + notify Feishu Engineering.
 
-This op automates the L3 bug-filing procedure. It does NOT use the
-browser tab — it runs shell commands (gh, npx) directly.
+This is a standalone CLI script. It does NOT use the browser — it runs
+shell commands (gh, npx) directly.
+
+Usage:
+    python assistant/doctor/scripts/file_bug.py --title "Bug title" --body "Description"
+    python assistant/doctor/scripts/file_bug.py --title "Test" --body "Test" --dry-run
 """
 
-import asyncio
+import argparse
+import json
 import os
 import subprocess
+import sys
 
 
-async def file_bug(tab, title: str, body: str, screenshot: str = None,
-                   repo: str = "sudoprivacy/sudowork",
-                   feishu_chat: str = "oc_69746e233ba561ec748a6371e737501b",
-                   label: str = "bug",
-                   dry_run: bool = False) -> dict:
+def file_bug(title: str, body: str, screenshot: str = None,
+             repo: str = "sudoprivacy/sudowork",
+             feishu_chat: str = "oc_69746e233ba561ec748a6371e737501b",
+             label: str = "bug",
+             dry_run: bool = False) -> dict:
     """Create a GitHub issue and notify Feishu Engineering channel.
 
     Args:
-        tab: Browser tab (unused, kept for runner signature consistency)
         title: Issue title
         body: Issue body (markdown)
         screenshot: Optional screenshot path to reference in issue body
@@ -74,3 +79,26 @@ async def file_bug(tab, title: str, body: str, screenshot: str = None,
             pass  # Notification failure is non-fatal
 
     return {"issue_url": issue_url, "notified": notified}
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="File a bug as a GitHub issue")
+    parser.add_argument("--title", required=True, help="Issue title")
+    parser.add_argument("--body", required=True, help="Issue body (markdown)")
+    parser.add_argument("--screenshot", help="Screenshot path to reference")
+    parser.add_argument("--repo", default="sudoprivacy/sudowork", help="GitHub repo")
+    parser.add_argument("--label", default="bug", help="Issue label")
+    parser.add_argument("--dry-run", action="store_true", help="Print commands without executing")
+
+    args = parser.parse_args()
+    result = file_bug(
+        title=args.title,
+        body=args.body,
+        screenshot=args.screenshot,
+        repo=args.repo,
+        label=args.label,
+        dry_run=args.dry_run,
+    )
+    print(json.dumps(result, indent=2))
+    if "error" in result:
+        sys.exit(1)

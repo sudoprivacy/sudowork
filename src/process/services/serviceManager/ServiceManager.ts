@@ -5,10 +5,13 @@
  */
 
 import { app } from 'electron';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
+import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
+import { runtimeInstaller } from './RuntimeInstaller';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
 
@@ -39,6 +42,10 @@ class ServiceManager {
   // Deferred promise resolved when the gateway is ready (or failed).
   private gatewayReadyResolve: ((value: { host: string; port: number } | null) => void) | null = null;
   private gatewayReadyPromise: Promise<{ host: string; port: number } | null> | null = null;
+
+  // Deferred promise resolved when secrets are initialized (or failed).
+  private secretsReadyResolve: ((value: boolean) => void) | null = null;
+  private secretsReadyPromise: Promise<boolean> | null = null;
 
   private buildSudoclawStartDiagnostics(lastHealth: SudoclawHealthCheckResult): {
     launchCommand: ReturnType<OpenClawGateway['getLastLaunchCommand']>;
@@ -76,12 +83,15 @@ class ServiceManager {
     }
 
     this.startupInProgress = true;
+    runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
-    initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
-    initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+
+    if (initStatusManager.getStatus().displayMode === 'startup') {
+      initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
+      initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+    }
 
     try {
-      const { runtimeInstaller } = await import('./RuntimeInstaller');
       const ok = await runtimeInstaller.ensureAll({
         startSudoclaw: this.startOpenClawForStartup.bind(this),
         startNexus: this.startNexusForStartup.bind(this),
@@ -146,19 +156,14 @@ class ServiceManager {
   private async startNexusWithRetries(): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
-    if (!dynamicNexusService.hasBundledResource()) {
-      mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-      initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-      return;
-    }
-
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
-          initStatusManager.setStepState('nexus', 'active', phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
+          initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
           await this.startNexusOnce();
           return;
@@ -187,11 +192,6 @@ class ServiceManager {
   private async startNexusOnce(): Promise<void> {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-      if (!dynamicNexusService.hasBundledResource()) {
-        mainLog('ServiceManager', 'Nexus bundle not included in this build, skipping startup.');
-        initStatusManager.setStepProgress('nexus', 100, '当前构建未包含 Nexus，已跳过');
-        return;
-      }
 
       if (!(await dynamicNexusService.checkInstalled())) {
         throw new Error('Nexus runtime is missing after startup installation');
@@ -212,8 +212,21 @@ class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
+
+      // Initialize secrets system after Nexus is healthy
+      // This runs migration (if needed) and preloads the secret cache
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
+      });
+      this.initializeSecrets()
+        .then(() => this.secretsReadyResolve?.(true))
+        .catch((err) => {
+          mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
+          this.secretsReadyResolve?.(false);
+        });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
+      this.secretsReadyResolve?.(false);
       throw err;
     }
   }
@@ -227,6 +240,23 @@ class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  /**
+   * Initialize the secrets system after Nexus is healthy.
+   * This runs the migration coordinator and preloads the secret cache.
+   */
+  private async initializeSecrets(): Promise<void> {
+    try {
+      const { initializeSecrets } = await import('@common/nexus/secret-migration');
+      mainLog('ServiceManager', 'Initializing secrets system...');
+      await initializeSecrets();
+      mainLog('ServiceManager', 'Secrets system initialized');
+    } catch (err) {
+      // Don't throw - secrets initialization failure should not block startup
+      // The system can operate in fallback mode without the secrets cache
+      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
     }
   }
 
@@ -255,7 +285,8 @@ class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(17863, 'Sudoclaw');
-          initStatusManager.setStepState('sudoclaw', 'active', phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`);
+          const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Sudoclaw 服务...' : '正在启动 Sudoclaw 服务...';
+          initStatusManager.setStepState('sudoclaw', 'active', startupDetail);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
           await this.startOpenClawOnce();
           return;
@@ -289,7 +320,7 @@ class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -321,11 +352,50 @@ class ServiceManager {
       initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
       mainLog('ServiceManager', 'Sudoclaw gateway started successfully');
       this.gatewayReadyResolve?.({ host: 'localhost', port: SUDOCLAW_DEFAULT_PORT });
+
+      // Ensure USER.md safety rules after Sudoclaw starts.
+      // Sudoclaw may create a default USER.md template on first run, which could
+      // overwrite rules written before startup. Run again after gateway is healthy.
+      try {
+        fs.mkdirSync(path.join(SUDOCLAW_DIR, 'workspace'), { recursive: true });
+        ensureUserMdSafetyRules();
+        ensureUserMdIdentityStatement();
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
+      }
+
+      // Sync image model from sudowork config to sudoclaw.json on every startup.
+      // Covers first-time (no prior user interaction) and ensures sudoclaw.json stays in sync.
+      void this.syncImageModelToSudoclaw(SUDOCLAW_CONFIG_PATH);
     } catch (err) {
       mainError('ServiceManager', 'Sudoclaw gateway start failed', err);
       // Resolve with null so waiters don't hang forever.
       this.gatewayReadyResolve?.(null);
       throw err;
+    }
+  }
+
+  private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
+    try {
+      const { ProcessConfig } = await import('@/process/initStorage');
+      const { DEFAULT_IMAGE_MODEL } = await import('@/common/storage');
+      const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
+      // If no config saved yet (first run), treat as default: switch on with DEFAULT_IMAGE_MODEL.
+      const switchOn = imageConfig ? imageConfig.switch : true;
+      const useModel = imageConfig?.useModel || DEFAULT_IMAGE_MODEL;
+      const modelId = switchOn && useModel ? useModel : null;
+
+      const fs = await import('fs');
+      if (!fs.existsSync(sudoclawConfigPath)) return;
+      const raw = fs.readFileSync(sudoclawConfigPath, 'utf-8');
+      const config = JSON.parse(raw);
+      if (!config.agents) config.agents = { defaults: {} };
+      if (!config.agents.defaults) config.agents.defaults = {};
+      config.agents.defaults.imageModel = modelId ?? '';
+      fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+      mainLog('ServiceManager', 'Synced image model to sudoclaw.json on startup:', modelId);
+    } catch (err) {
+      mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
   }
 
@@ -511,12 +581,12 @@ class ServiceManager {
 
     while (Date.now() < deadline) {
       const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
-      const nexusHealthyPromise = dynamicNexusService.hasBundledResource() ? dynamicNexusService.checkActualRunning() : Promise.resolve(true);
+      const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
         { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
-        { name: 'Nexus', ok: dynamicNexusService.hasBundledResource() ? nexusHealthy : true },
+        { name: 'Nexus', ok: nexusHealthy },
       ];
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
@@ -587,6 +657,27 @@ class ServiceManager {
     return this.gatewayReadyPromise;
   }
 
+  /**
+   * Wait for the secrets system to be initialized.
+   * Channel plugins call this before loading to ensure credentials are available.
+   * Polls until the promise is created (Nexus may still be starting),
+   * then awaits its resolution.
+   */
+  async waitForSecrets(): Promise<boolean> {
+    // Poll until the promise is created by startNexusOnce()
+    const POLL_INTERVAL_MS = 200;
+    const MAX_POLL_MS = 120_000;
+    const deadline = Date.now() + MAX_POLL_MS;
+    while (!this.secretsReadyPromise && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+    if (!this.secretsReadyPromise) {
+      // Timeout or startup never reached secrets initialization.
+      return false;
+    }
+    return this.secretsReadyPromise;
+  }
+
   /** Send SIGUSR1 to the gateway for hot-reload (skills/config). */
   sendReloadSignal(): void {
     this.gateway?.sendReloadSignal();
@@ -604,7 +695,7 @@ class ServiceManager {
     try {
       const { SafetyPollingService } = await import('../safety/SafetyPollingService');
       const service = SafetyPollingService.getInstance();
-      void service.start({ pollingIntervalMs: 3000 });
+      void service.start({ pollingIntervalMs: 3000 }, false);
     } catch (err) {
       mainError('ServiceManager', 'Failed to start SafetyPollingService', err);
     }

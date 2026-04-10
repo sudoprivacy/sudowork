@@ -5,24 +5,25 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import { SKILL_SUBDIRS } from '@/process/constants/skillStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import path from 'path';
+import { normalizeSkillNames } from './conversationAssistantSkills';
 
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
-export function resolveConversationEnabledSkillNames(conversation?: TChatConversation): Set<string> | undefined {
+export function resolveConversationEnabledSkillNames(conversation?: TChatConversation, requestedSkillNames?: readonly string[]): Set<string> | undefined {
   const rawEnabledSkills = conversation?.extra?.enabledSkills;
-  if (!Array.isArray(rawEnabledSkills)) {
+
+  const normalizedEnabledSkills = normalizeSkillNames(rawEnabledSkills);
+  const normalizedRequestedSkills = normalizeSkillNames(requestedSkillNames);
+
+  if (!Array.isArray(rawEnabledSkills) && normalizedRequestedSkills.length === 0) {
     return undefined;
   }
 
-  return new Set(
-    rawEnabledSkills
-      .filter((skill): skill is string => typeof skill === 'string')
-      .map((skill) => skill.trim())
-      .filter(Boolean)
-  );
+  return new Set([...normalizedEnabledSkills, ...normalizedRequestedSkills]);
 }
 
 export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillNames?: ReadonlySet<string>): Promise<Map<string, string>> {
@@ -64,20 +65,35 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
       return;
     }
 
-    targets.set(skillName, skillDir);
+    // Only set if not already present (first match wins = higher priority)
+    if (!targets.has(skillName)) {
+      targets.set(skillName, skillDir);
+    }
+  };
+
+  // 扫描子目录（排除 _disable 目录）
+  const scanSubdir = async (subdirName: string, forceBuiltin: boolean): Promise<void> => {
+    const dir = path.join(skillsDir, subdirName);
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      // 跳过 _disable 目录（禁用技能）
+      if (entry.name === '_disable') continue;
+      await addSkillDir(entry.name, path.join(dir, entry.name), forceBuiltin);
+    }
   };
 
   try {
-    const builtinDir = path.join(skillsDir, '_builtin');
-    const builtinEntries = await fs.readdir(builtinDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
-    for (const entry of builtinEntries) {
-      if (!entry.isDirectory()) continue;
-      await addSkillDir(entry.name, path.join(builtinDir, entry.name), true);
-    }
+    // Scan in priority order: custom > hub > system
+    // For same-name skills, first match wins (higher priority)
+    await scanSubdir(SKILL_SUBDIRS.custom, false);
+    await scanSubdir(SKILL_SUBDIRS.hub, false);
+    await scanSubdir(SKILL_SUBDIRS.system, false);
 
+    // Legacy: scan flat directories for backward compatibility
     const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name === '_builtin') continue;
+      if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
       await addSkillDir(entry.name, path.join(skillsDir, entry.name), false);
     }
   } catch (error) {

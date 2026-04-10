@@ -20,10 +20,12 @@ import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
 import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
+import CronSettings from '../settings/CronSettings';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
+import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
@@ -37,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { skillHub } from '@/common/ipcBridge';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
@@ -120,22 +123,30 @@ const GuidPage: React.FC = () => {
     locationState: location.state as { workspace?: string } | null,
   });
 
-  // 转换已安装技能为选择器项
-  const skillSelectorItems = useMemo<SkillSelectorItem[]>(
-    () =>
-      installedSkills.map((skill) => {
-        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-        return {
-          name: skill.name,
-          displayName,
-          description,
-          icon: icon || resolveSkillIcon(skill.meta?.icon),
-          emoji,
-          enabled: skill.enabled,
-        };
-      }),
-    [installedSkills]
-  );
+  // 获取当前选中助手的 enabledSkills 列表
+  const agentEnabledSkills = useMemo(() => {
+    return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
+  }, [agentSelection.selectedAgentInfo, agentSelection.resolveEnabledSkills]);
+
+  // 转换已安装技能为选择器项（根据选中助手过滤）
+  const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
+    const items = installedSkills.map((skill) => {
+      const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+      return {
+        name: skill.name,
+        displayName,
+        description,
+        icon: icon || resolveSkillIcon(skill.meta?.icon),
+        emoji,
+        enabled: skill.enabled,
+      };
+    });
+    // 如果当前助手指定了关联技能列表，则只显示关联的技能
+    if (agentEnabledSkills && agentEnabledSkills.length > 0) {
+      return items.filter((item) => agentEnabledSkills.includes(item.name));
+    }
+    return items;
+  }, [installedSkills, agentEnabledSkills]);
 
   // 技能选择器控制器
   const skillSelectorController = useSkillSelectorController({
@@ -213,12 +224,42 @@ const GuidPage: React.FC = () => {
     setMentionSelectorOpen: mention.setMentionSelectorOpen,
     setMentionActiveIndex: mention.setMentionActiveIndex,
 
+    // Agent/skills reset
+    resetAgentSelection: agentSelection.resetSelection,
+    setSelectedSkills,
+
     // Navigation & tabs
     navigate,
     closeAllTabs,
     openTab,
     t,
   });
+
+  // 监听 guid.reset 事件，重置所有用户输入状态（新建会话时触发）
+  const handleGuidReset = useCallback(() => {
+    // 重置输入内容
+    guidInput.setInput('');
+    guidInput.setFiles([]);
+    guidInput.setDir('');
+    // 重置助手选择
+    agentSelection.resetSelection();
+    // 重置技能选择
+    setSelectedSkills([]);
+    // 重置 mention 状态
+    mention.setMentionOpen(false);
+    mention.setMentionQuery(null);
+    mention.setMentionSelectorVisible(false);
+    mention.setMentionSelectorOpen(false);
+    mention.setMentionActiveIndex(0);
+  }, [guidInput, agentSelection, mention]);
+
+  useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
+
+  // 通过 @ 按钮触发技能选择器
+  const handleTriggerSkillSelector = useCallback(() => {
+    guidInput.setInput('@');
+    guidInput.handleTextareaFocus();
+  }, [guidInput.setInput, guidInput.handleTextareaFocus]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -353,6 +394,7 @@ const GuidPage: React.FC = () => {
       customAgents={agentSelection.customAgents}
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey('gemini')}
+      onTriggerSkillSelector={handleTriggerSkillSelector}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
@@ -376,6 +418,7 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'agent' && <AgentSettings />}
             {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
+            {selectedMenu === 'cron' && <CronSettings />}
           </div>
         ) : (
           /* 正常会话区域 */
@@ -385,6 +428,14 @@ const GuidPage: React.FC = () => {
             </p>
 
             {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+
+            <PromptTemplates
+              visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
+              onSelectPrompt={(content) => {
+                guidInput.setInput(content);
+                guidInput.handleTextareaFocus();
+              }}
+            />
 
             <GuidInputCard
               input={guidInput.input}

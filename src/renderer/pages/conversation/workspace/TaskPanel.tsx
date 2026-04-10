@@ -744,14 +744,15 @@ const DagCardList: React.FC<{
 
 export interface TaskPanelProps {
   workspaceFiles?: IDirOrFile[];
+  workspace: string;
 }
 
-const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
+const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], workspace }) => {
   const [fullscreen, setFullscreen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [hasScrollMore, setHasScrollMore] = useState(false);
 
-  const { dags, isLoading } = useTaskDags(workspaceFiles);
+  const { dags, isLoading } = useTaskDags(workspaceFiles, workspace);
   const { setDagCount, openFullscreenRef } = useTaskPanelHeader();
 
   // Sync dag count to header
@@ -794,18 +795,17 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
       >
-        {/* Scrollable card list */}
+        {/* Scrollable card list - fixed height 100px, scroll to show tasks */}
+        {/* 可滚动的卡片列表 - 固定高度 100px，滚动展示任务 */}
         <div style={{ position: 'relative' }}>
           <div
             ref={listRef}
-            className='task-panel__card-list'
+            className='task-panel__card-list max-h-100px overflow-auto'
             onScroll={checkScroll}
             style={{
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
-              maxHeight: 'calc(50vh - 80px)',
-              overflowY: 'auto',
               paddingRight: 1,
             }}
           >

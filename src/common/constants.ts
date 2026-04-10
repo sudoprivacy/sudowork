@@ -49,6 +49,11 @@ export const MIME_TO_EXT_MAP: Record<string, string> = {
 /** 默认图片文件扩展名 */
 export const DEFAULT_IMAGE_EXTENSION = '.png';
 
+// ===== 工作空间相关常量 / Workspace Constants =====
+
+/** 草稿箱物理目录名（固定，不随语言变化）/ Drafts directory name (fixed, language-independent) */
+export const DRAFTS_DIR_NAME = '.drafts';
+
 // ===== AI Provider 相关常量 =====
 
 // Stable ID for the Google Auth virtual provider.

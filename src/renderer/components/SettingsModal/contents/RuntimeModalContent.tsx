@@ -10,7 +10,8 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
+import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
@@ -35,6 +36,7 @@ const RuntimeModalContent: React.FC = () => {
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
   const [nexusInstalled, setNexusInstalled] = useState<boolean>(false);
+  const [nexusStatusResolved, setNexusStatusResolved] = useState<boolean>(false);
   const [nexusLoad, setNexusLoad] = useState<LoadState>('idle');
   const [nexusPhase, setNexusPhase] = useState<NexusInstallPhase | undefined>(undefined);
   const [nexusPercent, setNexusPercent] = useState<number | undefined>(undefined);
@@ -48,6 +50,7 @@ const RuntimeModalContent: React.FC = () => {
   const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
   const [sudoclawGatewayPort, setSudoclawGatewayPort] = useState<number | undefined>(undefined);
   const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
+  const [sudoclawStatusResolved, setSudoclawStatusResolved] = useState<boolean>(false);
   const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
   const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
 
@@ -121,6 +124,18 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, []);
 
+  /** Refresh the Guid homepage agent list (best-effort).
+   *  Uses rescanAgents to re-run full CLI detection so that newly
+   *  installed / uninstalled CLI agents (e.g. Claude Code) are picked up. */
+  const refreshAvailableAgents = useCallback(async () => {
+    try {
+      await acpConversation.rescanAgents.invoke();
+      await mutate('acp.agents.available');
+    } catch {
+      /* silent – agent list refresh is best-effort */
+    }
+  }, []);
+
   const installClaude = useCallback(async () => {
     setClaudeLoad('installing');
     setClaudePhase(undefined);
@@ -129,6 +144,8 @@ const RuntimeModalContent: React.FC = () => {
       if (res?.success) {
         Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Claude Code' }));
         await refreshClaude();
+        // Refresh the Guid homepage agent list so Claude Code appears immediately
+        void refreshAvailableAgents();
       } else {
         Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Claude Code' }));
       }
@@ -138,7 +155,7 @@ const RuntimeModalContent: React.FC = () => {
       setClaudeLoad('idle');
       setClaudePhase(undefined);
     }
-  }, [refreshClaude, t]);
+  }, [refreshClaude, refreshAvailableAgents, t]);
 
   const uninstallClaude = useCallback(async () => {
     setClaudeLoad('loading');
@@ -147,6 +164,8 @@ const RuntimeModalContent: React.FC = () => {
       if (res?.success) {
         Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Claude Code' }));
         await refreshClaude();
+        // Refresh the Guid homepage agent list so Claude Code is removed immediately
+        void refreshAvailableAgents();
       } else {
         Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Claude Code' }));
       }
@@ -155,7 +174,7 @@ const RuntimeModalContent: React.FC = () => {
     } finally {
       setClaudeLoad('idle');
     }
-  }, [refreshClaude, t]);
+  }, [refreshClaude, refreshAvailableAgents, t]);
 
   const refreshLibreOffice = useCallback(async (options?: RefreshOptions) => {
     if (!options?.silent) {
@@ -208,17 +227,21 @@ const RuntimeModalContent: React.FC = () => {
   }, [refreshLibreOffice, t]);
 
   const refreshSudoclaw = useCallback(async () => {
-    const res = await sudoclawIpc.getStatus.invoke();
-    if (res?.success && res.data) {
-      setSudoclawInstalled(res.data.installed);
-      setSudoclawVersion(res.data.version);
-      setSudoclawGatewayPort(res.data.gatewayPort);
-      setSudoclawGatewayRunning(!!res.data.gatewayRunning);
-    } else {
-      setSudoclawInstalled(false);
-      setSudoclawVersion(undefined);
-      setSudoclawGatewayPort(undefined);
-      setSudoclawGatewayRunning(false);
+    try {
+      const res = await sudoclawIpc.getStatus.invoke();
+      if (res?.success && res.data) {
+        setSudoclawInstalled(res.data.installed);
+        setSudoclawVersion(res.data.version);
+        setSudoclawGatewayPort(res.data.gatewayPort);
+        setSudoclawGatewayRunning(!!res.data.gatewayRunning);
+      } else {
+        setSudoclawInstalled(false);
+        setSudoclawVersion(undefined);
+        setSudoclawGatewayPort(undefined);
+        setSudoclawGatewayRunning(false);
+      }
+    } finally {
+      setSudoclawStatusResolved(true);
     }
   }, []);
 
@@ -277,17 +300,21 @@ const RuntimeModalContent: React.FC = () => {
   }, [refreshSudoclaw, t]);
 
   const refreshNexus = useCallback(async () => {
-    const res = await nexusIpc.getStatus.invoke();
-    if (res?.success && res.data) {
-      setNexusRunning(res.data.running);
-      setNexusPort(res.data.port);
-      setNexusInstalled(res.data.installed);
-      setNexusVersion(res.data.version);
-    } else {
-      setNexusRunning(false);
-      setNexusPort(undefined);
-      setNexusInstalled(false);
-      setNexusVersion(undefined);
+    try {
+      const res = await nexusIpc.getStatus.invoke();
+      if (res?.success && res.data) {
+        setNexusRunning(res.data.running);
+        setNexusPort(res.data.port);
+        setNexusInstalled(res.data.installed);
+        setNexusVersion(res.data.version);
+      } else {
+        setNexusRunning(false);
+        setNexusPort(undefined);
+        setNexusInstalled(false);
+        setNexusVersion(undefined);
+      }
+    } finally {
+      setNexusStatusResolved(true);
     }
   }, []);
 
@@ -388,6 +415,8 @@ const RuntimeModalContent: React.FC = () => {
     const unsubClaude = claudeCliIpc.installResult.on(() => {
       setClaudePhase(undefined);
       void refreshClaude();
+      // Also refresh the Guid homepage agent list for background installs
+      void refreshAvailableAgents();
     });
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
@@ -422,7 +451,7 @@ const RuntimeModalContent: React.FC = () => {
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshNode, refreshClaude, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
 
   const tableData: ToolRow[] = [
     {
@@ -467,6 +496,7 @@ const RuntimeModalContent: React.FC = () => {
       command: 'openclaw',
       badge: 'SC',
       status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
+      statusResolved: sudoclawStatusResolved,
       sudoclawGatewayPort,
       sudoclawGatewayRunning,
       loadState: sudoclawLoad,
@@ -482,6 +512,7 @@ const RuntimeModalContent: React.FC = () => {
       command: 'nexusd',
       badge: 'NX',
       status: nexusInstalled ? { installed: true, source: 'managed', version: nexusVersion } : null,
+      statusResolved: nexusStatusResolved,
       nexusPort,
       nexusRunning,
       nexusInstalled,

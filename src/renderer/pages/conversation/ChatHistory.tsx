@@ -12,6 +12,7 @@ import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timeline';
+import { formatSessionTime } from '@/renderer/utils/messageTime';
 import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
@@ -60,14 +61,25 @@ const useScrollIntoView = (id: string) => {
   }, [id]);
 };
 
+// Key for localStorage to persist collapsed state of scheduled job folders
+const SCHEDULED_FOLDER_KEY = 'cron_sidebar_expanded_';
+
 const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const [chatHistory, setChatHistory] = useState<TChatConversation[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(SCHEDULED_FOLDER_KEY + 'state');
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
   const { id } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { getJobStatus, markAsRead } = useCronJobsMap();
   const siderTooltipProps = getSiderTooltipProps(collapsed && !isMobile);
@@ -176,12 +188,26 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     }
   };
 
+  const toggleFolder = (jobName: string) => {
+    setExpandedFolders((prev) => {
+      const next = { ...prev, [jobName]: !prev[jobName] };
+      try {
+        localStorage.setItem(SCHEDULED_FOLDER_KEY + 'state', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const formatTimeline = useTimeline();
 
   const renderConversation = (conversation: TChatConversation) => {
     const isSelected = id === conversation.id;
     const isEditing = editingId === conversation.id;
     const cronStatus = getJobStatus(conversation.id);
+    const activityTime = getActivityTime(conversation);
+    const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
 
     return (
       <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
@@ -200,6 +226,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               <div className='flex items-center gap-4px w-full'>
                 <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
                 <CronJobIndicator status={cronStatus} size={14} />
+                {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
               </div>
             )}
           </FlexFullContainer>
@@ -256,6 +283,24 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     );
   };
 
+  // Split into scheduled (cron-execution) and recent conversations
+  const scheduledConvs = chatHistory.filter((c) => !!(c.extra as any)?.cronJobId);
+  const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
+
+  // Group scheduled by cronJobName, sorted by most recent first
+  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
+  scheduledConvs.forEach((conv) => {
+    const jobName = ((conv.extra as any)?.cronJobName as string) || 'Unknown';
+    const group = scheduledGroups.find((g) => g.jobName === jobName);
+    if (group) {
+      group.convs.push(conv);
+    } else {
+      scheduledGroups.push({ jobName, convs: [conv] });
+    }
+  });
+  // Sort groups by most recent conversation within each group
+  scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+
   return (
     <FlexFullContainer>
       <div
@@ -268,15 +313,44 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
         {!chatHistory.length ? (
           <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
         ) : (
-          chatHistory.map((item) => {
-            const timeline = formatTimeline(item);
-            return (
-              <React.Fragment key={item.id}>
-                {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                {renderConversation(item)}
-              </React.Fragment>
-            );
-          })
+          <>
+            {/* ── SCHEDULED SECTION ── */}
+            {scheduledGroups.length > 0 && (
+              <>
+                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>
+                {scheduledGroups.map(({ jobName, convs }) => {
+                  const isExpanded = expandedFolders[jobName] !== false; // default open
+                  return (
+                    <React.Fragment key={jobName}>
+                      {/* Folder header */}
+                      <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => toggleFolder(jobName)}>
+                        <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
+                        <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
+                      </div>
+                      {/* Conversations under this folder */}
+                      {isExpanded &&
+                        convs.map((conv) => (
+                          <div key={conv.id} className='pl-16px'>
+                            {renderConversation(conv)}
+                          </div>
+                        ))}
+                    </React.Fragment>
+                  );
+                })}
+              </>
+            )}
+
+            {/* ── RECENTS SECTION ── */}
+            {recentConvs.map((item) => {
+              const timeline = formatTimeline(item);
+              return (
+                <React.Fragment key={item.id}>
+                  {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
+                  {renderConversation(item)}
+                </React.Fragment>
+              );
+            })}
+          </>
         )}
       </div>
     </FlexFullContainer>

@@ -9,6 +9,18 @@ import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
 import { EventEmitter } from 'events';
 
+/** COS mirror base URL for Chinese users */
+const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+
+/** Timeout for GitHub API accessibility check */
+const GITHUB_API_TIMEOUT = 5000; // 5 seconds
+
+/** Mirror source status */
+interface MirrorStatus {
+  useMirror: boolean;
+  reason: 'auto' | 'user' | 'github_unreachable' | 'fallback';
+}
+
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
  * Returns undefined for the default channel (x64 on all platforms).
@@ -71,6 +83,8 @@ class AutoUpdaterService extends EventEmitter {
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
+  /** Current mirror source status */
+  private _mirrorStatus: MirrorStatus = { useMirror: false, reason: 'auto' };
 
   constructor() {
     super();
@@ -181,6 +195,65 @@ class AutoUpdaterService extends EventEmitter {
     return this._allowPrerelease;
   }
 
+  /**
+   * Get current mirror source status
+   */
+  getMirrorStatus(): MirrorStatus {
+    return this._mirrorStatus;
+  }
+
+  /**
+   * Detect if GitHub API is accessible.
+   * Returns true if accessible, false if mirror should be used.
+   */
+  async detectGitHubAccessible(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT);
+
+      await fetch('https://api.github.com/rate_limit', {
+        signal: controller.signal,
+        method: 'HEAD',
+      });
+
+      clearTimeout(timeoutId);
+      log.info('GitHub API accessible, using GitHub as update source');
+      return true;
+    } catch {
+      log.info('GitHub API unreachable, will use COS mirror for updates');
+      return false;
+    }
+  }
+
+  /**
+   * Get the yml filename for the current platform.
+   */
+  private getYmlFileName(): string {
+    const channel = getUpdateChannel();
+    const { platform } = process;
+
+    if (platform === 'win32') {
+      return channel ? `${channel}.yml` : 'latest.yml';
+    } else if (platform === 'darwin') {
+      return channel ? `${channel}-mac.yml` : 'latest-mac.yml';
+    } else {
+      return channel ? `${channel}-linux.yml` : 'latest-linux.yml';
+    }
+  }
+
+  /**
+   * Switch to COS mirror source.
+   */
+  async switchToMirror(): Promise<void> {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: COS_MIRROR_BASE,
+    });
+
+    this._mirrorStatus = { useMirror: true, reason: 'github_unreachable' };
+    log.info(`Switched to COS mirror: ${COS_MIRROR_BASE}/${this.getYmlFileName()}`);
+  }
+
   private setupEventHandlers(): void {
     const register = <T extends unknown[]>(event: string, handler: (...args: T) => void) => {
       // Cast to satisfy overloaded autoUpdater.on signature
@@ -257,6 +330,10 @@ class AutoUpdaterService extends EventEmitter {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
       }
+
+      // For stable releases: always use COS mirror directly
+      // This ensures Chinese users can update without accessing GitHub
+      await this.switchToMirror();
 
       const result = await autoUpdater.checkForUpdates();
       if (!result) {

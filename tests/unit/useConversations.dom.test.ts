@@ -28,10 +28,20 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 
 const mockInvoke = vi.fn().mockResolvedValue([]);
 
+// Track IPC listener registrations for conversationChanged
+let conversationChangedCallback: ((...args: unknown[]) => void) | null = null;
+const mockConversationChangedOn = vi.fn((cb: (...args: unknown[]) => void) => {
+  conversationChangedCallback = cb;
+  return () => {
+    conversationChangedCallback = null;
+  };
+});
+
 vi.mock('../../src/common', () => ({
   ipcBridge: {
     database: {
       getUserConversations: { invoke: (...args: unknown[]) => mockInvoke(...args) },
+      conversationChanged: { on: (...args: unknown[]) => mockConversationChangedOn(...args) },
     },
   },
 }));
@@ -54,8 +64,21 @@ vi.mock('../../src/renderer/pages/conversation/grouped-history/utils/groupingHel
   }),
 }));
 
+// Track renderer event listener registrations
+let chatHistoryRefreshCallback: ((...args: unknown[]) => void) | null = null;
+const mockAddEventListener = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+  if (event === 'chat.history.refresh') {
+    chatHistoryRefreshCallback = cb;
+  }
+  return () => {
+    if (event === 'chat.history.refresh') {
+      chatHistoryRefreshCallback = null;
+    }
+  };
+});
+
 vi.mock('../../src/renderer/utils/emitter', () => ({
-  addEventListener: () => () => {},
+  addEventListener: (...args: unknown[]) => mockAddEventListener(...args),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,6 +110,10 @@ describe('useConversations - workspace expansion', () => {
     storageMap.clear();
     testState.sections = [];
     mockInvoke.mockResolvedValue([]);
+    conversationChangedCallback = null;
+    chatHistoryRefreshCallback = null;
+    mockConversationChangedOn.mockClear();
+    mockAddEventListener.mockClear();
   });
 
   it('should auto-expand all workspaces on first load when localStorage is empty', async () => {
@@ -171,5 +198,78 @@ describe('useConversations - workspace expansion', () => {
 
     // Should stay collapsed, not re-expand
     expect(result.current.expandedWorkspaces).toEqual([]);
+  });
+});
+
+describe('useConversations - IPC channel conversation refresh', () => {
+  beforeEach(() => {
+    storageMap.clear();
+    testState.sections = [];
+    mockInvoke.mockClear();
+    mockInvoke.mockResolvedValue([]);
+    conversationChangedCallback = null;
+    chatHistoryRefreshCallback = null;
+    mockConversationChangedOn.mockClear();
+    mockAddEventListener.mockClear();
+  });
+
+  it('should subscribe to conversationChanged IPC event on mount', async () => {
+    renderHook(() => useConversations());
+    await act(async () => {});
+
+    expect(mockConversationChangedOn).toHaveBeenCalledTimes(1);
+    expect(mockConversationChangedOn).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('should refresh conversations when IPC conversationChanged event fires', async () => {
+    const conversations = [{ id: 'conv-1', name: 'DingTalk Chat', source: 'dingtalk', updated_at: Date.now() }];
+    mockInvoke.mockResolvedValue([]);
+
+    renderHook(() => useConversations());
+    await act(async () => {});
+
+    // Initial load
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    // Simulate IPC event from main process (channel conversation created)
+    mockInvoke.mockResolvedValue(conversations);
+    await act(async () => {
+      conversationChangedCallback?.({ conversationId: 'conv-1', source: 'dingtalk', action: 'created' });
+    });
+
+    // Should have called invoke again to refresh
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('should still respond to chat.history.refresh renderer event', async () => {
+    renderHook(() => useConversations());
+    await act(async () => {});
+
+    expect(mockAddEventListener).toHaveBeenCalledWith('chat.history.refresh', expect.any(Function));
+
+    // Initial load
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    // Simulate renderer event
+    await act(async () => {
+      chatHistoryRefreshCallback?.();
+    });
+
+    // Should have called invoke again to refresh
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('should unsubscribe from IPC event on unmount', async () => {
+    const { unmount } = renderHook(() => useConversations());
+    await act(async () => {});
+
+    // Should have registered a listener
+    expect(conversationChangedCallback).not.toBeNull();
+
+    // Unmount
+    unmount();
+
+    // Cleanup should have been called, removing the listener
+    expect(conversationChangedCallback).toBeNull();
   });
 });

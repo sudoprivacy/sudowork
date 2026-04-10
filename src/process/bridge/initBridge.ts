@@ -45,12 +45,16 @@ export function initInitBridge(): void {
       if (component === 'nexus') {
         const { getDataPath } = await import('../utils');
         const dataPath = getDataPath();
+        const binDir = path.join(dataPath, 'bin');
         const envDir = path.join(dataPath, 'nexus_env');
         const pidFile = path.join(dataPath, 'nexusd.pid');
         const readyFile = path.join(dataPath, 'nexusd.ready');
 
         initStatusManager.addLog('↻ 手动触发 Nexus 重装...');
         await serviceManager.stopNexus().catch(() => {});
+        // Clean new binary path
+        if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
+        // Clean legacy conda env path
         if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
         if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
         if (fs.existsSync(readyFile)) fs.rmSync(readyFile, { force: true });

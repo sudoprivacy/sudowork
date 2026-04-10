@@ -143,6 +143,33 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
+/**
+ * Update workspace path for all active agents that reference the old path.
+ * Called when a workspace directory is renamed to keep running agents in sync.
+ * 更新所有引用旧路径的活跃 Agent 的工作空间路径。
+ * 在工作空间目录重命名时调用，保持运行中的 Agent 路径同步。
+ */
+const updateActiveAgentWorkspace = (oldPath: string, newPath: string): number => {
+  let updatedCount = 0;
+  for (const item of taskList) {
+    const agent = item.task as any;
+    if (agent.workspace === oldPath) {
+      agent.workspace = newPath;
+      // Update extra.workspace if it exists (AcpAgent stores it there too)
+      if (agent.extra?.workspace === oldPath) {
+        agent.extra.workspace = newPath;
+      }
+      // Update AcpConnection workingDir if applicable
+      if (agent.connection?.workingDir === oldPath) {
+        agent.connection.workingDir = newPath;
+      }
+      updatedCount++;
+      mainLog('WorkerManage', `Updated workspace path for agent ${item.id}: ${oldPath} -> ${newPath}`);
+    }
+  }
+  return updatedCount;
+};
+
 /** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
 const reloadOpenClawSkills = async (): Promise<void> => {
   const { serviceManager } = await import('./services/serviceManager');
@@ -180,6 +207,7 @@ const WorkerManage = {
   listTasks,
   kill,
   clear,
+  updateActiveAgentWorkspace,
   reloadOpenClawSkills,
   restartOpenClawGateways,
   reconnectOpenClawAgents,

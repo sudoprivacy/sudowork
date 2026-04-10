@@ -5,13 +5,14 @@
  */
 
 import FilePreview from '@/renderer/components/FilePreview';
+import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
-import { IconClose } from '@arco-design/web-react/icon';
+import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
 
@@ -63,10 +64,44 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
   const { t } = useTranslation();
   const { compositionHandlers, isComposing } = useCompositionInput();
   const textareaAutoSize = isMobile ? { minRows: 2, maxRows: 8 } : { minRows: 3, maxRows: 20 };
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isComposing.current) return;
     onKeyDown(e);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const target = e.currentTarget;
+    const items: ContextMenuItem[] = [
+      {
+        label: t('common.paste', { defaultValue: 'Paste' }),
+        icon: <IconPaste />,
+        onClick: async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text && target) {
+              const start = target.selectionStart ?? target.value.length;
+              const end = target.selectionEnd ?? start;
+              const currentValue = target.value;
+              const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+
+              onInputChange(newValue);
+
+              setTimeout(() => {
+                target.focus();
+                const newCursorPos = start + text.length;
+                target.setSelectionRange(newCursorPos, newCursorPos);
+              }, 10);
+            }
+          } catch (error) {
+            console.error('Failed to read clipboard:', error);
+          }
+        },
+      },
+    ];
+    setContextMenu({ x: e.clientX, y: e.clientY, items });
   };
 
   return (
@@ -125,7 +160,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
           </div>
         </div>
       )}
-      <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} {...compositionHandlers} onKeyDown={handleKeyDown} />
+      <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} {...compositionHandlers} onKeyDown={handleKeyDown} onContextMenu={handleContextMenu} />
       {mentionOpen && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
           {mentionDropdown}
@@ -167,6 +202,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
           </Tooltip>
         </div>
       )}
+      {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
     </div>
   );
 };

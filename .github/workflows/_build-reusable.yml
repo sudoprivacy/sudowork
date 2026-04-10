@@ -22,6 +22,7 @@ on:
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  UV_DEFAULT_INDEX: 'https://pypi.org/simple/'
 
 jobs:
   code-quality:
@@ -101,6 +102,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
 
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts

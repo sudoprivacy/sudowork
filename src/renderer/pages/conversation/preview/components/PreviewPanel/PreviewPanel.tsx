@@ -46,6 +46,7 @@ const PreviewPanel: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const [toolbarExtras, setToolbarExtras] = useState<PreviewToolbarExtras | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 确认对话框状态 / Confirmation dialog states
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -132,6 +133,23 @@ const PreviewPanel: React.FC = () => {
       setIsEditMode(false);
     }
   }, [activeTab?.isDirty]);
+
+  // 处理保存 / Handle save
+  const handleSave = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const success = await saveContent();
+      if (!success) {
+        messageApi.error(t('common.saveFailed'));
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : t('common.unknownError');
+      messageApi.error(`${t('common.saveFailed')}: ${errorMsg}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving, saveContent, messageApi, t]);
 
   // 确认退出编辑 / Confirm exit edit
   const handleConfirmExit = useCallback(() => {
@@ -484,7 +502,7 @@ const PreviewPanel: React.FC = () => {
                 <span className='text-12px text-t-secondary'>{t('preview.editor')}</span>
               </div>
               <div className='flex-1 overflow-hidden'>
-                <TextEditor value={content} onChange={updateContent} />
+                <TextEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
               </div>
               {/* 拖动分割线 / Drag handle */}
               {createDragHandle({ className: 'absolute right-0 top-0 bottom-0' })}
@@ -496,7 +514,7 @@ const PreviewPanel: React.FC = () => {
                 <span className='text-12px text-t-secondary'>{t('preview.preview')}</span>
               </div>
               <div className='flex flex-col flex-1 overflow-hidden'>
-                <CodePreview content={content} language={metadata?.language} hideToolbar />
+                <CodePreview content={content} language={metadata?.language} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} />
               </div>
             </div>
           </div>
@@ -565,6 +583,9 @@ const PreviewPanel: React.FC = () => {
             showOpenInSystemButton={showOpenInSystemButton}
             historyTarget={historyTarget}
             snapshotSaving={snapshotSaving}
+            isDirty={activeTab?.isDirty}
+            onSave={handleSave}
+            isSaving={isSaving}
             onViewModeChange={(mode) => {
               setViewMode(mode);
               setIsSplitScreenEnabled(false); // 切换视图模式时关闭分屏 / Disable split when switching view mode
