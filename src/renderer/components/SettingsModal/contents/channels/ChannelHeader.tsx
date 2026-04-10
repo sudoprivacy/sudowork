@@ -9,6 +9,7 @@ import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import ChannelWeComLogo from '@/renderer/assets/channel-logos/wecom.svg';
+import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { Switch, Tag } from '@arco-design/web-react';
 import React from 'react';
@@ -28,6 +29,7 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
     dingtalk: { src: ChannelDingTalkLogo, alt: 'DingTalk' },
     wechat: { src: ChannelWeChatLogo, alt: 'WeChat' },
     wecom: { src: ChannelWeComLogo, alt: 'WeCom' },
+    zentao: { src: ChannelZentaoLogo, alt: 'Zentao' },
   };
   const builtinLogo = channelLogoMap[channel.id];
   // Extension channels may provide a custom icon via ChannelConfig

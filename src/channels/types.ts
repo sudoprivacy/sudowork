@@ -9,7 +9,7 @@
 /**
  * Built-in platform types for channel plugins.
  */
-export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom';
+export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao';
 
 /**
  * Supported platform types for plugins.
@@ -44,6 +44,10 @@ export interface IPluginCredentials {
   // WeCom (WeChat Work)
   botId?: string;
   secret?: string;
+  // Zentao
+  serverUrl?: string;
+  zentaoUsername?: string;
+  zentaoPassword?: string;
   // Extension plugins: arbitrary credential fields
   [key: string]: string | number | boolean | undefined;
 }
@@ -60,6 +64,7 @@ export function hasPluginCredentials(type: PluginType, credentials?: IPluginCred
   if (type === 'telegram') return !!credentials.token;
   if (type === 'wechat') return !!(credentials.token && credentials.accountId);
   if (type === 'wecom') return !!(credentials.botId && credentials.secret);
+  if (type === 'zentao') return !!(credentials.serverUrl && credentials.zentaoUsername && credentials.zentaoPassword);
   // Extension or unknown plugins: check if any credential value is non-empty
   return Object.values(credentials).some((v) => v !== undefined && v !== null && v !== '');
 }
@@ -509,14 +514,14 @@ export function pairingRequestToRow(request: IChannelPairingRequest): IChannelPa
  * Channel platform type for model configuration.
  * Includes built-in platforms and extension-contributed platforms (string).
  */
-export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | (string & {});
+export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao' | (string & {});
 
 /**
  * Type guard to check if a string is a known built-in ChannelPlatform.
  * Extension platform types are valid but not matched here.
  */
-export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' {
-  return value === 'telegram' || value === 'lark' || value === 'dingtalk' || value === 'wechat' || value === 'wecom';
+export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao' {
+  return value === 'telegram' || value === 'lark' || value === 'dingtalk' || value === 'wechat' || value === 'wecom' || value === 'zentao';
 }
 
 /**
