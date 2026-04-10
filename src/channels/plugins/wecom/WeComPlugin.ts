@@ -4,12 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import WebSocket from 'ws';
 
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { WECOM_MESSAGE_LIMIT, encodeChatId, parseChatId, toUnifiedIncomingMessage, toWeComSendParams } from './WeComAdapter';
+import { WECOM_MESSAGE_LIMIT, encodeChatId, getDefaultExtension, parseChatId, toUnifiedIncomingMessage, toWeComSendParams } from './WeComAdapter';
 import type { WeComMsgCallback, WeComEventCallback } from './WeComAdapter';
+import { downloadAndDecryptMedia } from './WeComCrypto';
 
 /**
  * WeComPlugin - WeCom (WeChat Work) Bot integration via WebSocket long connection
@@ -79,6 +82,9 @@ export class WeComPlugin extends BasePlugin {
   // reqId mapping: chatId -> reqId (from incoming messages for response routing)
   private reqIdCache: Map<string, string> = new Map();
 
+  // Media download directory
+  private mediaDir: string | null = null;
+
   /**
    * Initialize the WeCom client
    */
@@ -135,6 +141,7 @@ export class WeComPlugin extends BasePlugin {
     this.processedEvents.clear();
     this.streamSessions.clear();
     this.reqIdCache.clear();
+    this.mediaDir = null;
     this.isConnected = false;
 
     console.log('[WeComPlugin] Stopped and cleaned up');
@@ -260,6 +267,107 @@ export class WeComPlugin extends BasePlugin {
       console.error('[WeComPlugin] Failed to update stream:', error);
       // Mark as finished to prevent further attempts
       this.streamSessions.set(chatId, { ...session, isFinished: true });
+    }
+  }
+
+  // ==================== Media Download ====================
+
+  /**
+   * Download and decrypt media files from WeCom message callback.
+   *
+   * In WeCom's long-connection mode, image/file/video messages contain an encrypted
+   * download URL and an `aeskey` for decryption. This method:
+   * 1. Extracts media URLs and AES keys from the message body
+   * 2. Downloads the encrypted data from each URL
+   * 3. Decrypts using the aeskey (AES-256-CBC or AES-128-ECB)
+   * 4. Saves to local workspace and writes the path back to the message body
+   *
+   * After this method completes, the adapter can use local paths instead of CDN URLs.
+   */
+  private async downloadMediaItems(body: WeComMsgCallback): Promise<void> {
+    const mediaItems: Array<{
+      url: string;
+      aeskey: string;
+      msgtype: string;
+      filename?: string;
+      /** Index within mixed items (for writing back local path) */
+      mixedIndex?: number;
+    }> = [];
+
+    // Collect media items that need downloading
+    if (body.msgtype === 'image' && body.image?.url) {
+      mediaItems.push({
+        url: body.image.url,
+        aeskey: body.image.aeskey,
+        msgtype: 'image',
+      });
+    } else if (body.msgtype === 'file' && body.file?.url) {
+      mediaItems.push({
+        url: body.file.url,
+        aeskey: body.file.aeskey,
+        msgtype: 'file',
+        filename: body.file.filename,
+      });
+    } else if (body.msgtype === 'video' && body.video?.url) {
+      mediaItems.push({
+        url: body.video.url,
+        aeskey: body.video.aeskey,
+        msgtype: 'video',
+      });
+    } else if (body.msgtype === 'mixed' && body.mixed?.items) {
+      for (let i = 0; i < body.mixed.items.length; i++) {
+        const item = body.mixed.items[i];
+        if (item.msgtype === 'image' && item.image?.url) {
+          mediaItems.push({
+            url: item.image.url,
+            aeskey: item.image.aeskey,
+            msgtype: 'image',
+            mixedIndex: i,
+          });
+        }
+      }
+    }
+
+    if (mediaItems.length === 0) return;
+
+    // Ensure media directory exists
+    if (!this.mediaDir) {
+      const { getDataPath } = await import('@/process/utils');
+      this.mediaDir = path.join(getDataPath(), 'channel-media', 'wecom');
+      fs.mkdirSync(this.mediaDir, { recursive: true });
+    }
+
+    // Download and decrypt each media item
+    for (const item of mediaItems) {
+      try {
+        const ext = item.filename ? path.extname(item.filename) : getDefaultExtension(item.msgtype);
+        const baseName = item.filename || `wecom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const filePath = path.join(this.mediaDir, baseName);
+
+        const buffer = await downloadAndDecryptMedia(item.url, item.aeskey);
+        fs.writeFileSync(filePath, buffer);
+
+        // Write local path back to the message body
+        if (item.mixedIndex !== undefined && body.mixed?.items[item.mixedIndex]) {
+          body.mixed.items[item.mixedIndex]._localPath = filePath;
+        } else {
+          switch (item.msgtype) {
+            case 'image':
+              body._imageLocalPath = filePath;
+              break;
+            case 'file':
+              body._fileLocalPath = filePath;
+              break;
+            case 'video':
+              body._videoLocalPath = filePath;
+              break;
+          }
+        }
+
+        console.log(`[WeComPlugin] Downloaded media: type=${item.msgtype}, size=${buffer.length}, encrypted=${!!item.aeskey}, path=${filePath}`);
+      } catch (error) {
+        console.error(`[WeComPlugin] Failed to download media for type=${item.msgtype}:`, error);
+      }
     }
   }
 
@@ -420,7 +528,10 @@ export class WeComPlugin extends BasePlugin {
         this.reqIdCache.set(chatId, headers.req_id);
       }
 
-      // Convert to unified message
+      // Download and decrypt media files before converting to unified message
+      await this.downloadMediaItems(body);
+
+      // Convert to unified message (now with local paths for media)
       const unifiedMessage = toUnifiedIncomingMessage(body);
       if (unifiedMessage && this.messageHandler) {
         // Check for menu button commands
