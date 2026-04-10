@@ -109,6 +109,10 @@ function parseCoreFeatures(jsonStr: string | null): CoreFeature[] {
   }
 }
 
+export function getInstalledSkillBadgeCount(installedList: IInstalledSkillInfo[]): number {
+  return installedList.length;
+}
+
 // ==================== SkillCard Component ====================
 
 const SkillCard: React.FC<{
@@ -1126,7 +1130,7 @@ const SkillModalContent: React.FC = () => {
           </button>
           <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-            {installedSkills.size > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{installedSkills.size}</span>}
+            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{getInstalledSkillBadgeCount(installedList)}</span>}
           </button>
         </div>
 

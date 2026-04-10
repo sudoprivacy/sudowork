@@ -1091,6 +1091,8 @@ export interface IInstalledSkillInfo {
   isHubInstalled: boolean;
   /** Whether this is a built-in skill that cannot be uninstalled */
   isBuiltin: boolean;
+  /** Whether this skill comes from the auto-injected _system/_builtin directory */
+  isAutoInjectedBuiltin?: boolean;
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */

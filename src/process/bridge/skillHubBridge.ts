@@ -706,6 +706,7 @@ export function initSkillHubBridge(): void {
         name: skill.name,
         version: skill.version,
         isBuiltin: skill.isBuiltin,
+        isAutoInjectedBuiltin: skill.isAutoInjectedBuiltin === true,
         isHubInstalled: skill.isHubInstalled,
         enabled: skill.enabled,
         meta: skill.meta

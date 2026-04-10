@@ -50,6 +50,7 @@ export interface ISkillInfo {
   name: string;
   version: string;
   isBuiltin: boolean;
+  isAutoInjectedBuiltin?: boolean;
   isHubInstalled: boolean;
   enabled: boolean;
   category: SkillCategory;
@@ -168,6 +169,7 @@ export class SkillManager {
   // 读取单个 skill 的信息
   private async readSkillInfo(skillDir: string, category: SkillCategory, forceBuiltin = false): Promise<ISkillInfo | null> {
     const dirName = path.basename(skillDir);
+    const builtinDir = path.join(this.systemDir, '_builtin');
 
     // 读取版本 — try version.txt first, then legacy sudowork-version, then SKILL.md frontmatter
     let version = '';
@@ -199,7 +201,7 @@ export class SkillManager {
       const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
       meta = JSON.parse(raw) as ISkillMeta;
 
-      if (meta.is_builtin !== undefined) {
+      if (!forceBuiltin && meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
       }
       isHubInstalled = meta.source_type === 'hub';
@@ -229,6 +231,7 @@ export class SkillManager {
       name: meta?.name?.trim() || dirName,
       version,
       isBuiltin,
+      isAutoInjectedBuiltin: skillDir.startsWith(`${builtinDir}${path.sep}`) || skillDir === builtinDir,
       isHubInstalled,
       enabled,
       category,
