@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -48,6 +48,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
     { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
     { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
+    { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
   ];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
