@@ -691,10 +691,13 @@ export function initConversationBridge(): void {
         },
       }).then((res) => (res ? [res] : []));
     } catch (error) {
-      if (error instanceof Error && error.message.includes('aborted')) {
-        return [];
+      // Always return [] on error — throwing from a bridge provider
+      // leaves the renderer invoke() promise hanging forever because
+      // the bridge subscribe handler has no .catch() on the provider call.
+      if (error instanceof Error && !error.message.includes('aborted')) {
+        mainWarn('conversationBridge', 'getWorkspace failed:', error.message);
       }
-      throw error;
+      return [];
     }
   });
 
