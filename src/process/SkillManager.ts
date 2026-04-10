@@ -7,9 +7,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync, existsSync as fsExistsSync } from 'fs';
 import { app } from 'electron';
-import { getSkillsDir, getHubSkillsDir, getBuiltinSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS } from './initStorage';
+import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import { mainLog, mainWarn, mainError } from './utils/mainLogger';
+import { mainLog, mainError } from './utils/mainLogger';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -50,6 +50,7 @@ export interface ISkillInfo {
   name: string;
   version: string;
   isBuiltin: boolean;
+  isAutoInjectedBuiltin?: boolean;
   isHubInstalled: boolean;
   enabled: boolean;
   category: SkillCategory;
@@ -69,7 +70,7 @@ export class SkillManager {
   constructor() {
     this.skillsDir = getSkillsDir();
     this.hubDir = getHubSkillsDir();
-    this.systemDir = getBuiltinSkillsDir();
+    this.systemDir = getSystemSkillsDir();
     this.customDir = getCustomSkillsDir();
     this.ensureDirs();
   }
@@ -96,11 +97,7 @@ export class SkillManager {
     }
 
     const appPath = app.getAppPath();
-    const candidates = [
-      path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-      path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-      path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE),
-    ];
+    const candidates = [path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE)];
 
     const existing = candidates.find((candidate) => fsExistsSync(candidate));
     return existing || candidates[0];
@@ -172,6 +169,7 @@ export class SkillManager {
   // 读取单个 skill 的信息
   private async readSkillInfo(skillDir: string, category: SkillCategory, forceBuiltin = false): Promise<ISkillInfo | null> {
     const dirName = path.basename(skillDir);
+    const builtinDir = path.join(this.systemDir, '_builtin');
 
     // 读取版本 — try version.txt first, then legacy sudowork-version, then SKILL.md frontmatter
     let version = '';
@@ -203,7 +201,7 @@ export class SkillManager {
       const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
       meta = JSON.parse(raw) as ISkillMeta;
 
-      if (meta.is_builtin !== undefined) {
+      if (!forceBuiltin && meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
       }
       isHubInstalled = meta.source_type === 'hub';
@@ -233,6 +231,7 @@ export class SkillManager {
       name: meta?.name?.trim() || dirName,
       version,
       isBuiltin,
+      isAutoInjectedBuiltin: skillDir.startsWith(`${builtinDir}${path.sep}`) || skillDir === builtinDir,
       isHubInstalled,
       enabled,
       category,

@@ -5,15 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  getDefaultExtension,
-  getMediaUrl,
-  getMediaExtract,
-  toUnifiedIncomingMessage,
-  toWeChatSendPayload,
-  splitMessage,
-  stripMarkdownToPlain,
-} from '@/channels/plugins/wechat/WeChatAdapter';
+import { getDefaultExtension, getMediaUrl, getMediaExtract, toUnifiedIncomingMessage, toWeChatSendPayload, splitMessage, stripMarkdownToPlain } from '@/channels/plugins/wechat/WeChatAdapter';
 import type { WeChatMessage, WeChatMessageItem } from '@/channels/plugins/wechat/types';
 import { MessageItemType, MessageType } from '@/channels/plugins/wechat/types';
 
@@ -214,9 +206,7 @@ describe('WeChatAdapter', () => {
         message_id: 123,
         from_user_id: 'user1@im.wechat',
         message_type: MessageType.USER,
-        item_list: [
-          { type: MessageItemType.TEXT, text_item: { text: 'Hello world' } },
-        ],
+        item_list: [{ type: MessageItemType.TEXT, text_item: { text: 'Hello world' } }],
         create_time_ms: 1000,
       };
       const result = toUnifiedIncomingMessage(msg);
@@ -376,9 +366,7 @@ describe('WeChatAdapter', () => {
         message_id: 300,
         from_user_id: 'bot@im.bot',
         message_type: MessageType.BOT,
-        item_list: [
-          { type: MessageItemType.TEXT, text_item: { text: 'Bot response' } },
-        ],
+        item_list: [{ type: MessageItemType.TEXT, text_item: { text: 'Bot response' } }],
       };
       expect(toUnifiedIncomingMessage(msg)).toBeNull();
     });
@@ -388,9 +376,7 @@ describe('WeChatAdapter', () => {
         message_id: 400,
         from_user_id: '',
         message_type: MessageType.USER,
-        item_list: [
-          { type: MessageItemType.TEXT, text_item: { text: 'hello' } },
-        ],
+        item_list: [{ type: MessageItemType.TEXT, text_item: { text: 'hello' } }],
       };
       expect(toUnifiedIncomingMessage(msg)).toBeNull();
     });

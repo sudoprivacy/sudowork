@@ -5,7 +5,7 @@
  */
 
 import { DRAFTS_DIR_NAME } from '@/common/constants';
-import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
 
@@ -110,14 +110,16 @@ export async function prepareFirstMessage(content: string, config: FirstMessageC
 }
 
 /**
- * 为首条消息准备内容：注入规则 + skills 索引（而非完整内容）
- * Prepare first message: inject rules + skills INDEX (not full content)
+ * 为首条消息准备内容：注入规则 + 内置 skills 索引（而非完整内容）
+ * Prepare first message: inject rules + builtin skills INDEX (not full content)
  *
  * 用于 ACP agents (Claude/OpenCode) 和 Codex，Agent 通过 Read 工具按需读取 skill 文件
  * Used for ACP agents (Claude/OpenCode) and Codex, Agent reads skill files on-demand using Read tool
  *
- * 注意：内置 skills（_builtin/ 目录下）会自动注入，不需要在 enabledSkills 中指定
- * Note: Builtin skills (in _builtin/ directory) are auto-injected, no need to specify in enabledSkills
+ * 注意：针对 ACP/OpenClaw 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
+ * Hub/custom/system 下的非 builtin skills 不会通过首条消息注入给 agent。
+ * Note: For ACP/OpenClaw assistants, only builtin skills under _system/_builtin are exposed here.
+ * Non-builtin skills from hub/custom/system are not injected via the first message.
  *
  * @param content - 原始消息内容 / Original message content
  * @param config - 首次消息配置 / First message configuration
@@ -136,46 +138,31 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
     instructions.push(buildDraftsInstruction(config.workspace));
   }
 
-  // 2. 当 presetAgentType === 'claude' 时，不使用首次会话注入 skill
-  // When presetAgentType is 'claude', skip first-session skill injection
-  if (config.presetAgentType !== 'claude') {
-    // 加载 skills 索引（包括内置 skills + 可选 skills）
-    // Load skills INDEX (including builtin skills + optional skills)
-    // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
-    const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
-    // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
-    await skillManager.discoverSkills(config.enabledSkills);
+  // 2. 仅加载内置 skills 索引
+  // Load builtin skills index only
+  const skillManager = AcpSkillManager.getInstance();
+  await skillManager.discoverBuiltinSkills();
 
-    // 只有当有任何 skills 时才注入 / Only inject if there are any skills
-    if (skillManager.hasAnySkills()) {
-      const skillsIndex = skillManager.getSkillsIndex();
-      if (skillsIndex.length > 0) {
-        // 使用分目录结构的路径 / Use categorized subdirectory paths
-        const systemSkillsDir = getBuiltinSkillsDir();
-        const hubSkillsDir = getHubSkillsDir();
-        const customSkillsDir = getCustomSkillsDir();
-        const indexText = buildSkillsIndexText(skillsIndex);
+  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
+  if (builtinSkillsIndex.length > 0) {
+    const systemSkillsDir = getBuiltinSkillsDir();
+    const indexText = buildSkillsIndexText(builtinSkillsIndex);
 
-        // 告诉 Agent skills 文件的位置，让它按需读取
-        // Tell Agent where skills files are located for on-demand reading
-        const skillsInstruction = `${indexText}
+    // 告诉 Agent 只从 builtin skills 目录按需读取
+    // Tell Agent to read only from the builtin skills directory on demand
+    const skillsInstruction = `${indexText}
 
 [Skills Location]
-Skills are stored in three locations (by priority):
-- Custom skills: ${customSkillsDir}/{skill-name}/SKILL.md
-- Hub skills: ${hubSkillsDir}/{skill-name}/SKILL.md
-- System skills (auto-enabled): ${systemSkillsDir}/{skill-name}/SKILL.md
+Builtin skills are stored at:
+- ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
 To use a skill, read its SKILL.md file when needed.
 
 For example:
-- System "cron" skill: ${systemSkillsDir}/cron/SKILL.md
-- Hub "pptx" skill: ${hubSkillsDir}/pptx/SKILL.md`;
+- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
 
-        instructions.push(skillsInstruction);
-      }
-    }
+    instructions.push(skillsInstruction);
   }
 
   if (instructions.length === 0) {
@@ -184,6 +171,22 @@ For example:
 
   const systemInstructions = instructions.join('\n\n');
   return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+}
+
+/**
+ * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
+ * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ */
+export function injectSkillsDirectoryHint(content: string, skillsDir: string): string {
+  const hint = `[Skills Directory]
+Skills are installed at: ${skillsDir}
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
+
+  if (content.includes('[User Request]')) {
+    return content.replace('[User Request]', `${hint}\n\n[User Request]`);
+  }
+
+  return `${hint}\n\n${content}`;
 }
 
 /**

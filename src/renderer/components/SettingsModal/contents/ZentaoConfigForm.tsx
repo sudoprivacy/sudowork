@@ -154,11 +154,7 @@ const ZentaoConfigForm: React.FC<ZentaoConfigFormProps> = ({ pluginStatus, onSta
   return (
     <div className='flex flex-col gap-24px'>
       {/* Server URL */}
-      <PreferenceRow
-        label={t('settings.zentao.serverUrl', 'Server URL')}
-        description={t('settings.zentao.serverUrlDesc', 'Zentao server access URL')}
-        required
-      >
+      <PreferenceRow label={t('settings.zentao.serverUrl', 'Server URL')} description={t('settings.zentao.serverUrlDesc', 'Zentao server access URL')} required>
         <Input
           value={serverUrl}
           onChange={(value) => {
@@ -173,11 +169,7 @@ const ZentaoConfigForm: React.FC<ZentaoConfigFormProps> = ({ pluginStatus, onSta
       </PreferenceRow>
 
       {/* Username */}
-      <PreferenceRow
-        label={t('settings.zentao.username', 'Username')}
-        description={t('settings.zentao.usernameDesc', 'Zentao login username')}
-        required
-      >
+      <PreferenceRow label={t('settings.zentao.username', 'Username')} description={t('settings.zentao.usernameDesc', 'Zentao login username')} required>
         <Input
           value={zentaoUsername}
           onChange={(value) => {
@@ -192,11 +184,7 @@ const ZentaoConfigForm: React.FC<ZentaoConfigFormProps> = ({ pluginStatus, onSta
       </PreferenceRow>
 
       {/* Password */}
-      <PreferenceRow
-        label={t('settings.zentao.password', 'Password')}
-        description={t('settings.zentao.passwordDesc', 'Zentao login password')}
-        required
-      >
+      <PreferenceRow label={t('settings.zentao.password', 'Password')} description={t('settings.zentao.passwordDesc', 'Zentao login password')} required>
         <Input.Password
           value={zentaoPassword}
           onChange={(value) => {
@@ -214,9 +202,7 @@ const ZentaoConfigForm: React.FC<ZentaoConfigFormProps> = ({ pluginStatus, onSta
       {/* Test Connection Button */}
       {!pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim() ? (
-            <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.zentao.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span>
-          ) : null}
+          {pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim() ? <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.zentao.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim()}>
             {t('settings.zentao.testAndConnect', 'Test & Connect')}
           </Button>
@@ -226,14 +212,7 @@ const ZentaoConfigForm: React.FC<ZentaoConfigFormProps> = ({ pluginStatus, onSta
       {/* Connection Status */}
       {pluginStatus?.enabled && (
         <div className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
-          <SectionHeader
-            title={t('settings.zentao.connectionStatus', 'Connection Status')}
-            action={
-              <span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>
-                {pluginStatus?.connected ? t('settings.zentao.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.zentao.statusError', 'Error') : t('settings.zentao.statusConnecting', 'Connecting...')}
-              </span>
-            }
-          />
+          <SectionHeader title={t('settings.zentao.connectionStatus', 'Connection Status')} action={<span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>{pluginStatus?.connected ? t('settings.zentao.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.zentao.statusError', 'Error') : t('settings.zentao.statusConnecting', 'Connecting...')}</span>} />
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && <div className='text-14px text-t-secondary'>{t('settings.zentao.connectedDesc', 'Zentao is connected. AI can now read and create bugs.')}</div>}
         </div>

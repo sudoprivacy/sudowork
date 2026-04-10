@@ -1093,6 +1093,8 @@ export interface IInstalledSkillInfo {
   isHubInstalled: boolean;
   /** Whether this is a built-in skill that cannot be uninstalled */
   isBuiltin: boolean;
+  /** Whether this skill comes from the auto-injected _system/_builtin directory */
+  isAutoInjectedBuiltin?: boolean;
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
@@ -1101,7 +1103,7 @@ export interface IInstalledSkillInfo {
 
 export const skillHub = {
   /** Fetch skills list from Skill Hub API with cursor-based pagination */
-  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string }>('skill-hub.fetch-skills'),
+  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('skill-hub.fetch-skills'),
   /** Fetch skill categories from Skill Hub API */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */

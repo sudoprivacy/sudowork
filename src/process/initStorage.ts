@@ -17,6 +17,7 @@ import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, 
 import { getDatabase } from './database/export';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
+import { SKILL_SUBDIRS } from './constants/skillStorage';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -31,21 +32,6 @@ const STORAGE_PATH = {
   assistants: 'assistants',
   skills: 'skills',
 };
-
-/**
- * Skill subdirectory names for categorized skill storage.
- * All prefixed with `_` to distinguish from legacy flat skill directories.
- */
-const SKILL_SUBDIRS = {
-  /** Hub-installed skills (source_type: 'hub') */
-  hub: '_hub',
-  /** Builtin/system skills (is_builtin: true) */
-  system: '_system',
-  /** User-uploaded custom skills (source_type: 'upload') */
-  custom: '_my-custom-skill',
-  /** Legacy builtin directory (pre-migration) */
-  legacyBuiltin: '_builtin',
-} as const;
 
 const getHomePage = getConfigPath;
 
@@ -301,12 +287,20 @@ const getSkillsDir = () => {
 };
 
 /**
- * 获取内置技能目录路径（_system 子目录）
- * Get builtin skills directory path (_system subdirectory)
+ * 获取系统技能根目录路径（_system 子目录）
+ * Get system skills root directory path (_system subdirectory)
+ */
+const getSystemSkillsDir = () => {
+  return path.join(getSkillsDir(), SKILL_SUBDIRS.system);
+};
+
+/**
+ * 获取内置技能目录路径（_system/_builtin 子目录）
+ * Get builtin skills directory path (_system/_builtin subdirectory)
  * Skills in this directory are automatically injected for ALL agents and scenarios
  */
 const getBuiltinSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.system);
+  return path.join(getSystemSkillsDir(), SKILL_SUBDIRS.legacyBuiltin);
 };
 
 /**
@@ -344,18 +338,19 @@ const migrateSkillsToSubdirectories = async (): Promise<void> => {
   mainLog('SkillMigration', 'Starting skill subdirectory migration...');
 
   const hubDir = getHubSkillsDir();
-  const systemDir = getBuiltinSkillsDir();
+  const systemDir = getSystemSkillsDir();
+  const builtinDir = getBuiltinSkillsDir();
   const customDir = getCustomSkillsDir();
 
   // Ensure target directories exist
-  for (const dir of [hubDir, systemDir, customDir]) {
+  for (const dir of [hubDir, systemDir, builtinDir, customDir]) {
     if (!existsSync(dir)) {
       mkdirSync(dir);
     }
   }
 
   try {
-    // 1. Migrate _builtin/ contents to _system/ if legacy _builtin directory exists
+    // 1. Migrate legacy root-level _builtin/ contents to _system/_builtin/
     const legacyBuiltinDir = path.join(skillsDir, SKILL_SUBDIRS.legacyBuiltin);
     if (existsSync(legacyBuiltinDir)) {
       try {
@@ -363,13 +358,13 @@ const migrateSkillsToSubdirectories = async (): Promise<void> => {
         for (const entry of builtinEntries) {
           if (!entry.isDirectory()) continue;
           const src = path.join(legacyBuiltinDir, entry.name);
-          const dest = path.join(systemDir, entry.name);
+          const dest = path.join(builtinDir, entry.name);
           try {
             if (existsSync(dest)) {
               await fs.rm(dest, { recursive: true, force: true });
             }
             await fs.rename(src, dest);
-            mainLog('SkillMigration', `Moved builtin skill "${entry.name}" from _builtin to _system`);
+            mainLog('SkillMigration', `Moved builtin skill "${entry.name}" from _builtin to _system/_builtin`);
           } catch (error) {
             mainWarn('SkillMigration', `Failed to move builtin skill "${entry.name}":`, error);
           }
@@ -507,20 +502,20 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   const builtinSkillsDir = resolveBuiltinDir('skills');
   const userSkillsDir = getSkillsDir();
 
-  // 复制技能脚本目录到用户配置目录（_system 子目录）
-  // Copy skills scripts directory to user config directory (_system subdirectory)
+  // 复制资源 skills 目录到用户配置目录的 _system 子目录
+  // Copy bundled skills directory to user config directory's _system subdirectory
   if (existsSync(builtinSkillsDir)) {
     try {
       // 确保用户技能目录和 _system 子目录存在
       if (!existsSync(userSkillsDir)) {
         mkdirSync(userSkillsDir);
       }
-      const userSystemSkillsDir = getBuiltinSkillsDir();
+      const userSystemSkillsDir = getSystemSkillsDir();
       if (!existsSync(userSystemSkillsDir)) {
         mkdirSync(userSystemSkillsDir);
       }
-      // 复制内置技能到 _system 子目录（覆盖同名文件）
-      // Copy builtin skills to _system subdirectory (overwrite existing files)
+      // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
+      // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
       await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
     } catch (error) {
       mainWarn('Sudowork', `Failed to copy skills directory:`, error);
@@ -967,7 +962,7 @@ export const getSystemDir = () => {
  * 获取助手规则目录路径（供其他模块使用）
  * Get assistant rules directory path (for use by other modules)
  */
-export { getAssistantsDir, getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
+export { getAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
 
 /**
  * Skills 内容缓存，避免重复从文件系统读取
