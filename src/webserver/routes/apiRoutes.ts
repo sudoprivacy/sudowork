@@ -249,7 +249,7 @@ export function registerApiRoutes(app: Express): void {
       const page = typeof req.query.page === 'string' ? req.query.page : '1';
       const size = typeof req.query.size === 'string' ? req.query.size : '200';
       const query = typeof req.query.query === 'string' ? req.query.query : '';
-      const category = typeof req.query.category === 'string' ? req.query.category : '';
+      const category = typeof req.query.category === 'string' ? req.query.category : typeof req.query.categories === 'string' ? req.query.categories : '';
 
       const params = new URLSearchParams({ page, size, query, category });
       const response = await fetch(`${SKILL_HUB_BASE_URL}?${params}`, {
@@ -268,13 +268,15 @@ export function registerApiRoutes(app: Express): void {
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : '';
       const limit = typeof req.query.limit === 'string' ? req.query.limit : '20';
       const query = typeof req.query.query === 'string' ? req.query.query : '';
-      const category = typeof req.query.category === 'string' ? req.query.category : '';
+      const category = typeof req.query.category === 'string' ? req.query.category : typeof req.query.categories === 'string' ? req.query.categories : '';
+      const tenantId = typeof req.query.tenant_id === 'string' && req.query.tenant_id.trim() ? req.query.tenant_id.trim() : undefined;
 
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', limit);
       if (query) params.set('query', query);
       if (category) params.set('category', category);
+      if (tenantId) params.set('tenant_id', tenantId);
 
       const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/cursor?${params}`, {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },

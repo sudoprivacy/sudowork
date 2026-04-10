@@ -1101,7 +1101,7 @@ export interface IInstalledSkillInfo {
 
 export const skillHub = {
   /** Fetch skills list from Skill Hub API with cursor-based pagination */
-  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string }>('skill-hub.fetch-skills'),
+  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('skill-hub.fetch-skills'),
   /** Fetch skill categories from Skill Hub API */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */
