@@ -571,6 +571,18 @@ export class ActionExecutor {
       this.sessionManager.updateSessionActivity(context.channelUser.id, context.chatId);
     }
 
+    // 立即更新会话 updated_at 并通知前端刷新列表（不等待 AI 响应完成）
+    // Immediately update conversation updated_at and notify frontend to refresh list
+    if (context.conversationId) {
+      const db = getDatabase();
+      db.updateConversation(context.conversationId, {});
+      databaseBridge.conversationChanged.emit({
+        conversationId: context.conversationId,
+        source: context.platform,
+        action: 'updated',
+      });
+    }
+
     // Send "thinking" indicator IMMEDIATELY (before acquiring lock)
     // This ensures the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
@@ -796,6 +808,12 @@ export class ActionExecutor {
       // Stop typing indicator
       void context.sendTyping?.(context.chatId, true);
 
+      // 首轮对话完成后，自动用用户消息内容更新会话标题
+      // After first round of conversation, auto-update title with user message content
+      if (conversationId) {
+        this.autoUpdateConversationTitle(conversationId, text);
+      }
+
       // 通知渲染进程对话已更新（updated_at 变化影响列表排序）
       if (conversationId) {
         databaseBridge.conversationChanged.emit({
@@ -804,6 +822,56 @@ export class ActionExecutor {
           action: 'updated',
         });
       }
+    }
+  }
+
+  /**
+   * 如果会话标题尚未被更新过（仍是初始的用户昵称），则使用用户首条消息内容更新标题。
+   * 格式为："{displayName}: {message_summary}"，最大50字符。
+   *
+   * Auto-update conversation title if it hasn't been updated yet.
+   * Uses format: "{displayName}: {message_summary}", max 50 characters.
+   * Marks the conversation with `titleUpdated: true` in extra to prevent repeated updates.
+   */
+  private autoUpdateConversationTitle(conversationId: string, messageText: string): void {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(conversationId);
+      if (!result.success || !result.data) return;
+
+      const conversation = result.data;
+      const extra = (conversation.extra || {}) as Record<string, unknown>;
+
+      // 已更新过标题则跳过
+      // Skip if title has already been updated
+      if (extra.titleUpdated) return;
+
+      // 清理用户消息文本：去除换行、多余空格，截取摘要
+      // Clean user message text: remove newlines, extra spaces, extract summary
+      const cleanText = messageText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!cleanText) return;
+
+      const currentName = conversation.name || '';
+
+      // 组合标题："{displayName}: {message_summary}"
+      // Compose title: "{displayName}: {message_summary}"
+      const maxSummaryLen = 50 - currentName.length - 2; // 2 for ": "
+      let newTitle: string;
+      if (maxSummaryLen > 10 && currentName) {
+        const summary = cleanText.length > maxSummaryLen ? cleanText.substring(0, maxSummaryLen - 1) + '…' : cleanText;
+        newTitle = `${currentName}: ${summary}`;
+      } else {
+        // 如果用户名太长，直接用消息内容作为标题
+        // If display name is too long, use message content directly as title
+        newTitle = cleanText.length > 50 ? cleanText.substring(0, 49) + '…' : cleanText;
+      }
+
+      db.updateConversation(conversationId, {
+        name: newTitle,
+        extra: { ...extra, titleUpdated: true },
+      } as any);
+    } catch (error) {
+      console.warn('[ActionExecutor] Failed to auto-update conversation title:', error);
     }
   }
 
