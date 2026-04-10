@@ -314,9 +314,11 @@ export class WeComPlugin extends BasePlugin {
         aeskey: body.video.aeskey,
         msgtype: 'video',
       });
-    } else if (body.msgtype === 'mixed' && body.mixed?.items) {
-      for (let i = 0; i < body.mixed.items.length; i++) {
-        const item = body.mixed.items[i];
+    } else if (body.msgtype === 'mixed' && (body.mixed?.msg_item || body.mixed?.items)) {
+      // WeCom API uses "msg_item"; fall back to "items" for backward compatibility
+      const mixedItems = body.mixed.msg_item || body.mixed.items || [];
+      for (let i = 0; i < mixedItems.length; i++) {
+        const item = mixedItems[i];
         // WeCom may use "msgtype" or "type" for mixed item type
         const itemType = item.msgtype || item.type || '';
         if (itemType === 'image' && item.image?.url) {
@@ -350,8 +352,9 @@ export class WeComPlugin extends BasePlugin {
         fs.writeFileSync(filePath, buffer);
 
         // Write local path back to the message body
-        if (item.mixedIndex !== undefined && body.mixed?.items[item.mixedIndex]) {
-          body.mixed.items[item.mixedIndex]._localPath = filePath;
+        const mixedArr = body.mixed?.msg_item || body.mixed?.items;
+        if (item.mixedIndex !== undefined && mixedArr?.[item.mixedIndex]) {
+          mixedArr[item.mixedIndex]._localPath = filePath;
         } else {
           switch (item.msgtype) {
             case 'image':

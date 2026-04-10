@@ -170,11 +170,11 @@ describe('WeComAdapter', () => {
   });
 
   describe('toUnifiedIncomingMessage - mixed', () => {
-    it('extracts text and image attachments from mixed message', () => {
+    it('extracts text and image attachments from mixed message (msg_item)', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          items: [
+          msg_item: [
             { msgtype: 'text', text: { content: 'Check this image' } },
             {
               msgtype: 'image',
@@ -192,11 +192,33 @@ describe('WeComAdapter', () => {
       expect(result!.content.attachments![0].fileId).toBe('/tmp/channel-media/wecom/img_001.jpg');
     });
 
-    it('falls back to URL for mixed image without local path', () => {
+    it('falls back to "items" field for backward compatibility', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
           items: [
+            { msgtype: 'text', text: { content: 'Legacy format' } },
+            {
+              msgtype: 'image',
+              image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' },
+              _localPath: '/tmp/channel-media/wecom/img_legacy.jpg',
+            },
+          ],
+        },
+      });
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.content.text).toBe('Legacy format');
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.attachments).toHaveLength(1);
+      expect(result!.content.attachments![0].fileId).toBe('/tmp/channel-media/wecom/img_legacy.jpg');
+    });
+
+    it('falls back to URL for mixed image without local path', () => {
+      const msg = makeMsg({
+        msgtype: 'mixed',
+        mixed: {
+          msg_item: [
             { msgtype: 'text', text: { content: 'Look' } },
             { msgtype: 'image', image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' } },
           ],
@@ -210,7 +232,7 @@ describe('WeComAdapter', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          items: [
+          msg_item: [
             { msgtype: 'text', text: { content: 'Part one' } },
             { msgtype: 'text', text: { content: 'Part two' } },
           ],
@@ -226,7 +248,7 @@ describe('WeComAdapter', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          items: [
+          msg_item: [
             { msgtype: 'text', text: { content: 'Two pics' } },
             {
               msgtype: 'image',
@@ -251,7 +273,7 @@ describe('WeComAdapter', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          items: [
+          msg_item: [
             { type: 'text', text: { content: 'Hello from type field' } },
             {
               type: 'image',
@@ -273,9 +295,9 @@ describe('WeComAdapter', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          items: [
+          msg_item: [
             {
-              type: 'image',
+              msgtype: 'image',
               image: { url: 'https://cdn.example.com/img.jpg', aeskey: 'key1' },
             },
           ],

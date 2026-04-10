@@ -38,7 +38,8 @@ export type WeComMsgCallback = {
   text?: { content: string };
   image?: { url: string; aeskey: string };
   mixed?: {
-    items: Array<{
+    /** WeCom API uses "msg_item" as the array field name */
+    msg_item?: Array<{
       /** Item type – WeCom may use "msgtype" or "type" depending on API version */
       msgtype?: string;
       /** Alternative item type field used by some WeCom API versions */
@@ -46,6 +47,14 @@ export type WeComMsgCallback = {
       text?: { content: string };
       image?: { url: string; aeskey: string };
       /** Local file path after download+decrypt (set by WeComPlugin) */
+      _localPath?: string;
+    }>;
+    /** @deprecated Alias kept for backward compatibility; prefer msg_item */
+    items?: Array<{
+      msgtype?: string;
+      type?: string;
+      text?: { content: string };
+      image?: { url: string; aeskey: string };
       _localPath?: string;
     }>;
   };
@@ -194,7 +203,7 @@ export function getDefaultExtension(msgtype: string): string {
  * Get the type of a mixed message item.
  * WeCom may use "msgtype" or "type" depending on the API version / endpoint.
  */
-function getMixedItemType(item: NonNullable<WeComMsgCallback['mixed']>['items'][number]): string {
+function getMixedItemType(item: NonNullable<NonNullable<WeComMsgCallback['mixed']>['msg_item']>[number]): string {
   return item.msgtype || item.type || '';
 }
 
@@ -223,7 +232,8 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
       const textParts: string[] = [];
       const attachments: Array<{ type: 'photo'; fileId: string }> = [];
 
-      const items = data.mixed?.items || [];
+      // WeCom API uses "msg_item"; fall back to "items" for backward compatibility
+      const items = data.mixed?.msg_item || data.mixed?.items || [];
       if (items.length > 0) {
         console.log(`[WeComAdapter] mixed items (${items.length}): ${JSON.stringify(items.map((i) => ({ msgtype: i.msgtype, type: i.type, hasText: !!i.text, hasImage: !!i.image, hasLocalPath: !!i._localPath })))}`);
       }
