@@ -59,6 +59,22 @@ function httpGet(url, timeout = 2000) {
   });
 }
 
+function getOpenClawResourceFileName() {
+  const platformMap = {
+    'darwin-arm64': { os: 'macos', arch: 'arm64' },
+    'darwin-x64': { os: 'macos', arch: 'x64' },
+    'win32-arm64': { os: 'windows', arch: 'arm64' },
+    'win32-x64': { os: 'windows', arch: 'x64' },
+  };
+  const effectivePlatform = process.env.npm_config_platform || process.platform;
+  const effectiveArch = process.env.npm_config_arch || process.arch;
+  const config = platformMap[`${effectivePlatform}-${effectiveArch}`];
+  if (!config) {
+    throw new Error(`Unsupported OpenClaw dev runtime platform: ${effectivePlatform}-${effectiveArch}`);
+  }
+  return `${runtimeVersions.sudoclaw}-sudoclaw-${config.os}-${config.arch}.tgz`;
+}
+
 function ensureBundledRuntimeAsset({ name, archivePath, expectedVersion, downloadScript }) {
   const archiveExists = fs.existsSync(archivePath);
 
@@ -88,7 +104,7 @@ function ensureDevRuntimeResources() {
 
   ensureBundledRuntimeAsset({
     name: 'openclaw',
-    archivePath: path.join(resourcesDir, 'openclaw.tgz'),
+    archivePath: path.join(resourcesDir, getOpenClawResourceFileName()),
     expectedVersion: runtimeVersions.sudoclaw,
     downloadScript: path.join('scripts', 'download-openclaw.js'),
   });

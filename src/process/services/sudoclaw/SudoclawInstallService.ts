@@ -47,7 +47,6 @@ const SUDOCLAW_CLI_BACKUP_DIR = path.join(SUDOCLAW_DIR, 'cli.old');
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
-const BUNDLED_OPENCLAW_MANIFEST_NAME = 'openclaw.manifest.json';
 
 /** COS base URL for downloading sudoclaw archives at runtime */
 const SUDOCLAW_COS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
@@ -69,81 +68,6 @@ export function removeSudoclawCli(): void {
   if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
     fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
   }
-}
-
-/** Check if dist/entry.mjs exists. The bundled openclaw.tgz is pre-built at pack time. */
-function hasDistEntry(pkgRoot: string): boolean {
-  const entryMjs = path.join(pkgRoot, 'dist', 'entry.mjs');
-  const entryJs = path.join(pkgRoot, 'dist', 'entry.js');
-  return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
-}
-
-/** Check if the esbuild-bundled openclaw.mjs exists (present in pre-built archives) */
-function hasBundledEntry(pkgRoot: string): boolean {
-  return fs.existsSync(path.join(pkgRoot, 'openclaw.mjs'));
-}
-
-/**
- * Check if node_modules exists with correct platform-specific bindings.
- * Checks for the @snazzah/davey binding for the current platform/arch.
- * Returns false if the correct binding is missing (triggers npm install).
- *
- * In bundled mode (openclaw.mjs exists), only native bindings are required
- * since JS dependencies like chalk are inlined into the bundle.
- */
-function hasNodeModules(pkgRoot: string): boolean {
-  const nm = path.join(pkgRoot, 'node_modules');
-  if (!fs.existsSync(nm) || !fs.statSync(nm).isDirectory()) return false;
-
-  // Check for correct platform-specific @snazzah/davey binding
-  const daveyBinding = getDaveyBindingName();
-  const daveyPath = path.join(nm, daveyBinding);
-  if (!fs.existsSync(daveyPath)) return false;
-
-  // In bundled mode, chalk and other JS deps are inlined - only native bindings matter
-  if (hasBundledEntry(pkgRoot)) return true;
-
-  // Legacy (unbundled) mode: also check for chalk
-  const chalk = path.join(nm, 'chalk');
-  return fs.existsSync(chalk);
-}
-
-/** @snazzah/davey platform binding name for current platform */
-function getDaveyBindingName(): string {
-  const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const suffix = platform === 'win32' ? 'msvc' : platform === 'linux' ? 'gnu' : '';
-  return `@snazzah/davey-${platform}-${arch}${suffix ? `-${suffix}` : ''}`;
-}
-
-/**
- * Check if platform-specific dependencies are installed.
- * The bundled tgz is built for the target platform at pack time, so no runtime npm install needed.
- * @returns true if dependencies look correct
- */
-function checkPlatformDependencies(pkgRoot: string): boolean {
-  const daveyBinding = getDaveyBindingName();
-  const daveyPath = path.join(pkgRoot, 'node_modules', daveyBinding);
-
-  // In bundled mode, only native bindings are required
-  if (hasBundledEntry(pkgRoot)) {
-    if (fs.existsSync(daveyPath)) {
-      mainLog('Sudoclaw', 'Platform dependencies OK (bundled mode)');
-      return true;
-    }
-    mainWarn('Sudoclaw', `Platform dependencies missing (bundled mode): ${daveyPath}`);
-    return false;
-  }
-
-  // Legacy (unbundled) mode: check both native bindings and JS deps
-  const chalk = path.join(pkgRoot, 'node_modules', 'chalk');
-  if (fs.existsSync(daveyPath) && fs.existsSync(chalk)) {
-    mainLog('Sudoclaw', 'Platform dependencies OK');
-    return true;
-  }
-
-  mainWarn('Sudoclaw', `Platform dependencies missing: ${daveyPath}, ${chalk}`);
-  return false;
 }
 
 /** Resolve OpenClaw package root after npm pack extract (package/ at top level) */
@@ -194,27 +118,60 @@ function readSudoclawInstallManifest(): SudoclawInstallManifest | null {
   return isValidInstallManifest(manifest) ? manifest : null;
 }
 
+export function getBundledOpenclawArchiveFileName(): string | null {
+  const version = runtimeVersions.sudoclaw;
+  if (!version) return null;
+  const osName = SUDOCLAW_OS_NAME_MAP[process.platform];
+  const archName = SUDOCLAW_ARCH_NAME_MAP[process.arch];
+  if (!osName || !archName) return null;
+  return `${version}-sudoclaw-${osName}-${archName}.tgz`;
+}
+
+function getSudoclawReleaseVersion(): string | undefined {
+  const version = runtimeVersions.sudoclaw;
+  if (typeof version !== 'string') return undefined;
+  const releaseVersion = version.split('-')[0]?.trim();
+  return releaseVersion || undefined;
+}
+
+export function getBundledOpenclawManifestFileName(): string | null {
+  const archiveFileName = getBundledOpenclawArchiveFileName();
+  if (!archiveFileName) return null;
+  return archiveFileName.replace(/\.tgz$/i, '.manifest.json');
+}
+
 function getBundledOpenclawManifestPath(): string | null {
+  const manifestFileName = getBundledOpenclawManifestFileName();
+  if (!manifestFileName) return null;
+
   if (app.isPackaged) {
-    const packagedPath = path.join(process.resourcesPath, BUNDLED_OPENCLAW_MANIFEST_NAME);
+    const packagedPath = path.join(process.resourcesPath, manifestFileName);
     if (fs.existsSync(packagedPath)) return packagedPath;
   }
 
-  const devPath = path.join(app.getAppPath(), 'resources', BUNDLED_OPENCLAW_MANIFEST_NAME);
+  const devPath = path.join(app.getAppPath(), 'resources', manifestFileName);
   if (fs.existsSync(devPath)) return devPath;
 
   return null;
 }
 
-function getExpectedSudoclawInstallManifest(): SudoclawInstallManifest | null {
+function readBundledOpenclawManifest(): SudoclawInstallManifest | null {
   const bundledManifestPath = getBundledOpenclawManifestPath();
   const bundledManifest = bundledManifestPath ? readJsonFile<unknown>(bundledManifestPath) : null;
-  if (isValidInstallManifest(bundledManifest)) {
-    return bundledManifest;
-  }
+  return isValidInstallManifest(bundledManifest) ? bundledManifest : null;
+}
 
+function getExpectedSudoclawInstallManifest(): SudoclawInstallManifest | null {
+  const bundledManifest = readBundledOpenclawManifest();
   const bundledVersion = getSudoclawBundledVersion();
   if (!bundledVersion) return null;
+
+  if (isValidInstallManifest(bundledManifest)) {
+    return {
+      ...bundledManifest,
+      version: bundledVersion,
+    };
+  }
 
   return {
     version: bundledVersion,
@@ -223,12 +180,18 @@ function getExpectedSudoclawInstallManifest(): SudoclawInstallManifest | null {
   };
 }
 
-function isSudoclawInstallManifestCurrent(): boolean {
-  const installed = readSudoclawInstallManifest();
-  const expected = getExpectedSudoclawInstallManifest();
-  if (!installed || !expected) return false;
+function validateBundledOpenclawVersion(): string | null {
+  const bundledVersion = getSudoclawBundledVersion();
+  if (!bundledVersion) return null;
 
-  return installed.version === expected.version && installed.platform === expected.platform && installed.arch === expected.arch;
+  const bundledManifest = readBundledOpenclawManifest();
+  if (!bundledManifest) return null;
+
+  if (bundledManifest.version !== bundledVersion) {
+    return `Bundled OpenClaw resource version mismatch: manifest=${bundledManifest.version}, runtime=${bundledVersion}`;
+  }
+
+  return null;
 }
 
 function writeSudoclawInstallManifest(): void {
@@ -244,23 +207,8 @@ function writeSudoclawInstallManifest(): void {
 }
 
 export function getSudoclawInstalledVersion(): string | undefined {
-  const pkgRoot = resolvePackageRoot();
-  if (pkgRoot) {
-    try {
-      const pkgJsonPath = path.join(pkgRoot, 'package.json');
-      if (fs.existsSync(pkgJsonPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as { version?: unknown };
-        if (typeof pkg.version === 'string' && pkg.version.trim()) {
-          return pkg.version.trim();
-        }
-      }
-    } catch {
-      // fall back to install manifest below
-    }
-  }
-
-  const manifestVersion = normalizeVersion(readSudoclawInstallManifest()?.version);
-  return manifestVersion;
+  const manifestVersion = readSudoclawInstallManifest()?.version;
+  return typeof manifestVersion === 'string' && manifestVersion.trim() ? manifestVersion.trim() : undefined;
 }
 
 export function getSudoclawBundledVersion(): string | undefined {
@@ -268,19 +216,11 @@ export function getSudoclawBundledVersion(): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function normalizeVersion(value?: string): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  return trimmed.replace(/^v/i, '');
-}
-
 export function getSudoclawVersionState(): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
-  const bundledPath = getBundledOpenclawPath();
-  const installedVersion = normalizeVersion(getSudoclawInstalledVersion());
-  const bundledVersion = normalizeVersion(getSudoclawBundledVersion());
+  const installedVersion = getSudoclawInstalledVersion();
+  const bundledVersion = getSudoclawBundledVersion();
 
-  if (!bundledPath || !installedVersion || !bundledVersion) {
+  if (!installedVersion || !bundledVersion) {
     return {
       installedVersion,
       bundledVersion,
@@ -293,6 +233,11 @@ export function getSudoclawVersionState(): { installedVersion?: string; bundledV
     bundledVersion,
     needsUpgrade: installedVersion !== bundledVersion,
   };
+}
+
+export function isSudoclawInstalled(): boolean {
+  const versionState = getSudoclawVersionState();
+  return Boolean(versionState.installedVersion) && !versionState.needsUpgrade;
 }
 
 function formatInstallError(message: string, err?: unknown): string {
@@ -421,15 +366,6 @@ function hasLauncher(pkgRoot: string): boolean {
 
 function getLauncherPath(pkgRoot: string): string {
   return path.join(pkgRoot, 'launcher.mjs');
-}
-
-/** Check if bin wrapper exists in package (created at pack time) */
-function hasBinWrapper(pkgRoot: string): boolean {
-  const binDir = path.join(pkgRoot, 'bin');
-  if (process.platform === 'win32') {
-    return fs.existsSync(path.join(binDir, 'openclaw.cmd'));
-  }
-  return fs.existsSync(path.join(binDir, 'openclaw'));
 }
 
 /** Migrate config filename from openclaw.json to sudoclaw.json */
@@ -753,29 +689,16 @@ function migrateLegacyDir(legacyDir: string, label: string): void {
   }
 }
 
-/**
- * Get the sudoclaw archive filename for the current platform.
- * e.g. v0.1.0-v2026.03.11-sudoclaw-macos-arm64.tgz
- */
-function getSudoclawArchiveFileName(): string | null {
-  const version = runtimeVersions.sudoclaw;
-  if (!version) return null;
-  const osName = SUDOCLAW_OS_NAME_MAP[process.platform];
-  const archName = SUDOCLAW_ARCH_NAME_MAP[process.arch];
-  if (!osName || !archName) return null;
-  return `${version}-sudoclaw-${osName}-${archName}.tgz`;
-}
-
 function getSudoclawGitHubDownloadUrl(): string | null {
-  const version = runtimeVersions.sudoclaw;
-  const fileName = getSudoclawArchiveFileName();
+  const version = getSudoclawReleaseVersion();
+  const fileName = getBundledOpenclawArchiveFileName();
   if (!version || !fileName) return null;
   return `${SUDOCLAW_GITHUB_RELEASE_BASE_URL}/${version}/${fileName}`;
 }
 
 function getSudoclawCosDownloadUrl(): string | null {
-  const version = runtimeVersions.sudoclaw;
-  const fileName = getSudoclawArchiveFileName();
+  const version = getSudoclawReleaseVersion();
+  const fileName = getBundledOpenclawArchiveFileName();
   if (!version || !fileName) return null;
   return `${SUDOCLAW_COS_BASE_URL}/${version}/${fileName}`;
 }
@@ -851,7 +774,7 @@ async function downloadSudoclawFromRemote(): Promise<string | null> {
 
   const downloadDir = path.join(os.tmpdir(), 'sudoclaw-download');
   fs.mkdirSync(downloadDir, { recursive: true });
-  const destPath = path.join(downloadDir, 'openclaw.tgz');
+  const destPath = path.join(downloadDir, getBundledOpenclawArchiveFileName() ?? 'openclaw.tgz');
 
   let lastError: string | null = null;
 
@@ -885,13 +808,16 @@ async function downloadSudoclawFromRemote(): Promise<string | null> {
 
 /** Get the bundled OpenClaw resource path (from packaged app or development) */
 function getBundledOpenclawPath(): string | null {
+  const archiveFileName = getBundledOpenclawArchiveFileName();
+  if (!archiveFileName) return null;
+
   if (app.isPackaged) {
-    const packagedPath = path.join(process.resourcesPath, 'openclaw.tgz');
+    const packagedPath = path.join(process.resourcesPath, archiveFileName);
     if (fs.existsSync(packagedPath)) return packagedPath;
   }
 
   // Development mode
-  const devPath = path.join(app.getAppPath(), 'resources', 'openclaw.tgz');
+  const devPath = path.join(app.getAppPath(), 'resources', archiveFileName);
   if (fs.existsSync(devPath)) return devPath;
 
   return null;
@@ -903,8 +829,8 @@ function getBundledOpenclawPath(): string | null {
  * Note: ensureNodeInstalled() is called before this in process/index.ts
  *
  * On Windows, NSIS installer may have already extracted files to:
- * - ~/.nexus/sudoclaw/cli/package/... (extracted from openclaw.tgz)
- * The tgz includes launcher.mjs and bin/openclaw(.cmd) created at pack time.
+ * - ~/.nexus/sudoclaw/cli/package/... (extracted from the bundled OpenClaw archive)
+ * The tgz includes launcher.mjs created at pack time.
  */
 export async function ensureSudoclawInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<SudoclawInstallResult> {
   const forceReinstall = options?.forceReinstall === true;
@@ -917,15 +843,20 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureUserMdIdentityStatement();
 
   const pkgRoot = resolvePackageRoot();
+  const versionState = getSudoclawVersionState();
+  const bundledVersionError = validateBundledOpenclawVersion();
 
-  // Check if already fully installed with all required files (tgz includes launcher and bin)
-  if (!forceReinstall && pkgRoot && hasLauncher(pkgRoot)) {
-    if (!isSudoclawInstallManifestCurrent()) {
-      writeSudoclawInstallManifest();
-    }
-    mainLog('Sudoclaw', 'Existing launcher detected, skipping re-extract');
-    return { installed: true, cliPath: getLauncherPath(pkgRoot) };
+  if (bundledVersionError) {
+    mainError('Sudoclaw', bundledVersionError);
+    return { installed: false, cliPath: null, error: bundledVersionError };
   }
+
+  if (!forceReinstall && isSudoclawInstalled()) {
+    mainLog('Sudoclaw', `Existing Sudoclaw ${versionState.installedVersion} detected, skipping re-extract`);
+    return { installed: true, cliPath: pkgRoot ? getLauncherPath(pkgRoot) : null };
+  }
+
+  let downloadedTempPath: string | null = null;
 
   try {
     fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
@@ -940,7 +871,6 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
 
     // Try bundled resource first, then download from GitHub/COS
     let bundledPath = getBundledOpenclawPath();
-    let downloadedTempPath: string | null = null;
     if (!bundledPath) {
       mainWarn('Sudoclaw', 'Bundled OpenClaw resource not found, attempting remote download...');
       const downloadedPath = await downloadSudoclawFromRemote();
@@ -964,15 +894,8 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     }
 
     const newPkgRoot = resolvePackageRootFrom(SUDOCLAW_CLI_STAGING_DIR);
-    if (!newPkgRoot || !hasDistEntry(newPkgRoot) || !hasLauncher(newPkgRoot) || !hasBinWrapper(newPkgRoot)) {
-      const error = 'Extracted OpenClaw package is missing required files';
-      mainError('Sudoclaw', error);
-      return { installed: false, cliPath: null, error };
-    }
-
-    if (!checkPlatformDependencies(newPkgRoot)) {
-      const deps = hasBundledEntry(newPkgRoot) ? getDaveyBindingName() : `${getDaveyBindingName()}, chalk`;
-      const error = `Platform dependencies missing after extraction (${deps})`;
+    if (!newPkgRoot) {
+      const error = 'Extracted OpenClaw package could not be resolved';
       mainError('Sudoclaw', error);
       return { installed: false, cliPath: null, error };
     }
@@ -994,8 +917,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
-    const binName = process.platform === 'win32' ? 'openclaw.cmd' : 'openclaw';
-    return { installed: true, cliPath: path.join(activePkgRoot, 'bin', binName) };
+    return { installed: true, cliPath: getLauncherPath(activePkgRoot) };
   } catch (err) {
     const error = formatInstallError('Sudoclaw install failed', err);
     mainError('Sudoclaw', error, err);

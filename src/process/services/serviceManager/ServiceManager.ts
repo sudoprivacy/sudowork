@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
@@ -324,9 +323,9 @@ class ServiceManager {
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
-      if (app.isPackaged && versionState.needsUpgrade) {
+      if (versionState.needsUpgrade) {
+        const installResult = await ensureSudoclawInstalled({ forceReinstall: versionState.needsUpgrade });
         mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
-        const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
         if (!installResult.installed) {
           throw new Error(installResult.error ?? 'Sudoclaw upgrade failed before gateway start');
         }
@@ -574,7 +573,7 @@ class ServiceManager {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
     const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
     const [sudoclawModule, nexusModule] = serviceModules;
-    const { getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
+    const { isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
     const { dynamicNexusService } = nexusModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
@@ -585,7 +584,7 @@ class ServiceManager {
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
-        { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
+        { name: 'Sudoclaw', ok: isSudoclawInstalled() && sudoclawHealthy },
         { name: 'Nexus', ok: nexusHealthy },
       ];
 

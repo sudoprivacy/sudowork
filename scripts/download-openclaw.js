@@ -7,8 +7,8 @@
  * - GitHub: https://github.com/sudoprivacy/sudorepo/releases/download/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
  * - COS:   https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
  *
- * Saves to: resources/openclaw.tgz
- * Also writes: resources/openclaw.manifest.json
+ * Saves to: resources/v{version}-sudoclaw-{platform}-{arch}.tgz
+ * Also writes: resources/v{version}-sudoclaw-{platform}-{arch}.manifest.json
  *
  * NOTE: Download failures are fatal (exit 1) — unlike nexus, we do NOT create empty placeholders.
  *
@@ -22,13 +22,11 @@ const runtimeVersions = require('../src/shared/runtime-versions.json');
 const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
-const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
-const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
-
 const SUDOCLAW_VERSION = runtimeVersions.sudoclaw;
+const SUDOCLAW_RELEASE_VERSION = SUDOCLAW_VERSION.split('-')[0];
 
-const GITHUB_BASE_URL = `https://github.com/sudoprivacy/sudorepo/releases/download/${SUDOCLAW_VERSION}`;
-const COS_BASE_URL = `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${SUDOCLAW_VERSION}`;
+const GITHUB_BASE_URL = `https://github.com/sudoprivacy/sudorepo/releases/download/${SUDOCLAW_RELEASE_VERSION}`;
+const COS_BASE_URL = `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${SUDOCLAW_RELEASE_VERSION}`;
 
 // Platform mappings: Node.js platform-arch → sudoclaw archive name
 const PLATFORMS = {
@@ -38,14 +36,33 @@ const PLATFORMS = {
   'win32-x64': { os: 'windows', arch: 'x64' },
 };
 
+function getPlatformConfig(platform) {
+  const config = PLATFORMS[platform];
+  if (!config) throw new Error(`Unknown platform: ${platform}`);
+
+  const [nodePlatform, nodeArch] = platform.split('-');
+  if (!nodePlatform || !nodeArch) {
+    throw new Error(`Invalid platform identifier: ${platform}`);
+  }
+
+  return {
+    ...config,
+    nodePlatform,
+    nodeArch,
+  };
+}
+
 /**
  * Get the archive filename for a given platform.
  * e.g. v0.1.0-v2026.03.11-sudoclaw-macos-arm64.tgz
  */
 function getArchiveFileName(platform) {
-  const config = PLATFORMS[platform];
-  if (!config) throw new Error(`Unknown platform: ${platform}`);
+  const config = getPlatformConfig(platform);
   return `${SUDOCLAW_VERSION}-sudoclaw-${config.os}-${config.arch}.tgz`;
+}
+
+function getManifestFileName(platform) {
+  return getArchiveFileName(platform).replace(/\.tgz$/i, '.manifest.json');
 }
 
 function getGitHubDownloadUrl(platform) {
@@ -56,24 +73,24 @@ function getCosDownloadUrl(platform) {
   return `${COS_BASE_URL}/${getArchiveFileName(platform)}`;
 }
 
-function getDaveyBindingDirName() {
-  const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+function getDaveyBindingDirName(platform, arch) {
   const suffix = platform === 'win32' ? 'msvc' : platform === 'linux' ? 'gnu' : '';
   return `davey-${platform}-${arch}${suffix ? `-${suffix}` : ''}`;
 }
 
-function writeOpenClawManifest(version) {
+function writeOpenClawManifest(platform, version) {
+  const config = getPlatformConfig(platform);
+  const outputManifest = path.join(RESOURCES_DIR, getManifestFileName(platform));
   const manifest = {
     version,
-    platform: process.platform,
-    arch: process.arch,
-    daveyBinding: `@snazzah/${getDaveyBindingDirName()}`,
+    platform: config.nodePlatform,
+    arch: config.nodeArch,
+    daveyBinding: `@snazzah/${getDaveyBindingDirName(config.nodePlatform, config.nodeArch)}`,
     generatedAt: new Date().toISOString(),
   };
 
-  fs.writeFileSync(OUTPUT_MANIFEST, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
-  console.log(`[openclaw] Wrote manifest to ${OUTPUT_MANIFEST}`);
+  fs.writeFileSync(outputManifest, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+  console.log(`[openclaw] Wrote manifest to ${outputManifest}`);
 }
 
 /**
@@ -159,9 +176,10 @@ function downloadFile(url, dest) {
 }
 
 async function downloadOpenClaw(platform, force = false) {
+  const output = path.join(RESOURCES_DIR, getArchiveFileName(platform));
   // Skip if already exists
-  if (fs.existsSync(OUTPUT) && !force) {
-    console.log(`Already exists: ${OUTPUT}`);
+  if (fs.existsSync(output) && !force) {
+    console.log(`Already exists: ${output}`);
     console.log('Use --force to re-download.');
     return true;
   }
@@ -180,15 +198,15 @@ async function downloadOpenClaw(platform, force = false) {
   for (const attempt of downloadAttempts) {
     console.log(`\n[openclaw] Trying ${attempt.label} download...`);
     try {
-      await downloadFile(attempt.url, OUTPUT);
-      console.log(`[openclaw] Downloaded from ${attempt.label}: ${OUTPUT}`);
+      await downloadFile(attempt.url, output);
+      console.log(`[openclaw] Downloaded from ${attempt.label}: ${output}`);
       return true;
     } catch (err) {
       lastError = err;
       console.warn(`[openclaw] ${attempt.label} download failed: ${err.message}`);
       // Clean up partial download
       try {
-        fs.unlinkSync(OUTPUT);
+        fs.unlinkSync(output);
       } catch {}
     }
   }
@@ -233,7 +251,7 @@ async function main() {
   try {
     const success = await downloadOpenClaw(platform, force);
     if (success) {
-      writeOpenClawManifest(SUDOCLAW_VERSION);
+      writeOpenClawManifest(platform, SUDOCLAW_VERSION);
       updateLocalDevRuntimeVersion('openclaw', SUDOCLAW_VERSION);
       console.log('\n✅ OpenClaw download completed');
     }
