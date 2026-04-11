@@ -587,12 +587,12 @@ const SkillModalContent: React.FC = () => {
     }
   }, []);
 
-  const handleImportSkillZip = useCallback(async () => {
+  const handleImportLocalSkill = useCallback(async () => {
     if (!isElectronDesktop()) return;
 
     try {
       const dialogResult = await ipcBridge.dialog.showOpen.invoke({
-        properties: ['openFile'],
+        properties: ['openFile', 'openDirectory'],
         filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
       });
 
@@ -600,7 +600,7 @@ const SkillModalContent: React.FC = () => {
         return;
       }
 
-      const res = await skillHub.importSkillZip.invoke({ zipPath: dialogResult.data.filePaths[0] });
+      const res = await skillHub.importLocalSkill.invoke({ sourcePath: dialogResult.data.filePaths[0] });
       if (res.success && res.data) {
         Message.success(
           t('settings.skill.importSuccess', {
@@ -619,7 +619,7 @@ const SkillModalContent: React.FC = () => {
         );
       }
     } catch (err) {
-      console.error('Failed to import skill zip:', err);
+      console.error('Failed to import local skill:', err);
       Message.error(
         t('settings.skill.importFailed', {
           msg: String(err),
@@ -1167,7 +1167,7 @@ const SkillModalContent: React.FC = () => {
           <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
-          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleImportSkillZip()}>
+          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleImportLocalSkill()}>
             <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <UploadOne size='13' />
             </span>

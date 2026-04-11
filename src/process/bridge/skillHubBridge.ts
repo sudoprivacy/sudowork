@@ -20,7 +20,7 @@ import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { buildSkillDisplayName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
+import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -29,6 +29,7 @@ const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
+const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
 
 function normalizeInstalledSkillVersion(version: string | undefined | null): string {
@@ -121,7 +122,7 @@ function resolveZipSkillLayout(zip: JSZip): {
     }
   }
 
-  const skillMdPaths = fileEntries.filter((entryPath) => path.posix.basename(entryPath) === 'SKILL.md');
+  const skillMdPaths = fileEntries.filter((entryPath) => isSkillMarkdownFileName(path.posix.basename(entryPath)));
 
   if (skillMdPaths.includes('SKILL.md')) {
     return {
@@ -273,6 +274,8 @@ async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): 
       targetPath = normalizedPath.slice(stripPrefix.length);
     }
 
+    targetPath = canonicalizeSkillMarkdownPath(targetPath);
+
     if (!targetPath) continue;
 
     const fullPath = path.join(skillDir, targetPath);
@@ -285,6 +288,60 @@ async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): 
   }
 
   return { extractedFiles };
+}
+
+async function resolveRootSkillMarkdownPath(skillDir: string): Promise<string> {
+  const entries = await fs.readdir(skillDir, { withFileTypes: true });
+  const rootSkillMarkdown = findRootSkillMarkdownFileName(entries.filter((entry) => entry.isFile()).map((entry) => entry.name));
+  if (!rootSkillMarkdown) {
+    throw new Error(MISSING_ROOT_SKILL_MD_MESSAGE);
+  }
+  return path.join(skillDir, rootSkillMarkdown);
+}
+
+async function copySkillDirectoryToDirectory(sourceDir: string, targetDir: string): Promise<{ copiedFiles: string[] }> {
+  const rootEntries = await fs.readdir(sourceDir, { withFileTypes: true });
+  const rootSkillMarkdown = findRootSkillMarkdownFileName(rootEntries.filter((entry) => entry.isFile()).map((entry) => entry.name));
+  if (!rootSkillMarkdown) {
+    throw new Error(MISSING_ROOT_SKILL_MD_MESSAGE);
+  }
+
+  const copiedFiles: string[] = [];
+
+  const copyDirectoryEntries = async (currentSourceDir: string, currentTargetDir: string, currentRelativePath = ''): Promise<void> => {
+    const entries = await fs.readdir(currentSourceDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const sourcePath = path.join(currentSourceDir, entry.name);
+
+      if (entry.isDirectory()) {
+        const nextTargetDir = path.join(currentTargetDir, entry.name);
+        const nextRelativePath = currentRelativePath ? path.posix.join(currentRelativePath, entry.name) : entry.name;
+        await fs.mkdir(nextTargetDir, { recursive: true });
+        await copyDirectoryEntries(sourcePath, nextTargetDir, nextRelativePath);
+        continue;
+      }
+
+      if (entry.isSymbolicLink()) {
+        const relativePath = currentRelativePath ? path.posix.join(currentRelativePath, entry.name) : entry.name;
+        throw new Error(`Symlinks are not supported in skill directories: ${relativePath}`);
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const targetName = !currentRelativePath && isSkillMarkdownFileName(entry.name) ? 'SKILL.md' : entry.name;
+      const targetPath = path.join(currentTargetDir, targetName);
+      await fs.copyFile(sourcePath, targetPath);
+      copiedFiles.push(currentRelativePath ? path.posix.join(currentRelativePath, targetName) : targetName);
+    }
+  };
+
+  await fs.mkdir(targetDir, { recursive: true });
+  await copyDirectoryEntries(sourceDir, targetDir);
+
+  return { copiedFiles };
 }
 
 async function readSkillManifestFromDirectory(
@@ -300,7 +357,7 @@ async function readSkillManifestFromDirectory(
   homepage: string | null;
   version: string;
 }> {
-  const skillMdPath = path.join(skillDir, 'SKILL.md');
+  const skillMdPath = await resolveRootSkillMarkdownPath(skillDir);
   const content = await fs.readFile(skillMdPath, 'utf-8');
   const frontmatter = parseSkillFrontmatter(content);
   const fallbackName = path.basename(skillDir);
@@ -336,6 +393,107 @@ async function readInstalledVersionFromDirectory(skillDir: string): Promise<stri
   } catch {
     return '';
   }
+}
+
+async function installImportedSkillFromPreparedDirectory(
+  skillDir: string,
+  importedFiles: string[],
+  missingSkillMessage: string
+): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
+  const customSkillsDir = getCustomSkillsDir();
+  await fs.mkdir(customSkillsDir, { recursive: true });
+
+  const importedMeta = await readSkillHubMetaFromDirectory(skillDir);
+  let manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>> | null = null;
+
+  try {
+    manifest = await readSkillManifestFromDirectory(skillDir, importedFiles);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === MISSING_ROOT_SKILL_MD_MESSAGE) {
+      if (!importedMeta) {
+        return { success: false, msg: missingSkillMessage };
+      }
+    } else {
+      return { success: false, msg: message };
+    }
+  }
+
+  const detectedIcon = resolveSkillIconFromFiles(importedFiles);
+  const installedVersion = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest?.version || (await readInstalledVersionFromDirectory(skillDir));
+  const skillName = importedMeta?.name?.trim() || manifest?.skillName;
+  const categories = importedMeta?.categories?.filter(Boolean) || [];
+
+  if (!skillName) {
+    return { success: false, msg: 'Unable to determine skill name from _sudowork_meta.json or SKILL.md' };
+  }
+
+  const systemDir = path.join(getBuiltinSkillsDir(), skillName);
+  const hubDir = path.join(getHubSkillsDir(), skillName);
+  const customDir = path.join(customSkillsDir, skillName);
+
+  try {
+    await fs.access(systemDir);
+    return { success: false, msg: `Skill "${skillName}" already exists in builtin skills` };
+  } catch {
+    // builtin skill does not exist
+  }
+
+  try {
+    await fs.access(hubDir);
+    return { success: false, msg: `Skill "${skillName}" already exists in hub-installed skills` };
+  } catch {
+    // hub skill does not exist
+  }
+
+  try {
+    await fs.access(customDir);
+    return { success: false, msg: `Skill "${skillName}" already exists in custom skills` };
+  } catch {
+    // custom skill does not exist
+  }
+
+  await fs.rename(skillDir, customDir);
+
+  const metaFilePath = path.join(customDir, SKILL_HUB_META_FILE);
+  const installedAt = new Date().toISOString();
+  const meta: SkillHubMeta = {
+    id: importedMeta?.id?.trim() || '',
+    name: skillName,
+    display_name: importedMeta?.display_name?.trim() || manifest?.displayName || buildSkillDisplayName(skillName),
+    description: importedMeta?.description?.trim() || manifest?.description || '',
+    icon: importedMeta?.icon?.trim() || manifest?.icon || detectedIcon || UPLOAD_SKILL_DEFAULT_ICON_FILE,
+    emoji: importedMeta?.emoji?.trim() || manifest?.emoji || null,
+    category: importedMeta?.category?.trim() || manifest?.category || '',
+    categories: categories.length > 0 ? categories : importedMeta?.category?.trim() ? [importedMeta.category.trim()] : manifest?.category ? [manifest.category] : [],
+    applicable_scenarios: importedMeta?.applicable_scenarios ?? null,
+    core_features: importedMeta?.core_features ?? null,
+    homepage: importedMeta?.homepage?.trim() || manifest?.homepage || null,
+    author_id: importedMeta?.author_id?.trim() || '',
+    source_type: 'upload',
+    is_builtin: false,
+    enabled: true,
+    installed_version: installedVersion,
+    installed_at: installedAt,
+  };
+  await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+
+  void (async () => {
+    try {
+      await reloadSkillRuntime();
+    } catch (err) {
+      mainWarn('SkillHub', 'Reload after local skill import failed:', err);
+      await WorkerManage.restartOpenClawGateways();
+    }
+  })();
+
+  return {
+    success: true,
+    data: {
+      skillName,
+      installedVersion,
+    },
+  };
 }
 
 /**
@@ -588,112 +746,36 @@ export function initSkillHubBridge(): void {
     }
   });
 
-  ipcBridge.skillHub.importSkillZip.provider(async ({ zipPath }) => {
+  ipcBridge.skillHub.importLocalSkill.provider(async ({ sourcePath }) => {
     try {
-      const zipBuffer = await fs.readFile(zipPath);
-      const customSkillsDir = getCustomSkillsDir();
-      await fs.mkdir(customSkillsDir, { recursive: true });
-
+      const sourceStat = await fs.stat(sourcePath);
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-skill-import-'));
       try {
-        const { extractedFiles } = await extractSkillZipToDirectory(zipBuffer, tempDir);
-        const importedMeta = await readSkillHubMetaFromDirectory(tempDir);
-        const skillMdPath = path.join(tempDir, 'SKILL.md');
-        let manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>> | null = null;
+        let importedFiles: string[] = [];
 
-        try {
-          await fs.access(skillMdPath);
-          manifest = await readSkillManifestFromDirectory(tempDir, extractedFiles);
-        } catch {
-          if (!importedMeta) {
-            return { success: false, msg: 'The zip package must contain SKILL.md or _sudowork_meta.json at the root or in a single top-level directory' };
+        if (sourceStat.isDirectory()) {
+          const { copiedFiles } = await copySkillDirectoryToDirectory(sourcePath, tempDir);
+          importedFiles = copiedFiles;
+        } else if (sourceStat.isFile()) {
+          if (path.extname(sourcePath).toLowerCase() !== '.zip') {
+            return { success: false, msg: 'Please select a .zip file or a skill directory' };
           }
+
+          const zipBuffer = await fs.readFile(sourcePath);
+          const { extractedFiles } = await extractSkillZipToDirectory(zipBuffer, tempDir);
+          importedFiles = extractedFiles;
+        } else {
+          return { success: false, msg: 'Please select a .zip file or a skill directory' };
         }
 
-        const detectedIcon = resolveSkillIconFromFiles(extractedFiles);
-        const installedVersion = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest?.version || (await readInstalledVersionFromDirectory(tempDir));
-        const skillName = importedMeta?.name?.trim() || manifest?.skillName;
-        const categories = importedMeta?.categories?.filter(Boolean) || [];
+        const missingSkillMessage = sourceStat.isDirectory() ? MISSING_ROOT_SKILL_MD_MESSAGE : 'The zip package must contain SKILL.md or _sudowork_meta.json at the root or in a single top-level directory';
 
-        if (!skillName) {
-          return { success: false, msg: 'Unable to determine skill name from _sudowork_meta.json or SKILL.md' };
-        }
-
-        const systemDir = path.join(getBuiltinSkillsDir(), skillName);
-        const hubDir = path.join(getHubSkillsDir(), skillName);
-        const customDir = path.join(customSkillsDir, skillName);
-
-        try {
-          await fs.access(systemDir);
-          return { success: false, msg: `Skill "${skillName}" already exists in builtin skills` };
-        } catch {
-          // builtin skill does not exist
-        }
-
-        try {
-          await fs.access(hubDir);
-          return { success: false, msg: `Skill "${skillName}" already exists in hub-installed skills` };
-        } catch {
-          // hub skill does not exist
-        }
-
-        try {
-          await fs.access(customDir);
-          return { success: false, msg: `Skill "${skillName}" already exists in custom skills` };
-        } catch {
-          // custom skill does not exist
-        }
-
-        const skillDir = customDir;
-        await fs.rename(tempDir, skillDir);
-
-        const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
-        const installedAt = new Date().toISOString();
-        const meta: SkillHubMeta = {
-          id: importedMeta?.id?.trim() || '',
-          name: skillName,
-          display_name: importedMeta?.display_name?.trim() || manifest?.displayName || buildSkillDisplayName(skillName),
-          description: importedMeta?.description?.trim() || manifest?.description || '',
-          icon: importedMeta?.icon?.trim() || manifest?.icon || detectedIcon || UPLOAD_SKILL_DEFAULT_ICON_FILE,
-          emoji: importedMeta?.emoji?.trim() || manifest?.emoji || null,
-          category: importedMeta?.category?.trim() || manifest?.category || '',
-          categories: categories.length > 0 ? categories : importedMeta?.category?.trim() ? [importedMeta.category.trim()] : manifest?.category ? [manifest.category] : [],
-          applicable_scenarios: importedMeta?.applicable_scenarios ?? null,
-          core_features: importedMeta?.core_features ?? null,
-          homepage: importedMeta?.homepage?.trim() || manifest?.homepage || null,
-          author_id: importedMeta?.author_id?.trim() || '',
-          source_type: 'upload',
-          is_builtin: false,
-          enabled: true,
-          installed_version: installedVersion,
-          installed_at: installedAt,
-        };
-        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-
-        // NOTE: _sudowork_meta.json is the single source of truth for installed version.
-        // The standalone sudowork-version file is no longer written for new imports.
-
-        void (async () => {
-          try {
-            await reloadSkillRuntime();
-          } catch (err) {
-            mainWarn('SkillHub', 'Reload after zip import failed:', err);
-            await WorkerManage.restartOpenClawGateways();
-          }
-        })();
-
-        return {
-          success: true,
-          data: {
-            skillName,
-            installedVersion,
-          },
-        };
+        return await installImportedSkillFromPreparedDirectory(tempDir, importedFiles, missingSkillMessage);
       } finally {
         await fs.rm(tempDir, { recursive: true, force: true }).catch((): void => undefined);
       }
     } catch (error) {
-      mainError('SkillHub', 'Failed to import skill zip:', error);
+      mainError('SkillHub', 'Failed to import local skill:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

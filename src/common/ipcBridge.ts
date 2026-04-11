@@ -1112,8 +1112,8 @@ export const skillHub = {
   downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
   /** Download skill zip to local Downloads folder */
   downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
-  /** Import a local skill zip package and synthesize metadata from SKILL.md */
-  importSkillZip: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { zipPath: string }>('skill-hub.import-skill-zip'),
+  /** Import a local skill zip package or directory and synthesize metadata from SKILL.md */
+  importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill */
