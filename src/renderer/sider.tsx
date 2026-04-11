@@ -44,8 +44,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 功能菜单项定义 / Function menu items definition
   const functionMenus = [
-    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
     { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
+    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
     { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
     { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
     { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
