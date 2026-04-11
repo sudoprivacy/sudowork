@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -182,13 +185,15 @@ class AcpDetector {
       return null;
     };
 
-    const isCliAvailable = (cliCommand: string): boolean => {
+    // PERF: Use async exec instead of execSync to avoid blocking the Node.js event loop.
+    // Previously each CLI detection blocked for up to 1s, and with 10+ CLIs this added
+    // up to 10+ seconds of frozen UI. Now all detections truly run in parallel.
+    const isCliAvailable = async (cliCommand: string): Promise<boolean> => {
       // Keep original behavior: prefer where/which, then fallback on Windows to Get-Command.
       // 保持原逻辑：优先使用 where/which，Windows 下失败再回退到 Get-Command。
       try {
-        execSync(`${whichCommand} ${cliCommand}`, {
+        await execAsync(`${whichCommand} ${cliCommand}`, {
           encoding: 'utf-8',
-          stdio: 'pipe',
           timeout: 1000,
           env: enhancedEnv,
         });
@@ -201,9 +206,8 @@ class AcpDetector {
         try {
           // PowerShell fallback for shim scripts like claude.ps1 (vfox)
           // PowerShell 回退，支持 claude.ps1 这类 shim（例如 vfox）
-          execSync(`powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`, {
+          await execAsync(`powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`, {
             encoding: 'utf-8',
-            stdio: 'pipe',
             timeout: 1000,
             env: enhancedEnv,
           });
@@ -218,35 +222,34 @@ class AcpDetector {
 
     const detected: DetectedAgent[] = [];
 
-    // 并行检测所有潜在的 ACP CLI
-    const detectionPromises = POTENTIAL_ACP_CLIS.map((cli) => {
-      return Promise.resolve().then(() => {
-        // 优先检查 ~/.nexus/bin 等目录
-        // Check priority bin directories first
-        const priorityCliPath = findCliInPriorityDirs(cli.cmd);
-        if (priorityCliPath) {
-          console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
-          return {
-            backend: cli.backendId,
-            name: cli.name,
-            cliPath: priorityCliPath,
-            acpArgs: cli.args,
-          };
-        }
-
-        // 回退到 which/where 检测
-        // Fallback to which/where detection
-        if (!isCliAvailable(cli.cmd)) {
-          return null;
-        }
-
+    // 并行检测所有潜在的 ACP CLI（真正的并行 — isCliAvailable 现在是 async）
+    // Truly parallel detection — isCliAvailable is now async, so all CLI checks run concurrently
+    const detectionPromises = POTENTIAL_ACP_CLIS.map(async (cli) => {
+      // 优先检查 ~/.nexus/bin 等目录
+      // Check priority bin directories first
+      const priorityCliPath = findCliInPriorityDirs(cli.cmd);
+      if (priorityCliPath) {
+        console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
         return {
           backend: cli.backendId,
           name: cli.name,
-          cliPath: cli.cmd,
+          cliPath: priorityCliPath,
           acpArgs: cli.args,
         };
-      });
+      }
+
+      // 回退到 which/where 检测（异步，不阻塞事件循环）
+      // Fallback to which/where detection (async, non-blocking)
+      if (!(await isCliAvailable(cli.cmd))) {
+        return null;
+      }
+
+      return {
+        backend: cli.backendId,
+        name: cli.name,
+        cliPath: cli.cmd,
+        acpArgs: cli.args,
+      };
     });
 
     const results = await Promise.allSettled(detectionPromises);
@@ -267,17 +270,18 @@ class AcpDetector {
         name: 'Sudoclaw',
         cliPath: getSudoclawCliPath() ?? undefined,
         acpArgs: ['gateway'],
+        presetAgentType: 'sudoclaw',
       });
     }
 
     // 始终添加内置 Gemini 作为默认选项（无需检测其他 CLI）
     // Always add built-in Gemini as default option (no CLI detection needed)
-    detected.unshift({
-      backend: 'gemini',
-      name: 'Gemini CLI',
-      cliPath: undefined,
-      acpArgs: undefined,
-    });
+    // detected.unshift({
+    //   backend: 'gemini',
+    //   name: 'Gemini CLI',
+    //   cliPath: undefined,
+    //   acpArgs: undefined,
+    // });
 
     // Add extension-contributed agents (hot-load, no persistence)
     this.addExtensionAgentsToList(detected);
@@ -315,6 +319,16 @@ class AcpDetector {
 
     // Re-add custom agents with current config
     await this.addCustomAgentsToList(this.detectedAgents);
+  }
+
+  /**
+   * Re-run full agent detection (e.g. after CLI install/uninstall).
+   * Resets the detection flag and re-initializes so that newly installed
+   * or removed CLI agents are picked up immediately.
+   */
+  async rescanCliAgents(): Promise<void> {
+    this.isDetected = false;
+    await this.initialize();
   }
 }
 

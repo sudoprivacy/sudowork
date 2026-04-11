@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
-import { acpConversation } from '@/common/ipcBridge';
+import { ConfigStorage, DEFAULT_IMAGE_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
+import { acpConversation, openclaw } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -248,9 +248,18 @@ const ToolsModalContent: React.FC = () => {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        const data = await ConfigStorage.get('tools.imageGenerationModel');
-        if (data) {
-          setImageGenerationModel(data);
+        const saved = await ConfigStorage.get('tools.imageGenerationModel');
+        if (saved) {
+          // Always ensure useModel is set
+          if (!saved.useModel) {
+            saved.useModel = DEFAULT_IMAGE_MODEL;
+          }
+          setImageGenerationModel(saved);
+        } else {
+          // Default: switch on, hardcoded model
+          const defaultConfig = { useModel: DEFAULT_IMAGE_MODEL, switch: true } as IConfigStorageRefer['tools.imageGenerationModel'];
+          setImageGenerationModel(defaultConfig);
+          ConfigStorage.set('tools.imageGenerationModel', defaultConfig).catch(() => {});
         }
       } catch (error) {
         console.error('Failed to load image generation model config:', error);
@@ -260,36 +269,15 @@ const ToolsModalContent: React.FC = () => {
     void loadConfigs();
   }, []);
 
-  // Sync imageGenerationModel apiKey when provider apiKey changes
-  useEffect(() => {
-    if (!imageGenerationModel || !data) return;
-
-    const currentProvider = data.find((p) => p.id === imageGenerationModel.id);
-
-    if (currentProvider && currentProvider.apiKey !== imageGenerationModel.apiKey) {
-      const updatedModel = {
-        ...imageGenerationModel,
-        apiKey: currentProvider.apiKey,
-      };
-
-      setImageGenerationModel(updatedModel);
-      ConfigStorage.set('tools.imageGenerationModel', updatedModel).catch((error) => {
-        console.error('Failed to save image generation model config:', error);
-      });
-    } else if (!currentProvider) {
-      setImageGenerationModel(undefined);
-      ConfigStorage.remove('tools.imageGenerationModel').catch((error) => {
-        console.error('Failed to remove image generation model config:', error);
-      });
-    }
-  }, [data, imageGenerationModel?.id, imageGenerationModel?.apiKey]);
-
   const handleImageGenerationModelChange = (value: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
     setImageGenerationModel((prev) => {
       const newImageGenerationModel = { ...prev, ...value };
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
+      // Persist to sudoclaw.json agents.defaults.imageModel so skill scripts pick it up dynamically
+      const modelId = newImageGenerationModel.switch && newImageGenerationModel.useModel ? newImageGenerationModel.useModel : null;
+      openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
       return newImageGenerationModel;
     });
   };
@@ -316,37 +304,27 @@ const ToolsModalContent: React.FC = () => {
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-border-2'>
             <div className='flex items-center justify-between mb-16px'>
               <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
-              <Switch disabled={!imageGenerationModelList.length || !imageGenerationModel?.useModel} checked={imageGenerationModel?.switch} onChange={(checked) => handleImageGenerationModelChange({ switch: checked })} />
+              <Switch checked={imageGenerationModel?.switch} onChange={(checked) => handleImageGenerationModelChange({ switch: checked })} />
             </div>
 
             <Divider className='mt-0px mb-20px' />
 
             <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
               <Form.Item label={t('settings.imageGenerationModel')}>
-                {imageGenerationModelList.length > 0 ? (
-                  <AionSelect
-                    value={imageGenerationModel?.id && imageGenerationModel?.useModel ? `${imageGenerationModel.id}|${imageGenerationModel.useModel}` : undefined}
-                    onChange={(value) => {
-                      const [platformId, modelName] = value.split('|');
-                      const platform = imageGenerationModelList.find((p) => p.id === platformId);
-                      if (platform) {
-                        handleImageGenerationModelChange({ ...platform, useModel: modelName });
-                      }
-                    }}
-                  >
-                    {imageGenerationModelList.map(({ model, ...platform }) => (
-                      <AionSelect.OptGroup label={platform.name} key={platform.id}>
-                        {model.map((modelName) => (
-                          <AionSelect.Option key={platform.id + modelName} value={platform.id + '|' + modelName}>
-                            {modelName}
-                          </AionSelect.Option>
-                        ))}
-                      </AionSelect.OptGroup>
-                    ))}
-                  </AionSelect>
-                ) : (
-                  <div className='text-t-secondary flex items-center'>{t('settings.noAvailable')}</div>
-                )}
+                <AionSelect
+                  value={imageGenerationModel?.useModel || DEFAULT_IMAGE_MODEL}
+                  disabled={!imageGenerationModel?.switch}
+                  onChange={(val) => handleImageGenerationModelChange({ useModel: val as string })}
+                  options={[
+                    // { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
+                    // { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
+                    // { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
+                    { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
+                    { label: 'gpt-image-1', value: 'gpt-image-1' },
+                    { label: 'doubao-seedream-4-0-250828', value: 'doubao-seedream-4-0-250828' },
+                  ]}
+                  style={{ minWidth: 260 }}
+                />
               </Form.Item>
             </Form>
           </div>

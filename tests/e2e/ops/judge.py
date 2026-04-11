@@ -9,35 +9,11 @@ Falls back to keyword matching if agent judgment fails.
 import asyncio
 import os
 
-from ai_dev_browser.cdp import input_ as cdp_input
 from ai_dev_browser.core.page import js_exec
 
 from .screenshot import screenshot
-
-
-async def _send_message(tab, text, wait=10):
-    """Send a message in current conversation."""
-    await js_exec(tab, "document.querySelector('textarea')?.focus()")
-    await asyncio.sleep(0.3)
-    js = """(() => {
-        const ta = document.querySelector('textarea');
-        if (!ta) return 'no_textarea';
-        const setter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype, 'value'
-        ).set;
-        setter.call(ta, %s);
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
-        return 'ok';
-    })()""" % repr(text)
-    await js_exec(tab, js)
-    await asyncio.sleep(0.3)
-    await tab.send(cdp_input.dispatch_key_event(
-        "keyDown", key="Enter", code="Enter", windows_virtual_key_code=13
-    ))
-    await tab.send(cdp_input.dispatch_key_event(
-        "keyUp", key="Enter", code="Enter", windows_virtual_key_code=13
-    ))
-    await asyncio.sleep(wait)
+from .type_text import type_text
+from .press_key import press_key
 
 
 async def _get_shadow_text(tab):
@@ -109,7 +85,8 @@ async def judge(tab, expect: str, use_agent: bool = False) -> dict:
         f"Reply EXACTLY: PASS or FAIL: <reason>"
     )
 
-    await _send_message(tab, prompt, wait=20)
+    await type_text(tab, prompt, wait=0.5)
+    await press_key(tab, key='Enter', wait=20)
 
     # Read agent's response
     response_text = await _get_shadow_text(tab)

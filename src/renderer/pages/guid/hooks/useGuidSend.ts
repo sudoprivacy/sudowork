@@ -9,6 +9,7 @@ import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
+import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
 import { type TFunction } from 'i18next';
@@ -24,6 +25,7 @@ export type GuidSendDeps = {
   dir: string;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedSkills?: string[];
 
   // Agent state
   selectedAgent: AcpBackend | 'custom';
@@ -50,6 +52,10 @@ export type GuidSendDeps = {
   setMentionSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setMentionActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 
+  // Agent/skills reset
+  resetAgentSelection: () => void;
+  setSelectedSkills: React.Dispatch<React.SetStateAction<string[]>>;
+
   // Navigation & tabs
   navigate: NavigateFunction;
   closeAllTabs: () => void;
@@ -67,7 +73,7 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, navigate, closeAllTabs, openTab, t } = deps;
+  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
 
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
@@ -83,8 +89,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
+      // Only fallback within the same routing category:
+      // ACP types (claude, qwen, codebuddy, etc.) can fallback to each other,
+      // but never to sudoclaw (OpenClaw Gateway) — they have different capabilities.
       const fallback = getAvailableFallbackAgent();
-      if (fallback && fallback !== effectiveAgentType) {
+      const isSameCategory = fallback && fallback !== 'sudoclaw' && effectiveAgentType !== 'sudoclaw';
+      if (fallback && fallback !== effectiveAgentType && isSameCategory) {
         finalEffectiveAgentType = fallback;
         Message.info(
           t('guid.autoSwitchedAgent', {
@@ -96,9 +106,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-    // OpenClaw Gateway path
-    if (selectedAgent === 'openclaw-gateway') {
+    // OpenClaw Gateway path (sudoclaw backend or preset with sudoclaw agent type)
+    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'sudoclaw') {
       const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+
+      // For sudoclaw preset, find the openclaw-gateway agent info
+      const actualAgentInfo = finalEffectiveAgentType === 'sudoclaw' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
 
       try {
         const conversation = await ipcBridge.conversation.create.invoke({
@@ -109,19 +122,24 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             defaultFiles: files,
             workspace: finalWorkspace,
             customWorkspace: isCustomWorkspace,
-            backend: openclawAgentInfo?.backend,
-            cliPath: openclawAgentInfo?.cliPath,
-            agentName: openclawAgentInfo?.name,
+            backend: actualAgentInfo?.backend,
+            cliPath: actualAgentInfo?.cliPath,
+            agentName: actualAgentInfo?.name,
+            customAgentId: isPreset ? agentInfo?.customAgentId : undefined,
             runtimeValidation: {
               expectedWorkspace: finalWorkspace,
-              expectedBackend: openclawAgentInfo?.backend,
-              expectedAgentName: openclawAgentInfo?.name,
-              expectedCliPath: openclawAgentInfo?.cliPath,
+              expectedBackend: actualAgentInfo?.backend,
+              expectedAgentName: actualAgentInfo?.name,
+              expectedCliPath: actualAgentInfo?.cliPath,
               expectedModel: currentModel?.useModel,
               switchedAt: Date.now(),
             },
             enabledSkills: isPreset ? enabledSkills : undefined,
-            presetAssistantId: isPreset ? openclawAgentInfo?.customAgentId : undefined,
+            // Use original agentInfo's customAgentId for preset assistant
+            presetAssistantId: isPreset ? agentInfo?.customAgentId || openclawAgentInfo?.customAgentId : undefined,
+            presetContext: isPreset ? presetRules : undefined,
+            sessionMode: selectedMode,
+            currentModelId: selectedAcpModel || undefined,
           },
         });
 
@@ -141,6 +159,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
         };
         sessionStorage.setItem(`openclaw_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -169,10 +188,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
 
       try {
+        // For presets with a non-gemini backend (e.g. claude), don't pass the
+        // UI's Gemini model — let the backend resolve the model itself.
+        const isGeminiBackend = acpBackend === 'gemini';
         const conversation = await ipcBridge.conversation.create.invoke({
           type: 'acp',
           name: input,
-          model: currentModel!,
+          model: isGeminiBackend ? currentModel! : ({} as TProviderWithModel),
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -184,7 +206,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetContext: isPreset ? presetRules : undefined,
             enabledSkills: isPreset ? enabledSkills : undefined,
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
-            sessionMode: selectedMode,
+            sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: selectedAcpModel || undefined,
           },
         });
@@ -205,6 +227,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const initialMessage = {
           input,
           files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
         };
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -227,6 +250,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         setMentionActiveIndex(0);
         setFiles([]);
         setDir('');
+        // 重置助手选择和技能，确保返回 Guide 页面时为初始状态
+        resetAgentSelection();
+        setSelectedSkills([]);
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
@@ -234,7 +260,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       .finally(() => {
         setLoading(false);
       });
-  }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir]);
+  }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
   const isButtonDisabled = !input.trim();

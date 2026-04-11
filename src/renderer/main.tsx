@@ -5,20 +5,26 @@
  */
 
 import React from 'react';
+import InitLoading from './components/InitLoading';
+import { useAuth } from './context/AuthContext';
+import { useInit } from './context/InitContext';
 import Layout from './layout';
 import Router from './router';
 import Sider from './sider';
-import { useAuth } from './context/AuthContext';
-import { useInit } from './context/InitContext';
-import InitLoading from './components/InitLoading';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
-  const { isReady: initReady } = useInit();
+  const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
 
-  // Show loading while runtime is initializing
-  if (!initReady) {
-    return <InitLoading />;
+  if (!hasResolvedInitialStatus) {
+    return null;
+  }
+
+  if (!initReady && !isInitScreenSkipped) {
+    if (status.phase === 'pending' && !status.displayMode) {
+      return null;
+    }
+    return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 
   if (!authReady) {

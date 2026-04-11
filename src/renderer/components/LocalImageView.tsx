@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import { joinPath } from '@/common/chatLib';
+import { Image } from '@arco-design/web-react';
 import { LoadingTwo } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createContext } from '../utils/createContext';
@@ -11,10 +12,11 @@ const LocalImageView: React.FC<{
   src: string;
   alt: string;
   className?: string;
+  style?: React.CSSProperties;
 }> & {
   Provider: typeof LocalImageProvider;
   useUpdateLocalImage: typeof useUpdateLocalImage;
-} = ({ src, alt, className }) => {
+} = ({ src, alt, className, style }) => {
   const [loading, setLoading] = useState(true);
   const [url, setUrl] = useState(src);
   const { root } = useLocalImage();
@@ -47,6 +49,7 @@ const LocalImageView: React.FC<{
         setLoading(false);
       });
   }, [absolutePath]);
+
   if (loading)
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -54,7 +57,8 @@ const LocalImageView: React.FC<{
         <span>{alt}</span>
       </span>
     );
-  return <img src={url} alt={alt} className={className} />;
+
+  return <Image src={url} alt={alt} className={className} style={{ ...style, cursor: 'pointer' }} preview />;
 };
 
 LocalImageView.Provider = LocalImageProvider;

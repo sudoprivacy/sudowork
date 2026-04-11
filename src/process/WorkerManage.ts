@@ -10,6 +10,7 @@ import OpenClawAgent from './task/OpenClawAgent';
 import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const taskList: {
   id: string;
@@ -79,13 +80,13 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
 };
 
 const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationOptions): Promise<AgentBaseTask<unknown>> => {
-  console.log(`[WorkerManage] getTaskByIdRollbackBuild: id=${id}, options=${JSON.stringify(options)}`);
+  mainLog('WorkerManage', `getTaskByIdRollbackBuild: id=${id}, options=${JSON.stringify(options)}`);
 
   // If not skipping cache, check for existing task
   if (!options?.skipCache) {
     const task = taskList.find((item) => item.id === id)?.task;
     if (task) {
-      console.log(`[WorkerManage] Found existing task in memory for: ${id}`);
+      mainLog('WorkerManage', `Found existing task in memory for: ${id}`);
       return Promise.resolve(task);
     }
   }
@@ -93,10 +94,10 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
   // Try to load from database first
   const db = getDatabase();
   const dbResult = db.getConversation(id);
-  console.log(`[WorkerManage] Database lookup result: success=${dbResult.success}, hasData=${!!dbResult.data}`);
+  mainLog('WorkerManage', `Database lookup result: success=${dbResult.success}, hasData=${!!dbResult.data}`);
 
   if (dbResult.success && dbResult.data) {
-    console.log(`[WorkerManage] Building conversation from database: ${id}`);
+    mainLog('WorkerManage', `Building conversation from database: ${id}`);
     return buildConversation(dbResult.data, options);
   }
 
@@ -104,11 +105,11 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
   const list = (await ProcessChat.get('chat.history')) as TChatConversation[] | undefined;
   const conversation = list?.find((item) => item.id === id);
   if (conversation) {
-    console.log(`[WorkerManage] Building conversation from file storage: ${id}`);
+    mainLog('WorkerManage', `Building conversation from file storage: ${id}`);
     return buildConversation(conversation, options);
   }
 
-  console.error('[WorkerManage] Conversation not found in database or file storage:', id);
+  mainError('WorkerManage', 'Conversation not found in database or file storage:', id);
   return Promise.reject(new Error('Conversation not found'));
 };
 
@@ -142,35 +143,59 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
-/** Send SIGUSR1 to Sudoclaw gateway for hot-reload (skills) — no full restart */
-const reloadOpenClawSkills = (): void => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  for (const { task } of openclawTasks) {
-    const mgr = task as OpenClawAgent;
-    if (typeof mgr.reloadGatewaySkills === 'function') {
-      mgr.reloadGatewaySkills();
-      return; // Only one gateway; first task that owns it will send signal
+/**
+ * Update workspace path for all active agents that reference the old path.
+ * Called when a workspace directory is renamed to keep running agents in sync.
+ * 更新所有引用旧路径的活跃 Agent 的工作空间路径。
+ * 在工作空间目录重命名时调用，保持运行中的 Agent 路径同步。
+ */
+const updateActiveAgentWorkspace = (oldPath: string, newPath: string): number => {
+  let updatedCount = 0;
+  for (const item of taskList) {
+    const agent = item.task as any;
+    if (agent.workspace === oldPath) {
+      agent.workspace = newPath;
+      // Update extra.workspace if it exists (AcpAgent stores it there too)
+      if (agent.extra?.workspace === oldPath) {
+        agent.extra.workspace = newPath;
+      }
+      // Update AcpConnection workingDir if applicable
+      if (agent.connection?.workingDir === oldPath) {
+        agent.connection.workingDir = newPath;
+      }
+      updatedCount++;
+      mainLog('WorkerManage', `Updated workspace path for agent ${item.id}: ${oldPath} -> ${newPath}`);
     }
   }
+  return updatedCount;
 };
 
-/** Restart all Sudoclaw gateways to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
-const restartOpenClawGateways = async (): Promise<void> => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
+/** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
+const reloadOpenClawSkills = async (): Promise<void> => {
+  const { serviceManager } = await import('./services/serviceManager');
+  serviceManager.sendReloadSignal();
+};
 
+/** Restart the Sudoclaw gateway (via ServiceManager) and reconnect all agent WebSockets */
+const restartOpenClawGateways = async (): Promise<void> => {
+  const { serviceManager } = await import('./services/serviceManager');
+  await serviceManager.restartOpenClaw();
+  // restartOpenClaw() already calls reconnectOpenClawAgents()
+};
+
+/** Reconnect all active openclaw-gateway agents' WebSocket connections (no gateway restart) */
+const reconnectOpenClawAgents = (): void => {
+  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
   for (const { id, task } of openclawTasks) {
-    const mgr = task as OpenClawAgent;
-    if (typeof mgr.restartGateway === 'function') {
-      // Restart asynchronously without blocking
-      mgr
-        .restartGateway()
-        .then(() => {
-          console.log('[WorkerManage] Restarted OpenClaw gateway for', id);
-        })
-        .catch((err) => {
-          console.error('[WorkerManage] Failed to restart OpenClaw gateway for', id, ':', err);
-        });
-    }
+    const agent = task as OpenClawAgent;
+    agent
+      .restartGateway()
+      .then(() => {
+        mainLog('WorkerManage', 'Reconnected OpenClaw agent for', id);
+      })
+      .catch((err) => {
+        mainError('WorkerManage', `Failed to reconnect OpenClaw agent for ${id}`, err);
+      });
   }
 };
 
@@ -182,8 +207,10 @@ const WorkerManage = {
   listTasks,
   kill,
   clear,
+  updateActiveAgentWorkspace,
   reloadOpenClawSkills,
   restartOpenClawGateways,
+  reconnectOpenClawAgents,
 };
 
 export default WorkerManage;

@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
@@ -13,6 +14,7 @@ import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, Effect
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
+import { emitter } from '@/renderer/utils/emitter';
 
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
@@ -67,6 +69,8 @@ export type GuidAgentSelectionResult = {
   getEffectiveAgentType: (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined) => EffectiveAgentInfo;
   refreshCustomAgents: () => Promise<void>;
   customAgentAvatarMap: Map<string, string | undefined>;
+  /** Reset agent selection to default state and clear persisted storage */
+  resetSelection: () => void;
 };
 
 type UseGuidAgentSelectionOptions = {
@@ -177,7 +181,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   const { data: availableAgentsData } = useSWR('acp.agents.available', async () => {
     const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
     if (result.success) {
-      return result.data.filter((agent) => !(agent.backend === 'gemini' && agent.cliPath));
+      return result.data;
     }
     return [];
   });
@@ -231,6 +235,18 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
           if (agent.isPreset) return true;
           return availableCustomAgentIds.has(agent.id);
         });
+
+        // 对于内置助手，使用 ASSISTANT_PRESETS 中的最新配置更新 presetAgentType
+        // For builtin assistants, update presetAgentType from ASSISTANT_PRESETS
+        for (const agent of list) {
+          if (agent.id.startsWith('builtin-')) {
+            const presetId = agent.id.replace('builtin-', '');
+            const preset = getPresetById(presetId);
+            if (preset && preset.presetAgentType) {
+              agent.presetAgentType = preset.presetAgentType;
+            }
+          }
+        }
 
         // Merge extension-contributed assistants (they are preset assistants that don't need
         // to be in availableCustomAgentIds because they use existing backends like gemini/claude)
@@ -449,7 +465,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       // Fallback for builtin assistants
       if (customAgentId.startsWith('builtin-')) {
         const presetId = customAgentId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
+        const preset = getPresetById(presetId);
         if (preset) {
           if (!rules && preset.ruleFiles) {
             try {
@@ -502,7 +518,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       if (!agentInfo) return undefined;
       if (agentInfo.backend !== 'custom') return undefined;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.enabledSkills;
+      // For preset assistants (custom backend), treat missing enabledSkills as
+      // an explicit empty array so that downstream consumers do not fall back to
+      // loading *all* skills.
+      return customAgent?.enabledSkills ?? [];
     },
     [customAgents]
   );
@@ -510,7 +529,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   // --- Availability checks ---
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      return availableAgents?.some((agent) => agent.backend === agentType) ?? false;
+      // Sudoclaw preset type maps to openclaw-gateway backend
+      const actualBackend = agentType === 'sudoclaw' ? 'openclaw-gateway' : agentType;
+      return availableAgents?.some((agent) => agent.backend === actualBackend) ?? false;
     },
     [availableAgents]
   );
@@ -583,6 +604,34 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     void refreshCustomAgents();
   }, [refreshCustomAgents]);
 
+  // Defensive: re-scan available agents whenever the user clicks "New Chat"
+  // so that newly installed agents (e.g. Claude Code) appear even if the
+  // Guid page was never unmounted and the mount-only effect didn't re-run.
+  // Uses rescanAgents to re-run full CLI detection on the main process,
+  // then revalidates the SWR cache so the UI picks up the change.
+  useEffect(() => {
+    const handler = () => {
+      void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
+        void mutate('acp.agents.available');
+      });
+    };
+    emitter.on('guid.reset', handler);
+    return () => {
+      emitter.off('guid.reset', handler);
+    };
+  }, []);
+
+  // Reset agent selection to default state (no assistant selected)
+  const resetSelection = useCallback(() => {
+    _setSelectedAgentKey('openclaw-gateway');
+    _setSelectedMode('default');
+    _setSelectedAcpModel(null);
+    // Clear persisted agent key so it won't be restored on next mount
+    ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
+      console.error('Failed to clear saved agent:', error);
+    });
+  }, []);
+
   return {
     selectedAgentKey,
     setSelectedAgentKey,
@@ -609,5 +658,6 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     getEffectiveAgentType,
     refreshCustomAgents,
     customAgentAvatarMap,
+    resetSelection,
   };
 };

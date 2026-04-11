@@ -5,28 +5,63 @@
  */
 
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
+import { detectImageMimeType } from '@/common/imageUtils';
+import type { AcpImageContentBlock } from '@/types/acpTypes';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { mainWarn } from '@process/utils/mainLogger';
+
+export interface ProcessedAtFileResult {
+  text: string;
+  images: AcpImageContentBlock[];
+}
+
+/**
+ * Try to read a file and detect if it's an image via magic bytes.
+ * Returns the image content block if it is an image, null otherwise.
+ */
+async function tryReadAsImage(filePath: string): Promise<AcpImageContentBlock | null> {
+  try {
+    const buffer = await fs.readFile(filePath);
+    const detected = detectImageMimeType(buffer);
+    mainWarn('AcpAtFile', `tryReadAsImage: ${filePath}, size=${buffer.length}, detected=${detected ? detected.mime : 'not-image'}`);
+    if (detected) {
+      return {
+        type: 'image',
+        data: buffer.toString('base64'),
+        mimeType: detected.mime,
+      };
+    }
+  } catch (err) {
+    mainWarn('AcpAtFile', `tryReadAsImage: failed to read ${filePath}: ${err}`);
+  }
+  return null;
+}
 
 /**
  * Process @ file references in the message content.
  * Resolves @ references to actual files in the workspace,
  * reads their content, and appends it to the message.
+ * Image files (detected by magic bytes) are returned as separate content blocks.
  */
-export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[]): Promise<string> {
+export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[]): Promise<ProcessedAtFileResult> {
   if (!workspace) {
-    return content;
+    return { text: content, images: [] };
   }
 
   const parts = parseAllAtCommands(content);
   const atPaths = extractAtPaths(content);
 
+  mainWarn('AcpAtFile', `processAtFileReferences: atPaths=${JSON.stringify(atPaths)}, uploadedFiles=${JSON.stringify(uploadedFiles)}`);
+
   if (atPaths.length === 0) {
-    return content;
+    return { text: content, images: [] };
   }
 
   const resolvedFiles: Map<string, string> = new Map();
   const referencesToRemove: Set<string> = new Set();
+  const images: AcpImageContentBlock[] = [];
+  const imageReferences: Set<string> = new Set();
 
   for (const atPath of atPaths) {
     const matchedUploadFile = uploadedFiles?.find((filePath) => {
@@ -36,7 +71,13 @@ export async function processAtFileReferences(content: string, workspace: string
     });
 
     if (matchedUploadFile) {
-      if (atPath !== matchedUploadFile) {
+      // Try reading as image via magic bytes
+      const imageBlock = await tryReadAsImage(matchedUploadFile);
+      if (imageBlock) {
+        images.push(imageBlock);
+        imageReferences.add(atPath);
+        referencesToRemove.add(atPath);
+      } else if (atPath !== matchedUploadFile) {
         referencesToRemove.add(atPath);
       }
       continue;
@@ -45,21 +86,28 @@ export async function processAtFileReferences(content: string, workspace: string
     const resolvedPath = await resolveAtPath(atPath, workspace);
 
     if (resolvedPath) {
-      try {
-        const fileContent = await fs.readFile(resolvedPath, 'utf-8');
-        resolvedFiles.set(atPath, fileContent);
-      } catch (error) {
-        console.warn(`[AcpAgent] Skipping binary file ${atPath} (will be handled by CLI)`);
+      // Try reading as image via magic bytes
+      const imageBlock = await tryReadAsImage(resolvedPath);
+      if (imageBlock) {
+        images.push(imageBlock);
+        imageReferences.add(atPath);
+      } else {
+        try {
+          const fileContent = await fs.readFile(resolvedPath, 'utf-8');
+          resolvedFiles.set(atPath, fileContent);
+        } catch {
+          mainWarn('AcpAgent', `Skipping binary file ${atPath}`);
+        }
       }
     }
   }
 
-  if (resolvedFiles.size === 0 && referencesToRemove.size === 0) {
-    return content;
+  if (resolvedFiles.size === 0 && referencesToRemove.size === 0 && imageReferences.size === 0) {
+    return { text: content, images };
   }
 
   const reconstructedQuery = reconstructQuery(parts, (atPath) => {
-    if (referencesToRemove.has(atPath)) {
+    if (referencesToRemove.has(atPath) || imageReferences.has(atPath)) {
       return '';
     }
     if (resolvedFiles.has(atPath)) {
@@ -77,7 +125,8 @@ export async function processAtFileReferences(content: string, workspace: string
     result += '\n--- End of file contents ---';
   }
 
-  return result;
+  mainWarn('AcpAtFile', `processAtFileReferences result: images=${images.length}, textFiles=${resolvedFiles.size}, removed=${referencesToRemove.size}, imageRefs=${imageReferences.size}, textLen=${result.length}`);
+  return { text: result, images };
 }
 
 async function resolveAtPath(atPath: string, workspace: string): Promise<string | null> {

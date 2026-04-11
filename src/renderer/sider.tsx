@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -11,6 +11,8 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
+import { emitter } from './utils/emitter';
+import { ConfigStorage } from '@/common/storage';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -46,6 +48,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
     { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
     { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
+    { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
   ];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
@@ -100,7 +103,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   return (
     <div className='size-full flex flex-col'>
       {/* Main content area */}
-      <div className='flex-1 min-h-0 overflow-hidden'>
+      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-hide'>
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
@@ -116,6 +119,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
@@ -133,6 +140,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     cleanupSiderTooltips();
                     blurActiveElement();
                     setIsBatchMode(false);
+                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                    void ConfigStorage.set('guid.lastSelectedAgent', '');
+                    // 触发 Guide 页面重置所有用户输入状态
+                    emitter.emit('guid.reset');
                     void navigate('/guid');
                     if (onSessionClick) {
                       onSessionClick();
@@ -149,26 +160,31 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-16px flex flex-col gap-1px'>
-              {functionMenus.map((menu) => (
-                <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
-                  <div
-                    className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0')}
-                    onClick={() => {
-                      cleanupSiderTooltips();
-                      blurActiveElement();
-                      handleFunctionMenuClick(menu.id);
-                      if (onSessionClick) {
-                        onSessionClick();
-                      }
-                    }}
-                  >
-                    <div className='w-20px h-20px flex items-center justify-center text-t-secondary shrink-0'>
-                      <menu.icon theme='outline' size='20' className='block leading-none' />
+              {functionMenus.map((menu) => {
+                const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
+                return (
+                  <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
+                    <div
+                      className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0', {
+                        '!bg-aou-2': isSelected,
+                      })}
+                      onClick={() => {
+                        cleanupSiderTooltips();
+                        blurActiveElement();
+                        handleFunctionMenuClick(menu.id);
+                        if (onSessionClick) {
+                          onSessionClick();
+                        }
+                      }}
+                    >
+                      <div className={classNames('w-20px h-20px flex items-center justify-center shrink-0', isSelected ? 'text-aou-6' : 'text-t-secondary')}>
+                        <menu.icon theme='outline' size='20' className='block leading-none' />
+                      </div>
+                      {!collapsed && <span className={classNames('flex-1 text-14px leading-24px whitespace-nowrap overflow-hidden text-ellipsis', isSelected ? 'text-aou-6 font-medium' : 'text-t-primary')}>{menu.label}</span>}
                     </div>
-                    {!collapsed && <span className='flex-1 text-14px text-t-primary leading-24px whitespace-nowrap overflow-hidden text-ellipsis'>{menu.label}</span>}
-                  </div>
-                </Tooltip>
-              ))}
+                  </Tooltip>
+                );
+              })}
             </div>
 
             {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
@@ -216,7 +232,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     onClick={async () => {
                       await logout();
                       Message.success('已退出登录');
-                      navigate('/login', { replace: true });
+                      void navigate('/login', { replace: true });
                     }}
                   >
                     <Logout theme='outline' size='18' />

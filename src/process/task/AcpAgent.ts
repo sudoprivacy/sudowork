@@ -28,20 +28,23 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -255,6 +258,25 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         mainWarn('[AcpAgent]', 'Custom backend specified but customAgentId is missing');
       }
 
+      // Apply preset-specific runtime configuration (env vars, scripts, model configs)
+      let cdpPort = 9230;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+      } catch {
+        /* use default */
+      }
+      const presetResult = applyPresetRuntime({
+        presetAssistantId: this.extra.presetAssistantId,
+        backend: this.extra.backend,
+        workspace: this.extra.workspace,
+        cdpPort,
+      });
+      customEnv = { ...customEnv, ...presetResult.envOverrides };
+      if (presetResult.contextAppendix && this.options.presetContext) {
+        this.options.presetContext += presetResult.contextAppendix;
+      }
+
       // Store resolved config for connection
       this.extra = {
         ...this.extra,
@@ -264,23 +286,14 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         yoloMode,
       };
 
-      // Write preset modelConfigs to .gemini/settings.json for Gemini backend
-      // The Gemini CLI reads this file from the workspace directory on startup
-      if (this.extra.backend === 'gemini' && this.extra.presetAssistantId?.startsWith('builtin-')) {
-        const presetId = this.extra.presetAssistantId.replace('builtin-', '');
-        const preset = ASSISTANT_PRESETS.find((p) => p.id === presetId);
-        if (preset?.modelConfigs && this.extra.workspace) {
-          try {
-            const geminiDir = nodePath.join(this.extra.workspace, '.gemini');
-            if (!fs.existsSync(geminiDir)) {
-              fs.mkdirSync(geminiDir, { recursive: true });
-            }
-            const settingsPath = nodePath.join(geminiDir, 'settings.json');
-            fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
-            mainLog('[AcpAgent]', `Wrote Gemini model config to ${settingsPath}`);
-          } catch (error) {
-            mainWarn('[AcpAgent]', 'Failed to write Gemini model config:', error);
-          }
+      // Write preset rules as GEMINI.md for Gemini backend system instruction
+      if (this.extra.backend === 'gemini' && this.extra.workspace && this.options.presetContext) {
+        try {
+          const geminiMdPath = nodePath.join(this.extra.workspace, 'GEMINI.md');
+          fs.writeFileSync(geminiMdPath, this.options.presetContext);
+          mainLog('[AcpAgent]', `Wrote GEMINI.md to ${geminiMdPath}`);
+        } catch (error) {
+          mainWarn('[AcpAgent]', 'Failed to write GEMINI.md:', error);
         }
       }
 
@@ -351,7 +364,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         try {
           await tryConnect();
         } catch (firstError) {
-          console.warn('[ACP] First connect attempt failed, retrying once:', firstError instanceof Error ? firstError.message : String(firstError));
+          mainWarn('ACP', 'First connect attempt failed, retrying once:', firstError instanceof Error ? firstError.message : String(firstError));
           await this.connection.disconnect();
           await new Promise((resolve) => setTimeout(resolve, 300));
           await tryConnect();
@@ -361,18 +374,18 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           clearTimeout(connectTimeoutId);
         }
       }
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: connection.connect() completed ${Date.now() - connectStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: connection.connect() completed ${Date.now() - connectStart}ms`);
 
       this.emitStatusMessage('connected');
 
       const authStart = Date.now();
       await this.performAuthentication();
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: authentication completed ${Date.now() - authStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: authentication completed ${Date.now() - authStart}ms`);
 
       if (!this.connection.hasActiveSession) {
         const sessionStart = Date.now();
         await this.createOrResumeSession();
-        if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: session created ${Date.now() - sessionStart}ms`);
+        if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: session created ${Date.now() - sessionStart}ms`);
       }
 
       // YOLO mode
@@ -388,7 +401,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             const modeStart = Date.now();
             await this.connection.setSessionMode(sessionMode);
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: session mode set ${Date.now() - modeStart}ms`);
+            if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: session mode set ${Date.now() - modeStart}ms`);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`[ACP] Failed to enable ${this.extra.backend} YOLO mode (${sessionMode}): ${errorMessage}`);
@@ -403,10 +416,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             const modelStart = Date.now();
             await this.connection.setModel(configuredModel);
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: model set ${Date.now() - modelStart}ms`);
+            if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: model set ${Date.now() - modelStart}ms`);
           } catch (error) {
             const errMsg = error instanceof Error ? error.message : String(error);
-            console.warn(`[ACP] Failed to set model from settings: ${errMsg}`);
+            mainWarn('ACP', `Failed to set model from settings: ${errMsg}`);
             if (errMsg.includes('model_not_found') || errMsg.includes('无可用渠道')) {
               this.emitErrorMessage(`Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`);
             }
@@ -416,9 +429,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       this.emitModelInfoEvent();
       this.emitStatusMessage('session_active');
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: total ${Date.now() - startTotal}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: total ${Date.now() - startTotal}ms`);
     } catch (error) {
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: failed after ${Date.now() - startTotal}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: failed after ${Date.now() - startTotal}ms`);
       this.emitStatusMessage('error');
       throw error;
     }
@@ -446,7 +459,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         }
         return;
       } catch (resumeError) {
-        console.warn(`[AcpAgent] Failed to resume session ${resumeSessionId}, creating fresh session:`, resumeError instanceof Error ? resumeError.message : String(resumeError));
+        mainWarn('AcpAgent', `Failed to resume session ${resumeSessionId}, creating fresh session:`, resumeError instanceof Error ? resumeError.message : String(resumeError));
       }
     }
 
@@ -521,7 +534,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       await new Promise<void>((resolve, reject) => {
         loginProcess.on('close', (code) => {
           if (code === 0) {
-            console.log(`${backend} authentication refreshed`);
+            mainLog('AcpAgent', `${backend} authentication refreshed`);
             resolve();
           } else {
             reject(new Error(`${backend} login failed with code ${code}`));
@@ -530,7 +543,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         loginProcess.on('error', reject);
       });
     } catch (error) {
-      console.warn(`${backend} auth refresh failed, will try to connect anyway:`, error);
+      mainWarn('AcpAgent', `${backend} auth refresh failed, will try to connect anyway:`, error);
     }
   }
 
@@ -580,9 +593,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         return await this.handleModelCommand(modelMatch, data);
       }
 
+      // Intercept /image sub-commands
+      const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
+      if (imageMatch !== null) {
+        return await this.handleImageCommand(imageMatch[1].trim(), data);
+      }
+
       const initStart = Date.now();
       await this.initAgent(this.options);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: initAgent completed ${Date.now() - initStart}ms`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: initAgent completed ${Date.now() - initStart}ms`);
 
       // Guard against stale agent after CLI crash
       if (!this.connection.isConnected) {
@@ -601,7 +620,22 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
+            workspace: this.workspace,
+            presetAgentType: this.options.backend,
           });
+
+          if (this.options.backend === 'claude') {
+            const skillsDir = resolveWorkspaceSkillsDir({
+              type: 'acp',
+              extra: {
+                workspace: this.workspace,
+                backend: this.options.backend,
+              },
+            });
+            if (skillsDir) {
+              contentToSend = injectSkillsDirectoryHint(contentToSend, skillsDir);
+            }
+          }
         }
 
         if (data.files && data.files.length > 0) {
@@ -609,11 +643,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           contentToSend = fileRefs + ' ' + contentToSend;
         }
 
-        contentToSend = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        contentToSend = processed.text;
+        if (processed.images.length > 0) {
+          mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
+        }
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id);
-        if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, processed.images);
+        if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
         }
@@ -621,7 +659,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
       const agentSendStart = Date.now();
       const result = await this.sendToConnection(data.content, data.msg_id);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       return result;
     } catch (e) {
       this.streamTextBuffer.flushAll();
@@ -659,7 +697,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     }
   }
 
-  private async sendToConnection(content: string, msg_id?: string): Promise<AcpResult> {
+  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResult> {
     const sendStart = Date.now();
     try {
       if (!this.connection.isConnected || !this.connection.hasActiveSession) {
@@ -667,9 +705,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         try {
           this.bootstrap = undefined;
           await this.initAgent(this.options);
-          if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: auto-reconnect completed ${Date.now() - reconnectStart}ms`);
+          if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect completed ${Date.now() - reconnectStart}ms`);
         } catch (reconnectError) {
-          if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
+          if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
           const errorMsg = reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
           return {
             success: false,
@@ -696,7 +734,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           try {
             await this.connection.setModel(this.userModelOverride);
           } catch (err) {
-            console.warn(`[ACP] Pre-prompt model re-assert failed: ${err instanceof Error ? err.message : String(err)}`);
+            mainWarn('ACP', `Pre-prompt model re-assert failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -709,8 +747,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       const promptStart = Date.now();
-      await this.connection.sendPrompt(processedContent);
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
+      await this.connection.sendPrompt(processedContent, images);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
       this.statusMessageId = null;
       return { success: true, data: null };
@@ -974,7 +1012,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     try {
       await this.bootstrap;
     } catch (error) {
-      console.warn('[AcpAgent] Agent initialization failed while loading ACP slash commands:', error);
+      mainWarn('AcpAgent', 'Agent initialization failed while loading ACP slash commands:', error);
       return this.getAcpSlashCommands();
     }
 
@@ -1088,6 +1126,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         data.toolCall.toolCallId = uuid();
       }
       const requestId = data.toolCall.toolCallId;
+
+      // In yolo/bypassPermissions mode, auto-approve all permission requests
+      if (this.yoloMode) {
+        resolve({ optionId: 'allow_always' });
+        return;
+      }
 
       const approvalKey = createAcpApprovalKey(data.toolCall);
       if (this.approvalStore.isApprovedForSession(approvalKey)) {
@@ -1291,7 +1335,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     const totalDuration = Date.now() - pipelineStart;
     if (totalDuration > 10) {
-      if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: onStreamEvent pipeline ${totalDuration}ms type=${message.type}`);
+      if (ACP_PERF_LOG) mainLog('ACP-PERF', `stream: onStreamEvent pipeline ${totalDuration}ms type=${message.type}`);
     }
   }
 
@@ -1323,6 +1367,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+
+      // Post-cleanup: move intermediate files from workspace root to .drafts/
+      if (this.workspace) {
+        cleanupIntermediateFiles(this.workspace).catch((err) => {
+          mainError('AcpAgent', 'Post-cleanup failed:', err);
+        });
+      }
     }
 
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent && hasCronCommands(this.cronAccumulator.currentMsgContent)) {
@@ -1633,6 +1684,113 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           });
         }
       }
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  private async handleImageCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    const saveDir = this.workspace || '.';
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+
+    try {
+      // Parse sub-command: analyze, edit, gen/generate
+      const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+
+      if (analyzeMatch) {
+        // Image analysis: use chat model + /chat/completions
+        const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
+        const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+        const prompt = analyzeMatch[4].trim();
+
+        const creds = readSudorouterCredentials();
+        const chatModel = resolveChatModel();
+        if (!creds || !chatModel) {
+          ipcBridge.acpConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+          });
+        } else {
+          const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: analysisResult,
+          };
+          ipcBridge.acpConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      } else {
+        // Image generation/edit: use image model
+        const config = await resolveImageConfig();
+        if (!config) {
+          ipcBridge.acpConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+          });
+        } else {
+          const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+          const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+
+          let imageUrls: string[];
+
+          if (editMatch) {
+            const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+            const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+            const prompt = editMatch[4].trim();
+            const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          } else {
+            const prompt = genMatch ? genMatch[1].trim() : args;
+            const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          }
+
+          const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+          const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: imgContent,
+          };
+          ipcBridge.acpConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Image command failed: ${msg}`);
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: `图像处理失败: ${msg}`,
+      });
     }
 
     ipcBridge.acpConversation.responseStream.emit({

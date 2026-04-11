@@ -11,8 +11,8 @@
  * Uses /api/nfs/{method} endpoint for all file operations.
  */
 
-import { randomUUID } from "node:crypto";
-import { resolveConfig } from "./config.js";
+import { randomUUID } from 'node:crypto';
+import { resolveConfig } from './config.js';
 
 export interface NexusRpcOptions {
   /** Nexus server URL */
@@ -37,17 +37,17 @@ export class Nexus {
   public async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
     const url = new URL(`/api/nfs/${method}`, this.serverUrl);
     const rpcRequest: RPCRequest = {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: randomUUID(),
       method: method,
       params: params,
     };
     const response = await fetch(url, {
-      method: "POST",
+      method: 'POST',
       body: JSON.stringify(rpcRequest),
       headers: {
-        "Content-Type": "application/json",
-        "Accept-Encoding": "gzip",
+        'Content-Type': 'application/json',
+        'Accept-Encoding': 'gzip',
         Authorization: `Bearer ${this.apiKey}`,
       },
     });
@@ -63,14 +63,8 @@ export class Nexus {
     return rpcResponse.result;
   }
 
-  public async write(
-    path: string,
-    content: string | Buffer,
-    if_match?: string,
-    if_none_match?: boolean,
-    force?: boolean,
-  ): Promise<Record<string, unknown>> {
-    return (await this.callRPC("write", {
+  public async write(path: string, content: string | Buffer, if_match?: string, if_none_match?: boolean, force?: boolean): Promise<Record<string, unknown>> {
+    return (await this.callRPC('write', {
       path,
       content,
       if_match,
@@ -79,25 +73,22 @@ export class Nexus {
     })) as Record<string, unknown>;
   }
 
-  public async read(
-    path: string,
-    returnMetadata?: boolean,
-  ): Promise<Buffer | Record<string, unknown>> {
-    const result = await this.callRPC("read", { path, return_metadata: returnMetadata });
-    if (result && typeof result === "object") {
+  public async read(path: string, returnMetadata?: boolean): Promise<Buffer | Record<string, unknown>> {
+    const result = await this.callRPC('read', { path, return_metadata: returnMetadata });
+    if (result && typeof result === 'object') {
       const dict = result as Record<string, unknown>;
-      if (dict.__type__ === "bytes" && "data" in dict) {
-        return Buffer.from(dict.data as string, "base64");
+      if (dict.__type__ === 'bytes' && 'data' in dict) {
+        return Buffer.from(dict.data as string, 'base64');
       }
-      if ("content" in dict) {
+      if ('content' in dict) {
         const content = dict.content;
-        const encoding = dict.encoding || "base64";
+        const encoding = dict.encoding || 'base64';
         let decodedContent: Buffer;
-        if (encoding === "base64" && typeof content === "string") {
-          decodedContent = Buffer.from(content, "base64");
+        if (encoding === 'base64' && typeof content === 'string') {
+          decodedContent = Buffer.from(content, 'base64');
         } else if (content instanceof Buffer) {
           decodedContent = content;
-        } else if (typeof content === "string") {
+        } else if (typeof content === 'string') {
           decodedContent = Buffer.from(content);
         } else {
           decodedContent = Buffer.from(String(content));
@@ -116,7 +107,7 @@ export class Nexus {
   }
 
   public async exists(path: string): Promise<boolean> {
-    return !!((await this.callRPC("exists", { path })) as { exists?: boolean })?.exists;
+    return !!((await this.callRPC('exists', { path })) as { exists?: boolean })?.exists;
   }
 
   /**
@@ -125,7 +116,7 @@ export class Nexus {
    * @param parents If true, create parent directories as needed (like mkdir -p)
    */
   public async mkdir(path: string, parents?: boolean): Promise<void> {
-    await this.callRPC("mkdir", { path, parents });
+    await this.callRPC('mkdir', { path, parents });
   }
 
   /**
@@ -134,8 +125,8 @@ export class Nexus {
    * @returns Array of directory items with name, path, isDirectory, etc.
    */
   public async list(path: string): Promise<NexusListItem[]> {
-    const result = await this.callRPC("list", { path });
-    if (result && typeof result === "object") {
+    const result = await this.callRPC('list', { path });
+    if (result && typeof result === 'object') {
       // Nexus returns "files" field for paginated results
       const dict = result as Record<string, unknown>;
       const rawFiles = dict.files || dict.items || [];
@@ -143,22 +134,20 @@ export class Nexus {
 
       // Ensure each item has a "name" field (extract from path if missing)
       return rawItems.map((item: unknown): NexusListItem => {
-        if (typeof item === "string") {
+        if (typeof item === 'string') {
           // Sometimes items are just path strings
           const itemPath = item;
           return {
             path: itemPath,
-            name: itemPath.split("/").pop() || itemPath,
+            name: itemPath.split('/').pop() || itemPath,
           };
         }
-        if (item && typeof item === "object") {
+        if (item && typeof item === 'object') {
           const obj = item as Record<string, unknown>;
           // Use path from response, ensure it's a string
-          const itemPath = typeof obj.path === "string" ? obj.path : "";
+          const itemPath = typeof obj.path === 'string' ? obj.path : '';
           // Extract name from path if not provided
-          const itemName = typeof obj.name === "string"
-            ? obj.name
-            : itemPath.split("/").pop() || itemPath;
+          const itemName = typeof obj.name === 'string' ? obj.name : itemPath.split('/').pop() || itemPath;
           return {
             ...obj,
             path: itemPath,
@@ -166,7 +155,7 @@ export class Nexus {
           } as NexusListItem;
         }
         // Fallback for unexpected item types
-        return { path: "", name: "" };
+        return { path: '', name: '' };
       });
     }
     return [];
@@ -178,8 +167,8 @@ export class Nexus {
    * @returns True if deletion was successful
    */
   public async delete(path: string): Promise<boolean> {
-    const result = await this.callRPC("delete", { path });
-    if (result && typeof result === "object") {
+    const result = await this.callRPC('delete', { path });
+    if (result && typeof result === 'object') {
       const dict = result as { deleted?: boolean };
       return dict.deleted ?? true;
     }
@@ -215,14 +204,14 @@ export interface NexusListItem {
 }
 
 interface RPCRequest {
-  jsonrpc: "2.0";
+  jsonrpc: '2.0';
   id: string;
   method: string;
   params?: Record<string, unknown>;
 }
 
 interface RPCResponse {
-  jsonrpc: "2.0";
+  jsonrpc: '2.0';
   id?: string;
   result?: unknown;
   error?: {
@@ -249,7 +238,7 @@ const enum RPCErrorCode {
 export class NexusError extends Error {
   constructor(
     message: string,
-    public path?: string,
+    public path?: string
   ) {
     super(message);
   }
@@ -262,32 +251,30 @@ export class NexusError extends Error {
   }
 }
 
-function throwRPCError(error: RPCResponse["error"]) {
+function throwRPCError(error: RPCResponse['error']) {
   if (!error) {
     return;
   }
   const code = error.code || RPCErrorCode.INTERNAL_ERROR;
-  const message = error.message || "Unknown error";
+  const message = error.message || 'Unknown error';
   switch (code) {
     case RPCErrorCode.FILE_NOT_FOUND:
-      throw new NexusError("File not found", (error.data?.path as string) || message);
+      throw new NexusError('File not found', (error.data?.path as string) || message);
     case RPCErrorCode.FILE_EXISTS:
-      throw new NexusError("File exists", (error.data?.path as string) || message);
+      throw new NexusError('File exists', (error.data?.path as string) || message);
     case RPCErrorCode.INVALID_PATH:
-      throw new NexusError("Invalid path", (error.data?.path as string) || message);
+      throw new NexusError('Invalid path', (error.data?.path as string) || message);
     case RPCErrorCode.ACCESS_DENIED:
     case RPCErrorCode.PERMISSION_ERROR:
-      throw new NexusError("Permission denied", message);
+      throw new NexusError('Permission denied', message);
     case RPCErrorCode.VALIDATION_ERROR:
-      throw new NexusError("Invalid value", message);
-    case RPCErrorCode.CONFLICT:
-      const expectedEtag = error.data?.expected_etag || "(unknown)";
-      const currentEtag = error.data?.current_etag || "(unknown)";
-      const path = (error.data?.path as string) || "unknown";
-      throw new NexusError(
-        `Conflict detected - file was modified by another agent. Expected etag '${expectedEtag}', but current etag is '${currentEtag}'`,
-        path,
-      );
+      throw new NexusError('Invalid value', message);
+    case RPCErrorCode.CONFLICT: {
+      const expectedEtag = error.data?.expected_etag || '(unknown)';
+      const currentEtag = error.data?.current_etag || '(unknown)';
+      const path = (error.data?.path as string) || 'unknown';
+      throw new NexusError(`Conflict detected - file was modified by another agent. Expected etag '${expectedEtag}', but current etag is '${currentEtag}'`, path);
+    }
     default:
       throw new NexusError(`RPC error: [${code}]: ${message}`);
   }

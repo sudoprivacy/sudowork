@@ -18,7 +18,7 @@
  * 预设助手的主 Agent 类型，用于决定创建哪种类型的对话
  * The primary agent type for preset assistants, used to determine which conversation type to create.
  */
-export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini';
+export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | 'sudoclaw';
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -27,7 +27,7 @@ export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'ge
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen', 'sudoclaw'] as const;
 
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;
@@ -102,7 +102,7 @@ function generatePotentialAcpClis(): PotentialAcpCli[] {
       // 排除没有 CLI 命令的后端（gemini 内置，custom 用户配置）
       // Exclude backends without CLI command (gemini is built-in, custom is user-configured)
       if (!config.cliCommand) return false;
-      if (id === 'gemini' || id === 'custom') return false;
+      if (id === 'custom') return false;
       return config.enabled;
     })
     .map(([id, config]) => ({
@@ -324,7 +324,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Google CLI',
     cliCommand: 'gemini',
     authRequired: true,
-    enabled: false,
+    enabled: true, // ✅ 内置 Gemini 后端，使用 `gemini` 命令启动（无需安装 CLI）
     supportsStreaming: true,
   },
   qwen: {
@@ -558,6 +558,20 @@ export interface AcpNotification {
   method: string;
   params?: Record<string, unknown> | unknown[];
 }
+
+// Prompt content block types for sending multimodal messages
+export interface AcpTextContentBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface AcpImageContentBlock {
+  type: 'image';
+  data: string; // base64-encoded
+  mimeType: string; // e.g. 'image/png'
+}
+
+export type AcpPromptContentBlock = AcpTextContentBlock | AcpImageContentBlock;
 
 // 所有会话更新的基础接口 / Base interface for all session updates
 export interface BaseSessionUpdate {

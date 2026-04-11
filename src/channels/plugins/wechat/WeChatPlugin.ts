@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
+import { getDefaultExtension, getMediaExtract, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
 import { WeChatApiClient } from './WeChatApiClient';
 import { WeChatContextTokenStore } from './WeChatContextTokenStore';
-import type { WeChatMessage } from './types';
-import { WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
+import type { WeChatMessage, WeChatMessageItem } from './types';
+import { MessageItemType, WECHAT_MESSAGE_LIMIT, WECHAT_SESSION_EXPIRED_CODE, WECHAT_SESSION_PAUSE_MS } from './types';
 
 /**
  * WeChatPlugin - Native WeChat channel integration for Sudowork.
@@ -40,6 +42,9 @@ export class WeChatPlugin extends BasePlugin {
   // Typing state
   private typingTickets: Map<string, string> = new Map();
   private typingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
+
+  // Media workspace
+  private mediaDir: string | null = null;
 
   protected async onInitialize(config: IChannelPluginConfig): Promise<void> {
     const token = config.credentials?.token as string | undefined;
@@ -223,6 +228,52 @@ export class WeChatPlugin extends BasePlugin {
     }
   }
 
+  /**
+   * Download media files from WeChat CDN to local workspace.
+   * Handles AES-128-ECB decryption using aes_key when present.
+   * Sets `_localPath` on each item that was successfully downloaded.
+   */
+  private async downloadMediaItems(items: WeChatMessageItem[]): Promise<void> {
+    if (!this.apiClient) return;
+
+    const cdnBaseUrl = this.apiClient.getBaseUrl();
+
+    for (const item of items) {
+      const itemType = item.type ?? MessageItemType.NONE;
+      if (itemType === MessageItemType.NONE || itemType === MessageItemType.TEXT) continue;
+
+      // Extract URL and AES key info from the message item
+      const mediaExtract = getMediaExtract(item, cdnBaseUrl);
+      if (!mediaExtract) {
+        console.warn(`[WeChatPlugin] No media URL available for item type=${itemType}`);
+        continue;
+      }
+
+      try {
+        // Ensure media directory exists
+        if (!this.mediaDir) {
+          const { getDataPath } = await import('@/process/utils');
+          this.mediaDir = path.join(getDataPath(), 'channel-media', 'wechat');
+          fs.mkdirSync(this.mediaDir, { recursive: true });
+        }
+
+        // Determine file name from file_item or generate one
+        const ext = item.file_item?.file_name ? path.extname(item.file_item.file_name) : getDefaultExtension(itemType);
+        const baseName = item.file_item?.file_name || `wechat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const filePath = path.join(this.mediaDir, baseName);
+
+        // Download and decrypt (decryption is handled by the API client when AES key is present)
+        const buffer = await this.apiClient.downloadMedia(mediaExtract.url, mediaExtract.aesKeyBase64, mediaExtract.aesKeyIsHex);
+        fs.writeFileSync(filePath, buffer);
+
+        item._localPath = filePath;
+        console.log(`[WeChatPlugin] Downloaded media: type=${itemType}, size=${buffer.length}, encrypted=${!!mediaExtract.aesKeyBase64}, path=${filePath}`);
+      } catch (error) {
+        console.error(`[WeChatPlugin] Failed to download media for item type=${itemType}:`, error);
+      }
+    }
+  }
+
   private async handleIncomingMessage(msg: WeChatMessage): Promise<void> {
     const userId = msg.from_user_id || '';
     console.log(`[WeChatPlugin] Incoming: from=${userId}, type=${msg.message_type}, items=${msg.item_list?.length}, hasContextToken=${!!msg.context_token}, hasHandler=${!!this.messageHandler}`);
@@ -233,6 +284,11 @@ export class WeChatPlugin extends BasePlugin {
     }
 
     if (userId) this.activeUsers.add(userId);
+
+    // Download media items to local workspace before converting
+    if (msg.item_list?.length) {
+      await this.downloadMediaItems(msg.item_list);
+    }
 
     // Convert to unified message
     const unified = toUnifiedIncomingMessage(msg);

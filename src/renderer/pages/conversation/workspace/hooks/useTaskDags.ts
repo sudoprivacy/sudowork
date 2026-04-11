@@ -10,35 +10,62 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dag } from '../TaskPanel';
 
-/** 在目录树中找出所有 .tasks/dag_xxx/dag_xxx.json 文件节点 */
+/**
+ * 在目录树中找出所有 .tasks/dag_xxx/dag_xxx.json 文件节点。
+ *
+ * .tasks/ 只会出现在 workspace 根目录（${workspacePath}/.tasks），所以只在
+ * 顶层节点中查找，最多进入一层 wrapper 根节点（treeHook.files = [rootNode]）。
+ * 不做深层递归，避免误命中子项目中的 .tasks/ 目录。
+ */
 function findDagJsonNodes(nodes: IDirOrFile[]): IDirOrFile[] {
-  for (const node of nodes) {
-    // 找到 .tasks/ 节点
-    if (node.isDir && node.name === '.tasks') {
-      const results: IDirOrFile[] = [];
-      for (const dagDir of node.children ?? []) {
-        if (!dagDir.isDir || !dagDir.name.startsWith('dag_')) continue;
-        for (const file of dagDir.children ?? []) {
-          if (file.isFile && file.name.startsWith('dag_') && file.name.endsWith('.json')) {
-            results.push(file);
-          }
+  const extractFromTasksDir = (tasksNode: IDirOrFile): IDirOrFile[] => {
+    const results: IDirOrFile[] = [];
+    for (const dagDir of tasksNode.children ?? []) {
+      if (!dagDir.isDir || !dagDir.name.startsWith('dag_')) continue;
+      for (const file of dagDir.children ?? []) {
+        if (file.isFile && file.name.startsWith('dag_') && file.name.endsWith('.json')) {
+          results.push(file);
         }
       }
-      return results;
     }
-    // 递归（工作空间根节点可能是 wrapper）
-    if (node.isDir && (node.children?.length ?? 0) > 0) {
-      const found = findDagJsonNodes(node.children!);
-      if (found.length > 0) return found;
+    return results;
+  };
+
+  // 1. 在顶层节点中查找 .tasks/
+  for (const node of nodes) {
+    if (node.isDir && node.name === '.tasks') {
+      return extractFromTasksDir(node);
     }
   }
+
+  // 2. treeHook.files 通常是 [rootNode]（wrapper），检查其 children 一层
+  if (nodes.length === 1 && nodes[0].isDir && (nodes[0].children?.length ?? 0) > 0) {
+    for (const child of nodes[0].children!) {
+      if (child.isDir && child.name === '.tasks') {
+        return extractFromTasksDir(child);
+      }
+    }
+  }
+
   return [];
 }
 
-export function useTaskDags(workspaceFiles: IDirOrFile[]) {
+export function useTaskDags(workspaceFiles: IDirOrFile[], workspace: string) {
   const [dags, setDags] = useState<Dag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const watchedRef = useRef<Set<string>>(new Set());
+
+  // Reset immediately when workspace identity changes — ensures the panel
+  // goes blank before the new file tree finishes loading, preventing stale
+  // DAGs from a previous workspace from being visible during the gap.
+  useEffect(() => {
+    setDags([]);
+    setIsLoading(false);
+    for (const p of watchedRef.current) {
+      ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+    }
+    watchedRef.current.clear();
+  }, [workspace]);
 
   const loadDag = useCallback(async (path: string): Promise<Dag | null> => {
     try {

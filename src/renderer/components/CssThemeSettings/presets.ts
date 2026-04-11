@@ -8,13 +8,13 @@ import type { ICssTheme } from '@/common/storage';
 
 // 导入预设主题封面图片 base64 数据 / Import preset theme cover images as base64 data
 // 注意: webpack 存在 UTF-8 编码问题会损坏二进制文件，因此使用预生成的 base64 数据
-import { defaultThemeCover, retroWindowsCover } from './themeCovers';
+import { retroWindowsCover } from './themeCovers';
 
 /**
  * 默认主题 ID / Default theme ID
  * 用于标识默认主题（无自定义 CSS）/ Used to identify the default theme (no custom CSS)
  */
-export const DEFAULT_THEME_ID = 'default-theme';
+export const DEFAULT_THEME_ID = 'grid-theme';
 
 /**
  * 预设 CSS 主题列表 / Preset CSS themes list
@@ -22,16 +22,14 @@ export const DEFAULT_THEME_ID = 'default-theme';
  */
 export const PRESET_THEMES: ICssTheme[] = [
   {
-    id: DEFAULT_THEME_ID,
-    name: 'Default',
+    id: 'grid-theme',
+    name: 'Grid',
     isPreset: true,
-    cover: defaultThemeCover, // 仅用于预览展示 / Only for preview display
-    css: `/* Default Theme - AOU Purple Theme / 默认主题 */
-/* 此主题展示了系统默认的颜色变量，您可以基于此进行自定义 */
-/* This theme shows the system default color variables, you can customize based on this */
+    css: `/* Grid Theme - 网格背景主题 / Grid Background Theme */
 
+/* ==================== Light Mode / 浅色模式 ==================== */
 :root {
-  /* Primary Colors - 主色调 */
+  /* Primary Colors */
   --color-primary: #165dff;
   --primary: #165dff;
   --color-primary-light-1: #4080ff;
@@ -40,14 +38,14 @@ export const PRESET_THEMES: ICssTheme[] = [
   --color-primary-dark-1: #0e42d2;
   --primary-rgb: 22, 93, 255;
 
-  /* Brand Colors - 品牌色 */
+  /* Brand Colors */
   --brand: #7583b2;
   --brand-light: #eff0f6;
   --brand-hover: #b5bcd6;
   --color-brand-fill: #7583b2;
   --color-brand-bg: #eff0f6;
 
-  /* AOU Brand Colors - AOU 品牌色板 */
+  /* AOU Brand Colors */
   --aou-1: #eff0f6;
   --aou-2: #e5e7f0;
   --aou-3: #d1d5e5;
@@ -59,35 +57,35 @@ export const PRESET_THEMES: ICssTheme[] = [
   --aou-9: #262c41;
   --aou-10: #0d101c;
 
-  /* Background Colors - 背景色 */
-  --color-bg-1: #f7f8fa;
-  --bg-1: #f7f8fa;
-  --color-bg-2: #f2f3f5;
-  --bg-2: #f2f3f5;
-  --color-bg-3: #e5e6eb;
-  --bg-3: #e5e6eb;
-  --color-bg-4: #c9cdd4;
-  --bg-4: #c9cdd4;
-  --bg-base: #ffffff;
-  --bg-5: #adb4c1;
-  --bg-6: #86909c;
-  --bg-8: #4e5969;
-  --bg-9: #1d2129;
-  --bg-10: #0c0e12;
+  /* Background Colors - warm cream / 暖色调背景 */
+  --color-bg-1: #f5f3ee;
+  --bg-1: #f5f3ee;
+  --color-bg-2: #edeae3;
+  --bg-2: #edeae3;
+  --color-bg-3: #dedad0;
+  --bg-3: #dedad0;
+  --color-bg-4: #c8c3b6;
+  --bg-4: #c8c3b6;
+  --bg-base: #faf8f3;
+  --bg-5: #a8a59d;
+  --bg-6: #86838c;
+  --bg-8: #4e4c54;
+  --bg-9: #1d1c22;
+  --bg-10: #0c0b10;
 
-  /* Interactive State Colors - 交互状态色 */
-  --bg-hover: #f3f4f6;
-  --bg-active: #e5e6eb;
+  /* Interactive State Colors */
+  --bg-hover: #edeae3;
+  --bg-active: #dedad0;
 
-  /* Fill Colors - 填充色 */
-  --fill: #f7f8fa;
-  --color-fill: #f7f8fa;
-  --fill-0: #ffffff;
-  --fill-white-to-black: #ffffff;
-  --dialog-fill-0: #ffffff;
+  /* Fill Colors */
+  --fill: #f5f3ee;
+  --color-fill: #f5f3ee;
+  --fill-0: #faf8f3;
+  --fill-white-to-black: #faf8f3;
+  --dialog-fill-0: #faf8f3;
   --inverse: #ffffff;
 
-  /* Text Colors - 文字色 */
+  /* Text Colors */
   --color-text-1: #1d2129;
   --text-primary: #1d2129;
   --color-text-2: #4e5969;
@@ -97,29 +95,46 @@ export const PRESET_THEMES: ICssTheme[] = [
   --text-0: #000000;
   --text-white: #ffffff;
 
-  /* Border Colors - 边框色 */
-  --color-border: #e5e6eb;
-  --color-border-1: #e5e6eb;
-  --color-border-2: #f2f3f5;
-  --border-base: #e5e6eb;
-  --border-light: #f2f3f5;
+  /* Border Colors */
+  --color-border: #dedad0;
+  --color-border-1: #dedad0;
+  --color-border-2: #edeae3;
+  --border-base: #dedad0;
+  --border-light: #edeae3;
   --border-special: var(--bg-3);
 
-  /* Semantic Colors - 语义色 */
+  /* Semantic Colors */
   --success: #00b42a;
   --warning: #ff7d00;
   --danger: #f53f3f;
   --info: #165dff;
 
-  /* Message & UI Component Colors - 消息和组件色 */
+  /* Message & UI Component Colors */
   --message-user-bg: #e9efff;
   --message-tips-bg: #f0f4ff;
-  --workspace-btn-bg: #eff0f1;
+  --workspace-btn-bg: #edeae3;
 }
 
-/* Dark Mode Overrides - 深色模式覆盖 */
+/* Grid background - light mode / 浅色模式网格背景 */
+html, body {
+  background-color: #faf8f3;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Make content areas transparent to reveal grid / 使内容区域透明以显示网格 */
+.layout-content,
+.arco-layout-content,
+.arco-layout {
+  background-color: transparent;
+  background-image: none;
+}
+
+/* ==================== Dark Mode / 深色模式 ==================== */
 [data-theme='dark'] {
-  /* Primary Colors - Dark Mode */
+  /* Primary Colors */
   --color-primary: #4d9fff;
   --primary: #4d9fff;
   --color-primary-light-1: #6aa8ff;
@@ -128,14 +143,14 @@ export const PRESET_THEMES: ICssTheme[] = [
   --color-primary-dark-1: #306acc;
   --primary-rgb: 77, 159, 255;
 
-  /* Brand Colors - Dark Mode */
+  /* Brand Colors */
   --brand: #a1aacb;
   --brand-light: #3d4150;
   --brand-hover: #6a749b;
   --color-brand-fill: #a1aacb;
   --color-brand-bg: #3d4150;
 
-  /* AOU Brand Colors - Dark Mode */
+  /* AOU Brand Colors */
   --aou-1: #2a2a2a;
   --aou-2: #3d4150;
   --aou-3: #525a77;
@@ -147,7 +162,7 @@ export const PRESET_THEMES: ICssTheme[] = [
   --aou-9: #e5e7f0;
   --aou-10: #eff0f6;
 
-  /* Background Colors - Dark Mode */
+  /* Background Colors */
   --color-bg-1: #1a1a1a;
   --bg-1: #1a1a1a;
   --color-bg-2: #262626;
@@ -163,11 +178,11 @@ export const PRESET_THEMES: ICssTheme[] = [
   --bg-9: #a6a6a6;
   --bg-10: #d9d9d9;
 
-  /* Interactive State Colors - Dark Mode */
+  /* Interactive State Colors */
   --bg-hover: #1f1f1f;
   --bg-active: #2d2d2d;
 
-  /* Fill Colors - Dark Mode */
+  /* Fill Colors */
   --fill: #1a1a1a;
   --color-fill: #1a1a1a;
   --fill-0: rgba(255, 255, 255, 0.08);
@@ -175,7 +190,7 @@ export const PRESET_THEMES: ICssTheme[] = [
   --dialog-fill-0: #333333;
   --inverse: #ffffff;
 
-  /* Text Colors - Dark Mode */
+  /* Text Colors */
   --color-text-1: #e5e5e5;
   --text-primary: #e5e5e5;
   --color-text-2: #a6a6a6;
@@ -185,7 +200,7 @@ export const PRESET_THEMES: ICssTheme[] = [
   --text-0: #ffffff;
   --text-white: #ffffff;
 
-  /* Border Colors - Dark Mode */
+  /* Border Colors */
   --color-border: #333333;
   --color-border-1: #333333;
   --color-border-2: #262626;
@@ -193,16 +208,26 @@ export const PRESET_THEMES: ICssTheme[] = [
   --border-light: #262626;
   --border-special: #60677e;
 
-  /* Semantic Colors - Dark Mode */
+  /* Semantic Colors */
   --success: #23c343;
   --warning: #ff9a2e;
   --danger: #f76560;
   --info: #4d9fff;
 
-  /* Message & UI Component Colors - Dark Mode */
+  /* Message & UI Component Colors */
   --message-user-bg: #1e2a3a;
   --message-tips-bg: #1a2333;
   --workspace-btn-bg: #1f1f1f;
+}
+
+/* Grid background - dark mode / 深色模式网格背景 */
+html[data-theme='dark'],
+html[data-theme='dark'] body {
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
 }`,
     createdAt: Date.now(),
     updatedAt: Date.now(),

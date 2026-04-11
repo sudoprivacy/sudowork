@@ -1,0 +1,155 @@
+name: Production Hotfix
+
+on:
+  push:
+    branches: [ 'release-*' ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  # 步骤1: 构建验证
+  build:
+    name: Build Hotfix
+    uses: ./.github/workflows/_build-reusable.yml
+    with:
+      ref: ${{ github.ref }}
+      skip_code_quality: true
+    secrets: inherit
+
+  # 步骤2: 自动生成 Hotfix 版本标签
+  create-hotfix-tag:
+    name: Create Hotfix Tag
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      hotfix_tag: ${{ steps.tag.outputs.hotfix_tag }}
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Generate Hotfix Version
+        id: tag
+        run: |
+          # 从分支名提取基础版本，如 release-v1.2 -> 1.2（统一使用 - 分隔符）
+          BRANCH="${GITHUB_REF#refs/heads/release-}"
+          BASE_VERSION="${BRANCH#v}"
+
+          echo "=========================================="
+          echo "Generating Hotfix Version"
+          echo "=========================================="
+          echo "Branch: $BRANCH"
+          echo "Base Version: $BASE_VERSION"
+
+          # 查询已有标签，计算下一个 patch 版本
+          EXISTING_TAGS=$(git tag -l "v${BASE_VERSION}*" | sort -V)
+          LATEST_TAG=$(echo "$EXISTING_TAGS" | tail -1)
+
+          echo "Existing tags: $EXISTING_TAGS"
+          echo "Latest tag: $LATEST_TAG"
+
+          if [ -z "$LATEST_TAG" ]; then
+            # 无已有标签，从 .1 开始
+            HOTFIX_TAG="v${BASE_VERSION}.1"
+          else
+            # 提取当前 patch 号并递增
+            # 支持 v1.2.3 和 v1.2.3+hotfix 格式
+            CURRENT_PATCH=$(echo "$LATEST_TAG" | sed 's/v[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/')
+            NEW_PATCH=$((CURRENT_PATCH + 1))
+            HOTFIX_TAG="v${BASE_VERSION}.${NEW_PATCH}"
+          fi
+
+          echo "Hotfix tag: $HOTFIX_TAG"
+          echo "hotfix_tag=$HOTFIX_TAG" >> $GITHUB_OUTPUT
+
+          # 创建标签
+          git tag $HOTFIX_TAG
+          git push origin $HOTFIX_TAG
+
+          echo "✅ Created hotfix tag: $HOTFIX_TAG"
+
+  # 步骤3: 同步修复代码回 main 和 dev 分支
+  sync-back:
+    name: Sync Hotfix to Main/Dev
+    needs: [build, create-hotfix-tag]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Setup git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create sync PR to Main
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          HOTFIX_TAG="${{ needs.create-hotfix-tag.outputs.hotfix_tag }}"
+
+          echo "=========================================="
+          echo "Creating Sync PR to Main"
+          echo "=========================================="
+
+          # 创建 PR 同步到 main
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "hotfix: Sync $HOTFIX_TAG fixes to main" \
+            --body "## Hotfix Sync\n\nAutomated PR to sync hotfix fixes from **$BRANCH** back to **main** branch.\n\n- Hotfix Tag: $HOTFIX_TAG\n- Source Branch: $BRANCH\n\nThis PR ensures the hotfix changes are included in future releases." \
+            --label "hotfix,automated" || echo "⚠️ PR to main may already exist or failed"
+
+          echo "✅ PR to main created (or already exists)"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Create sync PR to Dev
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          HOTFIX_TAG="${{ needs.create-hotfix-tag.outputs.hotfix_tag }}"
+
+          echo "=========================================="
+          echo "Creating Sync PR to Dev"
+          echo "=========================================="
+
+          # 创建 PR 同步到 dev
+          gh pr create \
+            --base dev \
+            --head "$BRANCH" \
+            --title "hotfix: Sync $HOTFIX_TAG fixes to dev" \
+            --body "## Hotfix Sync\n\nAutomated PR to sync hotfix fixes from **$BRANCH** back to **dev** branch.\n\n- Hotfix Tag: $HOTFIX_TAG\n- Source Branch: $BRANCH\n\nThis PR ensures the hotfix changes are included in future development." \
+            --label "hotfix,automated" || echo "⚠️ PR to dev may already exist or failed"
+
+          echo "✅ PR to dev created (or already exists)"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Summary
+        run: |
+          HOTFIX_TAG="${{ needs.create-hotfix-tag.outputs.hotfix_tag }}"
+          echo "=========================================="
+          echo "✅ Hotfix Workflow Complete"
+          echo "=========================================="
+          echo "Hotfix Tag: $HOTFIX_TAG"
+          echo ""
+          echo "Next Steps:"
+          echo "1. Hotfix tag will trigger official release (build-and-release.yml)"
+          echo "2. Official release will upload to COS latest"
+          echo "3. PRs created to sync fixes back to main and dev"
+          echo ""
+          echo "Please review and merge the sync PRs after verifying the hotfix."

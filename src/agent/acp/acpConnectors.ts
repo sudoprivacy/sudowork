@@ -38,6 +38,20 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
+function getHookPythonWhlPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
+  }
+  return path.join(app.getAppPath(), 'hook/python/dist/hook-0.0.1-py3-none-any.whl');
+}
+
+function getHookPythonPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pythonpath');
+  }
+  return path.join(app.getAppPath(), 'hook/python/pythonpath');
+}
+
 // ── Environment helpers ─────────────────────────────────────────────
 
 /**
@@ -65,12 +79,35 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     }
   }
 
+  // Default ai-dev-browser to headless and point it to SudoWork's CDP port
+  cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { cdpPort } = require('@/utils/configureChromium');
+    if (cdpPort) {
+      cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
+      cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
+    }
+  } catch {
+    // Fallback: use default CDP port
+    cleanEnv.AI_DEV_BROWSER_PORT = '9230';
+    cleanEnv.NEXUS_CDP_PORT = '9230';
+  }
+
   // Inject safety hook via NODE_OPTIONS if enabled
+  // Also set SUDOWORK_ACP_CHILD=1 so the hook skips in ACP bridge child processes
+  // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC)
+  cleanEnv.SUDOWORK_ACP_CHILD = '1';
   if (isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
     const hookOption = `-r ${hookJsPath}`;
     cleanEnv.NODE_OPTIONS = hookOption;
     console.log(`[ACP] Injecting safety hook via NODE_OPTIONS: ${hookOption}`);
+
+    const pythonpath = getHookPythonPath();
+    cleanEnv.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+    cleanEnv.PYTHONPATH = pythonpath;
+    console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
 
   return cleanEnv;
@@ -224,8 +261,9 @@ export function spawnNpxBackend(backend: string, npxPackage: string, npxCommand:
 }
 
 /** Prepare clean env + resolve npx for Claude ACP bridge. */
-function prepareClaude(): NpxPrepareResult {
+function prepareClaude(customEnv?: Record<string, string>): NpxPrepareResult {
   const cleanEnv = prepareCleanEnv();
+  if (customEnv) Object.assign(cleanEnv, customEnv);
   ensureMinNodeVersion(cleanEnv, 20, 10, 'Claude ACP bridge');
   return { cleanEnv, npxCommand: resolveNpxPath(cleanEnv) };
 }
@@ -381,8 +419,8 @@ async function connectNpxBackend(config: {
 // ── Exported per-backend connect functions ───────────────────────────
 
 /** Connect to Claude ACP bridge via npx. */
-export function connectClaude(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
-  return connectNpxBackend({ backend: 'claude', npxPackage: CLAUDE_ACP_NPX_PACKAGE, prepareFn: prepareClaude, workingDir, ...hooks });
+export function connectClaude(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {
+  return connectNpxBackend({ backend: 'claude', npxPackage: CLAUDE_ACP_NPX_PACKAGE, prepareFn: () => prepareClaude(customEnv), workingDir, ...hooks });
 }
 
 /** Connect to Codex ACP bridge via npx. */

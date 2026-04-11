@@ -411,6 +411,250 @@ export function registerAuthRoutes(app: Express): void {
   app.get('/qr-login', (_req: Request, res: Response) => {
     res.send(QR_LOGIN_PAGE_HTML);
   });
+
+  /**
+   * WebUI 专用登录页面 - WebUI dedicated login page
+   * GET /webui-login
+   * 返回 WebUI 专用的用户名/密码登录页面（不影响 App 的手机号登录）
+   * Returns WebUI dedicated username/password login page (does not affect App's phone login)
+   */
+  app.get('/webui-login', (req: Request, res: Response) => {
+    try {
+      const token = TokenUtils.extractFromRequest(req);
+      // 如果 token 存在但无效，清除 cookie
+      // If token exists but is invalid, clear cookie
+      if (token) {
+        const decoded = AuthService.verifyToken(token);
+        if (!decoded) {
+          res.clearCookie(AUTH_CONFIG.COOKIE.NAME);
+        }
+      }
+      res.send(`<!DOCTYPE html>
+<html data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebUI Login - Sudowork</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSIwIDAgMjEgMjQiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8IS0tIEdlbmVyYXRvcjogU2tldGNoIDYxLjIgKDg5NjUzKSAtIGh0dHBzOi8vc2tldGNoLmNvbSAtLT4KICAgIDx0aXRsZT7mlbDniY1zdWRvPC90aXRsZT4KICAgIDxkZXNjPkNyZWF0ZWQgd2l0aCBTa2V0Y2guPC9kZXNjPgogICAgPGcgaWQ9IumjjuagvCIgc3Ryb2tlPSJub25lIiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiIGZpbGwtcnVsZT0iZXZlbm9kZCI+CiAgICAgICAgPGcgaWQ9IumhueebruWIl+ihqC3ljaHniYflvI/lm74iIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yOC4wMDAwMDAsIC0xNi4wMDAwMDApIiBmaWxsPSIjRjU5RTBCIiBmaWxsLXJ1bGU9Im5vbnplcm8iPgogICAgICAgICAgICA8ZyBpZD0i5pWw54mNc3VkbyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjguMDAwMDAwLCAxNi4wMDAwMDApIj4KICAgICAgICAgICAgICAgIDxnIGlkPSJMYXllcl8zX2NvcHkiPgogICAgICAgICAgICAgICAgICAgIDxwYXRoIGQ9Ik0yMC44Njc4NDc0LDYuMDcxNjg4MzEgQzIwLjgyNzI5Nyw1Ljk3ODE4MTgyIDIwLjc1ODY3MzMsNS44OTcxNDI4NiAyMC42NzEzMzQsNS44NDcyNzI3MyBMMTUuNjg2NzU3LDIuOTcwMzg5NjEgTDE1LjY4MzYzNzcsMi45NjcyNzI3MyBMMTUuNjgwNTE4NSwyLjk2NzI3MjczIEwxMC42OTU5NDE1LDAuMDkwMzg5NjEwNCBMMTAuNjkyODIyMiwwLjA4NzI3MjcyNzMgQzEwLjU0NjIxNywwLjAwMzExNjg4MzEyIDEwLjM2ODQxOTIsLTQuNTc5NjY5OThlLTE2IDEwLjIyMTgxNCwwLjA4NDE1NTg0NDIgTDAuMjQwMTgyOTk3LDUuODQxMDM4OTYgQzAuMDk2Njk3MDUwNiw1LjkyNTE5NDgxIDAuMDA2MjM4NTE5MzksNi4wODEwMzg5NiAwLjAwNjIzODUxOTM5LDYuMjQ5MzUwNjUgTDAuMDA2MjM4NTE5MzksMTIuMDAzMTE2OSBDMC4wMDYyMzg1MTkzOSwxMi4wMDMxMTY5IDAuMDA2MjM4NTE5MzksMTIuMDA2MjMzOCAwLjAwNjIzODUxOTM5LDEyLjAwOTM1MDYgQzAuMDA2MjM4NTE5MzksMTIuMDEyNDY3NSAwLjAwNjIzODUxOTM5LDEyLjAxMjQ2NzUgMC4wMDYyMzg1MTkzOSwxMi4wMTI0Njc1IEwwLjAwNjIzODUxOTM5LDE3Ljc2NjIzMzggQzAuMDA2MjM4NTE5MzksMTcuNzY2MjMzOCAwLjAwNjIzODUxOTM5LDE3Ljc2OTM1MDYgMC4wMDYyMzg1MTkzOSwxNy43NjkzNTA2IEMwLjAwNjIzODUxOTM5LDE3LjkzNzY2MjMgMC4wOTY2OTcwNTA2LDE4LjA5MDM4OTYgMC4yNDAxODI5OTcsMTguMTc0NTQ1NSBMMTAuMjIxODE0LDIzLjkzNDU0NTUgQzEwLjM2NTMsMjQuMDE4NzAxMyAxMC41NDYyMTcsMjQuMDE4NzAxMyAxMC42ODk3MDMsMjMuOTM0NTQ1NSBDMTAuNjk5MDYwOCwyMy45MjgzMTE3IDEwLjcxMTUzNzgsMjMuOTIyMDc3OSAxMC43MjA4OTU2LDIzLjkxMjcyNzMgTDE1LjY3NDI4LDIxLjA1NDU0NTUgTDE1LjY4MDUxODUsMjEuMDUxNDI4NiBMMTUuNjgzNjM3NywyMS4wNDgzMTE3IEwyMC42NjgyMTQ3LDE4LjE3NDU0NTUgTDIwLjY3MTMzNCwxOC4xNzE0Mjg2IEMyMC44MTQ4MTk5LDE4LjA4NzI3MjcgMjAuOTA1Mjc4NSwxNy45MzQ1NDU1IDIwLjkwNTI3ODUsMTcuNzY2MjMzOCBMMjAuOTA1Mjc4NSw2LjI1MjQ2NzUzIEMyMC45MDUyNzg1LDYuMTkwMTI5ODcgMjAuODkyODAxNCw2LjEzMDkwOTA5IDIwLjg2Nzg0NzQsNi4wNzE2ODgzMSBaIE0xNS45MTQ0NjMsMTQuNjIxMjk4NyBMMTUuOTE0NDYzLDkuNDAzNjM2MzYgTDE5Ljk2OTUwMDYsNy4wNjI4NTcxNCBMMTkuOTY5NTAwNiwxNi45NTg5NjEgTDE1LjkxNDQ2MywxNC42MjEyOTg3IFogTTE0Ljk3ODY4NTEsNC4xODI4NTcxNCBMMTQuOTc4Njg1MSw4Ljg2MTI5ODcgTDEwLjQ1NTc1ODUsMTEuNDcwMTI5OSBMNi40MDA3MjA5LDkuMTMyNDY3NTMgTDE0Ljk3ODY4NTEsNC4xODI4NTcxNCBaIE00LjUyNjA0NTgyLDkuMTMyNDY3NTMgTDAuOTM4ODk3MTY4LDExLjIwMjA3NzkgTDAuOTM4ODk3MTY4LDcuMDYyODU3MTQgTDQuNTI2MDQ1ODIsOS4xMzI0Njc1MyBaIE01LjQ2MTgyMzczLDkuNjcxNjg4MzEgTDkuOTg0NzUwMjksMTIuMjgwNTE5NSBMOS45ODQ3NTAyOSwxNi45NTg5NjEgTDEuNDA2Nzg2MTIsMTIuMDA5MzUwNiBMNS40NjE4MjM3Myw5LjY3MTY4ODMxIFogTTkuOTg3ODY5NTUsMTguMDQwNTE5NSBMOS45ODc4Njk1NSwyMi43MTg5NjEgTDEuNDA5OTA1MzgsMTcuNzY5MzUwNiBMNS40NjQ5NDI5OSwxNS40MzE2ODgzIEw5Ljk4Nzg2OTU1LDE4LjA0MDUxOTUgWiBNMTAuOTIzNjQ3NSwxMi4yODA1MTk1IEwxNC45NzU1NjU4LDkuOTQyODU3MTQgTDE0Ljk3NTU2NTgsMTkuODM4OTYxIEwxMC45MjM2NDc1LDE3LjUwMTI5ODcgTDEwLjkyMzY0NzUsMTIuMjgwNTE5NSBaIE0xNS45MTQ0NjMsOC4zMTg5NjEwNCBMMTUuOTE0NDYzLDQuMTgyODU3MTQgTDE5LjQ5ODQ5MjQsNi4yNTI0Njc1MyBMMTUuOTE0NDYzLDguMzE4OTYxMDQgWiBNMTAuOTIzNjQ3NSw1LjQ0MjA3NzkyIEwxMC45MjM2NDc1LDEuMzAyODU3MTQgTDE0LjUxMDc5NjEsMy4zNzI0Njc1MyBMMTAuOTIzNjQ3NSw1LjQ0MjA3NzkyIFogTTkuOTg3ODY5NTUsNS45ODEyOTg3IEw1LjQ2NDk0Mjk5LDguNTkwMTI5ODcgTDEuNDA5OTA1MzgsNi4yNDkzNTA2NSBMOS45ODc4Njk1NSwxLjMwMjg1NzE0IEw5Ljk4Nzg2OTU1LDUuOTgxMjk4NyBaIE0wLjk0MjAxNjQyOCwxMi44MTk3NDAzIEw0LjUyOTE2NTA4LDE0Ljg4OTM1MDYgTDAuOTQyMDE2NDI4LDE2Ljk1ODk2MSBMMC45NDIwMTY0MjgsMTIuODE5NzQwMyBaIE0xMC45MjM2NDc1LDE4LjU3OTc0MDMgTDE0LjUwNzY3NjgsMjAuNjQ2MjMzOCBMMTAuOTIzNjQ3NSwyMi43MTI3MjczIEwxMC45MjM2NDc1LDE4LjU3OTc0MDMgWiBNMTUuOTExMzQzNywxNS42OTk3NDAzIEwxOS40OTg0OTI0LDE3Ljc2OTM1MDYgTDE1LjkxMTM0MzcsMTkuODM4OTYxIEwxNS45MTEzNDM3LDE1LjY5OTc0MDMgWiIgaWQ9IuW9oueKtiI+PC9wYXRoPgogICAgICAgICAgICAgICAgPC9nPgogICAgICAgICAgICA8L2c+CiAgICAgICAgPC9nPgogICAgPC9nPgo8L3N2Zz4=">
+  <script>
+    // 同步从 localStorage 恢复主题，防止闪烁
+    (function () {
+      try {
+        var theme = localStorage.getItem('__aionui_theme');
+        if (theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      transition: background 0.3s ease;
+    }
+    [data-theme='dark'] body {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    .login-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+    [data-theme='dark'] .login-card {
+      background: rgba(30, 30, 40, 0.95);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    .logo { width: 72px; height: 72px; margin: 0 auto 20px; display: block; }
+    .title { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin-bottom: 8px; }
+    [data-theme='dark'] .title {
+      background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle { font-size: 13px; color: #666; text-align: center; margin-bottom: 24px; }
+    [data-theme='dark'] .subtitle {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .hint { font-size: 12px; color: #999; text-align: center; margin-bottom: 24px; }
+    [data-theme='dark'] .hint {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .form-group { margin-bottom: 20px; }
+    .label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px; }
+    [data-theme='dark'] .label {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .input {
+      width: 100%;
+      height: 48px;
+      padding: 12px 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 15px;
+      transition: border-color 0.2s, background 0.2s;
+      background: #fafafa;
+      color: #333;
+    }
+    [data-theme='dark'] .input {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .input:hover { border-color: #d0d0d0; }
+    [data-theme='dark'] .input:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .input:focus { outline: none; border-color: #667eea; background: #fff; }
+    [data-theme='dark'] .input:focus {
+      border-color: #8b5cf6;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .input::placeholder { color: #aaa; }
+    [data-theme='dark'] .input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .submit-btn {
+      width: 100%;
+      height: 52px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 8px;
+    }
+    [data-theme='dark'] .submit-btn {
+      background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+    }
+    .submit-btn:hover { opacity: 0.9; }
+    .submit-btn:active { opacity: 0.8; }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .footer { font-size: 12px; color: #999; text-align: center; margin-top: 24px; line-height: 1.6; }
+    [data-theme='dark'] .footer {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .message { padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-top: 16px; display: none; }
+    .message.error { background: rgba(244, 67, 54, 0.1); color: #f44336; border: 1px solid rgba(244, 67, 54, 0.2); }
+    .message.success { background: rgba(76, 175, 80, 0.1); color: #4caf50; border: 1px solid rgba(76, 175, 80, 0.2); }
+    @media (max-width: 480px) { .login-card { padding: 32px 24px; } }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <img class="logo" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSIwIDAgMjEgMjQiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8IS0tIEdlbmVyYXRvcjogU2tldGNoIDYxLjIgKDg5NjUzKSAtIGh0dHBzOi8vc2tldGNoLmNvbSAtLT4KICAgIDx0aXRsZT7mlbDniY1zdWRvPC90aXRsZT4KICAgIDxkZXNjPkNyZWF0ZWQgd2l0aCBTa2V0Y2guPC9kZXNjPgogICAgPGcgaWQ9IumjjuagvCIgc3Ryb2tlPSJub25lIiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiIGZpbGwtcnVsZT0iZXZlbm9kZCI+CiAgICAgICAgPGcgaWQ9IumhueebruWIl+ihqC3ljaHniYflvI/lm74iIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yOC4wMDAwMDAsIC0xNi4wMDAwMDApIiBmaWxsPSIjRjU5RTBCIiBmaWxsLXJ1bGU9Im5vbnplcm8iPgogICAgICAgICAgICA8ZyBpZD0i5pWw54mNc3VkbyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjguMDAwMDAwLCAxNi4wMDAwMDApIj4KICAgICAgICAgICAgICAgIDxnIGlkPSJMYXllcl8zX2NvcHkiPgogICAgICAgICAgICAgICAgICAgIDxwYXRoIGQ9Ik0yMC44Njc4NDc0LDYuMDcxNjg4MzEgQzIwLjgyNzI5Nyw1Ljk3ODE4MTgyIDIwLjc1ODY3MzMsNS44OTcxNDI4NiAyMC42NzEzMzQsNS44NDcyNzI3MyBMMTUuNjg2NzU3LDIuOTcwMzg5NjEgTDE1LjY4MzYzNzcsMi45NjcyNzI3MyBMMTUuNjgwNTE4NSwyLjk2NzI3MjczIEwxMC42OTU5NDE1LDAuMDkwMzg5NjEwNCBMMTAuNjkyODIyMiwwLjA4NzI3MjcyNzMgQzEwLjU0NjIxNywwLjAwMzExNjg4MzEyIDEwLjM2ODQxOTIsLTQuNTc5NjY5OThlLTE2IDEwLjIyMTgxNCwwLjA4NDE1NTg0NDIgTDAuMjQwMTgyOTk3LDUuODQxMDM4OTYgQzAuMDk2Njk3MDUwNiw1LjkyNTE5NDgxIDAuMDA2MjM4NTE5MzksNi4wODEwMzg5NiAwLjAwNjIzODUxOTM5LDYuMjQ5MzUwNjUgTDAuMDA2MjM4NTE5MzksMTIuMDAzMTE2OSBDMC4wMDYyMzg1MTkzOSwxMi4wMDMxMTY5IDAuMDA2MjM4NTE5MzksMTIuMDA2MjMzOCAwLjAwNjIzODUxOTM5LDEyLjAwOTM1MDYgQzAuMDA2MjM4NTE5MzksMTIuMDEyNDY3NSAwLjAwNjIzODUxOTM5LDEyLjAxMjQ2NzUgMC4wMDYyMzg1MTkzOSwxMi4wMTI0Njc1IEwwLjAwNjIzODUxOTM5LDE3Ljc2NjIzMzggQzAuMDA2MjM4NTE5MzksMTcuNzY2MjMzOCAwLjAwNjIzODUxOTM5LDE3Ljc2OTM1MDYgMC4wMDYyMzg1MTkzOSwxNy43NjkzNTA2IEMwLjAwNjIzODUxOTM5LDE3LjkzNzY2MjMgMC4wOTY2OTcwNTA2LDE4LjA5MDM4OTYgMC4yNDAxODI5OTcsMTguMTc0NTQ1NSBMMTAuMjIxODE0LDIzLjkzNDU0NTUgQzEwLjM2NTMsMjQuMDE4NzAxMyAxMC41NDYyMTcsMjQuMDE4NzAxMyAxMC42ODk3MDMsMjMuOTM0NTQ1NSBDMTAuNjk5MDYwOCwyMy45MjgzMTE3IDEwLjcxMTUzNzgsMjMuOTIyMDc3OSAxMC43MjA4OTU2LDIzLjkxMjcyNzMgTDE1LjY3NDI4LDIxLjA1NDU0NTUgTDE1LjY4MDUxODUsMjEuMDUxNDI4NiBMMTUuNjgzNjM3NywyMS4wNDgzMTE3IEwyMC42NjgyMTQ3LDE4LjE3NDU0NTUgTDIwLjY3MTMzNCwxOC4xNzE0Mjg2IEMyMC44MTQ4MTk5LDE4LjA4NzI3MjcgMjAuOTA1Mjc4NSwxNy45MzQ1NDU1IDIwLjkwNTI3ODUsMTcuNzY2MjMzOCBMMjAuOTA1Mjc4NSw2LjI1MjQ2NzUzIEMyMC45MDUyNzg1LDYuMTkwMTI5ODcgMjAuODkyODAxNCw2LjEzMDkwOTA5IDIwLjg2Nzg0NzQsNi4wNzE2ODgzMSBaIE0xNS45MTQ0NjMsMTQuNjIxMjk4NyBMMTUuOTE0NDYzLDkuNDAzNjM2MzYgTDE5Ljk2OTUwMDYsNy4wNjI4NTcxNCBMMTkuOTY5NTAwNiwxNi45NTg5NjEgTDE1LjkxNDQ2MywxNC42MjEyOTg3IFogTTE0Ljk3ODY4NTEsNC4xODI4NTcxNCBMMTQuOTc4Njg1MSw4Ljg2MTI5ODcgTDEwLjQ1NTc1ODUsMTEuNDcwMTI5OSBMNi40MDA3MjA5LDkuMTMyNDY3NTMgTDE0Ljk3ODY4NTEsNC4xODI4NTcxNCBaIE00LjUyNjA0NTgyLDkuMTMyNDY3NTMgTDAuOTM4ODk3MTY4LDExLjIwMjA3NzkgTDAuOTM4ODk3MTY4LDcuMDYyODU3MTQgTDQuNTI2MDQ1ODIsOS4xMzI0Njc1MyBaIE01LjQ2MTgyMzczLDkuNjcxNjg4MzEgTDkuOTg0NzUwMjksMTIuMjgwNTE5NSBMOS45ODQ3NTAyOSwxNi45NTg5NjEgTDEuNDA2Nzg2MTIsMTIuMDA5MzUwNiBMNS40NjE4MjM3Myw5LjY3MTY4ODMxIFogTTkuOTg3ODY5NTUsMTguMDQwNTE5NSBMOS45ODc4Njk1NSwyMi43MTg5NjEgTDEuNDA5OTA1MzgsMTcuNzY5MzUwNiBMNS40NjQ5NDI5OSwxNS40MzE2ODgzIEw5Ljk4Nzg2OTU1LDE4LjA0MDUxOTUgWiBNMTAuOTIzNjQ3NSwxMi4yODA1MTk1IEwxNC45NzU1NjU4LDkuOTQyODU3MTQgTDE0Ljk3NTU2NTgsMTkuODM4OTYxIEwxMC45MjM2NDc1LDE3LjUwMTI5ODcgTDEwLjkyMzY0NzUsMTIuMjgwNTE5NSBaIE0xNS45MTQ0NjMsOC4zMTg5NjEwNCBMMTUuOTE0NDYzLDQuMTgyODU3MTQgTDE5LjQ5ODQ5MjQsNi4yNTI0Njc1MyBMMTUuOTE0NDYzLDguMzE4OTYxMDQgWiBNMTAuOTIzNjQ3NSw1LjQ0MjA3NzkyIEwxMC45MjM2NDc1LDEuMzAyODU3MTQgTDE0LjUxMDc5NjEsMy4zNzI0Njc1MyBMMTAuOTIzNjQ3NSw1LjQ0MjA3NzkyIFogTTkuOTg3ODY5NTUsNS45ODEyOTg3IEw1LjQ2NDk0Mjk5LDguNTkwMTI5ODcgTDEuNDA5OTA1MzgsNi4yNDkzNTA2NSBMOS45ODc4Njk1NSwxLjMwMjg1NzE0IEw5Ljk4Nzg2OTU1LDUuOTgxMjk4NyBaIE0wLjk0MjAxNjQyOCwxMi44MTk3NDAzIEw0LjUyOTE2NTA4LDE0Ljg4OTM1MDYgTDAuOTQyMDE2NDI4LDE2Ljk1ODk2MSBMMC45NDIwMTY0MjgsMTIuODE5NzQwMyBaIE0xMC45MjM2NDc1LDE4LjU3OTc0MDMgTDE0LjUwNzY3NjgsMjAuNjQ2MjMzOCBMMTAuOTIzNjQ3NSwyMi43MTI3MjczIEwxMC45MjM2NDc1LDE4LjU3OTc0MDMgWiBNMTUuOTExMzQzNywxNS42OTk3NDAzIEwxOS40OTg0OTI0LDE3Ljc2OTM1MDYgTDE1LjkxMTM0MzcsMTkuODM4OTYxIEwxNS45MTEzNDM3LDE1LjY5OTc0MDMgWiIgaWQ9IuW9oueKtiI+PC9wYXRoPgogICAgICAgICAgICAgICAgPC9nPgogICAgICAgICAgICA8L2c+CiAgICAgICAgPC9nPgogICAgPC9nPgo8L3N2Zz4=" alt="Sudowork">
+    <h1 class="title">Sudowork</h1>
+    <p class="subtitle">WebUI Remote Access</p>
+    <p class="hint">使用远程连接设置中的管理员凭证登录</p>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label class="label" for="username">用户名</label>
+        <input class="input" id="username" type="text" placeholder="请输入用户名" autocomplete="username" required />
+      </div>
+
+      <div class="form-group">
+        <label class="label" for="password">密码</label>
+        <input class="input" id="password" type="password" placeholder="请输入密码" autocomplete="current-password" required />
+      </div>
+
+      <button class="submit-btn" type="submit" id="submitBtn">登录</button>
+    </form>
+
+    <div id="message" class="message"></div>
+
+    <div class="footer">
+      <p>提示：首次启动时，密码显示在远程连接设置中</p>
+      <p>如需修改密码，请在登录后前往设置页面</p>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var form = document.getElementById('loginForm');
+      var submitBtn = document.getElementById('submitBtn');
+      var message = document.getElementById('message');
+      var usernameInput = document.getElementById('username');
+      var passwordInput = document.getElementById('password');
+
+      function showMessage(text, type) {
+        message.textContent = text;
+        message.className = 'message ' + type;
+        message.style.display = 'block';
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        var username = usernameInput.value.trim();
+        var password = passwordInput.value;
+
+        if (!username || !password) {
+          showMessage('请填写用户名和密码', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登录中...';
+        message.style.display = 'none';
+
+        try {
+          var response = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username: username, password: password })
+          });
+
+          var data = await response.json();
+
+          if (data.success) {
+            showMessage('登录成功！正在跳转...', 'success');
+            setTimeout(function() {
+              window.location.href = '/';
+            }, 1000);
+          } else {
+            // 使用 i18n 翻译的错误消息
+            var errorMsg = data.message === 'Invalid username or password'
+              ? '用户名或密码错误'
+              : (data.message || '登录失败，请稍后再试');
+            showMessage(errorMsg, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '登录';
+          }
+        } catch (error) {
+          console.error('Login error:', error);
+          showMessage('连接失败，请稍后重试', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = '登录';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`);
+    } catch (error) {
+      console.error('Error serving webui-login page:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 }
 
 export default registerAuthRoutes;

@@ -13,9 +13,10 @@
  */
 
 import fs from 'fs/promises';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsDir } from '../initStorage';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 
 /**
@@ -95,10 +96,16 @@ export class AcpSkillManager {
 
   private skills: Map<string, SkillDefinition> = new Map();
   private builtinSkills: Map<string, SkillDefinition> = new Map();
+  /** Hub-installed skills */
+  private hubSkills: Map<string, SkillDefinition> = new Map();
+  /** Custom uploaded skills */
+  private customSkills: Map<string, SkillDefinition> = new Map();
   /** Extension-contributed skills loaded from ExtensionRegistry */
   private extensionSkills: Map<string, SkillDefinition> = new Map();
   private skillsDir: string;
   private builtinSkillsDir: string;
+  private hubSkillsDir: string;
+  private customSkillsDir: string;
   private initialized: boolean = false;
   private builtinInitialized: boolean = false;
   private extensionInitialized: boolean = false;
@@ -106,6 +113,8 @@ export class AcpSkillManager {
   constructor(skillsDir?: string) {
     this.skillsDir = skillsDir || getSkillsDir();
     this.builtinSkillsDir = getBuiltinSkillsDir();
+    this.hubSkillsDir = getHubSkillsDir();
+    this.customSkillsDir = getCustomSkillsDir();
   }
 
   /**
@@ -116,7 +125,9 @@ export class AcpSkillManager {
    * @returns AcpSkillManager 实例 / AcpSkillManager instance
    */
   static getInstance(enabledSkills?: string[]): AcpSkillManager {
-    const cacheKey = enabledSkills?.sort().join(',') || 'all';
+    // Distinguish between undefined (non-preset → load all) and [] (preset with
+    // no skills → load none).  An empty array must NOT map to 'all'.
+    const cacheKey = enabledSkills ? (enabledSkills.length > 0 ? [...enabledSkills].sort().join(',') : '__none__') : 'all';
 
     // 如果缓存键变化，需要重新创建实例
     // If cache key changed, need to recreate instance
@@ -148,7 +159,7 @@ export class AcpSkillManager {
 
     const builtinDir = this.builtinSkillsDir;
     if (!existsSync(builtinDir)) {
-      console.log(`[AcpSkillManager] Builtin skills directory not found: ${builtinDir}`);
+      mainLog('AcpSkillManager', `Builtin skills directory not found: ${builtinDir}`);
       this.builtinInitialized = true;
       return;
     }
@@ -176,13 +187,13 @@ export class AcpSkillManager {
 
           this.builtinSkills.set(skillName, skillDef);
         } catch (error) {
-          console.warn(`[AcpSkillManager] Failed to load builtin skill ${skillName}:`, error);
+          mainWarn('AcpSkillManager', `Failed to load builtin skill ${skillName}:`, error);
         }
       }
 
-      console.log(`[AcpSkillManager] Discovered ${this.builtinSkills.size} builtin skills`);
+      mainLog('AcpSkillManager', `Discovered ${this.builtinSkills.size} builtin skills`);
     } catch (error) {
-      console.error(`[AcpSkillManager] Failed to discover builtin skills:`, error);
+      mainError('AcpSkillManager', `Failed to discover builtin skills:`, error);
     }
 
     this.builtinInitialized = true;
@@ -210,14 +221,15 @@ export class AcpSkillManager {
 
       for (const extSkill of extSkills) {
         // 如果指定了 enabledSkills，只加载被启用的扩展 skills
-        // If enabledSkills is specified, only load enabled extension skills
-        if (enabledSkills && enabledSkills.length > 0 && !enabledSkills.includes(extSkill.name)) {
+        // If enabledSkills is specified, only load enabled extension skills.
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(extSkill.name)) {
           continue;
         }
 
         // 避免与内置/可选 skills 冲突 / Avoid conflicts with builtin/optional skills
         if (this.builtinSkills.has(extSkill.name) || this.skills.has(extSkill.name)) {
-          console.warn(`[AcpSkillManager] Extension skill "${extSkill.name}" conflicts with existing skill, skipping`);
+          mainWarn('AcpSkillManager', `Extension skill "${extSkill.name}" conflicts with existing skill, skipping`);
           continue;
         }
 
@@ -231,10 +243,10 @@ export class AcpSkillManager {
       }
 
       if (this.extensionSkills.size > 0) {
-        console.log(`[AcpSkillManager] Loaded ${this.extensionSkills.size} extension skills`);
+        mainLog('AcpSkillManager', `Loaded ${this.extensionSkills.size} extension skills`);
       }
     } catch (error) {
-      console.warn('[AcpSkillManager] Failed to load extension skills:', error);
+      mainWarn('AcpSkillManager', 'Failed to load extension skills:', error);
     }
 
     this.extensionInitialized = true;
@@ -244,6 +256,51 @@ export class AcpSkillManager {
    * 初始化：发现并加载所有 skills 的索引（不加载 body）
    * Initialize: discover and load index of all skills (without body)
    */
+  /**
+   * Helper to discover skills from a specific directory
+   */
+  private async discoverSkillsFromDir(dir: string, targetMap: Map<string, SkillDefinition>, enabledSkills?: string[], skipDisabledCheck = false): Promise<void> {
+    if (!existsSync(dir)) return;
+
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const skillName = entry.name;
+
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(skillName)) {
+          continue;
+        }
+
+        if (!skipDisabledCheck && !(await isUserSkillEnabled(skillName))) {
+          continue;
+        }
+
+        const skillFile = path.join(dir, skillName, 'SKILL.md');
+        if (!existsSync(skillFile)) continue;
+
+        try {
+          const content = await fs.readFile(skillFile, 'utf-8');
+          const { name, description } = parseFrontmatter(content);
+
+          const skillDef: SkillDefinition = {
+            name: name || skillName,
+            description: description || `Skill: ${skillName}`,
+            location: skillFile,
+          };
+
+          targetMap.set(skillName, skillDef);
+        } catch (error) {
+          mainWarn('AcpSkillManager', `Failed to load skill ${skillName} from ${dir}:`, error);
+        }
+      }
+    } catch (error) {
+      mainError('AcpSkillManager', `Failed to discover skills from ${dir}:`, error);
+    }
+  }
+
   async discoverSkills(enabledSkills?: string[]): Promise<void> {
     // 始终先加载内置 skills / Always load builtin skills first
     await this.discoverBuiltinSkills();
@@ -253,20 +310,36 @@ export class AcpSkillManager {
 
     if (this.initialized) return;
 
-    // 未指定 enabledSkills 时不加载任何可选 skills（非 preset agent 场景）
-    // Skip all optional skills when enabledSkills is not specified (non-preset agent)
-    if (!enabledSkills || enabledSkills.length === 0) {
-      this.initialized = true;
-      return;
-    }
+    // When enabledSkills is undefined (non-preset agent), load ALL installed &
+    // user-enabled workspace skills so that standalone agents like Claude Code
+    // can also use skills such as "browser".
+    // When enabledSkills is an explicit list (preset agent), only load those.
 
     const skillsDir = this.skillsDir;
     if (!existsSync(skillsDir)) {
-      console.warn(`[AcpSkillManager] Skills directory not found: ${skillsDir}`);
+      mainWarn('AcpSkillManager', `Skills directory not found: ${skillsDir}`);
       this.initialized = true;
       return;
     }
 
+    // Discover skills from all three subdirectories
+    // Priority: custom > hub > builtin (builtin already loaded above)
+    await this.discoverSkillsFromDir(this.customSkillsDir, this.customSkills, enabledSkills);
+    await this.discoverSkillsFromDir(this.hubSkillsDir, this.hubSkills, enabledSkills);
+
+    // Merge custom and hub skills into the main skills map (custom takes priority)
+    for (const [key, skill] of this.customSkills) {
+      if (!this.skills.has(key)) {
+        this.skills.set(key, skill);
+      }
+    }
+    for (const [key, skill] of this.hubSkills) {
+      if (!this.skills.has(key)) {
+        this.skills.set(key, skill);
+      }
+    }
+
+    // Legacy: also scan flat directories for backward compatibility
     try {
       const entries = await fs.readdir(skillsDir, { withFileTypes: true });
 
@@ -275,11 +348,18 @@ export class AcpSkillManager {
 
         const skillName = entry.name;
 
-        // 跳过内置 skills 目录 / Skip builtin skills directory
-        if (skillName === '_builtin') continue;
+        // Skip all `_` prefixed directories (new structure dirs)
+        if (skillName.startsWith('_')) continue;
 
-        // 只加载启用的 skills / Only load enabled skills
-        if (!enabledSkills.includes(skillName)) {
+        // Skip if already found in subdirectories
+        if (this.skills.has(skillName)) continue;
+
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(skillName)) {
+          continue;
+        }
+
+        if (!(await isUserSkillEnabled(skillName))) {
           continue;
         }
 
@@ -294,19 +374,18 @@ export class AcpSkillManager {
             name: name || skillName,
             description: description || `Skill: ${skillName}`,
             location: skillFile,
-            // body 不在这里加载，按需获取
           };
 
           this.skills.set(skillName, skillDef);
         } catch (error) {
-          console.warn(`[AcpSkillManager] Failed to load skill ${skillName}:`, error);
+          mainWarn('AcpSkillManager', `Failed to load skill ${skillName}:`, error);
         }
       }
-
-      console.log(`[AcpSkillManager] Discovered ${this.skills.size} optional skills`);
     } catch (error) {
-      console.error(`[AcpSkillManager] Failed to discover skills:`, error);
+      mainError('AcpSkillManager', `Failed to discover legacy skills:`, error);
     }
+
+    mainLog('AcpSkillManager', `Discovered ${this.skills.size} optional skills (custom: ${this.customSkills.size}, hub: ${this.hubSkills.size})`);
 
     this.initialized = true;
   }
@@ -365,7 +444,7 @@ export class AcpSkillManager {
    * Check if there are any skills (builtin or optional)
    */
   hasAnySkills(): boolean {
-    return this.builtinSkills.size > 0 || this.skills.size > 0 || this.extensionSkills.size > 0;
+    return this.customSkills.size > 0 || this.hubSkills.size > 0 || this.builtinSkills.size > 0 || this.skills.size > 0 || this.extensionSkills.size > 0;
   }
 
   /**
@@ -375,13 +454,18 @@ export class AcpSkillManager {
    * Search builtin skills first, then optional skills
    */
   async getSkill(name: string): Promise<SkillDefinition | null> {
-    // 先查找内置 skills / Search builtin skills first
-    let skill = this.builtinSkills.get(name);
-    // 再查找可选 skills / Then search optional skills
+    // 按优先级查找：自定义 > Hub > 合并的 skills > 内置 > 扩展
+    // Search by priority: custom > hub > merged skills > builtin > extension
+    let skill = this.customSkills.get(name);
+    if (!skill) {
+      skill = this.hubSkills.get(name);
+    }
     if (!skill) {
       skill = this.skills.get(name);
     }
-    // 最后查找扩展 skills / Then search extension skills
+    if (!skill) {
+      skill = this.builtinSkills.get(name);
+    }
     if (!skill) {
       skill = this.extensionSkills.get(name);
     }
@@ -393,7 +477,7 @@ export class AcpSkillManager {
         const content = await fs.readFile(skill.location, 'utf-8');
         skill.body = extractBody(content);
       } catch (error) {
-        console.warn(`[AcpSkillManager] Failed to load skill body for ${name}:`, error);
+        mainWarn('AcpSkillManager', `Failed to load skill body for ${name}:`, error);
         skill.body = '';
       }
     }
@@ -421,7 +505,7 @@ export class AcpSkillManager {
    * Check if a skill exists (including builtin and optional)
    */
   hasSkill(name: string): boolean {
-    return this.builtinSkills.has(name) || this.skills.has(name) || this.extensionSkills.has(name);
+    return this.customSkills.has(name) || this.hubSkills.has(name) || this.builtinSkills.has(name) || this.skills.has(name) || this.extensionSkills.has(name);
   }
 
   /**
@@ -430,6 +514,12 @@ export class AcpSkillManager {
    */
   clearCache(): void {
     for (const skill of this.builtinSkills.values()) {
+      skill.body = undefined;
+    }
+    for (const skill of this.customSkills.values()) {
+      skill.body = undefined;
+    }
+    for (const skill of this.hubSkills.values()) {
       skill.body = undefined;
     }
     for (const skill of this.skills.values()) {

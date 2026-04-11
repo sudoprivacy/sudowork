@@ -5,10 +5,15 @@ import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key } from '@icon-park/react';
+import { Phone, Protect, Key, User } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import WindowControls from '../../components/WindowControls';
 import './LoginPage.css';
+
+// 运行时判断 / Runtime check
+const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -27,17 +32,39 @@ const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' clas
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { status, login } = useAuth();
+  const { status, login, register } = useAuth();
 
-  const [phone, setPhone] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [registerPhone, setRegisterPhone] = useState('');
   const [code, setCode] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [loginCountdown, setLoginCountdown] = useState(0);
+  const [registerCountdown, setRegisterCountdown] = useState(0);
+  // 保存注册凭证，避免重复验证验证码
+  const [savedRegisterToken, setSavedRegisterToken] = useState<string | null>(null);
 
   // 固定企业码
   const ENTERPRISE_CODE = 'sudo';
 
   const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string; type?: string } | null>(null);
+
+  // 允许页面滚动（覆盖 index.html 的 overflow: hidden）
+  useEffect(() => {
+    const root = document.getElementById('root');
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalRootOverflow = root?.style.overflow;
+
+    document.body.style.overflow = 'auto';
+    if (root) root.style.overflow = 'auto';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -47,48 +74,60 @@ const LoginPage: React.FC = () => {
 
   // 页面加载时重置倒计时
   useEffect(() => {
-    setCountdown(0);
+    setLoginCountdown(0);
+    setRegisterCountdown(0);
   }, []);
+
+  // 手机号变化时清除 register_token（token 绑定特定手机号）
+  const handlePhoneChange = (value: string) => {
+    if (mode === 'login') {
+      setLoginPhone(value);
+    } else {
+      setRegisterPhone(value);
+    }
+    if (savedRegisterToken) {
+      setSavedRegisterToken(null);
+    }
+  };
+
+  const currentPhone = mode === 'login' ? loginPhone : registerPhone;
 
   // 倒计时定时器
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [countdown]);
+    const timer = setInterval(() => {
+      setLoginCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      setRegisterCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSendCode = async () => {
-    if (!isValidPhone(phone)) {
+    if (!isValidPhone(currentPhone)) {
       Message.error('请输入正确的 11 位手机号');
       return;
     }
 
+    // 发送新验证码时清除旧的 register_token
+    setSavedRegisterToken(null);
+
     setLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const res = await fetch(`${serverConfig.baseUrl}/api/v1/auth/send-code`, {
+      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: currentPhone }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         Message.success('验证码已发送');
-        setCountdown(data.next_send_in || 60);
+        const nextSendIn = data.next_send_in || 60;
+        if (mode === 'login') {
+          setLoginCountdown(nextSendIn);
+        } else {
+          setRegisterCountdown(nextSendIn);
+        }
       } else {
         Message.error(data.msg || '发送失败');
       }
@@ -102,24 +141,93 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!phone || !code) {
+    if (!currentPhone || !code) {
       Message.warning('请填写所有必填项');
       return;
     }
 
+    if (mode === 'register') {
+      if (!nickname.trim()) {
+        Message.warning('请输入昵称');
+        return;
+      }
+      if (!invitationCode.trim()) {
+        Message.warning('请输入邀请码');
+        return;
+      }
+    }
+
     setLoading(true);
-    const result = await login({ phone, code, enterprise_code: ENTERPRISE_CODE });
+
+    // 注册模式下，如果已有 register_token，直接注册
+    if (mode === 'register' && savedRegisterToken) {
+      const regResult = await register({
+        register_token: savedRegisterToken,
+        nickname: nickname.trim(),
+        invitation_code: invitationCode.trim(),
+      });
+
+      if (regResult.success) {
+        setTimeout(() => navigate('/guid', { replace: true }), 300);
+      } else {
+        Message.error(regResult.message || '注册失败');
+
+        // 区分错误类型：仅 token 过期时清除，邀请码错误保留 token 允许重试
+        const errorMsg = regResult.message || '';
+        const isTokenExpired = errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效');
+
+        if (isTokenExpired) {
+          setSavedRegisterToken(null);
+          Message.warning('注册凭证已过期，请重新获取验证码');
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
+    // 否则先验证验证码
+    const result = await login({ phone: currentPhone, code, enterprise_code: ENTERPRISE_CODE });
 
     if (result.success) {
+      if (mode === 'register') {
+        Message.info('该手机号已注册，已直接登录');
+      }
       setTimeout(() => navigate('/guid', { replace: true }), 300);
+      setLoading(false);
+      return;
     } else {
       const statusCode = (result as any).status;
       const needRegister = (result as any).need_register;
       const registerToken = (result as any).register_token;
 
-      // 处理需要注册的情况
       if (needRegister && registerToken) {
-        navigate(`/register?token=${registerToken}&phone=${encodeURIComponent(phone)}`, { replace: true });
+        // 保存 register_token 供后续使用
+        setSavedRegisterToken(registerToken);
+
+        if (mode === 'register') {
+          // 注册模式：直接完成注册
+          const regResult = await register({
+            register_token: registerToken,
+            nickname: nickname.trim(),
+            invitation_code: invitationCode.trim(),
+          });
+
+          if (regResult.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(regResult.message || '注册失败');
+            // 仅在 token 过期错误时清除，邀请码错误保留 token 允许重试
+            const errorMsg = regResult.message || '';
+            if (errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效')) {
+              setSavedRegisterToken(null);
+            }
+          }
+        } else {
+          // 登录模式：提示用户切换到注册标签
+          Message.info('该手机号未注册，请切换到注册标签完成注册');
+          setMode('register');
+        }
+        setLoading(false);
         return;
       }
 
@@ -144,6 +252,8 @@ const LoginPage: React.FC = () => {
     }
     setLoading(false);
   };
+
+  const currentCountdown = mode === 'login' ? loginCountdown : registerCountdown;
 
   if (status === 'checking') return <AppLoader />;
 
@@ -189,6 +299,9 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className='login-page'>
+      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
+      {isDesktopRuntime && <WindowControls />}
+
       {/* 装饰性背景 */}
       <div className='login-page__background'>
         <div className='login-page__background-circle login-page__background-circle--lg' />
@@ -202,27 +315,51 @@ const LoginPage: React.FC = () => {
             <AionLogoMark />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
-          <p className='text-13px text-t-secondary'>企业级 Agent 协同指挥中心</p>
+          <p className='text-13px text-t-secondary'>AgentOps | 办公专家</p>
         </div>
 
-        <div className='flex flex-col gap-20px mt-32px'>
+        {/* Tab switcher */}
+        <div className='login-tabs'>
+          <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
+            登录
+          </button>
+          <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
+            注册
+          </button>
+        </div>
+
+        <div className='flex flex-col gap-20px mt-24px'>
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-t-secondary ml-4px'>身份验证</div>
             <Space size='small' className='w-full'>
               <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
-              <Button size='large' disabled={countdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
-                {countdown > 0 ? `${countdown}s` : '发送验证码'}
+              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
+                {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
             </Space>
           </div>
 
+          {mode === 'register' && (
+            <>
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>昵称</div>
+                <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+              </div>
+
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
+                <Input size='large' prefix={<Protect className='text-t-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+              </div>
+            </>
+          )}
+
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-            登录
+            {mode === 'login' ? '登录' : '注册'}
           </Button>
         </div>
       </div>

@@ -1,0 +1,62 @@
+name: "doctor 30-min exploration"
+description: "Doctor freely explores SudoWork for 30 min, files bugs as GitHub issues, then produces QA report"
+
+steps:
+  # ── Phase 0: Wait for app startup to complete ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Clean state ──
+  - op: mouse_click
+    text: "新会话"
+  - op: pause
+    duration: 3000
+  - op: screenshot
+    path: "screenshots/doctor-30min-00-home.png"
+  - op: judge
+    expect: "新会话 Sudoclaw Claude Code"
+
+  # ── Phase 2: Select doctor preset ──
+  - op: mouse_click
+    text: "诊断医生"
+  - op: pause
+    duration: 2000
+  - op: screenshot
+    path: "screenshots/doctor-30min-01-selected.png"
+
+  # ── Phase 3: Send task ──
+  - op: type_text
+    text: "自由探索这个应用，找出真正的 bug。你有 30 分钟。发现 bug 后立即用 file_bug.py 提交 GitHub issue。30 分钟后会被中断，请合理安排时间，留时间写总结。"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+
+  # ── Phase 4: Let doctor work for 30 minutes ──
+  - op: wait_for_response
+    timeout: 1860
+
+  # ── Phase 5: Navigate back to doctor conversation ──
+  - op: mouse_click
+    text: "自由探索这个应用"
+  - op: pause
+    duration: 2000
+
+  # ── Phase 6: Warn before stopping ──
+  - op: type_text
+    text: "时间到了，请立即停止当前操作，输出你的诊断总结报告。你有 60 秒。"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+
+  # ── Phase 7: Force stop ──
+  - op: stop_conversation
+  - op: pause
+    duration: 3000
+
+  # ── Phase 8: Final screenshot ──
+  - op: screenshot
+    path: "screenshots/doctor-30min-02-result.png"
+  - op: judge
+    expect: "bug 总结 探索 测试"

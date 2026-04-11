@@ -7,7 +7,6 @@
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore } from '@/agent/acp/ApprovalStore';
 import { OpenClawGatewayConnection } from '@/agent/openclaw/OpenClawGatewayConnection';
-import { OpenClawGatewayManager } from '@/agent/openclaw/OpenClawGatewayManager';
 import { getGatewayAuthPassword, getGatewayAuthToken, getGatewayPort, readOpenClawConfigFromDir, SUDOCLAW_DEFAULT_PORT } from '@/agent/openclaw/openclawConfig';
 import type { ChatEvent, EventFrame, HelloOk, OpenClawGatewayConfig } from '@/agent/openclaw/types';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
@@ -19,29 +18,17 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import type { AcpBackendAll, AcpResult, ToolCallUpdate } from '@/types/acpTypes';
 import { AcpErrorType, createAcpError } from '@/types/acpTypes';
-import net from 'node:net';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
-import WorkerManage from '@process/WorkerManage';
 import BaseAgent from '@process/task/BaseAgent';
-
-async function isTcpPortOpen(host: string, port: number, timeoutMs = 300): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
-    const socket = net.createConnection({ host, port });
-    const done = (result: boolean) => {
-      socket.removeAllListeners();
-      socket.destroy();
-      resolve(result);
-    };
-    socket.setTimeout(timeoutMs);
-    socket.once('connect', () => done(true));
-    socket.once('timeout', () => done(false));
-    socket.once('error', () => done(false));
-  });
-}
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { buildDraftsInstruction } from './agentUtils';
+import { cleanupIntermediateFiles } from './draftsCleanup';
+import * as nodePath from 'node:path';
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -71,8 +58,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   bootstrap: Promise<void>;
   private options: OpenClawAgentData;
 
-  // Transport — owned directly (no inner agent)
-  private gatewayManager: OpenClawGatewayManager | null = null;
+  // Transport — WebSocket connection to ServiceManager-owned gateway
   private connection: OpenClawGatewayConnection | null = null;
   private adapter: AcpAdapter;
   private approvalStore = new AcpApprovalStore();
@@ -115,31 +101,20 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       const token = gatewayConfig.token ?? (authFromConfig?.mode === 'token' ? authFromConfig.token : null) ?? (stateDir ? getGatewayAuthToken(stateDir) : null) ?? undefined;
       const password = gatewayConfig.password ?? (authFromConfig?.mode === 'password' ? authFromConfig.password : null) ?? (stateDir ? getGatewayAuthPassword(stateDir) : null) ?? undefined;
 
-      // Start gateway process if not using external
+      // Wait for ServiceManager-owned gateway if not using external
+      let connectHost = host;
+      let connectPort = port;
       if (!useExternal) {
-        const probeHost = host === 'localhost' ? '127.0.0.1' : host;
-        const alreadyListening = await isTcpPortOpen(probeHost, port);
-        if (!alreadyListening) {
-          const customEnv = stateDir ? { OPENCLAW_STATE_DIR: stateDir, OPENCLAW_CONFIG_PATH: `${stateDir}/sudoclaw.json` } : undefined;
-          this.gatewayManager = new OpenClawGatewayManager({
-            port,
-            customEnv,
-            stateDir,
-            forceSubprocessGateway: gatewayConfig.forceSubprocessGateway ?? true,
-          });
-
-          try {
-            await this.gatewayManager.start();
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to start OpenClaw Gateway: ${errorMsg}`);
-          }
-        }
+        const { serviceManager } = await import('@process/services/serviceManager');
+        const gw = await serviceManager.waitForGateway();
+        if (!gw) throw new Error('Sudoclaw gateway failed to start');
+        connectHost = gw.host;
+        connectPort = gw.port;
       }
 
       // Create and configure connection
       this.connection = new OpenClawGatewayConnection({
-        url: `ws://${host}:${port}`,
+        url: `ws://${connectHost}:${connectPort}`,
         stateDir: stateDir ?? undefined,
         token,
         password,
@@ -147,7 +122,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         onHelloOk: (_hello: HelloOk) => {},
         onConnectError: (err) => this.handleConnectError(err),
         onClose: (code, reason) => this.handleClose(code, reason),
-        onTokenMismatch: this.gatewayManager ? () => this.restartGatewayForTokenMismatch() : undefined,
+        onTokenMismatch: !useExternal
+          ? async () => {
+              const { serviceManager } = await import('@process/services/serviceManager');
+              await serviceManager.restartOpenClaw();
+            }
+          : undefined,
       });
 
       this.connection.start();
@@ -190,7 +170,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         this.connection.sessionKey = result.key;
         return;
       } catch (err) {
-        console.warn('[OpenClawAgent] Failed to resume session, using default:', err);
+        mainWarn('OpenClawAgent', 'Failed to resume session, using default:', err);
       }
     }
 
@@ -199,12 +179,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       const resetResult = await this.connection.sessionsReset({ key: defaultKey, reason: 'new' });
       this.connection.sessionKey = resetResult.key;
     } catch (err) {
-      console.warn('[OpenClawAgent] Failed to reset session, trying plain resolve:', err);
+      mainWarn('OpenClawAgent', 'Failed to reset session, trying plain resolve:', err);
       try {
         const result = await this.connection.sessionsResolve({ key: defaultKey });
         this.connection.sessionKey = result.key;
       } catch (resolveErr) {
-        console.warn('[OpenClawAgent] Failed to resolve default session, falling back:', resolveErr);
+        mainWarn('OpenClawAgent', 'Failed to resolve default session, falling back:', resolveErr);
         this.connection.sessionKey = defaultKey;
       }
     }
@@ -214,20 +194,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
   }
 
-  private async restartGatewayForTokenMismatch(): Promise<void> {
-    if (!this.gatewayManager) return;
-    try {
-      await this.gatewayManager.stop();
-      await this.gatewayManager.start();
-    } catch (e) {
-      console.error('[OpenClawAgent] Failed to restart gateway:', e);
-      throw e;
-    }
-  }
-
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string }) {
+  async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     try {
@@ -247,7 +216,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           type: 'text',
           position: 'right',
           conversation_id: this.conversation_id,
-          content: { content: data.content },
+          content: { content: data.content, skills: (data as any).skills || [] },
           createdAt: Date.now(),
         };
         addMessage(this.conversation_id, userMessage);
@@ -259,13 +228,21 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       this.agentAssistantFallbackText = '';
       this.adapter.resetMessageTracking();
 
+      // Intercept /image <prompt> slash command
+      const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
+      if (imageMatch !== null) {
+        return await this.handleImageCommand(imageMatch[1].trim());
+      }
+
       // On the first message, prepend a workspace directive so the agent uses the
       // per-conversation workspace dir for all file operations and bash commands.
+      // Also inject drafts instruction for intermediate file management.
       let processedContent = data.agentContent || data.content;
       if (this.isFirstMessage && this.workspace) {
         this.isFirstMessage = false;
         const configuredWorkspace = getSudoclawWorkspaceRoot();
-        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + processedContent;
+        const draftsInstruction = buildDraftsInstruction(this.workspace);
+        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}\n\n` + processedContent;
       } else {
         this.isFirstMessage = false;
       }
@@ -274,6 +251,11 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       if (data.files && data.files.length > 0) {
         const fileRefs = data.files.map((f) => (f.includes(' ') ? `@"${f}"` : `@${f}`)).join(' ');
         processedContent = `${fileRefs} ${processedContent}`;
+      }
+
+      // Process skills - append as metadata comment for Sudoclaw to parse
+      if (data.skills && data.skills.length > 0) {
+        processedContent = `[Skills: ${data.skills.join(', ')}]\n\n${processedContent}`;
       }
 
       // Send chat message
@@ -314,25 +296,123 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
       } catch (err) {
-        console.warn('[OpenClawAgent] chatAbort failed:', err);
+        mainWarn('OpenClawAgent', 'chatAbort failed:', err);
       }
     }
   }
 
-  kill() {
-    const others = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway' && t.id !== this.conversation_id);
-    const shouldStopGateway = others.length === 0;
+  private async handleImageCommand(args: string): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    const saveDir = this.workspace || '.';
 
-    // Stop connection
+    ipcBridge.openclawConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+
+    try {
+      // Parse sub-command: analyze, edit, gen/generate
+      const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+
+      if (analyzeMatch) {
+        // Image analysis: use chat model + /chat/completions
+        const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
+        const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+        const prompt = analyzeMatch[4].trim();
+
+        const creds = readSudorouterCredentials();
+        const chatModel = resolveChatModel();
+        if (!creds || !chatModel) {
+          ipcBridge.openclawConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+          });
+        } else {
+          const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: analysisResult,
+          };
+          ipcBridge.openclawConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      } else {
+        // Image generation/edit: use image model
+        const config = await resolveImageConfig();
+        if (!config) {
+          ipcBridge.openclawConversation.responseStream.emit({
+            type: 'content',
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+          });
+        } else {
+          const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+          const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+
+          let imageUrls: string[];
+
+          if (editMatch) {
+            const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+            const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+            const prompt = editMatch[4].trim();
+            const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          } else {
+            const prompt = genMatch ? genMatch[1].trim() : args;
+            const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+            imageUrls = [imageUrl];
+          }
+
+          const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+          const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+          const contentMsg = {
+            type: 'content' as const,
+            conversation_id: this.conversation_id,
+            msg_id: responseMsgId,
+            data: imgContent,
+          };
+          ipcBridge.openclawConversation.responseStream.emit(contentMsg);
+          ipcBridge.conversation.responseStream.emit(contentMsg);
+          const tMessage = transformMessage(contentMsg);
+          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[OpenClawAgent]', `Image command failed: ${msg}`);
+      ipcBridge.openclawConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: `图像处理失败: ${msg}`,
+      });
+    }
+
+    ipcBridge.openclawConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.status = 'finished';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  kill() {
+    // Stop WebSocket connection only — gateway lifecycle is ServiceManager's responsibility.
     if (this.connection) {
       this.connection.stop();
       this.connection = null;
-    }
-
-    // Stop gateway process only when no other sessions need it
-    if (this.gatewayManager && shouldStopGateway) {
-      void this.gatewayManager.stop().catch((err) => console.error('[OpenClawAgent] gateway stop failed during kill:', err));
-      this.gatewayManager = null;
     }
 
     this.approvalStore.clear();
@@ -340,24 +420,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingNavigationTools.clear();
   }
 
-  /** Restart gateway to pick up config changes (~/.nexus/sudoclaw/sudoclaw.json) */
+  /** Reconnect WebSocket to the (ServiceManager-owned) gateway. */
   async restartGateway(): Promise<void> {
-    // Full stop + reconnect
     if (this.connection) {
       this.connection.stop();
       this.connection = null;
     }
-    if (this.gatewayManager) {
-      await this.gatewayManager.stop();
-      this.gatewayManager = null;
-    }
     this.bootstrap = this.connect(this.options);
     await this.bootstrap;
-  }
-
-  /** Send SIGUSR1 to gateway for hot-reload (skills) — no full restart needed */
-  reloadGatewaySkills(): void {
-    this.gatewayManager?.sendReloadSignal();
   }
 
   getDiagnostics() {
@@ -382,26 +452,33 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleEvent(evt: EventFrame): void {
-    switch (evt.event) {
-      case 'chat':
-      case 'chat.event':
-        this.handleChatEvent(evt.payload as ChatEvent);
-        break;
-      case 'agent':
-      case 'agent.event':
-        this.handleAgentEvent(evt.payload);
-        break;
-      case 'exec.approval.request':
-        this.handleApprovalRequest(evt.payload);
-        break;
-      case 'shutdown':
-        this.handleDisconnect('Gateway shutdown');
-        break;
-      case 'health':
-      case 'tick':
-        break;
-      default:
-        break;
+    try {
+      switch (evt.event) {
+        case 'chat':
+        case 'chat.event':
+          this.handleChatEvent(evt.payload as ChatEvent);
+          break;
+        case 'agent':
+        case 'agent.event':
+          this.handleAgentEvent(evt.payload);
+          break;
+        case 'exec.approval.request':
+          this.handleApprovalRequest(evt.payload);
+          break;
+        case 'shutdown':
+          this.handleDisconnect('Gateway shutdown');
+          break;
+        case 'health':
+        case 'tick':
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      mainError('OpenClawAgent', `Unhandled error in event handler (${evt.event}):`, error);
+      // Emit error to UI and force end turn to prevent hanging
+      this.emitErrorMessage(`Internal error processing event: ${error instanceof Error ? error.message : String(error)}`);
+      this.handleEndTurn();
     }
   }
 
@@ -487,7 +564,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         break;
 
       default:
-        console.warn('[OpenClawAgent] handleChatEvent: unknown state:', (event as { state: unknown }).state);
+        mainWarn('OpenClawAgent', 'handleChatEvent: unknown state:', (event as { state: unknown }).state);
     }
   }
 
@@ -606,7 +683,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       }
 
       default:
-        console.warn('[OpenClawAgent] Unhandled agent stream:', event.stream, event);
+        mainWarn('OpenClawAgent', `Unhandled agent stream: ${event.stream}`, event);
     }
   }
 
@@ -631,7 +708,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingPermissions.set(requestId, {
       resolve: (_response) => {},
       reject: (error) => {
-        console.error('[OpenClawAgent] Permission error:', error);
+        mainError('OpenClawAgent', 'Permission error:', error);
       },
     });
 
@@ -669,7 +746,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleConnectError(err: Error): void {
-    console.error('[OpenClawAgent] Connection error:', err);
+    mainError('OpenClawAgent', 'Connection error:', err);
     this.emitErrorMessage(`Connection error: ${err.message}`);
   }
 
@@ -691,6 +768,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
     // Clear busy guard
     cronBusyGuard.setProcessing(this.conversation_id, false);
+
+    // Post-cleanup: move intermediate files from workspace root to .drafts/
+    if (this.workspace) {
+      cleanupIntermediateFiles(this.workspace).catch((err) => {
+        mainError('OpenClawAgent', 'Post-cleanup failed:', err);
+      });
+    }
 
     // Emit signal events to frontend + channels
     ipcBridge.openclawConversation.responseStream.emit(msg);
@@ -748,7 +832,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         }
       })
       .catch((err: unknown) => {
-        console.warn('[OpenClawAgent] chat.history fallback failed:', err);
+        mainWarn('OpenClawAgent', 'chat.history fallback failed:', err);
       })
       .finally(() => {
         this.handleEndTurn();
@@ -757,24 +841,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   // ========== Stream & Signal Emission (merged from Manager) ==========
 
-  /** Replace openclaw with sudoclaw in user-facing message content */
-  private sanitizeDisplayText(msg: IResponseMessage): void {
-    if (msg.type === 'error' && typeof msg.data === 'string') {
-      (msg as { data: string }).data = msg.data.replace(/\bopenclaw\b/g, 'sudoclaw');
-    } else if ((msg.type === 'content' || msg.type === 'user_content') && msg.data) {
-      const d = msg.data as string | { content?: string };
-      if (typeof d === 'string') {
-        (msg as { data: string }).data = d.replace(/\bopenclaw\b/g, 'sudoclaw');
-      } else if (d && typeof (d as { content?: string }).content === 'string') {
-        (d as { content: string }).content = (d as { content: string }).content.replace(/\bopenclaw\b/g, 'sudoclaw');
-      }
-    }
-  }
-
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
     const msg = { ...message, conversation_id: this.conversation_id };
-    this.sanitizeDisplayText(msg);
 
     // Mark as finished when content is output
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
@@ -915,7 +984,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
       }
     } catch (error) {
-      console.error('[OpenClawAgent] Failed to save session key:', error);
+      mainError('OpenClawAgent', 'Failed to save session key:', error);
     }
   }
 

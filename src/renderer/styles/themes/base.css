@@ -585,6 +585,23 @@ body,
   }
 }
 
+/* Streaming message border pulse - red border animation for AI output */
+@keyframes streaming-border-pulse {
+  0%,
+  100% {
+    border-color: rgba(245, 63, 63, 0.3);
+    box-shadow: 0 0 0 1px rgba(245, 63, 63, 0.1);
+  }
+  50% {
+    border-color: rgba(245, 63, 63, 0.9);
+    box-shadow: 0 0 0 2px rgba(245, 63, 63, 0.3);
+  }
+}
+
+.streaming-message {
+  animation: streaming-border-pulse 2s ease-in-out infinite;
+}
+
 .chat-history__item,
 .settings-sider__item {
   transition:

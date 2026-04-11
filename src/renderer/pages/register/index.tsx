@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message } from '@arco-design/web-react';
@@ -21,6 +21,21 @@ const RegisterPage: React.FC = () => {
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 允许页面滚动（覆盖 index.html 的 overflow: hidden）
+  useEffect(() => {
+    const root = document.getElementById('root');
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalRootOverflow = root?.style.overflow;
+
+    document.body.style.overflow = 'auto';
+    if (root) root.style.overflow = 'auto';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
@@ -36,7 +51,7 @@ const RegisterPage: React.FC = () => {
 
     if (!registerToken) {
       Message.error('注册凭证无效，请重新登录');
-      navigate('/login', { replace: true });
+      void navigate('/login', { replace: true });
       return;
     }
 

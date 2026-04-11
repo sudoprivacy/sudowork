@@ -111,6 +111,13 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
         res.clearCookie(AUTH_CONFIG.COOKIE.NAME);
       }
 
+      // 如果访问根路径且未认证，重定向到 WebUI 登录页面
+      // If accessing root path and not authenticated, redirect to WebUI login page
+      if (req.path === '/' && !token) {
+        res.redirect('/webui-login');
+        return;
+      }
+
       const htmlContent = fs.readFileSync(indexHtmlPath, 'utf8');
       res.setHeader('Content-Type', 'text/html');
       res.send(htmlContent);
@@ -122,8 +129,10 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
 
   expressApp.get('/', pageRateLimiter, serveApplication);
 
-  // SPA sub-routes (React Router)
-  expressApp.get(/^\/(?!api|static|assets)(?!.*\.[a-zA-Z0-9]+$).*/, pageRateLimiter, serveApplication);
+  // SPA sub-routes (React Router) - exclude /webui-login, /qr-login (these have dedicated pages)
+  // SPA 子路由 - 排除 /webui-login, /qr-login（这些有专用页面）
+  // /login, /register 等路径需要返回主应用，让 React Router 处理
+  expressApp.get(/^\/(?!api|static|assets|webui-login|qr-login)(?!.*\.[a-zA-Z0-9]+$).*/, pageRateLimiter, serveApplication);
 
   // Static assets
   expressApp.use(express.static(staticRoot));

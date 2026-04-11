@@ -24,10 +24,13 @@
   "eventType": "イベントタイプ",
   "networkRequest": "ネットワークリクエスト",
   "fileOperation": "ファイル操作",
+  "processExecution": "プロセス実行",
   "url": "URL",
   "method": "メソッド",
   "headers": "ヘッダー",
   "body": "ボディ",
   "filePath": "ファイルパス",
-  "fileFlags": "ファイルフラグ"
+  "fileFlags": "ファイルフラグ",
+  "command": "コマンド",
+  "arguments": "引数"
 }

@@ -15,9 +15,11 @@ import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Message, Tag } from '@arco-design/web-react';
-import { Plus } from '@icon-park/react';
+import { Button, Dropdown, Menu, Message, Tag } from '@arco-design/web-react';
+import { Plus, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildDisplayMessage, filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
@@ -29,6 +31,8 @@ import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
+import { AIProcessingContext } from './OpenClawChat';
 
 interface OpenClawDraftData {
   _type: 'openclaw-gateway';
@@ -90,9 +94,14 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+const OpenClawSendBox: React.FC<{
+  conversation_id: string;
+  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
+}> = ({ conversation_id, onAiProcessingChange }) => {
+  const aiProcessingContext = React.useContext(AIProcessingContext);
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
+  const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
@@ -108,6 +117,19 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   // Use ref to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
   const aiProcessingRef = useRef(aiProcessing);
+
+  // Sync local aiProcessing state to parent via onAiProcessingChange
+  React.useEffect(() => {
+    if (onAiProcessingChange) {
+      onAiProcessingChange(aiProcessing);
+    }
+  }, [aiProcessing, onAiProcessingChange]);
+
+  // Reset aiProcessing when conversation changes
+  // 切换会话时重置 aiProcessing 状态
+  React.useEffect(() => {
+    setAiProcessing(false);
+  }, [conversation_id]);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)
@@ -254,6 +276,19 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         return;
       }
 
+      const safeTransformMessage = (): TMessage | undefined => {
+        try {
+          return transformMessage(message);
+        } catch (error) {
+          console.warn('[OpenClawSendBox] Ignoring unsupported response message', {
+            conversation_id,
+            type: message.type,
+            error,
+          });
+          return undefined;
+        }
+      };
+
       // Cancel pending finish timeout if new message arrives
       if (finishTimeoutRef.current && message.type !== 'finish') {
         clearTimeout(finishTimeoutRef.current);
@@ -298,7 +333,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
             aiProcessingRef.current = true;
           }
           setThought({ subject: '', description: '' });
-          const transformedMessage = transformMessage(message);
+          const transformedMessage = safeTransformMessage();
           if (transformedMessage) {
             addOrUpdateMessage(transformedMessage);
           }
@@ -312,7 +347,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         }
         default: {
           setThought({ subject: '', description: '' });
-          const transformedMessage = transformMessage(message);
+          const transformedMessage = safeTransformMessage();
           if (transformedMessage) {
             addOrUpdateMessage(transformedMessage);
           }
@@ -348,7 +383,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
       aiProcessingRef.current = true;
       starOfficeInstallInFlightRef.current = true;
       ipcBridge.openclawConversation.sendMessage
-        .invoke({ input: text, msg_id, conversation_id, injectSkills: ['star-office-helper'] })
+        .invoke({ input: text, msg_id, conversation_id, skills: ['star-office-helper'] })
         .then(() => {
           void checkAndUpdateTitle(conversation_id, text);
           emitter.emit('chat.history.refresh');
@@ -388,7 +423,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   });
 
   const sendOpenClawMessage = useCallback(
-    async (message: string) => {
+    async (message: string, skills?: string[]) => {
       const runtimeOk = await validateRuntimeMismatch(conversation_id);
       if (!runtimeOk) return;
 
@@ -414,7 +449,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         conversation_id,
         type: 'text',
         position: 'right',
-        content: { content: displayMessage },
+        content: { content: displayMessage, skills: skills || [] },
         createdAt: Date.now(),
       };
       addOrUpdateMessage(userMessage, true);
@@ -426,6 +461,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
           msg_id,
           conversation_id,
           files: filesToSend,
+          skills: skills || [],
         });
         void checkAndUpdateTitle(conversation_id, message);
         emitter.emit('chat.history.refresh');
@@ -439,8 +475,8 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     [conversation_id, atPath, uploadFile, workspacePath, addOrUpdateMessage, checkAndUpdateTitle, setAtPath, setUploadFile]
   );
 
-  const onSendHandler = async (message: string) => {
-    await sendOpenClawMessage(message);
+  const onSendHandler = async (message: string, skills?: string[]) => {
+    await sendOpenClawMessage(message, skills);
   };
 
   useEffect(() => {
@@ -459,6 +495,21 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
+  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [messageApi, messageContextHolder] = Message.useMessage();
+  const messageApiRef = useRef(messageApi);
+  messageApiRef.current = messageApi;
+
+  useEffect(() => {
+    return ipcBridge.bdpan.downloadResult.on((result) => {
+      if (result.success) {
+        messageApiRef.current.success(t('conversation.bdpan.download.success'));
+      } else {
+        messageApiRef.current.error(result.error ?? t('conversation.bdpan.download.failed'));
+      }
+    });
+  }, [t]);
 
   // Handle initial message from guid page
   useEffect(() => {
@@ -480,7 +531,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         sessionStorage.setItem(processedKey, 'true');
         setAiProcessing(true);
         aiProcessingRef.current = true;
-        const { input, files = [] } = JSON.parse(stored) as { input: string; files?: string[] };
+        const { input, files = [], skills = [] } = JSON.parse(stored) as { input: string; files?: string[]; skills?: string[] };
         const msg_id = `initial_${conversation_id}_${Date.now()}`;
         const loading_id = uuid();
         const initialDisplayMessage = buildDisplayMessage(input, files, workspacePath);
@@ -491,12 +542,12 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
           conversation_id,
           type: 'text',
           position: 'right',
-          content: { content: initialDisplayMessage },
+          content: { content: initialDisplayMessage, skills: skills.length > 0 ? skills : undefined },
           createdAt: Date.now(),
         };
         addOrUpdateMessage(userMessage, true);
 
-        await ipcBridge.openclawConversation.sendMessage.invoke({ input: initialDisplayMessage, msg_id, conversation_id, files, loading_id });
+        await ipcBridge.openclawConversation.sendMessage.invoke({ input: initialDisplayMessage, msg_id, conversation_id, files, loading_id, skills: skills.length > 0 ? skills : undefined });
         void checkAndUpdateTitle(conversation_id, input);
         emitter.emit('chat.history.refresh');
         sessionStorage.removeItem(storageKey);
@@ -538,6 +589,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+      {messageContextHolder}
       <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} />
 
       <SendBox
@@ -559,7 +611,41 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         supportedExts={allSupportedExts}
         defaultMultiLine={true}
         lockMultiLine={true}
-        tools={<Button type='secondary' shape='circle' icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} onClick={openFileSelector} />}
+        tools={
+          <Dropdown
+            trigger='hover'
+            onVisibleChange={setIsPlusDropdownOpen}
+            droplist={
+              <Menu
+                className='min-w-200px'
+                onClickMenuItem={(key) => {
+                  if (key === 'file') {
+                    openFileSelector();
+                  } else if (key === 'bdpan') {
+                    setBdpanSelectorVisible(true);
+                  }
+                }}
+              >
+                <Menu.Item key='file'>
+                  <div className='flex items-center gap-8px'>
+                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                  </div>
+                </Menu.Item>
+                <Menu.Item key='bdpan'>
+                  <div className='flex items-center gap-8px'>
+                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                  </div>
+                </Menu.Item>
+              </Menu>
+            }
+          >
+            <span>
+              <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+            </span>
+          </Dropdown>
+        }
         prefix={
           <>
             {(() => {
@@ -626,7 +712,20 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
         onSend={onSendHandler}
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
+        onSkillsChange={(skills) => {
+          // Store skills in ref or state if needed for session management
+          // For now, they're passed directly to onSend
+        }}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
+      <BdpanFileSelector
+        visible={bdpanSelectorVisible}
+        onCancel={() => setBdpanSelectorVisible(false)}
+        onConfirm={(paths) => {
+          setBdpanSelectorVisible(false);
+          appendSelectedFiles(paths);
+        }}
+      />
     </div>
   );
 };

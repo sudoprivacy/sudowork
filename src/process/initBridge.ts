@@ -7,6 +7,7 @@
 import { logger } from '@office-ai/platform';
 import { initAllBridges } from './bridge';
 import { cronService } from '@process/services/cron/CronService';
+import { mainWarn } from '@process/utils/mainLogger';
 
 logger.config({ print: true });
 
@@ -15,5 +16,5 @@ initAllBridges();
 
 // Initialize cron service (load jobs from database and start timers)
 void cronService.init().catch((error) => {
-  console.warn('[initBridge] CronService initialization failed:', error.message);
+  mainWarn('initBridge', 'CronService initialization failed:', error.message);
 });

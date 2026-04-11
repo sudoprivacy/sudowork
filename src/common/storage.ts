@@ -80,12 +80,17 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Migration flag: skill subdirectory restructuring completed */
+  'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
-  // Sudowork Server (Enterprise Control Center) configuration
-  'sudowork.server': {
+  /**
+   * @deprecated Server URL is now hardcoded in src/common/sudoworkServer.ts.
+   * This config key is kept for backward compatibility but is no longer used.
+   */
+  'sudowork.server'?: {
     baseUrl: string;
     enterpriseCode?: string;
   };
@@ -129,6 +134,17 @@ export interface IConfigStorageRefer {
   };
   // WeChat assistant agent selection / 微信助手所使用的 Agent
   'assistant.wechat.agent'?: {
+    backend: AcpBackendAll;
+    customAgentId?: string;
+    name?: string;
+  };
+  // WeCom assistant default model / 企业微信助手默认模型
+  'assistant.wecom.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // WeCom assistant agent selection / 企业微信助手所使用的 Agent
+  'assistant.wecom.agent'?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
@@ -207,6 +223,12 @@ export type TChatConversation =
           currentModelId?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
+          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
+          workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -219,6 +241,8 @@ export type TChatConversation =
           backend?: AcpBackendAll;
           agentName?: string;
           customWorkspace?: boolean;
+          customAgentId?: string; // UUID for identifying specific custom agent
+          presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
           /** Gateway configuration */
           gateway?: {
             host?: string;
@@ -246,6 +270,10 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID / Preset assistant ID */
           presetAssistantId?: string;
+          /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
+          sessionMode?: string;
+          /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
+          currentModelId?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
@@ -254,6 +282,12 @@ export type TChatConversation =
           isHealthCheck?: boolean;
           /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
           openclawModelId?: string;
+          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
+          workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
         }
       >,
       'model'
@@ -344,6 +378,12 @@ export interface IProvider {
 }
 
 export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };
+
+/** Default base URL for SudoRouter image generation */
+export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
+
+/** Default model used for image generation via SudoRouter */
+export const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5';
 
 // MCP Server Configuration Types
 export type McpTransportType = 'stdio' | 'sse' | 'http';

@@ -463,6 +463,19 @@ try {
     throw new Error('Missing renderer entry: out/renderer/index.html');
   }
 
+  // Generate NSIS installer images (sidebar + header BMP files)
+  // These are referenced by electron-builder.yml and must exist before packaging.
+  try {
+    const genScript = path.resolve(__dirname, 'generate-installer-images.js');
+    if (fs.existsSync(genScript)) {
+      console.log('🎨 Generating installer images…');
+      execSync(`node "${genScript}"`, { stdio: 'inherit' });
+    }
+  } catch (imgErr) {
+    console.log(`⚠️  Installer image generation failed: ${imgErr.message}`);
+    console.log('   Continuing without custom images — NSIS will use defaults.');
+  }
+
   // If --pack-only, skip electron-builder distributable creation
   if (packOnly) {
     console.log('✅ Package completed! (skipped distributable creation)');

@@ -1,0 +1,61 @@
+# Application-Specific Extensions for Human-Browser Primitives
+#
+# This file defines convenience parameters added to each primitive
+# for the Sudowork application. Both primitives/ and ops/ are
+# AUTO-GENERATED from this file + human-browser-primitives/spec.md.
+#
+# DO NOT hand-edit primitives/ or ops/ — change this file, then:
+#   python tests/e2e/generate.py
+#
+# Spec reference: https://github.com/sudoprivacy/human-browser-primitives
+
+spec_repo: "https://github.com/sudoprivacy/human-browser-primitives"
+spec_version: "0.1.0-draft"
+
+primitives:
+
+  # --- Keyboard ---
+
+  key_down:
+    hooks:
+      react_fallback:
+        description: "Detect React controlled input, fall back to setter-based injection"
+        resolver: "utils.react_key_fallback"
+        hint: "React controlled input detected — used setter-based injection"
+
+  key_up: {}
+
+  # --- Pointer ---
+
+  pointer_down: {}
+
+  pointer_up: {}
+
+  pointer_move: {}
+
+  # --- Element Interaction (§12.5) ---
+
+  click: {}
+
+  # --- Wheel ---
+
+  scroll: {}
+
+  # --- Temporal ---
+
+  pause: {}
+
+  # --- Observation ---
+
+  screenshot: {}
+
+  get_text:
+    convenience_params:
+      shadow_dom:
+        type: bool
+        description: "Include text from Shadow DOM elements"
+        default: true
+
+  get_attribute: {}
+
+  is_displayed: {}

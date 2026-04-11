@@ -71,7 +71,10 @@ const getDiffLineStyle = (line: string, isDark: boolean): React.CSSProperties =>
 
 function CodeBlock(props: any) {
   const { t } = useTranslation();
-  const [fold, setFlow] = useState(true);
+  const [fold, setFlow] = useState(() => {
+    const content = String(props.children || '').replace(/\n$/, '');
+    return content.split('\n').length >= 4;
+  });
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });
@@ -624,7 +627,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
               img: ({ node: _node, ...props }) => {
                 if (isLocalFilePath(props.src || '')) {
                   const src = decodeURIComponent(props.src || '');
-                  return <LocalImageView src={src} alt={props.alt || ''} className={props.className} />;
+                  return <LocalImageView src={src} alt={props.alt || ''} className={props.className} style={{ width: '40%', borderRadius: '8px' }} />;
                 }
                 return <img {...props} />;
               },

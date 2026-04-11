@@ -7,70 +7,30 @@
 /**
  * Safety Polling Service
  *
- * Polls /safe/event/{uuid} directory at regular intervals
- * and notifies renderer process when new event files are detected.
- * Also manages safety hook enabled state and syncs it via Nexus filesystem.
+ * Manages safety hook state and polls for events.
+ * Nexus is the SINGLE SOURCE OF TRUTH for all state.
+ *
+ * State file: /safe/config/enabled
+ * Event files: /safe/event/{uuid}
+ * Action files: /safe/action/{uuid}
  */
 
 import type { SafetyStatus } from '@/common/safetyTypes';
 import { ipcBridge } from '@/common';
-import { SafetyFileService } from './SafetyFileService';
-import { eventToSafetyStatus, listEventFilenames, readEventFile, writeEnabledState } from './SecurityHookFile';
+import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
 import { initBlacklist } from './SafetyBlacklistService';
-import { ProcessConfig } from '@/process/initStorage';
-
-/** Storage key for safety hook enabled state */
-const SAFETY_HOOK_ENABLED_KEY = 'safetyHook.enabled';
-
-/** Path in Nexus filesystem for enabled state sync */
-const SAFETY_HOOK_ENABLED_PATH = '/safe/config/enabled';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 export interface SafetyPollingConfig {
   pollingIntervalMs: number;
 }
 
-/** Global flag for safety hook enabled state (used by workers) */
-let globalSafetyHookEnabled: boolean = true;
-
-/** Listeners for enabled state changes */
-const enabledChangeListeners: Set<(enabled: boolean) => void> = new Set();
-
 /**
  * Check if safety hook is enabled globally.
- * Called by ForkTask to determine worker environment variable.
+ * This is a convenience function that reads from the singleton instance.
  */
 export function isSafetyHookEnabled(): boolean {
-  return globalSafetyHookEnabled;
-}
-
-/**
- * Set safety hook enabled state globally.
- * Called by SafetyPollingService when user toggles the switch.
- */
-export function setSafetyHookEnabled(enabled: boolean): void {
-  const previousValue = globalSafetyHookEnabled;
-  globalSafetyHookEnabled = enabled;
-  if (previousValue !== enabled) {
-    // Notify all listeners
-    enabledChangeListeners.forEach((listener) => {
-      try {
-        listener(enabled);
-      } catch (error) {
-        console.error('[SafetyPolling] Error in enabled change listener:', error);
-      }
-    });
-  }
-}
-
-/**
- * Subscribe to enabled state changes.
- * Returns an unsubscribe function.
- */
-export function onEnabledChange(listener: (enabled: boolean) => void): () => void {
-  enabledChangeListeners.add(listener);
-  return () => {
-    enabledChangeListeners.delete(listener);
-  };
+  return SafetyPollingService.getInstance().isEnabled();
 }
 
 export class SafetyPollingService {
@@ -82,8 +42,14 @@ export class SafetyPollingService {
   private eventListeners: Set<(status: SafetyStatus) => void> = new Set();
   private currentEventUuid: string | null = null;
   private currentEventFilename: string | null = null;
-  private enabled: boolean = true; // Track whether service is enabled
+  private enabled: boolean = true;
   private initialized: boolean = false;
+
+  /** Cached blacklist config for efficiency */
+  private cachedBlacklistEnabled: boolean | null = null;
+
+  /** Set of processed event filenames (to avoid re-processing) */
+  private processedEvents: Set<string> = new Set();
 
   private constructor() {}
 
@@ -95,88 +61,108 @@ export class SafetyPollingService {
   }
 
   /**
-   * Initialize safety hook state from persistent storage
+   * Initialize safety hook state from Nexus
    * Called once at app startup
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
     try {
-      const storedEnabled = await ProcessConfig.get(SAFETY_HOOK_ENABLED_KEY);
-      this.enabled = storedEnabled !== false; // default to true if not set
-      setSafetyHookEnabled(this.enabled);  // Use setter to notify listeners
-      // Sync to Nexus filesystem for Agent CLI processes
-      await writeEnabledState(this.enabled);
-      console.log(`[SafetyPolling] Initialized with enabled=${this.enabled}`);
+      const state = await ensureEnabledState();
+      this.enabled = state.enabled;
+      mainLog('SafetyPolling', `Initialized from Nexus: enabled=${state.enabled}, fastPass=${state.fastPass}`);
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to load enabled state:', err);
+      mainWarn('SafetyPolling', 'Failed to initialize from Nexus, using default:', err);
       this.enabled = true;
-      setSafetyHookEnabled(true);
-      await writeEnabledState(true);
     }
 
-    // Initialize blacklist and sync to Nexus
+    // Initialize blacklist
     try {
       await initBlacklist();
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to init blacklist:', err);
+      mainWarn('SafetyPolling', 'Failed to init blacklist:', err);
     }
 
     this.initialized = true;
   }
 
   /**
-   * Persist enabled state to storage and sync to Nexus filesystem
+   * Persist enabled state to Nexus
    */
-  private async persistEnabledState(enabled: boolean): Promise<void> {
+  private async persistEnabledState(enabled: boolean, fastPass: boolean = false): Promise<void> {
     try {
-      await ProcessConfig.set(SAFETY_HOOK_ENABLED_KEY, enabled);
-      // Sync to Nexus filesystem for Agent CLI processes
-      await writeEnabledState(enabled);
+      await writeEnabledState(enabled, fastPass);
+      mainLog('SafetyPolling', `Persisted state: enabled=${enabled}, fastPass=${fastPass}`);
     } catch (err) {
-      console.warn('[SafetyPolling] Failed to persist enabled state:', err);
+      mainError('SafetyPolling', 'Failed to persist state:', err);
     }
   }
 
   /**
    * Start polling safety service
+   * @param persist - true: 用户手动开启，写入 Nexus; false: 应用启动，只读取状态
    */
-  async start(config: SafetyPollingConfig): Promise<void> {
-    // Initialize from storage if not already done
+  async start(config: SafetyPollingConfig, persist: boolean = false): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
 
+    // 应用启动时，如果 Nexus 中已禁用则跳过
+    if (!persist && !this.enabled) {
+      mainLog('SafetyPolling', 'Service disabled in Nexus, skipping startup');
+      return;
+    }
+
     if (this.interval) {
       this.config = config;
-      this.enabled = true;
-      setSafetyHookEnabled(true);
       return;
     }
 
     this.config = config;
-    this.enabled = true;
-    setSafetyHookEnabled(true);
-    await this.persistEnabledState(true);
 
-    // Initialize file service (async for Nexus SDK)
-    try {
-      await SafetyFileService.init({
-        pollingIntervalMs: config.pollingIntervalMs,
-      });
-    } catch (err) {
-      console.error(`[SafetyPolling] Failed to init SafetyFileService:`, err);
-      throw err;
+    // 用户手动开启时，更新状态并写入 Nexus
+    if (persist) {
+      this.enabled = true;
+      await this.persistEnabledState(true, false);
     }
+
+    await this.startPolling(config);
+  }
+
+  /**
+   * Start the polling loop
+   */
+  private async startPolling(config: SafetyPollingConfig): Promise<void> {
+    // Ensure directories exist
+    await ensureSecurityHookDirs();
+
+    // Mark existing events as processed (skip stale events from previous sessions)
+    await this.markExistingEventsAsProcessed();
 
     this.interval = setInterval(() => {
       void this.poll();
     }, config.pollingIntervalMs);
 
-    console.log(`[SafetyPolling] Polling started with ${config.pollingIntervalMs}ms interval`);
+    mainLog('SafetyPolling', 'Polling started, interval:', config.pollingIntervalMs);
 
-    // Initial poll
     void this.poll();
+  }
+
+  /**
+   * Mark all existing events as processed to avoid re-processing stale events
+   */
+  private async markExistingEventsAsProcessed(): Promise<void> {
+    try {
+      const filenames = await listEventFilenames();
+      for (const filename of filenames) {
+        this.processedEvents.add(filename);
+      }
+      if (filenames.length > 0) {
+        mainLog('SafetyPolling', `Marked ${filenames.length} existing events as processed`);
+      }
+    } catch (error) {
+      mainWarn('SafetyPolling', 'Failed to mark existing events:', error);
+    }
   }
 
   /**
@@ -187,21 +173,59 @@ export class SafetyPollingService {
   }
 
   /**
-   * Stop polling
+   * Stop polling and disable safety hook
+   * @param persist - Whether to persist the disabled state (default: true)
    */
-  async stop(): Promise<void> {
+  async stop(persist: boolean = true): Promise<void> {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
     }
     this.enabled = false;
-    setSafetyHookEnabled(false);
-    await this.persistEnabledState(false);
-    // Clear current event status when stopping
+
+    if (persist) {
+      // Write fastPass=true to immediately allow all requests
+      await this.persistEnabledState(false, true);
+    }
+
+    // Clear state
     this.currentStatus = { level: 'none' };
     this.currentEventUuid = null;
     this.currentEventFilename = null;
     this.notifyListeners(this.currentStatus);
+    this.processedEvents.clear();
+    this.cachedBlacklistEnabled = null;
+
+    // Cleanup pending events
+    this.cleanupPendingEvents().catch((err) => {
+      mainWarn('SafetyPolling', 'Failed to cleanup pending events:', err);
+    });
+  }
+
+  /**
+   * Cleanup pending events when hook is disabled
+   */
+  private async cleanupPendingEvents(): Promise<void> {
+    try {
+      const filenames = await listEventFilenames();
+      if (filenames.length === 0) {
+        return;
+      }
+
+      mainLog('SafetyPolling', `Cleaning up ${filenames.length} pending events`);
+
+      for (const filename of filenames) {
+        const hasAction = await actionExists(filename);
+        if (!hasAction) {
+          await writeActionFile(filename, { allow: true, reason: 'Safety hook disabled' });
+        }
+        await deleteEventFile(filename);
+      }
+
+      mainLog('SafetyPolling', `Cleaned up ${filenames.length} pending events`);
+    } catch (err) {
+      mainWarn('SafetyPolling', 'Cleanup pending events failed:', err);
+    }
   }
 
   /**
@@ -219,7 +243,7 @@ export class SafetyPollingService {
   }
 
   /**
-   * Check if there's an active event (not 'none')
+   * Check if there's an active event
    */
   hasEvent(): boolean {
     return this.currentStatus.level !== 'none';
@@ -230,24 +254,32 @@ export class SafetyPollingService {
    */
   async handleUserConfirmation(allow: boolean, reason?: string): Promise<boolean> {
     if (!this.currentEventUuid) {
-      console.warn('[SafetyPolling] No event to confirm');
+      mainWarn('SafetyPolling', 'No event to confirm');
       return false;
     }
 
     const eventUuid = this.currentEventUuid;
-    const filename = this.currentEventFilename;
-
-    // Write action to /safe/action/{uuid}
-    const success = await SafetyFileService.writeUserResponse(eventUuid, allow, reason);
+    const success = await this.writeUserResponse(eventUuid, allow, reason);
 
     if (success) {
-      // Clear current status and event UUID
       this.currentStatus = { level: 'none' };
       this.currentEventUuid = null;
       this.currentEventFilename = null;
       this.notifyListeners(this.currentStatus);
     }
 
+    return success;
+  }
+
+  /**
+   * Write user response to action file and delete event
+   */
+  private async writeUserResponse(eventUuid: string, allow: boolean, reason?: string): Promise<boolean> {
+    const success = await writeActionFile(eventUuid, { allow, reason });
+    if (success) {
+      await deleteEventFile(eventUuid);
+      this.processedEvents.delete(eventUuid);
+    }
     return success;
   }
 
@@ -269,65 +301,94 @@ export class SafetyPollingService {
       try {
         listener(status);
       } catch (error) {
-        console.error('[SafetyPolling] Error in listener:', error);
+        mainError('SafetyPolling', 'Error in listener:', error);
       }
     });
 
-    // Emit IPC event to renderer directly via bridge
     try {
       ipcBridge.safety.onStatusChange.emit(status);
     } catch (err) {
-      console.error('[SafetyPolling] IPC emit failed:', err);
+      mainError('SafetyPolling', 'IPC emit failed:', err);
     }
+  }
+
+  /**
+   * Check if blacklist has active rules (with caching)
+   */
+  private async hasActiveBlacklistRules(): Promise<boolean> {
+    // Return cached value if available
+    if (this.cachedBlacklistEnabled !== null) {
+      return this.cachedBlacklistEnabled;
+    }
+
+    try {
+      const hookConfig = await readHookConfig();
+      if (!hookConfig || !hookConfig.blacklist) {
+        this.cachedBlacklistEnabled = false;
+        return false;
+      }
+      const blacklist = hookConfig.blacklist as { rules?: { enabled?: boolean }[] };
+      const hasActive = blacklist?.rules?.some((rule: { enabled?: boolean }) => rule.enabled) ?? false;
+      this.cachedBlacklistEnabled = hasActive;
+      return hasActive;
+    } catch {
+      this.cachedBlacklistEnabled = false;
+      return false;
+    }
+  }
+
+  /**
+   * Invalidate blacklist cache (call when blacklist is updated)
+   */
+  invalidateBlacklistCache(): void {
+    this.cachedBlacklistEnabled = null;
   }
 
   /**
    * Poll event directory and update status
    */
   private async poll(): Promise<void> {
-    if (!this.config) {
+    if (!this.config || !this.enabled) {
+      return;
+    }
+
+    const hasActiveRules = await this.hasActiveBlacklistRules();
+    if (!hasActiveRules) {
       return;
     }
 
     try {
       const filenames = await listEventFilenames();
-      console.log(`[SafetyPolling] Poll found ${filenames.length} events`);
 
-      const processedSet = SafetyFileService['processedEvents'];
-
-      // Sync memory Set with actual directory content
+      // Clean up processed set for deleted files
       const currentFilesSet = new Set(filenames);
-      for (const processedFile of processedSet) {
+      for (const processedFile of this.processedEvents) {
         if (!currentFilesSet.has(processedFile)) {
-          processedSet.delete(processedFile);
+          this.processedEvents.delete(processedFile);
         }
       }
 
       // Find first unprocessed event
       for (const filename of filenames) {
-        if (!processedSet.has(filename)) {
-          console.log(`[SafetyPolling] Found unprocessed event: ${filename}`);
+        if (!this.processedEvents.has(filename)) {
           const data = await readEventFile(filename);
-          console.log(`[SafetyPolling] Event data:`, data ? JSON.stringify(data).substring(0, 200) : 'null');
 
           if (data) {
             this.currentStatus = eventToSafetyStatus(filename, data);
             this.currentEventUuid = filename;
             this.currentEventFilename = filename;
 
-            processedSet.add(filename);
-            console.log(`[SafetyPolling] Notifying listeners with status:`, JSON.stringify(this.currentStatus).substring(0, 200));
+            this.processedEvents.add(filename);
             this.notifyListeners(this.currentStatus);
             break;
           } else {
-            // If read failed, mark as processed to ignore it in next polls
-            console.log(`[SafetyPolling] Event data is null, marking as processed`);
-            processedSet.add(filename);
+            mainWarn('SafetyPolling', 'Failed to read event file:', filename);
+            this.processedEvents.add(filename);
           }
         }
       }
     } catch (error) {
-      console.error('[SafetyPolling] Poll error:', error);
+      mainError('SafetyPolling', 'Poll error:', error);
     }
   }
 }

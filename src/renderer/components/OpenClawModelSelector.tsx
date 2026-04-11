@@ -9,7 +9,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { Down } from '@icon-park/react';
@@ -46,6 +46,7 @@ const OpenClawModelSelector: React.FC<{
 
   // Current selected model from conversation extra
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const lastSyncedModelRef = useRef<string | null>(null);
 
   // Load current model from conversation extra on mount
   useEffect(() => {
@@ -78,46 +79,87 @@ const OpenClawModelSelector: React.FC<{
       });
   }, [conversationId, models]);
 
-  // Handle model selection
-  const handleSelectModel = useCallback(
-    async (modelId: string, modelRatio: number) => {
-      console.log(`[OpenClawModelSelector] Model selected: ${modelId} (${modelRatio}x)`);
+  const syncSelectedModel = useCallback(
+    async (model: OpenClawModel, options?: { updateState?: boolean; force?: boolean; reason?: 'initial' | 'manual' }) => {
+      const { updateState = true, force = false, reason = 'manual' } = options || {};
+      const syncKey = `${conversationId}:${model.model_id}`;
+      if (!force && lastSyncedModelRef.current === syncKey) {
+        return true;
+      }
+
+      console.log(`[OpenClawModelSelector] Model ${reason === 'initial' ? 'initialized' : 'selected'}: ${model.model_id} (${model.model_ratio}x)`);
 
       try {
-        // Notify main process (for logging and future notification API)
         await ipcBridge.openclaw.selectModel.invoke({
           conversationId,
-          modelId,
-          modelRatio,
+          modelId: model.model_id,
+          modelRatio: model.model_ratio,
         });
 
-        // Get current conversation to merge extra
         const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
         const currentExtra = conversation?.extra || {};
+        const currentModelId = (currentExtra as { openclawModelId?: string }).openclawModelId || null;
 
-        // Update conversation extra with selected model
-        const success = await ipcBridge.conversation.update.invoke({
-          id: conversationId,
-          updates: {
-            extra: {
-              ...currentExtra,
-              openclawModelId: modelId,
+        if (currentModelId !== model.model_id) {
+          const success = await ipcBridge.conversation.update.invoke({
+            id: conversationId,
+            updates: {
+              extra: {
+                ...currentExtra,
+                openclawModelId: model.model_id,
+              },
             },
-          },
-        });
+          });
 
-        if (success) {
-          setSelectedModelId(modelId);
-          console.log(`[OpenClawModelSelector] Model saved to conversation: ${modelId}`);
-        } else {
-          console.error('[OpenClawModelSelector] Failed to save model to conversation');
+          if (!success) {
+            console.error('[OpenClawModelSelector] Failed to save model to conversation');
+            return false;
+          }
         }
+
+        lastSyncedModelRef.current = syncKey;
+        if (updateState) {
+          setSelectedModelId(model.model_id);
+        }
+        console.log(`[OpenClawModelSelector] Model synced to conversation: ${model.model_id}`);
+        return true;
       } catch (err) {
-        console.error('[OpenClawModelSelector] Error saving model:', err);
+        console.error('[OpenClawModelSelector] Error syncing model:', err);
+        return false;
       }
     },
     [conversationId]
   );
+
+  // Handle model selection
+  const handleSelectModel = useCallback(
+    async (modelId: string) => {
+      const model = models?.find((item) => item.model_id === modelId);
+      if (!model) {
+        return;
+      }
+
+      await syncSelectedModel(model, { updateState: true, force: true, reason: 'manual' });
+    },
+    [models, syncSelectedModel]
+  );
+
+  // Ensure the current model is synced on first load as well.
+  useEffect(() => {
+    if (!models?.length) {
+      return;
+    }
+
+    const currentModel = models.find((model) => model.model_id === selectedModelId) || models.find((model) => model.isPrimary);
+    if (!currentModel) {
+      return;
+    }
+
+    void syncSelectedModel(currentModel, {
+      updateState: selectedModelId == null,
+      reason: 'initial',
+    });
+  }, [models, selectedModelId, syncSelectedModel]);
 
   // Format model label with ratio and primary indicator
   const formatModelLabel = useCallback(
@@ -154,7 +196,7 @@ const OpenClawModelSelector: React.FC<{
       droplist={
         <Menu>
           {models.map((model) => (
-            <Menu.Item key={model.model_id} className={model.model_id === selectedModelId ? 'bg-2!' : ''} onClick={() => void handleSelectModel(model.model_id, model.model_ratio)}>
+            <Menu.Item key={model.model_id} className={model.model_id === selectedModelId ? 'bg-2!' : ''} onClick={() => void handleSelectModel(model.model_id)}>
               {formatModelLabel(model)}
             </Menu.Item>
           ))}

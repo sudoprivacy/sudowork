@@ -13,13 +13,17 @@
  * Node.js is bundled at build time via `bun run node:download`.
  */
 
-import { execFile } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
+import type { ICliStatus } from '@/common/ipcBridge';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { extractTarGzWithProgress, extractZipWithProgress, type ArchiveProgressCallback } from '../archiveProgress';
+
+const execAsync = promisify(exec);
 
 /** Node.js LTS version to bundle */
 const NODE_VERSION = '22.22.2';
@@ -72,68 +76,55 @@ function getBundledResourcePath(): string | null {
 }
 
 /** Extract tar.gz file */
-async function extractTarGz(archivePath: string, targetDir: string): Promise<void> {
-  await tar.x({
-    file: archivePath,
-    cwd: targetDir,
-  });
+async function extractTarGz(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+  await extractTarGzWithProgress(archivePath, targetDir, onProgress);
 }
 
 /** Extract zip file (Windows) using PowerShell */
-async function extractZip(archivePath: string, targetDir: string): Promise<void> {
-  const execFileAsync = promisify(execFile);
-
-  // Escape paths for PowerShell (single quotes handle most special characters)
-  const escapedArchive = archivePath.replace(/'/g, "''");
-  const escapedTarget = targetDir.replace(/'/g, "''");
-
-  const psCommand = `Expand-Archive -Path '${escapedArchive}' -DestinationPath '${escapedTarget}' -Force`;
-
-  console.log('[NodeRuntime] Extracting with PowerShell:', psCommand);
-
-  await execFileAsync('powershell', ['-NoProfile', '-Command', psCommand]);
+async function extractZip(archivePath: string, targetDir: string, onProgress?: ArchiveProgressCallback): Promise<void> {
+  await extractZipWithProgress(archivePath, targetDir, onProgress);
 }
 
 /**
  * Install bundled Node.js from packaged resources.
  * Returns true if installation was successful.
  */
-export async function installNode(): Promise<boolean> {
+export async function installNode(onProgress?: ArchiveProgressCallback): Promise<boolean> {
   const nodeDir = getNodeDir();
   const nodePath = getNodeBinaryPath();
 
   // Already installed
   if (fs.existsSync(nodePath)) {
-    console.log('[NodeRuntime] Node.js already installed at:', nodePath);
+    mainLog('NodeRuntime', 'Node.js already installed at:', nodePath);
     return true;
   }
 
   // Find bundled resource
   const resourcePath = getBundledResourcePath();
   if (!resourcePath) {
-    console.warn('[NodeRuntime] Bundled Node.js resource not found');
+    mainWarn('NodeRuntime', 'Bundled Node.js resource not found');
     return false;
   }
 
-  console.log('[NodeRuntime] Installing Node.js', NODE_VERSION);
-  console.log('[NodeRuntime] Resource:', resourcePath);
-  console.log('[NodeRuntime] Target:', nodeDir);
-  console.log('[NodeRuntime] Expected binary:', nodePath);
+  mainLog('NodeRuntime', 'Installing Node.js', NODE_VERSION);
+  mainLog('NodeRuntime', 'Resource:', resourcePath);
+  mainLog('NodeRuntime', 'Target:', nodeDir);
+  mainLog('NodeRuntime', 'Expected binary:', nodePath);
 
   fs.mkdirSync(nodeDir, { recursive: true });
 
   try {
     // Extract
     if (process.platform === 'win32') {
-      console.log('[NodeRuntime] Using Windows zip extraction');
-      await extractZip(resourcePath, nodeDir);
+      mainLog('NodeRuntime', 'Using Windows zip extraction');
+      await extractZip(resourcePath, nodeDir, onProgress);
     } else {
-      console.log('[NodeRuntime] Using tar.gz extraction');
-      await extractTarGz(resourcePath, nodeDir);
+      mainLog('NodeRuntime', 'Using tar.gz extraction');
+      await extractTarGz(resourcePath, nodeDir, onProgress);
     }
 
     // List extracted contents for debugging
-    console.log('[NodeRuntime] Extracted contents:', fs.readdirSync(nodeDir));
+    mainLog('NodeRuntime', 'Extracted contents:', fs.readdirSync(nodeDir));
 
     // Verify
     if (!fs.existsSync(nodePath)) {
@@ -160,10 +151,10 @@ export async function installNode(): Promise<boolean> {
       fs.chmodSync(nodePath, 0o755);
     }
 
-    console.log('[NodeRuntime] Node.js installed successfully');
+    mainLog('NodeRuntime', 'Node.js installed successfully');
     return true;
   } catch (err) {
-    console.error('[NodeRuntime] Installation failed:', err);
+    mainError('NodeRuntime', 'Installation failed:', err);
     return false;
   }
 }
@@ -172,11 +163,11 @@ export async function installNode(): Promise<boolean> {
  * Ensure Node.js is installed (install if not).
  * Call this at app startup.
  */
-export async function ensureNodeInstalled(): Promise<boolean> {
+export async function ensureNodeInstalled(onProgress?: ArchiveProgressCallback): Promise<boolean> {
   if (isNodeInstalled()) {
     return true;
   }
-  return installNode();
+  return installNode(onProgress);
 }
 
 /**
@@ -194,4 +185,54 @@ export function uninstallNode(): void {
   if (fs.existsSync(nodeDir)) {
     fs.rmSync(nodeDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Get the system-installed Node.js path (via `which node`).
+ * Returns undefined if no system node is found.
+ */
+export async function getSystemNodePath(): Promise<string | undefined> {
+  try {
+    const cmd = process.platform === 'win32' ? 'where node' : 'which node';
+    const { stdout } = await execAsync(cmd);
+    const nodePath = stdout.trim().split(/\r?\n/)[0];
+    if (nodePath && fs.existsSync(nodePath)) {
+      // Exclude the bundled node path
+      const bundledPath = getNodeBinaryPath();
+      if (nodePath === bundledPath) return undefined;
+      return nodePath;
+    }
+  } catch {
+    // not in PATH
+  }
+  return undefined;
+}
+
+/**
+ * Get the version of a Node.js binary at a given path.
+ */
+export async function getSystemNodeVersion(nodePath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execAsync(`"${nodePath}" --version`);
+    const match = stdout.trim().match(/v?(\d+\.\d+\.\d+)/);
+    return match ? match[1] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Single facade that returns the Node.js runtime status as ICliStatus.
+ * Prefers managed (bundled) Node; falls back to system Node.
+ */
+export async function checkNodeStatus(): Promise<ICliStatus> {
+  if (isNodeInstalled()) {
+    return { installed: true, version: getNodeVersion(), path: getNodeBinaryPath(), source: 'managed' };
+  }
+  const systemPath = await getSystemNodePath();
+  if (systemPath) {
+    const systemVersion = await getSystemNodeVersion(systemPath);
+    return { installed: true, version: systemVersion, path: systemPath, source: 'system' };
+  }
+  return { installed: false, source: 'none' };
 }

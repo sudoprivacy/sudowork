@@ -1,24 +1,19 @@
 import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { ipcBridge } from '@/common';
+import type { ICliStatus } from '@/common/ipcBridge';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
-import * as tar from 'tar';
 import { getDataPath } from '@process/utils';
 import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
-
-export interface CliStatus {
-  installed: boolean;
-  path?: string;
-  version?: string;
-  source: 'managed' | 'system' | 'none';
-}
 
 interface CliConfig {
   /** CLI command name, e.g. 'claude' or 'gemini' */
@@ -36,6 +31,8 @@ interface CliConfig {
   /** Progress callback during installation */
   onProgress?: (phase: 'downloading' | 'extracting' | 'configuring', percent?: number) => void;
 }
+
+type InstallProgressCallback = (phase: 'downloading' | 'extracting' | 'configuring', percent?: number) => void;
 
 // Use getDataPath() to get ~/.nexus (CLI-safe symlink on macOS)
 const getNexusDir = (): string => getDataPath();
@@ -86,22 +83,20 @@ export class CliInstallService {
     return null;
   }
 
-  async checkInstalled(): Promise<CliStatus> {
-    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
-    const managedBin = path.join(getBinDir(), binName);
-    const entryFile = this.resolveEntryFile();
+  async checkInstalled(): Promise<ICliStatus> {
+    const managedBin = this.getManagedBinPath();
 
-    if (fs.existsSync(managedBin) && entryFile && fs.existsSync(entryFile)) {
-      // Read version directly from installed package.json — no PATH dependency
-      return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() };
+    // Always prefer Sudowork-managed binaries before PATH detection.
+    if (fs.existsSync(managedBin)) {
+      return { installed: true, path: managedBin, source: 'managed', version: this.getManagedVersion() ?? (await this.getVersionFromPath(managedBin)) };
     }
 
     try {
       const cmd = process.platform === 'win32' ? `where ${this.cfg.name}` : `which ${this.cfg.name}`;
       const { stdout } = await execAsync(cmd);
       const paths = stdout.trim().split(/\r?\n/);
-      // Filter out our own managed bin from system check if it's there
-      const systemPath = paths.find((p) => !p.startsWith(getBinDir()));
+      const normalizedManagedBin = path.normalize(managedBin);
+      const systemPath = paths.find((candidate) => path.normalize(candidate) !== normalizedManagedBin);
       if (systemPath) {
         return { installed: true, path: systemPath, source: 'system', version: await this.getVersionFromPath(systemPath) };
       }
@@ -123,6 +118,11 @@ export class CliInstallService {
     }
   }
 
+  private getManagedBinPath(): string {
+    const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
+    return path.join(getBinDir(), binName);
+  }
+
   /** Run `<binPath> --version` to get version for system-installed binaries */
   private async getVersionFromPath(binPath: string): Promise<string | undefined> {
     try {
@@ -134,10 +134,12 @@ export class CliInstallService {
     }
   }
 
-  async install(): Promise<void> {
+  async install(onProgress?: InstallProgressCallback): Promise<void> {
+    const emitProgress = onProgress ?? this.cfg.onProgress;
+
     // Ensure Node.js is installed first (required for CLI wrappers)
     if (this.cfg.useBundledNode) {
-      console.log(`[CLI] Ensuring Node.js is installed for ${this.cfg.label}...`);
+      mainLog('CLI', `Ensuring Node.js is installed for ${this.cfg.label}...`);
       const nodeInstalled = await ensureNodeInstalled();
       if (!nodeInstalled) {
         throw new Error('Failed to install Node.js runtime. Please restart the application.');
@@ -156,23 +158,21 @@ export class CliInstallService {
       throw new Error(`${this.cfg.label} bundled resource not found. Please reinstall the application.`);
     }
 
-    console.log(`[CLI] Using bundled ${this.cfg.label} from ${bundledPath}...`);
+    mainLog('CLI', `Using bundled ${this.cfg.label} from ${bundledPath}...`);
 
     // Report progress: extracting
-    this.cfg.onProgress?.('extracting', 0);
+    emitProgress?.('extracting', 0);
 
     try {
-      // Use node-tar for cross-platform reliability (no dependency on system 'tar')
-      await tar.x({
-        file: bundledPath,
-        cwd: this.installDir,
+      await extractTarGzWithProgress(bundledPath, this.installDir, (percent) => {
+        emitProgress?.('extracting', percent);
       });
     } catch (err) {
       throw new Error(`Failed to extract ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Report progress: configuring
-    this.cfg.onProgress?.('configuring', 50);
+    emitProgress?.('configuring', 50);
 
     const entryFile = this.resolveEntryFile();
     if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
@@ -186,7 +186,7 @@ export class CliInstallService {
     await this.updateShellConfig();
 
     // Report progress: done
-    this.cfg.onProgress?.('configuring', 100);
+    emitProgress?.('configuring', 100);
   }
 
   async uninstall(): Promise<void> {
@@ -363,9 +363,9 @@ export class CliInstallService {
 
       try {
         const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand]);
-        console.log(`[CLI] Windows PATH update: ${stdout.trim()}`);
+        mainLog('CLI', `Windows PATH update: ${stdout.trim()}`);
       } catch (err) {
-        console.error('[CLI] Failed to update Windows PATH via PowerShell:', err);
+        mainError('CLI', 'Failed to update Windows PATH via PowerShell:', err);
         // Fallback to notifying user or trying setx (though setx is risky)
       }
       return;
@@ -441,7 +441,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
 
       try {
         await svc.install();
-        console.log(`[CLI] ${svc.label} installed successfully`);
+        mainLog('CLI', `${svc.label} installed successfully`);
         new Notification({
           title: `${svc.label} 安装成功`,
           body: `重新开一个终端，执行 ${svc.commandName} 即可使用`,
@@ -449,7 +449,7 @@ export async function promptCliInstallsIfNeeded(): Promise<void> {
         ipcBridge.claudeCli.installResult.emit({ success: true });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[CLI] Failed to install ${svc.label}:`, err);
+        mainError('CLI', `Failed to install ${svc.label}:`, err);
         new Notification({
           title: `${svc.label} 安装失败`,
           body: msg,

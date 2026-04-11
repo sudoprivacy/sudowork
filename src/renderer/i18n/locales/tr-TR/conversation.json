@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
-    "uploadFile": "Dosya Yükle",
+    "downloadLocalFile": "Yerel Dosya İçe Aktar",
+    "downloadBdpanFile": "Baidu Netdisk Dosyası İçe Aktar",
     "linkFolder": "Klasör Aç",
     "newConversation": "Yeni Sohbet",
     "multiAgentModeEnabled": "Çoklu ajan moduna giriliyor",
@@ -12,6 +13,7 @@
     "specifyWorkspace": "Klasörde Sohbet Et",
     "currentWorkspace": "Mevcut Çalışma Alanı",
     "clearWorkspace": "Klasörü kaldır",
+    "addSkill": "Yetenek Ekle",
     "openFolder": "Klasör Aç",
     "none": "Hiçbiri",
     "quickActionsTitle": "Sudowork neler yapabilir?",
@@ -130,10 +132,42 @@
       "addToChat": "Sohbete ekle",
       "addedToChat": "Sohbete eklendi",
       "openFailed": "Açılamadı",
-      "revealFailed": "İçeren klasör açılamadı"
+      "revealFailed": "İçeren klasör açılamadı",
+      "uploadToBdpan": "Baidu Netdisk'e Yükle",
+      "newFolder": "Yeni Klasör"
+    },
+    "newFolder": {
+      "title": "Yeni Klasör",
+      "placeholder": "Klasör adını girin",
+      "hint": "Geçerli dizinde yeni bir klasör oluşturun",
+      "success": "Klasör başarıyla oluşturuldu",
+      "failed": "Klasör oluşturulamadı",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "reservedName": "Bu ad sistem tarafından ayrılmıştır. Lütfen farklı bir ad kullanın."
     },
     "expand": "Çalışma Alanını Genişlet",
-    "collapse": "Çalışma Alanını Daralt"
+    "collapse": "Çalışma Alanını Daralt",
+    "drafts": {
+      "title": "Taslaklar",
+      "description": "Ajan yürütme sırasında üretilen ara dosyalar",
+      "empty": "Taslaklar boş",
+      "clearAll": "Taslakları Temizle",
+      "clearConfirm": "Taslaklardaki tüm dosyaları silmek istediğinizden emin misiniz?",
+      "fileCount": "{{count}} ara dosya",
+      "clearSuccess": "Taslaklar temizlendi",
+      "deleteFailed": "Taslak dosya silinemedi"
+    },
+    "renameWorkspace": {
+      "title": "Çalışma Alanını Yeniden Adlandır",
+      "placeholder": "Görünen adı girin",
+      "hint": "Yalnızca görünen ad değiştirilecektir. Fiziksel klasör yolu değiştirilmeyecektir.",
+      "success": "Çalışma alanı yeniden adlandırıldı",
+      "failed": "Yeniden adlandırma başarısız",
+      "invalidName": "Klasör adı geçersiz karakterler içeriyor",
+      "alreadyExists": "Hedef klasör zaten mevcut",
+      "agentRunning": "Bir Ajan çalışıyor. Yeniden adlandırmadan önce tamamlanmasını bekleyin.",
+      "emptyName": "Ad boş olamaz"
+    }
   },
   "chat": {
     "noModelSelected": "Mevcut oturum için model seçilmedi, mesaj gönderilemiyor",
@@ -153,6 +187,42 @@
   },
   "contextUsage": {
     "contextUsed": "bağlam kullanıldı"
+  },
+  "bdpan": {
+    "title": "Baidu Netdisk Dosyaları",
+    "checking": "Giriş durumu kontrol ediliyor...",
+    "waitingAuth": "Kimlik doğrulama bekleniyor, lütfen tarayıcıda tamamlayın...",
+    "gettingAuthUrl": "Yetkilendirme bağlantısı alınıyor...",
+    "authCode": "Yetki Kodu",
+    "authCodePlaceholder": "32 karakterli yetki kodunu girin",
+    "authCodeSubmit": "Gönder",
+    "loginTimeout": "Giriş zaman aşımına uğradı, lütfen tekrar deneyin",
+    "loginFailed": "Giriş başarısız, lütfen tekrar deneyin",
+    "lsFailed": "Dosyalar yüklenemedi",
+    "emptyDir": "Bu klasör boş",
+    "selectedCount": "{{count}} dosya seçildi",
+    "selectHint": "Dosya seçmek için tıklayın, klasöre girmek için tıklayın",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "retry": "Tekrar Dene",
+    "logout": "Çıkış Yap",
+    "mkdir": {
+      "placeholder": "Yeni klasör adı",
+      "confirm": "Oluştur",
+      "failed": "Klasör oluşturulamadı"
+    },
+    "upload": {
+      "title": "Baidu Netdisk'e Yükle",
+      "localPath": "Yerel Yol",
+      "uploadTo": "Şuraya Yükle",
+      "uploadButton": "Yükle",
+      "success": "Baidu Netdisk'e yükleme başarılı",
+      "failed": "Baidu Netdisk'e yükleme başarısız"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "Yetenek/Kural Oluştur",

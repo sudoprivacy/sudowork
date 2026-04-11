@@ -11,6 +11,7 @@ import type { TChatConversation } from '@/common/storage';
 import { ExtensionRegistry } from '@/extensions';
 import { getDatabase } from '@process/database';
 import WorkerManage from '../WorkerManage';
+import { mainError } from '@process/utils/mainLogger';
 
 const STATUS_TO_SYNCING = new Set(['connecting', 'connected', 'authenticated']);
 const ACTIVITY_SNAPSHOT_TTL_MS = 3000;
@@ -203,7 +204,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getThemes();
     } catch (error) {
-      console.error('[Extensions] Failed to get themes:', error);
+      mainError('Extensions', 'Failed to get themes:', error);
       return [];
     }
   });
@@ -224,7 +225,7 @@ export function initExtensionsBridge(): void {
         hasLifecycle: !!(ext.manifest as any).lifecycle,
       }));
     } catch (error) {
-      console.error('[Extensions] Failed to get loaded extensions:', error);
+      mainError('Extensions', 'Failed to get loaded extensions:', error);
       return [];
     }
   });
@@ -235,7 +236,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getAssistants();
     } catch (error) {
-      console.error('[Extensions] Failed to get assistants:', error);
+      mainError('Extensions', 'Failed to get assistants:', error);
       return [];
     }
   });
@@ -246,7 +247,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getAcpAdapters();
     } catch (error) {
-      console.error('[Extensions] Failed to get ACP adapters:', error);
+      mainError('Extensions', 'Failed to get ACP adapters:', error);
       return [];
     }
   });
@@ -257,7 +258,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getAgents();
     } catch (error) {
-      console.error('[Extensions] Failed to get agents:', error);
+      mainError('Extensions', 'Failed to get agents:', error);
       return [];
     }
   });
@@ -268,7 +269,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getMcpServers();
     } catch (error) {
-      console.error('[Extensions] Failed to get MCP servers:', error);
+      mainError('Extensions', 'Failed to get MCP servers:', error);
       return [];
     }
   });
@@ -279,7 +280,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getSkills();
     } catch (error) {
-      console.error('[Extensions] Failed to get skills:', error);
+      mainError('Extensions', 'Failed to get skills:', error);
       return [];
     }
   });
@@ -290,7 +291,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getSettingsTabs();
     } catch (error) {
-      console.error('[Extensions] Failed to get settings tabs:', error);
+      mainError('Extensions', 'Failed to get settings tabs:', error);
       return [];
     }
   });
@@ -311,7 +312,7 @@ export function initExtensionsBridge(): void {
         })),
       }));
     } catch (error) {
-      console.error('[Extensions] Failed to get webui contributions:', error);
+      mainError('Extensions', 'Failed to get webui contributions:', error);
       return [];
     }
   });
@@ -321,7 +322,7 @@ export function initExtensionsBridge(): void {
     try {
       return await getActivitySnapshot();
     } catch (error) {
-      console.error('[Extensions] Failed to build agent activity snapshot:', error);
+      mainError('Extensions', 'Failed to build agent activity snapshot:', error);
       return {
         generatedAt: Date.now(),
         totalConversations: 0,
@@ -337,7 +338,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getExtI18nForLocale(locale);
     } catch (error) {
-      console.error('[Extensions] Failed to get ext i18n for locale:', error);
+      mainError('Extensions', 'Failed to get ext i18n for locale:', error);
       return {};
     }
   });
@@ -354,7 +355,7 @@ export function initExtensionsBridge(): void {
       }
       return { success, msg: success ? undefined : `Failed to enable "${name}"` };
     } catch (error) {
-      console.error(`[Extensions] Failed to enable "${name}":`, error);
+      mainError('Extensions', `Failed to enable "${name}":`, error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -369,7 +370,7 @@ export function initExtensionsBridge(): void {
       }
       return { success, msg: success ? undefined : `Failed to disable "${name}"` };
     } catch (error) {
-      console.error(`[Extensions] Failed to disable "${name}":`, error);
+      mainError('Extensions', `Failed to disable "${name}":`, error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -380,7 +381,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getExtensionPermissions(name);
     } catch (error) {
-      console.error(`[Extensions] Failed to get permissions for "${name}":`, error);
+      mainError('Extensions', `Failed to get permissions for "${name}":`, error);
       return [];
     }
   });
@@ -391,7 +392,7 @@ export function initExtensionsBridge(): void {
       const registry = ExtensionRegistry.getInstance();
       return registry.getExtensionRiskLevel(name);
     } catch (error) {
-      console.error(`[Extensions] Failed to get risk level for "${name}":`, error);
+      mainError('Extensions', `Failed to get risk level for "${name}":`, error);
       return 'safe';
     }
   });

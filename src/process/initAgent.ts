@@ -10,6 +10,7 @@ import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
@@ -35,6 +36,11 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
     // 规范化路径：去除末尾斜杠，解析为绝对路径
     workspace = path.resolve(workspace);
   }
+
+  // Auto-create drafts directory for intermediate files
+  // 自动创建草稿箱目录，用于存放 Agent 执行过程中的中间文件
+  const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
+  await fs.mkdir(draftsDir, { recursive: true });
 
   return { workspace, customWorkspace };
 };
@@ -63,6 +69,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       currentModelId: extra.currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
+      // Cron job metadata (set when conversation is created by a cron execution)
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -121,10 +130,21 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
         expectedIdentityHash,
         switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
       },
+      // Custom agent ID for preset assistant identification
+      customAgentId: extra.customAgentId,
+      // Preset context/rules for preset assistants
+      presetContext: extra.presetContext,
       // Enabled skills list (loaded via SkillManager)
       enabledSkills: extra.enabledSkills,
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      // Initial session mode selected on Guid page
+      sessionMode: extra.sessionMode,
+      // Pre-selected model from Guid page
+      currentModelId: extra.currentModelId,
+      // Cron job metadata (set when conversation is created by a cron execution)
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
     },
     createTime: Date.now(),
     modifyTime: Date.now(),

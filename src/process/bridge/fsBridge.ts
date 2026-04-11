@@ -15,6 +15,7 @@ import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
 import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
 import { readDirectoryRecursive } from '../utils';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 // ============================================================================
 // Helper functions for builtin resource directory resolution
@@ -48,7 +49,7 @@ async function findBuiltinResourceDir(resourceType: ResourceType): Promise<strin
         // Try next path
       }
     }
-    console.warn(`[fsBridge] Could not find builtin ${resourceType} directory, tried:`, candidates);
+    mainWarn('fsBridge', `Could not find builtin ${resourceType} directory, tried:`, candidates);
     return candidates[0]; // Default to unpacked path
   }
   // Development: try multiple paths
@@ -152,7 +153,7 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
     await fs.writeFile(path.join(assistantsDir, fileName), content, 'utf-8');
     return true;
   } catch (error) {
-    console.error(`Failed to write assistant ${resourceType}:`, error);
+    mainError('fsBridge', `Failed to write assistant ${resourceType}:`, error);
     return false;
   }
 }
@@ -172,7 +173,7 @@ async function deleteAssistantResource(resourceType: ResourceType, filePattern: 
     }
     return true;
   } catch (error) {
-    console.error(`Failed to delete assistant ${resourceType}:`, error);
+    mainError('fsBridge', `Failed to delete assistant ${resourceType}:`, error);
     return false;
   }
 }
@@ -217,7 +218,7 @@ export function initFsBridge(): void {
       if ((error as Error).name === 'AbortError') {
         // Directory read was aborted, return empty array
       } else {
-        console.error('[fsBridge] Error reading directory', { dir, error });
+        mainError('fsBridge', 'Error reading directory', { dir, error });
       }
       directoryAbortControllers.delete(dir);
       return []; // Return empty array on error instead of throwing
@@ -361,7 +362,7 @@ export function initFsBridge(): void {
 
       return tempFilePath;
     } catch (error) {
-      console.error('Failed to create temp file:', error);
+      mainError('fsBridge', 'Failed to create temp file:', error);
       throw error;
     }
   });
@@ -377,7 +378,7 @@ export function initFsBridge(): void {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return '';
       }
-      console.error('Failed to read file:', error);
+      mainError('fsBridge', 'Failed to read file:', error);
       throw error;
     }
   });
@@ -390,7 +391,7 @@ export function initFsBridge(): void {
       // Convert Node.js Buffer to ArrayBuffer
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     } catch (error) {
-      console.error('Failed to read file buffer:', error);
+      mainError('fsBridge', 'Failed to read file buffer:', error);
       throw error;
     }
   });
@@ -419,7 +420,7 @@ export function initFsBridge(): void {
 
           ipcBridge.fileStream.contentUpdate.emit(eventData);
         } catch (emitError) {
-          console.error('[fsBridge] ❌ Failed to emit file stream update:', emitError);
+          mainError('fsBridge', '❌ Failed to emit file stream update:', emitError);
         }
 
         return true;
@@ -452,7 +453,7 @@ export function initFsBridge(): void {
       await fs.writeFile(filePath, bufferData);
       return true;
     } catch (error) {
-      console.error('Failed to write file:', error);
+      mainError('fsBridge', 'Failed to write file:', error);
       return false;
     }
   });
@@ -463,7 +464,7 @@ export function initFsBridge(): void {
       await fs.mkdir(dirPath, { recursive: true });
       return true;
     } catch (error) {
-      console.error('Failed to create directory:', error);
+      mainError('fsBridge', 'Failed to create directory:', error);
       return false;
     }
   });
@@ -526,7 +527,7 @@ export function initFsBridge(): void {
               clearTimeout(timeoutId);
             }
           } catch (error) {
-            console.warn('[fsBridge] Skip source file while creating zip:', file.sourcePath, error);
+            mainWarn('fsBridge', `Skip source file while creating zip: ${file.sourcePath}`, error);
           }
           continue;
         }
@@ -581,7 +582,7 @@ export function initFsBridge(): void {
       if (error instanceof Error && error.message.includes('canceled')) {
         // Zip export was canceled, silently return false
       } else {
-        console.error('Failed to create zip file:', error);
+        mainError('fsBridge', 'Failed to create zip file:', error);
       }
       return false;
     } finally {
@@ -603,7 +604,7 @@ export function initFsBridge(): void {
         lastModified: stats.mtime.getTime(),
       };
     } catch (error) {
-      console.error('Failed to get file metadata:', error);
+      mainError('fsBridge', 'Failed to get file metadata:', error);
       throw error;
     }
   });
@@ -657,7 +658,7 @@ export function initFsBridge(): void {
         } catch (error) {
           // 记录失败的文件路径与错误信息，前端可以用来提示用户 / Record failed file info so UI can warn user
           const message = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to copy file ${filePath}:`, message);
+          mainError('fsBridge', `Failed to copy file ${filePath}:`, message);
           failedFiles.push({ path: filePath, error: message });
         }
       }
@@ -672,7 +673,7 @@ export function initFsBridge(): void {
         msg,
       };
     } catch (error) {
-      console.error('Failed to copy files to workspace:', error);
+      mainError('fsBridge', 'Failed to copy files to workspace:', error);
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Unknown error',
@@ -704,12 +705,12 @@ export function initFsBridge(): void {
             operation: 'delete',
           });
         } catch (emitError) {
-          console.error('[fsBridge] Failed to emit file stream delete:', emitError);
+          mainError('fsBridge', 'Failed to emit file stream delete:', emitError);
         }
       }
       return { success: true };
     } catch (error) {
-      console.error('Failed to remove entry:', error);
+      mainError('fsBridge', 'Failed to remove entry:', error);
       return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
@@ -738,7 +739,7 @@ export function initFsBridge(): void {
       await fs.rename(targetPath, newPath);
       return { success: true, data: { newPath } };
     } catch (error) {
-      console.error('Failed to rename entry:', error);
+      mainError('fsBridge', 'Failed to rename entry:', error);
       return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
@@ -748,7 +749,7 @@ export function initFsBridge(): void {
     try {
       return await readBuiltinResource('rules', fileName);
     } catch (error) {
-      console.error('Failed to read builtin rule:', error);
+      mainError('fsBridge', 'Failed to read builtin rule:', error);
       throw error;
     }
   });
@@ -758,7 +759,7 @@ export function initFsBridge(): void {
     try {
       return await readBuiltinResource('skills', fileName);
     } catch (error) {
-      console.error('Failed to read builtin skill:', error);
+      mainError('fsBridge', 'Failed to read builtin skill:', error);
       throw error;
     }
   });
@@ -768,7 +769,7 @@ export function initFsBridge(): void {
     try {
       return await readAssistantResource('rules', assistantId, locale, ruleFilePattern);
     } catch (error) {
-      console.error('Failed to read assistant rule:', error);
+      mainError('fsBridge', 'Failed to read assistant rule:', error);
       throw error;
     }
   });
@@ -788,7 +789,7 @@ export function initFsBridge(): void {
     try {
       return await readAssistantResource('skills', assistantId, locale, skillFilePattern);
     } catch (error) {
-      console.error('Failed to read assistant skill:', error);
+      mainError('fsBridge', 'Failed to read assistant skill:', error);
       throw error;
     }
   });
@@ -817,9 +818,9 @@ export function initFsBridge(): void {
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
 
-            // 跳过内置 skills 目录（_builtin），这些 skills 自动注入，不需要用户选择
-            // Skip builtin skills directory (_builtin), these are auto-injected, no user selection needed
-            if (entry.name === '_builtin') continue;
+            // 跳过所有 `_` 前缀目录（_system, _hub, _my-custom-skill, _builtin），使用子目录扫描
+            // Skip all `_` prefixed directories, handle them via subdirectory scanning
+            if (entry.name.startsWith('_')) continue;
 
             const skillMdPath = path.join(skillsDir, entry.name, 'SKILL.md');
 
@@ -849,39 +850,52 @@ export function initFsBridge(): void {
         }
       };
 
-      // 读取内置 skills (isCustom: false)
+      // 读取内置 skills (isCustom: false) from bundled resources
       const builtinSkillsDir = await findBuiltinResourceDir('skills');
       const builtinCountBefore = skills.length;
       await readSkillsFromDir(builtinSkillsDir, false);
       const builtinCount = skills.length - builtinCountBefore;
 
-      // 读取用户自定义 skills (isCustom: true)
+      // 读取用户目录中的 skills（分目录结构 + 旧版扁平结构）
+      // Read user skills (categorized subdirectories + legacy flat structure)
       const userSkillsDir = getUserSkillsDir();
+
+      // Scan _my-custom-skill/ (custom, isCustom: true)
+      const customDir = path.join(userSkillsDir, '_my-custom-skill');
+      await readSkillsFromDir(customDir, true);
+
+      // Scan _hub/ (hub-installed, isCustom: true)
+      const hubDir = path.join(userSkillsDir, '_hub');
+      await readSkillsFromDir(hubDir, true);
+
+      // Scan _system/ (builtin, isCustom: false)
+      const systemDir = path.join(userSkillsDir, '_system');
+      await readSkillsFromDir(systemDir, false);
+
+      // Legacy: scan flat user skills directory
       const userCountBefore = skills.length;
       await readSkillsFromDir(userSkillsDir, true);
       const userCount = skills.length - userCountBefore;
 
-      // 去重：如果 custom skill 和 builtin skill 同名，只保留 builtin
-      // Deduplicate: if custom and builtin skills have same name, keep only builtin
+      // 去重：优先级 自定义 > Hub > 内置
+      // Deduplicate: priority custom > hub > builtin (first occurrence wins for custom)
       const skillMap = new Map<string, { name: string; description: string; location: string; isCustom: boolean }>();
       for (const skill of skills) {
         const existing = skillMap.get(skill.name);
-        // 如果已存在且当前是 builtin，或者不存在，则添加/更新
-        // Add/update if: already exists and current is builtin, or doesn't exist yet
-        if (!existing || !skill.isCustom) {
+        if (!existing) {
           skillMap.set(skill.name, skill);
         }
       }
       const deduplicatedSkills = Array.from(skillMap.values());
 
-      console.log(`[fsBridge] Listed ${deduplicatedSkills.length} available skills (${skills.length} before deduplication):`);
-      console.log(`  - Builtin skills (${builtinCount}): ${builtinSkillsDir}`);
-      console.log(`  - User skills (${userCount}): ${userSkillsDir}`);
-      console.log(`  - Skills breakdown:`, deduplicatedSkills.map((s) => `${s.name} (${s.isCustom ? 'custom' : 'builtin'})`).join(', '));
+      mainLog('fsBridge', `Listed ${deduplicatedSkills.length} available skills (${skills.length} before deduplication):`);
+      mainLog('fsBridge', `  - Builtin skills (${builtinCount}): ${builtinSkillsDir}`);
+      mainLog('fsBridge', `  - User skills (${userCount}): ${userSkillsDir}`);
+      mainLog('fsBridge', `  - Skills breakdown:`, deduplicatedSkills.map((s) => `${s.name} (${s.isCustom ? 'custom' : 'builtin'})`).join(', '));
 
       return deduplicatedSkills;
     } catch (error) {
-      console.error('[fsBridge] Failed to list available skills:', error);
+      mainError('fsBridge', 'Failed to list available skills:', error);
       return [];
     }
   });
@@ -927,7 +941,7 @@ export function initFsBridge(): void {
         msg: 'Skill info loaded successfully',
       };
     } catch (error) {
-      console.error('[fsBridge] Failed to read skill info:', error);
+      mainError('fsBridge', 'Failed to read skill info:', error);
       return {
         success: false,
         msg: `Failed to read skill info: ${error instanceof Error ? error.message : String(error)}`,
@@ -993,7 +1007,7 @@ export function initFsBridge(): void {
       // 复制整个目录 / Copy entire directory
       await copyDirectory(skillPath, targetDir);
 
-      console.log(`[fsBridge] Successfully imported skill "${skillName}" to ${targetDir}`);
+      mainLog('fsBridge', `Successfully imported skill "${skillName}" to ${targetDir}`);
 
       return {
         success: true,
@@ -1001,7 +1015,7 @@ export function initFsBridge(): void {
         msg: `Skill "${skillName}" imported successfully`,
       };
     } catch (error) {
-      console.error('[fsBridge] Failed to import skill:', error);
+      mainError('fsBridge', 'Failed to import skill:', error);
       return {
         success: false,
         msg: `Failed to import skill: ${error instanceof Error ? error.message : String(error)}`,
@@ -1011,13 +1025,13 @@ export function initFsBridge(): void {
 
   // 扫描目录下的 skills / Scan directory for skills
   ipcBridge.fs.scanForSkills.provider(async ({ folderPath }) => {
-    console.log(`[fsBridge] scanForSkills called with path: ${folderPath}`);
+    mainLog('fsBridge', `scanForSkills called with path: ${folderPath}`);
     try {
       const skills: Array<{ name: string; description: string; path: string }> = [];
 
       await fs.access(folderPath);
       const entries = await fs.readdir(folderPath, { withFileTypes: true });
-      console.log(`[fsBridge] Found ${entries.length} entries in ${folderPath}`);
+      mainLog('fsBridge', `Found ${entries.length} entries in ${folderPath}`);
 
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
@@ -1039,7 +1053,7 @@ export function initFsBridge(): void {
                 description: descMatch ? descMatch[1].trim() : '',
                 path: skillDir,
               });
-              console.log(`[fsBridge] Found skill in subdirectory: ${nameMatch[1].trim()}`);
+              mainLog('fsBridge', `Found skill in subdirectory: ${nameMatch[1].trim()}`);
             }
           }
         } catch {
@@ -1049,7 +1063,7 @@ export function initFsBridge(): void {
 
       // Si no se encontraron skills en subdirectorios, probamos si la carpeta seleccionada en sí es una skill
       if (skills.length === 0) {
-        console.log(`[fsBridge] No skills in subdirectories, checking if ${folderPath} is a skill itself`);
+        mainLog('fsBridge', `No skills in subdirectories, checking if ${folderPath} is a skill itself`);
         const skillMdPath = path.join(folderPath, 'SKILL.md');
         try {
           const content = await fs.readFile(skillMdPath, 'utf-8');
@@ -1064,7 +1078,7 @@ export function initFsBridge(): void {
                 description: descMatch ? descMatch[1].trim() : '',
                 path: folderPath,
               });
-              console.log(`[fsBridge] Found skill in the folder itself: ${nameMatch[1].trim()}`);
+              mainLog('fsBridge', `Found skill in the folder itself: ${nameMatch[1].trim()}`);
             }
           }
         } catch {
@@ -1072,14 +1086,14 @@ export function initFsBridge(): void {
         }
       }
 
-      console.log(`[fsBridge] scanForSkills finished. Found ${skills.length} skills.`);
+      mainLog('fsBridge', `scanForSkills finished. Found ${skills.length} skills.`);
       return {
         success: true,
         data: skills,
         msg: `Found ${skills.length} skills`,
       };
     } catch (error) {
-      console.error('[fsBridge] Failed to scan skills:', error);
+      mainError('fsBridge', 'Failed to scan skills:', error);
       return {
         success: false,
         msg: `Failed to scan skills: ${error instanceof Error ? error.message : String(error)}`,
@@ -1108,7 +1122,7 @@ export function initFsBridge(): void {
         msg: `Detected ${detected.length} common paths`,
       };
     } catch (error) {
-      console.error('[fsBridge] Failed to detect common paths:', error);
+      mainError('fsBridge', 'Failed to detect common paths:', error);
       return {
         success: false,
         msg: 'Failed to detect common paths',

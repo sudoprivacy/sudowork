@@ -1,27 +1,14 @@
 import { ipcBridge } from '../../common';
 import { dynamicNexusService, type NexusSetupStatus } from '../services/nexus/DynamicNexusService';
+import { serviceManager } from '../services/serviceManager';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initNexusBridge(): void {
-  ipcBridge.nexus.ping.provider(async () => {
-    if (!dynamicNexusService.isRunning) {
-      return { success: false, msg: 'Nexus server is not running' };
-    }
-    try {
-      const res = await fetch(`http://127.0.0.1:${dynamicNexusService.port}/ping`);
-      const data = (await res.json()) as { message: string; timestamp: number; port: number };
-      return { success: true, data };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, msg };
-    }
-  });
-
   ipcBridge.nexus.getStatus.provider(async () => {
-    const installed = await dynamicNexusService.checkInstalled();
-    // Use actual process check (by PID/child process object) so the "About" page
-    // always reflects reality, even when the internal _running flag is stale
-    // (e.g. child process exited but nexusd is still serving, or vice-versa).
-    const running = await dynamicNexusService.checkActualRunning();
+    // Treat Nexus as running only when /health returns a healthy response.
+    const [running, installedByFiles] = await Promise.all([dynamicNexusService.checkActualRunning(), dynamicNexusService.checkInstalled()]);
+    const installed = running || installedByFiles;
+    const version = installedByFiles ? await dynamicNexusService.getInstalledVersion() : undefined;
     return {
       success: true,
       data: {
@@ -29,6 +16,7 @@ export function initNexusBridge(): void {
         port: dynamicNexusService.port,
         setupStage: dynamicNexusService.setupStage,
         installed,
+        version,
       },
     };
   });
@@ -47,12 +35,11 @@ export function initNexusBridge(): void {
   ipcBridge.nexus.install.provider(async () => {
     return new Promise((resolve) => {
       void (async () => {
+        let unsubscribe: (() => void) | null = null;
         try {
-          console.log('[NexusBridge] Starting Nexus installation...');
+          mainLog('NexusBridge', 'Starting Nexus installation...');
 
-          // Register a one-time progress listener
           const progressHandler = (status: NexusSetupStatus) => {
-            // Emit progress event to renderer
             ipcBridge.nexus.installProgress.emit({
               phase: status.stage as any,
               message: status.message,
@@ -60,14 +47,13 @@ export function initNexusBridge(): void {
             });
           };
 
-          dynamicNexusService.onSetupStatus(progressHandler);
+          unsubscribe = dynamicNexusService.onSetupStatus(progressHandler);
 
           await dynamicNexusService.install();
-          console.log('[NexusBridge] Nexus installation completed, starting service...');
+          mainLog('NexusBridge', 'Nexus installation completed, starting service...');
 
-          // 安装完成后自动启动服务
-          await dynamicNexusService.start();
-          console.log('[NexusBridge] Nexus service started successfully');
+          await serviceManager.startNexus();
+          mainLog('NexusBridge', 'Nexus service started successfully');
 
           resolve({ success: true, msg: 'Nexus 安装并启动成功' });
 
@@ -76,95 +62,85 @@ export function initNexusBridge(): void {
           }, 100);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          console.error('[NexusBridge] Error during Nexus installation/startup:', err);
+          mainError('NexusBridge', 'Error during Nexus installation/startup:', err);
           resolve({ success: false, msg: errorMsg });
 
           setTimeout(() => {
             ipcBridge.nexus.installResult.emit({ success: false, msg: errorMsg });
           }, 100);
+        } finally {
+          unsubscribe?.();
         }
       })();
     });
   });
 
-  ipcBridge.nexus.installFromLocalFile.provider(async ({ filePath }) => {
+  ipcBridge.nexus.uninstall.provider(async () => {
+    try {
+      await serviceManager.stopNexus();
+    } catch {
+      // Ignore stop errors.
+    }
+
     try {
       const fs = await import('fs');
       const path = await import('path');
-      const os = await import('os');
-      const tar = await import('tar');
-      const { exec } = await import('child_process');
-      const util = await import('util');
+      const { getDataPath } = await import('../utils');
+      const dataPath = getDataPath();
+      const binDir = path.join(dataPath, 'bin');
+      const envDir = path.join(dataPath, 'nexus_env');
+      const pidFile = path.join(dataPath, 'nexusd.pid');
 
-      const execAsync = util.promisify(exec);
-      const app = await import('electron').then((m) => m.app);
-      const isWindows = process.platform === 'win32';
+      // Clean new binary path
+      if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
+      // Clean legacy conda env path
+      if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
+      if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
 
-      // 创建临时目录
-      const tempDir = path.join(os.tmpdir(), `nexus-${Date.now()}`);
-      const tempTarGzPath = path.join(tempDir, 'nexus.tar.gz');
+      return { success: true };
+    } catch (err) {
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
 
-      // 复制本地文件到临时位置
-      await fs.promises.mkdir(tempDir, { recursive: true });
-      await fs.promises.copyFile(filePath, tempTarGzPath);
+  ipcBridge.nexus.start.provider(async () => {
+    try {
+      await serviceManager.startNexus();
+      return { success: true };
+    } catch (err) {
+      mainError('NexusBridge', 'Start failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
 
-      // 环境目录：与 DynamicNexusService.getCondaEnvDir() 保持一致
-      // (~/.nexus/nexus_env on macOS/Linux, %USERPROFILE%\.nexus\nexus_env on Windows)
-      const envDir = path.join(app.getPath('home'), '.nexus', 'nexus_env');
+  ipcBridge.nexus.stop.provider(async () => {
+    try {
+      await serviceManager.stopNexus();
+      return { success: true };
+    } catch (err) {
+      mainError('NexusBridge', 'Stop failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
 
-      // 删除旧环境
-      if (fs.existsSync(envDir)) {
-        fs.rmSync(envDir, { recursive: true, force: true });
+  ipcBridge.nexus.installFromLocalFile.provider(async ({ filePath }) => {
+    try {
+      const isArchive = filePath.endsWith('.tar.gz') || filePath.endsWith('.tgz') || filePath.endsWith('.zip');
+      if (!isArchive) {
+        return { success: false, msg: 'Unsupported file format. Please provide a .tar.gz or .zip archive.' };
       }
 
-      // 解压
-      await fs.promises.mkdir(envDir, { recursive: true });
-      console.log(`[NexusBridge] Extracting local nexus file to ${envDir}...`);
-      await tar.x({ file: tempTarGzPath, cwd: envDir });
+      mainLog('NexusBridge', `Installing Nexus from local archive: ${filePath}...`);
+      await dynamicNexusService.installFromArchive(filePath);
+      mainLog('NexusBridge', 'Local archive installation complete, starting service...');
 
-      // 运行 conda-unpack 修复硬编码路径
-      // Windows 下路径为 Scripts\conda-unpack.exe，macOS/Linux 为 bin/conda-unpack
-      const condaUnpack = isWindows ? path.join(envDir, 'Scripts', 'conda-unpack.exe') : path.join(envDir, 'bin', 'conda-unpack');
-
-      if (fs.existsSync(condaUnpack)) {
-        if (!isWindows) fs.chmodSync(condaUnpack, 0o755);
-        console.log(`[NexusBridge] Running conda-unpack: ${condaUnpack}`);
-        await execAsync(`"${condaUnpack}"`);
-        console.log('[NexusBridge] conda-unpack completed');
-      } else {
-        console.warn(`[NexusBridge] conda-unpack not found at ${condaUnpack} — skipping`);
-      }
-
-      // 确保 nexusd 可执行
-      // Windows: bin\nexusd.exe or bin\nexusd; macOS/Linux: bin/nexusd
-      const nexusdBin = isWindows ? (fs.existsSync(path.join(envDir, 'bin', 'nexusd.exe')) ? path.join(envDir, 'bin', 'nexusd.exe') : path.join(envDir, 'bin', 'nexusd')) : path.join(envDir, 'bin', 'nexusd');
-
-      if (!fs.existsSync(nexusdBin)) {
-        throw new Error(`nexusd not found at ${nexusdBin} after extraction`);
-      }
-      if (!isWindows) fs.chmodSync(nexusdBin, 0o755);
-
-      // 写入版本标记
-      const CONDA_READY_MARKER = '.nexus-conda-ready';
-      const markerFile = path.join(envDir, CONDA_READY_MARKER);
-      await fs.promises.writeFile(markerFile, app.getVersion());
-      console.log('[NexusBridge] Local file installation complete, starting service...');
-
-      // 清理临时文件
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
-
-      // 安装完成后自动启动服务
-      await dynamicNexusService.start();
-      console.log('[NexusBridge] Nexus service started after local file install');
+      await serviceManager.startNexus();
+      mainLog('NexusBridge', 'Nexus service started after local archive install');
 
       return { success: true, msg: 'Nexus 安装并启动成功' };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[NexusBridge] installFromLocalFile failed:', err);
+      mainError('NexusBridge', 'installFromLocalFile failed:', err);
       return { success: false, msg };
     }
   });

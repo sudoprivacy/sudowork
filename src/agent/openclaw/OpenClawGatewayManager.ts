@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn, type ChildProcess } from 'child_process';
+import { execFile, spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import fs from 'node:fs';
@@ -13,6 +13,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { app } from 'electron';
+import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 
 interface GatewayManagerConfig {
   /** Gateway port (default: 17863 for Sudoclaw) */
@@ -33,8 +34,8 @@ interface GatewayManagerEvents {
   stderr: (data: string) => void;
 }
 
-/** Registry of running Sudoclaw gateway managers (port -> manager) for external restart (e.g. after skill install) */
-export const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
+/** Registry of running Sudoclaw gateway managers (port -> manager) — internal bookkeeping */
+const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
 
 /**
  * Get path to hook.js for gateway safety interception.
@@ -48,22 +49,18 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
-/**
- * Restart the Sudoclaw gateway on the given port. Used after Skill Hub install so new skills load immediately.
- * Returns true if a gateway was found and restarted; false if no gateway was running.
- */
-export async function restartSudoclawGatewayByPort(port: number): Promise<boolean> {
-  const manager = gatewayRegistry.get(port);
-  if (!manager || !manager.isRunning) return false;
-  try {
-    await manager.stop();
-    await manager.start();
-    console.log(`[OpenClawGatewayManager] Restarted gateway on port ${port} for skill reload`);
-    return true;
-  } catch (err) {
-    console.error('[OpenClawGatewayManager] Failed to restart gateway:', err);
-    return false;
+function getHookPythonWhlPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
   }
+  return path.join(app.getAppPath(), 'hook/python/dist/hook-0.0.1-py3-none-any.whl');
+}
+
+function getHookPythonPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pythonpath');
+  }
+  return path.join(app.getAppPath(), 'hook/python/pythonpath');
 }
 
 /**
@@ -100,6 +97,29 @@ async function waitForPort(host: string, port: number, timeoutMs: number): Promi
   return false;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildGatewayArgs(port: number): string[] {
+  const args = ['gateway', '--port', String(port), '--allow-unconfigured', '--auth', 'none'];
+
+  // Windows startup is handled by ServiceManager.preparePortForStart().
+  // Passing OpenClaw's own --force triggers "fuser permission denied" there
+  // and prevents the gateway from binding at all.
+  if (process.platform !== 'win32') {
+    args.push('--force');
+  }
+
+  return args;
+}
+
+export function buildRequireNodeOption(modulePath: string): string {
+  const normalizedPath = process.platform === 'win32' ? modulePath.replace(/\\/g, '/') : modulePath;
+  const escapedPath = normalizedPath.replace(/"/g, '\\"');
+  return `--require="${escapedPath}"`;
+}
+
 export class OpenClawGatewayManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private inProcess = false;
@@ -109,6 +129,9 @@ export class OpenClawGatewayManager extends EventEmitter {
   private readonly forceSubprocessGateway: boolean;
   private isStarting = false;
   private startPromise: Promise<number> | null = null;
+  private recentStdout = '';
+  private recentStderr = '';
+  private lastLaunchCommand: { command: string; args: string[]; cwd?: string; pid?: number } | null = null;
 
   constructor(config: GatewayManagerConfig = {}) {
     super();
@@ -178,11 +201,11 @@ export class OpenClawGatewayManager extends EventEmitter {
     const origArgv = [...process.argv];
     const origCwd = process.cwd();
     const origStateDir = process.env.OPENCLAW_STATE_DIR;
-    const origConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+    const origConfigPath = process.env.SUDOCLAW_CONFIG_PATH;
 
-    process.argv = ['node', entryPath, 'gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
+    process.argv = ['node', entryPath, ...buildGatewayArgs(this.port)];
     process.env.OPENCLAW_STATE_DIR = this.stateDir!;
-    process.env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
+    process.env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir!, 'sudoclaw.json');
     process.chdir(pkgRoot);
 
     // Load safety hook before gateway entry (for in-process mode)
@@ -216,8 +239,8 @@ export class OpenClawGatewayManager extends EventEmitter {
       process.chdir(origCwd);
       if (origStateDir !== undefined) process.env.OPENCLAW_STATE_DIR = origStateDir;
       else delete process.env.OPENCLAW_STATE_DIR;
-      if (origConfigPath !== undefined) process.env.OPENCLAW_CONFIG_PATH = origConfigPath;
-      else delete process.env.OPENCLAW_CONFIG_PATH;
+      if (origConfigPath !== undefined) process.env.SUDOCLAW_CONFIG_PATH = origConfigPath;
+      else delete process.env.SUDOCLAW_CONFIG_PATH;
     }
   }
 
@@ -227,11 +250,10 @@ export class OpenClawGatewayManager extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      // Use --auth none to disable authentication, --force to kill any existing listener
-      const args = ['gateway', '--port', String(this.port), '--allow-unconfigured', '--auth', 'none', '--force'];
+      // Use --auth none to disable authentication. On Windows, rely on our own
+      // port cleanup instead of OpenClaw's --force implementation.
+      const args = buildGatewayArgs(this.port);
       const env = getEnhancedEnv(this.customEnv);
-      const isWindows = process.platform === 'win32';
-
       // Use bundled Node.js directly (no Electron, no system Node)
       const bundledNode = getNodeBinaryPath();
       if (!fs.existsSync(bundledNode)) {
@@ -249,9 +271,14 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       if (this.stateDir) {
         env.OPENCLAW_STATE_DIR = this.stateDir;
-        env.OPENCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
+        env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
+
+      // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
+      // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
+      // so no env var injection is needed here.
       console.log('[OpenClawGatewayManager] Using bundled Node.js:', bundledNode);
+      mainLog('OpenClawGatewayManager', 'Using bundled Node.js', { path: bundledNode });
 
       // Inject safety hook for Sudoclaw gateway process
       // Hook will self-regulate by polling /safe/config/enabled from Nexus
@@ -263,29 +290,56 @@ export class OpenClawGatewayManager extends EventEmitter {
         console.log('[OpenClawGatewayManager] Injecting safety hook:', hookJsPath);
         // Also set NODE_OPTIONS so child processes (agents) inherit the hook
         // The hook will self-regulate by polling /safe/config/enabled from Nexus
-        env.NODE_OPTIONS = `-r ${hookJsPath}`;
+        const requireHookOption = buildRequireNodeOption(hookJsPath);
+        env.NODE_OPTIONS = env.NODE_OPTIONS?.trim() ? `${requireHookOption} ${env.NODE_OPTIONS}` : requireHookOption;
       } else {
         console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
+        mainWarn('OpenClawGatewayManager', 'Safety hook not found, starting without preload hook', { hookJsPath });
       }
+
+      const pythonpath = getHookPythonPath();
+      env.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+      env.PYTHONPATH = pythonpath;
+      console.log('[OpenClawGatewayManager] Injecting python safety hook:', pythonpath);
+
       console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${nodeArgs.join(' ')} ${args.join(' ')}`);
+      this.lastLaunchCommand = {
+        command: bundledNode,
+        args: [...nodeArgs, ...args],
+        cwd: spawnCwd && fs.existsSync(spawnCwd) ? spawnCwd : undefined,
+      };
+      mainLog('OpenClawGatewayManager', 'Starting gateway subprocess', this.lastLaunchCommand);
 
       this.process = spawn(bundledNode, [...nodeArgs, ...args], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
-        shell: isWindows,
+        shell: false,
+        windowsHide: process.platform === 'win32',
         cwd: spawnCwd && fs.existsSync(spawnCwd) ? spawnCwd : undefined,
       });
+      this.lastLaunchCommand = {
+        ...this.lastLaunchCommand,
+        pid: this.process.pid,
+      };
+      mainLog('OpenClawGatewayManager', 'Gateway subprocess spawned', this.lastLaunchCommand);
       gatewayRegistry.set(this.port, this);
 
       let hasResolved = false;
       let stdoutBuffer = '';
       let stderrBuffer = '';
+      this.recentStdout = '';
+      this.recentStderr = '';
 
       // Look for ready signal in stdout
       this.process.stdout?.on('data', (data: Buffer) => {
         const output = data.toString();
         stdoutBuffer += output;
+        this.recentStdout = (this.recentStdout + output).slice(-4000);
         this.emit('stdout', output);
+        const trimmed = output.trim();
+        if (trimmed) {
+          mainLog('OpenClawGatewayManager', 'Gateway stdout', { output: trimmed.slice(-1000) });
+        }
 
         // Look for gateway ready signals
         if (!hasResolved && (output.includes('Gateway listening') || output.includes(`port ${this.port}`) || output.includes('WebSocket server started') || output.includes('gateway ready') || output.includes('listening on'))) {
@@ -300,7 +354,12 @@ export class OpenClawGatewayManager extends EventEmitter {
       this.process.stderr?.on('data', (data: Buffer) => {
         const output = data.toString();
         stderrBuffer += output;
+        this.recentStderr = (this.recentStderr + output).slice(-4000);
         this.emit('stderr', output);
+        const trimmed = output.trim();
+        if (trimmed) {
+          mainWarn('OpenClawGatewayManager', 'Gateway stderr', { output: trimmed.slice(-1000) });
+        }
 
         // Some CLIs output ready message to stderr
         if (!hasResolved && (output.includes('Gateway listening') || output.includes(`port ${this.port}`) || output.includes('WebSocket server started') || output.includes('gateway ready') || output.includes('listening on'))) {
@@ -313,6 +372,7 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       this.process.on('error', (error) => {
         console.error('[OpenClawGatewayManager] Process error:', error);
+        mainError('OpenClawGatewayManager', 'Gateway process error', error);
         if (!hasResolved) {
           reject(error);
         }
@@ -322,6 +382,7 @@ export class OpenClawGatewayManager extends EventEmitter {
       this.process.on('exit', (code, signal) => {
         gatewayRegistry.delete(this.port);
         console.log(`[OpenClawGatewayManager] Process exited: code=${code}, signal=${signal}`);
+        mainLog('OpenClawGatewayManager', 'Gateway process exited', { code, signal });
         this.emit('exit', { code, signal });
         this.process = null;
 
@@ -331,16 +392,20 @@ export class OpenClawGatewayManager extends EventEmitter {
         }
       });
 
-      // Timeout fallback - assume ready after 5 seconds if no explicit signal
-      // Only resolve if process is still running (not already exited)
-      setTimeout(() => {
+      void (async () => {
+        await wait(200);
         if (!hasResolved && this.process && !this.process.killed) {
+          const deferredReadiness = {
+            launchCommand: this.lastLaunchCommand,
+            stdout: stdoutBuffer.slice(-1000),
+            stderr: stderrBuffer.slice(-1000),
+          };
+          mainLog('OpenClawGatewayManager', 'Gateway subprocess started; deferring readiness to health check', deferredReadiness);
           hasResolved = true;
-          console.log(`[OpenClawGatewayManager] Gateway assumed ready (timeout fallback) on port ${this.port}`);
           this.emit('ready', this.port);
           resolve(this.port);
         }
-      }, 5000);
+      })();
     });
   }
 
@@ -360,15 +425,28 @@ export class OpenClawGatewayManager extends EventEmitter {
 
     gatewayRegistry.delete(this.port);
     console.log('[OpenClawGatewayManager] Stopping gateway...');
+    const child = this.process;
+    const childPid = child.pid;
 
-    // Send SIGTERM first
-    this.process.kill('SIGTERM');
+    if (process.platform === 'win32' && childPid) {
+      await new Promise<void>((resolve) => {
+        execFile('taskkill', ['/PID', String(childPid), '/T', '/F'], { windowsHide: true }, () => resolve());
+      });
+    } else {
+      child.kill('SIGTERM');
+    }
 
     // Force kill after timeout
     const forceKillTimeout = setTimeout(() => {
       if (this.process && !this.process.killed) {
         console.log('[OpenClawGatewayManager] Force killing gateway...');
-        this.process.kill('SIGKILL');
+        if (process.platform === 'win32' && childPid) {
+          void new Promise<void>((resolve) => {
+            execFile('taskkill', ['/PID', String(childPid), '/T', '/F'], { windowsHide: true }, () => resolve());
+          });
+        } else {
+          this.process.kill('SIGKILL');
+        }
       }
     }, 5000);
 
@@ -385,6 +463,7 @@ export class OpenClawGatewayManager extends EventEmitter {
       });
     });
 
+    await wait(300);
     this.process = null;
     console.log('[OpenClawGatewayManager] Gateway stopped');
   }
@@ -408,6 +487,14 @@ export class OpenClawGatewayManager extends EventEmitter {
    */
   get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.port}`;
+  }
+
+  getRecentOutput(): { stdout: string; stderr: string } {
+    return { stdout: this.recentStdout, stderr: this.recentStderr };
+  }
+
+  getLastLaunchCommand(): { command: string; args: string[]; cwd?: string; pid?: number } | null {
+    return this.lastLaunchCommand;
   }
 
   /**

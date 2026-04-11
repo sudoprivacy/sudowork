@@ -11,13 +11,10 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ProcessConfig } from '@/process/initStorage';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
-import { getNexusClient, CONFIG_DIR } from '../services/safety/SecurityHookFile';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from '../services/safety/SecurityHookFile';
 import type { BlacklistConfig } from '@/common/safetyTypes';
-
-const BLACKLIST_CONFIG_PATH = '/safe/config/blacklist';
-const BLACKLIST_STORAGE_KEY = 'safetyHook.blacklist';
 
 export function initSafetyBridge(): void {
   // Get current safety status
@@ -67,16 +64,13 @@ export function initSafetyBridge(): void {
   // Enable/disable safety hook service
   ipcBridge.safety.setEnabled.provider(async ({ enabled }) => {
     try {
-      console.log(`[SafetyBridge] Setting safety hook ${enabled ? 'enabled' : 'disabled'}`);
       const service = SafetyPollingService.getInstance();
       if (enabled) {
-        // Stop first if already running, then start
-        console.log('[SafetyBridge] Stopping and starting service...');
-        await service.stop();
-        await service.start({ pollingIntervalMs: 5000 });
+        mainLog('SafetyBridge', 'Starting safety hook service...');
+        await service.start({ pollingIntervalMs: 3000 }, true);
       } else {
-        console.log('[SafetyBridge] Stopping service...');
-        await service.stop();
+        mainLog('SafetyBridge', 'Stopping safety hook service...');
+        await service.stop(true);
       }
       return { success: true };
     } catch (err) {
@@ -87,36 +81,53 @@ export function initSafetyBridge(): void {
     }
   });
 
-  // Get blacklist configuration
+  // Get blacklist configuration - read from unified hook config
   ipcBridge.safety.getBlacklist.provider(async () => {
     try {
-      const config = await ProcessConfig.get(BLACKLIST_STORAGE_KEY as any);
-      return { success: true, data: config || { rules: [] } };
+      const hookConfig = await readHookConfig();
+      if (!hookConfig || !hookConfig.blacklist) {
+        return { success: true, data: { rules: [] } };
+      }
+      return { success: true, data: (hookConfig.blacklist as BlacklistConfig) || { rules: [] } };
     } catch (err) {
+      // If file doesn't exist, return empty config
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes('not found') || errorMsg.includes('FILE_NOT_FOUND')) {
+        return { success: true, data: { rules: [] } };
+      }
       return {
         success: false,
-        msg: err instanceof Error ? err.message : String(err),
+        msg: errorMsg,
       };
     }
   });
 
-  // Set blacklist configuration
+  // Set blacklist configuration - write to unified hook config (read-merge-write)
   ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: BlacklistConfig }) => {
     try {
-      // Save to local storage
-      await ProcessConfig.set(BLACKLIST_STORAGE_KEY as any, config);
-
-      // Sync to Nexus
       const client = getNexusClient();
       await client.mkdir(CONFIG_DIR, true);
-      await client.write(BLACKLIST_CONFIG_PATH, JSON.stringify(config, null, 2));
+      // Read-merge-write: preserve existing enabled/fastPass state
+      const existing = await readHookConfig();
+      const merged = {
+        ...(existing || DEFAULT_HOOK_CONFIG),
+        blacklist: config,
+      };
+      await writeHookConfig(merged);
 
-      // Hook processes will read updated config from Nexus via polling
+      // Invalidate cache so next poll will pick up the new config
+      SafetyPollingService.getInstance().invalidateBlacklistCache();
 
       return { success: true };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('[SafetyBridge] Failed to set blacklist:', errorMsg);
+      mainError('SafetyBridge', 'Failed to set blacklist:', errorMsg);
+
+      // Check if it's a Nexus connection error
+      if (errorMsg.includes('fetch failed') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('network') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNRESET')) {
+        return { success: false, msg: `Nexus连接异常: ${errorMsg}` };
+      }
+
       return { success: false, msg: errorMsg };
     }
   });

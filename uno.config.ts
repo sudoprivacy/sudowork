@@ -165,6 +165,7 @@ export default defineConfig({
   // 基础配置
   shortcuts: {
     'flex-center': 'flex items-center justify-center',
+    'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
   },
   theme: {
     colors: {

@@ -1,20 +1,13 @@
-"""Take a screenshot of the current Sudowork state.
+# AUTO-GENERATED — DO NOT EDIT
+# Re-run: python tests/e2e/generate.py
+#
+# Spec: https://github.com/sudoprivacy/human-browser-primitives
+# Source: WebDriver §18.1 — Take Screenshot
 
-Uses ai-dev-browser's default screenshot dir (./screenshots/).
-"""
-
-from ai_dev_browser.core.page import screenshot as _screenshot
+from primitives.screenshot import screenshot as _core
 
 
-async def screenshot(tab, name: str = "screenshot") -> dict:
-    """Take a screenshot. Stored in ./screenshots/ by default.
-
-    Returns:
-        {"path": str, "width": int, "height": int}
-    """
-    result = await _screenshot(tab)
-    return {
-        "path": result.get("path", ""),
-        "width": result.get("width", 0),
-        "height": result.get("height", 0),
-    }
+async def screenshot(tab, path: str = None) -> dict:
+    """WebDriver §18.1 — Take Screenshot."""
+    result = await _core(tab, path=path)
+    return result

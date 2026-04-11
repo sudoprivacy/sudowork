@@ -4,15 +4,63 @@
   -webkit-app-region: drag;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   min-height: 100vh;
+  padding: 24px 16px;
   font-family:
     -apple-system,
     PingFang SC,
     Microsoft YaHei;
   background: linear-gradient(135deg, var(--aou-5) 0%, var(--aou-7) 100%);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Window Controls Positioning */
+.app-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.app-window-controls__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.app-window-controls__button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.app-window-controls__button--close:hover {
+  background: #e81123 !important;
+  color: white !important;
+}
+
+[data-theme='dark'] .app-window-controls__button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .app-window-controls__button--close:hover {
+  background: #f1707a !important;
+  color: white !important;
 }
 
 /* Dark mode background - darker gradient */
@@ -94,9 +142,10 @@ body.login-page-active {
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 20px 50px -12px rgba(0, 0, 0, 0.25);
-  padding: 40px 32px 36px;
+  padding: 32px 28px 28px;
   animation: login-slide-up 0.5s ease-out;
   border: 1px solid var(--border-base);
+  margin: auto 0;
 }
 
 [data-theme='dark'] .login-page__card {
@@ -158,9 +207,58 @@ body.login-page-active {
   color: var(--text-primary);
 }
 
+/* ========================================
+   Tab Switcher
+   ======================================== */
+
+.login-tabs {
+  display: flex;
+  gap: 0;
+  margin-top: 24px;
+  border-bottom: 1px solid var(--border-base);
+}
+
+.login-tab {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.login-tab:hover {
+  color: var(--text-primary);
+}
+
+.login-tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+[data-theme='dark'] .login-tab {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+[data-theme='dark'] .login-tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] .login-tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
 .login-page__header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 0;
 }
 
 .login-page__logo {
@@ -405,9 +503,12 @@ body.login-page-active {
 }
 
 @media (max-width: 600px) {
+  .login-page {
+    padding: 16px 12px;
+  }
+
   .login-page__card {
-    margin: 16px;
-    padding: 32px 24px;
+    padding: 24px 20px 20px;
     border-radius: 20px;
   }
 
@@ -521,7 +622,9 @@ body.login-page-active {
 /* Global button overrides for login page - disable all hover effects */
 .login-page .arco-btn {
   transform: none !important;
-  transition: opacity 0.15s ease, background 0.15s ease !important;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease !important;
 }
 
 .login-page .arco-btn:hover,

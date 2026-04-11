@@ -10,6 +10,9 @@ import { init, type InitStatus } from '@/common/ipcBridge';
 interface InitContextValue {
   status: InitStatus;
   isReady: boolean;
+  hasResolvedInitialStatus: boolean;
+  isInitScreenSkipped: boolean;
+  skipInitScreen: () => void;
   refetch: () => Promise<void>;
 }
 
@@ -18,9 +21,12 @@ const InitContext = createContext<InitContextValue | undefined>(undefined);
 export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   // Check if running in Electron environment
   // In Electron, navigator.userAgent typically contains "Electron"
-  const isElectron = typeof window !== 'undefined' && (!!(window as any).electronAPI || /Electron/i.test(navigator.userAgent));
+  const hasElectronApi = typeof window !== 'undefined' && 'electronAPI' in window;
+  const isElectron = typeof window !== 'undefined' && (hasElectronApi || /Electron/i.test(navigator.userAgent));
 
   const [status, setStatus] = useState<InitStatus>(isElectron ? { phase: 'pending', message: '准备初始化...', progress: 0 } : { phase: 'ready', message: '初始化完成', progress: 100 });
+  const [hasResolvedInitialStatus, setHasResolvedInitialStatus] = useState(!isElectron);
+  const [isInitScreenSkipped, setIsInitScreenSkipped] = useState(false);
 
   const refetch = useCallback(async () => {
     let retries = 0;
@@ -32,6 +38,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const result = await init.getStatus.invoke();
         if (result.success) {
           setStatus(result.data);
+          setHasResolvedInitialStatus(true);
           return true;
         }
       } catch (err) {
@@ -50,7 +57,7 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
 
     void attempt();
-  }, [isElectron]);
+  }, []);
 
   useEffect(() => {
     // For Web environment, we don't need to poll or subscribe to backend init status
@@ -63,14 +70,24 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     // Subscribe to status changes
     const unsubscribe = init.onStatusChange.on((newStatus: InitStatus) => {
       setStatus(newStatus);
+      setHasResolvedInitialStatus(true);
     });
 
     return unsubscribe;
   }, [refetch, isElectron]);
 
-  const isReady = status.phase === 'ready';
+  useEffect(() => {
+    if (status.phase === 'ready' && isInitScreenSkipped) {
+      setIsInitScreenSkipped(false);
+    }
+  }, [isInitScreenSkipped, status.phase]);
 
-  return <InitContext.Provider value={{ status, isReady, refetch }}>{children}</InitContext.Provider>;
+  const isReady = status.phase === 'ready';
+  const skipInitScreen = useCallback(() => {
+    setIsInitScreenSkipped(true);
+  }, []);
+
+  return <InitContext.Provider value={{ status, isReady, hasResolvedInitialStatus, isInitScreenSkipped, skipInitScreen, refetch }}>{children}</InitContext.Provider>;
 };
 
 export function useInit(): InitContextValue {

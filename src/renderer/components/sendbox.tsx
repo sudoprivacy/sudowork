@@ -7,11 +7,14 @@
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
+import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
 import { Button, Input, Message, Tag } from '@arco-design/web-react';
-import { ArrowUp, CloseSmall } from '@icon-park/react';
+import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/slash/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +26,10 @@ import ContextMenu, { type ContextMenuItem } from '@/renderer/components/Context
 import { IconPaste } from '@arco-design/web-react/icon';
 import type { FileMetadata } from '../services/FileService';
 import { allSupportedExts } from '../services/FileService';
+import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import { isElectronDesktop } from '@/renderer/utils/platform';
+import { skillHub } from '@/common/ipcBridge';
+import { resolveSkillIcon, buildSkillDisplayName } from '@/renderer/utils/skillDisplay';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -32,7 +39,7 @@ const MAX_SINGLE_LINE_CHARACTERS = 800;
 const SendBox: React.FC<{
   value?: string;
   onChange?: (value: string) => void;
-  onSend: (message: string) => Promise<void>;
+  onSend: (message: string, skills?: string[]) => Promise<void>;
   onStop?: () => Promise<void>;
   disabled?: boolean;
   loading?: boolean;
@@ -47,7 +54,10 @@ const SendBox: React.FC<{
   sendButtonPrefix?: React.ReactNode;
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand }) => {
+  onSkillsChange?: (skills: string[]) => void;
+  /** Workspace files for @ file references */
+  workspaceFiles?: WorkspaceFileItem[];
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -223,6 +233,35 @@ const SendBox: React.FC<{
 
   const [message, context] = Message.useMessage();
 
+  // Skill selector state
+  const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
+
+  // Fetch installed skills on mount
+  useEffect(() => {
+    const fetchInstalledSkills = async () => {
+      if (!isElectronDesktop()) return;
+      setLoadingSkills(true);
+      try {
+        const res = await skillHub.getInstalledSkills.invoke();
+        if (res.success && res.data) {
+          setInstalledSkills(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch installed skills:', err);
+      } finally {
+        setLoadingSkills(false);
+      }
+    };
+    void fetchInstalledSkills();
+  }, []);
+
+  // Notify parent when skills change
+  useEffect(() => {
+    onSkillsChange?.(selectedSkills);
+  }, [selectedSkills, onSkillsChange]);
+
   const builtinSlashCommands = useMemo<SlashCommandItem[]>(() => {
     if (!onSlashBuiltinCommand) {
       return [];
@@ -271,6 +310,60 @@ const SendBox: React.FC<{
         badge: command.hint,
       })),
     [slashController.filteredCommands]
+  );
+
+  // Transform installed skills to selector items
+  const skillSelectorItems = useMemo<SkillSelectorItem[]>(
+    () =>
+      installedSkills.map((skill) => {
+        const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
+        return {
+          name: skill.name,
+          displayName,
+          description: skill.meta?.description,
+          icon: resolveSkillIcon(skill.meta?.icon),
+          emoji: skill.meta?.emoji,
+          enabled: skill.enabled,
+        };
+      }),
+    [installedSkills]
+  );
+
+  const skillSelectorController = useSkillSelectorController({
+    input,
+    skills: skillSelectorItems,
+    selectedSkills,
+    onSelectSkill: (skillName) => {
+      if (!selectedSkills.includes(skillName)) {
+        setSelectedSkills([...selectedSkills, skillName]);
+      }
+      // Strip the @query from input when selecting a skill
+      setInput(stripAtQuery(input));
+    },
+    onRemoveSkill: (skillName) => {
+      setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
+    },
+    workspaceFiles,
+    onSelectFile: (file) => {
+      // Replace @query with @relativePath in input
+      const newInput = replaceAtQuery(input, `@${file.relativePath}`);
+      setInput(newInput);
+    },
+  });
+
+  // Transform to menu items for rendering
+  const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
+    () =>
+      skillSelectorController.filteredSkills.map((skill) => ({
+        key: skill.name,
+        name: skill.name,
+        displayName: skill.displayName,
+        description: skill.description,
+        icon: skill.icon,
+        emoji: skill.emoji,
+        enabled: skill.enabled,
+      })),
+    [skillSelectorController.filteredSkills]
   );
 
   // 使用共享的输入法合成处理
@@ -339,12 +432,14 @@ const SendBox: React.FC<{
       finalMessage = input + snippetsHtml;
     }
 
-    // 立即清空输入框，避免异步 onSend 完成后覆盖用户新输入
-    // Clear input immediately to prevent async onSend completion from overwriting new user input
+    // 立即清空输入框和技能，避免异步 onSend 完成后覆盖用户新输入
+    // Clear input and skills immediately to prevent async onSend completion from overwriting new user input
+    const skillsToSend = [...selectedSkills];
     setInput('');
+    setSelectedSkills([]);
     clearDomSnippets();
 
-    onSend(finalMessage)
+    onSend(finalMessage, skillsToSend)
       .then(() => {})
       .catch((error) => {
         console.error('[SendBox] Error in onSend', error);
@@ -391,7 +486,7 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           ...(isFileDragging
@@ -408,6 +503,7 @@ const SendBox: React.FC<{
         }}
         {...dragHandlers}
       >
+        {/* Slash Command Menu */}
         {slashController.isOpen && (
           <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             <SlashCommandMenu
@@ -427,6 +523,41 @@ const SendBox: React.FC<{
             />
           </div>
         )}
+        {/* Skill Selector Menu (with optional file tabs) */}
+        {skillSelectorController.isOpen && (
+          <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+            <SkillSelectorMenu
+              title={t('messages.skills.title', { defaultValue: 'Skills' })}
+              hint={t('messages.skills.hint', { defaultValue: 'Type @ to select skills' })}
+              items={skillMenuItems}
+              selectedKeys={selectedSkills}
+              activeIndex={skillSelectorController.activeIndex}
+              loading={loadingSkills}
+              loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
+              onHoverItem={skillSelectorController.setActiveIndex}
+              onSelectItem={(item) => {
+                const targetIndex = skillSelectorController.filteredSkills.findIndex((skill) => skill.name === item.name);
+                if (targetIndex >= 0) {
+                  skillSelectorController.onSelectByIndex(targetIndex);
+                }
+              }}
+              emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
+              showTabs={skillSelectorController.showTabs}
+              activeTab={skillSelectorController.activeTab}
+              onTabChange={skillSelectorController.setActiveTab}
+              fileItems={skillSelectorController.filteredFiles}
+              onSelectFile={(file) => {
+                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.fullPath === file.fullPath);
+                if (fileIndex >= 0) {
+                  skillSelectorController.onSelectByIndex(fileIndex);
+                }
+              }}
+              skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
+              filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
+              filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
+            />
+          </div>
+        )}
         <div style={{ width: '100%' }}>
           {prefix}
           {context}
@@ -438,6 +569,43 @@ const SendBox: React.FC<{
                   {snippet.tag}
                 </Tag>
               ))}
+            </div>
+          )}
+          {/* Skill tags - displayed above input */}
+          {selectedSkills.length > 0 && (
+            <div className='flex flex-col gap-6px mb-8px'>
+              <div className='flex items-center gap-4px text-11px text-t-secondary'>
+                <Lightning size='12' className='text-primary' />
+                <span>{t('messages.skills.activeSkills', { defaultValue: '当前使用技能' })}</span>
+              </div>
+              <div className='flex flex-wrap gap-6px'>
+                {selectedSkills.map((skillName) => {
+                  const skillInfo = installedSkills.find((s) => s.name === skillName);
+                  const displayName =
+                    skillInfo?.meta?.display_name ||
+                    skillName
+                      .split(/[-_]/)
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(' ');
+                  const emoji = skillInfo?.meta?.emoji || '⚡';
+                  return (
+                    <Tag
+                      key={skillName}
+                      closable
+                      closeIcon={<CloseSmall theme='outline' size='12' />}
+                      onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
+                      className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                      style={{
+                        backgroundColor: 'var(--color-primary-light-1)',
+                        borderColor: 'var(--color-primary-light-2)',
+                      }}
+                    >
+                      <span className='mr-4px'>{emoji}</span>
+                      {displayName}
+                    </Tag>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -477,7 +645,16 @@ const SendBox: React.FC<{
             onBlur={handleInputBlur}
             {...compositionHandlers}
             autoSize={isSingleLine ? false : { minRows: 1, maxRows: 10 }}
-            onKeyDown={createKeyDownHandler(sendMessageHandler, slashController.onKeyDown)}
+            onKeyDown={createKeyDownHandler(sendMessageHandler, (event) => {
+              // Try skill selector first (for @), then slash command (for /)
+              if (skillSelectorController.isOpen) {
+                return skillSelectorController.onKeyDown(event);
+              }
+              if (slashController.isOpen) {
+                return slashController.onKeyDown(event);
+              }
+              return false;
+            })}
           ></Input.TextArea>
           {isSingleLine && (
             <div className='flex items-center gap-2'>

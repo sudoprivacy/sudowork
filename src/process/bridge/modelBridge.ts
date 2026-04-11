@@ -13,6 +13,8 @@ import { isNewApiPlatform } from '@/common/utils/platformConstants';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { cachePut, resolveSecret } from '@common/nexus/secret-cache';
 import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
 
 /**
@@ -73,7 +75,7 @@ export function initModelBridge(): void {
     // 如果是 Vertex AI 平台，直接返回 Vertex AI 支持的模型列表
     // For Vertex AI platform, return the supported model list directly
     if (platform?.includes('vertex-ai')) {
-      console.log('Using Vertex AI model list');
+      mainLog('ModelBridge', 'Using Vertex AI model list');
       const vertexAIModels = ['gemini-2.5-pro', 'gemini-2.5-flash'];
       return { success: true, data: { mode: vertexAIModels } };
     }
@@ -82,7 +84,7 @@ export function initModelBridge(): void {
     // MiniMax does not provide /v1/models endpoint (verified 2026-02), return hardcoded list
     // For MiniMax platform, return the supported model list directly
     if (base_url && isMiniMaxAPI(base_url)) {
-      console.log('Using MiniMax model list (text models only)');
+      mainLog('ModelBridge', 'Using MiniMax model list (text models only)');
       const minimaxModels = [
         // Text/Chat Models - For conversational AI use
         'MiniMax-M2.1', // 230B params, 10B active - Best for programming & reasoning (~60 tokens/sec)
@@ -151,7 +153,7 @@ export function initModelBridge(): void {
       } catch (e: unknown) {
         // Fall back to default model list on API failure
         const errorMessage = e instanceof Error ? e.message : String(e);
-        console.warn('Failed to fetch Anthropic models via API, falling back to default list:', errorMessage);
+        mainWarn('ModelBridge', 'Failed to fetch Anthropic models via API, falling back to default list:', errorMessage);
         const defaultAnthropicModels = ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-haiku-20240307'];
         return { success: true, data: { mode: defaultAnthropicModels } };
       }
@@ -305,7 +307,7 @@ export function initModelBridge(): void {
         // 对于 Gemini 平台，API 调用失败时回退到默认模型列表
         // For Gemini platform, fall back to default model list on API failure
         if (platform?.includes('gemini')) {
-          console.warn('Failed to fetch Gemini models via API, falling back to default list:', e.message);
+          mainWarn('ModelBridge', 'Failed to fetch Gemini models via API, falling back to default list:', e.message);
           const defaultGeminiModels = ['gemini-2.5-pro', 'gemini-2.5-flash'];
           return { success: true, data: { mode: defaultGeminiModels } };
         }
@@ -427,7 +429,41 @@ export function initModelBridge(): void {
   });
 
   ipcBridge.mode.saveModelConfig.provider((models) => {
-    return ProcessConfig.set('model.config', models)
+    // After migration: write credentials to Nexus (source of truth)
+    // ConfigStorage keeps only non-credential fields - original storage is frozen for credentials
+    for (const provider of models) {
+      const namespace = `provider:${provider.id}`;
+
+      // Write API key to Nexus
+      if (provider.apiKey) {
+        cachePut(namespace, 'api_key', provider.apiKey);
+      }
+
+      // Write Bedrock credentials to Nexus
+      if (provider.platform === 'bedrock' && provider.bedrockConfig) {
+        if (provider.bedrockConfig.accessKeyId) {
+          cachePut(namespace, 'access_key_id', provider.bedrockConfig.accessKeyId);
+        }
+        if (provider.bedrockConfig.secretAccessKey) {
+          cachePut(namespace, 'secret_access_key', provider.bedrockConfig.secretAccessKey);
+        }
+      }
+    }
+
+    // Write non-credential fields to ConfigStorage (credentials are NOT stored here)
+    const providersWithoutCredentials = models.map((p) => ({
+      ...p,
+      apiKey: undefined as string | undefined,
+      bedrockConfig: p.bedrockConfig
+        ? {
+            ...p.bedrockConfig,
+            accessKeyId: undefined as string | undefined,
+            secretAccessKey: undefined as string | undefined,
+          }
+        : undefined,
+    }));
+
+    return ProcessConfig.set('model.config', providersWithoutCredentials)
       .then(() => {
         return { success: true };
       })
@@ -464,6 +500,29 @@ export function initModelBridge(): void {
           } as IProvider;
         });
 
+        // After migration: read credentials from Nexus (source of truth)
+        // Original storage (ConfigStorage) only keeps non-credential fields
+        for (const provider of normalizedProviders) {
+          const namespace = `provider:${provider.id}`;
+
+          // Read API key from Nexus
+          const apiKey = resolveSecret(namespace, 'api_key', '');
+          if (apiKey) {
+            provider.apiKey = apiKey;
+          }
+
+          // Read Bedrock credentials from Nexus
+          if (provider.platform === 'bedrock' && provider.bedrockConfig) {
+            const accessKeyId = resolveSecret(namespace, 'access_key_id', '');
+            const secretAccessKey = resolveSecret(namespace, 'secret_access_key', '');
+            provider.bedrockConfig = {
+              ...provider.bedrockConfig,
+              accessKeyId: accessKeyId || undefined,
+              secretAccessKey: secretAccessKey || undefined,
+            };
+          }
+        }
+
         // Merge extension-contributed model providers (with user overrides from persisted config)
         try {
           const registry = ExtensionRegistry.getInstance();
@@ -477,13 +536,18 @@ export function initModelBridge(): void {
 
           const mergedExtensionProviders: IProvider[] = extensionProviders.map((provider) => {
             const existing = normalizedProviders.find((item) => item.id === provider.id);
+            const namespace = `provider:${provider.id}`;
+
+            // Read credentials from Nexus for extension providers
+            const apiKey = existing?.apiKey || resolveSecret(namespace, 'api_key', '');
+
             return {
               ...(existing || {}),
               id: provider.id,
               platform: provider.platform,
               name: provider.name,
               baseUrl: existing?.baseUrl || provider.baseUrl || '',
-              apiKey: existing?.apiKey || '',
+              apiKey: apiKey,
               model: Array.isArray(existing?.model) && existing.model.length > 0 ? existing.model : provider.models,
               enabled: existing?.enabled ?? true,
             } as IProvider;
@@ -491,7 +555,7 @@ export function initModelBridge(): void {
 
           return [...userProviders, ...mergedExtensionProviders];
         } catch (error) {
-          console.warn('[ModelBridge] Failed to merge extension model providers:', error);
+          mainWarn('ModelBridge', 'Failed to merge extension model providers:', error);
           return normalizedProviders;
         }
       })

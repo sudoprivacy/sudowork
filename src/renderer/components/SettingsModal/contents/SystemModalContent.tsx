@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /**
@@ -144,6 +145,7 @@ const SystemModalContent: React.FC = () => {
   // 偏好设置项配置 / Preference items configuration
   const preferenceItems = [
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
+    { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
     { key: 'closeToTray', label: t('settings.closeToTray'), component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} /> },
   ];
 

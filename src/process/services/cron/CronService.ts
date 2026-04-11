@@ -8,14 +8,20 @@ import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
+import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
-import { powerSaveBlocker } from 'electron';
+import type { AcpBackendConfig, AcpBackendAll } from '@/types/acpTypes';
+import { powerSaveBlocker, app } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
 import { copyFilesToDirectory } from '../../utils';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { readBuiltinResource, readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
+import { getPresetById } from '@/common/presets/presetResolver';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { cronBusyGuard } from './CronBusyGuard';
-import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
+import { createConversation } from '../conversationService';
 
 /**
  * Parameters for creating a new cron job
@@ -28,6 +34,9 @@ export interface CreateCronJobParams {
   conversationTitle?: string;
   agentType: AcpBackendAll;
   createdBy: 'user' | 'agent';
+  conversationMode?: 'new' | 'reuse';
+  workspace?: string;
+  presetAssistantId?: string | null;
 }
 
 /**
@@ -61,7 +70,7 @@ class CronService {
       this.initialized = true;
       this.updatePowerBlocker();
     } catch (error) {
-      console.error('[CronService] Initialization failed:', error);
+      mainError('CronService', 'Initialization failed:', error);
       throw error;
     }
   }
@@ -72,10 +81,13 @@ class CronService {
    */
   async addJob(params: CreateCronJobParams): Promise<CronJob> {
     // Check if conversation already has a cron job (one job per conversation limit)
-    const existingJobs = cronStore.listByConversation(params.conversationId);
-    if (existingJobs.length > 0) {
-      const existingJob = existingJobs[0];
-      throw new Error(`This conversation already has a scheduled task "${existingJob.name}" (ID: ${existingJob.id}). Please delete it first before creating a new one, or use [CRON_LIST] to view existing tasks.`);
+    // Skip this check when conversationId is empty (job created from Settings, not bound to a conversation)
+    if (params.conversationId) {
+      const existingJobs = cronStore.listByConversation(params.conversationId);
+      if (existingJobs.length > 0) {
+        const existingJob = existingJobs[0];
+        throw new Error(`This conversation already has a scheduled task "${existingJob.name}" (ID: ${existingJob.id}). Please delete it first before creating a new one, or use [CRON_LIST] to view existing tasks.`);
+      }
     }
 
     const now = Date.now();
@@ -96,6 +108,9 @@ class CronService {
         createdBy: params.createdBy,
         createdAt: now,
         updatedAt: now,
+        conversationMode: params.conversationMode ?? 'new',
+        workspace: params.workspace,
+        presetAssistantId: params.presetAssistantId ?? undefined,
       },
       state: {
         runCount: 0,
@@ -111,11 +126,13 @@ class CronService {
     cronStore.insert(job);
 
     // Update conversation modifyTime so it appears at the top of the list
-    try {
-      const db = getDatabase();
-      db.updateConversation(params.conversationId, { modifyTime: now });
-    } catch (err) {
-      console.warn('[CronService] Failed to update conversation modifyTime:', err);
+    if (params.conversationId) {
+      try {
+        const db = getDatabase();
+        db.updateConversation(params.conversationId, { modifyTime: now });
+      } catch (err) {
+        mainWarn('CronService', 'Failed to update conversation modifyTime:', err);
+      }
     }
 
     // Start timer
@@ -136,6 +153,16 @@ class CronService {
 
     // Stop existing timer
     this.stopTimer(jobId);
+
+    // Normalize: JSON IPC strips `undefined`, so callers pass `null` to explicitly
+    // clear `presetAssistantId`. Convert it to `undefined` here so the spread merge
+    // in CronStore.update overwrites the existing value.
+    if (updates.metadata && updates.metadata.presetAssistantId === null) {
+      updates = {
+        ...updates,
+        metadata: { ...updates.metadata, presetAssistantId: undefined },
+      };
+    }
 
     // Update in database
     cronStore.update(jobId, updates);
@@ -192,6 +219,23 @@ class CronService {
   }
 
   /**
+   * Manually trigger a job to execute immediately.
+   * Throws if the execution ultimately failed, so the IPC caller (Run Now
+   * button) can show a toast instead of silently updating the job row.
+   */
+  async triggerJob(jobId: string): Promise<void> {
+    const job = await cronStore.getById(jobId);
+    if (!job) {
+      throw new Error(`Job ${jobId} not found`);
+    }
+    await this.executeJob(job);
+    const updated = await cronStore.getById(jobId);
+    if (updated?.state.lastStatus === 'error' && updated.state.lastError) {
+      throw new Error(updated.state.lastError);
+    }
+  }
+
+  /**
    * Start timer for a job
    */
   private startTimer(job: CronJob): void {
@@ -199,6 +243,16 @@ class CronService {
     this.stopTimer(job.id);
 
     const { schedule } = job;
+    const jobId = job.id;
+
+    // Always re-read the job from DB before execution so that state updated
+    // in previous runs (e.g. lastConversationId for reuse mode) is fresh.
+    const executeLatest = async () => {
+      const latest = cronStore.getById(jobId);
+      if (latest) {
+        await this.executeJob(latest);
+      }
+    };
 
     switch (schedule.kind) {
       case 'cron': {
@@ -209,7 +263,7 @@ class CronService {
             paused: false,
           },
           () => {
-            void this.executeJob(job);
+            void executeLatest();
           }
         );
         this.timers.set(job.id, timer);
@@ -224,7 +278,7 @@ class CronService {
 
       case 'every': {
         const timer = setInterval(() => {
-          void this.executeJob(job);
+          void executeLatest();
         }, schedule.everyMs);
         this.timers.set(job.id, timer);
 
@@ -239,7 +293,7 @@ class CronService {
         const delay = schedule.atMs - Date.now();
         if (delay > 0) {
           const timer = setTimeout(() => {
-            void this.executeJob(job);
+            void executeLatest();
             // One-time job, disable after execution
             void this.updateJob(job.id, { enabled: false });
           }, delay);
@@ -291,96 +345,274 @@ class CronService {
    */
   private async executeJob(job: CronJob): Promise<void> {
     const { conversationId } = job.metadata;
+    const conversationMode = job.metadata.conversationMode ?? 'new';
 
-    // Check if conversation is busy
-    const isBusy = cronBusyGuard.isProcessing(conversationId);
-    if (isBusy) {
-      job.state.retryCount++;
+    // Check if conversation is busy (only relevant for reuse mode)
+    if (conversationMode === 'reuse') {
+      const isBusy = cronBusyGuard.isProcessing(conversationId);
+      if (isBusy) {
+        job.state.retryCount++;
 
-      if (job.state.retryCount > (job.state.maxRetries || 3)) {
-        // Max retries exceeded, skip this run
-        job.state.lastStatus = 'skipped';
-        job.state.lastError = `Conversation busy after ${job.state.maxRetries || 3} retries`;
-        job.state.retryCount = 0; // Reset for next trigger
-        this.updateNextRunTime(job);
-        cronStore.update(job.id, { state: job.state });
-        ipcBridge.cron.onJobUpdated.emit(job);
+        if (job.state.retryCount > (job.state.maxRetries || 3)) {
+          // Max retries exceeded, skip this run
+          job.state.lastStatus = 'skipped';
+          job.state.lastError = `Conversation busy after ${job.state.maxRetries || 3} retries`;
+          job.state.retryCount = 0; // Reset for next trigger
+          this.updateNextRunTime(job);
+          cronStore.update(job.id, { state: job.state });
+          ipcBridge.cron.onJobUpdated.emit(job);
+          return;
+        }
+
+        // Schedule retry in 30 seconds — re-read from DB for fresh state
+        const retryTimer = setTimeout(() => {
+          this.retryTimers.delete(job.id);
+          const latest = cronStore.getById(job.id);
+          if (latest) void this.executeJob(latest);
+        }, 30000);
+        this.retryTimers.set(job.id, retryTimer);
         return;
       }
-
-      // Schedule retry in 30 seconds
-      const retryTimer = setTimeout(() => {
-        this.retryTimers.delete(job.id);
-        void this.executeJob(job);
-      }, 30000);
-      this.retryTimers.set(job.id, retryTimer);
-      return;
     }
 
     // Update state before execution
     job.state.lastRunAtMs = Date.now();
     job.state.runCount++;
+    mainLog('CronService', `executeJob START: id=${job.id} name="${job.name}" mode=${conversationMode} presetAssistantId=${job.metadata.presetAssistantId ?? 'none'} agentType=${job.metadata.agentType}`);
 
     try {
-      // Send message to conversation directly via WorkerManage (not IPC)
-      // IPC invoke doesn't work in main process - it's for renderer->main communication
       const messageText = job.target.payload.text;
       const msgId = uuid();
 
-      // Get or build task from WorkerManage
-      // For cron jobs, we need yoloMode=true (auto-approve)
-      // Reuse existing task if possible to avoid unnecessary reconnection
-      // 对于定时任务，需要 yoloMode=true（自动批准）
-      // 尽量复用已有任务实例，避免不必要的重连
-      let task;
-      try {
-        const existingTask = WorkerManage.getTaskById(conversationId);
-        if (existingTask) {
-          // Try to enable yoloMode on existing task without killing it
-          const yoloEnabled = await existingTask.ensureYoloMode();
-          if (yoloEnabled) {
-            task = existingTask;
-          } else {
-            // Cannot enable yoloMode dynamically, fall back to kill and recreate
-            WorkerManage.kill(conversationId);
-            task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
-              yoloMode: true,
-            });
+      // Resolve preset assistant context if a preset is selected
+      const presetAssistantId = job.metadata.presetAssistantId;
+      let presetContext: string | undefined;
+      let enabledSkills: string[] | undefined;
+      let presetAgentName: string | undefined;
+      let presetCliPath: string | undefined;
+      // Normalize stored agentType — legacy jobs may have 'sudoclaw-gateway' which is not a valid conv type
+      const storedAgentType = job.metadata.agentType;
+      const normalizedAgentType: AcpBackendAll = !storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway' ? 'openclaw-gateway' : storedAgentType;
+      let resolvedAgentType: AcpBackendAll = normalizedAgentType;
+      // convType must be 'openclaw-gateway' or 'acp' — default to openclaw-gateway (Sudoclaw)
+      let convType: string = normalizedAgentType === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
+
+      if (presetAssistantId) {
+        try {
+          const appLocale = app.getLocale() || 'en-US';
+          const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
+
+          // Resolve rules file
+          let rules = '';
+          let skillsText = '';
+
+          // 1. Try user-customized files first, then builtin fallback
+          rules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
+          skillsText = await readAssistantResource('skills', presetAssistantId, localeKey, skillFilePattern).catch(() => '');
+
+          // 2. For builtin presets, also try via preset ruleFiles/skillFiles config
+          if (!rules || !skillsText) {
+            const presetId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.replace('builtin-', '') : null;
+            if (presetId) {
+              const preset = getPresetById(presetId);
+              if (preset) {
+                if (!rules && preset.ruleFiles) {
+                  const ruleFile = preset.ruleFiles[localeKey] || preset.ruleFiles['en-US'];
+                  if (ruleFile) rules = await readBuiltinResource('rules', ruleFile).catch(() => '');
+                }
+                if (!skillsText && preset.skillFiles) {
+                  const skillFile = preset.skillFiles[localeKey] || preset.skillFiles['en-US'];
+                  if (skillFile) skillsText = await readBuiltinResource('skills', skillFile).catch(() => '');
+                }
+              }
+            }
           }
-        } else {
-          // No existing task, create new one with yoloMode=true
-          task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
-            yoloMode: true,
+
+          presetContext = rules || undefined;
+
+          // 3. Get enabledSkills + display info from customAgents config.
+          // NOTE: ConfigStorage.get() routes through the renderer-bound IPC adapter
+          // and HANGS when called from the main process. Use ProcessConfig (the
+          // file-backed store) directly instead.
+          const agents = await ProcessConfig.get('acp.customAgents').catch((): AcpBackendConfig[] | undefined => undefined);
+          const agent = agents?.find((a: AcpBackendConfig) => a.id === presetAssistantId);
+          enabledSkills = agent?.enabledSkills;
+          presetAgentName = agent?.name;
+          presetCliPath = agent?.defaultCliPath;
+
+          // 4. Determine correct conversation type from presetAgentType
+          // Check customAgents first, then ASSISTANT_PRESETS
+          let presetAgentType = agent?.presetAgentType;
+          if (!presetAgentType && presetAssistantId.startsWith('builtin-')) {
+            const preset = getPresetById(presetAssistantId.replace('builtin-', ''));
+            presetAgentType = preset?.presetAgentType;
+          }
+          presetAgentType = presetAgentType || 'sudoclaw';
+
+          if (presetAgentType === 'sudoclaw') {
+            resolvedAgentType = 'openclaw-gateway';
+            convType = 'openclaw-gateway';
+          } else {
+            // Check that the ACP backend CLI has actually been detected on this
+            // machine. If not (e.g. Doctor wants 'claude' but Claude CLI isn't
+            // installed), fall back to Sudoclaw so the job still runs instead of
+            // silently failing inside AcpAgent.initAgent.
+            const detected = acpDetector.getDetectedAgents();
+            const hasCli = detected.some((a) => a.backend === presetAgentType && !!a.cliPath);
+            if (hasCli) {
+              resolvedAgentType = presetAgentType as AcpBackendAll;
+              convType = 'acp';
+            } else {
+              mainWarn('CronService', `Preset ${presetAssistantId} requested backend '${presetAgentType}' but no CLI was detected; falling back to sudoclaw`);
+              resolvedAgentType = 'openclaw-gateway';
+              convType = 'openclaw-gateway';
+            }
+          }
+        } catch (err) {
+          mainWarn('CronService', `Failed to resolve preset assistant resources for ${presetAssistantId}:`, err);
+        }
+      }
+
+      const agentType = resolvedAgentType;
+
+      let task;
+      let activeConversationId: string;
+
+      if (conversationMode === 'new') {
+        // ── NEW CONVERSATION PER RUN ──
+        // Create a fresh conversation for each execution, named "Apr 6 – <JobName>"
+        const runDate = new Date();
+        const yyyy = runDate.getFullYear();
+        const mm = String(runDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(runDate.getDate()).padStart(2, '0');
+        const hh = String(runDate.getHours()).padStart(2, '0');
+        const min = String(runDate.getMinutes()).padStart(2, '0');
+        const convName = `${yyyy}/${mm}/${dd} ${hh}:${min} – ${job.name}`;
+
+        mainLog('CronService', `Creating new conversation: name="${convName}" type="${convType}" agentType="${agentType}"`);
+        const result = await createConversation({
+          type: convType as any,
+          name: convName,
+          source: 'cron',
+          model: { useModel: '', provider: '', baseUrl: '' } as any,
+          extra: {
+            backend: agentType,
+            workspace: job.metadata.workspace,
+            customWorkspace: !!job.metadata.workspace,
+            cronJobId: job.id,
+            cronJobName: job.name,
+            ...(presetAssistantId && {
+              presetAssistantId,
+              customAgentId: presetAssistantId,
+              agentName: presetAgentName,
+              cliPath: presetCliPath,
+              presetContext,
+              enabledSkills,
+            }),
+          } as any,
+        });
+
+        mainLog('CronService', `createConversation result: success=${result.success} error=${result.error ?? 'none'} id=${result.conversation?.id ?? 'none'}`);
+        if (!result.success || !result.conversation) {
+          throw new Error(result.error || 'Failed to create conversation');
+        }
+
+        activeConversationId = result.conversation.id;
+        job.state.lastConversationId = activeConversationId;
+
+        mainLog('CronService', `Building task for conversationId=${activeConversationId}`);
+        task = await WorkerManage.getTaskByIdRollbackBuild(activeConversationId, { yoloMode: true });
+        mainLog('CronService', `Task built: ${task ? 'ok' : 'null'}`);
+      } else {
+        // ── REUSE EXISTING CONVERSATION ──
+        // For reuse mode, determine which conversation to use:
+        //   1. If job was created from Settings (no conversationId), use lastConversationId from previous runs
+        //   2. If job was bound to a conversation, use that conversationId
+        //   3. Auto-create on first run if neither exists
+        const reuseConvId = job.state.lastConversationId || conversationId;
+        activeConversationId = reuseConvId;
+
+        if (reuseConvId) {
+          try {
+            const existingTask = WorkerManage.getTaskById(reuseConvId);
+            if (existingTask) {
+              const yoloEnabled = await existingTask.ensureYoloMode();
+              if (yoloEnabled) {
+                task = existingTask;
+              } else {
+                WorkerManage.kill(reuseConvId);
+                task = await WorkerManage.getTaskByIdRollbackBuild(reuseConvId, { yoloMode: true });
+              }
+            } else {
+              task = await WorkerManage.getTaskByIdRollbackBuild(reuseConvId, { yoloMode: true });
+            }
+          } catch (err) {
+            mainWarn('CronService', `Failed to build task for conversation ${reuseConvId}, will auto-create: ${err}`);
+            task = null;
+          }
+        }
+
+        // Auto-create if no conversation exists yet (first run) or the bound one is gone
+        if (!task) {
+          mainLog('CronService', `Auto-creating reuse conversation for cron job ${job.id} (${job.name})`);
+          const result = await createConversation({
+            type: convType as any,
+            name: job.name,
+            source: 'cron',
+            model: { useModel: '', provider: '', baseUrl: '' } as any,
+            extra: {
+              backend: agentType,
+              workspace: job.metadata.workspace,
+              customWorkspace: !!job.metadata.workspace,
+              cronJobId: job.id,
+              cronJobName: job.name,
+              ...(presetAssistantId && {
+                presetAssistantId,
+                customAgentId: presetAssistantId,
+                agentName: presetAgentName,
+                cliPath: presetCliPath,
+                presetContext,
+                enabledSkills,
+              }),
+            } as any,
           });
+          if (!result.success || !result.conversation) {
+            throw new Error(result.error || 'Failed to create conversation');
+          }
+          activeConversationId = result.conversation.id;
+          job.state.lastConversationId = activeConversationId;
+          // Also update the bound conversationId so subsequent runs don't recreate
+          if (!conversationId) {
+            job.metadata.conversationId = activeConversationId;
+            job.metadata.conversationTitle = job.name;
+          }
+          cronStore.update(job.id, { metadata: job.metadata, state: job.state });
+
+          task = await WorkerManage.getTaskByIdRollbackBuild(activeConversationId, { yoloMode: true });
+        } else {
+          // Tag the existing conversation with cronJobId/cronJobName so it appears
+          // in the Scheduled sidebar section (only needs to happen once, idempotent)
+          try {
+            const db = getDatabase();
+            const existing = db.getConversation(activeConversationId);
+            if (existing.success && existing.data && !(existing.data.extra as any)?.cronJobId) {
+              db.updateConversation(activeConversationId, {
+                extra: { ...(existing.data.extra as any), cronJobId: job.id, cronJobName: job.name } as any,
+              });
+            }
+          } catch (err) {
+            mainWarn('CronService', 'Failed to tag reuse conversation with cronJobId:', err);
+          }
         }
-      } catch (err) {
-        job.state.lastStatus = 'error';
-        job.state.lastError = err instanceof Error ? err.message : 'Conversation not found';
-        this.updateNextRunTime(job);
-        cronStore.update(job.id, { state: job.state });
-        const updatedJob = cronStore.getById(job.id);
-        if (updatedJob) {
-          ipcBridge.cron.onJobUpdated.emit(updatedJob);
-        }
-        return;
       }
 
       if (!task) {
-        job.state.lastStatus = 'error';
-        job.state.lastError = 'Conversation not found';
-        this.updateNextRunTime(job);
-        cronStore.update(job.id, { state: job.state });
-        const updatedJob = cronStore.getById(job.id);
-        if (updatedJob) {
-          ipcBridge.cron.onJobUpdated.emit(updatedJob);
-        }
-        return;
+        throw new Error('Failed to initialize task');
       }
 
+      mainLog('CronService', `Sending message to conversationId=${activeConversationId}`);
       // Get workspace from task (all agent managers have this property)
       const workspace = (task as { workspace?: string }).workspace;
-
-      // Copy files to workspace if needed (empty array for cron jobs)
       const workspaceFiles = workspace ? await copyFilesToDirectory(workspace, [], false) : [];
 
       // Build cronMeta for message origin tracking
@@ -391,9 +623,8 @@ class CronService {
         triggeredAt: Date.now(),
       };
 
-      // Call sendMessage directly on the task
-      // Both ACP and OpenClaw use 'content' parameter
       await task.sendMessage({ content: messageText, msg_id: msgId, files: workspaceFiles, cronMeta });
+      mainLog('CronService', `Message sent successfully`);
 
       // Success
       job.state.lastStatus = 'ok';
@@ -403,15 +634,14 @@ class CronService {
       // Update conversation modifyTime so it appears at the top of the list
       try {
         const db = getDatabase();
-        db.updateConversation(conversationId, {});
+        db.updateConversation(activeConversationId, {});
       } catch (err) {
-        console.warn('[CronService] Failed to update conversation modifyTime after execution:', err);
+        mainWarn('CronService', 'Failed to update conversation modifyTime after execution:', err);
       }
     } catch (error) {
-      // Error
       job.state.lastStatus = 'error';
       job.state.lastError = error instanceof Error ? error.message : String(error);
-      console.error(`[CronService] Job ${job.id} failed:`, error);
+      mainError('CronService', `Job ${job.id} failed:`, error);
     }
 
     // Update next run time
@@ -463,7 +693,7 @@ class CronService {
   async handleSystemResume(): Promise<void> {
     if (!this.initialized) return;
 
-    console.log('[CronService] System resumed, checking for missed jobs...');
+    mainLog('CronService', 'System resumed, checking for missed jobs...');
     const now = Date.now();
     const jobs = cronStore.listEnabled();
 
@@ -474,7 +704,7 @@ class CronService {
       // Check if job was missed during sleep
       const nextRunAt = job.state.nextRunAtMs;
       if (nextRunAt && nextRunAt <= now) {
-        console.log(`[CronService] Missed job "${job.name}" (was due at ${new Date(nextRunAt).toISOString()})`);
+        mainLog('CronService', `Missed job "${job.name}" (was due at ${new Date(nextRunAt).toISOString()})`);
 
         // Update job state to reflect missed execution
         job.state.lastStatus = 'missed';
@@ -529,6 +759,35 @@ class CronService {
   }
 
   /**
+   * Returns whether the powerSaveBlocker is currently active
+   */
+  getPowerSaveActive(): boolean {
+    return this.powerSaveBlockerId !== null;
+  }
+
+  /**
+   * Manually enable or disable the powerSaveBlocker (user preference)
+   */
+  setPowerSave(enabled: boolean): void {
+    if (enabled && this.powerSaveBlockerId === null) {
+      try {
+        this.powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+        mainLog('CronService', 'PowerSaveBlocker manually started');
+      } catch (error) {
+        mainWarn('CronService', 'Failed to start powerSaveBlocker:', error);
+      }
+    } else if (!enabled && this.powerSaveBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(this.powerSaveBlockerId);
+        mainLog('CronService', 'PowerSaveBlocker manually stopped');
+      } catch (error) {
+        mainWarn('CronService', 'Failed to stop powerSaveBlocker:', error);
+      }
+      this.powerSaveBlockerId = null;
+    }
+  }
+
+  /**
    * Manage powerSaveBlocker to keep the app alive while cron jobs are active.
    * Uses 'prevent-app-suspension' mode which prevents the app from being suspended
    * but does not prevent the display from sleeping.
@@ -539,16 +798,16 @@ class CronService {
     if (hasEnabledJobs && this.powerSaveBlockerId === null) {
       try {
         this.powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-        console.log('[CronService] PowerSaveBlocker started (prevent-app-suspension)');
+        mainLog('CronService', 'PowerSaveBlocker started (prevent-app-suspension)');
       } catch (error) {
-        console.warn('[CronService] Failed to start powerSaveBlocker:', error);
+        mainWarn('CronService', 'Failed to start powerSaveBlocker:', error);
       }
     } else if (!hasEnabledJobs && this.powerSaveBlockerId !== null) {
       try {
         powerSaveBlocker.stop(this.powerSaveBlockerId);
-        console.log('[CronService] PowerSaveBlocker stopped (no active jobs)');
+        mainLog('CronService', 'PowerSaveBlocker stopped (no active jobs)');
       } catch (error) {
-        console.warn('[CronService] Failed to stop powerSaveBlocker:', error);
+        mainWarn('CronService', 'Failed to stop powerSaveBlocker:', error);
       }
       this.powerSaveBlockerId = null;
     }

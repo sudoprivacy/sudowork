@@ -4,20 +4,159 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
+import * as path from 'path';
+import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
+import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
+import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
+import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage } from '../task/agentUtils';
+import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
+import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
+
+const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
+  const workspace = conversation.extra.workspace;
+  const startedAt = Date.now();
+  const latestEnabledSkills = await resolveLatestConversationEnabledSkills(conversation);
+
+  if (conversation?.id && !areSkillSelectionsEqual(conversation.extra?.enabledSkills, latestEnabledSkills)) {
+    const db = getDatabase();
+    const updateResult = db.updateConversation(conversation.id, {
+      extra: {
+        ...conversation.extra,
+        enabledSkills: latestEnabledSkills,
+      },
+    } as Partial<TChatConversation>);
+
+    if (!updateResult.success) {
+      mainWarn('ConversationSkillSync', `Failed to refresh enabled skills cache for conversation ${conversation.id}: ${updateResult.error}`);
+    } else {
+      conversation = {
+        ...conversation,
+        extra: {
+          ...conversation.extra,
+          enabledSkills: latestEnabledSkills,
+        },
+      };
+    }
+  }
+
+  const workspaceSkillsDir = resolveWorkspaceSkillsDir(conversation);
+  if (!workspaceSkillsDir) return;
+  await fs.mkdir(workspaceSkillsDir, { recursive: true });
+
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), resolveConversationEnabledSkillNames(conversation, requestedSkillNames));
+  const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
+  const existingNames = new Set(existingEntries.map((entry) => entry.name));
+  let removedCount = 0;
+  let recreatedCount = 0;
+  let createdCount = 0;
+
+  for (const entry of existingEntries) {
+    const entryPath = path.join(workspaceSkillsDir, entry.name);
+    const expectedTarget = expectedTargets.get(entry.name);
+
+    if (!expectedTarget) {
+      await fs.rm(entryPath, { recursive: true, force: true });
+      removedCount++;
+      continue;
+    }
+
+    try {
+      const stat = await fs.lstat(entryPath);
+      if (!stat.isSymbolicLink()) {
+        await fs.rm(entryPath, { recursive: true, force: true });
+        existingNames.delete(entry.name);
+        recreatedCount++;
+        continue;
+      }
+
+      const linkedTarget = await fs.readlink(entryPath);
+      const resolvedLinkedTarget = path.resolve(path.dirname(entryPath), linkedTarget);
+      if (resolvedLinkedTarget !== path.resolve(expectedTarget)) {
+        await fs.rm(entryPath, { recursive: true, force: true });
+        existingNames.delete(entry.name);
+        recreatedCount++;
+      }
+    } catch {
+      await fs.rm(entryPath, { recursive: true, force: true });
+      existingNames.delete(entry.name);
+      recreatedCount++;
+    }
+  }
+
+  for (const [skillName, targetDir] of expectedTargets) {
+    if (existingNames.has(skillName)) continue;
+    const linkPath = path.join(workspaceSkillsDir, skillName);
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    await fs.symlink(targetDir, linkPath, linkType);
+    createdCount++;
+  }
+
+  mainLog('ConversationSkillSync', 'syncConversationWorkspaceSkills completed', {
+    conversationId: conversation?.id,
+    workspace,
+    expectedCount: expectedTargets.size,
+    existingCount: existingEntries.length,
+    removedCount,
+    recreatedCount,
+    createdCount,
+    durationMs: Date.now() - startedAt,
+  });
+}
+
+function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): void {
+  if (!shouldSyncWorkspaceSkills(conversation)) return;
+  const workspace = conversation.extra.workspace;
+
+  const existingTask = workspaceSkillSyncTasks.get(workspace);
+  if (existingTask) {
+    mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync skipped: task already running', {
+      conversationId: conversation?.id,
+      workspace,
+    });
+    return;
+  }
+
+  mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync queued', {
+    conversationId: conversation?.id,
+    workspace,
+  });
+
+  const task = Promise.resolve()
+    .then(async () => {
+      await syncConversationWorkspaceSkills(conversation);
+    })
+    .catch((error) => {
+      mainWarn('ConversationSkillSync', 'Failed to sync workspace skills', error);
+    })
+    .finally(() => {
+      workspaceSkillSyncTasks.delete(workspace);
+      mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync finished', {
+        conversationId: conversation?.id,
+        workspace,
+      });
+    });
+
+  workspaceSkillSyncTasks.set(workspace, task);
+}
 
 export function initConversationBridge(): void {
   ipcBridge.openclawConversation.getRuntime.provider(async ({ conversation_id }) => {
@@ -243,6 +382,8 @@ export function initConversationBridge(): void {
       throw new Error(result.error || 'Failed to create conversation');
     }
 
+    scheduleConversationWorkspaceSkillSync(result.conversation);
+
     return result.conversation;
   });
 
@@ -293,7 +434,7 @@ export function initConversationBridge(): void {
       // Filter by workspace
       return allConversations.filter((item) => item.extra?.workspace === currentConversation.extra.workspace);
     } catch (error) {
-      console.error('[conversationBridge] Failed to get associate conversations:', error);
+      mainError('conversationBridge', 'Failed to get associate conversations:', error);
       return [];
     }
   });
@@ -308,7 +449,7 @@ export function initConversationBridge(): void {
       const db = getDatabase();
       const result = db.createConversation(conversation);
       if (!result.success) {
-        console.error('[conversationBridge] Failed to create conversation in database:', result.error);
+        mainError('conversationBridge', 'Failed to create conversation in database:', result.error);
       }
 
       // Migrate messages if sourceConversationId is provided / 如果提供了源会话ID，则迁移消息
@@ -344,25 +485,43 @@ export function initConversationBridge(): void {
           if (sourceMessages.total === newMessages.total) {
             const deleteResult = db.deleteConversation(sourceConversationId);
             if (deleteResult.success) {
-              console.log(`[conversationBridge] Successfully migrated and deleted source conversation ${sourceConversationId}`);
+              mainLog('conversationBridge', `Successfully migrated and deleted source conversation ${sourceConversationId}`);
             } else {
-              console.error(`[conversationBridge] Failed to delete source conversation ${sourceConversationId}: ${deleteResult.error}`);
+              mainError('conversationBridge', `Failed to delete source conversation ${sourceConversationId}: ${deleteResult.error}`);
             }
           } else {
-            console.error('[conversationBridge] Migration integrity check failed: Message counts do not match.', {
+            mainError('conversationBridge', 'Migration integrity check failed: Message counts do not match.', {
               source: sourceMessages.total,
               new: newMessages.total,
             });
           }
         } catch (msgError) {
-          console.error('[conversationBridge] Failed to copy messages during migration:', msgError);
+          mainError('conversationBridge', 'Failed to copy messages during migration:', msgError);
         }
       }
 
+      scheduleConversationWorkspaceSkillSync(conversation);
+
       return Promise.resolve(conversation);
     } catch (error) {
-      console.error('[conversationBridge] Failed to create conversation with conversation:', error);
+      mainError('conversationBridge', 'Failed to create conversation with conversation:', error);
       return Promise.resolve(conversation);
+    }
+  });
+
+  ipcBridge.conversation.syncWorkspaceSkills.provider(async ({ conversation_id }) => {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(conversation_id);
+      if (!result.success || !result.data) {
+        return { success: false, msg: 'Conversation not found' };
+      }
+
+      scheduleConversationWorkspaceSkillSync(result.data);
+      return { success: true };
+    } catch (error) {
+      mainError('conversationBridge', 'Failed to sync workspace skills:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -386,7 +545,7 @@ export function initConversationBridge(): void {
           ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
         }
       } catch (cronError) {
-        console.warn('[conversationBridge] Failed to cleanup cron jobs:', cronError);
+        mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
       }
 
       // If source is not 'aionui' (e.g., telegram), cleanup channel resources
@@ -396,23 +555,23 @@ export function initConversationBridge(): void {
           const channelManager = getChannelManager();
           if (channelManager.isInitialized()) {
             await channelManager.cleanupConversation(id);
-            console.log(`[conversationBridge] Cleaned up channel resources for ${source} conversation ${id}`);
+            mainLog('conversationBridge', `Cleaned up channel resources for ${source} conversation ${id}`);
           }
         } catch (cleanupError) {
-          console.warn('[conversationBridge] Failed to cleanup channel resources:', cleanupError);
+          mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
         }
       }
 
       // Delete conversation from database (will cascade delete messages due to foreign key)
       const result = db.deleteConversation(id);
       if (!result.success) {
-        console.error('[conversationBridge] Failed to delete conversation from database:', result.error);
+        mainError('conversationBridge', 'Failed to delete conversation from database:', result.error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('[conversationBridge] Failed to remove conversation:', error);
+      mainError('conversationBridge', 'Failed to remove conversation:', error);
       return false;
     }
   });
@@ -449,7 +608,7 @@ export function initConversationBridge(): void {
 
       return result.success;
     } catch (error) {
-      console.error('[conversationBridge] Failed to update conversation:', error);
+      mainError('conversationBridge', 'Failed to update conversation:', error);
       return false;
     }
   });
@@ -488,7 +647,7 @@ export function initConversationBridge(): void {
 
       return undefined;
     } catch (error) {
-      console.error('[conversationBridge] Failed to get conversation:', error);
+      mainError('conversationBridge', 'Failed to get conversation:', error);
       return undefined;
     }
   });
@@ -497,7 +656,7 @@ export function initConversationBridge(): void {
   // Uses cache-only lookup (getTaskById) — no side effects, no bootstrapping
   ipcBridge.conversation.getConnectionStatus.provider(async ({ conversation_id }) => {
     try {
-      const task = WorkerManage.getTaskById(conversation_id) as (OpenClawAgent | AcpAgent | undefined);
+      const task = WorkerManage.getTaskById(conversation_id) as OpenClawAgent | AcpAgent | undefined;
       if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
         return { success: true, data: { status: null } };
       }
@@ -532,10 +691,13 @@ export function initConversationBridge(): void {
         },
       }).then((res) => (res ? [res] : []));
     } catch (error) {
-      if (error instanceof Error && error.message.includes('aborted')) {
-        return [];
+      // Always return [] on error — throwing from a bridge provider
+      // leaves the renderer invoke() promise hanging forever because
+      // the bridge subscribe handler has no .catch() on the provider call.
+      if (error instanceof Error && !error.message.includes('aborted')) {
+        mainWarn('conversationBridge', 'getWorkspace failed:', error.message);
       }
-      throw error;
+      return [];
     }
   });
 
@@ -557,18 +719,24 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
+      const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
+
       const conversation = convResult.data;
+      if (conversation.type === 'openclaw-gateway') {
+        return { success: true, data: { commands: [imageCommand] } };
+      }
+
       if (conversation.type !== 'acp') {
         return { success: true, data: { commands: [] } };
       }
 
       const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
-        return { success: true, data: { commands: [] } };
+        return { success: true, data: { commands: [imageCommand] } };
       }
 
       const commands = await task.loadAcpSlashCommands();
-      return { success: true, data: { commands } };
+      return { success: true, data: { commands: [imageCommand, ...commands] } };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
@@ -576,47 +744,149 @@ export function initConversationBridge(): void {
 
   // 通用 sendMessage 实现 - 自动根据 conversation 类型分发
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
-    console.log(`[conversationBridge] sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
+    mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
     let task: AcpAgent | OpenClawAgent | undefined;
     try {
       task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
     } catch (err) {
-      console.log(`[conversationBridge] sendMessage: failed to get/build task: ${conversation_id}`, err);
+      mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
     }
 
     if (!task) {
-      console.log(`[conversationBridge] sendMessage: conversation not found: ${conversation_id}`);
+      mainLog('conversationBridge', `sendMessage: conversation not found: ${conversation_id}`);
       return { success: false, msg: 'conversation not found' };
     }
-    console.log(`[conversationBridge] sendMessage: found task type=${task.type}, status=${task.status}`);
+    mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
 
     // 复制文件到工作空间（所有 agents 统一处理）
     let filesToProcess = files ?? [];
     const openclawTask = task as OpenClawAgent;
     if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
       filesToProcess = [openclawTask.workspace];
-      console.log(`[conversationBridge] OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
+      mainLog('conversationBridge', `OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
     }
-    const workspaceFiles = await copyFilesToDirectory(task.workspace ?? '', filesToProcess, false);
+
+    // Download bdpan:// files to workspace before copying
+    const workspace = task.workspace ?? '';
+    const resolvedFiles: string[] = [];
+    for (const f of filesToProcess) {
+      if (f.startsWith('bdpan://')) {
+        // Parse bdpan:///<path>?root=<root>
+        const raw = decodeURIComponent(f.slice('bdpan://'.length));
+        const qIdx = raw.indexOf('?');
+        const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
+        const rootParam = qIdx >= 0 ? (new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '') : '';
+        // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
+        const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
+        const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
+        const filename = remoteFull.split('/').filter(Boolean).pop() ?? 'bdpan_file';
+        const destDir = workspace || os.tmpdir();
+        const localPath = path.join(destDir, filename);
+        mainLog('ConversationBridge', `Downloading bdpan file: ${remoteArg} → ${localPath}`);
+        try {
+          const localBin = `${os.homedir()}/.local/bin`;
+          if (!process.env.PATH?.includes(localBin)) {
+            process.env.PATH = `${localBin}:${process.env.PATH ?? ''}`;
+          }
+          await new Promise<void>((resolve) => {
+            const args = ['download', remoteArg, localPath, '--json'];
+            mainLog('ConversationBridge', `bdpan spawn: bdpan ${args.join(' ')}`);
+            const child = spawn('bdpan', args, {
+              env: { ...process.env, HOME: os.homedir() },
+            });
+            let stdout = '';
+            let stderr = '';
+            child.stdout?.on('data', (d: Buffer) => {
+              stdout += d.toString();
+            });
+            child.stderr?.on('data', (d: Buffer) => {
+              stderr += d.toString();
+            });
+            child.on('close', (code) => {
+              mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
+              let jsonCode: number | undefined;
+              let jsonError: string | undefined;
+              try {
+                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
+                jsonCode = json.code;
+                jsonError = json.error || undefined;
+              } catch (_err) {
+                // Ignore non-JSON output and fall back to stderr/stdout text.
+              }
+              if (jsonCode === 0) {
+                mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
+                resolvedFiles.push(localPath);
+                ipcBridge.bdpan.downloadResult.emit({ success: true });
+              } else {
+                const dlErr = jsonError || stderr || stdout || 'bdpan download failed';
+                mainError('ConversationBridge', `bdpan download failed: ${dlErr}`);
+                ipcBridge.bdpan.downloadResult.emit({ success: false, error: dlErr });
+              }
+              resolve();
+            });
+            child.on('error', (err) => {
+              mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
+              ipcBridge.bdpan.downloadResult.emit({ success: false, error: err.message });
+              resolve();
+            });
+          });
+        } catch (err) {
+          mainError('ConversationBridge', `bdpan download exception: ${err}`);
+        }
+      } else {
+        resolvedFiles.push(f);
+      }
+    }
+    filesToProcess = resolvedFiles;
+
+    const workspaceFiles = await copyFilesToDirectory(workspace, filesToProcess, false);
+
+    // Get conversation to access presetContext and enabledSkills for preset assistants
+    // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
+    let presetContext: string | undefined;
+    let enabledSkills: string[] | undefined;
+    let conversation: TChatConversation | undefined;
+    try {
+      const db = getDatabase();
+      const convResult = db.getConversation(conversation_id);
+      if (convResult.success && convResult.data) {
+        conversation = convResult.data;
+        presetContext = conversation.extra?.presetContext;
+        enabledSkills = await resolveLatestConversationEnabledSkills(conversation);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Ensure workspace skills symlinks exist before dispatching to the gateway.
+    // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
+    await syncConversationWorkspaceSkills(conversation, other.skills);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
-      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string } = {
+      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
         content: other.input,
         files: workspaceFiles,
         msg_id: other.msg_id,
+        skills: other.skills || [],
       };
 
-      // OpenClaw-specific: inject skill content and workspace hints into agentContent
+      // OpenClaw-specific: inject preset rules, skills content and workspace hints into agentContent
       if (task.type === 'openclaw-gateway') {
         let agentContent = other.input;
-        if (other.injectSkills?.length) {
-          agentContent = await prepareFirstMessage(other.input, { enabledSkills: other.injectSkills });
-          const skillsDir = getSkillsDir();
-          agentContent = agentContent.replace('[User Request]', `[Skills Directory]\nSkills are installed at: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".\n\n[User Request]`);
+
+        const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
+        agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
+          presetContext,
+          enabledSkills: skillsToInject,
+        });
+        const skillsDir = resolveWorkspaceSkillsDir(conversation);
+        if (skillsDir) {
+          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir);
         }
+
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
           const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
           agentContent = hint + agentContent;

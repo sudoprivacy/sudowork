@@ -12,6 +12,7 @@ import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '../../../../common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -40,7 +41,7 @@ export class QwenMcpAgent extends AbstractMcpAgent {
 
         // 如果没有配置任何MCP服务器，返回空数组
         if (result.trim() === 'No MCP servers configured.' || !result.trim()) {
-          console.log('[QwenMcpAgent] No MCP servers configured');
+          mainLog('QwenMcpAgent', 'No MCP servers configured');
           return [];
         }
 
@@ -88,7 +89,7 @@ export class QwenMcpAgent extends AbstractMcpAgent {
                 const testResult = await this.testMcpConnection(transportObj);
                 tools = testResult.tools || [];
               } catch (error) {
-                console.warn(`[QwenMcpAgent] Failed to get tools for ${name.trim()}:`, error);
+                mainWarn('QwenMcpAgent', `Failed to get tools for ${name.trim()}:`, error);
                 // 如果获取tools失败，继续使用空数组
               }
             }
@@ -127,10 +128,10 @@ export class QwenMcpAgent extends AbstractMcpAgent {
           }
         }
 
-        console.log(`[QwenMcpAgent] Detection complete: found ${mcpServers.length} server(s)`);
+        mainLog('QwenMcpAgent', `Detection complete: found ${mcpServers.length} server(s)`);
         return mcpServers;
       } catch (error) {
-        console.warn('[QwenMcpAgent] Failed to get Qwen Code MCP config:', error);
+        mainWarn('QwenMcpAgent', 'Failed to get Qwen Code MCP config:', error);
         return [];
       }
     };
@@ -169,7 +170,7 @@ export class QwenMcpAgent extends AbstractMcpAgent {
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Qwen Code:`, error);
+              mainWarn('QwenMcpAgent', `Failed to add MCP ${server.name} to Qwen Code:`, error);
             }
           } else if (server.transport.type === 'sse' || server.transport.type === 'http' || server.transport.type === 'streamable_http') {
             // 处理 SSE/HTTP/Streamable HTTP 传输类型
@@ -190,7 +191,7 @@ export class QwenMcpAgent extends AbstractMcpAgent {
             try {
               await safeExec(command, { timeout: 5000, ...getExecEnv() });
             } catch (error) {
-              console.warn(`Failed to add MCP ${server.name} to Qwen Code:`, error);
+              mainWarn('QwenMcpAgent', `Failed to add MCP ${server.name} to Qwen Code:`, error);
             }
           }
         }
@@ -258,7 +259,7 @@ export class QwenMcpAgent extends AbstractMcpAgent {
               }
               return { success: true };
             } catch (fileError) {
-              console.warn(`Failed to update config file ${configPath}:`, fileError);
+              mainWarn('QwenMcpAgent', `Failed to update config file ${configPath}:`, fileError);
               return { success: true }; // 如果配置文件操作失败，也认为成功
             }
           }

@@ -15,11 +15,15 @@
 
 import { execFile, execFileSync } from 'child_process';
 import { accessSync, existsSync, readdirSync } from 'fs';
+import { app } from 'electron';
 import os from 'os';
 import path from 'path';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
+const DEV_NPM_REGISTRY = 'https://mirrors.cloud.tencent.com/npm/';
 
 /**
  * Environment variables to inherit from user's shell.
@@ -61,14 +65,14 @@ function loadShellEnvironment(): Record<string, string> {
 
   // Skip on Windows - shell config loading not needed
   if (process.platform === 'win32') {
-    if (PERF_LOG) console.log(`[ShellEnv] connect: shell env skipped (Windows) ${Date.now() - startTime}ms`);
+    if (PERF_LOG) mainLog('ShellEnv', `connect: shell env skipped (Windows) ${Date.now() - startTime}ms`);
     return cachedShellEnv;
   }
 
   try {
     const shell = process.env.SHELL || '/bin/bash';
     if (!path.isAbsolute(shell)) {
-      console.warn('[ShellEnv] SHELL is not an absolute path, skipping shell env loading:', shell);
+      mainWarn('ShellEnv', 'SHELL is not an absolute path, skipping shell env loading:', shell);
       return cachedShellEnv;
     }
     // Use -i (interactive) and -l (login) to load all shell configs
@@ -93,14 +97,14 @@ function loadShellEnvironment(): Record<string, string> {
     }
 
     if (PERF_LOG && cachedShellEnv.PATH) {
-      console.log('[ShellEnv] Loaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
+      mainLog('ShellEnv', 'Loaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
     }
   } catch (error) {
     // Silent fail - shell environment loading is best-effort
-    console.warn('[ShellEnv] Failed to load shell environment:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to load shell environment:', error instanceof Error ? error.message : String(error));
   }
 
-  if (PERF_LOG) console.log(`[ShellEnv] connect: shell env loaded ${Date.now() - startTime}ms`);
+  if (PERF_LOG) mainLog('ShellEnv', `connect: shell env loaded ${Date.now() - startTime}ms`);
   return cachedShellEnv;
 }
 
@@ -126,7 +130,7 @@ export async function loadShellEnvironmentAsync(): Promise<Record<string, string
   try {
     const shell = process.env.SHELL || '/bin/bash';
     if (!path.isAbsolute(shell)) {
-      console.warn('[ShellEnv] SHELL is not an absolute path, skipping async shell env loading:', shell);
+      mainWarn('ShellEnv', 'SHELL is not an absolute path, skipping async shell env loading:', shell);
       cachedShellEnv = {};
       return cachedShellEnv;
     }
@@ -162,12 +166,12 @@ export async function loadShellEnvironmentAsync(): Promise<Record<string, string
     cachedShellEnv = env;
 
     if (PERF_LOG && cachedShellEnv.PATH) {
-      console.log('[ShellEnv] Preloaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
+      mainLog('ShellEnv', 'Preloaded PATH from shell:', cachedShellEnv.PATH.substring(0, 100) + '...');
     }
-    if (PERF_LOG) console.log(`[ShellEnv] preload: shell env async loaded ${Date.now() - startTime}ms`);
+    if (PERF_LOG) mainLog('ShellEnv', `preload: shell env async loaded ${Date.now() - startTime}ms`);
   } catch (error) {
     cachedShellEnv = {};
-    console.warn('[ShellEnv] Failed to async load shell environment:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to async load shell environment:', error instanceof Error ? error.message : String(error));
   }
 
   return cachedShellEnv;
@@ -265,7 +269,7 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, winExtraPaths.join(';'));
   }
 
-  return {
+  const enhancedEnv = {
     ...process.env,
     ...shellEnv,
     ...customEnv,
@@ -273,6 +277,13 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     // When customEnv.PATH exists, merge it with the already merged path (fix: don't override)
     PATH: customEnv?.PATH ? mergePaths(mergedPath, customEnv.PATH) : mergedPath,
   } as Record<string, string>;
+
+  if (!app.isPackaged) {
+    enhancedEnv.NPM_CONFIG_REGISTRY = DEV_NPM_REGISTRY;
+    enhancedEnv.npm_config_registry = DEV_NPM_REGISTRY;
+  }
+
+  return enhancedEnv;
 }
 
 /**
@@ -389,6 +400,8 @@ function parseEnvOutput(output: string): Record<string, string> {
 export function resolveNpxPath(env: Record<string, string | undefined>): string {
   const isWindows = process.platform === 'win32';
   const npxName = isWindows ? 'npx.cmd' : 'npx';
+
+  // 1. Try to find node on PATH and use its co-located npx
   try {
     const whichCmd = isWindows ? 'where' : 'which';
     const nodePath = execFileSync(whichCmd, ['node'], {
@@ -411,10 +424,49 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
     if (majorVersion >= 7) {
       return npxCandidate;
     }
-    console.warn(`[ShellEnv] npx at ${npxCandidate} is v${versionOutput} (too old), falling back to PATH lookup`);
+    mainWarn('ShellEnv', `npx at ${npxCandidate} is v${versionOutput} (too old), falling back to PATH lookup`);
   } catch {
-    // which/node/npx resolution failed
+    // which/node/npx resolution failed — try bundled Node.js next
   }
+
+  // 2. Try bundled Node.js (shipped with the app in resources)
+  try {
+    if (isNodeInstalled()) {
+      const bundledNodePath = getNodeBinaryPath();
+      const bundledNodeDir = path.dirname(bundledNodePath);
+      const bundledNpx = path.join(bundledNodeDir, npxName);
+      if (existsSync(bundledNpx)) {
+        mainLog('ShellEnv', `Using bundled npx: ${bundledNpx}`);
+        // Prepend the bundled node directory to PATH so that npx.cmd (and any
+        // child processes it spawns) can find `node` without requiring a
+        // system-wide Node.js installation.  This mirrors how
+        // ensureMinNodeVersion() mutates env.PATH.
+        const sep = isWindows ? ';' : ':';
+        env.PATH = bundledNodeDir + sep + (env.PATH || '');
+        mainLog('ShellEnv', `Prepended bundled node dir to PATH: ${bundledNodeDir}`);
+        return bundledNpx;
+      }
+    }
+  } catch {
+    // Bundled Node.js check failed
+  }
+
+  // 3. Verify the bare fallback npx actually exists on PATH
+  try {
+    const whichCmd = isWindows ? 'where' : 'which';
+    execFileSync(whichCmd, [npxName], {
+      env,
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return npxName;
+  } catch {
+    // npx not found on PATH either
+  }
+
+  // 4. Nothing found — warn clearly and return bare name as last resort
+  mainWarn('ShellEnv', `Node.js/npx could not be found on this system. ` + `Please install Node.js (https://nodejs.org/) and ensure it is on your PATH. ` + `Returning bare '${npxName}' which will likely fail.`);
   return npxName;
 }
 
@@ -446,10 +498,10 @@ export function loadFullShellEnvironment(): Record<string, string> {
     cachedFullShellEnv = parseEnvOutput(output);
     const varCount = Object.keys(cachedFullShellEnv).length;
     const shellPath = cachedFullShellEnv.PATH || '(empty)';
-    console.log(`[ShellEnv] Full shell env loaded: ${varCount} vars, shell=${shell}`);
-    console.log(`[ShellEnv] Shell PATH (first 200 chars): ${shellPath.substring(0, 200)}`);
+    mainLog('ShellEnv', `Full shell env loaded: ${varCount} vars, shell=${shell}`);
+    mainLog('ShellEnv', `Shell PATH (first 200 chars): ${shellPath.substring(0, 200)}`);
   } catch (error) {
-    console.warn('[ShellEnv] Failed to load full shell env:', error instanceof Error ? error.message : String(error));
+    mainWarn('ShellEnv', 'Failed to load full shell env:', error instanceof Error ? error.message : String(error));
   }
   return cachedFullShellEnv;
 }

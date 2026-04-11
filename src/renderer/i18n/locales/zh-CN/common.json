@@ -57,6 +57,8 @@
   "goToSettings": "前往设置",
   "forward": "前进",
   "more": "更多",
+  "skip": "跳过",
+  "setupContinuesInBackground": "先进入应用，运行环境会继续在后台安装。",
   "refresh": "刷新",
   "tray.showWindow": "显示 Sudowork",
   "tray.quit": "退出"

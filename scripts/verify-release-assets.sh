@@ -55,6 +55,12 @@ assert_metadata_points_to_existing_file() {
 assert_metadata_points_to_existing_file "latest.yml" "(win-x64|win32-x64|x64)"
 assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-x64|darwin-x64|x64)"
 assert_metadata_points_to_existing_file "latest-linux.yml" "(linux|AppImage)"
+if ! extract_ref_file "$OUTPUT_DIR/latest-mac.yml" | grep -q '\.zip$'; then
+  echo "FAIL: latest-mac.yml should reference a .zip package"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "PASS: latest-mac.yml references a .zip package"
+fi
 
 # Architecture-scoped metadata: electron-updater constructs filenames from
 # channel names set in autoUpdaterService.ts:
@@ -68,6 +74,13 @@ for f in arm64-mac.yml win-arm64.yml arm64-linux.yml; do
     echo "PASS: $f exists"
   fi
 done
+assert_metadata_points_to_existing_file "arm64-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
+if ! extract_ref_file "$OUTPUT_DIR/arm64-mac.yml" | grep -q '\.zip$'; then
+  echo "FAIL: arm64-mac.yml should reference a .zip package"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "PASS: arm64-mac.yml references a .zip package"
+fi
 
 for f in builder-debug-win-x64.yml builder-debug-win-arm64.yml builder-debug-mac-x64.yml builder-debug-mac-arm64.yml builder-debug-linux.yml builder-debug.yml; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
@@ -78,7 +91,7 @@ for f in builder-debug-win-x64.yml builder-debug-win-arm64.yml builder-debug-mac
   fi
 done
 
-for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-mac-x64.dmg Sudowork-1.0.0-mac-arm64.dmg Sudowork-1.0.0.AppImage Sudowork-1.0.0-arm64.AppImage; do
+for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-mac-x64.dmg Sudowork-1.0.0-mac-arm64.dmg Sudowork-1.0.0-mac-x64.zip Sudowork-1.0.0-mac-arm64.zip Sudowork-1.0.0.AppImage Sudowork-1.0.0-arm64.AppImage; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing distributable: $f"
     ERRORS=$((ERRORS + 1))

@@ -6,30 +6,11 @@
  * can subclass and override `buildError()` for domain-specific error mapping.
  */
 
-import {
-  AbortError,
-  AuthenticationError,
-  ConflictError,
-  ForbiddenError,
-  NetworkError,
-  NexusApiError,
-  NotFoundError,
-  RateLimitError,
-  ServerError,
-  TimeoutError,
-} from "./errors.js";
-import type {
-  ApiErrorResponse,
-  AspectEnvelope,
-  CatalogSchemaResponse,
-  ColumnSearchResponse,
-  NexusClientOptions,
-  ReplayResponse,
-  RequestOptions,
-} from "./types.js";
-import { camelToSnakeKeys, snakeToCamelKeys } from "./case-transform.js";
+import { AbortError, AuthenticationError, ConflictError, ForbiddenError, NetworkError, NexusApiError, NotFoundError, RateLimitError, ServerError, TimeoutError } from './errors.js';
+import type { ApiErrorResponse, AspectEnvelope, CatalogSchemaResponse, ColumnSearchResponse, NexusClientOptions, ReplayResponse, RequestOptions } from './types.js';
+import { camelToSnakeKeys, snakeToCamelKeys } from './case-transform.js';
 
-const DEFAULT_BASE_URL = "http://localhost:12012";
+const DEFAULT_BASE_URL = 'http://localhost:12012';
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 500;
@@ -49,7 +30,7 @@ export class FetchClient {
 
   constructor(options: NexusClientOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.fetchFn = options.fetch ?? globalThis.fetch;
@@ -60,31 +41,31 @@ export class FetchClient {
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<T> {
-    return this.request<T>("GET", path, undefined, options);
+    return this.request<T>('GET', path, undefined, options);
   }
 
   async post<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>("POST", path, body, options);
+    return this.request<T>('POST', path, body, options);
   }
 
   async put<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>("PUT", path, body, options);
+    return this.request<T>('PUT', path, body, options);
   }
 
   async patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>("PATCH", path, body, options);
+    return this.request<T>('PATCH', path, body, options);
   }
 
   async delete<T>(path: string, options?: RequestOptions): Promise<T> {
-    return this.request<T>("DELETE", path, undefined, options);
+    return this.request<T>('DELETE', path, undefined, options);
   }
 
   async postNoContent(path: string, body?: unknown, options?: RequestOptions): Promise<void> {
-    await this.requestRaw("POST", path, body, options);
+    await this.requestRaw('POST', path, body, options);
   }
 
   async deleteNoContent(path: string, options?: RequestOptions): Promise<void> {
-    await this.requestRaw("DELETE", path, undefined, options);
+    await this.requestRaw('DELETE', path, undefined, options);
   }
 
   /**
@@ -99,12 +80,7 @@ export class FetchClient {
    * Intended for the API Console and similar exploratory tools that need
    * full control over the request/response while still using real auth.
    */
-  async rawRequest(
-    method: string,
-    path: string,
-    body?: string,
-    options?: RequestOptions,
-  ): Promise<Response> {
+  async rawRequest(method: string, path: string, body?: string, options?: RequestOptions): Promise<Response> {
     const url = `${this.baseUrl}${path}`;
     const headers = this.buildHeaders(method, options);
     const effectiveTimeout = options?.timeout ?? this.timeout;
@@ -117,9 +93,9 @@ export class FetchClient {
     if (userSignal) {
       if (userSignal.aborted) {
         clearTimeout(timeoutId);
-        throw new AbortError("Request aborted");
+        throw new AbortError('Request aborted');
       }
-      userSignal.addEventListener("abort", onUserAbort, { once: true });
+      userSignal.addEventListener('abort', onUserAbort, { once: true });
     }
 
     try {
@@ -130,17 +106,17 @@ export class FetchClient {
         signal: controller.signal,
       });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         if (userSignal?.aborted) {
-          throw new AbortError("Request aborted");
+          throw new AbortError('Request aborted');
         }
-        throw new TimeoutError("Request timed out");
+        throw new TimeoutError('Request timed out');
       }
       throw error;
     } finally {
       clearTimeout(timeoutId);
       if (userSignal) {
-        userSignal.removeEventListener("abort", onUserAbort);
+        userSignal.removeEventListener('abort', onUserAbort);
       }
     }
   }
@@ -149,12 +125,7 @@ export class FetchClient {
   // Core request logic
   // ===========================================================================
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, body: unknown, options?: RequestOptions): Promise<T> {
     const response = await this.requestRaw(method, path, body, options);
 
     if (response.status === 204) {
@@ -165,19 +136,13 @@ export class FetchClient {
     return this.transformEnabled ? snakeToCamelKeys<T>(json) : (json as T);
   }
 
-  private async requestRaw(
-    method: string,
-    path: string,
-    body: unknown,
-    options?: RequestOptions,
-  ): Promise<Response> {
+  private async requestRaw(method: string, path: string, body: unknown, options?: RequestOptions): Promise<Response> {
     const url = `${this.baseUrl}${path}`;
     const headers = this.buildHeaders(method, options);
     const effectiveTimeout = options?.timeout ?? this.timeout;
 
     // Transform request body keys to snake_case
-    const transformedBody =
-      body !== undefined && this.transformEnabled ? camelToSnakeKeys(body) : body;
+    const transformedBody = body !== undefined && this.transformEnabled ? camelToSnakeKeys(body) : body;
 
     let lastError: Error | undefined;
 
@@ -188,14 +153,7 @@ export class FetchClient {
       }
 
       try {
-        const response = await this.executeFetch(
-          url,
-          method,
-          headers,
-          transformedBody,
-          effectiveTimeout,
-          options?.signal,
-        );
+        const response = await this.executeFetch(url, method, headers, transformedBody, effectiveTimeout, options?.signal);
 
         if (response.ok || response.status === 204) {
           return response;
@@ -222,29 +180,20 @@ export class FetchClient {
         if (error instanceof NexusApiError) {
           throw error;
         }
-        throw new NetworkError(
-          error instanceof Error ? error.message : "Request failed",
-        );
+        throw new NetworkError(error instanceof Error ? error.message : 'Request failed');
       }
     }
 
-    throw lastError ?? new NetworkError("Request failed");
+    throw lastError ?? new NetworkError('Request failed');
   }
 
   // ===========================================================================
   // Helpers
   // ===========================================================================
 
-  private async executeFetch(
-    url: string,
-    method: string,
-    headers: Record<string, string>,
-    body: unknown,
-    timeout: number,
-    userSignal?: AbortSignal,
-  ): Promise<Response> {
+  private async executeFetch(url: string, method: string, headers: Record<string, string>, body: unknown, timeout: number, userSignal?: AbortSignal): Promise<Response> {
     if (userSignal?.aborted) {
-      throw new AbortError("Request aborted");
+      throw new AbortError('Request aborted');
     }
 
     const controller = new AbortController();
@@ -252,7 +201,7 @@ export class FetchClient {
     const onUserAbort = (): void => controller.abort();
 
     if (userSignal) {
-      userSignal.addEventListener("abort", onUserAbort, { once: true });
+      userSignal.addEventListener('abort', onUserAbort, { once: true });
     }
 
     try {
@@ -263,39 +212,43 @@ export class FetchClient {
         signal: controller.signal,
       });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         if (userSignal?.aborted) {
-          throw new AbortError("Request aborted");
+          throw new AbortError('Request aborted');
         }
-        throw new TimeoutError("Request timed out");
+        throw new TimeoutError('Request timed out');
       }
       throw error;
     } finally {
       clearTimeout(timeoutId);
       if (userSignal) {
-        userSignal.removeEventListener("abort", onUserAbort);
+        userSignal.removeEventListener('abort', onUserAbort);
       }
     }
   }
 
   private buildHeaders(method: string, options?: RequestOptions): Record<string, string> {
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.apiKey}`,
-      Accept: "application/json",
+      Accept: 'application/json',
     };
 
-    if (method === "POST" || method === "PUT" || method === "PATCH") {
-      headers["Content-Type"] = "application/json";
+    // Only add Authorization header when apiKey is present (supports open-access mode)
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+      headers['Content-Type'] = 'application/json';
     }
 
     if (options?.idempotencyKey) {
-      headers["Idempotency-Key"] = options.idempotencyKey;
+      headers['Idempotency-Key'] = options.idempotencyKey;
     }
 
     // Default identity headers from client config
-    if (this.agentId) headers["X-Agent-ID"] = this.agentId;
-    if (this.subject) headers["X-Nexus-Subject"] = this.subject;
-    if (this.zoneId) headers["X-Nexus-Zone-ID"] = this.zoneId;
+    if (this.agentId) headers['X-Agent-ID'] = this.agentId;
+    if (this.subject) headers['X-Nexus-Subject'] = this.subject;
+    if (this.zoneId) headers['X-Nexus-Zone-ID'] = this.zoneId;
 
     // Merge extra headers (per-request overrides take precedence)
     if (options?.headers) {
@@ -332,18 +285,15 @@ export class FetchClient {
       case 409:
         return new ConflictError(message);
       case 429: {
-        const retryAfterHeader = response.headers.get("Retry-After");
+        const retryAfterHeader = response.headers.get('Retry-After');
         const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
-        return new RateLimitError(
-          message,
-          Number.isNaN(retryAfter) ? undefined : retryAfter,
-        );
+        return new RateLimitError(message, Number.isNaN(retryAfter) ? undefined : retryAfter);
       }
       default:
         if (response.status >= 500) {
           return new ServerError(message, response.status);
         }
-        return new NexusApiError(message, response.status, "api_error");
+        return new NexusApiError(message, response.status, 'api_error');
     }
   }
 
@@ -365,9 +315,7 @@ export class FetchClient {
    * List all aspect names attached to an entity.
    */
   async getAspects(urn: string): Promise<string[]> {
-    const result = await this.get<{ aspects: string[] }>(
-      `/api/v2/aspects/${encodeURIComponent(urn)}`,
-    );
+    const result = await this.get<{ aspects: string[] }>(`/api/v2/aspects/${encodeURIComponent(urn)}`);
     return result.aspects ?? [];
   }
 
@@ -376,9 +324,7 @@ export class FetchClient {
    */
   async getAspect(urn: string, name: string): Promise<AspectEnvelope | null> {
     try {
-      return await this.get<AspectEnvelope>(
-        `/api/v2/aspects/${encodeURIComponent(urn)}/${encodeURIComponent(name)}`,
-      );
+      return await this.get<AspectEnvelope>(`/api/v2/aspects/${encodeURIComponent(urn)}/${encodeURIComponent(name)}`);
     } catch {
       return null;
     }
@@ -387,42 +333,30 @@ export class FetchClient {
   /**
    * Get extracted schema for a data file. Returns null if no schema.
    */
-  async getCatalogSchema(
-    path: string,
-  ): Promise<CatalogSchemaResponse["schema"]> {
-    const encodedPath = encodeURIComponent(path.replace(/^\//, ""));
-    const result = await this.get<CatalogSchemaResponse>(
-      `/api/v2/catalog/schema/${encodedPath}`,
-    );
+  async getCatalogSchema(path: string): Promise<CatalogSchemaResponse['schema']> {
+    const encodedPath = encodeURIComponent(path.replace(/^\//, ''));
+    const result = await this.get<CatalogSchemaResponse>(`/api/v2/catalog/schema/${encodedPath}`);
     return result.schema ?? null;
   }
 
   /**
    * Search for data files containing a specific column name.
    */
-  async searchByColumn(
-    column: string,
-  ): Promise<ColumnSearchResponse["results"]> {
-    const result = await this.get<ColumnSearchResponse>(
-      `/api/v2/catalog/search?column=${encodeURIComponent(column)}`,
-    );
+  async searchByColumn(column: string): Promise<ColumnSearchResponse['results']> {
+    const result = await this.get<ColumnSearchResponse>(`/api/v2/catalog/search?column=${encodeURIComponent(column)}`);
     return result.results ?? [];
   }
 
   /**
    * Replay metadata change log records.
    */
-  async replayChanges(opts?: {
-    fromSequence?: number;
-    entityUrn?: string;
-    limit?: number;
-  }): Promise<ReplayResponse> {
+  async replayChanges(opts?: { fromSequence?: number; entityUrn?: string; limit?: number }): Promise<ReplayResponse> {
     const params = new URLSearchParams();
-    if (opts?.fromSequence !== undefined) params.set("from_sequence", String(opts.fromSequence));
-    if (opts?.entityUrn) params.set("entity_urn", opts.entityUrn);
-    if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts?.fromSequence !== undefined) params.set('from_sequence', String(opts.fromSequence));
+    if (opts?.entityUrn) params.set('entity_urn', opts.entityUrn);
+    if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
     const qs = params.toString();
-    return this.get<ReplayResponse>(`/api/v2/ops/replay${qs ? `?${qs}` : ""}`);
+    return this.get<ReplayResponse>(`/api/v2/ops/replay${qs ? `?${qs}` : ''}`);
   }
 }
 

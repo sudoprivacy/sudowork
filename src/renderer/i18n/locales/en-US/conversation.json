@@ -2,7 +2,8 @@
   "welcome": {
     "title": "Hi, what's your plan for today?",
     "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
-    "uploadFile": "Upload Files",
+    "downloadLocalFile": "Import Local Files",
+    "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",
     "multiAgentModeEnabled": "Entering multi-agent mode",
@@ -12,6 +13,7 @@
     "specifyWorkspace": "Chat in Folder",
     "currentWorkspace": "Current Workspace",
     "clearWorkspace": "Remove folder",
+    "addSkill": "Add Skill",
     "openFolder": "Open Folder",
     "none": "None",
     "quickActionsTitle": "What can Sudowork do?",
@@ -137,7 +139,39 @@
       "addToChat": "Add to chat",
       "addedToChat": "Added to chat",
       "openFailed": "Failed to open",
-      "revealFailed": "Failed to open containing folder"
+      "revealFailed": "Failed to open containing folder",
+      "uploadToBdpan": "Upload to Baidu Netdisk",
+      "newFolder": "New Folder"
+    },
+    "newFolder": {
+      "title": "New Folder",
+      "placeholder": "Enter folder name",
+      "hint": "Create a new folder in the current directory",
+      "success": "Folder created successfully",
+      "failed": "Failed to create folder",
+      "invalidName": "Folder name contains invalid characters",
+      "reservedName": "This name is reserved by the system. Please use a different name."
+    },
+    "drafts": {
+      "title": "Drafts",
+      "description": "Intermediate files produced during Agent execution",
+      "empty": "Drafts is empty",
+      "clearAll": "Clear Drafts",
+      "clearConfirm": "Are you sure you want to clear all files in Drafts?",
+      "fileCount": "{{count}} intermediate file(s)",
+      "clearSuccess": "Drafts cleared",
+      "deleteFailed": "Failed to delete draft file"
+    },
+    "renameWorkspace": {
+      "title": "Rename Workspace",
+      "placeholder": "Enter display name",
+      "hint": "This only changes the display name. The physical folder path will not be modified.",
+      "success": "Workspace renamed successfully",
+      "failed": "Rename failed",
+      "invalidName": "Folder name contains invalid characters",
+      "alreadyExists": "Target folder already exists",
+      "agentRunning": "An Agent is running. Please wait for it to finish before renaming.",
+      "emptyName": "Name cannot be empty"
     }
   },
   "chat": {
@@ -158,6 +192,42 @@
   },
   "contextUsage": {
     "contextUsed": "context used"
+  },
+  "bdpan": {
+    "title": "Baidu Netdisk Files",
+    "checking": "Checking login status...",
+    "waitingAuth": "Waiting for authentication, please complete in your browser...",
+    "gettingAuthUrl": "Getting authorization link...",
+    "authCode": "Auth Code",
+    "authCodePlaceholder": "Enter 32-character auth code",
+    "authCodeSubmit": "Submit",
+    "loginTimeout": "Login timed out, please try again",
+    "loginFailed": "Login failed, please try again",
+    "lsFailed": "Failed to load files",
+    "emptyDir": "This folder is empty",
+    "selectedCount": "{{count}} file(s) selected",
+    "selectHint": "Click files to select, click folders to navigate",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "logout": "Logout",
+    "mkdir": {
+      "placeholder": "New folder name",
+      "confirm": "Create",
+      "failed": "Failed to create folder"
+    },
+    "upload": {
+      "title": "Upload to Baidu Netdisk",
+      "localPath": "Local",
+      "uploadTo": "Upload to",
+      "uploadButton": "Upload",
+      "success": "Uploaded to Baidu Netdisk successfully",
+      "failed": "Upload to Baidu Netdisk failed"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

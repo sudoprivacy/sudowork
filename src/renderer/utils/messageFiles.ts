@@ -1,4 +1,4 @@
-import { NEXUS_FILES_MARKER, NEXUS_TIMESTAMP_REGEX } from '@/common/constants';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { isTemporaryWorkspace } from '@/renderer/utils/workspace';
 
@@ -21,12 +21,18 @@ export const buildDisplayMessage = (input: string, files: string[], workspacePat
   const visibleFiles = filterUserVisibleFiles(files);
   if (!visibleFiles.length) return input;
   const displayPaths = visibleFiles.map((filePath) => {
+    // bdpan remote files: show as workspace/<filename> (file will be downloaded before send)
+    if (filePath.startsWith('bdpan://')) {
+      const raw = filePath.slice('bdpan://'.length);
+      const remotePath = raw.includes('?') ? raw.slice(0, raw.indexOf('?')) : raw;
+      const fileName = remotePath.split('/').filter(Boolean).pop() || remotePath;
+      return workspacePath ? `${workspacePath}/${fileName}` : fileName;
+    }
     if (!workspacePath) return filePath;
     const isAbsolute = filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath);
     if (isAbsolute) {
       const parts = filePath.split(/[\\/]/);
-      let fileName = parts[parts.length - 1] || filePath;
-      fileName = fileName.replace(NEXUS_TIMESTAMP_REGEX, '$1');
+      const fileName = parts[parts.length - 1] || filePath;
       return `${workspacePath}/${fileName}`;
     }
     return `${workspacePath}/${filePath}`;

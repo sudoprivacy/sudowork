@@ -13,12 +13,14 @@ import { initChannelBridge } from './channelBridge';
 import { initConversationBridge } from './conversationBridge';
 import { initCronBridge } from './cronBridge';
 import { initDatabaseBridge } from './databaseBridge';
+import { mainError } from '@process/utils/mainLogger';
 import { initDialogBridge } from './dialogBridge';
 import { initDocumentBridge } from './documentBridge';
 import { initFileWatchBridge } from './fileWatchBridge';
 import { initFsBridge } from './fsBridge';
 import { initGeminiBridge } from './geminiBridge';
 import { initMcpBridge } from './mcpBridge';
+import { initMcporterBridge } from './mcporterBridge';
 import { initModelBridge } from './modelBridge';
 import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
@@ -36,7 +38,13 @@ import { initSkillHubBridge } from './skillHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
+import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initSafetyBridge } from './safetyBridge';
+import { initBdpanBridge } from './bdpanBridge';
+import { initHealthMonitorBridge } from './healthMonitorBridge';
+import { initImageGenerationBridge } from './imageGenerationBridge';
+import { initSecretBridge } from './secretBridge';
+import { initWorkspaceBridge } from './workspaceBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -57,6 +65,7 @@ export function initAllBridges(): void {
   initAuthBridge();
   initModelBridge();
   initMcpBridge();
+  initMcporterBridge();
   initDatabaseBridge();
   initPreviewHistoryBridge();
   initDocumentBridge();
@@ -74,8 +83,14 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initSudoclawBridge();
+  initNodeRuntimeBridge();
   initSudoworkServerBridge();
   initSafetyBridge();
+  initBdpanBridge();
+  initHealthMonitorBridge();
+  initImageGenerationBridge();
+  initSecretBridge();
+  initWorkspaceBridge();
 }
 
 /**
@@ -85,7 +100,7 @@ export async function initializeAcpDetector(): Promise<void> {
   try {
     await acpDetector.initialize();
   } catch (error) {
-    console.error('[ACP] Failed to initialize detector:', error);
+    mainError('ACP', 'Failed to initialize detector:', error);
   }
 }
 

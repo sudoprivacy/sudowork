@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import { getPresetById } from '@/common/presets/presetResolver';
 import { ConfigStorage } from '@/common/storage';
 
 export type PresetAssistantResourceDeps = {
@@ -37,7 +37,10 @@ const defaultDeps: PresetAssistantResourceDeps = {
   getEnabledSkills: async (customAgentId) => {
     const customAgents = await ConfigStorage.get('acp.customAgents');
     const assistant = customAgents?.find((agent) => agent.id === customAgentId);
-    return assistant?.enabledSkills;
+    // For preset assistants, treat missing enabledSkills as an explicit empty
+    // array so that downstream consumers (workspace sync, AcpSkillManager) do
+    // not fall back to loading *all* skills.
+    return assistant?.enabledSkills ?? [];
   },
   warn: (message, error) => {
     console.warn(message, error);
@@ -72,7 +75,7 @@ export async function loadPresetAssistantResources(options: LoadPresetAssistantR
 
   if (customAgentId.startsWith('builtin-')) {
     const presetId = customAgentId.replace('builtin-', '');
-    const preset = ASSISTANT_PRESETS.find((item) => item.id === presetId);
+    const preset = getPresetById(presetId);
 
     if (preset) {
       if (!rules && preset.ruleFiles) {

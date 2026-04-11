@@ -11,9 +11,11 @@ import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Tag } from '@arco-design/web-react';
-import { Plus, Shield } from '@icon-park/react';
+import { Button, Dropdown, Menu, Message, Tag } from '@arco-design/web-react';
+import { Plus, Shield, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FilePreview from '@/renderer/components/FilePreview';
@@ -28,6 +30,7 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -143,7 +146,17 @@ const useAcpMessage = (conversation_id: string) => {
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
 
-      const transformedMessage = transformMessage(message);
+      let transformedMessage: TMessage | undefined;
+      try {
+        transformedMessage = transformMessage(message);
+      } catch (error) {
+        console.warn('[AcpSendBox] Ignoring unsupported response message', {
+          conversation_id,
+          type: message.type,
+          error,
+        });
+        return;
+      }
       switch (message.type) {
         case 'thought':
           // Auto-recover running state if thought arrives after finish
@@ -398,6 +411,7 @@ const AcpSendBox: React.FC<{
 }> = ({ conversation_id, backend, sessionMode, agentName }) => {
   const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
+  const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
@@ -481,7 +495,7 @@ const AcpSendBox: React.FC<{
     const sendInitialMessage = async () => {
       try {
         const initialMessage = JSON.parse(storedMessage);
-        const { input, files } = initialMessage;
+        const { input, files, skills = [] } = initialMessage;
 
         // ACP: 不使用 buildDisplayMessage，直接传原始 input
         // 文件引用由后端 ACP agent 负责添加（使用复制后的实际路径）
@@ -497,6 +511,7 @@ const AcpSendBox: React.FC<{
           msg_id,
           conversation_id,
           files,
+          skills: skills.length > 0 ? skills : undefined,
         });
 
         if (result && result.success === true) {
@@ -529,7 +544,7 @@ const AcpSendBox: React.FC<{
     sendInitialMessage().catch((error) => {});
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
 
-  const onSendHandler = async (message: string) => {
+  const onSendHandler = async (message: string, skills?: string[]) => {
     const msg_id = uuid();
 
     // ACP: 不使用 buildDisplayMessage，直接传原始 message
@@ -554,6 +569,7 @@ const AcpSendBox: React.FC<{
         msg_id,
         conversation_id,
         files: allFiles,
+        skills: skills || [],
       });
 
       void checkAndUpdateTitle(conversation_id, message);
@@ -605,6 +621,21 @@ const AcpSendBox: React.FC<{
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
+  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [messageApi, messageContextHolder] = Message.useMessage();
+  const messageApiRef = useRef(messageApi);
+  messageApiRef.current = messageApi;
+
+  useEffect(() => {
+    return ipcBridge.bdpan.downloadResult.on((result) => {
+      if (result.success) {
+        messageApiRef.current.success(t('conversation.bdpan.download.success'));
+      } else {
+        messageApiRef.current.error(result.error ?? t('conversation.bdpan.download.failed'));
+      }
+    });
+  }, [t]);
 
   useAddEventListener('acp.selected.file', setAtPath);
   useAddEventListener('acp.selected.file.append', (items: Array<string | FileOrFolderItem>) => {
@@ -626,6 +657,7 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+      {messageContextHolder}
       <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
 
       <SendBox
@@ -642,7 +674,39 @@ const AcpSendBox: React.FC<{
         lockMultiLine={true}
         tools={
           <div className='flex items-center gap-4px'>
-            <Button type='secondary' shape='circle' icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} onClick={openFileSelector} />
+            <Dropdown
+              trigger='hover'
+              onVisibleChange={setIsPlusDropdownOpen}
+              droplist={
+                <Menu
+                  className='min-w-200px'
+                  onClickMenuItem={(key) => {
+                    if (key === 'file') {
+                      openFileSelector();
+                    } else if (key === 'bdpan') {
+                      setBdpanSelectorVisible(true);
+                    }
+                  }}
+                >
+                  <Menu.Item key='file'>
+                    <div className='flex items-center gap-8px'>
+                      <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                      <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                    </div>
+                  </Menu.Item>
+                  <Menu.Item key='bdpan'>
+                    <div className='flex items-center gap-8px'>
+                      <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                      <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                    </div>
+                  </Menu.Item>
+                </Menu>
+              }
+            >
+              <span>
+                <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+              </span>
+            </Dropdown>
             <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
@@ -714,8 +778,21 @@ const AcpSendBox: React.FC<{
         onSend={onSendHandler}
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
+        onSkillsChange={(skills) => {
+          // Store skills in ref or state if needed for session management
+          // For now, they're passed directly to onSend
+        }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        workspaceFiles={workspaceFiles}
       ></SendBox>
+      <BdpanFileSelector
+        visible={bdpanSelectorVisible}
+        onCancel={() => setBdpanSelectorVisible(false)}
+        onConfirm={(paths) => {
+          setBdpanSelectorVisible(false);
+          appendSelectedFiles(paths);
+        }}
+      />
     </div>
   );
 };

@@ -9,6 +9,7 @@ import type { ConversationSource, TChatConversation, TProviderWithModel } from '
 import { getDatabase } from '@process/database';
 import { createAcpAgent, createOpenClawAgent } from '../initAgent';
 import WorkerManage from '../WorkerManage';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /**
  * 创建会话的通用参数（基于 IPC 参数扩展）
@@ -75,7 +76,7 @@ export class ConversationService {
       const db = getDatabase();
       const result = db.createConversation(conversation);
       if (!result.success) {
-        console.error('[ConversationService] Failed to create conversation in database:', result.error);
+        mainError('ConversationService', 'Failed to create conversation in database:', result.error);
         return { success: false, error: result.error };
       }
 
@@ -83,13 +84,13 @@ export class ConversationService {
       // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called.
       WorkerManage.buildConversation(conversation);
 
-      console.log(`[ConversationService] Created ${type} conversation ${conversation.id} with source=${source || 'aionui'}`);
+      mainLog('ConversationService', `Created ${type} conversation ${conversation.id} with source=${source || 'aionui'}`);
       return { success: true, conversation };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
-      console.error('[ConversationService] Failed to create conversation:', error);
-      console.error('[ConversationService] Error details:', {
+      mainError('ConversationService', 'Failed to create conversation:', error);
+      mainError('ConversationService', 'Error details:', {
         type: params.type,
         hasModel: !!params.model,
         hasWorkspace: !!params.extra?.workspace,

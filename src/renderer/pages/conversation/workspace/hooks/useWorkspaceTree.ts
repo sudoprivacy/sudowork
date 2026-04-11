@@ -8,9 +8,9 @@ import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SelectedNodeRef } from '../types';
-import { getFirstLevelKeys } from '../utils/treeHelpers';
+import { filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
@@ -27,7 +27,26 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
   const [files, setFiles] = useState<IDirOrFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [treeKey, setTreeKey] = useState(Math.random());
-  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const [expandedKeys, _setExpandedKeys] = useState<string[]>([]);
+
+  // 使用 ref 跟踪用户当前展开的 key，避免在刷新时丢失状态
+  // Use ref to track user's current expanded keys, preventing state loss during refreshes
+  const expandedKeysRef = useRef<string[]>([]);
+
+  // 包装 setExpandedKeys，自动同步 state 和 ref
+  // Wrap setExpandedKeys to auto-sync state and ref
+  const setExpandedKeys = useCallback((keys: string[] | ((prev: string[]) => string[])) => {
+    if (typeof keys === 'function') {
+      _setExpandedKeys((prev) => {
+        const newKeys = keys(prev);
+        expandedKeysRef.current = newKeys;
+        return newKeys;
+      });
+    } else {
+      expandedKeysRef.current = keys;
+      _setExpandedKeys(keys);
+    }
+  }, []);
 
   // Selection state / 选中状态
   const [selected, setSelected] = useState<string[]>([]);
@@ -35,6 +54,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
   // 标记是否为首次加载（用于区分初始化和后续刷新）
   // Track if this is the first load (to distinguish initialization from subsequent refreshes)
   const isFirstLoadRef = useRef(true);
+
+  // 会话切换时重置首次加载标记
+  // Reset first load flag when conversation switches
+  useEffect(() => {
+    isFirstLoadRef.current = true;
+  }, [conversation_id]);
+
   const selectedKeysRef = useRef<string[]>([]);
   const selectedNodeRef = useRef<SelectedNodeRef | null>(null);
 
@@ -94,9 +120,22 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
             setTreeKey(Math.random());
           }
 
-          // 只展开第一层文件夹（根节点）
-          // Only expand first level folders (root node)
-          setExpandedKeys(getFirstLevelKeys(res));
+          // 搜索时展开所有包含匹配结果的文件夹
+          // 首次加载只展开第一层
+          // 后续刷新保留用户展开状态，仅移除已删除目录的 key
+          // When searching: expand all folders containing matches
+          // First load: only expand first level
+          // Subsequent refreshes: preserve user's expanded keys, only remove deleted dirs
+          if (search) {
+            setExpandedKeys(getAllDirKeys(res));
+          } else if (isFirstLoadRef.current) {
+            setExpandedKeys(getFirstLevelKeys(res));
+          } else {
+            // 保留用户展开状态，过滤掉已不存在的目录
+            // Preserve user's expanded keys, filter out deleted directories
+            const validKeys = filterValidExpandedKeys(expandedKeysRef.current, res);
+            setExpandedKeys(validKeys);
+          }
 
           // 根据是否有文件决定工作空间面板的展开/折叠状态
           // Determine workspace panel expand/collapse state based on files
@@ -118,7 +157,11 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           return res;
         })
         .finally(() => {
-          setLoadingHandler(false);
+          // Only clear loading for the latest request — stale/aborted requests
+          // must not prematurely cancel the spinner while a newer request is in flight.
+          if (seq === loadSeqRef.current) {
+            setLoadingHandler(false);
+          }
         });
     },
     [conversation_id, workspace, setLoadingHandler]

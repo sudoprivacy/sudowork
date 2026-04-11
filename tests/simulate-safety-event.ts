@@ -65,11 +65,11 @@ async function simulateSafetyEvent(eventType: 'network' | 'file' = 'network') {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ***',
-          'User-Agent': 'SudoWork/1.0'
+          Authorization: 'Bearer ***',
+          'User-Agent': 'SudoWork/1.0',
         },
-        body: JSON.stringify({ action: 'export_all_users' })
-      }
+        body: JSON.stringify({ action: 'export_all_users' }),
+      },
     };
     console.log('\n📡 事件类型：网络请求');
     console.log(`   URL: ${eventData.data.url}`);
@@ -79,8 +79,8 @@ async function simulateSafetyEvent(eventType: 'network' | 'file' = 'network') {
       type: 'file',
       data: {
         path: '/Users/Shared/sensitive_data.json',
-        flags: ['O_WRONLY', 'O_CREAT', 'O_TRUNC']
-      }
+        flags: ['O_WRONLY', 'O_CREAT', 'O_TRUNC'],
+      },
     };
     console.log('\n📁 事件类型：文件操作');
     console.log(`   路径：${eventData.data.path}`);
@@ -101,7 +101,6 @@ async function simulateSafetyEvent(eventType: 'network' | 'file' = 'network') {
     console.log('\n测试完成后，运行以下命令清理:');
     console.log(`  bunx tsx tests/cleanup-safety-event.ts ${eventUuid}`);
     console.log();
-
   } catch (error) {
     console.error('\n❌ 写入事件文件失败:', error);
     process.exit(1);
@@ -110,7 +109,7 @@ async function simulateSafetyEvent(eventType: 'network' | 'file' = 'network') {
 
 // 主程序
 const args = process.argv.slice(2);
-const eventType = args[0] as 'network' | 'file' || 'network';
+const eventType = (args[0] as 'network' | 'file') || 'network';
 
 if (!['network', 'file'].includes(eventType)) {
   console.error('用法：bunx tsx tests/simulate-safety-event.ts [network|file]');

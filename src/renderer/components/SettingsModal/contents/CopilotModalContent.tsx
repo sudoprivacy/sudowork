@@ -5,10 +5,10 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
+import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Delete, Edit, Folder, Plus, Refresh, Robot, User, Config } from '@icon-park/react';
+import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { iconColors } from '@/renderer/theme/colors';
@@ -27,26 +27,6 @@ const API_TYPE_OPTIONS = [
 ];
 
 type ProviderEntry = { key: string; provider: SudoclawProvider };
-
-// ==================== Types ====================
-
-interface SudoclawStatus {
-  installed: boolean;
-  configPath: string;
-  gatewayRunning?: boolean;
-  gatewayPort?: number;
-  gatewayHost?: string;
-  gatewayUrl?: string;
-  isConnected?: boolean;
-  hasActiveSession?: boolean;
-  sessionKey?: string | null;
-  workspace?: string;
-  agentName?: string;
-  model?: string;
-  cliPath?: string;
-  version?: string;
-  error?: string;
-}
 
 // ==================== 子组件 / Sub-components ====================
 
@@ -97,7 +77,7 @@ const CopilotModalContent: React.FC = () => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<SudoclawStatus | null>(null);
+  const [status, setStatus] = useState<ISudoclawStatus | null>(null);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
@@ -107,12 +87,6 @@ const CopilotModalContent: React.FC = () => {
 
   // Copilot Runtime Loading (for status updates)
   const [runtimeLoading, setRuntimeLoading] = useState(false);
-
-  // 编辑配置弹窗
-  const [editConfigVisible, setEditConfigVisible] = useState(false);
-  const [configContent, setConfigContent] = useState('');
-  const [configLoading, setConfigLoading] = useState(false);
-  const [configPath, setConfigPath] = useState('');
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -359,62 +333,6 @@ const CopilotModalContent: React.FC = () => {
     }
   };
 
-  const openConfigEditor = async () => {
-    setConfigLoading(true);
-    try {
-      const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
-      const configFilePath = `${homeDir}/.nexus/sudoclaw/sudoclaw.json`;
-      setConfigPath(configFilePath);
-
-      const res = await ipcBridge.sudoclaw.getConfig.invoke();
-      if (res?.success && res.data) {
-        setConfigContent(JSON.stringify(res.data, null, 2));
-        setEditConfigVisible(true);
-      } else {
-        Message.warning('无法读取配置文件内容');
-      }
-    } catch (error) {
-      Message.error('读取配置失败');
-    } finally {
-      setConfigLoading(false);
-    }
-  };
-
-  const handleSaveRawConfig = async () => {
-    setConfigLoading(true);
-    try {
-      const parsed = JSON.parse(configContent);
-      const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: parsed });
-      if (res?.success) {
-        setEditConfigVisible(false);
-        // Prompt user to restart Gateway
-        Modal.confirm({
-          title: '配置已保存',
-          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
-          okText: '重启 Gateway',
-          cancelText: '稍后重启',
-          onOk: async () => {
-            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-            if (restartRes?.success) {
-              Message.success('Gateway 重启中...');
-              setTimeout(() => {
-                void loadConfig();
-              }, 3000);
-            } else {
-              Message.error(restartRes?.msg || '重启失败');
-            }
-          },
-        });
-      } else {
-        Message.error(res?.msg || '保存配置失败');
-      }
-    } catch (error) {
-      Message.error('JSON 格式错误：' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      setConfigLoading(false);
-    }
-  };
-
   useEffect(() => {
     // Initial load with connection test
     setTestStatus('testing');
@@ -511,131 +429,12 @@ const CopilotModalContent: React.FC = () => {
         )}
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16px mb-24px'>
-          <StatusCard title='连接状态' value={isConnected ? '已连接' : '未连接'} icon={<Config theme='outline' size='24' fill={isConnected ? iconColors.success : '#999'} />} status={isConnected ? 'success' : 'error'} description={status?.gatewayUrl} />
+          <StatusCard title='连接状态' value={isConnected ? '已连接' : '未连接'} icon={<Folder theme='outline' size='24' fill={isConnected ? iconColors.success : '#999'} />} status={isConnected ? 'success' : 'error'} description={status?.gatewayUrl} />
           <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={iconColors.primary} />} status='info' description={status?.model} />
           <StatusCard title='工作区' value={status?.workspace ? '已配置' : '未配置'} icon={<Folder theme='outline' size='24' fill={status?.workspace ? iconColors.warning : '#999'} />} status={status?.workspace ? 'success' : 'info'} description={status?.workspace} />
           <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? iconColors.success : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
         </div>
-
-        <Card title='🚀 模型与供应商配置' className='mb-24px rd-12px'>
-          <Form form={form} layout='vertical'>
-            <Form.Item label={t('settings.openclaw_modelsMode')} field='modelsMode'>
-              <Select>
-                <Select.Option value='merge'>{t('settings.openclaw_modelsModeMerge')}</Select.Option>
-                <Select.Option value='replace'>{t('settings.openclaw_modelsModeReplace')}</Select.Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item label={t('settings.openclaw_primaryModel')} field='primaryModel'>
-              <Input placeholder='sudorouter/gemini-3-flash-preview' allowClear />
-            </Form.Item>
-
-            <div className='flex items-center justify-between mb-8px'>
-              <span className='text-14px font-600 text-t-primary'>{t('settings.openclaw_providers')}</span>
-              <Button type='text' size='small' icon={<Plus size={14} />} onClick={handleAddProvider}>
-                {t('settings.openclaw_addProvider')}
-              </Button>
-            </div>
-
-            {providers.length > 0 && (
-              <Collapse defaultActiveKey={providers.map((_, i) => String(i))} className='mb-16px'>
-                {providers.map((entry, idx) => (
-                  <Collapse.Item
-                    key={idx}
-                    header={
-                      <div className='flex items-center justify-between w-full pr-8px'>
-                        <span className='font-500'>{entry.key || t('settings.openclaw_providerName')}</span>
-                        <Popconfirm content={t('settings.openclaw_deleteProviderConfirm')} onOk={() => handleRemoveProvider(idx)}>
-                          <Button type='text' size='mini' icon={<Delete size={14} />} className='color-red-5' />
-                        </Popconfirm>
-                      </div>
-                    }
-                    name={String(idx)}
-                  >
-                    <div className='flex flex-col gap-12px'>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_providerName')}</div>
-                        <Input placeholder={t('settings.openclaw_providerNamePlaceholder')} value={entry.key} onChange={(v) => handleProviderKeyChange(idx, v)} />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_baseUrl')}</div>
-                        <Input placeholder='https://api.openai.com/v1' value={entry.provider.baseUrl || ''} onChange={(v) => handleProviderChange(idx, 'baseUrl', v)} />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>API Key</div>
-                        <Input.Password placeholder='sk-...' value={entry.provider.apiKey || ''} onChange={(v) => handleProviderChange(idx, 'apiKey', v)} autoComplete='off' />
-                      </div>
-                      <div>
-                        <div className='text-12px text-t-secondary mb-4px'>{t('settings.openclaw_apiType')}</div>
-                        <Select placeholder={t('settings.openclaw_apiType')} value={entry.provider.api || undefined} onChange={(v) => handleProviderChange(idx, 'api', v || '')} allowClear className='w-full'>
-                          {API_TYPE_OPTIONS.map((o) => (
-                            <Select.Option key={o.value} value={o.value}>
-                              {o.label}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </div>
-                      <div>
-                        <div className='flex items-center justify-between mb-4px'>
-                          <span className='text-12px text-t-secondary'>{t('settings.openclaw_providerModels')}</span>
-                          <Button type='text' size='mini' icon={<Plus size={12} />} onClick={() => handleAddModel(idx)}>
-                            {t('settings.openclaw_addModel')}
-                          </Button>
-                        </div>
-                        {(entry.provider.models || []).map((m, mi) => (
-                          <div key={mi} className='flex gap-8px mb-8px'>
-                            <Input placeholder='model-id' value={m.id} onChange={(v) => handleModelChange(idx, mi, 'id', v)} className='flex-1' />
-                            <Input placeholder={t('settings.modelName')} value={m.name || ''} onChange={(v) => handleModelChange(idx, mi, 'name', v)} className='flex-1' />
-                            <Button type='text' size='mini' icon={<Delete size={12} />} onClick={() => handleRemoveModel(idx, mi)} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </Collapse.Item>
-                ))}
-              </Collapse>
-            )}
-
-            <div className='flex justify-end'>
-              <Button type='primary' loading={saving} onClick={() => void saveConfig()}>
-                {t('common.save', { defaultValue: 'Save' })}
-              </Button>
-            </div>
-          </Form>
-        </Card>
-
-        <Card title='📝 配置文件' className='rd-12px'>
-          <div className='flex items-center justify-between'>
-            <div className='flex-1'>
-              <div className='text-14px text-t-primary font-500'>Sudoclaw 配置文件</div>
-              <Tooltip content='~/.nexus/sudoclaw/sudoclaw.json'>
-                <div className='text-12px text-t-tertiary mt-2px'>直接编辑配置文件</div>
-              </Tooltip>
-            </div>
-            <Space>
-              <Button icon={<Edit />} onClick={openConfigEditor} loading={configLoading}>
-                编辑配置
-              </Button>
-              <Button icon={<Refresh />} onClick={restartGateway}>
-                重启 Gateway
-              </Button>
-            </Space>
-          </div>
-        </Card>
       </div>
-
-      {editConfigVisible && (
-        <Modal title='编辑 SudoClaw 配置' visible={editConfigVisible} onOk={handleSaveRawConfig} onCancel={() => setEditConfigVisible(false)} style={{ width: 800 }} confirmLoading={configLoading}>
-          <div className='flex flex-col gap-8px'>
-            <Tooltip content={configPath}>
-              <Text type='secondary' className='text-12px'>
-                路径：{configPath}
-              </Text>
-            </Tooltip>
-            <Input.TextArea value={configContent} onChange={(value) => setConfigContent(value)} style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }} />
-          </div>
-        </Modal>
-      )}
     </AionScrollArea>
   );
 };

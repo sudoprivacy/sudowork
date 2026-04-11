@@ -10,9 +10,9 @@
  * exists, its values take priority over environment variables.
  */
 
-import type { NexusClientOptions } from "./types.js";
+import type { NexusClientOptions } from './types.js';
 
-const DEFAULT_BASE_URL = "http://localhost:12012";
+const DEFAULT_BASE_URL = 'http://localhost:12012';
 
 /**
  * Resolve Nexus client config from multiple sources.
@@ -20,27 +20,25 @@ const DEFAULT_BASE_URL = "http://localhost:12012";
  * Works in Node, Bun, and Deno. Gracefully degrades in browsers
  * (no env vars or filesystem — uses defaults + overrides only).
  */
-export function resolveConfig(
-  overrides?: Partial<NexusClientOptions>,
-): NexusClientOptions {
+export function resolveConfig(overrides?: Partial<NexusClientOptions>): NexusClientOptions {
   // Layer 2: Config file — check ./nexus.yaml, ./nexus.yml, then ~/.nexus/config.yaml
   const yamlConfig = readYamlConfig();
 
   // Layer 3: Environment variables (lower priority than config file)
-  const envUrl = readEnv("NEXUS_URL");
-  const envApiKey = readEnv("NEXUS_API_KEY");
+  const envUrl = readEnv('NEXUS_URL');
+  const envApiKey = readEnv('NEXUS_API_KEY');
 
   // Layer 1 wins over 2 (file) wins over 3 (env) wins over defaults
   return {
-    apiKey: overrides?.apiKey ?? yamlConfig.apiKey ?? envApiKey ?? "",
+    apiKey: overrides?.apiKey ?? yamlConfig.apiKey ?? envApiKey ?? '',
     baseUrl: overrides?.baseUrl ?? yamlConfig.url ?? envUrl ?? DEFAULT_BASE_URL,
     timeout: overrides?.timeout,
     maxRetries: overrides?.maxRetries,
     fetch: overrides?.fetch,
     transformKeys: overrides?.transformKeys,
-    agentId: overrides?.agentId ?? yamlConfig.agentId ?? readEnv("NEXUS_AGENT_ID"),
-    subject: overrides?.subject ?? readEnv("NEXUS_SUBJECT"),
-    zoneId: overrides?.zoneId ?? yamlConfig.zoneId ?? readEnv("NEXUS_ZONE_ID"),
+    agentId: overrides?.agentId ?? yamlConfig.agentId ?? readEnv('NEXUS_AGENT_ID'),
+    subject: overrides?.subject ?? readEnv('NEXUS_SUBJECT'),
+    zoneId: overrides?.zoneId ?? yamlConfig.zoneId ?? readEnv('NEXUS_ZONE_ID'),
   };
 }
 
@@ -51,7 +49,7 @@ export function resolveConfig(
 function readEnv(name: string): string | undefined {
   try {
     // Works in Node, Bun, Deno
-    return typeof process !== "undefined" ? process.env[name] : undefined;
+    return typeof process !== 'undefined' ? process.env[name] : undefined;
   } catch {
     return undefined;
   }
@@ -76,32 +74,29 @@ interface YamlConfig {
 function readYamlConfig(): YamlConfig {
   try {
     // Dynamic import to avoid bundler issues in browsers
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs") as typeof import("node:fs");
-    const os = require("node:os") as typeof import("node:os");
-    const path = require("node:path") as typeof import("node:path");
+    /* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires */
+    const fs = require('node:fs') as typeof import('node:fs');
+    const os = require('node:os') as typeof import('node:os');
+    const path = require('node:path') as typeof import('node:path');
+    /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires */
 
     // Search order: CWD first, then home dir.
     // Each TUI instance uses its own nexus.yaml in its CWD to avoid
     // conflicts with other running Nexus stacks.
-    const candidates = [
-      path.resolve("nexus.yaml"),
-      path.resolve("nexus.yml"),
-      path.join(os.homedir(), ".nexus", "config.yaml"),
-    ];
+    const candidates = [path.resolve('nexus.yaml'), path.resolve('nexus.yml'), path.join(os.homedir(), '.nexus', 'config.yaml')];
 
     for (const configPath of candidates) {
       try {
-        const content = fs.readFileSync(configPath, "utf-8");
-        let url = extractYamlValue(content, "url");
-        const apiKey = extractYamlValue(content, "api_key");
-        const agentId = extractYamlValue(content, "agent_id");
-        const zoneId = extractYamlValue(content, "zone_id");
+        const content = fs.readFileSync(configPath, 'utf-8');
+        let url = extractYamlValue(content, 'url');
+        const apiKey = extractYamlValue(content, 'api_key');
+        const agentId = extractYamlValue(content, 'agent_id');
+        const zoneId = extractYamlValue(content, 'zone_id');
 
         // If no explicit url but ports.http exists, build URL from port
         // (nexus init --preset shared/demo writes ports.http instead of url)
         if (!url) {
-          const httpPort = extractIndentedYamlValue(content, "ports", "http");
+          const httpPort = extractIndentedYamlValue(content, 'ports', 'http');
           if (httpPort) {
             url = `http://localhost:${httpPort}`;
           }
@@ -125,7 +120,7 @@ function readYamlConfig(): YamlConfig {
 }
 
 function extractYamlValue(content: string, key: string): string | null {
-  const regex = new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?`, "m");
+  const regex = new RegExp(`^${key}:\\s*["']?([^"'\\n]+)["']?`, 'm');
   const match = regex.exec(content);
   return match?.[1]?.trim() ?? null;
 }
@@ -135,7 +130,7 @@ function extractYamlValue(content: string, key: string): string | null {
  * Only handles one level of nesting with 2-space indent.
  */
 function extractIndentedYamlValue(content: string, parent: string, child: string): string | null {
-  const regex = new RegExp(`^${parent}:\\s*\\n(?:[ ]{2}\\w+:[^\\n]*\\n)*?[ ]{2}${child}:\\s*["']?([^"'\\n]+)["']?`, "m");
+  const regex = new RegExp(`^${parent}:\\s*\\n(?:[ ]{2}\\w+:[^\\n]*\\n)*?[ ]{2}${child}:\\s*["']?([^"'\\n]+)["']?`, 'm');
   const match = regex.exec(content);
   return match?.[1]?.trim() ?? null;
 }

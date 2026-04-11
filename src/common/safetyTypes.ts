@@ -14,7 +14,7 @@
 export type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
 
 /** Event type from counterparty */
-export type EventType = 'network' | 'file';
+export type EventType = 'network' | 'file' | 'process';
 
 /** Network event data structure */
 export interface NetworkEventData {
@@ -31,8 +31,14 @@ export interface FileEventData {
   flags: string[];
 }
 
+/** Process event data structure */
+export interface ProcessEventData {
+  command: string;
+  args: string[];
+}
+
 /** Event data union type */
-export type EventData = NetworkEventData | FileEventData;
+export type EventData = NetworkEventData | FileEventData | ProcessEventData;
 
 /** Event file structure from counterparty */
 export interface EventFileData {
@@ -57,6 +63,7 @@ export interface SafetyStatus {
     detectedAt: number;
     networkData?: NetworkEventData;
     fileData?: FileEventData;
+    processData?: ProcessEventData;
     metadata?: Record<string, unknown>;
   };
 }
@@ -75,9 +82,9 @@ export interface BlacklistRule {
   id: string;
   /** Whether this rule is active */
   enabled: boolean;
-  /** Rule type: network (domain/IP) or file (path) */
-  type: 'network' | 'file';
-  /** Pattern to match (domain, IP, or file path) */
+  /** Rule type: network (domain/IP), file (path), or process (command) */
+  type: 'network' | 'file' | 'process';
+  /** Pattern to match (domain, IP, file path, or command) */
   pattern: string;
   /** How to interpret the pattern */
   matchType: BlacklistMatchType;

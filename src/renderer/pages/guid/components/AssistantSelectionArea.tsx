@@ -30,7 +30,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
 
   // Only render if there are preset agents
   if (!customAgents || !customAgents.some((a) => a.isPreset)) return null;
-  const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot'];
+  const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
   const nobuildin = customAgents.filter((a) => a.isPreset).filter((_) => !_.id.startsWith('builtin-'));
   customAgents = customAgents
     .filter((a) => a.isPreset)
@@ -62,8 +62,10 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
           )}
           <div className='w-full'>
             <div className='flex items-center justify-between py-8px cursor-pointer select-none' onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-              <span className='text-13px text-[rgb(var(--primary-6))] opacity-80'>{t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}</span>
-              <Down theme='outline' size={14} fill='rgb(var(--primary-6))' className={`transition-transform duration-300 ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
+              <span className='text-13px' style={{ color: 'var(--text-secondary)' }}>
+                {t('settings.assistantDescription', { defaultValue: 'Assistant Description' })}
+              </span>
+              <Down theme='outline' size={14} style={{ color: 'var(--text-secondary)' }} className={`transition-transform duration-300 ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
             </div>
             <div className={`overflow-hidden transition-all duration-300 ${isDescriptionExpanded ? 'max-h-240px mt-4px opacity-100' : 'max-h-0 opacity-0'}`}>
               <div
@@ -88,7 +90,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
                   {prompts.map((prompt: string, index: number) => (
                     <div
                       key={index}
-                      className='px-12px py-6px bg-fill-2 hover:bg-fill-3 text-[rgb(var(--primary-6))] text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                      className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                      style={{ background: 'var(--bg-2)', color: 'var(--text-primary)', border: '1px solid var(--bg-3)' }}
                       onClick={() => {
                         onSetInput(prompt);
                         onFocusInput();
@@ -131,9 +134,9 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ isPrese
               </div>
             );
           })}
-        <div className='group flex items-center justify-center h-28px w-max min-w-28px max-w-28px rd-50% bg-fill-0 cursor-pointer overflow-hidden whitespace-nowrap b-1 b-dashed select-none transition-all duration-500 ease-out hover:min-w-0 hover:max-w-320px hover:rd-100px hover:px-16px hover:justify-start hover:gap-8px hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/settings/agent')}>
+        <div className='group flex items-center justify-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/settings/agent')}>
           <Plus theme='outline' size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
-          <span className='opacity-0 max-w-0 overflow-hidden text-14px text-2 group-hover:opacity-100 group-hover:max-w-none transition-[opacity,max-width] duration-400 ease-out delay-75'>{t('settings.createAssistant', { defaultValue: 'Add Assistant' })}</span>
+          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: 'Add Assistant' })}</span>
         </div>
       </div>
     </div>

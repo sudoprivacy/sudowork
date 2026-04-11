@@ -23,10 +23,7 @@ export function camelToSnake(str: string): string {
  * - Date: returned as-is (not a plain object)
  * - Plain objects: keys are transformed, values are recursively transformed
  */
-export function transformKeys<T>(
-  value: unknown,
-  transformer: (key: string) => string,
-): T {
+export function transformKeys<T>(value: unknown, transformer: (key: string) => string): T {
   if (value === null || value === undefined) {
     return value as T;
   }
@@ -35,7 +32,7 @@ export function transformKeys<T>(
     return value.map((item) => transformKeys(item, transformer)) as T;
   }
 
-  if (typeof value !== "object") {
+  if (typeof value !== 'object') {
     return value as T;
   }
 

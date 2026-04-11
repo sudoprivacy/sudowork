@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Config, Earth, Gemini, Info, Lightning, LinkCloud, Puzzle, Robot, System, Toolkit, Cloudy } from '@icon-park/react';
+import { Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -33,22 +33,28 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   const { resolveExtTabName } = useExtI18n();
 
-  type NavItem = { label: string; icon: React.ReactElement; path: string; id: string };
+  type NavItem = { label: string; icon: React.ReactElement; path: string; id: string; hidden?: boolean };
 
   const menuItems = React.useMemo(() => {
-    const builtins: NavItem[] = [
-      { id: 'gemini', label: t('settings.gemini'), icon: <Gemini theme='outline' size='16' />, path: 'gemini' },
-      { id: 'model', label: t('settings.model'), icon: <LinkCloud theme='outline' size='16' />, path: 'model' },
-      { id: 'agent', label: t('settings.assistants', { defaultValue: 'Assistants' }), icon: <Robot theme='outline' size='16' />, path: 'agent' },
-      { id: 'tools', label: t('settings.tools'), icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
-      { id: 'skill', label: t('settings.skill'), icon: <Lightning theme='outline' size='16' />, path: 'skill' },
-      { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
-      { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
-      { id: 'copilot', label: 'Copilot', icon: <Cloudy theme='outline' size='16' />, path: 'copilot' },
-      { id: 'openclaw', label: t('settings.openclaw', { defaultValue: 'Sudoclaw' }), icon: <Config theme='outline' size='16' />, path: 'openclaw' },
-      { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
-      { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
-    ];
+    // Sync with SettingsSider menu items / 与 SettingsSider 菜单项保持一致
+    const builtinMap: Record<string, NavItem> = {
+      profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User theme='outline' size='16' />, path: 'profile' },
+      members: { id: 'members', label: t('settings.memberManagement', { defaultValue: '成员管理' }), icon: <Peoples theme='outline' size='16' />, path: 'members', hidden: true },
+      agent: { id: 'agent', label: '数字助手', icon: <Robot theme='outline' size='16' />, path: 'agent' },
+      tools: { id: 'tools', label: '工具', icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
+      skill: { id: 'skill', label: '技能商店', icon: <Lightning theme='outline' size='16' />, path: 'skill' },
+      security: { id: 'security', label: '安全防护', icon: <Shield theme='outline' size='16' />, path: 'security' },
+      display: { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
+      // copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
+      webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
+      runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne theme='outline' size='16' />, path: 'runtime' },
+      system: { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
+      about: { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
+    };
+
+    // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
+    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+    const builtins: NavItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Insert extension tabs before system (unanchored default) or at anchor position
     const result = [...builtins];
@@ -101,11 +107,27 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   const contentClass = classNames('settings-page-content mx-auto w-full md:max-w-1024px', contentClassName);
 
+  const navRef = React.useRef<HTMLDivElement>(null);
+
+  // Scroll active menu item into view when route changes
+  React.useEffect(() => {
+    if (isMobile && navRef.current) {
+      const activeItem = navRef.current.querySelector('.settings-mobile-top-nav__item--active') as HTMLElement;
+      if (activeItem) {
+        // Small delay to ensure DOM is fully rendered
+        const timer = setTimeout(() => {
+          activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isMobile, pathname]);
+
   return (
     <SettingsViewModeProvider value='page'>
       <div className={containerClass}>
         {isMobile && (
-          <div className='settings-mobile-top-nav'>
+          <div ref={navRef} className='settings-mobile-top-nav'>
             {menuItems.map((item) => {
               const active = pathname.includes(`/settings/${item.path}`);
               return (

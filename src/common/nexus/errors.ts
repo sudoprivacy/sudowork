@@ -23,7 +23,7 @@ export class NexusApiError extends Error {
 
   constructor(message: string, status: number, code: string) {
     super(message);
-    this.name = "NexusApiError";
+    this.name = 'NexusApiError';
     this.status = status;
     this.code = code;
   }
@@ -31,29 +31,29 @@ export class NexusApiError extends Error {
 
 export class AuthenticationError extends NexusApiError {
   constructor(message: string) {
-    super(message, 401, "authentication_error");
-    this.name = "AuthenticationError";
+    super(message, 401, 'authentication_error');
+    this.name = 'AuthenticationError';
   }
 }
 
 export class ForbiddenError extends NexusApiError {
   constructor(message: string) {
-    super(message, 403, "forbidden");
-    this.name = "ForbiddenError";
+    super(message, 403, 'forbidden');
+    this.name = 'ForbiddenError';
   }
 }
 
 export class NotFoundError extends NexusApiError {
   constructor(message: string) {
-    super(message, 404, "not_found");
-    this.name = "NotFoundError";
+    super(message, 404, 'not_found');
+    this.name = 'NotFoundError';
   }
 }
 
 export class ConflictError extends NexusApiError {
   constructor(message: string) {
-    super(message, 409, "conflict");
-    this.name = "ConflictError";
+    super(message, 409, 'conflict');
+    this.name = 'ConflictError';
   }
 }
 
@@ -61,36 +61,36 @@ export class RateLimitError extends NexusApiError {
   readonly retryAfter: number | undefined;
 
   constructor(message: string, retryAfter?: number) {
-    super(message, 429, "rate_limit_error");
-    this.name = "RateLimitError";
+    super(message, 429, 'rate_limit_error');
+    this.name = 'RateLimitError';
     this.retryAfter = retryAfter;
   }
 }
 
 export class ServerError extends NexusApiError {
   constructor(message: string, status: number) {
-    super(message, status, "server_error");
-    this.name = "ServerError";
+    super(message, status, 'server_error');
+    this.name = 'ServerError';
   }
 }
 
 export class NetworkError extends NexusApiError {
   constructor(message: string) {
-    super(message, 0, "network_error");
-    this.name = "NetworkError";
+    super(message, 0, 'network_error');
+    this.name = 'NetworkError';
   }
 }
 
 export class TimeoutError extends NexusApiError {
   constructor(message: string) {
-    super(message, 0, "timeout_error");
-    this.name = "TimeoutError";
+    super(message, 0, 'timeout_error');
+    this.name = 'TimeoutError';
   }
 }
 
 export class AbortError extends NexusApiError {
   constructor(message: string) {
-    super(message, 0, "abort_error");
-    this.name = "AbortError";
+    super(message, 0, 'abort_error');
+    this.name = 'AbortError';
   }
 }

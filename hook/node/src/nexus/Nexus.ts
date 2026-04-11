@@ -1,18 +1,15 @@
-import { Logger } from '@open-draft/logger';
 import { randomUUID } from 'node:crypto';
 
-export class Nexus {
-  protected logger: Logger;
+// Use stderr for error logging to avoid corrupting ACP stdio pipe
+const logError = (...args: unknown[]) => process.stderr.write(`[nexus] ERROR: ${args.join(' ')}\n`);
 
+export class Nexus {
   constructor(
     protected readonly serverUrl: string,
     protected readonly apikey?: string
-  ) {
-    this.logger = new Logger('nexus');
-  }
+  ) {}
 
   protected async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
-    this.logger.debug(`API call: ${method} with params: ${JSON.stringify(params)}`);
     const url = new URL(`/api/nfs/${method}`, this.serverUrl);
     const rpcRequest = {
       jsonrpc: '2.0',
@@ -30,15 +27,14 @@ export class Nexus {
       },
     });
     if (!response.ok) {
-      this.logger.error(`API call failed: ${method} - HTTP ${response.status}`);
+      logError(`API call failed: ${method} - HTTP ${response.status}`);
       throw new Error(`Request failed: ${await response.text()}`);
     }
     const rpcResponse = (await response.json()) as RPCResponse;
     if (rpcResponse.error) {
-      this.logger.error(`API call RPC error: ${method} - ${rpcResponse.error.message}`);
+      logError(`API call RPC error: ${method} - ${rpcResponse.error.message}`);
       throwRPCError(rpcResponse.error);
     }
-    this.logger.info(`API call completed: ${method}`);
     return rpcResponse.result;
   }
 
@@ -87,6 +83,10 @@ export class Nexus {
 
   public async exists(path: string): Promise<boolean> {
     return !!((await this.callRPC('exists', { path })) as { exists?: boolean })?.exists;
+  }
+
+  public async delete(path: string): Promise<void> {
+    await this.callRPC('delete', { path });
   }
 
   public async readUntilExists(path: string, timeout?: number): Promise<Buffer> {

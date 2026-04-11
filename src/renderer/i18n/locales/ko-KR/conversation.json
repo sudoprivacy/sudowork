@@ -2,7 +2,8 @@
   "welcome": {
     "title": "안녕하세요, 오늘의 계획은 무엇인가요?",
     "placeholder": "메시지 전송, 파일 업로드, 폴더 열기 또는 예약 작업 만들기...",
-    "uploadFile": "파일 업로드",
+    "downloadLocalFile": "로컬 파일 가져오기",
+    "downloadBdpanFile": "바이두 넷디스크 파일 가져오기",
     "linkFolder": "폴더 열기",
     "newConversation": "새 채팅",
     "multiAgentModeEnabled": "멀티 에이전트 모드 진입",
@@ -12,6 +13,7 @@
     "specifyWorkspace": "폴더에서 채팅",
     "currentWorkspace": "현재 워크스페이스",
     "clearWorkspace": "폴더 제거",
+    "addSkill": "스킬 추가",
     "openFolder": "폴더 열기",
     "none": "없음",
     "quickActionsTitle": "Sudowork로 무엇을 할 수 있나요?",
@@ -137,7 +139,39 @@
       "addToChat": "채팅에 추가",
       "addedToChat": "채팅에 추가됨",
       "openFailed": "열기 실패",
-      "revealFailed": "포함 폴더 열기 실패"
+      "revealFailed": "포함 폴더 열기 실패",
+      "uploadToBdpan": "바이두 넷디스크에 업로드",
+      "newFolder": "새 폴더"
+    },
+    "newFolder": {
+      "title": "새 폴더",
+      "placeholder": "폴더 이름 입력",
+      "hint": "현재 디렉토리에 새 폴더를 생성합니다",
+      "success": "폴더가 생성되었습니다",
+      "failed": "폴더 생성에 실패했습니다",
+      "invalidName": "폴더 이름에 잘못된 문자가 포함되어 있습니다",
+      "reservedName": "이 이름은 시스템 예약 이름입니다. 다른 이름을 사용해주세요."
+    },
+    "drafts": {
+      "title": "임시 보관함",
+      "description": "에이전트 실행 중 생성된 중간 파일",
+      "empty": "임시 보관함이 비어 있습니다",
+      "clearAll": "임시 보관함 비우기",
+      "clearConfirm": "임시 보관함의 모든 파일을 삭제하시겠습니까?",
+      "fileCount": "{{count}}개의 중간 파일",
+      "clearSuccess": "임시 보관함이 비워졌습니다",
+      "deleteFailed": "임시 파일 삭제 실패"
+    },
+    "renameWorkspace": {
+      "title": "작업 공간 이름 변경",
+      "placeholder": "표시 이름 입력",
+      "hint": "표시 이름만 변경됩니다. 실제 폴더 경로는 변경되지 않습니다.",
+      "success": "작업 공간 이름이 변경되었습니다",
+      "failed": "이름 변경 실패",
+      "invalidName": "폴더 이름에 잘못된 문자가 포함되어 있습니다",
+      "alreadyExists": "대상 폴더가 이미 존재합니다",
+      "agentRunning": "에이전트가 실행 중입니다. 완료 후 이름을 변경해 주세요.",
+      "emptyName": "이름은 비워둘 수 없습니다"
     }
   },
   "chat": {
@@ -158,6 +192,42 @@
   },
   "contextUsage": {
     "contextUsed": "사용된 컨텍스트"
+  },
+  "bdpan": {
+    "title": "바이두 넷디스크 파일",
+    "checking": "로그인 상태 확인 중...",
+    "waitingAuth": "인증 대기 중입니다. 브라우저에서 인증을 완료해 주세요...",
+    "gettingAuthUrl": "인증 링크를 가져오는 중...",
+    "authCode": "인증 코드",
+    "authCodePlaceholder": "32자리 인증 코드 입력",
+    "authCodeSubmit": "제출",
+    "loginTimeout": "로그인 시간이 초과되었습니다. 다시 시도해 주세요",
+    "loginFailed": "로그인에 실패했습니다. 다시 시도해 주세요",
+    "lsFailed": "파일 로드에 실패했습니다",
+    "emptyDir": "이 폴더는 비어 있습니다",
+    "selectedCount": "{{count}}개 파일 선택됨",
+    "selectHint": "파일 클릭하여 선택, 폴더 클릭하여 이동",
+    "cancel": "취소",
+    "confirm": "확인",
+    "retry": "재시도",
+    "logout": "로그아웃",
+    "mkdir": {
+      "placeholder": "새 폴더 이름",
+      "confirm": "만들기",
+      "failed": "폴더 만들기 실패"
+    },
+    "upload": {
+      "title": "바이두 넷디스크에 업로드",
+      "localPath": "로컬 경로",
+      "uploadTo": "업로드 위치",
+      "uploadButton": "업로드",
+      "success": "바이두 넷디스크에 업로드 성공",
+      "failed": "바이두 넷디스크 업로드 실패"
+    },
+    "download": {
+      "success": "已成功导入百度网盘文件",
+      "failed": "导入百度网盘文件失败"
+    }
   },
   "skill_generator": {
     "title": "스킬/규칙 생성",

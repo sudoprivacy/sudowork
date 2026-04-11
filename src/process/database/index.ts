@@ -13,10 +13,12 @@ import { runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
-import { encryptCredentials, decryptCredentials } from '@/channels/utils/credentialCrypto';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
+import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 
 /**
  * Main database class for Sudowork
@@ -29,7 +31,7 @@ export class AionUIDatabase {
 
   constructor() {
     const finalPath = path.join(getDataPath(), 'sudowork.db');
-    console.log(`[Database] Initializing database at: ${finalPath}`);
+    mainLog('Database', `Initializing database at: ${finalPath}`);
 
     const dir = path.dirname(finalPath);
     ensureDirectory(dir);
@@ -38,7 +40,7 @@ export class AionUIDatabase {
       this.db = new BetterSqlite3(finalPath);
       this.initialize();
     } catch (error) {
-      console.error('[Database] Failed to initialize, attempting recovery...', error);
+      mainError('Database', 'Failed to initialize, attempting recovery...', error);
       // 尝试恢复：关闭并重新创建数据库
       // Try to recover by closing and recreating database
       try {
@@ -56,16 +58,16 @@ export class AionUIDatabase {
         const backupPath = `${finalPath}.backup.${Date.now()}`;
         try {
           fs.renameSync(finalPath, backupPath);
-          console.log(`[Database] Backed up corrupted database to: ${backupPath}`);
+          mainLog('Database', `Backed up corrupted database to: ${backupPath}`);
         } catch (e) {
-          console.error('[Database] Failed to backup corrupted database:', e);
+          mainError('Database', 'Failed to backup corrupted database:', e);
           // 备份失败则尝试直接删除
           // If backup fails, try to delete instead
           try {
             fs.unlinkSync(finalPath);
-            console.log(`[Database] Deleted corrupted database file`);
+            mainLog('Database', `Deleted corrupted database file`);
           } catch (e2) {
-            console.error('[Database] Failed to delete corrupted database:', e2);
+            mainError('Database', 'Failed to delete corrupted database:', e2);
             throw new Error('Database is corrupted and cannot be recovered. Please manually delete: ' + finalPath);
           }
         }
@@ -91,7 +93,7 @@ export class AionUIDatabase {
 
       this.ensureSystemUser();
     } catch (error) {
-      console.error('[Database] Initialization failed:', error);
+      mainError('Database', 'Initialization failed:', error);
       throw error;
     }
   }
@@ -525,7 +527,7 @@ export class AionUIDatabase {
         hasMore: (page + 1) * pageSize < countResult.count,
       };
     } catch (error: any) {
-      console.error('[Database] Get conversations error:', error);
+      mainError('Database', 'Get conversations error:', error);
       return {
         data: [],
         total: 0,
@@ -574,6 +576,69 @@ export class AionUIDatabase {
         success: false,
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * Batch update workspace path for all conversations matching the old path
+   * 批量更新所有匹配旧路径的对话的 workspace 路径
+   *
+   * Used when physically renaming a workspace directory.
+   * Only updates extra.workspace, does NOT change conversation.name (title).
+   */
+  updateWorkspacePath(oldPath: string, newPath: string): IQueryResult<number> {
+    try {
+      // Find all conversations with this workspace path in their extra JSON
+      const findStmt = this.db.prepare(`SELECT id, extra FROM conversations WHERE json_extract(extra, '$.workspace') = ?`);
+      const rows = findStmt.all(oldPath) as Array<{ id: string; extra: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: 0 };
+      }
+
+      const updateStmt = this.db.prepare(`UPDATE conversations SET extra = json_set(extra, '$.workspace', ?), updated_at = ? WHERE id = ?`);
+
+      const now = Date.now();
+      const transaction = this.db.transaction(() => {
+        for (const row of rows) {
+          updateStmt.run(newPath, now, row.id);
+        }
+      });
+      transaction();
+
+      return { success: true, data: rows.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update workspace display name for all conversations with the given workspace path.
+   * Only updates the displayName field in extra JSON, does NOT change the physical workspace path.
+   * 更新指定工作空间路径的所有会话的显示名称，不改变物理路径。
+   */
+  updateWorkspaceDisplayName(workspace: string, displayName: string): IQueryResult<number> {
+    try {
+      const findStmt = this.db.prepare(`SELECT id FROM conversations WHERE json_extract(extra, '$.workspace') = ?`);
+      const rows = findStmt.all(workspace) as Array<{ id: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: 0 };
+      }
+
+      const updateStmt = this.db.prepare(`UPDATE conversations SET extra = json_set(extra, '$.workspaceDisplayName', ?), updated_at = ? WHERE id = ?`);
+
+      const now = Date.now();
+      const transaction = this.db.transaction(() => {
+        for (const row of rows) {
+          updateStmt.run(displayName, now, row.id);
+        }
+      });
+      transaction();
+
+      return { success: true, data: rows.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 
@@ -649,7 +714,7 @@ export class AionUIDatabase {
         hasMore: (page + 1) * pageSize < countResult.count,
       };
     } catch (error: any) {
-      console.error('[Database] Get messages error:', error);
+      mainError('Database', 'Get messages error:', error);
       return {
         data: [],
         total: 0,
@@ -764,6 +829,10 @@ export class AionUIDatabase {
 
   /**
    * Get all assistant plugins
+   *
+   * After migration:
+   * - Credentials are read ONLY from Nexus (source of truth)
+   * - Original storage (SQLite) only provides metadata (name, enabled, status, config)
    */
   getChannelPlugins(): IQueryResult<IChannelPluginConfig[]> {
     try {
@@ -781,15 +850,32 @@ export class AionUIDatabase {
 
       const plugins: IChannelPluginConfig[] = rows.map((row) => {
         const storedConfig = JSON.parse(row.config || '{}');
-        // Decrypt credentials when loading
-        const decryptedCredentials = decryptCredentials(storedConfig.credentials);
+        const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
+        const namespace = `channel:${row.type}:${row.id}`;
+
+        // Build credentials object - read credential fields from Nexus (secret fields)
+        const credentials: Record<string, string | undefined> = {};
+        for (const field of credentialFields) {
+          credentials[field] = resolveSecret(namespace, field, '');
+        }
+
+        // Merge ID fields from SQLite config (not stored in Nexus after migration)
+        // Before migration, all credentials were stored in SQLite config.credentials
+        // After migration, only secret fields go to Nexus, ID fields remain in SQLite config
+        if (storedConfig.credentials) {
+          for (const [key, value] of Object.entries(storedConfig.credentials)) {
+            if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+              credentials[key] = value;
+            }
+          }
+        }
 
         return {
           id: row.id,
           type: row.type as PluginType,
           name: row.name,
           enabled: row.enabled === 1,
-          credentials: decryptedCredentials,
+          credentials: credentials as any,
           config: storedConfig.config,
           status: (row.status as PluginStatus) || 'stopped',
           lastConnected: row.last_connected ?? undefined,
@@ -806,6 +892,10 @@ export class AionUIDatabase {
 
   /**
    * Get assistant plugin by ID
+   *
+   * After migration:
+   * - Credentials are read ONLY from Nexus (source of truth)
+   * - Original storage (SQLite) only provides metadata (name, enabled, status, config)
    */
   getChannelPlugin(pluginId: string): IQueryResult<IChannelPluginConfig | null> {
     try {
@@ -828,15 +918,32 @@ export class AionUIDatabase {
       }
 
       const storedConfig = JSON.parse(row.config || '{}');
-      // Decrypt credentials when loading
-      const decryptedCredentials = decryptCredentials(storedConfig.credentials);
+      const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(row.type);
+      const namespace = `channel:${row.type}:${row.id}`;
+
+      // Build credentials object - read credential fields from Nexus (secret fields)
+      const credentials: Record<string, string | undefined> = {};
+      for (const field of credentialFields) {
+        credentials[field] = resolveSecret(namespace, field, '');
+      }
+
+      // Merge ID fields from SQLite config (not stored in Nexus after migration)
+      // Before migration, all credentials were stored in SQLite config.credentials
+      // After migration, only secret fields go to Nexus, ID fields remain in SQLite config
+      if (storedConfig.credentials) {
+        for (const [key, value] of Object.entries(storedConfig.credentials)) {
+          if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+            credentials[key] = value;
+          }
+        }
+      }
 
       const plugin: IChannelPluginConfig = {
         id: row.id,
         type: row.type as PluginType,
         name: row.name,
         enabled: row.enabled === 1,
-        credentials: decryptedCredentials,
+        credentials: credentials as any,
         config: storedConfig.config,
         status: (row.status as PluginStatus) || 'stopped',
         lastConnected: row.last_connected ?? undefined,
@@ -852,10 +959,18 @@ export class AionUIDatabase {
 
   /**
    * Create or update assistant plugin
+   *
+   * After migration:
+   * - ALL credentials are stored ONLY in Nexus (Nexus is source of truth)
+   * - Original storage (SQLite) is frozen for credentials - no longer maintained
+   * - Plugin metadata (name, enabled, status, config) continues to be stored in SQLite
    */
   upsertChannelPlugin(plugin: IChannelPluginConfig): IQueryResult<boolean> {
     try {
       const now = Date.now();
+
+      // Store plugin metadata (non-credential fields) in SQLite
+      // Note: config field is kept for backwards compatibility but credentials are NOT stored here
       const stmt = this.db.prepare(`
         INSERT INTO assistant_plugins (id, type, name, enabled, config, status, last_connected, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -868,16 +983,37 @@ export class AionUIDatabase {
           updated_at = excluded.updated_at
       `);
 
-      // Encrypt credentials before storing
-      const encryptedCredentials = encryptCredentials(plugin.credentials);
-
-      // Store both credentials and config in the config column
+      // Store non-credential config in SQLite
+      // Also store ID fields (not in credentialFields) that should be preserved but not stored in Nexus
+      const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(plugin.type);
+      const idFields: Record<string, string> = {};
+      if (plugin.credentials) {
+        for (const [key, value] of Object.entries(plugin.credentials)) {
+          if (!credentialFields.includes(key) && typeof value === 'string' && value) {
+            idFields[key] = value;
+          }
+        }
+      }
       const storedConfig = {
-        credentials: encryptedCredentials,
         config: plugin.config,
+        credentials: idFields, // Store ID fields that are not in Nexus
       };
 
       stmt.run(plugin.id, plugin.type, plugin.name, plugin.enabled ? 1 : 0, JSON.stringify(storedConfig), plugin.status, plugin.lastConnected ?? null, plugin.createdAt || now, now);
+
+      // Credentials are stored ONLY in Nexus after migration (Nexus is source of truth)
+      // Original storage (SQLite) is frozen for credentials - no longer maintained
+      if (plugin.credentials) {
+        const credentialFields = SecretMigrationCoordinator.getChannelCredentialFields(plugin.type);
+        const namespace = `channel:${plugin.type}:${plugin.id}`;
+
+        for (const field of credentialFields) {
+          const value = plugin.credentials[field];
+          if (typeof value === 'string') {
+            cachePut(namespace, field, value);
+          }
+        }
+      }
 
       return { success: true, data: true };
     } catch (error: any) {
@@ -892,6 +1028,20 @@ export class AionUIDatabase {
     try {
       const now = Date.now();
       this.db.prepare('UPDATE assistant_plugins SET status = ?, last_connected = COALESCE(?, last_connected), updated_at = ? WHERE id = ?').run(status, lastConnected ?? null, now, pluginId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update assistant plugin enabled/disabled status only.
+   * Does NOT update config or trigger credential save to Nexus.
+   */
+  updateChannelPluginEnabled(pluginId: string, enabled: boolean, status: PluginStatus): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+      this.db.prepare('UPDATE assistant_plugins SET enabled = ?, status = ?, updated_at = ? WHERE id = ?').run(enabled ? 1 : 0, status, now, pluginId);
       return { success: true, data: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -982,6 +1132,22 @@ export class AionUIDatabase {
       return { success: true, data: result.changes > 0 };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete all channel users for a specific platform
+   * Used when disabling a channel to clear all authorized users
+   */
+  deleteChannelUsersByPlatform(platformType: string): IQueryResult<number> {
+    try {
+      // First delete sessions for users of this platform (foreign key constraint)
+      this.db.prepare('DELETE FROM assistant_sessions WHERE user_id IN (SELECT id FROM assistant_users WHERE platform_type = ?)').run(platformType);
+      // Then delete the users
+      const result = this.db.prepare('DELETE FROM assistant_users WHERE platform_type = ?').run(platformType);
+      return { success: true, data: result.changes };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: 0 };
     }
   }
 
@@ -1133,7 +1299,20 @@ export class AionUIDatabase {
    */
   vacuum(): void {
     this.db.exec('VACUUM');
-    console.log('[Database] Vacuum completed');
+    mainLog('Database', 'Vacuum completed');
+  }
+
+  /**
+   * Get raw assistant plugin records for secret migration.
+   * Returns original credential data from SQLite without going through Nexus.
+   * Used by SecretMigrationCoordinator during initial migration.
+   */
+  getAssistantPluginsForMigration(): Array<{ id: string; type: string; config: string }> {
+    return this.db.prepare('SELECT id, type, config FROM assistant_plugins').all() as Array<{
+      id: string;
+      type: string;
+      config: string;
+    }>;
   }
 }
 

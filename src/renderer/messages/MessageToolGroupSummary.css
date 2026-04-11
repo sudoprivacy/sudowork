@@ -16,6 +16,19 @@
   border-left: 2px solid var(--color-border-2, #e5e6eb);
   padding-left: 10px;
   margin-bottom: 4px;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tool-detail-section {
@@ -41,4 +54,12 @@
   word-break: break-all;
   max-height: 200px;
   overflow-y: auto;
+}
+
+/* Container for viewsteps to keep newest items visible at the bottom */
+.viewsteps-container {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-anchor: none;
+  scroll-behavior: auto;
 }

@@ -2,7 +2,7 @@ import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { Cloudy, Communication, Computer, Config, Earth, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import OpenClawLogo from '@/renderer/assets/logos/openclaw.svg';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,7 +13,7 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'copilot', 'webui', 'system', 'about'] as const;
+const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
 
 type SiderItem = {
   id: string;
@@ -93,23 +93,24 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const menus: SiderItem[] = useMemo(() => {
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
-      profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User />, path: 'profile' },
+      profile: { id: 'profile', label: t('settings.profile'), icon: <User />, path: 'profile' },
       members: {
         id: 'members',
-        label: t('settings.memberManagement', { defaultValue: '成员管理' }),
+        label: t('settings.memberManagement'),
         icon: <Peoples />,
         path: 'members',
         hidden: true, // 固定隐藏，服务端已只有一个企业
       },
-      sudorouter: { id: 'sudorouter', label: t('settings.sudorouter', { defaultValue: 'Sudorouter' }), icon: <Cloudy />, path: 'sudorouter' },
+      sudorouter: { id: 'sudorouter', label: t('settings.sudorouter'), icon: <Cloudy />, path: 'sudorouter' },
       // model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
-      agent: { id: 'agent', label: '数字助手', icon: <Robot />, path: 'agent' },
-      tools: { id: 'tools', label: '工具', icon: <Toolkit />, path: 'tools' },
-      skill: { id: 'skill', label: '技能商店', icon: <Lightning />, path: 'skill' },
-      security: { id: 'security', label: '安全防护', icon: <Shield />, path: 'security' },
+      agent: { id: 'agent', label: t('settings.agent'), icon: <Robot />, path: 'agent' },
+      tools: { id: 'tools', label: t('settings.tools'), icon: <Toolkit />, path: 'tools' },
+      skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
+      security: { id: 'security', label: t('settings.security'), icon: <Shield />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
-      copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config />, path: 'copilot' },
-      webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
+      // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
+      webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
+      runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };
@@ -174,7 +175,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (
-    <div className={classNames('flex-1 min-h-0 settings-sider flex flex-col gap-2px overflow-y-auto overflow-x-hidden', { 'settings-sider--collapsed': collapsed })}>
+    <div className={classNames('flex-1 min-h-0 settings-sider flex flex-col gap-2px overflow-y-auto overflow-x-hidden scrollbar-hide', { 'settings-sider--collapsed': collapsed })}>
       {menus.map((item) => {
         const isSelected = pathname.includes(item.path);
         return (

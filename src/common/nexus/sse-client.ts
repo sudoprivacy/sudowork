@@ -3,7 +3,7 @@
  * and exponential backoff reconnection.
  */
 
-import type { SseEvent } from "./types.js";
+import type { SseEvent } from './types.js';
 
 const DEFAULT_BUFFER_CAPACITY = 1000;
 const DEFAULT_FLUSH_INTERVAL_MS = 100;
@@ -108,7 +108,7 @@ export class SseClient {
   private reconnectHandler: SseReconnectHandler | null = null;
 
   constructor(options: SseClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this.fetchFn = options.fetch ?? globalThis.fetch;
     this.buffer = new RingBuffer(options.bufferCapacity ?? DEFAULT_BUFFER_CAPACITY);
@@ -187,15 +187,15 @@ export class SseClient {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
-      Accept: "text/event-stream",
+      Accept: 'text/event-stream',
     };
 
-    if (this.agentId) headers["X-Agent-ID"] = this.agentId;
-    if (this.subject) headers["X-Nexus-Subject"] = this.subject;
-    if (this.zoneId) headers["X-Nexus-Zone-ID"] = this.zoneId;
+    if (this.agentId) headers['X-Agent-ID'] = this.agentId;
+    if (this.subject) headers['X-Nexus-Subject'] = this.subject;
+    if (this.zoneId) headers['X-Nexus-Zone-ID'] = this.zoneId;
 
     if (this.lastEventId) {
-      headers["Last-Event-ID"] = this.lastEventId;
+      headers['Last-Event-ID'] = this.lastEventId;
     }
 
     const response = await this.fetchFn(url, {
@@ -208,7 +208,7 @@ export class SseClient {
     }
 
     if (!response.body) {
-      throw new Error("SSE response has no body");
+      throw new Error('SSE response has no body');
     }
 
     this.connected = true;
@@ -216,7 +216,7 @@ export class SseClient {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let partial = "";
+    let partial = '';
 
     try {
       while (true) {
@@ -245,33 +245,33 @@ export class SseClient {
     remaining: string;
   } {
     const parsed: SseEvent[] = [];
-    const blocks = text.split("\n\n");
+    const blocks = text.split('\n\n');
 
     // Last block may be incomplete — keep it as remaining
-    const remaining = blocks.pop() ?? "";
+    const remaining = blocks.pop() ?? '';
 
     for (const block of blocks) {
       if (!block.trim()) continue;
 
       let id: string | undefined;
-      let event = "message";
-      let data = "";
+      let event = 'message';
+      let data = '';
       let retry: number | undefined;
 
-      for (const line of block.split("\n")) {
-        if (line.startsWith("id:")) {
+      for (const line of block.split('\n')) {
+        if (line.startsWith('id:')) {
           id = line.slice(3).trim();
-        } else if (line.startsWith("event:")) {
+        } else if (line.startsWith('event:')) {
           event = line.slice(6).trim();
-        } else if (line.startsWith("data:")) {
-          data += (data ? "\n" : "") + line.slice(5).trim();
-        } else if (line.startsWith("retry:")) {
+        } else if (line.startsWith('data:')) {
+          data += (data ? '\n' : '') + line.slice(5).trim();
+        } else if (line.startsWith('retry:')) {
           const val = parseInt(line.slice(6).trim(), 10);
           if (!Number.isNaN(val)) retry = val;
         }
       }
 
-      if (data || event !== "message") {
+      if (data || event !== 'message') {
         parsed.push({ id, event, data, retry });
       }
     }

@@ -15,6 +15,7 @@
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { changeLanguage } from '@process/i18n';
+import { mainError } from '@process/utils/mainLogger';
 
 type CloseToTrayChangeListener = (enabled: boolean) => void;
 let _changeListener: CloseToTrayChangeListener | null = null;
@@ -64,7 +65,7 @@ export function initSystemSettingsBridge(): void {
 
     // Update main process i18n (non-blocking – don't let a hang here block the provider)
     changeLanguage(language).catch((error) => {
-      console.error('[SystemSettings] Main process changeLanguage failed:', error);
+      mainError('SystemSettings', 'Main process changeLanguage failed:', error);
     });
   });
 }

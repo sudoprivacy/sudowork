@@ -337,9 +337,9 @@ const ImageDisplay: React.FC<{
     <Image
       src={imageUrl}
       alt={relativePath || 'Generated image'}
-      width={197}
       style={{
-        maxHeight: '320px',
+        width: '40%',
+        maxHeight: '60vw',
         objectFit: 'contain',
         borderRadius: '8px',
         cursor: 'pointer',
@@ -350,7 +350,7 @@ const ImageDisplay: React.FC<{
   return (
     <>
       {messageContext}
-      <div className='flex flex-col gap-8px my-8px' style={{ maxWidth: '197px' }}>
+      <div className='flex flex-col gap-8px my-8px' style={{ width: '40%' }}>
         {/* 图片预览 Image preview - 如果已在 PreviewGroup 中则直接渲染，否则包裹 PreviewGroup */}
         {inPreviewGroup ? imageElement : <Image.PreviewGroup>{imageElement}</Image.PreviewGroup>}
         {/* 操作按钮 Action buttons */}
@@ -373,8 +373,8 @@ const ToolResultDisplay: React.FC<{
 }> = ({ content, collapsed }) => {
   const { resultDisplay, name } = content;
 
-  // 图片生成特殊处理 Special handling for image generation
-  if (name === 'ImageGeneration' && typeof resultDisplay === 'object') {
+  // 图片生成/编辑特殊处理 Special handling for image generation/edit
+  if ((name === 'ImageGeneration' || name === 'ImageEdit') && typeof resultDisplay === 'object') {
     const result = resultDisplay as ImageGenerationResult;
     // 如果有 img_url 才显示图片，否则显示错误信息
     if (result.img_url) {
@@ -389,7 +389,7 @@ const ToolResultDisplay: React.FC<{
   // 使用 CollapsibleContent 包装长内容
   // Wrap long content with CollapsibleContent
   return (
-    <CollapsibleContent maxHeight={RESULT_MAX_HEIGHT} defaultCollapsed={collapsed ?? true} useMask={false}>
+    <CollapsibleContent maxHeight={RESULT_MAX_HEIGHT} defaultCollapsed={collapsed ?? false} useMask={false}>
       <pre className='text-t-primary whitespace-pre-wrap break-words m-0' style={{ fontSize: `${TEXT_CONFIG.FONT_SIZE}px`, lineHeight: TEXT_CONFIG.LINE_HEIGHT }}>
         {display}
       </pre>
@@ -405,20 +405,19 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
   // 任务完成后自动折叠所有工具调用
   useEffect(() => {
     const allCompleted = message.content.every((item) => item.status === 'Success' || item.status === 'Error' || item.status === 'Canceled');
-    if (allCompleted) {
-      const newCollapsedStates: Record<string, boolean> = {};
+    if (!allCompleted) {
+      // While running, ensure the items are tracked but respect their own toggle state
+      // We no longer force internal item expansion here to avoid flickering with the parent
+      const newCollapsedStates: Record<string, boolean> = { ...collapsedStates };
       message.content.forEach((item) => {
-        newCollapsedStates[item.callId] = true;
+        if (newCollapsedStates[item.callId] === undefined) {
+          newCollapsedStates[item.callId] = true; // Default internal items to collapsed
+        }
       });
-      setCollapsedStates(newCollapsedStates);
-    } else {
-      // While running, ensure the last one is expanded
-      const newCollapsedStates: Record<string, boolean> = {};
-      message.content.forEach((item, idx) => {
-        // Collapse previous ones if there's a next one
-        newCollapsedStates[item.callId] = idx < message.content.length - 1;
-      });
-      setCollapsedStates(newCollapsedStates);
+      // Only update if we have new items to avoid unnecessary re-renders
+      if (Object.keys(newCollapsedStates).length !== Object.keys(collapsedStates).length) {
+        setCollapsedStates(newCollapsedStates);
+      }
     }
   }, [message.content]);
 
@@ -478,8 +477,8 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
           }
         }
 
-        // ImageGeneration 特殊处理：单独展示图片，不用 Alert 包裹 Special handling for ImageGeneration: display image separately without Alert wrapper
-        if (name === 'ImageGeneration' && typeof resultDisplay === 'object') {
+        // ImageGeneration/ImageEdit 特殊处理：单独展示图片，不用 Alert 包裹 Special handling for ImageGeneration/ImageEdit: display image separately without Alert wrapper
+        if ((name === 'ImageGeneration' || name === 'ImageEdit') && typeof resultDisplay === 'object') {
           const result = resultDisplay as ImageGenerationResult;
           if (result.img_url) {
             return <ImageDisplay key={callId} imgUrl={result.img_url} relativePath={result.relative_path} />;
