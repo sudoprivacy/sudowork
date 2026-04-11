@@ -12,7 +12,7 @@ import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
-import { getBundledOpenclawArchiveFileName, getSudoclawVersionState as getInstalledSudoclawVersionState, isSudoclawInstalled as isInstalledSudoclaw } from '../sudoclaw/SudoclawInstallService';
+import { getSudoclawVersionState as getInstalledSudoclawVersionState, isSudoclawInstalled as isInstalledSudoclaw } from '../sudoclaw/SudoclawInstallService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -150,16 +150,15 @@ class RuntimeInstaller {
       return startCriticalServices();
     }
 
-    // Check which resource files are available.  Only show "组件安装中" and
-    // attempt install when the source archive actually exists.
+    // Node still requires a local resource bundle. Sudoclaw installs are
+    // version-driven and can fall back to remote download inside
+    // ensureSudoclawInstalled(), so do not gate it on local resources here.
     const nodeResExt = isWin32 ? 'zip' : 'tar.gz';
     const nodeResName = `node-${process.platform}-${process.arch}.${nodeResExt}`;
     const hasNodeResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, nodeResName));
-    const sudoclawArchiveFileName = getBundledOpenclawArchiveFileName();
-    const hasSudoclawResource = shouldAssumeBundledResources || (sudoclawArchiveFileName ? fs.existsSync(path.join(resDir, sudoclawArchiveFileName)) : false);
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
-    const willInstallSudoclaw = hasSudoclawResource && (!sudoclawInstalled || sudoclawVersionState.needsUpgrade);
+    const willInstallSudoclaw = !sudoclawInstalled || sudoclawVersionState.needsUpgrade;
     const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
     if (willInstallNode || willInstallSudoclaw || willInstallNexus) {
@@ -228,11 +227,9 @@ class RuntimeInstaller {
       } else {
         markStepDone('sudoclaw', 'Sudoclaw 文件已就绪');
       }
-    } else if (willInstallSudoclaw) {
+    } else {
       initStatusManager.setStepState('sudoclaw', 'pending', '等待安装 Sudoclaw...');
       initStatusManager.setStepProgress('sudoclaw', 0, '等待安装 Sudoclaw...');
-    } else {
-      markStepError('sudoclaw', '未找到 Sudoclaw 安装资源');
     }
 
     if (nexusInstalled && !nexusVersionState.needsUpgrade) {
@@ -405,10 +402,6 @@ class RuntimeInstaller {
           return { step: 'sudoclaw', ok: false, required: true, error };
         }
       }
-      if (!willInstallSudoclaw) {
-        return { step: 'sudoclaw', ok: false, required: true, error: '未找到 Sudoclaw 安装资源' };
-      }
-
       try {
         const isUpgrade = sudoclawVersionState.needsUpgrade;
         const action = isUpgrade ? `升级 Sudoclaw ${sudoclawVersionState.installedVersion} → ${sudoclawVersionState.bundledVersion}` : '安装 Sudoclaw';
