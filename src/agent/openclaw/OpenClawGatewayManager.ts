@@ -274,6 +274,10 @@ export class OpenClawGatewayManager extends EventEmitter {
         env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
 
+      // Prevent openclaw from auto-respawning and skip ACPX runtime probe
+      env.OPENCLAW_NO_RESPAWN = '1';
+      env.OPENCLAW_SKIP_ACPX_RUNTIME_PROBE = '1';
+
       // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
       // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
       // so no env var injection is needed here.

@@ -15,6 +15,7 @@
 import { execFileSync } from 'child_process';
 import { app } from 'electron';
 import * as fs from 'fs';
+import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -48,6 +49,16 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 const BUNDLED_OPENCLAW_MANIFEST_NAME = 'openclaw.manifest.json';
 
+/** COS base URL for downloading sudoclaw archives at runtime */
+const SUDOCLAW_COS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+/** GitHub base URL for downloading sudoclaw archives at runtime */
+const SUDOCLAW_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudorepo/releases/download';
+
+/** Platform name mapping: Node.js process.platform → sudoclaw archive OS name */
+const SUDOCLAW_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows' };
+/** Architecture mapping: Node.js process.arch → sudoclaw archive arch name */
+const SUDOCLAW_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
+
 export const CONFIG_FILENAME = 'sudoclaw.json';
 
 /** Full path to sudoclaw.json config file */
@@ -67,7 +78,7 @@ function hasDistEntry(pkgRoot: string): boolean {
   return fs.existsSync(entryMjs) || fs.existsSync(entryJs);
 }
 
-/** Check if the esbuild-bundled openclaw.mjs exists (produced by bundle-openclaw.js) */
+/** Check if the esbuild-bundled openclaw.mjs exists (present in pre-built archives) */
 function hasBundledEntry(pkgRoot: string): boolean {
   return fs.existsSync(path.join(pkgRoot, 'openclaw.mjs'));
 }
@@ -742,6 +753,136 @@ function migrateLegacyDir(legacyDir: string, label: string): void {
   }
 }
 
+/**
+ * Get the sudoclaw archive filename for the current platform.
+ * e.g. v0.1.0-v2026.03.11-sudoclaw-macos-arm64.tgz
+ */
+function getSudoclawArchiveFileName(): string | null {
+  const version = runtimeVersions.sudoclaw;
+  if (!version) return null;
+  const osName = SUDOCLAW_OS_NAME_MAP[process.platform];
+  const archName = SUDOCLAW_ARCH_NAME_MAP[process.arch];
+  if (!osName || !archName) return null;
+  return `${version}-sudoclaw-${osName}-${archName}.tgz`;
+}
+
+function getSudoclawGitHubDownloadUrl(): string | null {
+  const version = runtimeVersions.sudoclaw;
+  const fileName = getSudoclawArchiveFileName();
+  if (!version || !fileName) return null;
+  return `${SUDOCLAW_GITHUB_RELEASE_BASE_URL}/${version}/${fileName}`;
+}
+
+function getSudoclawCosDownloadUrl(): string | null {
+  const version = runtimeVersions.sudoclaw;
+  const fileName = getSudoclawArchiveFileName();
+  if (!version || !fileName) return null;
+  return `${SUDOCLAW_COS_BASE_URL}/${version}/${fileName}`;
+}
+
+/**
+ * Download a file from URL (HTTPS) with redirect support.
+ * Returns a promise that resolves on success, rejects on failure.
+ */
+function downloadFileFromUrl(url: string, destPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let redirects = 0;
+
+    const doRequest = (requestUrl: string): void => {
+      if (redirects++ > 10) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
+
+      https
+        .get(requestUrl, (response) => {
+          if ([301, 302, 307, 308].includes(response.statusCode!) && response.headers.location) {
+            mainLog('Sudoclaw', `Download redirect → ${response.headers.location}`);
+            doRequest(response.headers.location);
+            return;
+          }
+
+          if (response.statusCode !== 200) {
+            reject(new Error(`HTTP ${response.statusCode}`));
+            return;
+          }
+
+          const file = fs.createWriteStream(destPath);
+
+          response.pipe(file);
+
+          file.on('finish', () => {
+            file.close();
+            resolve();
+          });
+
+          file.on('error', (err) => {
+            try {
+              fs.unlinkSync(destPath);
+            } catch {
+              // Ignore cleanup failures.
+            }
+            reject(err);
+          });
+        })
+        .on('error', (err) => {
+          try {
+            fs.unlinkSync(destPath);
+          } catch {
+            // Ignore cleanup failures.
+          }
+          reject(err);
+        });
+    };
+
+    doRequest(url);
+  });
+}
+
+/**
+ * Download sudoclaw archive from GitHub (primary) or COS (fallback).
+ * Returns the path to the downloaded file, or null if all sources fail.
+ */
+async function downloadSudoclawFromRemote(): Promise<string | null> {
+  const downloadAttempts: { label: string; url: string | null }[] = [
+    { label: 'GitHub', url: getSudoclawGitHubDownloadUrl() },
+    { label: 'COS', url: getSudoclawCosDownloadUrl() },
+  ];
+
+  const downloadDir = path.join(os.tmpdir(), 'sudoclaw-download');
+  fs.mkdirSync(downloadDir, { recursive: true });
+  const destPath = path.join(downloadDir, 'openclaw.tgz');
+
+  let lastError: string | null = null;
+
+  for (const attempt of downloadAttempts) {
+    if (!attempt.url) {
+      mainWarn('Sudoclaw', `${attempt.label} download URL not available for ${process.platform}-${process.arch}`);
+      continue;
+    }
+
+    mainLog('Sudoclaw', `Downloading sudoclaw from ${attempt.label}: ${attempt.url}`);
+
+    try {
+      await downloadFileFromUrl(attempt.url, destPath);
+      mainLog('Sudoclaw', `Downloaded sudoclaw archive from ${attempt.label} to ${destPath}`);
+      return destPath;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      mainWarn('Sudoclaw', `${attempt.label} download failed: ${lastError}`);
+      // Clean up partial download
+      try {
+        fs.unlinkSync(destPath);
+      } catch {
+        // Ignore cleanup failures.
+      }
+    }
+  }
+
+  mainError('Sudoclaw', `All download sources failed. Last error: ${lastError ?? 'unknown'}`);
+  return null;
+}
+
 /** Get the bundled OpenClaw resource path (from packaged app or development) */
 function getBundledOpenclawPath(): string | null {
   if (app.isPackaged) {
@@ -797,15 +938,22 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
       mainLog('Sudoclaw', forceReinstall ? 'Extracting staged Sudoclaw update...' : 'Extracting staged Sudoclaw install...');
     }
 
-    // Use bundled resource only (no OSS fallback)
-    const bundledPath = getBundledOpenclawPath();
+    // Try bundled resource first, then download from GitHub/COS
+    let bundledPath = getBundledOpenclawPath();
+    let downloadedTempPath: string | null = null;
     if (!bundledPath) {
-      const error = 'Bundled OpenClaw resource not found';
-      mainError('Sudoclaw', error);
-      return { installed: false, cliPath: null, error };
+      mainWarn('Sudoclaw', 'Bundled OpenClaw resource not found, attempting remote download...');
+      const downloadedPath = await downloadSudoclawFromRemote();
+      if (!downloadedPath) {
+        const error = 'OpenClaw resource not found (bundled missing, remote download failed)';
+        mainError('Sudoclaw', error);
+        return { installed: false, cliPath: null, error };
+      }
+      bundledPath = downloadedPath;
+      downloadedTempPath = downloadedPath;
     }
 
-    mainLog('Sudoclaw', `Using bundled OpenClaw from ${bundledPath}...`);
+    mainLog('Sudoclaw', `Using OpenClaw from ${bundledPath}...`);
 
     try {
       await extractTarGzWithProgress(bundledPath, SUDOCLAW_CLI_STAGING_DIR, options?.onProgress);
@@ -857,6 +1005,14 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
       removeDirIfExists(SUDOCLAW_CLI_STAGING_DIR);
     } catch {
       // Ignore staging cleanup errors.
+    }
+    // Clean up downloaded temp file (not the bundled one)
+    if (downloadedTempPath) {
+      try {
+        fs.unlinkSync(downloadedTempPath);
+      } catch {
+        // Ignore cleanup errors.
+      }
     }
   }
 }

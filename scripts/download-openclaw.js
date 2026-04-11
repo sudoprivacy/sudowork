@@ -1,147 +1,59 @@
+#!/usr/bin/env node
 /**
- * Downloads openclaw as a tgz into resources/
- * so it can be bundled as an extraResource in the packaged Electron app.
+ * Download pre-built openclaw (sudoclaw) archive for bundling with the app.
+ * Run during build process: bun run openclaw:download
  *
- * Builds dist/ at pack time if missing (npm packaging bug #49338).
- * The output tgz is ready for end users — no runtime build needed.
+ * Downloads from GitHub releases with COS fallback:
+ * - GitHub: https://github.com/sudoprivacy/sudorepo/releases/download/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
+ * - COS:   https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
  *
- * Usage: node scripts/download-openclaw.js [--force] [--version=X] [--skip-bundle]
+ * Saves to: resources/openclaw.tgz
+ * Also writes: resources/openclaw.manifest.json
+ *
+ * NOTE: Download failures are fatal (exit 1) — unlike nexus, we do NOT create empty placeholders.
+ *
+ * Usage: node scripts/download-openclaw.js [--force] [platform]
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const tar = require('tar');
+const https = require('https');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
 const { updateLocalDevRuntimeVersion, clearLocalDevRuntimeVersion } = require('./dev-runtime-state');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const OUTPUT = path.join(RESOURCES_DIR, 'openclaw.tgz');
 const OUTPUT_MANIFEST = path.join(RESOURCES_DIR, 'openclaw.manifest.json');
-const FORCE = process.argv.includes('--force');
-const SKIP_BUNDLE = process.argv.includes('--skip-bundle');
-const KNOWN_GOOD_VERSION = runtimeVersions.sudoclaw;
-const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org/';
 
-fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+const SUDOCLAW_VERSION = runtimeVersions.sudoclaw;
 
-function readJsonIfExists(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch (error) {
-    console.warn(`[openclaw][diag] Failed to parse JSON ${filePath}: ${error.message}`);
-    return null;
-  }
+const GITHUB_BASE_URL = `https://github.com/sudoprivacy/sudorepo/releases/download/${SUDOCLAW_VERSION}`;
+const COS_BASE_URL = `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${SUDOCLAW_VERSION}`;
+
+// Platform mappings: Node.js platform-arch → sudoclaw archive name
+const PLATFORMS = {
+  'darwin-arm64': { os: 'macos', arch: 'arm64' },
+  'darwin-x64': { os: 'macos', arch: 'x64' },
+  'win32-arm64': { os: 'windows', arch: 'arm64' },
+  'win32-x64': { os: 'windows', arch: 'x64' },
+};
+
+/**
+ * Get the archive filename for a given platform.
+ * e.g. v0.1.0-v2026.03.11-sudoclaw-macos-arm64.tgz
+ */
+function getArchiveFileName(platform) {
+  const config = PLATFORMS[platform];
+  if (!config) throw new Error(`Unknown platform: ${platform}`);
+  return `${SUDOCLAW_VERSION}-sudoclaw-${config.os}-${config.arch}.tgz`;
 }
 
-function logFileSummary(label, filePath, options = {}) {
-  const {
-    maxChars = 1200,
-    patterns = [],
-  } = options;
-
-  if (!fs.existsSync(filePath)) {
-    console.log(`[openclaw][diag] ${label}: missing (${filePath})`);
-    return;
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const preview = content.slice(0, maxChars);
-  console.log(`[openclaw][diag] ${label}: ${filePath}`);
-  console.log(`[openclaw][diag] ${label} preview (${Math.min(content.length, maxChars)}/${content.length} chars):`);
-  console.log(preview);
-
-  for (const pattern of patterns) {
-    const index = content.indexOf(pattern);
-    if (index === -1) {
-      console.log(`[openclaw][diag] ${label} pattern not found: ${pattern}`);
-      continue;
-    }
-    const start = Math.max(0, index - 240);
-    const end = Math.min(content.length, index + pattern.length + 480);
-    console.log(`[openclaw][diag] ${label} pattern match for "${pattern}" at offset ${index}:`);
-    console.log(content.slice(start, end));
-  }
+function getGitHubDownloadUrl(platform) {
+  return `${GITHUB_BASE_URL}/${getArchiveFileName(platform)}`;
 }
 
-function logPackageVersion(label, pkgDir, packageName) {
-  const pkgJsonPath = path.join(pkgDir, 'node_modules', ...packageName.split('/'), 'package.json');
-  const pkgJson = readJsonIfExists(pkgJsonPath);
-  if (!pkgJson) {
-    console.log(`[openclaw][diag] ${label}: ${packageName} not installed`);
-    return;
-  }
-
-  console.log(
-    `[openclaw][diag] ${label}: ${packageName}@${pkgJson.version} (${pkgJson.type || 'type=unspecified'})`,
-  );
-}
-
-function logCommandOutput(label, command, cwd) {
-  try {
-    const output = execSync(command, {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-    console.log(`[openclaw][diag] ${label}:`);
-    console.log(output || '(empty)');
-  } catch (error) {
-    console.warn(`[openclaw][diag] ${label} failed: ${error.message}`);
-    if (typeof error.stdout === 'string' && error.stdout.trim()) {
-      console.warn(`[openclaw][diag] ${label} stdout:`);
-      console.warn(error.stdout.trim());
-    }
-    if (typeof error.stderr === 'string' && error.stderr.trim()) {
-      console.warn(`[openclaw][diag] ${label} stderr:`);
-      console.warn(error.stderr.trim());
-    }
-  }
-}
-
-function logOpenClawDiagnostics(stage, pkgDir, entryPoint, outputFile) {
-  console.log(`[openclaw][diag] ===== ${stage} =====`);
-  console.log(
-    `[openclaw][diag] env node=${process.version} npm_config_platform=${process.env.npm_config_platform || '(unset)'} npm_config_arch=${process.env.npm_config_arch || '(unset)'} platform=${process.platform} arch=${process.arch}`,
-  );
-
-  const openclawPkg = readJsonIfExists(path.join(pkgDir, 'package.json'));
-  if (openclawPkg) {
-    console.log(
-      `[openclaw][diag] openclaw package version=${openclawPkg.version} type=${openclawPkg.type || 'type=unspecified'}`,
-    );
-    console.log(
-      `[openclaw][diag] declared deps: @whiskeysockets/baileys=${openclawPkg.dependencies?.['@whiskeysockets/baileys'] || '(missing)'} protobufjs=${openclawPkg.dependencies?.protobufjs || '(missing)'} libsignal=${openclawPkg.dependencies?.libsignal || '(missing)'}`,
-    );
-  }
-
-  logCommandOutput('npm version', 'npm --version', pkgDir);
-  logPackageVersion(stage, pkgDir, '@whiskeysockets/baileys');
-  logPackageVersion(stage, pkgDir, 'libsignal');
-  logPackageVersion(stage, pkgDir, 'protobufjs');
-  logPackageVersion(stage, pkgDir, '@bufbuild/protobuf');
-  logCommandOutput(
-    'npm ls @whiskeysockets/baileys protobufjs libsignal @bufbuild/protobuf',
-    'npm ls @whiskeysockets/baileys protobufjs libsignal @bufbuild/protobuf --depth=3',
-    pkgDir,
-  );
-
-  logFileSummary('entry source', entryPoint, {
-    maxChars: 1600,
-    patterns: ['await init_Defaults', 'init_Defaults', 'Promise.resolve().then(() => (init_'],
-  });
-
-  logFileSummary('baileys Defaults', path.join(pkgDir, 'node_modules', '@whiskeysockets', 'baileys', 'lib', 'Defaults', 'index.js'), {
-    maxChars: 1600,
-    patterns: ['await ', 'top-level', 'export const', 'export {', 'from '],
-  });
-
-  logFileSummary('bundle output', outputFile, {
-    maxChars: 1600,
-    patterns: ['await init_Defaults', 'init_Defaults', 'var init_Defaults = __esm'],
-  });
+function getCosDownloadUrl(platform) {
+  return `${COS_BASE_URL}/${getArchiveFileName(platform)}`;
 }
 
 function getDaveyBindingDirName() {
@@ -164,212 +76,177 @@ function writeOpenClawManifest(version) {
   console.log(`[openclaw] Wrote manifest to ${OUTPUT_MANIFEST}`);
 }
 
-function getVersionFromArchive(archivePath) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-manifest-'));
+/**
+ * Download a file from URL with redirect support.
+ * Returns a promise that resolves on success, rejects on failure.
+ */
+function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    console.log(`Downloading: ${url}`);
 
-  try {
-    tar.x({
-      file: archivePath,
-      cwd: tmpDir,
-      sync: true,
-      filter: (entryPath) => entryPath === 'package/package.json',
-    });
+    const file = fs.createWriteStream(dest);
+    let redirects = 0;
 
-    const pkgJsonPath = path.join(tmpDir, 'package', 'package.json');
-    if (!fs.existsSync(pkgJsonPath)) return null;
+    const request = (urlStr) => {
+      if (redirects++ > 10) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
 
-    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-    return typeof pkg.version === 'string' && pkg.version.trim() ? pkg.version.trim() : null;
-  } catch (error) {
-    console.warn(`[openclaw] Failed to read version from existing archive: ${error.message}`);
-    return null;
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-}
+      https
+        .get(urlStr, (response) => {
+          if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 307 || response.statusCode === 308) {
+            const location = response.headers.location;
+            if (location) {
+              console.log(`Redirected to: ${location}`);
+              request(location);
+              return;
+            }
+          }
 
-let version = KNOWN_GOOD_VERSION;
+          if (response.statusCode === 404) {
+            file.close();
+            try {
+              fs.unlinkSync(dest);
+            } catch {}
+            reject(new Error('NOT_FOUND'));
+            return;
+          }
 
-if (fs.existsSync(OUTPUT) && !FORCE) {
-  const archivedVersion = getVersionFromArchive(OUTPUT);
-  if (archivedVersion) {
-    updateLocalDevRuntimeVersion('openclaw', archivedVersion);
-  } else {
-    clearLocalDevRuntimeVersion('openclaw');
-  }
+          if (response.statusCode !== 200) {
+            file.close();
+            try {
+              fs.unlinkSync(dest);
+            } catch {}
+            reject(new Error(`HTTP ${response.statusCode}`));
+            return;
+          }
 
-  if (!fs.existsSync(OUTPUT_MANIFEST)) {
-    if (archivedVersion) {
-      writeOpenClawManifest(archivedVersion);
-    } else {
-      console.warn('[openclaw] Existing archive version is unknown, skipping manifest generation');
-    }
-  }
-  console.log(`[openclaw] Already exists: ${OUTPUT}  (use --force to re-download)`);
-  process.exit(0);
-}
+          const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+          let downloaded = 0;
+          let lastPrintedPercent = -1;
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
-try {
-  // Download with npm pack
-  execSync(`npm pack openclaw@${version} --registry=${NPM_REGISTRY}`, { cwd: tmpDir, stdio: 'inherit' });
-  const files = fs.readdirSync(tmpDir);
-  const tgz = files.find((f) => f.endsWith('.tgz'));
-  if (!tgz) throw new Error('npm pack did not produce a .tgz file');
+          response.on('data', (chunk) => {
+            downloaded += chunk.length;
+            if (totalSize > 0) {
+              const percent = Math.round((downloaded / totalSize) * 100);
+              if (percent - lastPrintedPercent >= 5 || percent === 100) {
+                lastPrintedPercent = percent;
+                process.stdout.write(`\rDownloading: ${percent}%`);
+              }
+            }
+          });
 
-  const extractDir = path.join(tmpDir, 'extract');
-  fs.mkdirSync(extractDir, { recursive: true });
+          response.pipe(file);
 
-  // Extract - run tar from extractDir with relative path to avoid Windows path issues
-  console.log(`[openclaw] Extracting ${tgz}...`);
-  if (process.platform === 'win32') {
-    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit', shell: true });
-  } else {
-    execSync(`tar -xzf ../${tgz}`, { cwd: extractDir, stdio: 'inherit' });
-  }
-
-  const pkgDir = path.join(extractDir, 'package');
-  const distEntry = path.join(pkgDir, 'dist', 'entry.mjs');
-  const distEntryJs = path.join(pkgDir, 'dist', 'entry.js');
-  const hasDist = fs.existsSync(distEntry) || fs.existsSync(distEntryJs);
-
-  // Install dependencies
-  const npmTimeout = 1_200_000;
-  console.log(`[openclaw] Installing dependencies (npm, flat structure, registry: ${NPM_REGISTRY}, timeout: ${npmTimeout / 1000}s)...`);
-  try {
-    execSync(`npm install --omit=dev --legacy-peer-deps --registry=${NPM_REGISTRY}`, {
-      cwd: pkgDir,
-      stdio: 'inherit',
-      timeout: npmTimeout,
-    });
-  } catch (err) {
-    console.error('[openclaw] npm install failed:', err?.message);
-    throw new Error('npm install failed. Ensure npm is available and network is stable.');
-  }
-
-  // Build if dist/ missing
-  if (!hasDist) {
-    console.log('[openclaw] dist/ missing, building at pack time...');
-    const tryBuild = (installCmd, buildCmd) => {
-      execSync(installCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 120_000 });
-      execSync(buildCmd, { cwd: pkgDir, stdio: 'inherit', timeout: 180_000 });
+          file.on('finish', () => {
+            file.close();
+            console.log('\nDownload complete.');
+            resolve();
+          });
+        })
+        .on('error', (err) => {
+          file.close();
+          try {
+            fs.unlinkSync(dest);
+          } catch {}
+          reject(err);
+        });
     };
-    try {
-      tryBuild(`npm install --legacy-peer-deps --registry=${NPM_REGISTRY}`, 'npm run build');
-    } catch {
-      tryBuild('pnpm install', 'pnpm build');
-    }
-    if (!fs.existsSync(distEntry) && !fs.existsSync(distEntryJs)) {
-      throw new Error('Build completed but dist/entry.(m)js still missing');
-    }
-    console.log('[openclaw] Build completed');
-  }
 
-  const entryPoint = fs.existsSync(distEntry) ? distEntry : distEntryJs;
-  const bundleOutput = path.join(pkgDir, 'openclaw.mjs');
-  logOpenClawDiagnostics('post-install pre-bundle', pkgDir, entryPoint, bundleOutput);
-
-  // Create launcher.mjs - fixes argv for Commander when run via bundled Node.js
-  console.log('[openclaw] Creating launcher.mjs...');
-  const launcherContent = `#!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const openclawPath = path.join(__dirname, 'openclaw.mjs');
-let userArgs = process.argv.slice(2);
-// Strip leading executable paths so Commander receives correct subcommand
-const isExecutablePath = (s) => typeof s === 'string' && (
-  /node(\\.exe)?$/i.test(path.basename(s)) || /Sudowork(\\.exe)?$/i.test(path.basename(s))
-);
-while (userArgs.length > 0 && isExecutablePath(userArgs[0])) userArgs = userArgs.slice(1);
-process.argv = ['node', openclawPath, ...userArgs];
-await import('./openclaw.mjs');
-`;
-  fs.writeFileSync(path.join(pkgDir, 'launcher.mjs'), launcherContent, 'utf-8');
-
-  // Create bin directory with wrappers
-  console.log('[openclaw] Creating bin wrappers...');
-  const binDir = path.join(pkgDir, 'bin');
-  fs.mkdirSync(binDir, { recursive: true });
-
-  // Unix wrapper (shell script)
-  const unixWrapper = `#!/bin/sh
-# openclaw wrapper — managed by Sudowork (Sudoclaw)
-CLI="\$(dirname "\$0")/../launcher.mjs"
-STATE_DIR="\${HOME}/.nexus/sudoclaw"
-BUNDLED_NODE="\${HOME}/.nexus/node/bin/node"
-
-if [ ! -x "\$BUNDLED_NODE" ]; then
-  echo "Error: Bundled Node.js not found at \$BUNDLED_NODE" >&2
-  echo "Please restart Sudowork to install it." >&2
-  exit 1
-fi
-
-exec env OPENCLAW_STATE_DIR="\$STATE_DIR" OPENCLAW_CONFIG_PATH="\$STATE_DIR/sudoclaw.json" "\$BUNDLED_NODE" "\$CLI" "\$@"
-`;
-  fs.writeFileSync(path.join(binDir, 'openclaw'), unixWrapper, { mode: 0o755 });
-
-  // Windows wrapper (batch file)
-  const windowsWrapper = `@echo off
-set "CLI=%~dp0..\\launcher.mjs"
-set "OPENCLAW_STATE_DIR=%USERPROFILE%\\.nexus\\sudoclaw"
-set "OPENCLAW_CONFIG_PATH=%USERPROFILE%\\.nexus\\sudoclaw\\sudoclaw.json"
-set "BUNDLED_NODE=%USERPROFILE%\\.nexus\\node\\node.exe"
-
-if not exist "%BUNDLED_NODE%" (
-  echo Error: Bundled Node.js not found at %BUNDLED_NODE%
-  echo Please restart Sudowork to install it.
-  exit /b 1
-)
-
-"%BUNDLED_NODE%" "%CLI%" %*
-`;
-  fs.writeFileSync(path.join(binDir, 'openclaw.cmd'), windowsWrapper.replace(/\n/g, '\r\n'), 'utf-8');
-
-  // Bundle openclaw runtime with esbuild (reduces thousands of files to one)
-  if (!SKIP_BUNDLE) {
-    console.log('[openclaw] Bundling openclaw runtime with esbuild...');
-    const bundleScript = path.join(__dirname, 'bundle-openclaw.js');
-    try {
-      execSync(`node "${bundleScript}" "${pkgDir}"`, {
-        stdio: 'inherit',
-        timeout: 300_000, // 5 minutes
-      });
-      console.log('[openclaw] Bundle completed successfully.');
-      logOpenClawDiagnostics('post-bundle', pkgDir, entryPoint, bundleOutput);
-    } catch (err) {
-      console.warn(`[openclaw] Bundle failed (falling back to unbundled): ${err?.message}`);
-      logOpenClawDiagnostics('bundle-failed fallback', pkgDir, entryPoint, bundleOutput);
-      console.warn('[openclaw] The package will work but with more files than optimal.');
-    }
-  } else {
-    console.log('[openclaw] Skipping bundle (--skip-bundle flag).');
-  }
-
-  writeOpenClawManifest(version);
-
-  // Create final tarball - run from extractDir to avoid path issues
-  console.log('[openclaw] Creating final tarball...');
-  if (process.platform === 'win32') {
-    const tmpOutput = path.join(extractDir, 'openclaw.tgz');
-    try {
-      execSync(`tar -czf openclaw.tgz package`, { cwd: extractDir, stdio: 'inherit', shell: true });
-    } catch (e) {
-      if (!fs.existsSync(tmpOutput)) throw e;
-    }
-    fs.copyFileSync(tmpOutput, OUTPUT);
-  } else {
-    execSync(`tar -czf "${OUTPUT}" -C "${extractDir}" package`, { stdio: 'inherit' });
-  }
-
-  updateLocalDevRuntimeVersion('openclaw', version);
-
-} finally {
-  if (!fs.existsSync(OUTPUT)) {
-    clearLocalDevRuntimeVersion('openclaw');
-  }
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+    request(url);
+  });
 }
 
-console.log(`[openclaw] Saved to ${OUTPUT}`);
+async function downloadOpenClaw(platform, force = false) {
+  // Skip if already exists
+  if (fs.existsSync(OUTPUT) && !force) {
+    console.log(`Already exists: ${OUTPUT}`);
+    console.log('Use --force to re-download.');
+    return true;
+  }
+
+  // Ensure resources directory exists
+  fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+
+  // Try GitHub first, then COS fallback
+  const downloadAttempts = [
+    { label: 'GitHub', url: getGitHubDownloadUrl(platform) },
+    { label: 'COS', url: getCosDownloadUrl(platform) },
+  ];
+
+  let lastError = null;
+
+  for (const attempt of downloadAttempts) {
+    console.log(`\n[openclaw] Trying ${attempt.label} download...`);
+    try {
+      await downloadFile(attempt.url, OUTPUT);
+      console.log(`[openclaw] Downloaded from ${attempt.label}: ${OUTPUT}`);
+      return true;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[openclaw] ${attempt.label} download failed: ${err.message}`);
+      // Clean up partial download
+      try {
+        fs.unlinkSync(OUTPUT);
+      } catch {}
+    }
+  }
+
+  // Both sources failed — do NOT create empty placeholder
+  throw new Error(
+    `Failed to download openclaw for ${platform} from all sources. Last error: ${lastError?.message || 'unknown'}`
+  );
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const force = args.includes('--force') || args.includes('-f');
+
+  // Check for explicit platform argument
+  let platform;
+  for (const arg of args) {
+    if (arg === '--force' || arg === '-f') continue;
+    if (PLATFORMS[arg]) {
+      platform = arg;
+      break;
+    }
+  }
+
+  // Default: current platform (respect npm_config_platform/npm_config_arch for cross-compilation)
+  if (!platform) {
+    const effectivePlatform = process.env.npm_config_platform || process.platform;
+    const effectiveArch = process.env.npm_config_arch || process.arch;
+    const currentPlatform = `${effectivePlatform}-${effectiveArch}`;
+    if (PLATFORMS[currentPlatform]) {
+      platform = currentPlatform;
+    } else {
+      console.error(`❌ Unsupported platform: ${currentPlatform}`);
+      console.error('   Supported platforms: ' + Object.keys(PLATFORMS).join(', '));
+      process.exit(1);
+    }
+  }
+
+  console.log(`[openclaw] Downloading sudoclaw ${SUDOCLAW_VERSION} for ${platform}...`);
+  console.log('');
+
+  try {
+    const success = await downloadOpenClaw(platform, force);
+    if (success) {
+      writeOpenClawManifest(SUDOCLAW_VERSION);
+      updateLocalDevRuntimeVersion('openclaw', SUDOCLAW_VERSION);
+      console.log('\n✅ OpenClaw download completed');
+    }
+  } catch (err) {
+    console.error(`\n❌ Failed to download:`, err.message);
+    clearLocalDevRuntimeVersion('openclaw');
+    // Exit 1 — do not allow build to continue without openclaw
+    process.exit(1);
+  }
+}
+
+main().catch((err) => {
+  console.error('Error:', err.message);
+  clearLocalDevRuntimeVersion('openclaw');
+  process.exit(1);
+});

@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
 const bundledVersion = String(runtimeVersions.sudoclaw);
+/** normalizeVersion strips the leading 'v' prefix */
+const normalizedVersion = bundledVersion.replace(/^v/i, '');
 
 function setProcessProperty(key: 'platform' | 'arch' | 'resourcesPath', value: string): PropertyDescriptor | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(process, key);
@@ -117,10 +119,12 @@ describe('SudoclawInstallService', () => {
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
 
-    expect(module.getSudoclawInstalledVersion()).toBe(bundledVersion);
+    // getSudoclawInstalledVersion reads from manifest and normalizes (strips leading 'v')
+    expect(module.getSudoclawInstalledVersion()).toBe(normalizedVersion);
+    // getSudoclawVersionState normalizes both installed and bundled versions
     expect(module.getSudoclawVersionState()).toEqual({
-      installedVersion: bundledVersion,
-      bundledVersion,
+      installedVersion: normalizedVersion,
+      bundledVersion: normalizedVersion,
       needsUpgrade: false,
     });
   });
@@ -150,7 +154,7 @@ describe('SudoclawInstallService', () => {
     expect(module.getSudoclawInstalledVersion()).toBe('0.0.1');
     expect(module.getSudoclawVersionState()).toEqual({
       installedVersion: '0.0.1',
-      bundledVersion,
+      bundledVersion: normalizedVersion,
       needsUpgrade: true,
     });
   });
