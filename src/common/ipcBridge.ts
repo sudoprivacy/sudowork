@@ -1120,6 +1120,10 @@ export const skillHub = {
   setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean }>('skill-hub.set-skill-enabled'),
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
   uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
+  /** Get security audit report for a skill */
+  getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
+  /** Run security audit for a skill (re-scan) */
+  runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
 };
 
 // ==================== Channel API ====================
