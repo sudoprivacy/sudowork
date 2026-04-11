@@ -23,6 +23,7 @@ import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
 import { isElectronDesktop } from './utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from './utils/themeCssSync';
+import { DEFAULT_THEME_ID } from './components/CssThemeSettings/presets';
 import SudoworkIcon from './assets/sudowork-icon-dark.svg';
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -116,11 +117,11 @@ const Layout: React.FC<{
 
       // If the active theme resolved to empty CSS and there IS a saved activeThemeId
       // (but it no longer matches any known theme), fall back to default and persist.
-      if (!effectiveCss && activeThemeId && activeThemeId !== 'default-theme') {
-        const defaultCss = resolveCssByActiveTheme('default-theme', (savedThemes || []) as ICssTheme[]);
+      if (!effectiveCss && activeThemeId && activeThemeId !== DEFAULT_THEME_ID) {
+        const defaultCss = resolveCssByActiveTheme(DEFAULT_THEME_ID, (savedThemes || []) as ICssTheme[]);
         effectiveCss = defaultCss;
         // Persist the fallback so Layout doesn't keep retrying
-        await Promise.all([ConfigStorage.set('css.activeThemeId', 'default-theme'), ConfigStorage.set('customCss', effectiveCss)]).catch((error) => {
+        await Promise.all([ConfigStorage.set('css.activeThemeId', DEFAULT_THEME_ID), ConfigStorage.set('customCss', effectiveCss)]).catch((error) => {
           console.warn('Failed to persist theme fallback:', error);
         });
       } else if (decision.shouldHealStorage) {
