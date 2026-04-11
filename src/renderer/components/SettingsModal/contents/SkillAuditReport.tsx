@@ -434,6 +434,62 @@ const FindingRow: React.FC<{ finding: AuditFinding }> = ({ finding }) => {
   );
 };
 
+// ==================== Standalone Audit Report Modal ====================
+
+/**
+ * Standalone modal that shows ONLY the audit summary card.
+ * Used after importing a custom skill — avoids showing the full skill detail page.
+ * Includes a "View Details" button to open the full audit detail modal.
+ */
+export const SkillAuditReportModal: React.FC<{
+  skillName: string;
+  visible: boolean;
+  onClose: () => void;
+  /** Called when user clicks "View Audit Details" to open the detailed findings modal */
+  onViewAuditDetails?: (skillName: string) => void;
+}> = ({ skillName, visible, onClose, onViewAuditDetails }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Modal
+      visible={visible}
+      onCancel={onClose}
+      footer={null}
+      closable={false}
+      maskClosable
+      style={{ width: 480 }}
+      className='skill-audit-report-modal'
+      wrapStyle={{ zIndex: 1050 }}
+      maskStyle={{ zIndex: 1050 }}
+    >
+      <div className='flex flex-col'>
+        {/* Header */}
+        <div className='flex items-center justify-between mb-12px'>
+          <div className='flex items-center gap-8px'>
+            <Shield size='16' className='text-success' />
+            <span className='font-semibold text-15px text-t-primary'>
+              {t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}
+            </span>
+            <span className='text-12px text-t-tertiary'>— {skillName}</span>
+          </div>
+          <div
+            className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary'
+            onClick={onClose}
+          >
+            <Close size='14' />
+          </div>
+        </div>
+
+        {/* Audit summary card */}
+        <SkillAuditSummary
+          skillName={skillName}
+          onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(skillName) : undefined}
+        />
+      </div>
+    </Modal>
+  );
+};
+
 function getCategoryEmoji(category: AuditCategory): string {
   switch (category) {
     case 'external_api':

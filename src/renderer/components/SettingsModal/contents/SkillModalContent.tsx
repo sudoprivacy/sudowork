@@ -18,7 +18,7 @@ import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalled
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { SkillAuditSummary, SkillAuditDetailModal } from './SkillAuditReport';
+import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 
 // ==================== Helpers ====================
 
@@ -549,6 +549,10 @@ const SkillModalContent: React.FC = () => {
   const [auditDetailSkillName, setAuditDetailSkillName] = useState<string | null>(null);
   const [auditDetailVisible, setAuditDetailVisible] = useState(false);
 
+  // Standalone audit report modal state (shown after importing a custom skill)
+  const [auditReportSkillName, setAuditReportSkillName] = useState<string | null>(null);
+  const [auditReportVisible, setAuditReportVisible] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   // Sentinel element for IntersectionObserver-based infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -627,17 +631,14 @@ const SkillModalContent: React.FC = () => {
           })
         );
         await fetchInstalledSkills();
-        // Refresh installed list and then open the detail modal for the imported skill
+        // Refresh installed list
         const listRes = await skillHub.getInstalledSkills.invoke();
         if (listRes.success && listRes.data) {
           setInstalledList(listRes.data);
-          // Find the newly imported skill and open its detail modal (which includes the audit summary)
-          const importedSkill = listRes.data.find((s) => s.name === importedSkillName);
-          if (importedSkill?.meta) {
-            setInstalledDetailInfo(importedSkill);
-            setInstalledDetailVisible(true);
-          }
         }
+        // Open standalone audit report modal (just the audit summary, not the full detail page)
+        setAuditReportSkillName(importedSkillName);
+        setAuditReportVisible(true);
       } else {
         Message.error(
           t('settings.skill.importFailed', {
@@ -1413,6 +1414,20 @@ const SkillModalContent: React.FC = () => {
           />
         );
       })()}
+
+      {/* Standalone audit report modal — shown after importing a custom skill */}
+      <SkillAuditReportModal
+        skillName={auditReportSkillName || ''}
+        visible={auditReportVisible}
+        onClose={() => {
+          setAuditReportVisible(false);
+          setAuditReportSkillName(null);
+        }}
+        onViewAuditDetails={(name) => {
+          setAuditDetailSkillName(name);
+          setAuditDetailVisible(true);
+        }}
+      />
 
       {/* Audit detail modal */}
       <SkillAuditDetailModal
