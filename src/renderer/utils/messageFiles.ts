@@ -1,4 +1,4 @@
-import { NEXUS_FILES_MARKER, NEXUS_TIMESTAMP_REGEX } from '@/common/constants';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { isTemporaryWorkspace } from '@/renderer/utils/workspace';
 
@@ -33,7 +33,6 @@ export const buildDisplayMessage = (input: string, files: string[], workspacePat
     if (isAbsolute) {
       const parts = filePath.split(/[\\/]/);
       let fileName = parts[parts.length - 1] || filePath;
-      fileName = fileName.replace(NEXUS_TIMESTAMP_REGEX, '$1');
       return `${workspacePath}/${fileName}`;
     }
     return `${workspacePath}/${filePath}`;
