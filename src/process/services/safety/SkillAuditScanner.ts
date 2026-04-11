@@ -59,6 +59,22 @@ function generateFindingId(): string {
 }
 
 /**
+ * Check if a line is primarily an output/print/log statement.
+ * Matches inside such lines are almost always false positives
+ * (e.g. `echo "使用 curl 下载"` is not a real curl invocation).
+ */
+function isOutputStatement(line: string, language: AuditLanguage): boolean {
+  const trimmed = line.trim();
+  if (language === 'shell') {
+    return /^(echo|printf|log_\w+|print)\s/.test(trimmed);
+  }
+  if (language === 'python') {
+    return /^(print|logging\.\w+|logger\.\w+)\s*\(/.test(trimmed);
+  }
+  return false;
+}
+
+/**
  * Check if a line is a comment in the given language.
  * Simple heuristic — does not handle multi-line comments fully.
  */
@@ -143,6 +159,9 @@ async function scanFile(filePath: string, relativePath: string, language: AuditL
 
       // Skip comment lines (simple heuristic)
       if (isCommentLine(line, language)) continue;
+
+      // Skip output/print/log statements (high false-positive source)
+      if (isOutputStatement(line, language)) continue;
 
       for (const rule of rules) {
         const match = rule.pattern.exec(line);

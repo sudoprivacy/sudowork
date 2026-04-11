@@ -196,14 +196,14 @@ export const SHELL_RULES: AuditRule[] = [
     id: 'sh-api-curl',
     language: 'shell',
     category: 'external_api',
-    pattern: /\bcurl\s+/,
+    pattern: /\bcurl\s+(-[a-zA-Z]|--[a-zA-Z]|['"`]?https?:\/\/|\$[{(a-zA-Z_])/,
     description: 'curl HTTP 请求',
   },
   {
     id: 'sh-api-wget',
     language: 'shell',
     category: 'external_api',
-    pattern: /\bwget\s+/,
+    pattern: /\bwget\s+(-[a-zA-Z]|--[a-zA-Z]|['"`]?https?:\/\/|\$[{(a-zA-Z_])/,
     description: 'wget 下载请求',
   },
   {
@@ -316,8 +316,15 @@ export const SHELL_RULES: AuditRule[] = [
     id: 'sh-exec-source',
     language: 'shell',
     category: 'executable',
-    pattern: /\b(source|\.)\s+[^\s]+/,
+    pattern: /\bsource\s+[^\s]+/,
     description: 'source 脚本执行',
+  },
+  {
+    id: 'sh-exec-dot-source',
+    language: 'shell',
+    category: 'executable',
+    pattern: /(?:^|[;&|]\s*)\.\s+(\/[^\s;|&]+|\.\.?\/[^\s;|&]+|~\/[^\s;|&]+|\$[^\s;|&]+)/,
+    description: '. (dot) 脚本执行',
   },
   {
     id: 'sh-exec-install',
