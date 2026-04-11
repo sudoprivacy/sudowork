@@ -619,14 +619,25 @@ const SkillModalContent: React.FC = () => {
 
       const res = await skillHub.importLocalSkill.invoke({ sourcePath: dialogResult.data.filePaths[0] });
       if (res.success && res.data) {
+        const importedSkillName = res.data.skillName;
         Message.success(
           t('settings.skill.importSuccess', {
-            name: res.data.skillName,
-            defaultValue: `已导入技能：${res.data.skillName}`,
+            name: importedSkillName,
+            defaultValue: `已导入技能：${importedSkillName}`,
           })
         );
         await fetchInstalledSkills();
-        await fetchInstalledList();
+        // Refresh installed list and then open the detail modal for the imported skill
+        const listRes = await skillHub.getInstalledSkills.invoke();
+        if (listRes.success && listRes.data) {
+          setInstalledList(listRes.data);
+          // Find the newly imported skill and open its detail modal (which includes the audit summary)
+          const importedSkill = listRes.data.find((s) => s.name === importedSkillName);
+          if (importedSkill?.meta) {
+            setInstalledDetailInfo(importedSkill);
+            setInstalledDetailVisible(true);
+          }
+        }
       } else {
         Message.error(
           t('settings.skill.importFailed', {
@@ -644,7 +655,7 @@ const SkillModalContent: React.FC = () => {
         })
       );
     }
-  }, [fetchInstalledList, fetchInstalledSkills, t]);
+  }, [fetchInstalledSkills, t]);
 
   // ---- Fetch latest versions ----
   const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {

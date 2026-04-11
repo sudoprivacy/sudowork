@@ -14,9 +14,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Spin, Message } from '@arco-design/web-react';
-import { Close, Shield } from '@icon-park/react';
+import { Close, Shield, FolderOpen } from '@icon-park/react';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { skillHub } from '@/common/ipcBridge';
+import { skillHub, shell } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { SkillAuditReport, AuditFinding, AuditCategorySummary, AuditCategory } from '@/common/skillAuditTypes';
 import { AUDIT_CATEGORY_CONFIG } from '@/common/skillAuditTypes';
@@ -114,15 +114,29 @@ export const SkillAuditSummary: React.FC<{
             {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
           </div>
         )}
-        {onViewDetails && (
-          <button
-            type='button'
-            className='text-11px text-primary hover:text-primary-dark cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex-shrink-0'
-            onClick={onViewDetails}
-          >
-            {t('settings.skill.audit.viewDetails', { defaultValue: '查看详情' })}
-          </button>
-        )}
+        <div className='flex items-center gap-8px flex-shrink-0'>
+          {report.reportPath && isElectronDesktop() && (
+            <button
+              type='button'
+              className='text-11px text-t-secondary hover:text-primary cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex items-center gap-3px'
+              onClick={() => {
+                void shell.showItemInFolder.invoke(report.reportPath!);
+              }}
+            >
+              <FolderOpen size='12' />
+              {t('settings.skill.audit.openFilePath', { defaultValue: '打开路径' })}
+            </button>
+          )}
+          {onViewDetails && (
+            <button
+              type='button'
+              className='text-11px text-primary hover:text-primary-dark cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex-shrink-0'
+              onClick={onViewDetails}
+            >
+              {t('settings.skill.audit.viewDetails', { defaultValue: '查看详情' })}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -239,6 +253,8 @@ export const SkillAuditDetailModal: React.FC<{
       maskClosable
       style={{ width: 560 }}
       className='skill-audit-detail-modal'
+      wrapStyle={{ zIndex: 1100 }}
+      maskStyle={{ zIndex: 1100 }}
     >
       <div className='flex flex-col max-h-80vh'>
         {/* Header */}
