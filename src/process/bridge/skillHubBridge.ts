@@ -479,14 +479,12 @@ async function installImportedSkillFromPreparedDirectory(
   };
   await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-  // Run security audit asynchronously (non-blocking)
-  void (async () => {
-    try {
-      await scanSkillDirectory(customDir, skillName);
-    } catch (err) {
-      mainWarn('SkillHub', 'Security audit after import failed:', err);
-    }
-  })();
+  // Run security audit synchronously so the report is ready when the frontend opens the audit modal
+  try {
+    await scanSkillDirectory(customDir, skillName);
+  } catch (err) {
+    mainWarn('SkillHub', 'Security audit after import failed:', err);
+  }
 
   void (async () => {
     try {

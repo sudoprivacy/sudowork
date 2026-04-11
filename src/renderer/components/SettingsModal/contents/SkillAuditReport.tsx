@@ -81,7 +81,21 @@ export const SkillAuditSummary: React.FC<{
     );
   }
 
-  if (!report) return null;
+  if (!report) {
+    return (
+      <div className='bg-fill-1 rd-10px p-14px'>
+        <div className='flex items-center gap-6px mb-8px'>
+          <Shield size='14' className='text-success' />
+          <span className='font-medium text-13px text-t-primary'>
+            {t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}
+          </span>
+        </div>
+        <div className='text-12px text-t-tertiary text-center py-12px'>
+          {t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='bg-fill-1 rd-10px p-14px'>
@@ -459,8 +473,9 @@ export const SkillAuditReportModal: React.FC<{
       maskClosable
       style={{ width: 480 }}
       className='skill-audit-report-modal'
-      wrapStyle={{ zIndex: 1050 }}
-      maskStyle={{ zIndex: 1050 }}
+      wrapStyle={{ zIndex: 2000 }}
+      maskStyle={{ zIndex: 2000 }}
+      getPopupContainer={() => document.body}
     >
       <div className='flex flex-col'>
         {/* Header */}
