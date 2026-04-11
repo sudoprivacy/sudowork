@@ -21,6 +21,7 @@ import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
+import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -478,6 +479,15 @@ async function installImportedSkillFromPreparedDirectory(
   };
   await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
+  // Run security audit asynchronously (non-blocking)
+  void (async () => {
+    try {
+      await scanSkillDirectory(customDir, skillName);
+    } catch (err) {
+      mainWarn('SkillHub', 'Security audit after import failed:', err);
+    }
+  })();
+
   void (async () => {
     try {
       await reloadSkillRuntime();
@@ -858,6 +868,47 @@ export function initSkillHubBridge(): void {
       return result;
     } catch (error) {
       mainError('SkillHub', 'Failed to update skill enabled state:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Get security audit report for an installed skill
+  ipcBridge.skillHub.getSkillAuditReport.provider(async ({ skillName }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
+      if (!skillDir) {
+        return { success: false, msg: `Skill "${skillName}" not found` };
+      }
+
+      // Try reading existing report first
+      const existingReport = await readAuditReport(skillDir);
+      if (existingReport) {
+        return { success: true, data: existingReport };
+      }
+
+      // No existing report, run audit now
+      const report = await scanSkillDirectory(skillDir, skillName);
+      return { success: true, data: report };
+    } catch (error) {
+      mainError('SkillHub', 'Failed to get audit report:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Run (or re-run) security audit for an installed skill
+  ipcBridge.skillHub.runSkillAudit.provider(async ({ skillName }) => {
+    try {
+      const userSkillsDir = getUserSkillsDir();
+      const skillDir = await resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
+      if (!skillDir) {
+        return { success: false, msg: `Skill "${skillName}" not found` };
+      }
+
+      const report = await scanSkillDirectory(skillDir, skillName);
+      return { success: true, data: report };
+    } catch (error) {
+      mainError('SkillHub', 'Failed to run audit:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

@@ -18,6 +18,7 @@ import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalled
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { SkillAuditSummary, SkillAuditDetailModal } from './SkillAuditReport';
 
 // ==================== Helpers ====================
 
@@ -307,7 +308,11 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false }) => {
+  /** Skill directory name for audit report display */
+  auditSkillName?: string;
+  /** Callback when "View Audit Details" is clicked */
+  onViewAuditDetails?: (skillName: string) => void;
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false, auditSkillName, onViewAuditDetails }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -420,6 +425,14 @@ const SkillDetailModal: React.FC<{
                     </div>
                   </div>
                 )}
+
+                {/* Security audit section — shown for installed skills */}
+                {isInstalled && auditSkillName && (
+                  <SkillAuditSummary
+                    skillName={auditSkillName}
+                    onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(auditSkillName) : undefined}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -531,6 +544,10 @@ const SkillModalContent: React.FC = () => {
   // Installed skill detail modal state (separate from store detail modal)
   const [installedDetailInfo, setInstalledDetailInfo] = useState<IInstalledSkillInfo | null>(null);
   const [installedDetailVisible, setInstalledDetailVisible] = useState(false);
+
+  // Audit detail modal state
+  const [auditDetailSkillName, setAuditDetailSkillName] = useState<string | null>(null);
+  const [auditDetailVisible, setAuditDetailVisible] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   // Sentinel element for IntersectionObserver-based infinite scroll
@@ -1332,6 +1349,11 @@ const SkillModalContent: React.FC = () => {
         onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)}
         updating={detailSkill ? updatingSkillId === detailSkill.id : false}
         installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined}
+        auditSkillName={detailSkill && detailIsInstalled ? detailSkill.name : undefined}
+        onViewAuditDetails={(name) => {
+          setAuditDetailSkillName(name);
+          setAuditDetailVisible(true);
+        }}
       />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json */}
@@ -1372,9 +1394,24 @@ const SkillModalContent: React.FC = () => {
             installedVersion={installedDetailInstalledVer}
             skipApiFetch
             hideActions={!installedDetailHasUpdate && !installedDetailInfo?.isHubInstalled}
+            auditSkillName={installedDetailInfo?.name}
+            onViewAuditDetails={(name) => {
+              setAuditDetailSkillName(name);
+              setAuditDetailVisible(true);
+            }}
           />
         );
       })()}
+
+      {/* Audit detail modal */}
+      <SkillAuditDetailModal
+        skillName={auditDetailSkillName || ''}
+        visible={auditDetailVisible}
+        onClose={() => {
+          setAuditDetailVisible(false);
+          setAuditDetailSkillName(null);
+        }}
+      />
     </div>
   );
 };
