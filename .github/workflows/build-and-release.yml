@@ -295,7 +295,7 @@ jobs:
           pip install coscmd
 
           echo "🔐 Configuring coscmd..."
-          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -r $COS_REGION
+          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.accelerate.myqcloud.com
 
           COS_PATH="sudowork/release/latest"
 
