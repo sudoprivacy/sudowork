@@ -101,7 +101,7 @@ const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
 
   const handleToggleDetail = React.useCallback(() => {
     const willExpand = !expanded;
-    
+
     if (!itemRef.current) {
       setExpanded(!expanded);
       return;
