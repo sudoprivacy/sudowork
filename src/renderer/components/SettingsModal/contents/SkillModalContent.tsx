@@ -427,12 +427,7 @@ const SkillDetailModal: React.FC<{
                 )}
 
                 {/* Security audit section — shown for installed skills */}
-                {isInstalled && auditSkillName && (
-                  <SkillAuditSummary
-                    skillName={auditSkillName}
-                    onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(auditSkillName) : undefined}
-                  />
-                )}
+                {isInstalled && auditSkillName && <SkillAuditSummary skillName={auditSkillName} onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(auditSkillName) : undefined} />}
               </div>
             )}
           </div>

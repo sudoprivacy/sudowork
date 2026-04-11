@@ -32,7 +32,7 @@ export const buildDisplayMessage = (input: string, files: string[], workspacePat
     const isAbsolute = filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath);
     if (isAbsolute) {
       const parts = filePath.split(/[\\/]/);
-      let fileName = parts[parts.length - 1] || filePath;
+      const fileName = parts[parts.length - 1] || filePath;
       return `${workspacePath}/${fileName}`;
     }
     return `${workspacePath}/${filePath}`;

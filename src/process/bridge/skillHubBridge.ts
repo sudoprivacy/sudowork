@@ -396,11 +396,7 @@ async function readInstalledVersionFromDirectory(skillDir: string): Promise<stri
   }
 }
 
-async function installImportedSkillFromPreparedDirectory(
-  skillDir: string,
-  importedFiles: string[],
-  missingSkillMessage: string
-): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
+async function installImportedSkillFromPreparedDirectory(skillDir: string, importedFiles: string[], missingSkillMessage: string): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
   const customSkillsDir = getCustomSkillsDir();
   await fs.mkdir(customSkillsDir, { recursive: true });
 
