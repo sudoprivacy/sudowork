@@ -231,7 +231,7 @@ export const fs = {
   // 导入 skill 目录 / Import skill directory
   importSkill: bridge.buildProvider<IBridgeResponse<{ skillName: string }>, { skillPath: string }>('import-skill'),
   // 扫描目录下的 skills / Scan directory for skills
-  scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
+  scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string; displayName?: string; icon?: string; iconUrl?: string; color?: string; emoji?: string | null }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
 };
@@ -241,6 +241,10 @@ export const fileWatch = {
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化
   stopAllWatches: bridge.buildProvider<IBridgeResponse, void>('file-watch-stop-all'), // 停止所有文件监听
   fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>('file-changed'), // 文件变化事件
+  // 目录监听 / Directory watching (inotify-style auto refresh)
+  startWatchDir: bridge.buildProvider<IBridgeResponse<{ watchId: string }>, { dirPath: string; recursive?: boolean }>('file-watch-dir-start'),
+  stopWatchDir: bridge.buildProvider<IBridgeResponse, { watchId: string }>('file-watch-dir-stop'),
+  dirChanged: bridge.buildEmitter<{ watchId: string; dirPath: string; eventType: string; changedPath?: string }>('dir-changed'),
 };
 
 // 文件流式更新（Agent 写入文件时实时推送内容）/ File streaming updates (real-time content push when agent writes)

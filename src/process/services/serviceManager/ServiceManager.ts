@@ -29,9 +29,12 @@ type SudoclawHealthCheckResult = {
  * SafetyPollingService.  All runtime-install logic that was previously
  * scattered across process/index.ts helpers is consolidated here.
  */
-class ServiceManager {
+export class ServiceManager {
   private gateway: OpenClawGateway | null = null;
   private startupInProgress = false;
+  private shuttingDown = false;
+  private openClawStartPromise: Promise<void> | null = null;
+  private nexusStartPromise: Promise<void> | null = null;
   private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
   private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
@@ -77,6 +80,7 @@ class ServiceManager {
       return;
     }
 
+    this.shuttingDown = false;
     this.startupInProgress = true;
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
@@ -121,6 +125,13 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async shutdown(): Promise<void> {
+    this.shuttingDown = true;
+    try {
+      const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
+      await componentHealthMonitor.stop();
+    } catch {
+      /* ignore */
+    }
     await this.stopOpenClaw();
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
@@ -135,7 +146,19 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startNexus(): Promise<void> {
-    await this.startNexusWithRetries();
+    if (this.shuttingDown) {
+      mainWarn('ServiceManager', 'Skipping Nexus start because shutdown is in progress');
+      return;
+    }
+    if (this.nexusStartPromise) {
+      await this.nexusStartPromise;
+      return;
+    }
+
+    this.nexusStartPromise = this.startNexusWithRetries().finally(() => {
+      this.nexusStartPromise = null;
+    });
+    await this.nexusStartPromise;
   }
 
   private async startNexusForStartup(): Promise<void> {
@@ -255,7 +278,19 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startOpenClaw(): Promise<void> {
-    await this.startOpenClawWithRetries();
+    if (this.shuttingDown) {
+      mainWarn('ServiceManager', 'Skipping Sudoclaw start because shutdown is in progress');
+      return;
+    }
+    if (this.openClawStartPromise) {
+      await this.openClawStartPromise;
+      return;
+    }
+
+    this.openClawStartPromise = this.startOpenClawWithRetries().finally(() => {
+      this.openClawStartPromise = null;
+    });
+    await this.openClawStartPromise;
   }
 
   private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
