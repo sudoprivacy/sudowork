@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
@@ -64,13 +63,9 @@ class ServiceManager {
   }
 
   private isRetryableStartupExitError(error: unknown, component: 'sudoclaw' | 'nexus'): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (component === 'nexus') {
-      return message.includes('nexusd exited before becoming ready');
-    }
-
-    return message.includes('Sudoclaw gateway exited before becoming healthy') || message.includes('Gateway exited with code');
+    void error;
+    void component;
+    return true;
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -140,16 +135,10 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startNexus(): Promise<void> {
-    await this.startNexusOnce();
+    await this.startNexusWithRetries();
   }
 
   private async startNexusForStartup(): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(12012, 'Nexus');
-      await this.startNexusOnce();
-      return;
-    }
-
     await this.startNexusWithRetries();
   }
 
@@ -177,9 +166,10 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Nexus 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await dynamicNexusService.stop().catch(() => {});
           await this.killProcessesOnPort(12012, 'Nexus');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -265,16 +255,10 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startOpenClaw(): Promise<void> {
-    await this.startOpenClawOnce();
+    await this.startOpenClawWithRetries();
   }
 
   private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(17863, 'Sudoclaw');
-      await this.startOpenClawOnce();
-      return;
-    }
-
     await this.startOpenClawWithRetries();
   }
 
@@ -300,8 +284,9 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Sudoclaw 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Sudoclaw 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await this.stopOpenClaw();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -324,9 +309,9 @@ class ServiceManager {
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
-      if (app.isPackaged && versionState.needsUpgrade) {
+      if (versionState.needsUpgrade) {
+        const installResult = await ensureSudoclawInstalled({ forceReinstall: versionState.needsUpgrade });
         mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
-        const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
         if (!installResult.installed) {
           throw new Error(installResult.error ?? 'Sudoclaw upgrade failed before gateway start');
         }
@@ -574,7 +559,7 @@ class ServiceManager {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
     const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
     const [sudoclawModule, nexusModule] = serviceModules;
-    const { getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
+    const { isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
     const { dynamicNexusService } = nexusModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
@@ -585,7 +570,7 @@ class ServiceManager {
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
-        { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
+        { name: 'Sudoclaw', ok: isSudoclawInstalled() && sudoclawHealthy },
         { name: 'Nexus', ok: nexusHealthy },
       ];
 

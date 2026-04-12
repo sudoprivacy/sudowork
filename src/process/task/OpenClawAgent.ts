@@ -270,7 +270,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       this.status = 'finished';
 
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(`Failed to send Sudoclaw message: ${errorMsg}`);
+      if (!this.shouldSuppressTransientGatewayError(errorMsg)) {
+        this.emitErrorMessage(`Failed to send Sudoclaw message: ${errorMsg}`);
+      }
       throw error;
     }
   }
@@ -466,7 +468,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           this.handleApprovalRequest(evt.payload);
           break;
         case 'shutdown':
-          this.handleDisconnect('Gateway shutdown');
+          this.handleDisconnect(1001, 'Gateway shutdown');
           break;
         case 'health':
         case 'tick':
@@ -747,11 +749,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   private handleConnectError(err: Error): void {
     mainError('OpenClawAgent', 'Connection error:', err);
-    this.emitErrorMessage(`Connection error: ${err.message}`);
+    if (!this.shouldSuppressTransientGatewayError(err.message)) {
+      this.emitErrorMessage(`Connection error: ${err.message}`);
+    }
   }
 
-  private handleClose(_code: number, reason: string): void {
-    this.handleDisconnect(reason);
+  private handleClose(code: number, reason: string): void {
+    this.handleDisconnect(code, reason);
   }
 
   private handleEndTurn(): void {
@@ -782,9 +786,11 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     channelEventBus.emitAgentMessage(this.conversation_id, msg);
   }
 
-  private handleDisconnect(reason: string): void {
+  private handleDisconnect(code: number, reason: string): void {
     this.emitStatusMessage('disconnected');
-    this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+    if (!this.shouldSuppressTransientGatewayClose(code, reason)) {
+      this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+    }
 
     const finishMsg: IResponseMessage = {
       type: 'finish',
@@ -799,6 +805,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingPermissions.clear();
     this.approvalStore.clear();
     this.pendingNavigationTools.clear();
+  }
+
+  private shouldSuppressTransientGatewayError(message: string): boolean {
+    return /^Gateway closed \(100\d\):\s*$/.test(message.trim());
+  }
+
+  private shouldSuppressTransientGatewayClose(code: number, reason: string): boolean {
+    return code >= 1000 && code < 1010 && reason.trim().length === 0;
   }
 
   private fetchAndEmitHistoryFallback(runId: string): void {

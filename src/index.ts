@@ -490,9 +490,9 @@ const createWindow = (): void => {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  // Set window size to 80% (4/5) of screen size for better visibility on high-resolution displays
-  const windowWidth = Math.floor(screenWidth * 0.8);
-  const windowHeight = Math.floor(screenHeight * 0.8);
+  // Keep the bootstrap/install window compact enough for focused status reading.
+  const windowWidth = Math.max(980, Math.min(Math.floor(screenWidth * 0.72), 1180));
+  const windowHeight = Math.max(680, Math.min(Math.floor(screenHeight * 0.72), 800));
 
   // Get app icon for development mode (Windows/Linux need icon in BrowserWindow)
   // In production, icons are set via forge.config.ts packagerConfig

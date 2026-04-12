@@ -6,13 +6,13 @@
 
 import { app } from 'electron';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
+import { getSudoclawVersionState as getInstalledSudoclawVersionState, isSudoclawInstalled as isInstalledSudoclaw } from '../sudoclaw/SudoclawInstallService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -25,24 +25,11 @@ const TAG = 'RuntimeInstaller';
 class RuntimeInstaller {
   primeStatusForStartup(): void {
     const fastNodeOk = isNodeInstalled();
-    const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
-    const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
+    const fastSudoclawOk = isInstalledSudoclaw();
     const fastNexusOk = installedNexusService.checkInstalledSync();
+    const fastSudoclawNeedsUpgrade = fastSudoclawOk && getInstalledSudoclawVersionState().needsUpgrade;
 
-    initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk ? 'startup' : 'full');
-  }
-
-  private getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState: () => { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean }): { installedVersion?: string; bundledVersion?: string; needsUpgrade: boolean } {
-    if (!app.isPackaged) {
-      const versionState = getSudoclawVersionState();
-      return {
-        installedVersion: versionState.installedVersion,
-        bundledVersion: versionState.bundledVersion,
-        needsUpgrade: false,
-      };
-    }
-
-    return getSudoclawVersionState();
+    initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk && !fastSudoclawNeedsUpgrade ? 'startup' : 'full');
   }
 
   /**
@@ -64,8 +51,7 @@ class RuntimeInstaller {
 
     const fastNodeOk = isNodeInstalled();
 
-    const sudoclawLauncherPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'cli', 'package', 'launcher.mjs');
-    const fastSudoclawOk = fs.existsSync(sudoclawLauncherPath);
+    const fastSudoclawOk = isInstalledSudoclaw();
     const fastNexusOk = installedNexusService.checkInstalledSync();
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');
@@ -116,7 +102,7 @@ class RuntimeInstaller {
     if (fastNodeOk && fastSudoclawOk && fastNexusOk) {
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
       const nexusVersionState = await installedNexusService.getVersionState();
-      const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
+      const sudoclawVersionState = getSudoclawVersionState();
 
       if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
@@ -134,25 +120,27 @@ class RuntimeInstaller {
     const runtimeModules = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
     const [nexusModule, sudoclawModule, claudeCliModule, gitModule, bdpanModule] = runtimeModules;
     const { dynamicNexusService } = nexusModule;
-    const { ensureSudoclawInstalled, getSudoclawCliPath, getSudoclawVersionState } = sudoclawModule;
+    const { ensureSudoclawInstalled, getSudoclawVersionState } = sudoclawModule;
     const { claudeCliService } = claudeCliModule;
     const { ensureGitInstalled, isGitInstalled } = gitModule;
     const { ensureBdpanInstalled, isBdpanInstalled } = bdpanModule;
 
     const nodeInstalled = isNodeInstalled();
-    const sudoclawInstalled = getSudoclawCliPath() !== null;
-    const sudoclawVersionState = this.getSudoclawVersionStateForRuntimeChecks(getSudoclawVersionState);
+    const sudoclawInstalled = isInstalledSudoclaw();
+    const sudoclawVersionState = getSudoclawVersionState();
     const nexusInstalledPromise = dynamicNexusService.checkInstalled();
     const nexusVersionStatePromise = dynamicNexusService.getVersionState();
     const gitInstalledPromise = isGitInstalled();
     const claudeStatusPromise = claudeCliService.checkInstalled();
     const bdpanInstalledPromise = Promise.resolve().then(() => isBdpanInstalled());
-    const [nexusInstalled, nexusVersionState, gitInstalled, claudeStatus] = await Promise.all([nexusInstalledPromise, nexusVersionStatePromise, gitInstalledPromise, claudeStatusPromise, bdpanInstalledPromise]);
+    const runtimeChecks = await Promise.all([nexusInstalledPromise, nexusVersionStatePromise, gitInstalledPromise, claudeStatusPromise, bdpanInstalledPromise]);
+    const [nexusInstalled, nexusVersionState, gitInstalled, claudeStatus] = runtimeChecks;
     const bdpanInstalled = await bdpanInstalledPromise;
     const claudeInstalled = claudeStatus.installed;
     const hasClaudeResource = claudeCliService.hasTgzResource();
 
-    mainLog(TAG, `Full check: Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, SudoclawUpgrade=${sudoclawVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`);
+    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, ` + `SudoclawUpgrade=${sudoclawVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`;
+    mainLog(TAG, `Full check: ${fullCheckSummary}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
     if (nodeInstalled && sudoclawInstalled && nexusInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
@@ -162,15 +150,15 @@ class RuntimeInstaller {
       return startCriticalServices();
     }
 
-    // Check which resource files are available.  Only show "组件安装中" and
-    // attempt install when the source archive actually exists.
+    // Node still requires a local resource bundle. Sudoclaw installs are
+    // version-driven and can fall back to remote download inside
+    // ensureSudoclawInstalled(), so do not gate it on local resources here.
     const nodeResExt = isWin32 ? 'zip' : 'tar.gz';
     const nodeResName = `node-${process.platform}-${process.arch}.${nodeResExt}`;
     const hasNodeResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, nodeResName));
-    const hasSudoclawResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, 'openclaw.tgz'));
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
-    const willInstallSudoclaw = hasSudoclawResource && (!sudoclawInstalled || sudoclawVersionState.needsUpgrade);
+    const willInstallSudoclaw = !sudoclawInstalled || sudoclawVersionState.needsUpgrade;
     const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
     if (willInstallNode || willInstallSudoclaw || willInstallNexus) {
@@ -239,11 +227,9 @@ class RuntimeInstaller {
       } else {
         markStepDone('sudoclaw', 'Sudoclaw 文件已就绪');
       }
-    } else if (willInstallSudoclaw) {
+    } else {
       initStatusManager.setStepState('sudoclaw', 'pending', '等待安装 Sudoclaw...');
       initStatusManager.setStepProgress('sudoclaw', 0, '等待安装 Sudoclaw...');
-    } else {
-      markStepError('sudoclaw', '未找到 Sudoclaw 安装资源');
     }
 
     if (nexusInstalled && !nexusVersionState.needsUpgrade) {
@@ -416,10 +402,6 @@ class RuntimeInstaller {
           return { step: 'sudoclaw', ok: false, required: true, error };
         }
       }
-      if (!willInstallSudoclaw) {
-        return { step: 'sudoclaw', ok: false, required: true, error: '未找到 Sudoclaw 安装资源' };
-      }
-
       try {
         const isUpgrade = sudoclawVersionState.needsUpgrade;
         const action = isUpgrade ? `升级 Sudoclaw ${sudoclawVersionState.installedVersion} → ${sudoclawVersionState.bundledVersion}` : '安装 Sudoclaw';

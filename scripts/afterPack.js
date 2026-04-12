@@ -4,6 +4,7 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 const { normalizeArch, rebuildSingleModule, verifyModuleBinary, getModulesToRebuild } = require('./rebuildNativeModules');
+const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 /**
  * afterPack hook for electron-builder
@@ -684,13 +685,21 @@ module.exports = async function afterPack(context) {
       // Resources dir not readable — nexus archives will be skipped
     }
 
-    // Fixed name archives
-    const fixedArchives = ['openclaw.tgz', 'claude-code.tgz'];
+    const sudoclawArchives = [];
+    try {
+      sudoclawArchives.push(
+        ...fs.readdirSync(resourcesDir).filter(f => new RegExp(`^${runtimeVersions.sudoclaw}-sudoclaw-macos-.*\\.tgz$`).test(f)),
+      );
+    } catch {
+      // Resources dir not readable — sudoclaw archives will be skipped
+    }
+
+    const fixedArchives = ['claude-code.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive, ...nexusArchives];
+    const archivesToSign = [...fixedArchives, nodeArchive, ...sudoclawArchives, ...nexusArchives];
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');

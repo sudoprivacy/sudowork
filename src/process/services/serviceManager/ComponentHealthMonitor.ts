@@ -123,9 +123,9 @@ class ComponentHealthMonitor {
    * 检查 Sudoclaw 状态
    */
   private async checkSudoclawHealth(): Promise<ComponentStatus> {
-    const { getSudoclawCliPath } = await import('../sudoclaw/SudoclawInstallService');
+    const { isSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
     const { checkSudoclawHealth } = await import('../sudoclaw/sudoclawHealth');
-    const installed = getSudoclawCliPath() !== null;
+    const installed = isSudoclawInstalled();
 
     if (!installed) {
       return { installed: false, needsAction: true, actionType: 'install' };
