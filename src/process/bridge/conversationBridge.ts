@@ -902,7 +902,14 @@ export function initConversationBridge(): void {
         });
         const skillsDir = resolveWorkspaceSkillsDir(conversation);
         if (skillsDir) {
-          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir);
+          // Read the actual symlinked skill names from disk — the directory is the
+          // source of truth for what the agent can use (may include more skills than
+          // the stored enabledSkills list when no filter is applied).
+          const linkedSkillNames = await fs
+            .readdir(skillsDir, { withFileTypes: true })
+            .then((entries) => entries.filter((e) => e.isSymbolicLink() || e.isDirectory()).map((e) => e.name).sort())
+            .catch(() => skillsToInject ?? []);
+          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
         }
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {

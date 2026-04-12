@@ -176,9 +176,26 @@ For example:
 /**
  * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
  * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ *
+ * Enumerates enabled skill names so the agent knows exactly which skills exist
+ * and where to find their SKILL.md files — mirroring the builtin skills instruction.
  */
-export function injectSkillsDirectoryHint(content: string, skillsDir: string): string {
-  const hint = `[Skills Directory]
+export function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): string {
+  const skillLines =
+    enabledSkillNames && enabledSkillNames.length > 0
+      ? enabledSkillNames.map((name) => `- ${name}: ${skillsDir}/${name}/SKILL.md`).join('\n')
+      : null;
+
+  const hint = skillLines
+    ? `[Skills Directory]
+Skills are installed at: ${skillsDir}
+Each skill has a SKILL.md file containing detailed instructions. To use a skill, read its SKILL.md file when needed.
+
+Available workspace skills:
+${skillLines}
+
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`
+    : `[Skills Directory]
 Skills are installed at: ${skillsDir}
 When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
 
