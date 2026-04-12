@@ -30,8 +30,14 @@
   animation: breathing 1.5s ease-in-out infinite;
 }
 
-/* ——— Card container ——— */
+/* ——— Card container ———
+ * Mockup shows a compact card — NOT a full-bleed block. Cap the width so it
+ * doesn't stretch across the whole 780px message column; on narrow screens
+ * it still shrinks to fit.
+ */
 .tool-steps-card {
+  width: 100%;
+  max-width: 420px;
   border: 1px solid var(--color-border-2, #e5e6eb);
   border-radius: 12px;
   background: var(--color-bg-1, #ffffff);

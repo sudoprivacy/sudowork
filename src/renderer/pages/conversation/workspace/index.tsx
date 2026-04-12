@@ -31,24 +31,11 @@ import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
-import TaskPanel from './TaskPanel';
+// TaskPanel temporarily hidden per product feedback.
+// import TaskPanel from './TaskPanel';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 import './workspace-card.css';
-
-// Recursively count files + folders under a tree, used to render the header
-// file-count pill (matches the progress badge on the chat tool-steps card).
-const countNodes = (nodes: IDirOrFile[] | undefined): number => {
-  if (!nodes || !nodes.length) return 0;
-  let total = 0;
-  for (const node of nodes) {
-    total += 1;
-    if (!node.isFile && node.children?.length) {
-      total += countNodes(node.children);
-    }
-  }
-  return total;
-};
 
 const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
   const clipPathId = useId();
@@ -591,9 +578,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Get target folder path for paste confirm modal
   const targetFolderPathForModal = getTargetFolderPath(treeHook.selectedNodeRef.current, treeHook.selected, treeHook.files, workspace);
 
-  // Total file+folder count for the header pill.
-  const fileCountForHeader = useMemo(() => countNodes(treeData as IDirOrFile[]), [treeData]);
-
   return (
     <>
       {shouldRenderLocalMessageContext && messageContext}
@@ -884,16 +868,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
               <span className='workspace-card__title-label'>{workspaceDisplayName}</span>
             </Popover>
-            {fileCountForHeader > 0 && (
-              <span
-                className={`workspace-card__count ${
-                  treeHook.loading ? 'workspace-card__count--loading' : 'workspace-card__count--live'
-                }`}
-                aria-hidden='true'
-              >
-                {fileCountForHeader}
-              </span>
-            )}
           </div>
           <div className='workspace-card__actions workspace-toolbar-actions'>
             <Tooltip content={t('conversation.workspace.refresh')}>
@@ -922,11 +896,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           </div>
         </div>
 
-        {/* Main content area — card body: TaskPanel + Search + Tree */}
+        {/* Main content area — card body: Search + Tree (TaskPanel hidden per feedback) */}
         {!isWorkspaceCollapsed && (
           <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
-            {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
-            <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
+            {/* TaskPanel temporarily hidden per product feedback — can restore later.
+             * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
+             */}
 
             {/* Search Input (inline inside card body) */}
             {(showSearch || searchText) && (
