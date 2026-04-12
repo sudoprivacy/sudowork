@@ -4,7 +4,10 @@
 #   generate_image.sh gen "<prompt>" [<filename_no_ext>] [size]
 #   generate_image.sh edit "<prompt>" "<image_path>" [<filename_no_ext>] [size]
 # Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH env var.
-# IMAGE_MODEL is read from agents.defaults.imageModel in sudoclaw.json.
+# IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
+# (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
+#  image generation uses the separate imageGenerationModel field.)
+# Any leading "provider/" prefix is stripped before sending to /images/generations.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
 
 set -euo pipefail
@@ -72,8 +75,12 @@ try:
     sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
-    image_model_raw = c.get('agents',{}).get('defaults',{}).get('imageModel','')
+    image_model_raw = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
     image_model = image_model_raw.get('primary','') if isinstance(image_model_raw, dict) else image_model_raw
+    # Strip any 'provider/' prefix (e.g. 'sudorouter/gpt-image-1.5' -> 'gpt-image-1.5');
+    # sudorouter /images/generations expects the bare model id.
+    if isinstance(image_model, str) and '/' in image_model:
+        image_model = image_model.rsplit('/', 1)[-1]
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
@@ -84,6 +91,12 @@ fi
 BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
 API_KEY="${PROVIDER_API_KEY:-${_CFG_API_KEY:-}}"
 MODEL="${IMAGE_MODEL:-${_CFG_IMAGE_MODEL:-}}"
+
+# Strip any leading "provider/" prefix; sudorouter /images/generations expects the bare model id.
+# (Defensive: handles IMAGE_MODEL env overrides and any future writer that keeps the prefix.)
+if [[ "$MODEL" == */* ]]; then
+  MODEL="${MODEL##*/}"
+fi
 
 if [ -z "$MODEL" ]; then
   echo "Error: Image generation is unavailable because no image model is configured. Please set the image model in Tools settings." >&2

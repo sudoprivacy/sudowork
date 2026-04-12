@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage, DEFAULT_IMAGE_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
+import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
 import { acpConversation, openclaw } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
@@ -252,12 +252,12 @@ const ToolsModalContent: React.FC = () => {
         if (saved) {
           // Always ensure useModel is set
           if (!saved.useModel) {
-            saved.useModel = DEFAULT_IMAGE_MODEL;
+            saved.useModel = DEFAULT_IMAGE_GENERATION_MODEL;
           }
           setImageGenerationModel(saved);
         } else {
           // Default: switch on, hardcoded model
-          const defaultConfig = { useModel: DEFAULT_IMAGE_MODEL, switch: true } as IConfigStorageRefer['tools.imageGenerationModel'];
+          const defaultConfig = { useModel: DEFAULT_IMAGE_GENERATION_MODEL, switch: true } as IConfigStorageRefer['tools.imageGenerationModel'];
           setImageGenerationModel(defaultConfig);
           ConfigStorage.set('tools.imageGenerationModel', defaultConfig).catch(() => {});
         }
@@ -312,7 +312,7 @@ const ToolsModalContent: React.FC = () => {
             <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
               <Form.Item label={t('settings.imageGenerationModel')}>
                 <AionSelect
-                  value={imageGenerationModel?.useModel || DEFAULT_IMAGE_MODEL}
+                  value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
                   disabled={!imageGenerationModel?.switch}
                   onChange={(val) => handleImageGenerationModelChange({ useModel: val as string })}
                   options={[

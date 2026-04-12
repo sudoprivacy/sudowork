@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { app } from 'electron';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
@@ -30,9 +29,12 @@ type SudoclawHealthCheckResult = {
  * SafetyPollingService.  All runtime-install logic that was previously
  * scattered across process/index.ts helpers is consolidated here.
  */
-class ServiceManager {
+export class ServiceManager {
   private gateway: OpenClawGateway | null = null;
   private startupInProgress = false;
+  private shuttingDown = false;
+  private openClawStartPromise: Promise<void> | null = null;
+  private nexusStartPromise: Promise<void> | null = null;
   private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
   private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
@@ -64,13 +66,9 @@ class ServiceManager {
   }
 
   private isRetryableStartupExitError(error: unknown, component: 'sudoclaw' | 'nexus'): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (component === 'nexus') {
-      return message.includes('nexusd exited before becoming ready');
-    }
-
-    return message.includes('Sudoclaw gateway exited before becoming healthy') || message.includes('Gateway exited with code');
+    void error;
+    void component;
+    return true;
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -82,6 +80,7 @@ class ServiceManager {
       return;
     }
 
+    this.shuttingDown = false;
     this.startupInProgress = true;
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
@@ -126,6 +125,13 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async shutdown(): Promise<void> {
+    this.shuttingDown = true;
+    try {
+      const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
+      await componentHealthMonitor.stop();
+    } catch {
+      /* ignore */
+    }
     await this.stopOpenClaw();
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
@@ -140,16 +146,22 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startNexus(): Promise<void> {
-    await this.startNexusOnce();
-  }
-
-  private async startNexusForStartup(): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(12012, 'Nexus');
-      await this.startNexusOnce();
+    if (this.shuttingDown) {
+      mainWarn('ServiceManager', 'Skipping Nexus start because shutdown is in progress');
+      return;
+    }
+    if (this.nexusStartPromise) {
+      await this.nexusStartPromise;
       return;
     }
 
+    this.nexusStartPromise = this.startNexusWithRetries().finally(() => {
+      this.nexusStartPromise = null;
+    });
+    await this.nexusStartPromise;
+  }
+
+  private async startNexusForStartup(): Promise<void> {
     await this.startNexusWithRetries();
   }
 
@@ -177,9 +189,10 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Nexus 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await dynamicNexusService.stop().catch(() => {});
           await this.killProcessesOnPort(12012, 'Nexus');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -265,16 +278,22 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startOpenClaw(): Promise<void> {
-    await this.startOpenClawOnce();
-  }
-
-  private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(17863, 'Sudoclaw');
-      await this.startOpenClawOnce();
+    if (this.shuttingDown) {
+      mainWarn('ServiceManager', 'Skipping Sudoclaw start because shutdown is in progress');
+      return;
+    }
+    if (this.openClawStartPromise) {
+      await this.openClawStartPromise;
       return;
     }
 
+    this.openClawStartPromise = this.startOpenClawWithRetries().finally(() => {
+      this.openClawStartPromise = null;
+    });
+    await this.openClawStartPromise;
+  }
+
+  private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
     await this.startOpenClawWithRetries();
   }
 
@@ -300,8 +319,9 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Sudoclaw 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Sudoclaw 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await this.stopOpenClaw();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -324,9 +344,9 @@ class ServiceManager {
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
-      if (app.isPackaged && versionState.needsUpgrade) {
+      if (versionState.needsUpgrade) {
+        const installResult = await ensureSudoclawInstalled({ forceReinstall: versionState.needsUpgrade });
         mainLog('ServiceManager', `Upgrading Sudoclaw before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
-        const installResult = await ensureSudoclawInstalled({ forceReinstall: true });
         if (!installResult.installed) {
           throw new Error(installResult.error ?? 'Sudoclaw upgrade failed before gateway start');
         }
@@ -378,12 +398,11 @@ class ServiceManager {
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
       const { ProcessConfig } = await import('@/process/initStorage');
-      const { DEFAULT_IMAGE_MODEL } = await import('@/common/storage');
+      const { DEFAULT_IMAGE_PARSING_MODEL, DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
       const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-      // If no config saved yet (first run), treat as default: switch on with DEFAULT_IMAGE_MODEL.
+      // Generation model: from user config or default
       const switchOn = imageConfig ? imageConfig.switch : true;
-      const useModel = imageConfig?.useModel || DEFAULT_IMAGE_MODEL;
-      const modelId = switchOn && useModel ? useModel : null;
+      const generationModel = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
 
       const fs = await import('fs');
       if (!fs.existsSync(sudoclawConfigPath)) return;
@@ -391,9 +410,28 @@ class ServiceManager {
       const config = JSON.parse(raw);
       if (!config.agents) config.agents = { defaults: {} };
       if (!config.agents.defaults) config.agents.defaults = {};
-      config.agents.defaults.imageModel = modelId ?? '';
+
+      // Gateway expects provider-prefixed model ref (e.g. "sudorouter/gemini-3-flash-preview").
+      // Find the provider that owns this model from models.providers config.
+      const findProvider = (modelId: string) => {
+        let provider = 'sudorouter';
+        const providers = config.models?.providers as Record<string, { models?: Array<{ id: string }> }> | undefined;
+        if (providers) {
+          for (const [key, val] of Object.entries(providers)) {
+            if (val?.models?.some((m: { id: string }) => m.id === modelId)) { provider = key; break; }
+          }
+        }
+        return modelId.includes('/') ? modelId : `${provider}/${modelId}`;
+      };
+
+      // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
+      config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
+
+      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
+      config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
+
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
-      mainLog('ServiceManager', 'Synced image model to sudoclaw.json on startup:', modelId);
+      mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
@@ -574,7 +612,7 @@ class ServiceManager {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
     const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
     const [sudoclawModule, nexusModule] = serviceModules;
-    const { getSudoclawCliPath, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
+    const { isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
     const { dynamicNexusService } = nexusModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
@@ -585,7 +623,7 @@ class ServiceManager {
       const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
-        { name: 'Sudoclaw', ok: getSudoclawCliPath() !== null && sudoclawHealthy },
+        { name: 'Sudoclaw', ok: isSudoclawInstalled() && sudoclawHealthy },
         { name: 'Nexus', ok: nexusHealthy },
       ];
 
@@ -666,14 +704,13 @@ class ServiceManager {
   async waitForSecrets(): Promise<boolean> {
     // Poll until the promise is created by startNexusOnce()
     const POLL_INTERVAL_MS = 200;
-    const MAX_POLL_MS = 120_000;
-    const deadline = Date.now() + MAX_POLL_MS;
-    while (!this.secretsReadyPromise && Date.now() < deadline) {
+    while (!this.secretsReadyPromise) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    }
-    if (!this.secretsReadyPromise) {
-      // Timeout or startup never reached secrets initialization.
-      return false;
+      // startup 已结束但未创建 secretsReadyPromise → startup 在到达 startNexusOnce 之前失败
+      if (!this.startupInProgress) {
+        mainWarn('ServiceManager', 'waitForSecrets: startup completed without creating secretsReadyPromise');
+        return false;
+      }
     }
     return this.secretsReadyPromise;
   }

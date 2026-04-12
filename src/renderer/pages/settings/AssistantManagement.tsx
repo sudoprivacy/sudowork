@@ -823,19 +823,19 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-t-secondary'>{customSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                     {customSelectableSkills.map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={selectedSkills.includes(skill.name)}
-                          onToggle={() => {
-                            if (selectedSkills.includes(skill.name)) {
-                              setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
-                            } else {
-                              setSelectedSkills([...selectedSkills, skill.name]);
-                            }
-                          }}
-                        />
-                      ))}
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        checked={selectedSkills.includes(skill.name)}
+                        onToggle={() => {
+                          if (selectedSkills.includes(skill.name)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          } else {
+                            setSelectedSkills([...selectedSkills, skill.name]);
+                          }
+                        }}
+                      />
+                    ))}
                     {customSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
                   </div>
                 </Collapse.Item>
@@ -844,19 +844,19 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
                 <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>} name='builtin-skills' extra={<span className='text-12px text-t-secondary'>{builtinSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                     {builtinSelectableSkills.map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={selectedSkills.includes(skill.name)}
-                          onToggle={() => {
-                            if (selectedSkills.includes(skill.name)) {
-                              setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
-                            } else {
-                              setSelectedSkills([...selectedSkills, skill.name]);
-                            }
-                          }}
-                        />
-                      ))}
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        checked={selectedSkills.includes(skill.name)}
+                        onToggle={() => {
+                          if (selectedSkills.includes(skill.name)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          } else {
+                            setSelectedSkills([...selectedSkills, skill.name]);
+                          }
+                        }}
+                      />
+                    ))}
                     {builtinSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
                   </div>
                 </Collapse.Item>

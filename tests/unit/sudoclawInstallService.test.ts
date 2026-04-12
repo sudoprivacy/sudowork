@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
 const bundledVersion = String(runtimeVersions.sudoclaw);
+const resourceArchiveName = `${bundledVersion}-sudoclaw-windows-x64.tgz`;
+const resourceManifestName = `${bundledVersion}-sudoclaw-windows-x64.manifest.json`;
 
 function setProcessProperty(key: 'platform' | 'arch' | 'resourcesPath', value: string): PropertyDescriptor | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(process, key);
@@ -41,9 +43,9 @@ describe('SudoclawInstallService', () => {
     fs.mkdirSync(homeDir, { recursive: true });
     fs.mkdirSync(resourcesDir, { recursive: true });
 
-    fs.writeFileSync(path.join(resourcesDir, 'openclaw.tgz'), 'fixture');
+    fs.writeFileSync(path.join(resourcesDir, resourceArchiveName), 'fixture');
     fs.writeFileSync(
-      path.join(resourcesDir, 'openclaw.manifest.json'),
+      path.join(resourcesDir, resourceManifestName),
       JSON.stringify(
         {
           version: bundledVersion,
@@ -99,7 +101,7 @@ describe('SudoclawInstallService', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('falls back to install manifest version when package.json is unavailable', async () => {
+  it('reads installed version directly from install manifest', async () => {
     const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
     fs.mkdirSync(sudoclawDir, { recursive: true });
     fs.writeFileSync(
@@ -123,9 +125,10 @@ describe('SudoclawInstallService', () => {
       bundledVersion,
       needsUpgrade: false,
     });
+    expect(module.isSudoclawInstalled()).toBe(true);
   });
 
-  it('prefers extracted package version over install manifest for upgrade checks', async () => {
+  it('uses install manifest version for upgrade checks even if package.json differs', async () => {
     const pkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
     fs.mkdirSync(pkgRoot, { recursive: true });
     fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ version: '0.0.1' }, null, 2));
@@ -147,12 +150,40 @@ describe('SudoclawInstallService', () => {
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
 
-    expect(module.getSudoclawInstalledVersion()).toBe('0.0.1');
+    expect(module.getSudoclawInstalledVersion()).toBe(bundledVersion);
     expect(module.getSudoclawVersionState()).toEqual({
-      installedVersion: '0.0.1',
+      installedVersion: bundledVersion,
+      bundledVersion,
+      needsUpgrade: false,
+    });
+    expect(module.isSudoclawInstalled()).toBe(true);
+  });
+
+  it('treats raw manifest version mismatch as upgrade without normalization', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sudoclawDir, 'install-manifest.json'),
+      JSON.stringify(
+        {
+          version: bundledVersion.replace(/^v/, ''),
+          platform: 'win32',
+          arch: 'x64',
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+
+    expect(module.getSudoclawInstalledVersion()).toBe(bundledVersion.replace(/^v/, ''));
+    expect(module.getSudoclawVersionState()).toEqual({
+      installedVersion: bundledVersion.replace(/^v/, ''),
       bundledVersion,
       needsUpgrade: true,
     });
+    expect(module.isSudoclawInstalled()).toBe(false);
   });
 
   it('refreshes install manifest without re-extracting when existing install is valid', async () => {
@@ -165,6 +196,18 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(pkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(pkgRoot, 'launcher.mjs'), 'export {};');
     fs.writeFileSync(path.join(pkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(
+      path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
+      JSON.stringify(
+        {
+          version: bundledVersion,
+          platform: 'win32',
+          arch: 'x64',
+        },
+        null,
+        2
+      )
+    );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
     const result = await module.ensureSudoclawInstalled();
@@ -181,7 +224,7 @@ describe('SudoclawInstallService', () => {
     });
   });
 
-  it('treats launcher presence as sufficient for installed detection', async () => {
+  it('does not treat launcher presence alone as installed without manifest version', async () => {
     const pkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
     fs.mkdirSync(pkgRoot, { recursive: true });
     fs.writeFileSync(path.join(pkgRoot, 'launcher.mjs'), 'export {};');
@@ -189,11 +232,34 @@ describe('SudoclawInstallService', () => {
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
 
     expect(module.getSudoclawCliPath()).toBe(path.join(pkgRoot, 'launcher.mjs'));
+    expect(module.isSudoclawInstalled()).toBe(false);
 
     const result = await module.ensureSudoclawInstalled();
-    expect(result.installed).toBe(true);
-    expect(result.cliPath).toBe(path.join(pkgRoot, 'launcher.mjs'));
-    expect(tarExtractMock).not.toHaveBeenCalled();
+    expect(result.installed).toBe(false);
+    expect(fs.existsSync(path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'))).toBe(false);
+  });
+
+  it('fails install when bundled openclaw manifest version does not match runtime version', async () => {
+    fs.writeFileSync(
+      path.join(resourcesDir, resourceManifestName),
+      JSON.stringify(
+        {
+          version: 'v0.0.1-old',
+          platform: 'win32',
+          arch: 'x64',
+          daveyBinding: '@snazzah/davey-win32-x64-msvc',
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    const result = await module.ensureSudoclawInstalled();
+
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('Bundled OpenClaw resource version mismatch');
+    expect(fs.existsSync(path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'))).toBe(false);
   });
 
   it('preserves custom workspace while repairing config', async () => {
@@ -248,6 +314,18 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(newPkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(newPkgRoot, 'launcher.mjs'), 'export {};');
     fs.writeFileSync(path.join(newPkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(
+      path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
+      JSON.stringify(
+        {
+          version: bundledVersion,
+          platform: 'win32',
+          arch: 'x64',
+        },
+        null,
+        2
+      )
+    );
 
     const legacyDir = path.join(homeDir, '.sudoclaw');
     fs.mkdirSync(legacyDir, { recursive: true });

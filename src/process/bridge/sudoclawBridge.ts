@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawCliPath, getSudoclawInstalledVersion, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
@@ -139,7 +139,7 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.getStatus.provider(async () => {
     try {
-      const installed = getSudoclawCliPath() !== null;
+      const installed = isSudoclawInstalled();
       const version = installed ? getSudoclawInstalledVersion() : undefined;
       const config = readConfig();
 

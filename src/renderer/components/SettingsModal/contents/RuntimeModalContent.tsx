@@ -531,7 +531,7 @@ const RuntimeModalContent: React.FC = () => {
     claude: 'bg-orange-1 color-orange-6 border border-orange-3',
     libreoffice: 'bg-green-1 color-green-6 border border-green-3',
     sudoclaw: 'bg-purple-1 color-purple-6 border border-purple-3',
-    nexus: 'bg-gold-1 color-gold-6 border border-gold-3',
+    nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
   };
 
   return (

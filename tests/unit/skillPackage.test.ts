@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildSkillDisplayName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '../../src/process/utils/skillPackage';
+import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '../../src/process/utils/skillPackage';
 
 describe('skillPackage utils', () => {
   it('parses basic frontmatter fields from SKILL.md', () => {
@@ -52,5 +52,27 @@ metadata: { 'moltbot': { 'emoji': '🦞', 'category': 'social' } }
 
   it('builds a fallback display name from the skill identifier', () => {
     expect(buildSkillDisplayName('pptx-generator')).toBe('Pptx Generator');
+  });
+
+  it('matches SKILL.md case-insensitively', () => {
+    expect(isSkillMarkdownFileName('SKILL.md')).toBe(true);
+    expect(isSkillMarkdownFileName('skill.MD')).toBe(true);
+    expect(isSkillMarkdownFileName('docs/SKILL.md')).toBe(true);
+    expect(isSkillMarkdownFileName('README.md')).toBe(false);
+  });
+
+  it('canonicalizes skill markdown paths to SKILL.md', () => {
+    expect(canonicalizeSkillMarkdownPath('skill.md')).toBe('SKILL.md');
+    expect(canonicalizeSkillMarkdownPath('./nested/Skill.MD')).toBe('nested/SKILL.md');
+    expect(canonicalizeSkillMarkdownPath('nested/README.md')).toBe('nested/README.md');
+  });
+
+  it('finds a root-level SKILL.md file case-insensitively', () => {
+    expect(findRootSkillMarkdownFileName(['README.md', 'skill.md', 'assets'])).toBe('skill.md');
+    expect(findRootSkillMarkdownFileName(['nested/SKILL.md', 'README.md'])).toBeUndefined();
+  });
+
+  it('rejects multiple root-level SKILL.md variants', () => {
+    expect(() => findRootSkillMarkdownFileName(['SKILL.md', 'skill.md'])).toThrow('Multiple SKILL.md files found in the selected directory root');
   });
 });

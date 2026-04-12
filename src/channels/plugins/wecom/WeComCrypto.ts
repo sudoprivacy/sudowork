@@ -22,9 +22,7 @@ import { createDecipheriv } from 'node:crypto';
  * @param aeskey - The base64-encoded AES key from WeCom callback
  * @returns Parsed key info with algorithm details, or null if invalid
  */
-export function parseWeComAesKey(
-  aeskey: string,
-): { key: Buffer; iv: Buffer; algorithm: 'aes-256-cbc' | 'aes-128-ecb' } | null {
+export function parseWeComAesKey(aeskey: string): { key: Buffer; iv: Buffer; algorithm: 'aes-256-cbc' | 'aes-128-ecb' } | null {
   if (!aeskey) return null;
 
   try {
@@ -84,12 +82,7 @@ export function parseWeComAesKey(
  * @param algorithm - The encryption algorithm
  * @returns The decrypted plaintext buffer
  */
-export function decryptWeComMedia(
-  ciphertext: Buffer,
-  key: Buffer,
-  iv: Buffer,
-  algorithm: 'aes-256-cbc' | 'aes-128-ecb',
-): Buffer {
+export function decryptWeComMedia(ciphertext: Buffer, key: Buffer, iv: Buffer, algorithm: 'aes-256-cbc' | 'aes-128-ecb'): Buffer {
   if (algorithm === 'aes-256-cbc') {
     const decipher = createDecipheriv('aes-256-cbc', key, iv);
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]);

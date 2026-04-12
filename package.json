@@ -1,7 +1,7 @@
 {
   "name": "sudowork",
   "productName": "sudowork",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
   "engines": {
@@ -26,7 +26,6 @@
     "claude:download:force": "node scripts/download-claude-code.js --force",
     "openclaw:download": "node scripts/download-openclaw.js",
     "openclaw:download:force": "node scripts/download-openclaw.js --force",
-    "openclaw:bundle": "node scripts/bundle-openclaw.js",
     "nexus:download": "node scripts/download-nexus.js",
     "nexus:download:force": "node scripts/download-nexus.js --force",
     "node:download": "node scripts/download-node.js",

@@ -1,0 +1,478 @@
+/* --------------------------------------------------------------------------
+ * Workspace card — right-side panel styling aligned with the ui.zip
+ * `components/task-panel.tsx` reference.
+ *
+ *   ┌ [🌥 临时空间] [✨ 可用技能 16]   │  ← tabs as card header
+ *   │ [🔍 搜索文件...          ][⟳]  │  ← shared search + refresh
+ *   │ 🗂 src/ ───────────────── │
+ *   │   📄 index.ts             │
+ *   │ • 上次同步: 刚刚           │  ← sync footer (green ping / blue syncing)
+ *   └───────────────────────────┘
+ *
+ * Visual cues borrowed from the reference:
+ *   - Tabs row as card header with bottom border + primary underline on active
+ *   - Flat search input with focus-highlight primary border
+ *   - 2-column skills grid with `rounded-lg` card + 32×32 icon square
+ *   - Footer with animate-ping sync dot + relative "last sync" label
+ * ------------------------------------------------------------------------*/
+
+@keyframes workspace-card-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes workspace-card-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ——— Card container ——— */
+.chat-workspace.workspace-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: none;
+}
+
+.chat-workspace.workspace-card:hover {
+  border-color: transparent;
+}
+
+/* ——— Tabs row (临时空间 / 可用技能) — now the card header ——— */
+.chat-workspace .workspace-card__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--bg-3);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-card__tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-3, #86909c);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  border-bottom: 2px solid transparent;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.chat-workspace .workspace-card__tab:hover {
+  background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
+  color: var(--color-text-2, #4e5969);
+}
+
+.chat-workspace .workspace-card__tab--active {
+  color: rgb(var(--primary-6, 22 93 255));
+  border-bottom-color: rgb(var(--primary-6, 22 93 255));
+  background: color-mix(in srgb, rgb(var(--primary-6, 22 93 255)) 10%, transparent);
+}
+
+.chat-workspace .workspace-card__tab-label {
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+/* Count pill inside tabs — neutral by default, primary-tinted on active tab. */
+.chat-workspace .workspace-card__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--color-fill-2, #f2f3f5);
+  color: var(--color-text-3, #86909c);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-workspace .workspace-card__count--active {
+  background: rgb(var(--primary-6, 22 93 255));
+  color: #ffffff;
+}
+
+/* ——— Shared toolbar (Search + Refresh) ——— */
+.chat-workspace .workspace-card__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bg-3);
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.chat-workspace .workspace-card__toolbar .workspace-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-workspace .workspace-card__toolbar .workspace-search-input .arco-input-inner-wrapper {
+  border-radius: 8px !important;
+  background: var(--color-fill-2, rgba(128, 128, 128, 0.1)) !important;
+  border: 1px solid var(--bg-3) !important;
+  height: 32px !important;
+}
+
+.chat-workspace .workspace-card__toolbar .workspace-search-input .arco-input-inner-wrapper:focus-within {
+  border-color: rgb(var(--primary-6, 22 93 255)) !important;
+  background: var(--color-bg-1, transparent) !important;
+}
+
+.chat-workspace .workspace-card__refresh-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-3, #86909c);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.chat-workspace .workspace-card__refresh-btn:hover {
+  background: var(--color-fill-2, rgba(128, 128, 128, 0.1));
+  color: var(--color-text-1, #1d2129);
+}
+
+@keyframes workspace-card-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-workspace .workspace-card__refresh-btn--spinning > span,
+.chat-workspace .workspace-card__refresh-btn--spinning svg {
+  animation: workspace-card-refresh-spin 0.8s linear infinite;
+}
+
+/* ——— Card body (tree / skills grid) ——— */
+.chat-workspace .workspace-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: workspace-card-slide-down 0.2s ease-out;
+}
+
+.chat-workspace .workspace-card__body--skills {
+  padding-top: 0;
+}
+
+/* ——— Sync footer ——— */
+.chat-workspace .workspace-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--bg-3);
+  font-size: 11.5px;
+  color: var(--color-text-3, #86909c);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-card__sync-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-card__sync-dot--live {
+  background: var(--color-success, #00b42a);
+}
+
+.chat-workspace .workspace-card__sync-dot--live::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-success, #00b42a);
+  opacity: 0.55;
+  animation: workspace-card-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.chat-workspace .workspace-card__sync-dot--syncing {
+  background: rgb(var(--primary-6, 22 93 255));
+}
+
+.chat-workspace .workspace-card__sync-dot--syncing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(var(--primary-6, 22 93 255));
+  opacity: 0.55;
+  animation: workspace-card-ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.chat-workspace .workspace-card__sync-label {
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ——— Tree rows — rounded hover fill (tighter spacing to match mockup) ——— */
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node {
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+  padding: 2px 4px 2px 0;
+  margin: 1px 0;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node:hover {
+  background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-title-wrapper {
+  border-radius: 6px;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-title {
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-title-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.chat-workspace .workspace-tree .arco-tree-node-switcher {
+  width: 14px;
+  min-width: 14px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-tree .arco-tree-node-switcher-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-workspace .workspace-tree__switcher-spacer {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+}
+
+.chat-workspace .workspace-tree.arco-tree-show-line .arco-tree-node-is-leaf .arco-tree-node-indent::after {
+  display: none;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-selected > .arco-tree-node-title-wrapper .arco-tree-node-title {
+  background: rgba(22, 93, 255, 0.08);
+  color: rgb(var(--primary-6, 22 93 255));
+}
+
+.chat-workspace .workspace-tree__count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-fill-2, rgba(128, 128, 128, 0.12));
+  color: var(--color-text-3, #86909c);
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— Empty state inside card ——— */
+.chat-workspace .workspace-card__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px 20px 28px;
+  text-align: center;
+}
+
+.chat-workspace .workspace-card__empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-fill-2, rgba(128, 128, 128, 0.12));
+  color: var(--color-text-3, #86909c);
+  margin-bottom: 6px;
+}
+
+.chat-workspace .workspace-card__empty-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-2, #4e5969);
+  line-height: 1.4;
+}
+
+.chat-workspace .workspace-card__empty-desc {
+  font-size: 12px;
+  color: var(--color-text-3, #86909c);
+  line-height: 1.5;
+  max-width: 240px;
+}
+
+/* ——— Skills tab (responsive grid, auto-wrap by available width) ——— */
+.chat-workspace .workspace-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  min-height: 0;
+}
+
+.chat-workspace .workspace-skills__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  grid-auto-rows: 1fr;
+  gap: 4px;
+  align-content: start;
+}
+
+/* Single skill card — reference: group-relative flex items-center gap-2.5
+   rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 */
+.chat-workspace .workspace-skill-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--bg-3);
+  background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
+  cursor: pointer;
+  min-width: 0;
+  min-height: 52px;
+  height: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  outline: none;
+}
+
+.chat-workspace .workspace-skill-card:hover {
+  border-color: color-mix(in srgb, rgb(var(--primary-6, 22 93 255)) 28%, var(--bg-3));
+  background: color-mix(in srgb, rgb(var(--primary-6, 22 93 255)) 8%, var(--color-fill-1, rgba(128, 128, 128, 0.08)));
+}
+
+.chat-workspace .workspace-skill-card:focus-visible {
+  border-color: rgb(var(--primary-6, 22 93 255));
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.16);
+}
+
+/* Reference: h-8 w-8 shrink-0 rounded-md bg-background border border-border/50 */
+.chat-workspace .workspace-skill-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--bg-3) 72%, transparent);
+  background: var(--color-bg-1, transparent);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.chat-workspace .workspace-skill-card__icon-image {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: block;
+}
+
+.chat-workspace .workspace-skill-card__emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.chat-workspace .workspace-skill-card__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.chat-workspace .workspace-skill-card__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-1, #1d2129);
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Mobile tweaks — slightly larger tap targets, same card chrome */
+@media (max-width: 768px) {
+  .chat-workspace.workspace-card {
+    border-radius: 14px;
+  }
+
+  .chat-workspace .workspace-card__tab {
+    font-size: 14px;
+    padding: 12px 12px;
+  }
+
+  .chat-workspace .workspace-skills__grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  }
+}

@@ -5,12 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  encodeChatId,
-  getDefaultExtension,
-  parseChatId,
-  toUnifiedIncomingMessage,
-} from '@/channels/plugins/wecom/WeComAdapter';
+import { encodeChatId, getDefaultExtension, parseChatId, toUnifiedIncomingMessage } from '@/channels/plugins/wecom/WeComAdapter';
 import type { WeComMsgCallback } from '@/channels/plugins/wecom/WeComAdapter';
 
 /** Helper: create a minimal WeCom message callback */
@@ -294,9 +289,7 @@ describe('WeComAdapter', () => {
       const msg = makeMsg({
         msgtype: 'mixed',
         mixed: {
-          msg_item: [
-            { msgtype: 'unknown_type' },
-          ],
+          msg_item: [{ msgtype: 'unknown_type' }],
         },
       });
       const result = toUnifiedIncomingMessage(msg);

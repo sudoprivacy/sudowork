@@ -9,9 +9,7 @@
 
 const { execSync, spawnSync } = require('child_process');
 const http = require('http');
-const fs = require('fs');
 const path = require('path');
-const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 // ── CLI ──
 
@@ -57,42 +55,6 @@ function httpGet(url, timeout = 2000) {
       reject(new Error('timeout'));
     });
   });
-}
-
-function ensureBundledRuntimeAsset({ name, archivePath, expectedVersion, downloadScript }) {
-  const archiveExists = fs.existsSync(archivePath);
-
-  if (archiveExists) {
-    return;
-  }
-
-  console.log(`[dev-runtime] Refreshing ${name}: archive missing (${expectedVersion})`);
-
-  const result = spawnSync('node', [downloadScript, '--force'], {
-    stdio: 'inherit',
-    cwd: path.join(__dirname, '..'),
-    shell: process.platform === 'win32',
-  });
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  if (typeof result.status === 'number' && result.status !== 0) {
-    throw new Error(`Failed to refresh ${name} resource`);
-  }
-}
-
-function ensureDevRuntimeResources() {
-  const resourcesDir = path.join(__dirname, '..', 'resources');
-
-  ensureBundledRuntimeAsset({
-    name: 'openclaw',
-    archivePath: path.join(resourcesDir, 'openclaw.tgz'),
-    expectedVersion: runtimeVersions.sudoclaw,
-    downloadScript: path.join('scripts', 'download-openclaw.js'),
-  });
-
 }
 
 // ── stop ──
@@ -153,8 +115,6 @@ function start() {
   const passthroughArgs = process.argv.slice(3);
   const cleanEnv = { ...process.env };
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
-
-  ensureDevRuntimeResources();
 
   // Auto-detect Vite renderer port
   const preferredVite = 5173;
