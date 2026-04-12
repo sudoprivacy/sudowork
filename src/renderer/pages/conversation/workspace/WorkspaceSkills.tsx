@@ -6,30 +6,40 @@
 
 /**
  * WorkspaceSkills — renders the "可用技能" tab inside the right-side workspace
- * card. Mirrors the mockup supplied in issue #293:
+ * card. Visual layout mirrors `components/skill-grid.tsx` from the ui.zip
+ * reference: a 2-column grid of `rounded-lg` cards, each with a 32×32 rounded
+ * icon square tinted by the skill-author-specified color.
  *
- *   ┌ ● 可用技能  N  🔁 ┐
- *   │ [🌐 browser] [🐞 chandao-api]   │
- *   │ [📄 docx]    [🖼 image-analysis] │
- *   └─────────────────────────────────┘
- *
- * The skills list is sourced from the workspace's dedicated skills directory:
+ * Sources:
  *   - OpenClaw agents  → `<workspace>/skills/`
  *   - Claude Code      → `<workspace>/.claude/skills/`
  *
- * Each sub-directory with a SKILL.md (YAML frontmatter with `name` + optional
- * `description`) shows up as a grid card. The list auto-refreshes whenever the
- * inotify bridge fires `dirChanged` on the workspace root, so creating or
- * uninstalling a skill in the workspace updates the panel without a manual
- * reload (matches the behaviour already provided for the file tree).
+ * Each sub-directory containing a SKILL.md (YAML frontmatter) shows up as a
+ * card. The `icon:` and `color:` fields from frontmatter are honoured when
+ * present; otherwise we fall back to a keyword-based heuristic so older
+ * skills keep their look.
+ *
+ *   ---
+ *   name: browser
+ *   description: 浏览器操作
+ *   icon: Browser
+ *   color: blue
+ *   ---
+ *
+ * The list auto-refreshes on `fileWatch.dirChanged` (inotify bridge), so
+ * creating / uninstalling a skill updates the panel without a manual reload.
+ * The parent card owns the search input + refresh button, so this component
+ * no longer renders its own toolbar — it accepts `searchQuery` via props and
+ * reports loading state back via callbacks.
  */
 
 import { ipcBridge } from '@/common';
-import { iconColors } from '@/renderer/theme/colors';
-import { Input, Tooltip } from '@arco-design/web-react';
-import { Book, Browser, Bug, Code, FileText, FolderOpen, Picture, Refresh, Search, SettingConfig, Tool } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Tooltip } from '@arco-design/web-react';
+import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+type IconComponent = React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }>;
 
 export interface WorkspaceSkillsProps {
   workspace: string;
@@ -40,6 +50,17 @@ export interface WorkspaceSkillsProps {
    * losing the card content.
    */
   eventPrefix?: 'acp' | 'openclaw-gateway';
+  /** Shared search query from the workspace card header. */
+  searchQuery?: string;
+  /** Reports loading state back to the parent for the sync footer spinner. */
+  onLoadingChange?: (loading: boolean) => void;
+  /** Notifies the parent that a refresh cycle just finished. */
+  onSynced?: () => void;
+}
+
+export interface WorkspaceSkillsHandle {
+  /** Programmatic refresh triggered by the shared refresh button. */
+  refresh: () => Promise<void>;
 }
 
 interface SkillItem {
@@ -48,64 +69,177 @@ interface SkillItem {
   path: string;
   /** Which sub-directory it was found under (for tooltip / debug) */
   source: 'skills' | 'claude-skills';
+  /** Icon name from SKILL.md frontmatter, if declared. */
+  icon?: string;
+  /** Color from SKILL.md frontmatter, if declared. */
+  color?: string;
 }
 
 const toSkillsRoot = (workspace: string): string => `${workspace.replace(/\/$/, '')}/skills`;
 const toClaudeSkillsRoot = (workspace: string): string => `${workspace.replace(/\/$/, '')}/.claude/skills`;
 
-/**
- * Pick a stable color + icon for a skill name. Uses a tiny hash so that the
- * same skill name always renders the same accent, giving the grid the colourful
- * "icon wall" look from the mockup without shipping a curated icon catalogue.
- */
-const SKILL_ACCENTS: Array<{ bg: string; fg: string }> = [
-  { bg: 'rgba(22, 93, 255, 0.14)', fg: 'rgb(22, 93, 255)' }, // blue
-  { bg: 'rgba(245, 63, 63, 0.14)', fg: 'rgb(245, 63, 63)' }, // red
-  { bg: 'rgba(0, 180, 42, 0.14)', fg: 'rgb(0, 180, 42)' }, // green
-  { bg: 'rgba(255, 125, 0, 0.14)', fg: 'rgb(255, 125, 0)' }, // orange
-  { bg: 'rgba(114, 46, 209, 0.14)', fg: 'rgb(114, 46, 209)' }, // purple
-  { bg: 'rgba(19, 194, 194, 0.14)', fg: 'rgb(19, 194, 194)' }, // cyan
-  { bg: 'rgba(235, 47, 150, 0.14)', fg: 'rgb(235, 47, 150)' }, // pink
-  { bg: 'rgba(250, 173, 20, 0.14)', fg: 'rgb(250, 173, 20)' }, // amber
+// ——— Color resolution ———
+// The ui.zip reference uses Tailwind tokens like `text-blue-400`. We don't
+// have Tailwind in the renderer, so we map each supported name to a concrete
+// rgb() pair (fg + bg tint). Hex / rgb() pass through verbatim.
+const NAMED_COLORS: Record<string, string> = {
+  blue: 'rgb(96, 165, 250)',
+  'blue-400': 'rgb(96, 165, 250)',
+  'blue-500': 'rgb(59, 130, 246)',
+  red: 'rgb(248, 113, 113)',
+  'red-400': 'rgb(248, 113, 113)',
+  'red-500': 'rgb(239, 68, 68)',
+  green: 'rgb(74, 222, 128)',
+  'green-400': 'rgb(74, 222, 128)',
+  'green-500': 'rgb(34, 197, 94)',
+  emerald: 'rgb(52, 211, 153)',
+  'emerald-400': 'rgb(52, 211, 153)',
+  orange: 'rgb(251, 146, 60)',
+  'orange-400': 'rgb(251, 146, 60)',
+  'orange-500': 'rgb(249, 115, 22)',
+  amber: 'rgb(251, 191, 36)',
+  'amber-400': 'rgb(251, 191, 36)',
+  'amber-500': 'rgb(245, 158, 11)',
+  yellow: 'rgb(250, 204, 21)',
+  'yellow-400': 'rgb(250, 204, 21)',
+  pink: 'rgb(244, 114, 182)',
+  'pink-400': 'rgb(244, 114, 182)',
+  purple: 'rgb(168, 85, 247)',
+  violet: 'rgb(167, 139, 250)',
+  'violet-400': 'rgb(167, 139, 250)',
+  cyan: 'rgb(34, 211, 238)',
+  'cyan-400': 'rgb(34, 211, 238)',
+  slate: 'rgb(148, 163, 184)',
+  'slate-400': 'rgb(148, 163, 184)',
+  gray: 'rgb(156, 163, 175)',
+};
+
+const toRgbTuple = (rgb: string): [number, number, number] | undefined => {
+  const m = rgb.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (!m) return undefined;
+  return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+};
+
+const hexToRgb = (hex: string): string | undefined => {
+  const m = hex.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return undefined;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+const resolveColor = (raw: string | undefined): string | undefined => {
+  if (!raw) return undefined;
+  const v = raw.trim();
+  if (!v) return undefined;
+  const lower = v.toLowerCase();
+  // Support Tailwind `text-blue-400` / `bg-blue-400` by stripping the prefix.
+  const normalized = lower.replace(/^text-/, '').replace(/^bg-/, '');
+  if (NAMED_COLORS[normalized]) return NAMED_COLORS[normalized];
+  if (v.startsWith('#')) return hexToRgb(v);
+  if (lower.startsWith('rgb')) return v;
+  return undefined;
+};
+
+// Hash fallback palette — used when SKILL.md doesn't specify `color`.
+const FALLBACK_ACCENTS: string[] = [
+  'rgb(96, 165, 250)', // blue-400
+  'rgb(248, 113, 113)', // red-400
+  'rgb(52, 211, 153)', // emerald-400
+  'rgb(251, 146, 60)', // orange-400
+  'rgb(168, 85, 247)', // purple-400
+  'rgb(34, 211, 238)', // cyan-400
+  'rgb(244, 114, 182)', // pink-400
+  'rgb(251, 191, 36)', // amber-400
 ];
 
 const hashString = (s: string): number => {
   let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  }
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
 };
 
-const pickAccent = (name: string) => SKILL_ACCENTS[hashString(name) % SKILL_ACCENTS.length];
+const pickFallbackAccent = (name: string) => FALLBACK_ACCENTS[hashString(name) % FALLBACK_ACCENTS.length];
 
-/**
- * Rough heuristic icon picker — keyword match on the skill name so docx-ish
- * skills get a document icon, image-* get a picture icon, etc. Falls back to
- * a generic "code" icon for everything else, which matches the purple
- * skill-creator entry in the mockup.
- */
-const pickIcon = (name: string): React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }> => {
+const withAlpha = (rgb: string, alpha: number): string => {
+  const t = toRgbTuple(rgb);
+  if (!t) return rgb;
+  return `rgba(${t[0]}, ${t[1]}, ${t[2]}, ${alpha})`;
+};
+
+// ——— Icon resolution ———
+// Map the ui.zip reference icon names (lucide-react) to the icon-park
+// equivalents we already have in the bundle. Case-insensitive.
+const ICON_BY_NAME: Record<string, IconComponent> = {
+  // ui.zip / lucide names
+  globe: Browser,
+  browser: Browser,
+  filetext: FileText,
+  'file-text': FileText,
+  file: FileText,
+  image: Picture,
+  imageplus: Picture,
+  picture: Picture,
+  bookopen: Book,
+  'book-open': Book,
+  book: Book,
+  calendar: Calendar,
+  gitbranch: Branch,
+  'git-branch': Branch,
+  mermaid: Branch,
+  settings: SettingConfig,
+  settingconfig: SettingConfig,
+  config: SettingConfig,
+  star: Star,
+  sparkles: Star,
+  presentation: FileText,
+  bug: Bug,
+  wand2: Tool,
+  wand: Tool,
+  tool: Tool,
+  code: Code,
+  folder: FolderOpen,
+  folderopen: FolderOpen,
+};
+
+const pickIconByName = (raw: string | undefined): IconComponent | undefined => {
+  if (!raw) return undefined;
+  const k = raw.trim().toLowerCase();
+  if (!k) return undefined;
+  return ICON_BY_NAME[k];
+};
+
+const pickIconByHeuristic = (name: string): IconComponent => {
   const n = name.toLowerCase();
   if (/image|picture|photo|img/.test(n)) return Picture;
-  if (/doc|docx|pdf|ppt|pptx|word|excel|sheet|file|text|md|markdown/.test(n)) return FileText;
+  if (/excel|sheet|csv/.test(n)) return FileText;
+  if (/translate|i18n|locale/.test(n)) return Book;
+  if (/doc|docx|pdf|ppt|pptx|word|markdown|md|office|star|file/.test(n)) return FileText;
   if (/bug|chandao|issue|ticket/.test(n)) return Bug;
   if (/browser|web|http/.test(n)) return Browser;
-  if (/book|wiki|note|jianshu|blog/.test(n)) return Book;
-  if (/setup|config|setting|install/.test(n)) return SettingConfig;
-  if (/skill|creator|wand|magic|tool|mermaid|flow/.test(n)) return Tool;
+  if (/book|wiki|note|jianshu|jiansheku|blog/.test(n)) return Book;
+  if (/leave|calendar|schedule/.test(n)) return Calendar;
+  if (/mermaid|flow|graph|diagram/.test(n)) return Branch;
+  if (/setup|config|setting|install|openclaw/.test(n)) return SettingConfig;
+  if (/skill|creator|wand|magic|tool/.test(n)) return Tool;
   if (/folder|dir|workspace/.test(n)) return FolderOpen;
+  if (/story|role|character/.test(n)) return Star;
   return Code;
 };
 
-const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefix }) => {
+const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, searchQuery, onLoadingChange, onSynced }, ref) => {
   const { t } = useTranslation();
-  const [searchText, setSearchText] = useState('');
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const reqSeqRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingCallbackRef = useRef(onLoadingChange);
+  const syncedCallbackRef = useRef(onSynced);
+  loadingCallbackRef.current = onLoadingChange;
+  syncedCallbackRef.current = onSynced;
 
   const scanBoth = useCallback(async () => {
     if (!workspace) {
@@ -114,6 +248,7 @@ const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefi
     }
     const mySeq = ++reqSeqRef.current;
     setLoading(true);
+    loadingCallbackRef.current?.(true);
     try {
       // Scan both candidate paths so switching agents doesn't empty the panel.
       // OpenClaw-first vs Claude-first ordering only affects visual grouping.
@@ -131,7 +266,7 @@ const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefi
 
       const collected: SkillItem[] = [];
       const seen = new Set<string>();
-      const pushAll = (arr: Array<{ name: string; description: string; path: string }> | undefined, source: SkillItem['source']) => {
+      const pushAll = (arr: Array<{ name: string; description: string; path: string; icon?: string; color?: string }> | undefined, source: SkillItem['source']) => {
         if (!arr) return;
         for (const s of arr) {
           // Deduplicate by lowercased name — if both paths expose the same
@@ -147,12 +282,17 @@ const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefi
 
       collected.sort((a, b) => a.name.localeCompare(b.name));
       setSkills(collected);
+      syncedCallbackRef.current?.();
     } finally {
       if (reqSeqRef.current === mySeq) {
         setLoading(false);
+        loadingCallbackRef.current?.(false);
       }
     }
   }, [workspace, eventPrefix]);
+
+  // Expose a refresh() handle for the parent's shared refresh button.
+  useImperativeHandle(ref, () => ({ refresh: scanBoth }), [scanBoth]);
 
   // Initial load + reload on workspace / agent switch.
   useEffect(() => {
@@ -179,57 +319,28 @@ const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefi
     };
   }, [scanBoth]);
 
-  const handleManualRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await scanBoth();
-    } finally {
-      // Small minimum so the spin animation reads as a deliberate refresh.
-      setTimeout(() => setRefreshing(false), 250);
-    }
-  }, [scanBoth]);
-
   const filteredSkills = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
+    const q = (searchQuery ?? '').trim().toLowerCase();
     if (!q) return skills;
     return skills.filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
-  }, [skills, searchText]);
+  }, [skills, searchQuery]);
 
-  return (
-    <div className='workspace-skills'>
-      {/* Search + refresh row — matches the mockup's search pill */}
-      <div className='workspace-skills__search'>
-        <Input
-          className='w-full workspace-search-input'
-          placeholder={t('conversation.workspace.skillsSearchPlaceholder', { defaultValue: '搜索技能...' })}
-          value={searchText}
-          onChange={(value) => setSearchText(value)}
-          allowClear
-          prefix={<Search theme='outline' size='14' fill={iconColors.secondary} />}
-        />
-        <Tooltip content={t('conversation.workspace.refresh')}>
-          <button
-            type='button'
-            className={`workspace-skills__refresh ${refreshing || loading ? 'workspace-skills__refresh--spinning' : ''}`}
-            onClick={handleManualRefresh}
-            aria-label={t('conversation.workspace.refresh')}
-          >
-            <Refresh theme='outline' size='14' fill={iconColors.secondary} />
-          </button>
-        </Tooltip>
-      </div>
-
-      {filteredSkills.length === 0 ? (
+  if (filteredSkills.length === 0) {
+    const initialLoading = loading && skills.length === 0;
+    return (
+      <div className='workspace-skills'>
         <div className='workspace-card__empty'>
           <div className='workspace-card__empty-icon'>
             <Code theme='outline' size='20' fill='currentColor' />
           </div>
           <div className='workspace-card__empty-title'>
-            {searchText
+            {initialLoading
+              ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' })
+              : (searchQuery ?? '').trim()
               ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' })
               : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}
           </div>
-          {!searchText && (
+          {!(searchQuery ?? '').trim() && !initialLoading && (
             <div className='workspace-card__empty-desc'>
               {eventPrefix === 'openclaw-gateway'
                 ? t('conversation.workspace.skillsEmptyDescOpenClaw', { defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示' })
@@ -237,34 +348,43 @@ const WorkspaceSkills: React.FC<WorkspaceSkillsProps> = ({ workspace, eventPrefi
             </div>
           )}
         </div>
-      ) : (
-        <div className='workspace-skills__grid'>
-          {filteredSkills.map((skill) => {
-            const accent = pickAccent(skill.name);
-            const Icon = pickIcon(skill.name);
-            return (
-              <Tooltip key={`${skill.source}:${skill.path}`} content={skill.description || skill.path} position='top' mini>
-                <div
-                  className='workspace-skill-card'
-                  role='button'
-                  tabIndex={0}
-                  title={skill.description || skill.name}
-                >
-                  <div className='workspace-skill-card__icon' style={{ background: accent.bg, color: accent.fg }}>
-                    <Icon theme='outline' size='14' fill={accent.fg} />
-                  </div>
-                  <div className='workspace-skill-card__meta'>
-                    <div className='workspace-skill-card__name'>{skill.name}</div>
-                    {skill.description && <div className='workspace-skill-card__desc'>{skill.description}</div>}
-                  </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='workspace-skills'>
+      <div className='workspace-skills__grid'>
+        {filteredSkills.map((skill) => {
+          const iconFromMeta = pickIconByName(skill.icon);
+          const Icon = iconFromMeta ?? pickIconByHeuristic(skill.name);
+          const resolved = resolveColor(skill.color);
+          const fg = resolved ?? pickFallbackAccent(skill.name);
+          const bgTint = withAlpha(fg, 0.14);
+          return (
+            <Tooltip key={`${skill.source}:${skill.path}`} content={skill.description || skill.path} position='top' mini>
+              <div
+                className='workspace-skill-card'
+                role='button'
+                tabIndex={0}
+                title={skill.description || skill.name}
+              >
+                <div className='workspace-skill-card__icon' style={{ background: bgTint, color: fg }}>
+                  <Icon theme='outline' size='16' fill={fg} />
                 </div>
-              </Tooltip>
-            );
-          })}
-        </div>
-      )}
+                <div className='workspace-skill-card__meta'>
+                  <div className='workspace-skill-card__name'>{skill.name}</div>
+                  {skill.description && <div className='workspace-skill-card__desc'>{skill.description}</div>}
+                </div>
+              </div>
+            </Tooltip>
+          );
+        })}
+      </div>
     </div>
   );
-};
+});
+
+WorkspaceSkills.displayName = 'WorkspaceSkills';
 
 export default WorkspaceSkills;

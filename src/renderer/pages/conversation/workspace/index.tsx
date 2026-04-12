@@ -16,9 +16,9 @@ import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
+import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { CloudStorage, Down, FileText, FolderOpen, MagicWand, Refresh, Search } from '@icon-park/react';
+import { CloudStorage, FileText, FolderOpen, MagicWand, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +33,7 @@ import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 // TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
 // import TaskPanel from './TaskPanel';
-import WorkspaceSkills from './WorkspaceSkills';
+import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 import './workspace-card.css';
@@ -174,33 +174,38 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [bdpanUploadPickerVisible, setBdpanUploadPickerVisible] = useState(false);
   const [bdpanUploadLocalPath, setBdpanUploadLocalPath] = useState('');
 
-  // Workspace tree collapse state - 全局统一的折叠状态
-  // 切换会话时保持折叠状态不变，只更新工作目录内容
-  const [isWorkspaceCollapsed, setIsWorkspaceCollapsed] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_TREE_COLLAPSE);
-      if (stored) {
-        // 直接存储boolean值，不按workspace路径区分
-        return stored === 'true';
-      }
-    } catch {
-      // 忽略错误
-    }
-    return false; // 默认展开
-  });
-
-  // 持久化折叠状态 - 全局统一
+  // Skills tab refresh handle — lets the shared refresh button in the card
+  // header trigger a scan even when the file tree inotify watcher is quiet.
+  const skillsHandleRef = useRef<WorkspaceSkillsHandle | null>(null);
+  // Skills tab loading state, reported back from WorkspaceSkills so the sync
+  // footer can show a blue "正在同步…" ping while scanning.
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  // Timestamp of the last successful sync (either tree refresh or skills scan).
+  // The sync footer renders "上次同步: 刚刚 / X 分钟前 / X 小时前" from this.
+  const [lastSyncAt, setLastSyncAt] = useState<number>(() => Date.now());
+  // Tick the "last synced" label every 30 seconds so the relative string stays fresh.
+  const [, setNowTick] = useState(0);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.WORKSPACE_TREE_COLLAPSE, String(isWorkspaceCollapsed));
-    } catch {
-      // 忽略错误
-    }
-  }, [isWorkspaceCollapsed]);
+    const timer = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Previous loading state — used below (after treeHook is initialised) to
+  // bump `lastSyncAt` whenever the tree finishes a refresh cycle.
+  const prevTreeLoadingRef = useRef(false);
 
   // Initialize all hooks
   const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix });
   const modalsHook = useWorkspaceModals();
+
+  // Bump `lastSyncAt` whenever the file tree just finished loading
+  // (transitions from loading=true → false). This drives the sync footer.
+  useEffect(() => {
+    if (prevTreeLoadingRef.current && !treeHook.loading) {
+      setLastSyncAt(Date.now());
+    }
+    prevTreeLoadingRef.current = treeHook.loading;
+  }, [treeHook.loading]);
   const pasteHook = useWorkspacePaste({
     workspace,
     messageApi,
@@ -906,10 +911,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Bdpan Upload Dir Picker */}
         <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
 
-        {/* Toolbar — card-style header matching the chat tool-steps card */}
+        {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
+            two equal tabs sit at the very top of the card (no separate status-
+            dot header anymore). Active tab gets a 2px primary underline and
+            a light primary tint, matching the reference. */}
         <div
-          className={`workspace-card__header ${!isWorkspaceCollapsed ? 'workspace-card__header--expanded' : ''}`}
+          className='workspace-card__tabs'
+          role='tablist'
+          aria-label={t('conversation.workspace.tabsAria', { defaultValue: '工作空间视图切换' })}
           onContextMenu={(event) => {
+            // Preserve the "right-click on workspace header to get root-level
+            // context menu" behaviour from the previous header.
             const rootNode = treeHook.files[0];
             if (!rootNode) return;
             event.preventDefault();
@@ -917,123 +929,89 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             openNodeContextMenu(rootNode, event.clientX, event.clientY);
           }}
         >
-          <div className='workspace-card__header-left' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
-            {/* Status dot — pulses blue while loading, breathes green when watcher is live */}
-            <span
-              className={`workspace-card__status-dot ${
-                treeHook.loading
-                  ? 'workspace-card__status-dot--loading'
-                  : hasOriginalFiles
-                  ? 'workspace-card__status-dot--live'
-                  : 'workspace-card__status-dot--default'
-              }`}
-              aria-hidden='true'
-            />
-            <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
-              <span className='workspace-card__title-label'>{workspaceDisplayName}</span>
-            </Popover>
-          </div>
-          <div className='workspace-card__actions workspace-toolbar-actions'>
-            <Tooltip content={t('conversation.workspace.refresh')}>
-              <span>
-                <Refresh
-                  className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'}
-                  theme='outline'
-                  size='14'
-                  fill={iconColors.secondary}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (activeTab === 'files') {
-                      treeHook.refreshWorkspace();
-                    } else {
-                      // Emit a refresh pulse for skills via dirChanged-mimic:
-                      // the WorkspaceSkills component subscribes to dirChanged
-                      // but we don't have a direct handle. Users can also click
-                      // the tab's own refresh button. We still nudge the file
-                      // tree so the count stays live.
-                      treeHook.refreshWorkspace();
-                    }
-                  }}
-                />
+          <button
+            type='button'
+            role='tab'
+            aria-selected={activeTab === 'files'}
+            className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`}
+            onClick={() => setActiveTab('files')}
+            title={workspace}
+          >
+            <CloudStorage theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
+            {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
+          </button>
+          <button
+            type='button'
+            role='tab'
+            aria-selected={activeTab === 'skills'}
+            className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`}
+            onClick={() => setActiveTab('skills')}
+          >
+            <MagicWand theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
+            {skillCount > 0 && (
+              <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
+                {skillCount}
               </span>
-            </Tooltip>
-            <Down
-              size={12}
-              fill={iconColors.secondary}
-              className={`workspace-card__chevron ${isWorkspaceCollapsed ? 'workspace-card__chevron--collapsed' : ''}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                setIsWorkspaceCollapsed(!isWorkspaceCollapsed);
-              }}
-            />
-          </div>
+            )}
+          </button>
         </div>
 
-        {/* Tabs row — 临时空间 / 可用技能 (mockup #293).
-            Sits directly under the card header so the two tabs feel like part
-            of the same card. Active tab gets a 2px primary underline and a
-            pill-shaped count badge that mirrors the chat tool-steps card. */}
-        {!isWorkspaceCollapsed && (
-          <div className='workspace-card__tabs' role='tablist' aria-label={t('conversation.workspace.tabsAria', { defaultValue: '工作空间视图切换' })}>
+        {/* Shared Search + Refresh row — both tabs share the same toolbar. */}
+        <div className='workspace-card__toolbar'>
+          <Input
+            className='w-full workspace-search-input'
+            ref={searchInputRef}
+            placeholder={activeTab === 'files' ? t('conversation.workspace.searchPlaceholder') : t('conversation.workspace.skillsSearchPlaceholder', { defaultValue: '搜索技能...' })}
+            value={searchText}
+            onChange={(value) => {
+              setSearchText(value);
+              if (activeTab === 'files') {
+                onSearch(value);
+              }
+            }}
+            allowClear
+            prefix={<Search theme='outline' size='14' fill={iconColors.secondary} />}
+          />
+          <Tooltip content={t('conversation.workspace.refresh')}>
             <button
               type='button'
-              role='tab'
-              aria-selected={activeTab === 'files'}
-              className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`}
-              onClick={() => setActiveTab('files')}
+              className={`workspace-card__refresh-btn ${(activeTab === 'files' ? treeHook.loading : skillsLoading) ? 'workspace-card__refresh-btn--spinning' : ''}`}
+              aria-label={t('conversation.workspace.refresh')}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (activeTab === 'files') {
+                  treeHook.refreshWorkspace();
+                } else {
+                  void skillsHandleRef.current?.refresh();
+                }
+              }}
             >
-              <CloudStorage theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
-              <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
-              {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
+              <Refresh theme='outline' size='14' fill={iconColors.secondary} />
             </button>
-            <button
-              type='button'
-              role='tab'
-              aria-selected={activeTab === 'skills'}
-              className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`}
-              onClick={() => setActiveTab('skills')}
-            >
-              <MagicWand theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
-              <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
-              {skillCount > 0 && (
-                <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
-                  {skillCount}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
+          </Tooltip>
+        </div>
 
-        {/* Main content area — card body: Search + Tree (TaskPanel hidden per feedback) OR Skills grid */}
-        {!isWorkspaceCollapsed && activeTab === 'skills' && (
+        {/* Main content area — Skills grid OR Search + Tree. */}
+        {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills workspace={workspace} eventPrefix={eventPrefix} />
+            <WorkspaceSkills
+              ref={skillsHandleRef}
+              workspace={workspace}
+              eventPrefix={eventPrefix}
+              searchQuery={searchText}
+              onLoadingChange={setSkillsLoading}
+              onSynced={() => setLastSyncAt(Date.now())}
+            />
           </FlexFullContainer>
         )}
 
-        {!isWorkspaceCollapsed && activeTab === 'files' && (
+        {activeTab === 'files' && (
           <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
             {/* TaskPanel temporarily hidden per product feedback — can restore later.
              * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
              */}
-
-            {/* Search Input (inline inside card body) */}
-            {(showSearch || searchText) && (
-              <div className='workspace-card__search workspace-toolbar-search'>
-                <Input
-                  className='w-full workspace-search-input'
-                  ref={searchInputRef}
-                  placeholder={t('conversation.workspace.searchPlaceholder')}
-                  value={searchText}
-                  onChange={(value) => {
-                    setSearchText(value);
-                    onSearch(value);
-                  }}
-                  allowClear
-                  prefix={<Search theme='outline' size='14' fill={iconColors.secondary} style={{ cursor: 'pointer' }} onClick={() => searchInputRef.current?.focus?.()} />}
-                />
-              </div>
-            )}
 
             {/* Context Menu */}
             {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && (
@@ -1340,6 +1318,33 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             )}
           </FlexFullContainer>
         )}
+
+        {/* Sync footer — mirrors ui.zip `task-panel.tsx` footer. Shows a pulsing
+            blue ping + "正在同步…" while a scan / refresh is running, or a
+            breathing green dot + "上次同步: <relative>" when idle. The ping dot
+            doubles as the visual cue that the inotify watcher is live. */}
+        {(() => {
+          const isSyncing = activeTab === 'files' ? treeHook.loading : skillsLoading;
+          const diffSec = Math.max(0, Math.floor((Date.now() - lastSyncAt) / 1000));
+          let relative: string;
+          if (diffSec < 10) {
+            relative = t('conversation.workspace.lastSyncJustNow', { defaultValue: '刚刚' });
+          } else if (diffSec < 60) {
+            relative = t('conversation.workspace.lastSyncSecondsAgo', { count: diffSec, defaultValue: '{{count}} 秒前' });
+          } else if (diffSec < 3600) {
+            relative = t('conversation.workspace.lastSyncMinutesAgo', { count: Math.floor(diffSec / 60), defaultValue: '{{count}} 分钟前' });
+          } else {
+            relative = t('conversation.workspace.lastSyncHoursAgo', { count: Math.floor(diffSec / 3600), defaultValue: '{{count}} 小时前' });
+          }
+          const prefix = t('conversation.workspace.lastSyncPrefix', { defaultValue: '上次同步' });
+          const syncingLabel = t('conversation.workspace.lastSyncSyncing', { defaultValue: '正在同步…' });
+          return (
+            <div className='workspace-card__footer'>
+              <span className={`workspace-card__sync-dot ${isSyncing ? 'workspace-card__sync-dot--syncing' : 'workspace-card__sync-dot--live'}`} aria-hidden='true' />
+              <span className='workspace-card__sync-label'>{isSyncing ? syncingLabel : `${prefix}: ${relative}`}</span>
+            </div>
+          );
+        })()}
       </div>
     </>
   );

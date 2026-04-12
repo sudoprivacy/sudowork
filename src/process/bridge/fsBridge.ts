@@ -1024,10 +1024,59 @@ export function initFsBridge(): void {
   });
 
   // 扫描目录下的 skills / Scan directory for skills
+  //
+  // Parses YAML front matter from each SKILL.md. Besides the existing
+  // `name` / `description` fields we also extract optional `icon` / `color`
+  // so the right-side 可用技能 panel (see WorkspaceSkills.tsx) can render the
+  // icon chosen by the skill author instead of a keyword-based heuristic.
+  //
+  //   ---
+  //   name: browser
+  //   description: 浏览器操作
+  //   icon: Browser        # matches ui.zip reference → icon-park component
+  //   color: "#3B82F6"     # hex / rgb(...) / named ('blue', 'red', etc.)
+  //   ---
+  //
+  // Both fields are optional; the renderer falls back to a name-based mapping
+  // when either is missing.
   ipcBridge.fs.scanForSkills.provider(async ({ folderPath }) => {
     mainLog('fsBridge', `scanForSkills called with path: ${folderPath}`);
+
+    // Strip surrounding quotes + inline `# comment` tails and trim.
+    const cleanYamlValue = (raw: string): string => {
+      let v = raw.trim();
+      // Strip inline comment unless it is clearly inside a quoted string.
+      if (!(v.startsWith('"') || v.startsWith("'"))) {
+        const hashIdx = v.indexOf('#');
+        if (hashIdx > 0) v = v.slice(0, hashIdx).trim();
+      }
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+        v = v.slice(1, -1);
+      }
+      return v;
+    };
+
+    const parseFrontMatter = (content: string): { name?: string; description?: string; icon?: string; color?: string } | undefined => {
+      const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+      if (!frontMatterMatch) return undefined;
+      const yaml = frontMatterMatch[1];
+      const pick = (key: string): string | undefined => {
+        const re = new RegExp(`^${key}:\\s*(.+)$`, 'mi');
+        const m = yaml.match(re);
+        if (!m) return undefined;
+        const v = cleanYamlValue(m[1]);
+        return v || undefined;
+      };
+      return {
+        name: pick('name'),
+        description: pick('description'),
+        icon: pick('icon'),
+        color: pick('color'),
+      };
+    };
+
     try {
-      const skills: Array<{ name: string; description: string; path: string }> = [];
+      const skills: Array<{ name: string; description: string; path: string; icon?: string; color?: string }> = [];
 
       await fs.access(folderPath);
       const entries = await fs.readdir(folderPath, { withFileTypes: true });
@@ -1041,20 +1090,16 @@ export function initFsBridge(): void {
 
         try {
           const content = await fs.readFile(skillMdPath, 'utf-8');
-          // 解析 YAML front matter
-          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (frontMatterMatch) {
-            const yaml = frontMatterMatch[1];
-            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
-              skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
-                path: skillDir,
-              });
-              mainLog('fsBridge', `Found skill in subdirectory: ${nameMatch[1].trim()}`);
-            }
+          const parsed = parseFrontMatter(content);
+          if (parsed?.name) {
+            skills.push({
+              name: parsed.name,
+              description: parsed.description ?? '',
+              path: skillDir,
+              icon: parsed.icon,
+              color: parsed.color,
+            });
+            mainLog('fsBridge', `Found skill in subdirectory: ${parsed.name} (icon=${parsed.icon ?? '-'} color=${parsed.color ?? '-'})`);
           }
         } catch {
           // Skill directory without SKILL.md, skip
@@ -1067,19 +1112,16 @@ export function initFsBridge(): void {
         const skillMdPath = path.join(folderPath, 'SKILL.md');
         try {
           const content = await fs.readFile(skillMdPath, 'utf-8');
-          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (frontMatterMatch) {
-            const yaml = frontMatterMatch[1];
-            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
-              skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
-                path: folderPath,
-              });
-              mainLog('fsBridge', `Found skill in the folder itself: ${nameMatch[1].trim()}`);
-            }
+          const parsed = parseFrontMatter(content);
+          if (parsed?.name) {
+            skills.push({
+              name: parsed.name,
+              description: parsed.description ?? '',
+              path: folderPath,
+              icon: parsed.icon,
+              color: parsed.color,
+            });
+            mainLog('fsBridge', `Found skill in the folder itself: ${parsed.name}`);
           }
         } catch {
           // Not a skill directory

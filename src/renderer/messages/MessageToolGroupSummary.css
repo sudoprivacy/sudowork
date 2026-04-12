@@ -175,7 +175,7 @@
 .tool-steps-card__body {
   display: flex;
   flex-direction: column;
-  padding: 6px 6px;
+  padding: 8px 10px;
   gap: 2px;
   max-height: 320px;
   overflow-y: auto;
@@ -187,15 +187,37 @@
   overflow-anchor: none;
   scroll-behavior: auto;
   gap: 2px;
+  /* Containing block for the connector line pseudo-element on each row. */
+  position: relative;
 }
 
-/* ——— Individual step row ——— */
+/* ——— Individual step row ———
+ * Connector line runs behind the status badges — see ui.zip
+ * `components/tool-steps.tsx` reference. The `::before` element sits at the
+ * status-badge centre (left ≈ 11px) and stretches from just below this row's
+ * badge to the next row's badge. Hidden on the last row via :last-child. */
 .tool-step-row {
   display: flex;
   flex-direction: column;
   border-radius: 8px;
   padding: 6px 8px;
   transition: background-color 0.15s ease;
+  position: relative;
+}
+
+.tool-step-row::before {
+  content: '';
+  position: absolute;
+  left: 19px; /* padding-left (8) + status half (11) = centre of 22px badge */
+  top: 30px; /* below the 22px status badge (6 pad + 22 badge + 2 gap) */
+  bottom: -2px; /* extend into the gap between rows */
+  width: 1px;
+  background: var(--color-border-2, #e5e6eb);
+  pointer-events: none;
+}
+
+.tool-step-row:last-child::before {
+  display: none;
 }
 
 .tool-step-row:hover {
@@ -209,14 +231,19 @@
   min-width: 0;
 }
 
+/* Circular 22×22 status badge with a 2px card-coloured ring so the connector
+   line doesn't visually pierce through the badge. */
 .tool-step-row__status {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--color-bg-1, #ffffff);
+  position: relative;
+  z-index: 1;
 }
 
 .tool-step-row__status--success {
@@ -296,10 +323,12 @@
   background: var(--color-fill-2, #f2f3f5);
 }
 
-/* ——— Detail panel ——— */
+/* ——— Detail panel ———
+ * Indent aligns with the right edge of the circular status badge (padding 8 +
+ * badge 22 + gap 4 = 34px) so the detail block visually belongs to its step. */
 .tool-detail-panel {
   margin-top: 6px;
-  margin-left: 30px;
+  margin-left: 34px;
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--color-fill-1, #f7f8fa);
