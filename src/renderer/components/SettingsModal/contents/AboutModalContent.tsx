@@ -36,11 +36,7 @@ const AboutModalContent: React.FC = () => {
               SudoClaw
             </Typography.Title>
             <div className='text-12px text-t-tertiary'>北京数牍科技有限公司</div>
-            <button
-              type='button'
-              className='mt-6px mb-10px inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline'
-              onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}
-            >
+            <button type='button' className='mt-6px mb-10px inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
               <span>{t('settings.officialWebsite')}</span>
               <IconLink className='text-12px' />
             </button>
