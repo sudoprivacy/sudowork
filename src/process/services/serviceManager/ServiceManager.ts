@@ -666,14 +666,13 @@ class ServiceManager {
   async waitForSecrets(): Promise<boolean> {
     // Poll until the promise is created by startNexusOnce()
     const POLL_INTERVAL_MS = 200;
-    const MAX_POLL_MS = 120_000;
-    const deadline = Date.now() + MAX_POLL_MS;
-    while (!this.secretsReadyPromise && Date.now() < deadline) {
+    while (!this.secretsReadyPromise) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    }
-    if (!this.secretsReadyPromise) {
-      // Timeout or startup never reached secrets initialization.
-      return false;
+      // startup 已结束但未创建 secretsReadyPromise → startup 在到达 startNexusOnce 之前失败
+      if (!this.startupInProgress) {
+        mainWarn('ServiceManager', 'waitForSecrets: startup completed without creating secretsReadyPromise');
+        return false;
+      }
     }
     return this.secretsReadyPromise;
   }

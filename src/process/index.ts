@@ -43,15 +43,10 @@ export const initializeProcess = async () => {
   }
   perfLog('initBridge', Date.now() - bridgeStart);
 
-  // 3. Start ServiceManager — installs missing runtimes & starts services
+  // 3. Start ServiceManager — installs missing runtimes & starts services (non-blocking)
   //    Handles: Node.js, Sudoclaw, Nexus install + OpenClaw gateway + Nexus + SafetyPollingService
-  //    Must complete before ChannelManager to ensure secrets are ready
   const { serviceManager } = await import('./services/serviceManager');
-  try {
-    await serviceManager.startup();
-  } catch (error) {
-    mainError('Process', 'ServiceManager startup failed', error);
-  }
+  void serviceManager.startup();
 
   // Initialize Extension Registry and Channel subsystem in parallel (they are independent)
   const parallelStart = Date.now();
