@@ -8,7 +8,6 @@ import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { openExternalUrl, isElectronDesktop } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
-import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
@@ -408,9 +407,6 @@ const GuidPage: React.FC = () => {
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
-        <div className='absolute top-12px right-16px z-10'>
-          <ThemeSwitcher />
-        </div>
         {selectedMenu ? (
           /* 功能菜单内容区域 - 完全清空展示新内容 */
           <div className={styles.functionMenuContainer}>
