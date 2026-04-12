@@ -512,7 +512,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           background: 'radial-gradient(circle at top, rgba(56, 189, 248, 0.14), transparent 30%), linear-gradient(180deg, #071019 0%, #0a1320 52%, #0a121b 100%)',
           color: '#e5e7eb',
           fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-          padding: '32px 40px 24px',
+          padding: '24px 24px 20px',
           boxSizing: 'border-box',
           userSelect: 'none',
           WebkitAppRegion: 'drag',
@@ -521,14 +521,14 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
     >
       <div
         style={{
-          width: '60%',
-          maxWidth: '980px',
-          minWidth: '840px',
+          width: '100%',
+          maxWidth: '1120px',
+          minWidth: '0',
           margin: '0 auto',
-          maxHeight: 'calc(100vh - 56px)',
+          maxHeight: 'calc(100vh - 28px)',
           display: 'flex',
           flexDirection: 'column',
-          padding: '14px 20px 14px',
+          padding: '8px 6px 10px',
           overflowY: 'auto',
           overflowX: 'hidden',
         }}
@@ -536,8 +536,8 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
         <div
           style={{
             flexShrink: 0,
-            marginBottom: '30px',
-            padding: '2px 8px 0',
+            marginBottom: '16px',
+            padding: '2px 4px 0',
             textAlign: 'center',
           }}
         >
@@ -603,7 +603,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: '10px',
+              gap: '8px',
               flexShrink: 0,
             }}
           >
@@ -614,7 +614,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gap: '10px',
+              gap: '8px',
               flexShrink: 0,
             }}
           >
@@ -625,14 +625,14 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             ref={logsContainerRef}
             style={
               {
-                height: '72px',
-                minHeight: '72px',
-                maxHeight: '96px',
+                height: '60px',
+                minHeight: '60px',
+                maxHeight: '84px',
                 overflowY: 'auto',
                 backgroundColor: 'rgba(8, 15, 24, 0.72)',
                 border: '1px solid rgba(71, 85, 105, 0.18)',
                 borderRadius: '14px',
-                padding: '10px 12px',
+                padding: '8px 10px',
                 fontSize: '10px',
                 lineHeight: '1.5',
                 color: '#e2e8f0',
@@ -694,12 +694,12 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           <div
             style={
               {
-                marginTop: '18px',
+                marginTop: '14px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '16px',
-                padding: '14px 16px',
+                padding: '12px 14px',
                 borderRadius: '14px',
                 border: '1px solid rgba(71, 85, 105, 0.18)',
                 background: 'rgba(8, 15, 24, 0.64)',
@@ -708,20 +708,25 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               } as React.CSSProperties
             }
           >
-            {showReinstallActions && (
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>手动重装</div>
-                <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。</div>
-              </div>
-            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              {showReinstallActions ? (
+                <>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>手动重装</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。</div>
+                </>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#8ca0bb', textAlign: 'left' }}>{t('common.setupContinuesInBackground')}</div>
+              )}
+            </div>
             <div
               style={
                 {
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
+                  gap: '12px',
                   flexWrap: 'wrap',
                   justifyContent: 'flex-end',
+                  marginLeft: 'auto',
                   WebkitAppRegion: 'no-drag',
                 } as React.CSSProperties
               }

@@ -139,16 +139,10 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startNexus(): Promise<void> {
-    await this.startNexusOnce();
+    await this.startNexusWithRetries();
   }
 
   private async startNexusForStartup(): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(12012, 'Nexus');
-      await this.startNexusOnce();
-      return;
-    }
-
     await this.startNexusWithRetries();
   }
 
@@ -264,16 +258,10 @@ class ServiceManager {
   // ────────────────────────────────────────────────────────────────────────────
 
   async startOpenClaw(): Promise<void> {
-    await this.startOpenClawOnce();
+    await this.startOpenClawWithRetries();
   }
 
   private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
-    if (initStatusManager.getStatus().displayMode === 'startup') {
-      await this.preparePortForStart(17863, 'Sudoclaw');
-      await this.startOpenClawOnce();
-      return;
-    }
-
     await this.startOpenClawWithRetries();
   }
 
