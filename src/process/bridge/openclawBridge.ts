@@ -157,9 +157,9 @@ export function initOpenClawBridge(): void {
       const config = JSON.parse(raw) as SudoclawConfig;
       if (!config.agents) config.agents = { defaults: {} };
       if (!config.agents.defaults) config.agents.defaults = {};
-      config.agents.defaults.imageModel = params.modelId ?? '';
+      config.agents.defaults.imageGenerationModel = params.modelId ?? '';
       fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
-      mainLog('OpenClawBridge', 'Updated image model in sudoclaw.json:', params.modelId);
+      mainLog('OpenClawBridge', 'Updated image generation model in sudoclaw.json:', params.modelId);
     } catch (error) {
       mainError('OpenClawBridge', 'Failed to update image model in sudoclaw.json', error);
     }
