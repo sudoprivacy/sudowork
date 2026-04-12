@@ -38,6 +38,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveWorkspaceSkillRoot } from './skillRoots';
 
 type IconComponent = React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }>;
 
@@ -45,11 +46,11 @@ export interface WorkspaceSkillsProps {
   workspace: string;
   /**
    * Which agent backend is driving this workspace — determines whether skills
-   * live under `skills/` (OpenClaw) or `.claude/skills/` (Claude Code). The
-   * component always tries both paths so a user can switch agents without
-   * losing the card content.
+   * live under `skills/` (OpenClaw / non-Claude ACP) or `.claude/skills/`
+   * (Claude Code).
    */
   eventPrefix?: 'acp' | 'openclaw-gateway';
+  backend?: string;
   /** Shared search query from the workspace card header. */
   searchQuery?: string;
   /** Reports loading state back to the parent for the sync footer spinner. */
@@ -67,16 +68,39 @@ interface SkillItem {
   name: string;
   description: string;
   path: string;
+  displayName?: string;
   /** Which sub-directory it was found under (for tooltip / debug) */
   source: 'skills' | 'claude-skills';
   /** Icon name from SKILL.md frontmatter, if declared. */
   icon?: string;
+  /** Image URL from _sudowork_meta.json icon field, if declared. */
+  iconUrl?: string;
   /** Color from SKILL.md frontmatter, if declared. */
   color?: string;
+  emoji?: string | null;
 }
 
-const toSkillsRoot = (workspace: string): string => `${workspace.replace(/\/$/, '')}/skills`;
-const toClaudeSkillsRoot = (workspace: string): string => `${workspace.replace(/\/$/, '')}/.claude/skills`;
+const resolveEmptyDescription = (
+  eventPrefix: 'acp' | 'openclaw-gateway' | undefined,
+  backend: string | undefined,
+  t: ReturnType<typeof useTranslation>['t']
+): string => {
+  if (eventPrefix === 'openclaw-gateway') {
+    return t('conversation.workspace.skillsEmptyDescOpenClaw', {
+      defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
+    });
+  }
+
+  if (backend === 'claude') {
+    return t('conversation.workspace.skillsEmptyDescClaude', {
+      defaultValue: '在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示',
+    });
+  }
+
+  return t('conversation.workspace.skillsEmptyDescOpenClaw', {
+    defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
+  });
+};
 
 // ——— Color resolution ———
 // The ui.zip reference uses Tailwind tokens like `text-blue-400`. We don't
@@ -124,7 +148,11 @@ const hexToRgb = (hex: string): string | undefined => {
   const m = hex.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (!m) return undefined;
   let h = m[1];
-  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('');
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
@@ -230,7 +258,77 @@ const pickIconByHeuristic = (name: string): IconComponent => {
   return Code;
 };
 
-const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, searchQuery, onLoadingChange, onSynced }, ref) => {
+const remoteIconCache = new Map<string, string>();
+
+const SkillIconGraphic: React.FC<{
+  iconUrl?: string;
+  displayName: string;
+  emoji?: string | null;
+  Icon: IconComponent;
+  fillColor: string;
+}> = ({ iconUrl, displayName, emoji, Icon, fillColor }) => {
+  const [resolvedIconUrl, setResolvedIconUrl] = useState<string | undefined>(() => {
+    if (!iconUrl) return undefined;
+    return remoteIconCache.get(iconUrl) || iconUrl;
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!iconUrl) {
+      setResolvedIconUrl(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!/^https?:/i.test(iconUrl)) {
+      setResolvedIconUrl(iconUrl);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const cached = remoteIconCache.get(iconUrl);
+    if (cached) {
+      setResolvedIconUrl(cached);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setResolvedIconUrl(iconUrl);
+    void ipcBridge.fs.fetchRemoteImage
+      .invoke({ url: iconUrl })
+      .then((dataUrl) => {
+        remoteIconCache.set(iconUrl, dataUrl);
+        if (!cancelled) {
+          setResolvedIconUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedIconUrl(iconUrl);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [iconUrl]);
+
+  if (resolvedIconUrl) {
+    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' />;
+  }
+
+  if (emoji) {
+    return <span className='workspace-skill-card__emoji'>{emoji}</span>;
+  }
+
+  return <Icon theme='outline' size='16' fill={fillColor} />;
+};
+
+const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced }, ref) => {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -250,35 +348,15 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
     setLoading(true);
     loadingCallbackRef.current?.(true);
     try {
-      // Scan both candidate paths so switching agents doesn't empty the panel.
-      // OpenClaw-first vs Claude-first ordering only affects visual grouping.
-      const primary = eventPrefix === 'openclaw-gateway' ? toSkillsRoot(workspace) : toClaudeSkillsRoot(workspace);
-      const secondary = eventPrefix === 'openclaw-gateway' ? toClaudeSkillsRoot(workspace) : toSkillsRoot(workspace);
-      const primarySource: SkillItem['source'] = primary.endsWith('/.claude/skills') ? 'claude-skills' : 'skills';
-      const secondarySource: SkillItem['source'] = secondary.endsWith('/.claude/skills') ? 'claude-skills' : 'skills';
-
-      const [primaryRes, secondaryRes] = await Promise.all([
-        ipcBridge.fs.scanForSkills.invoke({ folderPath: primary }).catch((): undefined => undefined),
-        ipcBridge.fs.scanForSkills.invoke({ folderPath: secondary }).catch((): undefined => undefined),
-      ]);
+      const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+      const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
 
       if (reqSeqRef.current !== mySeq) return;
 
-      const collected: SkillItem[] = [];
-      const seen = new Set<string>();
-      const pushAll = (arr: Array<{ name: string; description: string; path: string; icon?: string; color?: string }> | undefined, source: SkillItem['source']) => {
-        if (!arr) return;
-        for (const s of arr) {
-          // Deduplicate by lowercased name — if both paths expose the same
-          // skill, primary source wins (already processed first).
-          const key = s.name.toLowerCase();
-          if (seen.has(key)) continue;
-          seen.add(key);
-          collected.push({ ...s, source });
-        }
-      };
-      pushAll(primaryRes?.success ? primaryRes.data : undefined, primarySource);
-      pushAll(secondaryRes?.success ? secondaryRes.data : undefined, secondarySource);
+      const collected = (result?.success ? result.data : []).map((skill) => ({
+        ...skill,
+        source: skillRoot.source,
+      }));
 
       collected.sort((a, b) => a.name.localeCompare(b.name));
       setSkills(collected);
@@ -289,7 +367,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
         loadingCallbackRef.current?.(false);
       }
     }
-  }, [workspace, eventPrefix]);
+  }, [workspace, eventPrefix, backend]);
 
   // Expose a refresh() handle for the parent's shared refresh button.
   useImperativeHandle(ref, () => ({ refresh: scanBoth }), [scanBoth]);
@@ -322,7 +400,10 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   const filteredSkills = useMemo(() => {
     const q = (searchQuery ?? '').trim().toLowerCase();
     if (!q) return skills;
-    return skills.filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
+    return skills.filter((skill) => {
+      const displayName = (skill.displayName || '').toLowerCase();
+      return skill.name.toLowerCase().includes(q) || displayName.includes(q) || skill.description.toLowerCase().includes(q);
+    });
   }, [skills, searchQuery]);
 
   if (filteredSkills.length === 0) {
@@ -337,15 +418,11 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
             {initialLoading
               ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' })
               : (searchQuery ?? '').trim()
-              ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' })
-              : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}
+                ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' })
+                : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}
           </div>
           {!(searchQuery ?? '').trim() && !initialLoading && (
-            <div className='workspace-card__empty-desc'>
-              {eventPrefix === 'openclaw-gateway'
-                ? t('conversation.workspace.skillsEmptyDescOpenClaw', { defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示' })
-                : t('conversation.workspace.skillsEmptyDescClaude', { defaultValue: '在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示' })}
-            </div>
+            <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, t)}</div>
           )}
         </div>
       </div>
@@ -360,21 +437,25 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
           const Icon = iconFromMeta ?? pickIconByHeuristic(skill.name);
           const resolved = resolveColor(skill.color);
           const fg = resolved ?? pickFallbackAccent(skill.name);
-          const bgTint = withAlpha(fg, 0.14);
+          const borderTint = withAlpha(fg, 0.14);
+          const iconBackground = skill.iconUrl ? 'var(--color-fill-2, #f2f3f5)' : withAlpha(fg, 0.1);
+          const displayName = skill.displayName || skill.name;
+
           return (
-            <Tooltip key={`${skill.source}:${skill.path}`} content={skill.description || skill.path} position='top' mini>
-              <div
-                className='workspace-skill-card'
-                role='button'
-                tabIndex={0}
-                title={skill.description || skill.name}
-              >
-                <div className='workspace-skill-card__icon' style={{ background: bgTint, color: fg }}>
-                  <Icon theme='outline' size='16' fill={fg} />
+            <Tooltip key={`${skill.source}:${skill.path}`} content={displayName} position='top' mini>
+              <div className='workspace-skill-card' role='button' tabIndex={0}>
+                <div
+                  className='workspace-skill-card__icon'
+                  style={{
+                    background: iconBackground,
+                    color: fg,
+                    borderColor: borderTint,
+                  }}
+                >
+                  <SkillIconGraphic iconUrl={skill.iconUrl} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} />
                 </div>
                 <div className='workspace-skill-card__meta'>
-                  <div className='workspace-skill-card__name'>{skill.name}</div>
-                  {skill.description && <div className='workspace-skill-card__desc'>{skill.description}</div>}
+                  <div className='workspace-skill-card__name'>{displayName}</div>
                 </div>
               </div>
             </Tooltip>

@@ -317,19 +317,20 @@
   max-width: 240px;
 }
 
-/* ——— Skills tab (2-column grid, matches ui.zip `skill-grid.tsx`) ——— */
+/* ——— Skills tab (responsive grid, auto-wrap by available width) ——— */
 .chat-workspace .workspace-skills {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
+  gap: 4px;
+  padding: 8px;
   min-height: 0;
 }
 
 .chat-workspace .workspace-skills__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  grid-auto-rows: 1fr;
+  gap: 4px;
   align-content: start;
 }
 
@@ -342,17 +343,20 @@
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--color-border-2, #e5e6eb);
-  background: var(--color-fill-1, #f7f8fa);
+  background: var(--color-bg-2, #f2f3f5);
   cursor: pointer;
   min-width: 0;
+  min-height: 52px;
+  height: 100%;
+  box-sizing: border-box;
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   outline: none;
 }
 
 .chat-workspace .workspace-skill-card:hover {
-  border-color: rgba(22, 93, 255, 0.4);
-  background: var(--color-bg-1, #ffffff);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+  border-color: rgba(22, 93, 255, 0.28);
+  background: var(--color-fill-1, #f7f8fa);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .chat-workspace .workspace-skill-card:focus-visible {
@@ -369,33 +373,42 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid rgba(15, 23, 42, 0.04);
+  border: 1px solid color-mix(in srgb, var(--color-border-2, #e5e6eb) 58%, transparent);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.chat-workspace .workspace-skill-card__icon-image {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: block;
+}
+
+.chat-workspace .workspace-skill-card__emoji {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .chat-workspace .workspace-skill-card__meta {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  flex: 1 1 auto;
 }
 
 .chat-workspace .workspace-skill-card__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-1, #1d2129);
-  line-height: 1.3;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-workspace .workspace-skill-card__desc {
-  font-size: 11px;
-  color: var(--color-text-3, #86909c);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Mobile tweaks — slightly larger tap targets, same card chrome */
@@ -410,6 +423,6 @@
   }
 
   .chat-workspace .workspace-skills__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
   }
 }

@@ -15,6 +15,7 @@ import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
 import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
 import { readDirectoryRecursive } from '../utils';
+import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 // ============================================================================
@@ -256,13 +257,6 @@ export function initFsBridge(): void {
     const parsedUrl = new URL(targetUrl);
     if (!allowedProtocols.has(parsedUrl.protocol)) {
       return Promise.reject(new Error('Unsupported protocol'));
-    }
-
-    // 仅允许白名单域名，避免随意访问 / Restrict to a whitelist of hosts for safety
-    const allowedHosts = ['github.com', 'raw.githubusercontent.com', 'contrib.rocks', 'img.shields.io'];
-    const isAllowedHost = allowedHosts.some((host) => parsedUrl.hostname === host || parsedUrl.hostname.endsWith(`.${host}`));
-    if (!isAllowedHost) {
-      return Promise.reject(new Error('URL not allowed for remote fetch'));
     }
 
     return new Promise((resolve, reject) => {
@@ -1042,91 +1036,8 @@ export function initFsBridge(): void {
   ipcBridge.fs.scanForSkills.provider(async ({ folderPath }) => {
     mainLog('fsBridge', `scanForSkills called with path: ${folderPath}`);
 
-    // Strip surrounding quotes + inline `# comment` tails and trim.
-    const cleanYamlValue = (raw: string): string => {
-      let v = raw.trim();
-      // Strip inline comment unless it is clearly inside a quoted string.
-      if (!(v.startsWith('"') || v.startsWith("'"))) {
-        const hashIdx = v.indexOf('#');
-        if (hashIdx > 0) v = v.slice(0, hashIdx).trim();
-      }
-      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-        v = v.slice(1, -1);
-      }
-      return v;
-    };
-
-    const parseFrontMatter = (content: string): { name?: string; description?: string; icon?: string; color?: string } | undefined => {
-      const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-      if (!frontMatterMatch) return undefined;
-      const yaml = frontMatterMatch[1];
-      const pick = (key: string): string | undefined => {
-        const re = new RegExp(`^${key}:\\s*(.+)$`, 'mi');
-        const m = yaml.match(re);
-        if (!m) return undefined;
-        const v = cleanYamlValue(m[1]);
-        return v || undefined;
-      };
-      return {
-        name: pick('name'),
-        description: pick('description'),
-        icon: pick('icon'),
-        color: pick('color'),
-      };
-    };
-
     try {
-      const skills: Array<{ name: string; description: string; path: string; icon?: string; color?: string }> = [];
-
-      await fs.access(folderPath);
-      const entries = await fs.readdir(folderPath, { withFileTypes: true });
-      mainLog('fsBridge', `Found ${entries.length} entries in ${folderPath}`);
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-
-        const skillDir = path.join(folderPath, entry.name);
-        const skillMdPath = path.join(skillDir, 'SKILL.md');
-
-        try {
-          const content = await fs.readFile(skillMdPath, 'utf-8');
-          const parsed = parseFrontMatter(content);
-          if (parsed?.name) {
-            skills.push({
-              name: parsed.name,
-              description: parsed.description ?? '',
-              path: skillDir,
-              icon: parsed.icon,
-              color: parsed.color,
-            });
-            mainLog('fsBridge', `Found skill in subdirectory: ${parsed.name} (icon=${parsed.icon ?? '-'} color=${parsed.color ?? '-'})`);
-          }
-        } catch {
-          // Skill directory without SKILL.md, skip
-        }
-      }
-
-      // Si no se encontraron skills en subdirectorios, probamos si la carpeta seleccionada en sí es una skill
-      if (skills.length === 0) {
-        mainLog('fsBridge', `No skills in subdirectories, checking if ${folderPath} is a skill itself`);
-        const skillMdPath = path.join(folderPath, 'SKILL.md');
-        try {
-          const content = await fs.readFile(skillMdPath, 'utf-8');
-          const parsed = parseFrontMatter(content);
-          if (parsed?.name) {
-            skills.push({
-              name: parsed.name,
-              description: parsed.description ?? '',
-              path: folderPath,
-              icon: parsed.icon,
-              color: parsed.color,
-            });
-            mainLog('fsBridge', `Found skill in the folder itself: ${parsed.name}`);
-          }
-        } catch {
-          // Not a skill directory
-        }
-      }
+      const skills = await scanWorkspaceSkills(folderPath);
 
       mainLog('fsBridge', `scanForSkills finished. Found ${skills.length} skills.`);
       return {

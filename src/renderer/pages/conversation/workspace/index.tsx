@@ -34,6 +34,7 @@ import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 // TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
 // import TaskPanel from './TaskPanel';
 import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
+import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 import './workspace-card.css';
@@ -56,7 +57,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -93,9 +94,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     }
   }, [activeTab]);
 
-  // Skill count for the skills tab pill — scanned asynchronously from
-  // workspace/skills/ (OpenClaw) and workspace/.claude/skills/ (Claude Code).
-  // Auto-refreshes on the same inotify `dirChanged` signal the file tree uses.
+  // Skill count for the skills tab pill — scanned from the workspace skill
+  // root that belongs to the current conversation backend.
   const [skillCount, setSkillCount] = useState(0);
   useEffect(() => {
     if (!workspace) {
@@ -103,19 +103,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       return undefined;
     }
     let cancelled = false;
-    const ws = workspace.replace(/\/$/, '');
     const refreshCount = async () => {
       try {
-        const [a, b] = await Promise.all([ipcBridge.fs.scanForSkills.invoke({ folderPath: `${ws}/skills` }).catch((): undefined => undefined), ipcBridge.fs.scanForSkills.invoke({ folderPath: `${ws}/.claude/skills` }).catch((): undefined => undefined)]);
+        const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+        const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
         if (cancelled) return;
-        const seen = new Set<string>();
-        const count = (arr?: Array<{ name: string }>) => {
-          if (!arr) return;
-          for (const s of arr) seen.add(s.name.toLowerCase());
-        };
-        count(a?.success ? a.data : undefined);
-        count(b?.success ? b.data : undefined);
-        setSkillCount(seen.size);
+        setSkillCount(result?.success ? result.data.length : 0);
       } catch {
         if (!cancelled) setSkillCount(0);
       }
@@ -134,7 +127,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       if (debounce) clearTimeout(debounce);
       unsubscribe();
     };
-  }, [workspace]);
+  }, [workspace, eventPrefix, backend]);
 
   // Workspace rename modal state (for root directory rename)
   const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
@@ -195,7 +188,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const prevTreeLoadingRef = useRef(false);
 
   // Initialize all hooks
-  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix });
+  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend });
   const modalsHook = useWorkspaceModals();
 
   // Bump `lastSyncAt` whenever the file tree just finished loading
@@ -929,25 +922,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             openNodeContextMenu(rootNode, event.clientX, event.clientY);
           }}
         >
-          <button
-            type='button'
-            role='tab'
-            aria-selected={activeTab === 'files'}
-            className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`}
-            onClick={() => setActiveTab('files')}
-            title={workspace}
-          >
+          <button type='button' role='tab' aria-selected={activeTab === 'files'} className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('files')} title={workspace}>
             <CloudStorage theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
             {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
           </button>
-          <button
-            type='button'
-            role='tab'
-            aria-selected={activeTab === 'skills'}
-            className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`}
-            onClick={() => setActiveTab('skills')}
-          >
+          <button type='button' role='tab' aria-selected={activeTab === 'skills'} className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('skills')}>
             <MagicWand theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
             {skillCount > 0 && (
@@ -996,14 +976,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Main content area — Skills grid OR Search + Tree. */}
         {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills
-              ref={skillsHandleRef}
-              workspace={workspace}
-              eventPrefix={eventPrefix}
-              searchQuery={searchText}
-              onLoadingChange={setSkillsLoading}
-              onSynced={() => setLastSyncAt(Date.now())}
-            />
+            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} />
           </FlexFullContainer>
         )}
 
