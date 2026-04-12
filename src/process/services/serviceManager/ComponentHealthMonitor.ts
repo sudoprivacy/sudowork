@@ -19,15 +19,19 @@ interface ComponentStatus {
 /**
  * 自动组件健康监控服务
  *
- * 每隔 4 秒检测核心服务的健康状态，自动执行安装或启动操作
+ * 启动 3 分钟后开始检测核心服务健康状态，之后每隔 3 分钟执行一次。
+ * 每次自动安装/启动成功后，会进入 3 分钟宽限期，再判断端口是否真的就绪。
  */
 class ComponentHealthMonitor {
   private pollingInterval: NodeJS.Timeout | null = null;
+  private startupDelayTimer: NodeJS.Timeout | null = null;
   private isChecking = false;
   private consecutiveFailures = new Map<string, number>();
+  private readonly startupGraceUntil = new Map<string, number>();
   private readonly MAX_FAILURES = 3;
-  private readonly CHECK_INTERVAL_MS = 4000;
-  private readonly BACKOFF_INTERVAL_MS = 30000;
+  private readonly CHECK_INTERVAL_MS = 3 * 60 * 1000;
+  private readonly INITIAL_DELAY_MS = 3 * 60 * 1000;
+  private readonly STARTUP_GRACE_MS = 3 * 60 * 1000;
 
   private readonly COMPONENTS = ['sudoclaw', 'nexus'] as const;
 
@@ -37,12 +41,19 @@ class ComponentHealthMonitor {
   async start(): Promise<void> {
     mainLog(TAG, 'Starting component health monitor...');
 
-    // 延迟 5 秒启动，等待初始安装完成
-    setTimeout(() => {
+    if (this.pollingInterval || this.startupDelayTimer) {
+      mainLog(TAG, 'Component health monitor is already scheduled');
+      return;
+    }
+
+    // 延迟 3 分钟启动，等待核心进程完成拉起
+    this.startupDelayTimer = setTimeout(() => {
+      this.startupDelayTimer = null;
       this.pollingInterval = setInterval(() => {
         void this.checkAndHeal();
       }, this.CHECK_INTERVAL_MS);
-    }, 5000);
+      void this.checkAndHeal();
+    }, this.INITIAL_DELAY_MS);
   }
 
   /**
@@ -50,6 +61,10 @@ class ComponentHealthMonitor {
    */
   async stop(): Promise<void> {
     mainLog(TAG, 'Stopping component health monitor...');
+    if (this.startupDelayTimer) {
+      clearTimeout(this.startupDelayTimer);
+      this.startupDelayTimer = null;
+    }
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
@@ -68,12 +83,15 @@ class ComponentHealthMonitor {
 
     try {
       for (const component of this.COMPONENTS) {
+        const graceUntil = this.startupGraceUntil.get(component) || 0;
+        if (graceUntil > Date.now()) {
+          const remainingMs = graceUntil - Date.now();
+          mainLog(TAG, `Skipping ${component} health check during startup grace period (${remainingMs}ms remaining)`);
+          continue;
+        }
+
         const failures = this.consecutiveFailures.get(component) || 0;
-
-        // 如果连续失败超过阈值，延长检查间隔
-        const checkInterval = failures >= this.MAX_FAILURES ? this.BACKOFF_INTERVAL_MS : this.CHECK_INTERVAL_MS;
-
-        mainLog(TAG, `Checking ${component} (failures: ${failures}, interval: ${checkInterval}ms)`);
+        mainLog(TAG, `Checking ${component} (failures: ${failures}, interval: ${this.CHECK_INTERVAL_MS}ms)`);
 
         const status = await this.checkComponentHealth(component);
 
@@ -85,8 +103,9 @@ class ComponentHealthMonitor {
 
           const healed = await this.healComponent(component, status);
           if (healed) {
+            this.startupGraceUntil.set(component, Date.now() + this.STARTUP_GRACE_MS);
             this.consecutiveFailures.delete(component);
-            mainLog(TAG, `${component} 自愈成功`);
+            mainLog(TAG, `${component} 自愈成功，进入 ${this.STARTUP_GRACE_MS}ms 启动宽限期`);
           } else {
             this.consecutiveFailures.set(component, failures + 1);
             mainWarn(TAG, `${component} 自愈失败，连续失败次数：${failures + 1}`);
