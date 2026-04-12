@@ -5,6 +5,7 @@
  */
 
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import path from 'path';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 
@@ -80,7 +81,7 @@ function toSkillItem(
     displayName: meta?.display_name?.trim() || undefined,
     description: meta?.description?.trim() || parsed.description || '',
     path: skillPath,
-    icon: parsed.icon,
+    icon: meta?.icon || parsed.icon,
     iconUrl,
     color: parsed.color,
     emoji: meta?.emoji,
@@ -96,7 +97,11 @@ function resolveDeclaredIconUrl(skillPath: string, icon?: string): string | unde
   if (!IMAGE_FILE_RE.test(normalized)) {
     return undefined;
   }
-  return toAssetUrl(path.join(skillPath, normalized));
+  const iconPath = path.join(skillPath, normalized);
+  if (!existsSync(iconPath)) {
+    return undefined;
+  }
+  return toAssetUrl(iconPath);
 }
 
 async function readSkillMeta(skillPath: string): Promise<SkillMeta | undefined> {

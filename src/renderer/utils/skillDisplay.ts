@@ -18,6 +18,10 @@ export function buildSkillDisplayName(skillName: string): string {
 }
 
 export function resolveSkillIcon(icon?: string | null, fallbackToDefault = true): string {
+  const normalized = (icon || '').trim();
+  if (normalized === 'upload_skill_default.svg') {
+    return uploadSkillDefaultIcon;
+  }
   const resolved = resolveExtensionAssetUrl(icon || undefined) || icon || '';
   return resolved || (fallbackToDefault ? defaultSkillIcon : '');
 }

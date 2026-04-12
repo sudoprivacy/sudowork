@@ -38,6 +38,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 
 type IconComponent = React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }>;
@@ -262,34 +263,37 @@ const remoteIconCache = new Map<string, string>();
 
 const SkillIconGraphic: React.FC<{
   iconUrl?: string;
+  icon?: string;
   displayName: string;
   emoji?: string | null;
   Icon: IconComponent;
   fillColor: string;
-}> = ({ iconUrl, displayName, emoji, Icon, fillColor }) => {
+}> = ({ iconUrl, icon, displayName, emoji, Icon, fillColor }) => {
   const [resolvedIconUrl, setResolvedIconUrl] = useState<string | undefined>(() => {
-    if (!iconUrl) return undefined;
-    return remoteIconCache.get(iconUrl) || iconUrl;
+    const initial = resolveSkillIcon(iconUrl || icon, false);
+    if (!initial) return undefined;
+    return remoteIconCache.get(initial) || initial;
   });
 
   useEffect(() => {
     let cancelled = false;
+    const iconSource = resolveSkillIcon(iconUrl || icon, false);
 
-    if (!iconUrl) {
+    if (!iconSource) {
       setResolvedIconUrl(undefined);
       return () => {
         cancelled = true;
       };
     }
 
-    if (!/^https?:/i.test(iconUrl)) {
-      setResolvedIconUrl(iconUrl);
+    if (!/^https?:/i.test(iconSource)) {
+      setResolvedIconUrl(iconSource);
       return () => {
         cancelled = true;
       };
     }
 
-    const cached = remoteIconCache.get(iconUrl);
+    const cached = remoteIconCache.get(iconSource);
     if (cached) {
       setResolvedIconUrl(cached);
       return () => {
@@ -297,25 +301,25 @@ const SkillIconGraphic: React.FC<{
       };
     }
 
-    setResolvedIconUrl(iconUrl);
+    setResolvedIconUrl(iconSource);
     void ipcBridge.fs.fetchRemoteImage
-      .invoke({ url: iconUrl })
+      .invoke({ url: iconSource })
       .then((dataUrl) => {
-        remoteIconCache.set(iconUrl, dataUrl);
+        remoteIconCache.set(iconSource, dataUrl);
         if (!cancelled) {
           setResolvedIconUrl(dataUrl);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setResolvedIconUrl(iconUrl);
+          setResolvedIconUrl(iconSource);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [iconUrl]);
+  }, [iconUrl, icon]);
 
   if (resolvedIconUrl) {
     return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' />;
@@ -452,7 +456,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
                     borderColor: borderTint,
                   }}
                 >
-                  <SkillIconGraphic iconUrl={skill.iconUrl} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} />
+                  <SkillIconGraphic iconUrl={skill.iconUrl} icon={skill.icon} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} />
                 </div>
                 <div className='workspace-skill-card__meta'>
                   <div className='workspace-skill-card__name'>{displayName}</div>
