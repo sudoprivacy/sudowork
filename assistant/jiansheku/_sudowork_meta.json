@@ -1,0 +1,44 @@
+{
+  "id": "jiansheku",
+  "nameI18n": {
+    "en-US": "Jiansheku Bot",
+    "zh-CN": "建设库助手"
+  },
+  "descriptionI18n": {
+    "en-US": "Query Chinese construction industry data: company info, qualifications, project performance, bidding records, and risk assessments.",
+    "zh-CN": "查询建设行业企业信息、资质、业绩、招投标、风险等数据，支持93个API端点。"
+  },
+  "promptsI18n": {
+    "en-US": [
+      "Look up basic info for 中建三局集团有限公司",
+      "Find companies with special-grade construction qualifications in Guangdong",
+      "Run a risk scan on 中国建筑第二工程局有限公司"
+    ],
+    "zh-CN": [
+      "查询中建三局集团有限公司的工商基本信息",
+      "查找广东省拥有建筑工程施工总承包特级资质的企业",
+      "对中国建筑第二工程局有限公司进行风险扫描"
+    ]
+  },
+  "source_type": "hub",
+  "presetAgentType": "sudoclaw",
+  "avatar": "🏗️",
+  "ruleFile": "jiansheku.md",
+  "defaultEnabledSkills": [
+    "jiansheku"
+  ],
+  "apiKeyFields": [
+    {
+      "key": "JIANSHEKU_APP_KEY",
+      "label": "AppKey",
+      "type": "password",
+      "required": true
+    },
+    {
+      "key": "JIANSHEKU_APP_SECRET",
+      "label": "AppSecret",
+      "type": "password",
+      "required": true
+    }
+  ]
+}

@@ -3,11 +3,9 @@ import { Button, Modal, Radio, Message, Dropdown, Menu, List, Spin, Empty, Typog
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chatLib';
 import type { IDirOrFile } from '@/common/ipcBridge';
-import type { AcpBackendConfig } from '@/types/acpTypes';
 
 interface SkillRuleGeneratorProps {
   conversationId: string;
@@ -230,16 +228,16 @@ Requirements:
 
   const registerPreset = async (name: string, content: string) => {
     try {
-      const customAgents = ((await ConfigStorage.get('acp.customAgents')) ?? []) as AcpBackendConfig[];
-      const presetAgent: AcpBackendConfig = {
-        id: uuid(),
-        name,
-        enabled: true,
-        isPreset: true,
-        context: content,
-      };
-      customAgents.push(presetAgent);
-      await ConfigStorage.set('acp.customAgents', customAgents);
+      const id = `custom-${uuid()}`;
+      await ipcBridge.assistantHub.createAssistant.invoke({
+        meta: {
+          id,
+          nameI18n: { 'zh-CN': name },
+          enabled: true,
+          source_type: 'custom',
+        },
+        ruleContent: content,
+      });
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
       Message.success(t('conversation.skill_generator.preset_registered', { defaultValue: 'Agent preset registered successfully!' }));
     } catch (error) {

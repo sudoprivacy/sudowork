@@ -6,8 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
-import { ConfigStorage } from '@/common/storage';
 import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
@@ -30,9 +30,9 @@ const DEFAULT_ASSISTANT = '__default__';
 function useAssistantsForCron(): AcpBackendConfig[] {
   const [assistants, setAssistants] = useState<AcpBackendConfig[]>([]);
   useEffect(() => {
-    Promise.all([ConfigStorage.get('acp.customAgents'), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
+    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([local, ext]) => {
-        const merged: AcpBackendConfig[] = [...((local as AcpBackendConfig[]) || []), ...((ext as unknown as AcpBackendConfig[]) || [])];
+        const merged: AcpBackendConfig[] = [...local, ...((ext as unknown as AcpBackendConfig[]) || [])];
         setAssistants(merged.filter((a) => a.isPreset === true));
       })
       .catch(() => {});

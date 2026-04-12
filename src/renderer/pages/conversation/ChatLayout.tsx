@@ -1,4 +1,5 @@
-import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
+import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
@@ -128,7 +129,7 @@ const ChatLayout: React.FC<{
   const { isOpen: isPreviewOpen } = usePreviewContext();
 
   // Fetch custom agents config as fallback when agentName is not provided
-  const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'acp.customAgents' : null, () => ConfigStorage.get('acp.customAgents'));
+  const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'assistantHub.installed' : null, fetchAssistantsAsConfigs);
 
   // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
   const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;

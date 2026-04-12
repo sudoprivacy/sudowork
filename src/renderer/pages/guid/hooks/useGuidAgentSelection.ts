@@ -5,12 +5,12 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
@@ -226,27 +226,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   // Load custom agents + extension-contributed assistants
   useEffect(() => {
     let isActive = true;
-    Promise.all([ConfigStorage.get('acp.customAgents'), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
+    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([agents, extAssistants]) => {
         if (!isActive) return;
-        const list = (agents || []).filter((agent: AcpBackendConfig) => {
+        const list = agents.filter((agent: AcpBackendConfig) => {
           // Keep preset assistants visible on Guid homepage even when ACP detection
           // has not produced custom IDs yet (startup race / transient detection failure).
           if (agent.isPreset) return true;
           return availableCustomAgentIds.has(agent.id);
         });
-
-        // 对于内置助手，使用 ASSISTANT_PRESETS 中的最新配置更新 presetAgentType
-        // For builtin assistants, update presetAgentType from ASSISTANT_PRESETS
-        for (const agent of list) {
-          if (agent.id.startsWith('builtin-')) {
-            const presetId = agent.id.replace('builtin-', '');
-            const preset = getPresetById(presetId);
-            if (preset && preset.presetAgentType) {
-              agent.presetAgentType = preset.presetAgentType;
-            }
-          }
-        }
 
         // Merge extension-contributed assistants (they are preset assistants that don't need
         // to be in availableCustomAgentIds because they use existing backends like gemini/claude)
@@ -467,22 +455,16 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
         const presetId = customAgentId.replace('builtin-', '');
         const preset = getPresetById(presetId);
         if (preset) {
-          if (!rules && preset.ruleFiles) {
+          if (!rules && preset.ruleFile) {
             try {
-              const ruleFile = preset.ruleFiles[localeKey] || preset.ruleFiles['en-US'];
-              if (ruleFile) {
-                rules = await ipcBridge.fs.readBuiltinRule.invoke({ fileName: ruleFile });
-              }
+              rules = await ipcBridge.fs.readBuiltinRule.invoke({ fileName: preset.ruleFile });
             } catch (e) {
               console.warn(`Failed to load builtin rules for ${customAgentId}:`, e);
             }
           }
-          if (!skills && preset.skillFiles) {
+          if (!skills && preset.skillFile) {
             try {
-              const skillFile = preset.skillFiles[localeKey] || preset.skillFiles['en-US'];
-              if (skillFile) {
-                skills = await ipcBridge.fs.readBuiltinSkill.invoke({ fileName: skillFile });
-              }
+              skills = await ipcBridge.fs.readBuiltinSkill.invoke({ fileName: preset.skillFile });
             } catch (_e) {
               // skills fallback failure is ok
             }

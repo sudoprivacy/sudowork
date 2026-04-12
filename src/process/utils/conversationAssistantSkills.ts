@@ -5,18 +5,18 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { mainWarn } from '@process/utils/mainLogger';
 
 type ConversationAssistantSkillsDeps = {
-  getCustomAgents: () => Promise<AcpBackendConfig[] | undefined>;
+  getAssistantMeta: (name: string) => Promise<IAssistantMeta | null>;
   warn: (message: string, error?: unknown) => void;
 };
 
 const defaultDeps: ConversationAssistantSkillsDeps = {
-  getCustomAgents: async () => {
-    const { ProcessConfig } = await import('@process/initStorage');
-    return ProcessConfig.get('acp.customAgents').catch((): AcpBackendConfig[] | undefined => undefined);
+  getAssistantMeta: async (name: string) => {
+    const { assistantManager } = await import('@/process/AssistantManager');
+    return assistantManager.getAssistantMeta(name);
   },
   warn: (message, error) => {
     mainWarn('ConversationAssistantSkills', message, error);
@@ -72,11 +72,13 @@ export async function resolveLatestConversationEnabledSkills(conversation?: TCha
   }
 
   try {
-    const customAgents = await deps.getCustomAgents();
-    const agent = customAgents?.find((item) => item.id === assistantId);
+    // Strip 'builtin-' prefix for meta lookup
+    const lookupId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+    const meta = await deps.getAssistantMeta(lookupId);
 
-    if (agent) {
-      return normalizeSkillNames(agent.enabledSkills ?? []);
+    if (meta) {
+      // enabledSkills (user override) takes precedence over defaultEnabledSkills
+      return normalizeSkillNames(meta.enabledSkills ?? meta.defaultEnabledSkills ?? []);
     }
   } catch (error) {
     deps.warn(`Failed to resolve latest enabled skills for ${assistantId}`, error);

@@ -8,8 +8,8 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getPresetById } from '@/common/presets/presetResolver';
 import type { TChatConversation } from '@/common/storage';
-import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import CoworkLogo from '@/renderer/assets/cowork.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import useSWR from 'swr';
@@ -132,7 +132,7 @@ export function usePresetAssistantInfo(conversation: TChatConversation | undefin
   const { i18n } = useTranslation();
 
   // Fetch custom agents to support custom preset assistants
-  const { data: customAgents, isLoading: isLoadingCustomAgents } = useSWR('acp.customAgents', () => ConfigStorage.get('acp.customAgents'));
+  const { data: customAgents, isLoading: isLoadingCustomAgents } = useSWR('assistantHub.installed', fetchAssistantsAsConfigs);
 
   // Fetch extension-contributed assistants
   const { data: extensionAssistants, isLoading: isLoadingExtAssistants } = useSWR('extensions.assistants', () => ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]));

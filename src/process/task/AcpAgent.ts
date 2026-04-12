@@ -29,6 +29,7 @@ import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
+import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
@@ -194,8 +195,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Handle custom backend
       if (data.backend === 'custom' && data.customAgentId) {
-        const customAgents = await ProcessConfig.get('acp.customAgents');
-        let customAgentConfig = customAgents?.find((agent) => agent.id === data.customAgentId);
+        // Look up from AssistantManager (filesystem SSOT)
+        const strippedId = data.customAgentId.startsWith('builtin-')
+          ? data.customAgentId.slice('builtin-'.length)
+          : data.customAgentId;
+        const meta = await assistantManager.getAssistantMeta(strippedId);
+        let customAgentConfig = meta ? { id: data.customAgentId, name: meta.nameI18n?.['en-US'] || strippedId } as any : undefined;
 
         if (!customAgentConfig && data.customAgentId.startsWith('ext:')) {
           const [, extensionName, ...idParts] = data.customAgentId.split(':');
@@ -266,7 +271,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       } catch {
         /* use default */
       }
-      const presetResult = applyPresetRuntime({
+      const presetResult = await applyPresetRuntime({
         presetAssistantId: this.extra.presetAssistantId,
         backend: this.extra.backend,
         workspace: this.extra.workspace,

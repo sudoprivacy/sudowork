@@ -1126,6 +1126,28 @@ export const skillHub = {
   runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
 };
 
+// ==================== Assistant Hub API ====================
+
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
+import type { IAssistantInfo } from '@/process/AssistantManager';
+
+export const assistantHub = {
+  /** Get all installed assistants (enabled + disabled) with full metadata */
+  getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
+  /** Enable an assistant (set meta.enabled = true) */
+  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.enable-assistant'),
+  /** Disable an assistant (set meta.enabled = false) */
+  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.disable-assistant'),
+  /** Merge partial updates into an assistant's _sudowork_meta.json */
+  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta> }>('assistant-hub.update-assistant-meta'),
+  /** Read _sudowork_meta.json for a specific assistant */
+  getAssistantMeta: bridge.buildProvider<IBridgeResponse<IAssistantMeta | null>, { name: string }>('assistant-hub.get-assistant-meta'),
+  /** Create a new custom assistant with metadata and optional rule content */
+  createAssistant: bridge.buildProvider<IBridgeResponse<void>, { meta: IAssistantMeta; ruleContent?: string }>('assistant-hub.create-assistant'),
+  /** Uninstall an assistant (delete directory; blocks builtins) */
+  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.uninstall-assistant'),
+};
+
 // ==================== Channel API ====================
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';

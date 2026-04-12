@@ -13,8 +13,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getPresetByAgentId } from '@/common/presets/presetResolver';
-import type { AssistantPreset } from '@/common/presets/assistantPresets';
+import { assistantManager } from '@/process/AssistantManager';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 export interface PresetRuntimeContext {
@@ -33,45 +33,57 @@ export interface PresetRuntimeResult {
 
 /**
  * Apply all preset-specific runtime configuration in one call.
- *
- * Replaces the 3 scattered blocks in AcpAgent.initAgent() that each did
- * their own ASSISTANT_PRESETS.find() + field-specific logic.
+ * Reads configuration from AssistantManager (filesystem SSOT).
  */
-export function applyPresetRuntime(ctx: PresetRuntimeContext): PresetRuntimeResult {
+export async function applyPresetRuntime(ctx: PresetRuntimeContext): Promise<PresetRuntimeResult> {
   const result: PresetRuntimeResult = { envOverrides: {}, contextAppendix: '' };
 
-  const preset = getPresetByAgentId(ctx.presetAssistantId);
-  if (!preset) return result;
+  if (!ctx.presetAssistantId) return result;
+
+  // Look up from AssistantManager (reads _sudowork_meta.json)
+  const strippedId = ctx.presetAssistantId.startsWith('builtin-')
+    ? ctx.presetAssistantId.slice('builtin-'.length)
+    : ctx.presetAssistantId;
+  const meta = await assistantManager.getAssistantMeta(strippedId);
+  if (!meta) return result;
+
+  return applyPresetRuntimeFromMeta(meta, ctx);
+}
+
+/**
+ * Apply preset runtime from a pre-loaded IAssistantMeta.
+ * Useful when the caller already has the meta (avoids redundant disk read).
+ */
+export function applyPresetRuntimeFromMeta(meta: IAssistantMeta, ctx: PresetRuntimeContext): PresetRuntimeResult {
+  const result: PresetRuntimeResult = { envOverrides: {}, contextAppendix: '' };
 
   // 1. opsEntryPoint → AI_DEV_BROWSER_REDIRECT env var
-  if (preset.opsEntryPoint) {
-    // Use forward slashes for cross-platform bash compatibility
-    const absOpsPath = path.resolve(preset.opsEntryPoint).replace(/\\/g, '/');
+  if (meta.opsEntryPoint) {
+    const absOpsPath = path.resolve(meta.opsEntryPoint).replace(/\\/g, '/');
     result.envOverrides.AI_DEV_BROWSER_REDIRECT = `Direct tool access is disabled for this assistant. Use: python "${absOpsPath}" --port ${ctx.cdpPort} --op <tool_name> [args]`;
   }
 
   // 2. resourceDir/scripts/ → auto-append to context, plus resolved ops path
-  if (preset.resourceDir) {
-    result.contextAppendix = discoverScripts(preset);
+  if (meta.resourceDir) {
+    result.contextAppendix = discoverScripts(meta.resourceDir);
   }
-  if (preset.opsEntryPoint) {
-    const absOpsPath = path.resolve(preset.opsEntryPoint).replace(/\\/g, '/');
+  if (meta.opsEntryPoint) {
+    const absOpsPath = path.resolve(meta.opsEntryPoint).replace(/\\/g, '/');
     result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython "${absOpsPath}" --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
   }
 
   // 3. modelConfigs → .gemini/settings.json
-  if (ctx.backend === 'gemini' && preset.modelConfigs && ctx.workspace) {
-    writeGeminiConfig(preset, ctx.workspace);
+  if (ctx.backend === 'gemini' && meta.modelConfigs && ctx.workspace) {
+    writeGeminiConfig(meta.modelConfigs, ctx.workspace);
   }
 
   return result;
 }
 
 /** Scan resourceDir/scripts/ and return markdown listing with absolute paths. */
-function discoverScripts(preset: AssistantPreset): string {
-  if (!preset.resourceDir) return '';
+function discoverScripts(resourceDir: string): string {
   try {
-    const scriptsDir = path.resolve(preset.resourceDir, 'scripts');
+    const scriptsDir = path.resolve(resourceDir, 'scripts');
     const entries = fs.readdirSync(scriptsDir).filter((e) => e.endsWith('.py') || e.endsWith('.sh'));
     if (entries.length > 0) {
       const lines = entries.map((s) => `python ${path.join(scriptsDir, s)} --help`);
@@ -84,14 +96,14 @@ function discoverScripts(preset: AssistantPreset): string {
 }
 
 /** Write modelConfigs to .gemini/settings.json for Gemini CLI. */
-function writeGeminiConfig(preset: AssistantPreset, workspace: string): void {
+function writeGeminiConfig(modelConfigs: Record<string, unknown>, workspace: string): void {
   try {
     const geminiDir = path.join(workspace, '.gemini');
     if (!fs.existsSync(geminiDir)) {
       fs.mkdirSync(geminiDir, { recursive: true });
     }
     const settingsPath = path.join(geminiDir, 'settings.json');
-    fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs: preset.modelConfigs }, null, 2));
+    fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs }, null, 2));
     mainLog('[PresetRuntime]', `Wrote Gemini model config to ${settingsPath}`);
   } catch (error) {
     mainWarn('[PresetRuntime]', 'Failed to write Gemini model config:', error);

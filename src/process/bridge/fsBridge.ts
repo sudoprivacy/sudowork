@@ -13,8 +13,9 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
-import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
+import { getSystemDir, getAssistantsDir, getAssistantsCustomDir, getAssistantsHubDir, getAssistantsSystemDir, getSkillsDir } from '../initStorage';
 import { readDirectoryRecursive } from '../utils';
+import { readAssistantResource as readAssistantResourceShared } from '../utils/assistantResources';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 // ============================================================================
@@ -109,48 +110,39 @@ async function readBuiltinResource(resourceType: ResourceType, fileName: string)
 }
 
 /**
- * Read assistant resource file with locale fallback
- * 读取助手资源文件，支持语言回退
+ * Map resource type to the file name used in the directory structure.
+ */
+const resourceTypeToFile = (resourceType: ResourceType): string => {
+  return resourceType === 'rules' ? 'AGENT.md' : 'SKILLS.md';
+};
+
+/**
+ * Read assistant resource — delegates to shared utility in assistantResources.ts.
  */
 async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
-  const assistantsDir = getAssistantsDir();
-  const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
-
-  // 1. Try user data directory first
-  for (const loc of locales) {
-    const fileName = fileNamePattern(assistantId, loc);
-    try {
-      return await fs.readFile(path.join(assistantsDir, fileName), 'utf-8');
-    } catch {
-      // Try next locale
-    }
-  }
-
-  // 2. Fallback to builtin directory
-  const builtinDir = await findBuiltinResourceDir(resourceType);
-  for (const loc of locales) {
-    const fileName = fileNamePattern(assistantId, loc);
-    try {
-      const content = await fs.readFile(path.join(builtinDir, fileName), 'utf-8');
-      return content;
-    } catch {
-      // Try next locale
-    }
-  }
-
-  return ''; // Not found
+  return readAssistantResourceShared(resourceType, assistantId, locale, fileNamePattern);
 }
 
 /**
- * Write assistant resource file to user directory
- * 写入助手资源文件到用户目录
+ * Write assistant resource file to directory structure.
+ * Custom assistants → _my-custom-assistant/{id}/AGENT.md
+ * Builtin assistants → _system/{strippedId}/AGENT.md
  */
-async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
+async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, _locale: string, _fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
   try {
-    const assistantsDir = getAssistantsDir();
-    await fs.mkdir(assistantsDir, { recursive: true });
-    const fileName = fileNamePattern(assistantId, locale);
-    await fs.writeFile(path.join(assistantsDir, fileName), content, 'utf-8');
+    const fileName = resourceTypeToFile(resourceType);
+
+    // Determine target directory: builtin → system, others → custom
+    let targetDir: string;
+    if (assistantId.startsWith('builtin-')) {
+      const strippedId = assistantId.slice('builtin-'.length);
+      targetDir = path.join(getAssistantsSystemDir(), strippedId);
+    } else {
+      targetDir = path.join(getAssistantsCustomDir(), assistantId);
+    }
+
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(path.join(targetDir, fileName), content, 'utf-8');
     return true;
   } catch (error) {
     mainError('fsBridge', `Failed to write assistant ${resourceType}:`, error);
@@ -159,18 +151,47 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
 }
 
 /**
- * Delete assistant resource files (all locale versions)
- * 删除助手资源文件（所有语言版本）
+ * Delete assistant resource — removes the entire assistant directory.
+ * Searches custom > hub > system directories.
+ * Also cleans up legacy flat files for backward compat.
  */
-async function deleteAssistantResource(resourceType: ResourceType, filePattern: RegExp): Promise<boolean> {
+async function deleteAssistantResource(resourceType: ResourceType, assistantId: string, legacyFilePattern: RegExp): Promise<boolean> {
   try {
-    const assistantsDir = getAssistantsDir();
-    const files = await fs.readdir(assistantsDir);
-    for (const file of files) {
-      if (filePattern.test(file)) {
-        await fs.unlink(path.join(assistantsDir, file));
+    const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+
+    // Try to delete from directory structure
+    const candidates = [
+      path.join(getAssistantsCustomDir(), assistantId),
+      path.join(getAssistantsHubDir(), assistantId),
+      path.join(getAssistantsSystemDir(), strippedId),
+    ];
+    if (strippedId !== assistantId) {
+      candidates.push(path.join(getAssistantsSystemDir(), assistantId));
+    }
+
+    for (const dir of candidates) {
+      try {
+        await fs.access(dir);
+        await fs.rm(dir, { recursive: true, force: true });
+        return true;
+      } catch {
+        // Not found in this location, try next
       }
     }
+
+    // Fallback: clean up legacy flat files
+    const assistantsDir = getAssistantsDir();
+    try {
+      const files = await fs.readdir(assistantsDir);
+      for (const file of files) {
+        if (legacyFilePattern.test(file)) {
+          await fs.unlink(path.join(assistantsDir, file));
+        }
+      }
+    } catch {
+      // Directory might not exist
+    }
+
     return true;
   } catch (error) {
     mainError('fsBridge', `Failed to delete assistant ${resourceType}:`, error);
@@ -781,7 +802,7 @@ export function initFsBridge(): void {
 
   // 删除助手规则文件 / Delete assistant rule files
   ipcBridge.fs.deleteAssistantRule.provider(({ assistantId }) => {
-    return deleteAssistantResource('rules', new RegExp(`^${assistantId}\\..*\\.md$`));
+    return deleteAssistantResource('rules', assistantId, new RegExp(`^${assistantId}\\..*\\.md$`));
   });
 
   // 读取助手技能文件 / Read assistant skill file from user directory or builtin skills
@@ -801,7 +822,7 @@ export function initFsBridge(): void {
 
   // 删除助手技能文件 / Delete assistant skill files
   ipcBridge.fs.deleteAssistantSkill.provider(({ assistantId }) => {
-    return deleteAssistantResource('skills', new RegExp(`^${assistantId}-skills\\..*\\.md$`));
+    return deleteAssistantResource('skills', assistantId, new RegExp(`^${assistantId}-skills\\..*\\.md$`));
   });
 
   // 获取可用 skills 列表 / List available skills from both builtin and user directories
@@ -818,7 +839,7 @@ export function initFsBridge(): void {
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
 
-            // 跳过所有 `_` 前缀目录（_system, _hub, _my-custom-skill, _builtin），使用子目录扫描
+            // 跳过所有 `_` 前缀目录（_system, _hub, _my-custom-skill），使用子目录扫描
             // Skip all `_` prefixed directories, handle them via subdirectory scanning
             if (entry.name.startsWith('_')) continue;
 

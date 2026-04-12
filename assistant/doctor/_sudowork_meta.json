@@ -1,0 +1,46 @@
+{
+  "id": "sudoclaw-doctor",
+  "nameI18n": {
+    "en-US": "Sudoclaw Doctor",
+    "zh-CN": "系统医生"
+  },
+  "descriptionI18n": {
+    "en-US": "Self-diagnose this app by exploring its UI via browser automation. Deep-thinking, methodical testing with automated bug filing.",
+    "zh-CN": "通过浏览器自动化探索自身 UI 进行自我诊断。深度思考、系统化测试，自动提交 bug。"
+  },
+  "promptsI18n": {
+    "en-US": [
+      "Explore the app UI and look for any bugs",
+      "Test the security protection page toggles",
+      "Test creating a new conversation and sending a message"
+    ],
+    "zh-CN": [
+      "探索应用 UI，寻找 bug",
+      "测试安全防护页面的开关功能",
+      "测试新建会话并发送消息"
+    ]
+  },
+  "avatar": "🩺",
+  "presetAgentType": "claude",
+  "resourceDir": "assistant/doctor",
+  "ruleFile": "doctor.md",
+  "defaultEnabledSkills": ["browser"],
+  "defaultMode": "yolo",
+  "opsEntryPoint": "tests/e2e/run_op.py",
+  "modelConfigs": {
+    "overrides": [
+      {
+        "match": {},
+        "modelConfig": {
+          "generateContentConfig": {
+            "temperature": 0.2,
+            "thinkingConfig": { "thinkingBudget": 8192 }
+          }
+        }
+      }
+    ]
+  },
+  "is_builtin": true,
+  "source_type": "builtin",
+  "enabled": true
+}
