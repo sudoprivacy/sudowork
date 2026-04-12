@@ -22,7 +22,7 @@ import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { prepareFirstMessage, prepareOpenClawFirstMessage, injectSkillsDirectoryHint } from '../task/agentUtils';
 import { resolveOpenClawConnectionStatus } from '../utils/connectionStatus';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
@@ -896,7 +896,10 @@ export function initConversationBridge(): void {
         let agentContent = other.input;
 
         const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
-        agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
+        // Use prepareOpenClawFirstMessage — openclaw agents have a file read tool and must
+        // read SKILL.md directly. prepareFirstMessageWithSkillsIndex injects [LOAD_SKILL:]
+        // which is a Gemini-only protocol that openclaw doesn't support.
+        agentContent = await prepareOpenClawFirstMessage(agentContent, {
           presetContext,
           enabledSkills: skillsToInject,
         });
