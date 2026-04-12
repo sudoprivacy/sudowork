@@ -8,7 +8,7 @@ set -e
 #   ./upload-to-cos.sh <secret_id> <secret_key> <file1> [file2] ...
 #
 # 示例:
-#   ./upload-to-cos.sh AKIDxxxx xxxx1234 ./out/Sudowork-0.1.3-win32-x64.exe ./out/Sudowork-0.1.3-darwin-arm64.dmg
+#   ./upload-to-cos.sh AKIDxxxx xxxx1234 ./out/Sudowork-0.1.4-win32-x64.exe ./out/Sudowork-0.1.4-darwin-arm64.dmg
 
 # 配置信息
 COS_BUCKET="sudoclaw-download-1309794936"
@@ -28,10 +28,10 @@ show_help() {
     echo "  file         要上传的文件路径（支持多个文件）"
     echo ""
     echo "示例:"
-    echo "  $0 AKIDxxxx xxxx1234 ./Sudowork-0.1.3-win32-x64.exe ./Sudowork-0.1.3-darwin-arm64.dmg"
+    echo "  $0 AKIDxxxx xxxx1234 ./Sudowork-0.1.4-win32-x64.exe ./Sudowork-0.1.4-darwin-arm64.dmg"
     echo ""
     echo "上传后文件会被重命名为 latest 格式，例如:"
-    echo "  Sudowork-0.1.3-darwin-arm64.dmg -> Sudowork-latest-darwin-arm64.dmg"
+    echo "  Sudowork-0.1.4-darwin-arm64.dmg -> Sudowork-latest-darwin-arm64.dmg"
     exit 0
 }
 
@@ -79,7 +79,7 @@ for file in "${FILES[@]}"; do
     filename=$(basename "$file")
 
     # 转换版本号文件名为 latest 格式 (兼容 macOS/BSD 和 Linux/GNU sed)
-    # e.g., Sudowork-0.1.3-darwin-arm64.dmg -> Sudowork-latest-darwin-arm64.dmg
+    # e.g., Sudowork-0.1.4-darwin-arm64.dmg -> Sudowork-latest-darwin-arm64.dmg
     latest_name=$(echo "$filename" | sed -E 's/[0-9]+\.[0-9]+\.[0-9]+/latest/')
 
     echo "  上传: $file -> $COS_PATH/$latest_name"

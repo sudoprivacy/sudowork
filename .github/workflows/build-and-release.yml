@@ -303,11 +303,11 @@ jobs:
           echo "Target path: $COS_PATH"
 
           # Only upload essential files for auto-update: installers + yml metadata
-          # Installers: .exe, .dmg (rename to latest format)
+          # Installers: .exe, .dmg, .zip (rename to latest format)
           # Metadata: latest.yml, arm64-mac.yml (sed version replacement)
 
           # Upload installers with latest naming
-          for file in release-assets/*.exe release-assets/*.dmg; do
+          for file in release-assets/*.exe release-assets/*.dmg release-assets/*.zip; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               latest_name=$(echo "$filename" | sed 's/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/latest/' | sed 's/darwin/mac/' | sed 's/win32/win/')
@@ -330,7 +330,6 @@ jobs:
             echo "  Processing: arm64-mac.yml"
             sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
                 -e 's/-darwin-/-mac-/g' \
-                -e 's/\.zip/.dmg/g' \
                 "release-assets/arm64-mac.yml" > /tmp/updated.yml
             coscmd upload /tmp/updated.yml "$COS_PATH/arm64-mac.yml" || echo "⚠️ Failed to upload arm64-mac.yml"
           fi

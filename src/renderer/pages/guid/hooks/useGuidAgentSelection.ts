@@ -537,7 +537,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
   );
 
   const getAvailableFallbackAgent = useCallback((): string | null => {
-    const fallbackOrder: PresetAgentType[] = ['claude', 'qwen', 'codebuddy', 'opencode', 'sudoclaw'];
+    const fallbackOrder: PresetAgentType[] = ['claude'];
     for (const agentType of fallbackOrder) {
       if (isMainAgentAvailable(agentType)) {
         return agentType;

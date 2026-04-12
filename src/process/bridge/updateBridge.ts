@@ -66,7 +66,7 @@ interface COSYmlInfo {
 /**
  * Parse COS yml file to extract version info.
  * yml format:
- *   version: 0.1.3
+ *   version: 0.1.4
  *   releaseDate: '2026-03-29T11:39:22.037Z'
  *   path: Sudowork-latest-win-x64.exe
  */

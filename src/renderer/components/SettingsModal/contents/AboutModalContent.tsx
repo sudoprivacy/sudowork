@@ -5,6 +5,7 @@
  */
 
 import { Button, Typography } from '@arco-design/web-react';
+import { IconLink } from '@arco-design/web-react/icon';
 import { Setting } from '@icon-park/react';
 import React, { useState } from 'react';
 import classNames from 'classnames';
@@ -13,6 +14,9 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
 import OpsModal from '@/renderer/components/OpsModal';
 import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import { openExternalUrl } from '@/renderer/utils/platform';
+
+const OFFICIAL_WEBSITE_URL = 'https://sudoclaw.sudoprivacy.com';
 
 const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
@@ -31,7 +35,15 @@ const AboutModalContent: React.FC = () => {
             <Typography.Title heading={4} className='text-18px font-700 text-t-primary mb-4px mt-0'>
               SudoClaw
             </Typography.Title>
-            <div className='text-12px text-t-tertiary mb-8px'>北京数牍科技有限公司</div>
+            <div className='text-12px text-t-tertiary'>北京数牍科技有限公司</div>
+            <button
+              type='button'
+              className='mt-6px mb-10px inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline'
+              onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}
+            >
+              <span>{t('settings.officialWebsite')}</span>
+              <IconLink className='text-12px' />
+            </button>
             <div className='flex items-center gap-6px'>
               <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>{buildVersion}</span>
               {isNightlyBuild && <span className='px-8px py-2px rd-10px text-11px bg-orange-1 text-orange-6 font-500 dark:bg-orange-9/20'>{t('update.nightlyBadge', { defaultValue: 'Nightly Preview' })}</span>}

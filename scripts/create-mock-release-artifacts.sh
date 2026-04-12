@@ -47,7 +47,7 @@ touch "$ARTIFACTS_DIR/macos-build-x64/Sudowork-1.0.0-mac-x64.zip"
 cat > "$ARTIFACTS_DIR/macos-build-x64/latest-mac.yml" <<'EOF'
 version: 1.0.0
 files:
-  - url: Sudowork-1.0.0-mac-x64.dmg
+  - url: Sudowork-1.0.0-mac-x64.zip
     sha512: fake-sha512-mac-x64
     size: 200000
 EOF
@@ -59,7 +59,7 @@ touch "$ARTIFACTS_DIR/macos-build-arm64/Sudowork-1.0.0-mac-arm64.zip"
 cat > "$ARTIFACTS_DIR/macos-build-arm64/latest-mac.yml" <<'EOF'
 version: 1.0.0
 files:
-  - url: Sudowork-1.0.0-mac-arm64.dmg
+  - url: Sudowork-1.0.0-mac-arm64.zip
     sha512: fake-sha512-mac-arm64
     size: 200000
 EOF
