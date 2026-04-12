@@ -514,7 +514,7 @@ export const libreOffice = {
 
 // Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
 // Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
-export type SudoclawProviderModel = { id: string; name?: string };
+export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };
 export type SudoclawProvider = {
   baseUrl?: string;
   apiKey?: string;

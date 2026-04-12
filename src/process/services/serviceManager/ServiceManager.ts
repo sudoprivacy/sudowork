@@ -366,8 +366,11 @@ class ServiceManager {
       const { DEFAULT_IMAGE_MODEL } = await import('@/common/storage');
       const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
       // If no config saved yet (first run), treat as default: switch on with DEFAULT_IMAGE_MODEL.
+      // Migrate: gpt-image-1.5 is an image-generation model, not a vision model.
+      // The gateway's imageModel must be vision-capable, so replace it with DEFAULT_IMAGE_MODEL.
       const switchOn = imageConfig ? imageConfig.switch : true;
-      const useModel = imageConfig?.useModel || DEFAULT_IMAGE_MODEL;
+      const storedModel = imageConfig?.useModel;
+      const useModel = (!storedModel || storedModel === 'gpt-image-1.5') ? DEFAULT_IMAGE_MODEL : storedModel;
       const modelId = switchOn && useModel ? useModel : null;
 
       const fs = await import('fs');
@@ -376,7 +379,17 @@ class ServiceManager {
       const config = JSON.parse(raw);
       if (!config.agents) config.agents = { defaults: {} };
       if (!config.agents.defaults) config.agents.defaults = {};
-      config.agents.defaults.imageModel = modelId ?? '';
+      // Gateway expects provider-prefixed model ref (e.g. "sudorouter/gemini-3-flash-preview").
+      // Find the provider that owns this model from models.providers config.
+      let provider = 'sudorouter';
+      const providers = config.models?.providers as Record<string, { models?: Array<{ id: string }> }> | undefined;
+      if (modelId && providers) {
+        for (const [key, val] of Object.entries(providers)) {
+          if (val?.models?.some((m: { id: string }) => m.id === modelId)) { provider = key; break; }
+        }
+      }
+      const prefixedModelId = modelId && !modelId.includes('/') ? `${provider}/${modelId}` : modelId;
+      config.agents.defaults.imageModel = prefixedModelId ?? '';
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', 'Synced image model to sudoclaw.json on startup:', modelId);
     } catch (err) {

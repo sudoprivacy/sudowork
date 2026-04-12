@@ -10,6 +10,11 @@ import { mainLog, mainError } from '@/process/utils/mainLogger';
 
 const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
 
+function getModelInput(modelId: string): string[] {
+  if (/gemini|claude|gpt-4|qwen-vl/i.test(modelId)) return ['text', 'image'];
+  return ['text'];
+}
+
 export function initOpenClawBridge(): void {
   ipcBridge.openclaw.getModels.provider(async () => {
     try {
@@ -108,7 +113,7 @@ export function initOpenClawBridge(): void {
         provider.api = apiType;
 
         // 5. 确保 provider 只包含当前模型
-        provider.models = [{ id: params.modelId, name: params.modelId }];
+        provider.models = [{ id: params.modelId, name: params.modelId, input: getModelInput(params.modelId) }];
 
         // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
         const canonicalApiKey = providers['sudorouter']?.apiKey || providerEntries.map(([, item]) => item?.apiKey).find((key): key is string => typeof key === 'string' && key.trim().length > 0);
