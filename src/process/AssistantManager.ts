@@ -9,7 +9,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { getAssistantsDir, getAssistantsHubDir, getAssistantsSystemDir, getAssistantsCustomDir } from './initStorage';
+import { getAssistantsDir } from './initStorage';
+import { ASSISTANT_SUBDIRS } from './constants/assistantStorage';
 import { mainLog, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
 
@@ -39,9 +40,10 @@ export class AssistantManager {
   /** Lazy init — safe to construct before initStorage has run */
   private init(): void {
     if (this._initialized) return;
-    this._hubDir = getAssistantsHubDir();
-    this._systemDir = getAssistantsSystemDir();
-    this._customDir = getAssistantsCustomDir();
+    const base = getAssistantsDir();
+    this._hubDir = path.join(base, ASSISTANT_SUBDIRS.hub);
+    this._systemDir = path.join(base, ASSISTANT_SUBDIRS.system);
+    this._customDir = path.join(base, ASSISTANT_SUBDIRS.custom);
     this.ensureDirs();
     this._initialized = true;
   }

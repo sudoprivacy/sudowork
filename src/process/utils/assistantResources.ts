@@ -13,7 +13,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
-import { getAssistantsDir, getAssistantsCustomDir, getAssistantsHubDir, getAssistantsSystemDir } from '../initStorage';
+import { getAssistantsDir } from '../initStorage';
+import { ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
 import { mainWarn } from '@process/utils/mainLogger';
 
 type ResourceType = 'rules' | 'skills';
@@ -88,16 +89,16 @@ export async function readAssistantResource(resourceType: ResourceType, assistan
 
   // 1. Try directory-based paths with priority: custom > hub > system
   const dirCandidates: string[] = [
-    path.join(getAssistantsCustomDir(), assistantId, fileName),
-    path.join(getAssistantsHubDir(), assistantId, fileName),
+    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom, assistantId, fileName),
+    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub, assistantId, fileName),
   ];
 
   // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
   const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
-  dirCandidates.push(path.join(getAssistantsSystemDir(), strippedId, fileName));
+  dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, strippedId, fileName));
   // Also try with the full id in system/
   if (strippedId !== assistantId) {
-    dirCandidates.push(path.join(getAssistantsSystemDir(), assistantId, fileName));
+    dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, assistantId, fileName));
   }
 
   for (const candidate of dirCandidates) {
