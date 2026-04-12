@@ -241,6 +241,10 @@ export const fileWatch = {
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化
   stopAllWatches: bridge.buildProvider<IBridgeResponse, void>('file-watch-stop-all'), // 停止所有文件监听
   fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>('file-changed'), // 文件变化事件
+  // 目录监听 / Directory watching (inotify-style auto refresh)
+  startWatchDir: bridge.buildProvider<IBridgeResponse<{ watchId: string }>, { dirPath: string; recursive?: boolean }>('file-watch-dir-start'),
+  stopWatchDir: bridge.buildProvider<IBridgeResponse, { watchId: string }>('file-watch-dir-stop'),
+  dirChanged: bridge.buildEmitter<{ watchId: string; dirPath: string; eventType: string; changedPath?: string }>('dir-changed'),
 };
 
 // 文件流式更新（Agent 写入文件时实时推送内容）/ File streaming updates (real-time content push when agent writes)
