@@ -363,12 +363,11 @@ class ServiceManager {
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
       const { ProcessConfig } = await import('@/process/initStorage');
-      const { DEFAULT_IMAGE_MODEL } = await import('@/common/storage');
+      const { DEFAULT_IMAGE_PARSING_MODEL, DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
       const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-      // If no config saved yet (first run), treat as default: switch on with DEFAULT_IMAGE_MODEL.
+      // Generation model: from user config or default
       const switchOn = imageConfig ? imageConfig.switch : true;
-      const useModel = imageConfig?.useModel || DEFAULT_IMAGE_MODEL;
-      const modelId = switchOn && useModel ? useModel : null;
+      const generationModel = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
 
       const fs = await import('fs');
       if (!fs.existsSync(sudoclawConfigPath)) return;
@@ -376,9 +375,28 @@ class ServiceManager {
       const config = JSON.parse(raw);
       if (!config.agents) config.agents = { defaults: {} };
       if (!config.agents.defaults) config.agents.defaults = {};
-      config.agents.defaults.imageModel = modelId ?? '';
+
+      // Gateway expects provider-prefixed model ref (e.g. "sudorouter/gemini-3-flash-preview").
+      // Find the provider that owns this model from models.providers config.
+      const findProvider = (modelId: string) => {
+        let provider = 'sudorouter';
+        const providers = config.models?.providers as Record<string, { models?: Array<{ id: string }> }> | undefined;
+        if (providers) {
+          for (const [key, val] of Object.entries(providers)) {
+            if (val?.models?.some((m: { id: string }) => m.id === modelId)) { provider = key; break; }
+          }
+        }
+        return modelId.includes('/') ? modelId : `${provider}/${modelId}`;
+      };
+
+      // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
+      config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
+
+      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
+      config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
+
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
-      mainLog('ServiceManager', 'Synced image model to sudoclaw.json on startup:', modelId);
+      mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
