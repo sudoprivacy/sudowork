@@ -328,7 +328,7 @@ const AgentModalContent: React.FC = () => {
   );
 
   const sortAssistants = useCallback((agents: AssistantListItem[]) => {
-    const builtinOrder = ['builtin-copilot', 'builtin-doctor'];
+    const builtinOrder = ['builtin-copilot', 'builtin-sudoclaw-doctor'];
     return agents
       .filter((agent) => agent.isPreset)
       .sort((a, b) => {
@@ -360,7 +360,7 @@ const AgentModalContent: React.FC = () => {
         }
       }
 
-      const allowedBuiltinIds = new Set(['builtin-copilot', 'builtin-doctor']);
+      const allowedBuiltinIds = new Set(['builtin-copilot', 'builtin-sudoclaw-doctor']);
       const filteredAgents = mergedAgents.filter((agent) => {
         // Builtin assistants: only show explicitly allowed ones
         if (agent.isBuiltin) return allowedBuiltinIds.has(agent.id);
