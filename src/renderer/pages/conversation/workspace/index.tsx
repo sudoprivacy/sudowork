@@ -16,7 +16,7 @@ import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Empty, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
+import { Checkbox, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -34,6 +34,21 @@ import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 import TaskPanel from './TaskPanel';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
+import './workspace-card.css';
+
+// Recursively count files + folders under a tree, used to render the header
+// file-count pill (matches the progress badge on the chat tool-steps card).
+const countNodes = (nodes: IDirOrFile[] | undefined): number => {
+  if (!nodes || !nodes.length) return 0;
+  let total = 0;
+  for (const node of nodes) {
+    total += 1;
+    if (!node.isFile && node.children?.length) {
+      total += countNodes(node.children);
+    }
+  }
+  return total;
+};
 
 const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
   const clipPathId = useId();
@@ -576,11 +591,14 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Get target folder path for paste confirm modal
   const targetFolderPathForModal = getTargetFolderPath(treeHook.selectedNodeRef.current, treeHook.selected, treeHook.files, workspace);
 
+  // Total file+folder count for the header pill.
+  const fileCountForHeader = useMemo(() => countNodes(treeData as IDirOrFile[]), [treeData]);
+
   return (
     <>
       {shouldRenderLocalMessageContext && messageContext}
       <div
-        className='chat-workspace size-full flex flex-col relative'
+        className='chat-workspace workspace-card size-full flex flex-col relative'
         tabIndex={0}
         onFocus={pasteHook.onFocusPaste}
         onClick={pasteHook.onFocusPaste}
@@ -840,64 +858,94 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Bdpan Upload Dir Picker */}
         <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
 
-        {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
-        <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
-
-        {/* Search Input */}
-        <div className='px-12px'>
-          {(showSearch || searchText) && (
-            <div className='pb-8px workspace-toolbar-search'>
-              <Input
-                className='w-full workspace-search-input'
-                ref={searchInputRef}
-                placeholder={t('conversation.workspace.searchPlaceholder')}
-                value={searchText}
-                onChange={(value) => {
-                  setSearchText(value);
-                  onSearch(value);
-                }}
-                allowClear
-                prefix={<Search theme='outline' size='14' fill={iconColors.secondary} style={{ cursor: 'pointer' }} onClick={() => searchInputRef.current?.focus?.()} />}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Toolbar */}
-        <div className='px-12px'>
-          {/* Border divider - 搜索框下方分界线 */}
-          {!isWorkspaceCollapsed && (showSearch || searchText) && <div className='border-b border-b-base' />}
-
-          {/* Directory name with collapse and action icons */}
-          <div
-            className='workspace-toolbar-row flex items-center justify-between gap-8px'
-            onContextMenu={(event) => {
-              const rootNode = treeHook.files[0];
-              if (!rootNode) return;
-              event.preventDefault();
-              event.stopPropagation();
-              openNodeContextMenu(rootNode, event.clientX, event.clientY);
-            }}
-          >
-            <div className='flex items-center gap-8px cursor-pointer flex-1 min-w-0' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
-              <Down size={16} fill={iconColors.primary} className={`line-height-0 transition-transform duration-200 flex-shrink-0 ${isWorkspaceCollapsed ? '-rotate-90' : 'rotate-0'}`} />
-              <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
-                <span className='workspace-title-label font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
-              </Popover>
-            </div>
-            <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
-              <Tooltip content={t('conversation.workspace.refresh')}>
-                <span>
-                  <Refresh className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
-                </span>
-              </Tooltip>
-            </div>
+        {/* Toolbar — card-style header matching the chat tool-steps card */}
+        <div
+          className={`workspace-card__header ${!isWorkspaceCollapsed ? 'workspace-card__header--expanded' : ''}`}
+          onContextMenu={(event) => {
+            const rootNode = treeHook.files[0];
+            if (!rootNode) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openNodeContextMenu(rootNode, event.clientX, event.clientY);
+          }}
+        >
+          <div className='workspace-card__header-left' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
+            {/* Status dot — pulses blue while loading, breathes green when watcher is live */}
+            <span
+              className={`workspace-card__status-dot ${
+                treeHook.loading
+                  ? 'workspace-card__status-dot--loading'
+                  : hasOriginalFiles
+                  ? 'workspace-card__status-dot--live'
+                  : 'workspace-card__status-dot--default'
+              }`}
+              aria-hidden='true'
+            />
+            <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
+              <span className='workspace-card__title-label'>{workspaceDisplayName}</span>
+            </Popover>
+            {fileCountForHeader > 0 && (
+              <span
+                className={`workspace-card__count ${
+                  treeHook.loading ? 'workspace-card__count--loading' : 'workspace-card__count--live'
+                }`}
+                aria-hidden='true'
+              >
+                {fileCountForHeader}
+              </span>
+            )}
+          </div>
+          <div className='workspace-card__actions workspace-toolbar-actions'>
+            <Tooltip content={t('conversation.workspace.refresh')}>
+              <span>
+                <Refresh
+                  className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'}
+                  theme='outline'
+                  size='14'
+                  fill={iconColors.secondary}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    treeHook.refreshWorkspace();
+                  }}
+                />
+              </span>
+            </Tooltip>
+            <Down
+              size={12}
+              fill={iconColors.secondary}
+              className={`workspace-card__chevron ${isWorkspaceCollapsed ? 'workspace-card__chevron--collapsed' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsWorkspaceCollapsed(!isWorkspaceCollapsed);
+              }}
+            />
           </div>
         </div>
 
-        {/* Main content area */}
+        {/* Main content area — card body: TaskPanel + Search + Tree */}
         {!isWorkspaceCollapsed && (
-          <FlexFullContainer containerClassName='overflow-y-auto'>
+          <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
+            {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
+            <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
+
+            {/* Search Input (inline inside card body) */}
+            {(showSearch || searchText) && (
+              <div className='workspace-card__search workspace-toolbar-search'>
+                <Input
+                  className='w-full workspace-search-input'
+                  ref={searchInputRef}
+                  placeholder={t('conversation.workspace.searchPlaceholder')}
+                  value={searchText}
+                  onChange={(value) => {
+                    setSearchText(value);
+                    onSearch(value);
+                  }}
+                  allowClear
+                  prefix={<Search theme='outline' size='14' fill={iconColors.secondary} style={{ cursor: 'pointer' }} onClick={() => searchInputRef.current?.focus?.()} />}
+                />
+              </div>
+            )}
+
             {/* Context Menu */}
             {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && (
               <div
@@ -1048,15 +1096,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
-              <div className=' flex-1 size-full flex items-center justify-center px-12px box-border'>
-                <Empty
-                  description={
-                    <div>
-                      <span className='text-t-secondary font-bold text-14px'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</span>
-                      <div className='text-t-secondary'>{searchText ? '' : t('conversation.workspace.emptyDescription')}</div>
-                    </div>
-                  }
-                />
+              <div className='workspace-card__empty flex-1 size-full'>
+                <div className='workspace-card__empty-icon'>
+                  <FolderOpen theme='outline' size='20' fill='currentColor' />
+                </div>
+                <div className='workspace-card__empty-title'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</div>
+                {!searchText && <div className='workspace-card__empty-desc'>{t('conversation.workspace.emptyDescription')}</div>}
               </div>
             ) : (
               <Tree

@@ -1,0 +1,301 @@
+/* --------------------------------------------------------------------------
+ * Workspace card — right-side panel styling aligned with the #293 mockup.
+ *
+ * Mirrors the visual language of `tool-steps-card` (chat message side):
+ *   ┌ ● 临时空间  12 files  ⟳ ▼ ┐
+ *   │ 🗂 src/ ───────────────── │
+ *   │   📄 index.ts             │
+ *   └───────────────────────────┘
+ *
+ * - Rounded 12px container with subtle border and hover state.
+ * - Status dot in front of the title (breathing while watcher is live).
+ * - Pill-shaped badge for file count.
+ * - Tree rows get rounded hover fill to match step rows.
+ * ------------------------------------------------------------------------*/
+
+@keyframes workspace-card-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes workspace-card-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ——— Card container ——— */
+.chat-workspace.workspace-card {
+  /* Keep the existing layout behaviour (flex column, full size) but add the
+     card chrome. Margin leaves room around the card like the chat message
+     card does. */
+  border: 1px solid var(--color-border-2, #e5e6eb);
+  border-radius: 12px;
+  background: var(--color-bg-1, #ffffff);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-workspace.workspace-card:hover {
+  border-color: var(--color-border-3, #c9cdd4);
+}
+
+/* ——— Header row ——— */
+.chat-workspace .workspace-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  min-height: 40px;
+  transition: background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.chat-workspace .workspace-card__header:hover {
+  background: var(--color-fill-1, #f7f8fa);
+}
+
+.chat-workspace .workspace-card__header--expanded {
+  border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+}
+
+.chat-workspace .workspace-card__header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chat-workspace .workspace-card__title-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-1, #1d2129);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chat-workspace .workspace-card__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--color-fill-2, #f2f3f5);
+  color: var(--color-text-3, #86909c);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-workspace .workspace-card__count--live {
+  background: rgba(0, 180, 42, 0.12);
+  color: var(--color-success, #00b42a);
+}
+
+.chat-workspace .workspace-card__count--loading {
+  background: rgba(22, 93, 255, 0.12);
+  color: rgb(var(--primary-6, 22 93 255));
+}
+
+/* ——— Status dot (left of title) ——— */
+.chat-workspace .workspace-card__status-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-card__status-dot--live {
+  background: var(--color-success, #00b42a);
+}
+
+.chat-workspace .workspace-card__status-dot--live::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-success, #00b42a);
+  opacity: 0.6;
+  animation: workspace-card-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.chat-workspace .workspace-card__status-dot--loading {
+  background: rgb(var(--primary-6, 22 93 255));
+}
+
+.chat-workspace .workspace-card__status-dot--loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(var(--primary-6, 22 93 255));
+  opacity: 0.6;
+  animation: workspace-card-ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.chat-workspace .workspace-card__status-dot--default {
+  background: var(--color-text-4, #c9cdd4);
+}
+
+/* ——— Chevron (right side) ——— */
+.chat-workspace .workspace-card__chevron {
+  color: var(--color-text-3, #86909c);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-workspace .workspace-card__chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
+/* ——— Actions (refresh icon, etc.) ——— */
+.chat-workspace .workspace-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chat-workspace .workspace-card__actions .workspace-toolbar-icon-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.chat-workspace .workspace-card__actions .workspace-toolbar-icon-btn:hover {
+  background: var(--color-fill-2, #f2f3f5);
+}
+
+/* ——— Card body (search + tree) ——— */
+.chat-workspace .workspace-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: workspace-card-slide-down 0.2s ease-out;
+}
+
+.chat-workspace .workspace-card__search {
+  padding: 8px 10px 4px 10px;
+}
+
+.chat-workspace .workspace-card__search .workspace-search-input .arco-input-inner-wrapper {
+  border-radius: 8px !important;
+  background: var(--color-fill-1, #f7f8fa) !important;
+  border: 1px solid transparent !important;
+}
+
+.chat-workspace .workspace-card__search .workspace-search-input .arco-input-inner-wrapper:focus-within {
+  border-color: rgb(var(--primary-6, 22 93 255)) !important;
+  background: var(--color-bg-1, #ffffff) !important;
+}
+
+/* ——— Tree rows — rounded hover fill ——— */
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node {
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+  padding-right: 4px;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node:hover {
+  background: var(--color-fill-1, #f7f8fa);
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-title-wrapper {
+  border-radius: 6px;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-selected > .arco-tree-node-title-wrapper {
+  background: rgba(22, 93, 255, 0.08);
+}
+
+/* ——— Empty state inside card ——— */
+.chat-workspace .workspace-card__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.chat-workspace .workspace-card__empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-fill-2, #f2f3f5);
+  color: var(--color-text-3, #86909c);
+  margin-bottom: 4px;
+}
+
+.chat-workspace .workspace-card__empty-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-2, #4e5969);
+  line-height: 1.4;
+}
+
+.chat-workspace .workspace-card__empty-desc {
+  font-size: 12px;
+  color: var(--color-text-3, #86909c);
+  line-height: 1.5;
+  max-width: 220px;
+}
+
+/* Mobile tweaks — slightly larger tap targets, same card chrome */
+@media (max-width: 768px) {
+  .chat-workspace.workspace-card {
+    border-radius: 14px;
+  }
+
+  .chat-workspace .workspace-card__header {
+    padding: 12px 14px;
+    min-height: 48px;
+  }
+
+  .chat-workspace .workspace-card__title-label {
+    font-size: 14px !important;
+  }
+
+  .chat-workspace .workspace-card__count {
+    height: 20px;
+    min-width: 32px;
+    font-size: 12px;
+  }
+}
