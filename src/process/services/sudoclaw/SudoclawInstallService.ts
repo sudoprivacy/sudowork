@@ -482,7 +482,7 @@ function ensureDefaultConfig(): void {
         sudorouter: {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
-          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' }],
+          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
         },
       },
     },
