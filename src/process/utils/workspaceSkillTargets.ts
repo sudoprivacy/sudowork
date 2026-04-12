@@ -30,6 +30,16 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
   const startedAt = Date.now();
   const targets = new Map<string, string>();
 
+  /**
+   * Add a skill dir as a workspace symlink target.
+   *
+   * `forceBuiltin=true` marks the skill as auto-injected builtin. Such skills:
+   *   1) are always treated as enabled regardless of meta `enabled` flag
+   *   2) bypass the `allowedSkillNames` (per-assistant enabledSkills) filter
+   *      so they surface in the workspace even when the active assistant has
+   *      a non-empty explicit skill list — matching `AcpSkillManager.discoverBuiltinSkills()`
+   *      auto-inject semantics for the LLM system prompt.
+   */
   const addSkillDir = async (skillName: string, skillDir: string, forceBuiltin = false): Promise<void> => {
     try {
       const stat = await fs.stat(path.join(skillDir, 'SKILL.md'));
@@ -40,6 +50,7 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
 
     let isBuiltin = forceBuiltin;
     let enabled = true;
+    const isAutoInjected = forceBuiltin;
 
     try {
       const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
@@ -61,7 +72,9 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
       return;
     }
 
-    if (allowedSkillNames && !allowedSkillNames.has(skillName)) {
+    // Auto-injected builtins (from `_system/_builtin/`) bypass the assistant-level
+    // enabledSkills filter — they're always available, just like `cron`.
+    if (!isAutoInjected && allowedSkillNames && !allowedSkillNames.has(skillName)) {
       return;
     }
 
@@ -84,10 +97,16 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
   };
 
   try {
-    // Scan in priority order: custom > hub > system
-    // For same-name skills, first match wins (higher priority)
+    // Scan in priority order: custom > hub > _system/_builtin > system
+    // For same-name skills, first match wins (higher priority).
+    //
+    // `_system/_builtin/` is scanned BEFORE `_system/` so that if an upgraded
+    // install has a stale `_system/<skill>/` (from before the skill moved into
+    // `_builtin/`), the new `_system/_builtin/<skill>/` wins — avoiding a
+    // workspace symlink that points at the stale copy.
     await scanSubdir(SKILL_SUBDIRS.custom, false);
     await scanSubdir(SKILL_SUBDIRS.hub, false);
+    await scanSubdir(path.join(SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin), true);
     await scanSubdir(SKILL_SUBDIRS.system, false);
 
     // Legacy: scan flat directories for backward compatibility

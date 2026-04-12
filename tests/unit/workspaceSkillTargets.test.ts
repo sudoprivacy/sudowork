@@ -92,6 +92,38 @@ describe('listWorkspaceSkillTargets', () => {
     expect([...targets.keys()].sort()).toEqual(['builtin-like', 'system-tool']);
   });
 
+  it('auto-injects skills under _system/_builtin even when the assistant filter excludes them', async () => {
+    // Auto-injected builtin skills (image-generation, cron, ...) must always
+    // land in the workspace so their script paths resolve, regardless of the
+    // active assistant's per-assistant enabledSkills list.
+    const skillsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'workspace-skill-targets-'));
+    createdDirs.push(skillsDir);
+
+    await createSkill(skillsDir, '_system/_builtin/image-generation', { isBuiltin: true });
+    await createSkill(skillsDir, '_system/_builtin/cron', { isBuiltin: true });
+    await createSkill(skillsDir, '_system/pptx', { isBuiltin: true });
+
+    // Assistant only enables pptx — image-generation and cron must still be auto-injected.
+    const targets = await listWorkspaceSkillTargets(skillsDir, new Set(['pptx']));
+
+    expect([...targets.keys()].sort()).toEqual(['cron', 'image-generation', 'pptx']);
+  });
+
+  it('prefers _system/_builtin over a stale _system entry of the same name', async () => {
+    // After a skill moves from `_system/<name>/` into `_system/_builtin/<name>/`,
+    // upgraded installs still have the stale `_system/<name>/` directory on disk.
+    // The workspace symlink must point at the new `_system/_builtin/<name>/` copy.
+    const skillsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'workspace-skill-targets-'));
+    createdDirs.push(skillsDir);
+
+    await createSkill(skillsDir, '_system/image-generation', { isBuiltin: true });
+    await createSkill(skillsDir, '_system/_builtin/image-generation', { isBuiltin: true });
+
+    const targets = await listWorkspaceSkillTargets(skillsDir);
+
+    expect(targets.get('image-generation')).toBe(path.join(skillsDir, '_system', '_builtin', 'image-generation'));
+  });
+
   it('merges assistant enabled skills with message-selected skills', () => {
     const conversation = {
       id: 'conv-1',
