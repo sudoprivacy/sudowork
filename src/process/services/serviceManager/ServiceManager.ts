@@ -63,13 +63,9 @@ class ServiceManager {
   }
 
   private isRetryableStartupExitError(error: unknown, component: 'sudoclaw' | 'nexus'): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (component === 'nexus') {
-      return message.includes('nexusd exited before becoming ready');
-    }
-
-    return message.includes('Sudoclaw gateway exited before becoming healthy') || message.includes('Gateway exited with code');
+    void error;
+    void component;
+    return true;
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -170,9 +166,10 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Nexus 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await dynamicNexusService.stop().catch(() => {});
           await this.killProcessesOnPort(12012, 'Nexus');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -287,8 +284,9 @@ class ServiceManager {
             throw err;
           }
 
-          initStatusManager.addLog(`↻ Sudoclaw 进程已退出，准备重试启动（第 ${attempt + 1}/${attempts} 次）...`);
+          initStatusManager.addLog(`↻ Sudoclaw 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await this.stopOpenClaw();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
