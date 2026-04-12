@@ -119,7 +119,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         token,
         password,
         onEvent: (evt) => this.handleEvent(evt),
-        onHelloOk: (_hello: HelloOk) => {},
+        onHelloOk: (_hello: HelloOk) => this.handleGatewayHello(),
         onConnectError: (err) => this.handleConnectError(err),
         onClose: (code, reason) => this.handleClose(code, reason),
         onTokenMismatch: !useExternal
@@ -752,6 +752,15 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     if (!this.shouldSuppressTransientGatewayError(err.message)) {
       this.emitErrorMessage(`Connection error: ${err.message}`);
     }
+  }
+
+  private handleGatewayHello(): void {
+    if (this.connection?.sessionKey) {
+      this.emitStatusMessage('session_active');
+      return;
+    }
+
+    this.emitStatusMessage('connected');
   }
 
   private handleClose(code: number, reason: string): void {

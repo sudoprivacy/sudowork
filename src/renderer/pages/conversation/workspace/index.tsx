@@ -18,7 +18,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { CloudStorage, FileText, FolderOpen, MagicWand, Refresh, Search } from '@icon-park/react';
+import { AudioFile, Cloudy, DownSmall, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, FolderOpen, Magic, Refresh, Search, VideoFile } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +38,118 @@ import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 import './workspace-card.css';
+
+const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
+
+function isHiddenWorkspaceEntry(name: string): boolean {
+  if (name === DRAFTS_DIR_NAME) {
+    return false;
+  }
+  return name.startsWith('.');
+}
+
+function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
+  const extension = fileName.toLowerCase().split('.').pop() ?? '';
+
+  switch (extension) {
+    case 'txt':
+    case 'log':
+    case 'text':
+      return <FileTxt theme='outline' size='16' fill='var(--color-text-3)' />;
+    case 'md':
+    case 'markdown':
+    case 'mdx':
+      return <FileText theme='outline' size='16' fill='var(--color-text-2)' />;
+    case 'doc':
+    case 'docx':
+    case 'wps':
+    case 'rtf':
+    case 'odt':
+      return <FileWord theme='outline' size='16' fill='#3b82f6' />;
+    case 'pdf':
+      return <FilePdf theme='outline' size='16' fill='#ef4444' />;
+    case 'ppt':
+    case 'pptx':
+    case 'key':
+    case 'odp':
+      return <FilePpt theme='outline' size='16' fill='#f97316' />;
+    case 'xls':
+    case 'xlsx':
+    case 'csv':
+    case 'ods':
+      return <FileExcel theme='outline' size='16' fill='#22c55e' />;
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+    case 'mjs':
+    case 'cjs':
+    case 'json':
+    case 'jsonc':
+    case 'yaml':
+    case 'yml':
+    case 'toml':
+    case 'xml':
+    case 'html':
+    case 'htm':
+    case 'css':
+    case 'scss':
+    case 'less':
+    case 'py':
+    case 'java':
+    case 'go':
+    case 'rs':
+    case 'c':
+    case 'cc':
+    case 'cpp':
+    case 'cxx':
+    case 'h':
+    case 'hpp':
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+    case 'sql':
+      return <FileCode theme='outline' size='16' fill='#8b5cf6' />;
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'webp':
+    case 'bmp':
+    case 'svg':
+    case 'ico':
+    case 'tif':
+    case 'tiff':
+    case 'avif':
+      return <FileJpg theme='outline' size='16' fill='#06b6d4' />;
+    case 'gif':
+      return <FileGif theme='outline' size='16' fill='#06b6d4' />;
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+    case 'tgz':
+    case 'bz2':
+    case 'xz':
+      return <FileZip theme='outline' size='16' fill='#f59e0b' />;
+    case 'mp3':
+    case 'wav':
+    case 'flac':
+    case 'aac':
+    case 'm4a':
+    case 'ogg':
+      return <AudioFile theme='outline' size='16' fill='#ec4899' />;
+    case 'mp4':
+    case 'mov':
+    case 'avi':
+    case 'mkv':
+    case 'webm':
+    case 'm4v':
+      return <VideoFile theme='outline' size='16' fill='#6366f1' />;
+    default:
+      return <FileText theme='outline' size='16' fill='var(--color-text-3)' />;
+  }
+}
 
 const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
   const clipPathId = useId();
@@ -349,13 +461,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Context menu calculations
   const hasOriginalFiles = treeHook.files.length > 0 && treeHook.files[0]?.children?.length > 0;
   const rootName = treeHook.files[0]?.name ?? '';
+  // Check if this is a temporary workspace (check both path and root folder name)
+  const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
 
   // 当只有一个根目录且有子文件时，隐藏根目录直接展示子文件，因为 Toolbar 已经作为一级目录
   // Hide root directory when there's a single root with children, as Toolbar serves as the first-level directory
-  const treeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
+  const rawTreeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
+  const visibleTreeData = useMemo(() => {
+    if (!isTemporaryWorkspace) {
+      return rawTreeData;
+    }
 
-  // Check if this is a temporary workspace (check both path and root folder name)
-  const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
+    const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+      nodes
+        .filter((node) => !isHiddenWorkspaceEntry(node.name))
+        .map((node) => ({
+          ...node,
+          children: node.children ? filterNodes(node.children) : node.children,
+        }));
+
+    return filterNodes(rawTreeData);
+  }, [isTemporaryWorkspace, rawTreeData]);
+
+  const treeData = useMemo(() => {
+    const decorateNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+      nodes.map((node) => {
+        if (node.isFile) {
+          const fileIcon = resolveWorkspaceFileIcon(node.name);
+          return {
+            ...node,
+            icon: fileIcon,
+            icons: {
+              switcherIcon: <span className='workspace-tree__switcher-spacer' aria-hidden='true' />,
+            },
+            children: node.children ? decorateNodes(node.children) : node.children,
+          };
+        }
+
+        return {
+          ...node,
+          icon: <FolderOpen theme='outline' size='16' fill={WORKSPACE_FOLDER_ICON_COLOR} />,
+          icons: {
+            switcherIcon: <DownSmall theme='outline' size='14' fill='var(--color-text-3)' />,
+          },
+          children: node.children ? decorateNodes(node.children) : node.children,
+        };
+      });
+
+    return decorateNodes(visibleTreeData);
+  }, [visibleTreeData]);
 
   // Get workspace display name - prefer stored display name, fallback to path-derived name
   const workspaceDisplayName = useMemo(() => {
@@ -923,12 +1077,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           }}
         >
           <button type='button' role='tab' aria-selected={activeTab === 'files'} className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('files')} title={workspace}>
-            <CloudStorage theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <Cloudy theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
             {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
           </button>
           <button type='button' role='tab' aria-selected={activeTab === 'skills'} className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('skills')}>
-            <MagicWand theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <Magic theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
             {skillCount > 0 && (
               <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
@@ -1163,6 +1317,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const isFile = node.dataRef.isFile;
                   const isPasteTarget = !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
+                  const directFileCount = !isFile ? (nodeData.children ?? []).filter((child) => child.isFile && !isHiddenWorkspaceEntry(child.name)).length : 0;
                   // Display .drafts with i18n name / 草稿箱目录显示本地化名称
                   const isDraftsDir = node.title === '.drafts' && !isFile;
                   const displayTitle = isDraftsDir ? t('conversation.workspace.drafts.title') : node.title;
@@ -1182,37 +1337,40 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         openNodeContextMenu(nodeData, event.clientX, event.clientY);
                       }}
                     >
-                      <span className='flex items-center gap-4px min-w-0'>
-                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{displayTitle}</span>
-                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded'>PASTE</span>}
+                      <span className='flex items-center gap-4px min-w-0 flex-1 overflow-hidden whitespace-nowrap'>
+                        <span className='overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0'>{displayTitle}</span>
+                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded flex-shrink-0'>PASTE</span>}
                       </span>
-                      {isMobile && (
-                        <button
-                          type='button'
-                          className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
-                          aria-label={t('common.more')}
-                          onMouseDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                            const menuWidth = 220;
-                            const menuHeight = 220;
-                            const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
-                            const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
-                            const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
-                            const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
-                            openNodeContextMenu(nodeData, menuX, menuY);
-                          }}
-                        >
-                          <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                          </div>
-                        </button>
-                      )}
+                      <span className='flex items-center gap-6px flex-shrink-0'>
+                        {!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}
+                        {isMobile && (
+                          <button
+                            type='button'
+                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
+                            aria-label={t('common.more')}
+                            onMouseDown={(event) => {
+                              event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              const menuWidth = 220;
+                              const menuHeight = 220;
+                              const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
+                              const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
+                              const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
+                              const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
+                              openNodeContextMenu(nodeData, menuX, menuY);
+                            }}
+                          >
+                            <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                            </div>
+                          </button>
+                        )}
+                      </span>
                     </div>
                   );
                 }}
@@ -1250,6 +1408,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   treeHook.setSelected(newKeys);
                   treeHook.selectedKeysRef.current = newKeys;
 
+                  if (clickedKey) {
+                    const isExpanded = treeHook.expandedKeys.includes(clickedKey);
+                    treeHook.setExpandedKeys(isExpanded ? treeHook.expandedKeys.filter((key) => key !== clickedKey) : [...treeHook.expandedKeys, clickedKey]);
+                  }
+
                   if (extra && extra.node && nodeData && nodeData.fullPath && nodeData.relativePath != null) {
                     treeHook.selectedNodeRef.current = {
                       relativePath: nodeData.relativePath,
@@ -1262,7 +1425,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }> = [];
                   for (const k of newKeys) {
                     const node = findNodeByKey(treeHook.files, k);
-                    if (node && node.fullPath) {
+                    if (node && node.fullPath && node.isFile) {
                       items.push({
                         path: node.fullPath,
                         name: node.name,

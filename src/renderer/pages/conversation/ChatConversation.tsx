@@ -27,47 +27,8 @@ import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import OpenClawModelSelector from '@/renderer/components/OpenClawModelSelector';
 import { usePreviewContext } from './preview';
 import StarOfficeMonitorCard from './openclaw/StarOfficeMonitorCard.tsx';
-import { TaskPanelHeaderProvider, useTaskPanelHeader } from './workspace/TaskPanelHeaderContext';
+import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
-
-const SiderTitle: React.FC = () => {
-  const { dagCount, openFullscreenRef } = useTaskPanelHeader();
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, gap: 8 }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-1)', letterSpacing: '0.01em' }}>任务面板</span>
-      {dagCount > 0 && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-3)', fontVariantNumeric: 'tabular-nums' }}>{dagCount} 个任务</span>
-          <button
-            onClick={() => openFullscreenRef.current?.()}
-            title='展开全屏'
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 5,
-              border: '1px solid var(--bg-3)',
-              background: 'var(--color-fill-2)',
-              cursor: 'pointer',
-              color: 'var(--color-text-2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              flexShrink: 0,
-            }}
-          >
-            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-              <polyline points='15 3 21 3 21 9' />
-              <polyline points='9 21 3 21 3 15' />
-              <line x1='21' y1='3' x2='14' y2='10' />
-              <line x1='3' y1='21' x2='10' y2='14' />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
@@ -166,8 +127,6 @@ const ChatConversation: React.FC<{
   // Use unified hook for preset assistant info (ACP conversations)
   const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
 
-  const sliderTitle = <SiderTitle />;
-
   const modelSelector = useMemo(() => {
     if (!conversation) return undefined;
     if (conversation.type === 'acp') {
@@ -197,7 +156,7 @@ const ChatConversation: React.FC<{
 
   const headerExtraNode = (
     <div className='flex items-center gap-8px'>
-      {conversation && <AgentStatusDot conversation_id={conversation.id} />}
+      {conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}
       {conversation?.type === 'openclaw-gateway' && (
         <div className='shrink-0'>
           {/* <StarOfficeMonitorCard
@@ -218,7 +177,7 @@ const ChatConversation: React.FC<{
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} siderTitle={sliderTitle} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
         {conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>
