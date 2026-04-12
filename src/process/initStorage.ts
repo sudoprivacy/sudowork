@@ -426,15 +426,106 @@ const migrateSkillsToSubdirectories = async (): Promise<void> => {
 };
 
 /**
+ * 解析内置资源目录在磁盘上的绝对路径。
+ * Resolve the absolute path of a bundled builtin resource directory.
+ *
+ * 开发模式下使用项目根目录，生产模式使用 app.getAppPath()
+ * In development, use project root. In production, use app.getAppPath()
+ * When packaged, resources are in asarUnpack, so they're at app.asar.unpacked/
+ * 打包后，资源在 asarUnpack 中，所以在 app.asar.unpacked/ 目录下
+ */
+const resolveBuiltinResourceDir = (dirPath: string): string => {
+  const appPath = app.getAppPath();
+  let candidates: string[];
+  if (app.isPackaged) {
+    // asarUnpack extracts files to app.asar.unpacked directory
+    // asarUnpack 会将文件解压到 app.asar.unpacked 目录
+    const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
+    candidates = [
+      path.join(unpackedPath, dirPath), // Unpacked location (preferred)
+      path.join(appPath, dirPath), // Fallback to asar path
+    ];
+  } else {
+    candidates = [path.join(appPath, dirPath), path.join(appPath, '..', dirPath), path.join(appPath, '..', '..', dirPath), path.join(appPath, '..', '..', '..', dirPath), path.join(process.cwd(), dirPath)];
+  }
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  mainWarn('Sudowork', `Could not find builtin ${dirPath} directory, tried:`, candidates);
+  return candidates[0];
+};
+
+/**
+ * 将内置 skills 从 bundle 同步到用户目录的 `_system/`（每次启动都强制 overwrite）。
+ * Sync bundled builtin skills into the user's `_system/` directory on every startup.
+ *
+ * 为什么必须每次启动同步，而不复用 `initBuiltinAssistantRules` 的版本门控：
+ *   - 内置 skill 是只读资源（`disableSkill` 对 `is_builtin: true` 的 skill 会直接拒绝），
+ *     用户修改只可能发生在 `_custom/` 和 `_hub/`，overwrite `_system/` 是安全的。
+ *   - 只变动 skill 脚本而不 bump `package.json` 版本号时（例如只修 bug），
+ *     旧的 version-gate 会永久跳过刷新，导致用户本地的 skill 脚本停留在首次安装的版本。
+ *
+ * Why unconditional (not gated by app version like `initBuiltinAssistantRules`):
+ *   - Builtin skills are read-only resources (`disableSkill` refuses to disable
+ *     skills with `is_builtin: true`); user modifications only live under
+ *     `_custom/` and `_hub/`. Overwriting `_system/` is therefore safe.
+ *   - When a skill script is fixed without a `package.json` version bump
+ *     (e.g. a pure bugfix), a version-gated copy would permanently skip the
+ *     refresh, leaving users stuck on whichever script shipped at first install.
+ */
+const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
+  const builtinSkillsDir = resolveBuiltinResourceDir('skills');
+  if (!existsSync(builtinSkillsDir)) {
+    return;
+  }
+
+  try {
+    // 确保用户技能目录和 _system 子目录存在
+    // Ensure user skills dir and _system subdir exist
+    const userSkillsDir = getSkillsDir();
+    if (!existsSync(userSkillsDir)) {
+      mkdirSync(userSkillsDir);
+    }
+    const userSystemSkillsDir = getSystemSkillsDir();
+    if (!existsSync(userSystemSkillsDir)) {
+      mkdirSync(userSystemSkillsDir);
+    }
+    // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
+    // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
+    await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
+    mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
+  } catch (error) {
+    mainWarn('Sudowork', 'Failed to sync builtin skills directory:', error);
+  }
+};
+
+/**
  * 初始化内置助手的规则和技能文件到用户目录
  * Initialize builtin assistant rule and skill files to user directory
  *
- * 优化：只在版本更新或目录不存在时才复制文件，避免每次启动都做大量文件 I/O
- * Optimization: Only copy files on version update or missing dirs to avoid heavy I/O
+ * 分为两步：
+ *   1) 内置 skill 目录同步：每次启动都强制 overwrite（见 `syncBuiltinSkillsToUserDir`）。
+ *   2) 助手 rule/skill 文件复制：仍然走版本门控，避免每次启动 N 个 preset × 多 locale
+ *      的并发文件 IO。新增/修改 preset 必须配合 app 版本号 bump 才会刷新。
+ *
+ * Two phases:
+ *   1) Builtin skills dir sync: always overwrites on startup (see `syncBuiltinSkillsToUserDir`).
+ *   2) Assistant rule/skill file copy: still version-gated to avoid repeated heavy I/O
+ *      for N presets × multiple locales on every startup. Adding/changing a preset
+ *      requires bumping the app version for the refresh to kick in.
  */
 const initBuiltinAssistantRules = async (): Promise<void> => {
+  // Phase 1: 始终同步内置 skill 目录（不受版本门控约束）
+  // Phase 1: always sync builtin skills dir (not gated by app version)
+  await syncBuiltinSkillsToUserDir();
+
+  // Phase 2: 版本门控的助手 rule/skill 文件复制
+  // Phase 2: version-gated assistant rule/skill file copy
   const assistantsDir = getAssistantsDir();
-  const skillsDir = getSkillsDir();
 
   // 检查是否需要重新复制资源文件
   // Check if we need to re-copy resource files
@@ -443,13 +534,12 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
   // 需要复制的情况：
   // 1. 版本更新了
-  // 2. 目标目录不存在（用户手动删除了）
+  // 2. 助手目录不存在（用户手动删除了）
   // 3. 有助手规则文件缺失（新增了预设助手）
   // Conditions that require copy:
   // 1. Version updated
-  // 2. Target directories don't exist (user manually deleted)
+  // 2. Assistants directory doesn't exist (user manually deleted)
   // 3. Some assistant rule files are missing (new preset added)
-  const skillsDirExists = existsSync(skillsDir);
   const assistantsDirExists = existsSync(assistantsDir);
   const hasAllAssistantRules =
     assistantsDirExists &&
@@ -459,68 +549,21 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
       const targetFileName = `builtin-${preset.id}.${firstLocale}.md`;
       return existsSync(path.join(assistantsDir, targetFileName));
     });
-  const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists || !hasAllAssistantRules;
+  const needsCopy = lastCopiedVersion !== currentVersion || !assistantsDirExists || !hasAllAssistantRules;
 
   if (!needsCopy) {
-    mainLog('Sudowork', `Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
+    mainLog('Sudowork', `Builtin assistant resources already up-to-date (v${currentVersion}), skipping copy`);
     return;
   }
 
-  mainLog('Sudowork', `Copying builtin resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
+  mainLog('Sudowork', `Copying builtin assistant resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
 
-  // 开发模式下使用项目根目录，生产模式使用 app.getAppPath()
-  // In development, use project root. In production, use app.getAppPath()
-  // When packaged, resources are in asarUnpack, so they're at app.asar.unpacked/
-  // 打包后，资源在 asarUnpack 中，所以在 app.asar.unpacked/ 目录下
-  const resolveBuiltinDir = (dirPath: string): string => {
-    const appPath = app.getAppPath();
-    let candidates: string[];
-    if (app.isPackaged) {
-      // asarUnpack extracts files to app.asar.unpacked directory
-      // asarUnpack 会将文件解压到 app.asar.unpacked 目录
-      const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-      candidates = [
-        path.join(unpackedPath, dirPath), // Unpacked location (preferred)
-        path.join(appPath, dirPath), // Fallback to asar path
-      ];
-    } else {
-      candidates = [path.join(appPath, dirPath), path.join(appPath, '..', dirPath), path.join(appPath, '..', '..', dirPath), path.join(appPath, '..', '..', '..', dirPath), path.join(process.cwd(), dirPath)];
-    }
-
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) {
-        return candidate;
-      }
-    }
-
-    mainWarn('Sudowork', `Could not find builtin ${dirPath} directory, tried:`, candidates);
-    return candidates[0];
-  };
+  const resolveBuiltinDir = resolveBuiltinResourceDir;
 
   const presetsNeedDefaultRulesDir = ASSISTANT_PRESETS.some((preset) => !preset.resourceDir && Object.keys(preset.ruleFiles).length > 0);
   const rulesDir = presetsNeedDefaultRulesDir ? resolveBuiltinDir('rules') : '';
   const builtinSkillsDir = resolveBuiltinDir('skills');
   const userSkillsDir = getSkillsDir();
-
-  // 复制资源 skills 目录到用户配置目录的 _system 子目录
-  // Copy bundled skills directory to user config directory's _system subdirectory
-  if (existsSync(builtinSkillsDir)) {
-    try {
-      // 确保用户技能目录和 _system 子目录存在
-      if (!existsSync(userSkillsDir)) {
-        mkdirSync(userSkillsDir);
-      }
-      const userSystemSkillsDir = getSystemSkillsDir();
-      if (!existsSync(userSystemSkillsDir)) {
-        mkdirSync(userSystemSkillsDir);
-      }
-      // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
-      // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
-      await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
-    } catch (error) {
-      mainWarn('Sudowork', `Failed to copy skills directory:`, error);
-    }
-  }
 
   // 确保助手目录存在 / Ensure assistants directory exists
   if (!existsSync(assistantsDir)) {
