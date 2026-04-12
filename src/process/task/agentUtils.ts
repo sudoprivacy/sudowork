@@ -174,11 +174,73 @@ For example:
 }
 
 /**
+ * 为 OpenClaw (openclaw-gateway) 准备首条消息内容。
+ * Prepare first message content for OpenClaw (openclaw-gateway) agents.
+ *
+ * OpenClaw agents have a file read tool and can read SKILL.md files directly.
+ * Do NOT inject [LOAD_SKILL:] instructions — those are for Gemini ACP agents only.
+ * Only inject presetContext + builtin skills location hint (read-based, not tag-based).
+ * Workspace skills are handled separately by injectSkillsDirectoryHint.
+ *
+ * @param content - 原始消息内容 / Original message content
+ * @param config - 首次消息配置 / First message configuration
+ * @returns 注入系统指令后的消息内容 / Message content with system instructions injected
+ */
+export async function prepareOpenClawFirstMessage(content: string, config: FirstMessageConfig): Promise<string> {
+  const instructions: string[] = [];
+
+  // 1. 添加预设规则 / Add preset rules
+  if (config.presetContext) {
+    instructions.push(config.presetContext);
+  }
+
+  // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
+  // Load builtin skills index — tell agent to read SKILL.md directly, no [LOAD_SKILL:] protocol
+  const skillManager = AcpSkillManager.getInstance();
+  await skillManager.discoverBuiltinSkills();
+
+  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
+  if (builtinSkillsIndex.length > 0) {
+    const systemSkillsDir = getBuiltinSkillsDir();
+    const lines = builtinSkillsIndex.map((s) => `- ${s.name}: ${systemSkillsDir}/${s.name}/SKILL.md`);
+    const skillsInstruction = `[Builtin Skills]
+The following builtin skills are available. Read the SKILL.md file to get instructions for a skill.
+
+${lines.join('\n')}`;
+    instructions.push(skillsInstruction);
+  }
+
+  if (instructions.length === 0) {
+    return content;
+  }
+
+  const systemInstructions = instructions.join('\n\n');
+  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+}
+
+/**
  * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
  * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ *
+ * Enumerates enabled skill names so the agent knows exactly which skills exist
+ * and where to find their SKILL.md files — mirroring the builtin skills instruction.
  */
-export function injectSkillsDirectoryHint(content: string, skillsDir: string): string {
-  const hint = `[Skills Directory]
+export function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): string {
+  const skillLines =
+    enabledSkillNames && enabledSkillNames.length > 0
+      ? enabledSkillNames.map((name) => `- ${name}: ${skillsDir}/${name}/SKILL.md`).join('\n')
+      : null;
+
+  const hint = skillLines
+    ? `[Skills Directory]
+Skills are installed at: ${skillsDir}
+Each skill has a SKILL.md file containing detailed instructions. To use a skill, read its SKILL.md file when needed.
+
+Available workspace skills:
+${skillLines}
+
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`
+    : `[Skills Directory]
 Skills are installed at: ${skillsDir}
 When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
 

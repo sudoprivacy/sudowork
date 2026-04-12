@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { getInstalledSkillBadgeCount } from '@/renderer/components/SettingsModal/contents/SkillModalContent';
+import { getInstalledSkillBadgeCount, getLocalSkillImportDialogOptions } from '@/renderer/components/SettingsModal/contents/SkillModalContent';
 
 describe('getInstalledSkillBadgeCount', () => {
   it('uses the full installed skill list count instead of the hub-only comparison subset', () => {
@@ -22,5 +22,20 @@ describe('getInstalledSkillBadgeCount', () => {
     }));
 
     expect(getInstalledSkillBadgeCount(installedList)).toBe(22);
+  });
+});
+
+describe('local skill import dialog helpers', () => {
+  it('builds zip-only dialog options when importing zip archives', () => {
+    expect(getLocalSkillImportDialogOptions('zip')).toEqual({
+      properties: ['openFile'],
+      filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
+    });
+  });
+
+  it('builds directory-only dialog options when importing folders', () => {
+    expect(getLocalSkillImportDialogOptions('directory')).toEqual({
+      properties: ['openDirectory'],
+    });
   });
 });

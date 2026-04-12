@@ -18,6 +18,7 @@ export interface WorkspaceProps {
   workspace: string;
   conversation_id: string;
   eventPrefix?: 'acp' | 'openclaw-gateway';
+  backend?: string;
   messageApi?: MessageApi;
   /** Stored display name override for workspace / 工作空间的自定义显示名 */
   workspaceDisplayName?: string;

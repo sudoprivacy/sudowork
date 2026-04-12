@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Tooltip } from '@arco-design/web-react';
 import { Connection } from '@icon-park/react';
@@ -30,13 +31,37 @@ const STATUS_LABELS: Record<string, string> = {
   error: 'agentStatus.error',
 };
 
-const AgentStatusDot: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+function resolveGatewayHealthStatus(gatewayRunning: boolean): string {
+  return gatewayRunning ? 'connected' : 'disconnected';
+}
+
+const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TChatConversation['type'] }> = ({ conversation_id, conversationType }) => {
   const [status, setStatus] = useState('');
   const { t } = useTranslation();
 
-  // Query backend for the current connection status on mount / conversation switch
   useEffect(() => {
     setStatus('');
+    if (conversationType === 'openclaw-gateway') {
+      let disposed = false;
+
+      const syncGatewayStatus = () => {
+        void ipcBridge.openclawConversation.getGatewayStatus
+          .invoke()
+          .then((res) => {
+            if (disposed || !res?.success || !res.data) return;
+            setStatus(resolveGatewayHealthStatus(!!res.data.gatewayRunning));
+          })
+          .catch(() => {});
+      };
+
+      syncGatewayStatus();
+      const timer = window.setInterval(syncGatewayStatus, 5000);
+      return () => {
+        disposed = true;
+        window.clearInterval(timer);
+      };
+    }
+
     void ipcBridge.conversation.getConnectionStatus
       .invoke({ conversation_id })
       .then((res) => {
@@ -45,17 +70,19 @@ const AgentStatusDot: React.FC<{ conversation_id: string }> = ({ conversation_id
         }
       })
       .catch(() => {});
-  }, [conversation_id]);
+  }, [conversation_id, conversationType]);
 
-  // Listen for live status updates
   useAddEventListener(
     'agent.connection.status',
     (convId: string, newStatus: string) => {
+      if (conversationType === 'openclaw-gateway') {
+        return;
+      }
       if (convId === conversation_id) {
         setStatus(newStatus);
       }
     },
-    [conversation_id]
+    [conversation_id, conversationType]
   );
 
   if (!status) return null;

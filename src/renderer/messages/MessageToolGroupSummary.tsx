@@ -1,15 +1,16 @@
-import type { BadgeProps } from '@arco-design/web-react';
-import { Badge } from '@arco-design/web-react';
-import { IconDown, IconRight } from '@arco-design/web-react/icon';
+import { IconDown } from '@arco-design/web-react/icon';
+import classNames from 'classnames';
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import type { IMessageAcpToolCall, IMessageToolGroup } from '../../common/chatLib';
 import './MessageToolGroupSummary.css';
+
+type ToolStatus = 'success' | 'error' | 'running' | 'default';
 
 type ToolItem = {
   key: string;
   name: string;
   desc: string;
-  status: BadgeProps['status'];
+  status: ToolStatus;
   input?: string;
   output?: string;
 };
@@ -40,8 +41,7 @@ const ToolGroupMapper = (m: IMessageToolGroup): ToolItem[] => {
     if (type === 'info') desc = confirmationDetails.urls?.join(';') || confirmationDetails.title;
     if (type === 'mcp') desc = confirmationDetails.serverName + ':' + confirmationDetails.toolName;
 
-    // Input: use full description (for error it's JSON.stringify(args), for success it's invocation description)
-    // When confirmationDetails exists (Confirming state), use structured details instead
+    // Input
     let input: string | undefined;
     if (confirmationDetails) {
       const { title: _title, type: _type, ...rest } = confirmationDetails;
@@ -50,14 +50,15 @@ const ToolGroupMapper = (m: IMessageToolGroup): ToolItem[] => {
       input = description;
     }
 
-    // Output: from resultDisplay (available for success/error/executing states)
     const output = getResultDisplayText(resultDisplay);
+
+    const mappedStatus: ToolStatus = status === 'Success' ? 'success' : status === 'Error' ? 'error' : status === 'Canceled' ? 'default' : 'running';
 
     return {
       key: callId,
       name,
       desc,
-      status: (status === 'Success' ? 'success' : status === 'Error' ? 'error' : status === 'Canceled' ? 'default' : 'processing') as BadgeProps['status'],
+      status: mappedStatus,
       input,
       output,
     };
@@ -68,10 +69,8 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
   const update = message.content.update;
   if (!update) return;
 
-  // Input: from rawInput
   const input = update.rawInput ? formatValue(update.rawInput) : undefined;
 
-  // Output: from content items
   let output: string | undefined;
   if (update.content?.length) {
     output = update.content
@@ -84,30 +83,62 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
       .join('\n');
   }
 
+  const mappedStatus: ToolStatus = update.status === 'completed' ? 'success' : update.status === 'failed' ? 'error' : 'running';
+
   return {
     key: update.toolCallId,
     name: (update.rawInput?.description as string) || update.title,
     desc: (update.rawInput?.command as string) || update.kind,
-    status: update.status === 'completed' ? 'success' : update.status === 'failed' ? 'error' : ('default' as BadgeProps['status']),
+    status: mappedStatus,
     input,
     output,
   };
 };
 
+// SVG Icons (inlined to avoid extra dependencies)
+const CheckIcon: React.FC = () => (
+  <svg className='tool-step-row__status-svg' viewBox='0 0 12 12' fill='none' aria-hidden='true'>
+    <path d='M2.5 6.25L5 8.75L9.5 3.75' stroke='currentColor' strokeWidth='1.6' strokeLinecap='round' strokeLinejoin='round' />
+  </svg>
+);
+
+const AlertIcon: React.FC = () => (
+  <svg className='tool-step-row__status-svg' viewBox='0 0 12 12' fill='none' aria-hidden='true'>
+    <path d='M6 2.25V6.75' stroke='currentColor' strokeWidth='1.6' strokeLinecap='round' />
+    <circle cx='6' cy='9' r='0.8' fill='currentColor' />
+  </svg>
+);
+
+const SpinnerIcon: React.FC = () => (
+  <svg className='tool-step-row__status-svg' viewBox='0 0 24 24' fill='none' aria-hidden='true' style={{ animation: 'spin 1s linear infinite' }}>
+    <circle cx='12' cy='12' r='9' stroke='currentColor' strokeOpacity='0.25' strokeWidth='3' />
+    <path d='M21 12a9 9 0 0 0-9-9' stroke='currentColor' strokeWidth='3' strokeLinecap='round' />
+  </svg>
+);
+
+const PendingIcon: React.FC = () => <span className='tool-step-row__status-svg' style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />;
+
+const StatusIcon: React.FC<{ status: ToolStatus }> = ({ status }) => {
+  if (status === 'success') return <CheckIcon />;
+  if (status === 'error') return <AlertIcon />;
+  if (status === 'running') return <SpinnerIcon />;
+  return <PendingIcon />;
+};
+
+// ——— Step row ———
 const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
   const [expanded, setExpanded] = React.useState(false);
-  const hasDetail = item.input || item.output;
+  const hasDetail = Boolean(item.input || item.output);
   const itemRef = React.useRef<HTMLDivElement>(null);
 
   const handleToggleDetail = React.useCallback(() => {
-    const willExpand = !expanded;
+    if (!hasDetail) return;
 
     if (!itemRef.current) {
       setExpanded(!expanded);
       return;
     }
 
-    // 展开前记录当前项相对于滚动容器的位置
     const itemRectBefore = itemRef.current.getBoundingClientRect();
     let scrollParent: Element | null = itemRef.current.parentElement;
     while (scrollParent) {
@@ -129,7 +160,6 @@ const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
 
     setExpanded(!expanded);
 
-    // 在下一帧立即恢复滚动位置，避免视觉闪烁
     requestAnimationFrame(() => {
       const itemRectAfter = itemRef.current!.getBoundingClientRect();
       const scrollRectAfter = scrollParent!.getBoundingClientRect();
@@ -140,23 +170,43 @@ const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
         scrollParent.scrollTop = scrollTopBefore + delta;
       }
     });
-  }, [expanded]);
+  }, [expanded, hasDetail]);
 
   return (
-    <div ref={itemRef} className='flex flex-col'>
-      <div className='flex flex-row color-#86909C gap-12px items-center'>
-        <Badge status={item.status} className={item.status === 'processing' ? 'badge-breathing' : ''}></Badge>
-        <span className={'flex-1 min-w-0' + (expanded ? ' break-all' : ' truncate') + (hasDetail ? ' cursor-pointer hover:color-#4E5969' : '')} onClick={hasDetail ? handleToggleDetail : undefined}>
-          {`${item.name}(${item.desc})`}
-        </span>
+    <div ref={itemRef} className='tool-step-row' onClick={handleToggleDetail} style={{ cursor: hasDetail ? 'pointer' : 'default' }}>
+      <div className='tool-step-row__main'>
+        <div
+          className={classNames('tool-step-row__status', {
+            'tool-step-row__status--success': item.status === 'success',
+            'tool-step-row__status--error': item.status === 'error',
+            'tool-step-row__status--running': item.status === 'running',
+            'tool-step-row__status--default': item.status === 'default',
+          })}
+          aria-hidden='true'
+        >
+          <StatusIcon status={item.status} />
+        </div>
+
+        <div className='tool-step-row__content'>
+          <span className='tool-step-row__name'>{item.name}</span>
+          <span className={classNames('tool-step-row__desc', { 'tool-step-row__desc--expanded': expanded })}>{item.desc}</span>
+        </div>
+
         {hasDetail && (
-          <span className='flex-shrink-0 cursor-pointer hover:color-#4E5969 transition-colors' onClick={handleToggleDetail}>
-            {expanded ? <IconDown style={{ fontSize: 12 }} /> : <IconRight style={{ fontSize: 12 }} />}
+          <span
+            className='tool-step-row__toggle'
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDetail();
+            }}
+          >
+            <IconDown style={{ fontSize: 10, transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
           </span>
         )}
       </div>
+
       {expanded && hasDetail && (
-        <div className='tool-detail-panel m-l-20px m-t-4px'>
+        <div className='tool-detail-panel' onClick={(e) => e.stopPropagation()}>
           {item.input && (
             <div className='tool-detail-section'>
               <div className='tool-detail-label'>Input</div>
@@ -189,7 +239,6 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
   const prevIsExpandedRef = useRef(isExpanded);
 
   // Auto-collapse when all messages are completed
-  // 所有工具调用完成后自动折叠
   useEffect(() => {
     const prevMessages = prevMessagesRef.current;
     const wasInProgress = prevMessages.some((m) => {
@@ -212,9 +261,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
       return true;
     });
 
-    // Handle auto-collapse when all tasks are finished for the first time
     if (allCompleted && wasInProgress && isExpanded) {
-      // Small delay to ensure state has settled and user saw the final step
       const timer = setTimeout(() => {
         onToggle(summaryId);
       }, 100);
@@ -225,8 +272,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
     prevIsExpandedRef.current = isExpanded;
   }, [messages, isExpanded, summaryId, onToggle]);
 
-  // Preserve scroll position when toggling showMore
-  // 切换展开/折叠时保持滚动位置，确保按钮位置不变
+  // Preserve scroll position when toggling expand/collapse
   const handleToggleShowMore = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -238,7 +284,6 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
         return;
       }
 
-      // Find the scrollable parent
       let scrollParent: Element | null = container.parentElement;
       while (scrollParent) {
         const style = window.getComputedStyle(scrollParent);
@@ -253,16 +298,13 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
         return;
       }
 
-      // Record the button's position relative to the scroll parent before toggle
       const buttonRectBefore = button.getBoundingClientRect();
       const scrollParentRectBefore = scrollParent.getBoundingClientRect();
       const buttonOffsetTopBefore = buttonRectBefore.top - scrollParentRectBefore.top + scrollParent.scrollTop;
       const scrollTopBefore = scrollParent.scrollTop;
 
-      // Toggle state
       onToggle(summaryId);
 
-      // After DOM update, restore the button to the same visual position
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const buttonRectAfter = button.getBoundingClientRect();
@@ -271,7 +313,6 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
 
           const delta = buttonOffsetTopAfter - buttonOffsetTopBefore;
 
-          // Adjust scroll to keep button at the same position
           if (Math.abs(delta) > 2) {
             scrollParent.scrollTop = scrollTopBefore + delta;
           }
@@ -289,7 +330,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
       })
       .flat()
       .filter((item): item is ToolItem => !!item);
-    // Deduplicate by key (keep last = most recent update) to avoid duplicate React keys
+    // Deduplicate by key (keep last = most recent update)
     const map = new Map<string, ToolItem>();
     for (const item of items) {
       map.set(item.key, item);
@@ -297,17 +338,61 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
     return Array.from(map.values());
   }, [messages]);
 
+  // ——— Aggregate status for header ———
+  const totalCount = tools.length;
+  const completedCount = tools.filter((t) => t.status === 'success').length;
+  const runningCount = tools.filter((t) => t.status === 'running').length;
+  const errorCount = tools.filter((t) => t.status === 'error').length;
+
+  const overallStatus: ToolStatus = errorCount > 0 ? 'error' : runningCount > 0 ? 'running' : completedCount === totalCount && totalCount > 0 ? 'success' : 'default';
+
+  const headerLabel = overallStatus === 'running' ? '执行中...' : overallStatus === 'error' ? '执行失败' : overallStatus === 'success' ? '执行完成' : '查看步骤';
+
   return (
-    <div ref={containerRef} onClick={(e) => e.stopPropagation()}>
-      <div ref={buttonRef} className='flex items-center gap-10px color-#86909C cursor-pointer' onClick={handleToggleShowMore}>
-        <Badge status='default' text='View Steps' className={'![&_span.arco-badge-status-text]:color-#86909C'}></Badge>
-        {isExpanded ? <IconDown /> : <IconRight />}
+    <div ref={containerRef} className='tool-steps-card' onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={buttonRef}
+        className={classNames('tool-steps-card__header', {
+          'tool-steps-card__header--expanded': isExpanded,
+        })}
+        onClick={handleToggleShowMore}
+      >
+        <div className='tool-steps-card__header-left'>
+          <span
+            className={classNames('tool-steps-status-dot', {
+              'tool-steps-status-dot--running': overallStatus === 'running',
+              'tool-steps-status-dot--done': overallStatus === 'success',
+              'tool-steps-status-dot--error': overallStatus === 'error',
+              'tool-steps-status-dot--default': overallStatus === 'default',
+            })}
+            aria-hidden='true'
+          />
+          <span className='tool-steps-card__title'>{headerLabel}</span>
+          <span
+            className={classNames('tool-steps-card__count', {
+              'tool-steps-card__count--running': overallStatus === 'running',
+              'tool-steps-card__count--error': overallStatus === 'error',
+              'tool-steps-card__count--done': overallStatus === 'success',
+            })}
+          >
+            {completedCount}/{totalCount}
+          </span>
+        </div>
+        <IconDown
+          className={classNames('tool-steps-card__chevron', {
+            'tool-steps-card__chevron--collapsed': !isExpanded,
+          })}
+          style={{ fontSize: 12 }}
+        />
       </div>
+
       {isExpanded && (
-        <div className='p-l-20px flex flex-col gap-8px pt-8px max-h-100px overflow-auto viewsteps-container'>
-          {tools.map((item) => (
-            <ToolItemDetail key={item.key} item={item} />
-          ))}
+        <div className='tool-steps-card__body'>
+          <div className='viewsteps-container'>
+            {tools.map((item) => (
+              <ToolItemDetail key={item.key} item={item} />
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -15,11 +15,15 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
+import { getGatewayPort, SUDOCLAW_DEFAULT_PORT } from '../../agent/openclaw/openclawConfig';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
+import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
+import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage, prepareFirstMessageWithSkillsIndex, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { prepareFirstMessage, prepareOpenClawFirstMessage, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { resolveOpenClawConnectionStatus } from '../utils/connectionStatus';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
@@ -205,58 +209,59 @@ export function initConversationBridge(): void {
   // Get global OpenClaw Gateway status (independent of any conversation)
   ipcBridge.openclawConversation.getGatewayStatus.provider(async () => {
     try {
-      // Find any active OpenClaw conversation to get gateway status
+      const gatewayHost = '127.0.0.1';
+      const gatewayPort = getGatewayPort(SUDOCLAW_DIR);
+      const gatewayRunning = await checkSudoclawHealth(gatewayHost, gatewayPort, 1000);
+
+      const baseData = {
+        gatewayRunning,
+        gatewayPort,
+        gatewayHost,
+        gatewayUrl: `ws://${gatewayHost}:${gatewayPort}`,
+        isConnected: gatewayRunning,
+        hasActiveSession: false,
+        sessionKey: null as string | null,
+      };
+
       const db = getDatabase();
       const allConvs = db.getUserConversations(undefined, 0, 1000);
       const openclawConvs = (allConvs.data || []).filter((c) => c.type === 'openclaw-gateway');
 
-      // Try to get status from any active OpenClaw task
       for (const conv of openclawConvs) {
         const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { gateway?: { host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
+        const convModel = convAny.model;
+        const model = convModel?.useModel || convModel?.name || convAny.extra?.model;
+        const extra = convAny.extra;
+        const task = WorkerManage.getTaskById(conv.id) as OpenClawAgent | undefined;
 
-        const task = (await WorkerManage.getTaskByIdRollbackBuild(conv.id)) as OpenClawAgent | undefined;
         if (task && task.type === 'openclaw-gateway') {
-          await task.bootstrap.catch(() => {});
           const diagnostics = task.getDiagnostics();
-
-          // Extract model from conversation
-          const convModel = convAny.model;
-          const model = convModel?.useModel || convModel?.name || convAny.extra?.model;
-          const extra = convAny.extra;
-
-          const gatewayHost = diagnostics.gatewayHost || extra?.gateway?.host || 'localhost';
-          const gatewayPort = diagnostics.gatewayPort || extra?.gateway?.port || 17863;
 
           return {
             success: true,
             data: {
-              gatewayRunning: true,
-              gatewayPort: gatewayPort,
-              gatewayHost: gatewayHost,
-              gatewayUrl: `ws://${gatewayHost}:${gatewayPort}`,
-              isConnected: diagnostics.isConnected,
-              hasActiveSession: diagnostics.hasActiveSession,
-              sessionKey: diagnostics.sessionKey,
+              ...baseData,
               workspace: diagnostics.workspace || extra?.workspace,
               agentName: diagnostics.agentName || extra?.agentName,
-              model: model,
+              model,
             },
           };
         }
+
+        return {
+          success: true,
+          data: {
+            ...baseData,
+            workspace: extra?.workspace,
+            agentName: extra?.agentName,
+            model,
+          },
+        };
       }
 
-      // No active OpenClaw conversation found
       return {
         success: true,
-        data: {
-          gatewayRunning: false,
-          gatewayPort: 17863,
-          gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:17863',
-          isConnected: false,
-          hasActiveSession: false,
-          sessionKey: null,
-        },
+        data: baseData,
       };
     } catch (error) {
       return {
@@ -264,9 +269,9 @@ export function initConversationBridge(): void {
         msg: error instanceof Error ? error.message : String(error),
         data: {
           gatewayRunning: false,
-          gatewayPort: 17863,
-          gatewayHost: 'localhost',
-          gatewayUrl: 'ws://localhost:17863',
+          gatewayPort: SUDOCLAW_DEFAULT_PORT,
+          gatewayHost: '127.0.0.1',
+          gatewayUrl: `ws://127.0.0.1:${SUDOCLAW_DEFAULT_PORT}`,
           isConnected: false,
           hasActiveSession: false,
           sessionKey: null,
@@ -660,6 +665,19 @@ export function initConversationBridge(): void {
       if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
         return { success: true, data: { status: null } };
       }
+      if (task.type === 'openclaw-gateway') {
+        const diagnostics = task.getDiagnostics();
+        return {
+          success: true,
+          data: {
+            status: resolveOpenClawConnectionStatus({
+              lastStatus: task.lastConnectionStatus,
+              isConnected: diagnostics.isConnected,
+              hasActiveSession: diagnostics.hasActiveSession,
+            }),
+          },
+        };
+      }
       return { success: true, data: { status: (task as any).lastConnectionStatus as string | null } };
     } catch {
       return { success: true, data: { status: null } };
@@ -878,13 +896,23 @@ export function initConversationBridge(): void {
         let agentContent = other.input;
 
         const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
-        agentContent = await prepareFirstMessageWithSkillsIndex(agentContent, {
+        // Use prepareOpenClawFirstMessage — openclaw agents have a file read tool and must
+        // read SKILL.md directly. prepareFirstMessageWithSkillsIndex injects [LOAD_SKILL:]
+        // which is a Gemini-only protocol that openclaw doesn't support.
+        agentContent = await prepareOpenClawFirstMessage(agentContent, {
           presetContext,
           enabledSkills: skillsToInject,
         });
         const skillsDir = resolveWorkspaceSkillsDir(conversation);
         if (skillsDir) {
-          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir);
+          // Read the actual symlinked skill names from disk — the directory is the
+          // source of truth for what the agent can use (may include more skills than
+          // the stored enabledSkills list when no filter is applied).
+          const linkedSkillNames = await fs
+            .readdir(skillsDir, { withFileTypes: true })
+            .then((entries) => entries.filter((e) => e.isSymbolicLink() || e.isDirectory()).map((e) => e.name).sort())
+            .catch(() => skillsToInject ?? []);
+          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
         }
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {

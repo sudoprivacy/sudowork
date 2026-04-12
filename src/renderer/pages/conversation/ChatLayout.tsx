@@ -400,6 +400,7 @@ const ChatLayout: React.FC<{
   const mobileWorkspaceHandleRight = rightSiderCollapsed ? 0 : Math.max(0, Math.round(workspaceWidthPx) - 14);
   const showDesktopWorkspaceSidebar = workspaceEnabled && isDesktop && !rightSiderCollapsed;
   const desktopWorkspaceSidebarWidth = Math.max(220, Math.round(workspaceWidthPx));
+  const showWorkspaceHeader = props.siderTitle != null;
 
   const headerBlock = (
     <>
@@ -475,10 +476,16 @@ const ChatLayout: React.FC<{
                   }}
                 >
                   {!rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
-                  <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
-                    {props.siderTitle}
-                  </WorkspacePanelHeader>
-                  <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
+                  {showWorkspaceHeader ? (
+                    <>
+                      <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
+                        {props.siderTitle}
+                      </WorkspacePanelHeader>
+                      <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
+                    </>
+                  ) : (
+                    <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
+                  )}
                 </div>
               </div>
             ) : (
@@ -560,10 +567,16 @@ const ChatLayout: React.FC<{
                 }}
               >
                 {isDesktop && !rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
-                <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement={layout?.isMobile ? 'left' : 'right'}>
-                  {props.siderTitle}
-                </WorkspacePanelHeader>
-                <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
+                {showWorkspaceHeader ? (
+                  <>
+                    <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement={layout?.isMobile ? 'left' : 'right'}>
+                      {props.siderTitle}
+                    </WorkspacePanelHeader>
+                    <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
+                  </>
+                ) : (
+                  <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
+                )}
               </div>
             )}
           </>
@@ -588,12 +601,20 @@ const ChatLayout: React.FC<{
               pointerEvents: rightSiderCollapsed ? 'none' : 'auto',
             }}
           >
-            <WorkspacePanelHeader showToggle collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='left'>
-              {props.siderTitle}
-            </WorkspacePanelHeader>
-            <ArcoLayout.Content className='bg-1' style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>
-              {props.sider}
-            </ArcoLayout.Content>
+            {showWorkspaceHeader ? (
+              <>
+                <WorkspacePanelHeader showToggle collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='left'>
+                  {props.siderTitle}
+                </WorkspacePanelHeader>
+                <ArcoLayout.Content className='bg-1' style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>
+                  {props.sider}
+                </ArcoLayout.Content>
+              </>
+            ) : (
+              <ArcoLayout.Content className='bg-1' style={{ height: '100%' }}>
+                {props.sider}
+              </ArcoLayout.Content>
+            )}
           </div>
         )}
 

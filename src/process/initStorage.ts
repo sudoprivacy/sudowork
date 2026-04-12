@@ -10,16 +10,14 @@ import path from 'path';
 import { app } from 'electron';
 import { application } from '../common/ipcBridge';
 import type { TMessage } from '@/common/chatLib';
-import type { IAssistantMeta } from './constants/assistantStorage';
+import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
 import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
 import { getDatabase } from './database/export';
+import type { AcpBackendConfig } from '@/types/acpTypes';
 import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { SKILL_SUBDIRS } from './constants/skillStorage';
-import { ASSISTANT_SUBDIRS } from './constants/assistantStorage';
-import { registerAssistantMetas } from '@/common/presets/presetResolver';
-import { assistantManager } from './AssistantManager';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -322,27 +320,6 @@ const getCustomSkillsDir = () => {
 };
 
 /**
- * Get hub-installed assistants directory path
- */
-const getAssistantsHubDir = () => {
-  return path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub);
-};
-
-/**
- * Get system assistants root directory path (_system subdirectory)
- */
-const getAssistantsSystemDir = () => {
-  return path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system);
-};
-
-/**
- * Get custom assistants directory path
- */
-const getAssistantsCustomDir = () => {
-  return path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom);
-};
-
-/**
  * 启动时异步迁移旧目录结构到新的分目录结构
  * Migrate legacy flat skill directory structure to categorized subdirectories on startup
  *
@@ -448,21 +425,25 @@ const migrateSkillsToSubdirectories = async (): Promise<void> => {
   }
 };
 
-/** User-controlled fields in _sudowork_meta.json that survive version upgrades */
-const USER_PRESERVED_META_FIELDS: (keyof IAssistantMeta)[] = ['enabled', 'enabledSkills', 'presetAgentType'];
-
 /**
- * Resolve a bundled resource directory path for both dev and production.
- * In production, resources are in asarUnpack at app.asar.unpacked/.
+ * 解析内置资源目录在磁盘上的绝对路径。
+ * Resolve the absolute path of a bundled builtin resource directory.
+ *
+ * 开发模式下使用项目根目录，生产模式使用 app.getAppPath()
+ * In development, use project root. In production, use app.getAppPath()
+ * When packaged, resources are in asarUnpack, so they're at app.asar.unpacked/
+ * 打包后，资源在 asarUnpack 中，所以在 app.asar.unpacked/ 目录下
  */
-const resolveBuiltinDir = (dirPath: string): string => {
+const resolveBuiltinResourceDir = (dirPath: string): string => {
   const appPath = app.getAppPath();
   let candidates: string[];
   if (app.isPackaged) {
+    // asarUnpack extracts files to app.asar.unpacked directory
+    // asarUnpack 会将文件解压到 app.asar.unpacked 目录
     const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
     candidates = [
-      path.join(unpackedPath, dirPath),
-      path.join(appPath, dirPath),
+      path.join(unpackedPath, dirPath), // Unpacked location (preferred)
+      path.join(appPath, dirPath), // Fallback to asar path
     ];
   } else {
     candidates = [path.join(appPath, dirPath), path.join(appPath, '..', dirPath), path.join(appPath, '..', '..', dirPath), path.join(appPath, '..', '..', '..', dirPath), path.join(process.cwd(), dirPath)];
@@ -479,204 +460,273 @@ const resolveBuiltinDir = (dirPath: string): string => {
 };
 
 /**
- * Initialize builtin assistant and skill files to user directory.
- * Directory-driven: scans bundled assistant/ for _sudowork_meta.json files.
+ * 将内置 skills 从 bundle 同步到用户目录的 `_system/`（每次启动都强制 overwrite）。
+ * Sync bundled builtin skills into the user's `_system/` directory on every startup.
  *
- * - Builtin assistants (is_builtin: true) → _system/{id}/
- *   Overwritten on version change, but user fields (enabled, enabledSkills, presetAgentType) are preserved.
- * - Non-builtin bundled assistants → _my-custom-assistant/{id}/
- *   Only installed if not already present (user customizations preserved).
+ * 为什么必须每次启动同步，而不复用 `initBuiltinAssistantRules` 的版本门控：
+ *   - 内置 skill 是只读资源（`disableSkill` 对 `is_builtin: true` 的 skill 会直接拒绝），
+ *     用户修改只可能发生在 `_custom/` 和 `_hub/`，overwrite `_system/` 是安全的。
+ *   - 只变动 skill 脚本而不 bump `package.json` 版本号时（例如只修 bug），
+ *     旧的 version-gate 会永久跳过刷新，导致用户本地的 skill 脚本停留在首次安装的版本。
+ *
+ * Why unconditional (not gated by app version like `initBuiltinAssistantRules`):
+ *   - Builtin skills are read-only resources (`disableSkill` refuses to disable
+ *     skills with `is_builtin: true`); user modifications only live under
+ *     `_custom/` and `_hub/`. Overwriting `_system/` is therefore safe.
+ *   - When a skill script is fixed without a `package.json` version bump
+ *     (e.g. a pure bugfix), a version-gated copy would permanently skip the
+ *     refresh, leaving users stuck on whichever script shipped at first install.
  */
-const initBuiltinAssistantRules = async (): Promise<void> => {
-  const assistantsDir = getAssistantsDir();
-  const skillsDir = getSkillsDir();
-
-  const currentVersion = app.getVersion();
-  const lastCopiedVersion = await configFile.get('system.lastBuiltinResourcesVersion').catch(() => '');
-
-  const skillsDirExists = existsSync(skillsDir);
-  const assistantsDirExists = existsSync(assistantsDir);
-
-  // Scan bundled assistant/ directory for subdirs with _sudowork_meta.json
-  const bundledAssistantDir = resolveBuiltinDir('assistant');
-  const bundledEntries = existsSync(bundledAssistantDir)
-    ? readdirSync(bundledAssistantDir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('_'))
-    : [];
-
-  // Check if all builtin assistants have their AGENT.md installed
-  const builtinAssistantsDir = getAssistantsSystemDir();
-  const hasAllAssistantRules = assistantsDirExists && bundledEntries.every((entry) => {
-    const metaPath = path.join(bundledAssistantDir, entry.name, '_sudowork_meta.json');
-    if (!existsSync(metaPath)) return true; // No meta = skip
-    try {
-      const meta = JSON.parse(readFileSync(metaPath, 'utf-8')) as IAssistantMeta;
-      if (!meta.is_builtin) return true; // Non-builtin checked separately
-      const id = meta.id || entry.name;
-      return existsSync(path.join(builtinAssistantsDir, id, 'AGENT.md'));
-    } catch {
-      return true;
-    }
-  });
-
-  const needsCopy = lastCopiedVersion !== currentVersion || !skillsDirExists || !assistantsDirExists || !hasAllAssistantRules;
-
-  if (!needsCopy) {
-    mainLog('Sudowork', `Builtin resources already up-to-date (v${currentVersion}), skipping copy`);
+const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
+  const builtinSkillsDir = resolveBuiltinResourceDir('skills');
+  if (!existsSync(builtinSkillsDir)) {
     return;
   }
 
-  mainLog('Sudowork', `Copying builtin resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
+  try {
+    // 确保用户技能目录和 _system 子目录存在
+    // Ensure user skills dir and _system subdir exist
+    const userSkillsDir = getSkillsDir();
+    if (!existsSync(userSkillsDir)) {
+      mkdirSync(userSkillsDir);
+    }
+    const userSystemSkillsDir = getSystemSkillsDir();
+    if (!existsSync(userSystemSkillsDir)) {
+      mkdirSync(userSystemSkillsDir);
+    }
+    // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
+    // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
+    await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
+    mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
+  } catch (error) {
+    mainWarn('Sudowork', 'Failed to sync builtin skills directory:', error);
+  }
+};
 
+/**
+ * 初始化内置助手的规则和技能文件到用户目录
+ * Initialize builtin assistant rule and skill files to user directory
+ *
+ * 分为两步：
+ *   1) 内置 skill 目录同步：每次启动都强制 overwrite（见 `syncBuiltinSkillsToUserDir`）。
+ *   2) 助手 rule/skill 文件复制：仍然走版本门控，避免每次启动 N 个 preset × 多 locale
+ *      的并发文件 IO。新增/修改 preset 必须配合 app 版本号 bump 才会刷新。
+ *
+ * Two phases:
+ *   1) Builtin skills dir sync: always overwrites on startup (see `syncBuiltinSkillsToUserDir`).
+ *   2) Assistant rule/skill file copy: still version-gated to avoid repeated heavy I/O
+ *      for N presets × multiple locales on every startup. Adding/changing a preset
+ *      requires bumping the app version for the refresh to kick in.
+ */
+const initBuiltinAssistantRules = async (): Promise<void> => {
+  // Phase 1: 始终同步内置 skill 目录（不受版本门控约束）
+  // Phase 1: always sync builtin skills dir (not gated by app version)
+  await syncBuiltinSkillsToUserDir();
+
+  // Phase 2: 版本门控的助手 rule/skill 文件复制
+  // Phase 2: version-gated assistant rule/skill file copy
+  const assistantsDir = getAssistantsDir();
+
+  // 检查是否需要重新复制资源文件
+  // Check if we need to re-copy resource files
+  const currentVersion = app.getVersion();
+  const lastCopiedVersion = await configFile.get('system.lastBuiltinResourcesVersion').catch(() => '');
+
+  // 需要复制的情况：
+  // 1. 版本更新了
+  // 2. 助手目录不存在（用户手动删除了）
+  // 3. 有助手规则文件缺失（新增了预设助手）
+  // Conditions that require copy:
+  // 1. Version updated
+  // 2. Assistants directory doesn't exist (user manually deleted)
+  // 3. Some assistant rule files are missing (new preset added)
+  const assistantsDirExists = existsSync(assistantsDir);
+  const hasAllAssistantRules =
+    assistantsDirExists &&
+    ASSISTANT_PRESETS.every((preset) => {
+      if (Object.keys(preset.ruleFiles).length === 0) return true;
+      const firstLocale = Object.keys(preset.ruleFiles)[0];
+      const targetFileName = `builtin-${preset.id}.${firstLocale}.md`;
+      return existsSync(path.join(assistantsDir, targetFileName));
+    });
+  const needsCopy = lastCopiedVersion !== currentVersion || !assistantsDirExists || !hasAllAssistantRules;
+
+  if (!needsCopy) {
+    mainLog('Sudowork', `Builtin assistant resources already up-to-date (v${currentVersion}), skipping copy`);
+    return;
+  }
+
+  mainLog('Sudowork', `Copying builtin assistant resources (v${lastCopiedVersion || 'none'} -> v${currentVersion})...`);
+
+  const resolveBuiltinDir = resolveBuiltinResourceDir;
+
+  const presetsNeedDefaultRulesDir = ASSISTANT_PRESETS.some((preset) => !preset.resourceDir && Object.keys(preset.ruleFiles).length > 0);
+  const rulesDir = presetsNeedDefaultRulesDir ? resolveBuiltinDir('rules') : '';
   const builtinSkillsDir = resolveBuiltinDir('skills');
   const userSkillsDir = getSkillsDir();
 
-  // Copy bundled skills directory to user config directory's _system subdirectory
-  if (existsSync(builtinSkillsDir)) {
-    try {
-      if (!existsSync(userSkillsDir)) {
-        mkdirSync(userSkillsDir);
-      }
-      const userSystemSkillsDir = getSystemSkillsDir();
-      if (!existsSync(userSystemSkillsDir)) {
-        mkdirSync(userSystemSkillsDir);
-      }
-      await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
-    } catch (error) {
-      mainWarn('Sudowork', `Failed to copy skills directory:`, error);
-    }
+  // 确保助手目录存在 / Ensure assistants directory exists
+  if (!existsSync(assistantsDir)) {
+    mkdirSync(assistantsDir);
   }
 
-  // Ensure assistant directory structure exists
-  for (const dir of [assistantsDir, getAssistantsSystemDir(), getAssistantsHubDir(), getAssistantsCustomDir()]) {
-    if (!existsSync(dir)) {
-      mkdirSync(dir);
-    }
-  }
-
-  // Process all bundled assistants in parallel
+  // PERF: Process all presets in parallel instead of sequentially
+  // Each preset's file operations are independent, so they can run concurrently
   await Promise.all(
-    bundledEntries.map(async (entry) => {
-      const srcDir = path.join(bundledAssistantDir, entry.name);
-      const metaPath = path.join(srcDir, '_sudowork_meta.json');
+    ASSISTANT_PRESETS.map(async (preset) => {
+      const assistantId = `builtin-${preset.id}`;
 
-      // Must have _sudowork_meta.json
-      if (!existsSync(metaPath)) return;
+      // 如果设置了 resourceDir，使用该目录；否则使用默认的 rules/ 目录
+      // If resourceDir is set, use that directory; otherwise use default rules/ directory
+      const presetRulesDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : rulesDir;
+      const presetSkillsDir = preset.resourceDir ? resolveBuiltinDir(preset.resourceDir) : builtinSkillsDir;
 
-      let bundledMeta: IAssistantMeta;
-      try {
-        bundledMeta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as IAssistantMeta;
-      } catch (error) {
-        mainWarn('Sudowork', `Failed to read bundled meta for ${entry.name}:`, error);
-        return;
+      // 复制规则文件 / Copy rule files
+      const hasRuleFiles = Object.keys(preset.ruleFiles).length > 0;
+      if (hasRuleFiles) {
+        await Promise.all(
+          Object.entries(preset.ruleFiles).map(async ([locale, ruleFile]) => {
+            try {
+              const sourceRulesPath = path.join(presetRulesDir, ruleFile);
+              // 目标文件名格式：{assistantId}.{locale}.md
+              // Target file name format: {assistantId}.{locale}.md
+              const targetFileName = `${assistantId}.${locale}.md`;
+              const targetPath = path.join(assistantsDir, targetFileName);
+
+              // 检查源文件是否存在 / Check if source file exists
+              if (!existsSync(sourceRulesPath)) {
+                mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
+                return;
+              }
+
+              // 内置助手规则文件始终强制覆盖，确保用户获得最新版本
+              // Always overwrite builtin assistant rule files to ensure users get the latest version
+              let content = await fs.readFile(sourceRulesPath, 'utf-8');
+              // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
+              // Replace relative paths with absolute paths so AI can find scripts correctly
+              content = content.replace(/skills\//g, userSkillsDir + '/');
+              await fs.writeFile(targetPath, content, 'utf-8');
+            } catch (error) {
+              // 忽略缺失的语言文件 / Ignore missing locale files
+              mainWarn('Sudowork', `Failed to copy rule file ${ruleFile}:`, error);
+            }
+          })
+        );
+      } else {
+        // 如果助手没有 ruleFiles 配置，删除旧的 rules 缓存文件
+        // If assistant has no ruleFiles config, delete old rules cache files
+        const rulesFilePattern = new RegExp(`^${assistantId}\\..*\\.md$`);
+        try {
+          const files = readdirSync(assistantsDir);
+          await Promise.all(
+            files
+              .filter((file) => rulesFilePattern.test(file))
+              .map(async (file) => {
+                const filePath = path.join(assistantsDir, file);
+                await fs.unlink(filePath);
+              })
+          );
+        } catch (error) {
+          // 忽略删除失败 / Ignore deletion failure
+        }
       }
 
-      const isBuiltin = bundledMeta.is_builtin === true;
-      const id = bundledMeta.id || entry.name;
+      // 复制技能文件 / Copy skill files (if preset has skills)
+      if (preset.skillFiles) {
+        await Promise.all(
+          Object.entries(preset.skillFiles).map(async ([locale, skillFile]) => {
+            try {
+              const sourceSkillsPath = path.join(presetSkillsDir, skillFile);
+              // 目标文件名格式：{assistantId}-skills.{locale}.md
+              // Target file name format: {assistantId}-skills.{locale}.md
+              const targetFileName = `${assistantId}-skills.${locale}.md`;
+              const targetPath = path.join(assistantsDir, targetFileName);
 
-      if (isBuiltin) {
-        // ── Builtin → _system/{id}/ ──
-        const destDir = path.join(getAssistantsSystemDir(), id);
-        if (!existsSync(destDir)) {
-          mkdirSync(destDir);
-        }
-
-        // Read existing meta to preserve user fields
-        const existingMetaPath = path.join(destDir, '_sudowork_meta.json');
-        let userOverrides: Partial<IAssistantMeta> = {};
-        if (existsSync(existingMetaPath)) {
-          try {
-            const existingMeta = JSON.parse(await fs.readFile(existingMetaPath, 'utf-8')) as IAssistantMeta;
-            for (const field of USER_PRESERVED_META_FIELDS) {
-              if (existingMeta[field] !== undefined) {
-                (userOverrides as Record<string, unknown>)[field] = existingMeta[field];
+              // 检查源文件是否存在 / Check if source file exists
+              if (!existsSync(sourceSkillsPath)) {
+                mainWarn('Sudowork', `Source skill file not found: ${sourceSkillsPath}`);
+                return;
               }
-            }
-          } catch {
-            // Corrupted existing meta, overwrite fully
-          }
-        }
 
-        // Write merged meta: bundled values + preserved user fields
-        const mergedMeta: IAssistantMeta = {
-          ...bundledMeta,
-          ...userOverrides,
-          installed_at: new Date().toISOString(),
-          installed_version: currentVersion,
-        };
-        await fs.writeFile(existingMetaPath, JSON.stringify(mergedMeta, null, 2), 'utf-8');
-
-        // Resolve resourceDir for rule/skill file sources
-        const resourceDir = bundledMeta.resourceDir ? resolveBuiltinDir(bundledMeta.resourceDir) : srcDir;
-
-        // Copy ruleFile → AGENT.md
-        if (bundledMeta.ruleFile) {
-          const sourceRulesPath = path.join(resourceDir, bundledMeta.ruleFile);
-          if (existsSync(sourceRulesPath)) {
-            try {
-              let content = await fs.readFile(sourceRulesPath, 'utf-8');
-              content = content.replace(/skills\//g, userSkillsDir + '/');
-              await fs.writeFile(path.join(destDir, 'AGENT.md'), content, 'utf-8');
-            } catch (error) {
-              mainWarn('Sudowork', `Failed to copy rule file for ${id}:`, error);
-            }
-          } else {
-            mainWarn('Sudowork', `Source rule file not found: ${sourceRulesPath}`);
-          }
-        }
-
-        // Copy skillFile → SKILLS.md
-        if (bundledMeta.skillFile) {
-          const sourceSkillsPath = path.join(resourceDir, bundledMeta.skillFile);
-          if (existsSync(sourceSkillsPath)) {
-            try {
+              // 内置助手技能文件始终强制覆盖，确保用户获得最新版本
+              // Always overwrite builtin assistant skill files to ensure users get the latest version
               let content = await fs.readFile(sourceSkillsPath, 'utf-8');
+              // 替换相对路径为绝对路径，确保 AI 能找到正确的脚本位置
+              // Replace relative paths with absolute paths so AI can find scripts correctly
               content = content.replace(/skills\//g, userSkillsDir + '/');
-              await fs.writeFile(path.join(destDir, 'SKILLS.md'), content, 'utf-8');
+              await fs.writeFile(targetPath, content, 'utf-8');
             } catch (error) {
-              mainWarn('Sudowork', `Failed to copy skill file for ${id}:`, error);
+              // 忽略缺失的技能文件 / Ignore missing skill files
+              mainWarn('Sudowork', `Failed to copy skill file ${skillFile}:`, error);
             }
-          }
-        }
+          })
+        );
       } else {
-        // ── Non-builtin: route by source_type ──
-        const isHub = bundledMeta.source_type === 'hub';
-        const targetParentDir = isHub ? getAssistantsHubDir() : getAssistantsCustomDir();
-        const destDir = path.join(targetParentDir, entry.name);
-
-        // Skip if already installed — don't overwrite user customizations
-        if (existsSync(destDir)) return;
-
+        // 如果助手没有 skillFiles 配置，删除旧的 skills 缓存文件
+        // If assistant has no skillFiles config, delete old skills cache files
+        // 这样可以确保迁移到 SkillManager 后不会读取到旧的 presetSkills
+        // This ensures old presetSkills won't be read after migrating to SkillManager
+        const skillsFilePattern = new RegExp(`^${assistantId}-skills\\..*\\.md$`);
         try {
-          mkdirSync(destDir);
-
-          // Copy _sudowork_meta.json
-          await fs.copyFile(metaPath, path.join(destDir, '_sudowork_meta.json'));
-
-          // Copy ruleFile → AGENT.md
-          if (bundledMeta.ruleFile && existsSync(path.join(srcDir, bundledMeta.ruleFile))) {
-            let content = await fs.readFile(path.join(srcDir, bundledMeta.ruleFile), 'utf-8');
-            content = content.replace(/skills\//g, userSkillsDir + '/');
-            await fs.writeFile(path.join(destDir, 'AGENT.md'), content, 'utf-8');
-          }
-
-          // Copy skillFile → SKILLS.md
-          if (bundledMeta.skillFile && existsSync(path.join(srcDir, bundledMeta.skillFile))) {
-            let content = await fs.readFile(path.join(srcDir, bundledMeta.skillFile), 'utf-8');
-            content = content.replace(/skills\//g, userSkillsDir + '/');
-            await fs.writeFile(path.join(destDir, 'SKILLS.md'), content, 'utf-8');
-          }
-
-          mainLog('Sudowork', `Installed bundled ${isHub ? 'hub' : 'custom'} assistant: ${entry.name}`);
+          const files = readdirSync(assistantsDir);
+          await Promise.all(
+            files
+              .filter((file) => skillsFilePattern.test(file))
+              .map(async (file) => {
+                const filePath = path.join(assistantsDir, file);
+                await fs.unlink(filePath);
+              })
+          );
         } catch (error) {
-          mainWarn('Sudowork', `Failed to install bundled assistant ${entry.name}:`, error);
+          // 忽略删除失败 / Ignore deletion failure
         }
       }
     })
   );
 
+  // 保存当前版本号，下次启动时跳过复制
   // Save current version to skip copy on next startup
   await configFile.set('system.lastBuiltinResourcesVersion', currentVersion);
   mainLog('Sudowork', `Builtin resources copied successfully (v${currentVersion})`);
+};
+
+/**
+ * 获取内置助手配置（不包含 context，context 从文件读取）
+ * Get built-in assistant configurations (without context, context is read from files)
+ */
+const getBuiltinAssistants = (): AcpBackendConfig[] => {
+  const assistants: AcpBackendConfig[] = [];
+
+  for (const preset of ASSISTANT_PRESETS) {
+    // 从预设配置中读取默认启用的技能列表（不包含 cron，因为它是内置 skill，自动注入）
+    // Read default enabled skills from preset config (excluding cron, which is builtin and auto-injected)
+    const defaultEnabledSkills = preset.defaultEnabledSkills;
+    const enabledByDefault = preset.id === 'cowork' || preset.id === 'openclaw-setup' || preset.id === 'star-office-helper' || preset.id === 'story-roleplay' || preset.id === 'moltbook' || preset.id === 'beautiful-mermaid' || preset.id === 'doctor' || preset.id === 'jiansheku';
+
+    assistants.push({
+      id: `builtin-${preset.id}`,
+      name: preset.nameI18n['en-US'],
+      nameI18n: preset.nameI18n,
+      description: preset.descriptionI18n['en-US'],
+      descriptionI18n: preset.descriptionI18n,
+      avatar: preset.avatar,
+      // context 不再存储在配置中，而是从文件读取
+      // context is no longer stored in config, read from files instead
+      // Cowork 默认启用 / Cowork enabled by default
+      enabled: enabledByDefault,
+      isPreset: true,
+      isBuiltin: true,
+      presetAgentType: preset.presetAgentType || 'claude',
+      // Cowork 默认启用所有内置技能 / Cowork enables all builtin skills by default
+      enabledSkills: defaultEnabledSkills,
+      // 复制快捷提示词 / Copy quick prompts
+      promptsI18n: preset.promptsI18n,
+      // API Key 配置字段 / API Key configuration fields
+      apiKeyFields: preset.apiKeyFields,
+    });
+  }
+
+  return assistants;
 };
 
 /**
@@ -799,16 +849,112 @@ const initStorage = async () => {
   })();
 
   // 5. 初始化内置助手（Assistants）— runs in parallel with database init (step 6)
-  // Filesystem-only: scans bundled assistant/ dirs, installs to ~/.nexus/assistants/
-  // No acp.customAgents in ConfigStorage — _sudowork_meta.json is the SSOT
+  // PERF: Assistant config + database init are independent; run them concurrently
   const assistantsPromise = (async () => {
     try {
+      // 5.1 初始化内置助手的规则文件到用户目录
+      // Initialize builtin assistant rule files to user directory
       await initBuiltinAssistantRules();
 
-      // Populate the preset resolver registry so synchronous lookups work
-      const installed = await assistantManager.getInstalledAssistants();
-      const metas = installed.map((a) => a.meta).filter((m): m is IAssistantMeta => !!m);
-      registerAssistantMetas(metas);
+      // 5.2 初始化助手配置（只包含元数据，不包含 context）
+      // Initialize assistant config (metadata only, no context)
+      // PERF: Read config once and reuse — configFile now has in-memory cache,
+      // so the first get() reads from disk and subsequent ones use cache
+      const existingAgents = (await configFile.get('acp.customAgents').catch((): undefined => undefined)) || [];
+      const builtinAssistants = getBuiltinAssistants();
+
+      // 5.2.1 检查是否需要迁移：修复老版本中所有助手都默认启用的问题
+      // Check if migration needed: fix old version where all assistants were enabled by default
+      const ASSISTANT_ENABLED_MIGRATION_KEY = 'migration.assistantEnabledFixed';
+      const migrationDone = await configFile.get(ASSISTANT_ENABLED_MIGRATION_KEY).catch(() => false);
+      const needsMigration = !migrationDone && existingAgents.length > 0;
+
+      // 5.2.2 检查是否需要迁移：为内置助手添加默认启用的技能
+      // Check if migration needed: add default enabled skills for builtin assistants
+      const BUILTIN_SKILLS_MIGRATION_KEY = 'migration.builtinDefaultSkillsAdded_v2';
+      const builtinSkillsMigrationDone = await configFile.get(BUILTIN_SKILLS_MIGRATION_KEY).catch(() => false);
+      const needsBuiltinSkillsMigration = !builtinSkillsMigrationDone;
+
+      // 5.2.3 检查是否需要迁移：为内置助手添加 promptsI18n
+      // Check if migration needed: add promptsI18n for builtin assistants
+      const PROMPTS_I18N_MIGRATION_KEY = 'migration.promptsI18nAdded';
+      const promptsI18nMigrationDone = await configFile.get(PROMPTS_I18N_MIGRATION_KEY).catch(() => false);
+      const needsPromptsI18nMigration = !promptsI18nMigrationDone;
+
+      // 更新或添加内置助手配置
+      // Update or add built-in assistant configurations
+      const updatedAgents = [...existingAgents];
+      let hasChanges = false;
+
+      for (const builtin of builtinAssistants) {
+        const index = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === builtin.id);
+        if (index >= 0) {
+          // 更新现有内置助手配置
+          // Update existing built-in assistant config
+          const existing = updatedAgents[index];
+          // 只有当关键字段不同时才更新，避免不必要的写入
+          // Update only if key fields are different to avoid unnecessary writes
+          // 注意：enabled 和 presetAgentType 字段由用户控制，不参与 shouldUpdate 判断
+          // Note: enabled and presetAgentType are user-controlled, not included in shouldUpdate check
+          // 检查 promptsI18n 是否需要更新（如果不存在或已更改，或需要迁移）
+          // Check if promptsI18n needs update (if missing, changed, or migration needed)
+          const promptsI18nMissing = !existing.promptsI18n && builtin.promptsI18n;
+          const promptsI18nChanged = existing.promptsI18n && builtin.promptsI18n && JSON.stringify(existing.promptsI18n) !== JSON.stringify(builtin.promptsI18n);
+          const needsPromptsI18nUpdate = needsPromptsI18nMigration || promptsI18nMissing || promptsI18nChanged;
+          const shouldUpdate = existing.name !== builtin.name || existing.description !== builtin.description || existing.avatar !== builtin.avatar || existing.isPreset !== builtin.isPreset || existing.isBuiltin !== builtin.isBuiltin || needsPromptsI18nUpdate;
+          // 当 enabled 是 undefined 或需要迁移时，设置默认值（Cowork 启用，其他禁用）
+          // When enabled is undefined or migration needed, set default value (Cowork enabled, others disabled)
+          const needsEnabledFix = existing.enabled === undefined || needsMigration;
+          // 迁移时强制使用默认值，否则保留用户设置
+          // Force default value during migration, otherwise preserve user setting
+          const resolvedEnabled = needsEnabledFix ? builtin.enabled : existing.enabled;
+          // presetAgentType 由用户控制，未设置时使用内置默认值
+          // presetAgentType is user-controlled, use builtin default if not set
+          const resolvedPresetAgentType = existing.presetAgentType ?? builtin.presetAgentType;
+
+          // 为有 defaultEnabledSkills 配置的内置助手添加默认技能（仅在迁移时且用户未设置 enabledSkills 时）
+          // Add default enabled skills for builtin assistants with defaultEnabledSkills (only during migration and if user hasn't set enabledSkills)
+          let resolvedEnabledSkills = existing.enabledSkills;
+          const needsSkillsMigration = needsBuiltinSkillsMigration && builtin.enabledSkills && (!existing.enabledSkills || existing.enabledSkills.length === 0);
+          if (needsSkillsMigration) {
+            resolvedEnabledSkills = builtin.enabledSkills;
+          }
+
+          if (shouldUpdate || needsEnabledFix || (needsSkillsMigration && resolvedEnabledSkills !== existing.enabledSkills) || needsPromptsI18nUpdate) {
+            // 保留用户已设置的 enabled 和 presetAgentType / Preserve user-set enabled and presetAgentType
+            updatedAgents[index] = {
+              ...existing,
+              ...builtin,
+              enabled: resolvedEnabled,
+              presetAgentType: resolvedPresetAgentType,
+              enabledSkills: resolvedEnabledSkills,
+              // 确保 promptsI18n 被更新 / Ensure promptsI18n is updated
+              promptsI18n: builtin.promptsI18n,
+            };
+            hasChanges = true;
+          }
+        } else {
+          // 添加新的内置助手
+          // Add new built-in assistant
+          updatedAgents.unshift(builtin);
+          hasChanges = true;
+        }
+      }
+
+      if (hasChanges) {
+        await configFile.set('acp.customAgents', updatedAgents);
+      }
+
+      // 标记迁移完成 / Mark migration as done
+      if (needsMigration) {
+        await configFile.set(ASSISTANT_ENABLED_MIGRATION_KEY, true);
+      }
+      if (needsBuiltinSkillsMigration) {
+        await configFile.set(BUILTIN_SKILLS_MIGRATION_KEY, true);
+      }
+      if (needsPromptsI18nMigration) {
+        await configFile.set(PROMPTS_I18N_MIGRATION_KEY, true);
+      }
     } catch (error) {
       mainError('Sudowork', 'Failed to initialize builtin assistants:', error);
     }
@@ -859,7 +1005,7 @@ export const getSystemDir = () => {
  * 获取助手规则目录路径（供其他模块使用）
  * Get assistant rules directory path (for use by other modules)
  */
-export { getAssistantsDir, getAssistantsHubDir, getAssistantsSystemDir, getAssistantsCustomDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS, ASSISTANT_SUBDIRS };
+export { getAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
 
 /**
  * Skills 内容缓存，避免重复从文件系统读取
