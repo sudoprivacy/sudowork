@@ -18,7 +18,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
+import { CloudStorage, Down, FileText, FolderOpen, MagicWand, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -31,8 +31,9 @@ import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
-// TaskPanel temporarily hidden per product feedback.
+// TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
 // import TaskPanel from './TaskPanel';
+import WorkspaceSkills from './WorkspaceSkills';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
 import './workspace-card.css';
@@ -71,6 +72,69 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [searchText, setSearchText] = useState('');
   const [showSearch, setShowSearch] = useState(true);
   const searchInputRef = useRef<RefInputType | null>(null);
+
+  // Active tab (mockup #293 splits the right panel into 临时空间 / 可用技能)
+  // Persist per-workspace choice so agents that rely heavily on one tab don't
+  // keep reverting on conversation switch.
+  const [activeTab, setActiveTab] = useState<'files' | 'skills'>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_ACTIVE_TAB);
+      if (stored === 'skills' || stored === 'files') return stored;
+    } catch {
+      // ignore
+    }
+    return 'files';
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.WORKSPACE_ACTIVE_TAB, activeTab);
+    } catch {
+      // ignore
+    }
+  }, [activeTab]);
+
+  // Skill count for the skills tab pill — scanned asynchronously from
+  // workspace/skills/ (OpenClaw) and workspace/.claude/skills/ (Claude Code).
+  // Auto-refreshes on the same inotify `dirChanged` signal the file tree uses.
+  const [skillCount, setSkillCount] = useState(0);
+  useEffect(() => {
+    if (!workspace) {
+      setSkillCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const ws = workspace.replace(/\/$/, '');
+    const refreshCount = async () => {
+      try {
+        const [a, b] = await Promise.all([ipcBridge.fs.scanForSkills.invoke({ folderPath: `${ws}/skills` }).catch((): undefined => undefined), ipcBridge.fs.scanForSkills.invoke({ folderPath: `${ws}/.claude/skills` }).catch((): undefined => undefined)]);
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const count = (arr?: Array<{ name: string }>) => {
+          if (!arr) return;
+          for (const s of arr) seen.add(s.name.toLowerCase());
+        };
+        count(a?.success ? a.data : undefined);
+        count(b?.success ? b.data : undefined);
+        setSkillCount(seen.size);
+      } catch {
+        if (!cancelled) setSkillCount(0);
+      }
+    };
+    void refreshCount();
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refreshCount();
+      }, 250);
+    });
+    return () => {
+      cancelled = true;
+      if (debounce) clearTimeout(debounce);
+      unsubscribe();
+    };
+  }, [workspace]);
 
   // Workspace rename modal state (for root directory rename)
   const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
@@ -879,7 +943,16 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   fill={iconColors.secondary}
                   onClick={(event) => {
                     event.stopPropagation();
-                    treeHook.refreshWorkspace();
+                    if (activeTab === 'files') {
+                      treeHook.refreshWorkspace();
+                    } else {
+                      // Emit a refresh pulse for skills via dirChanged-mimic:
+                      // the WorkspaceSkills component subscribes to dirChanged
+                      // but we don't have a direct handle. Users can also click
+                      // the tab's own refresh button. We still nudge the file
+                      // tree so the count stays live.
+                      treeHook.refreshWorkspace();
+                    }
                   }}
                 />
               </span>
@@ -896,8 +969,49 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           </div>
         </div>
 
-        {/* Main content area — card body: Search + Tree (TaskPanel hidden per feedback) */}
+        {/* Tabs row — 临时空间 / 可用技能 (mockup #293).
+            Sits directly under the card header so the two tabs feel like part
+            of the same card. Active tab gets a 2px primary underline and a
+            pill-shaped count badge that mirrors the chat tool-steps card. */}
         {!isWorkspaceCollapsed && (
+          <div className='workspace-card__tabs' role='tablist' aria-label={t('conversation.workspace.tabsAria', { defaultValue: '工作空间视图切换' })}>
+            <button
+              type='button'
+              role='tab'
+              aria-selected={activeTab === 'files'}
+              className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`}
+              onClick={() => setActiveTab('files')}
+            >
+              <CloudStorage theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+              <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
+              {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
+            </button>
+            <button
+              type='button'
+              role='tab'
+              aria-selected={activeTab === 'skills'}
+              className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`}
+              onClick={() => setActiveTab('skills')}
+            >
+              <MagicWand theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+              <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
+              {skillCount > 0 && (
+                <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
+                  {skillCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Main content area — card body: Search + Tree (TaskPanel hidden per feedback) OR Skills grid */}
+        {!isWorkspaceCollapsed && activeTab === 'skills' && (
+          <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
+            <WorkspaceSkills workspace={workspace} eventPrefix={eventPrefix} />
+          </FlexFullContainer>
+        )}
+
+        {!isWorkspaceCollapsed && activeTab === 'files' && (
           <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
             {/* TaskPanel temporarily hidden per product feedback — can restore later.
              * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />

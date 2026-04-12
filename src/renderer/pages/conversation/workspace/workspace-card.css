@@ -121,6 +121,66 @@
   color: rgb(var(--primary-6, 22 93 255));
 }
 
+/* Count pill on the currently-selected tab — primary-6 fill, white text, to
+   match the active-tab badge in the mockup. */
+.chat-workspace .workspace-card__count--active {
+  background: rgb(var(--primary-6, 22 93 255));
+  color: #ffffff;
+}
+
+/* ——— Tabs row (临时空间 / 可用技能) — mockup #293 ——— */
+.chat-workspace .workspace-card__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+  background: var(--color-bg-1, #ffffff);
+}
+
+.chat-workspace .workspace-card__tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-3, #86909c);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  border-bottom: 2px solid transparent;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.chat-workspace .workspace-card__tab:hover {
+  background: var(--color-fill-1, #f7f8fa);
+  color: var(--color-text-2, #4e5969);
+}
+
+.chat-workspace .workspace-card__tab--active {
+  color: rgb(var(--primary-6, 22 93 255));
+  border-bottom-color: rgb(var(--primary-6, 22 93 255));
+  background: rgba(22, 93, 255, 0.04);
+}
+
+.chat-workspace .workspace-card__tab-label {
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+/* Count pill inside tabs defaults to neutral; active state is already handled
+   by workspace-card__count--active above. */
+.chat-workspace .workspace-card__tab .workspace-card__count {
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
 /* ——— Status dot (left of title) ——— */
 .chat-workspace .workspace-card__status-dot {
   position: relative;
@@ -278,6 +338,162 @@
   max-width: 220px;
 }
 
+/* ——— Skills tab (2-column card grid, mockup #293 可用技能) ——— */
+.chat-workspace .workspace-card__body--skills {
+  /* Give the skills grid a bit of breathing room around the edges so each
+     card doesn't touch the card border. */
+  padding-top: 0;
+}
+
+.chat-workspace .workspace-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 10px 12px;
+  min-height: 0;
+}
+
+.chat-workspace .workspace-skills__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-workspace .workspace-skills__search .workspace-search-input .arco-input-inner-wrapper {
+  border-radius: 8px !important;
+  background: var(--color-fill-1, #f7f8fa) !important;
+  border: 1px solid transparent !important;
+}
+
+.chat-workspace .workspace-skills__search .workspace-search-input .arco-input-inner-wrapper:focus-within {
+  border-color: rgb(var(--primary-6, 22 93 255)) !important;
+  background: var(--color-bg-1, #ffffff) !important;
+}
+
+.chat-workspace .workspace-skills__refresh {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--color-fill-1, #f7f8fa);
+  color: var(--color-text-3, #86909c);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.chat-workspace .workspace-skills__refresh:hover {
+  background: var(--color-fill-2, #f2f3f5);
+  color: var(--color-text-1, #1d2129);
+}
+
+@keyframes workspace-skill-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-workspace .workspace-skills__refresh--spinning > span,
+.chat-workspace .workspace-skills__refresh--spinning svg {
+  animation: workspace-skill-refresh-spin 0.8s linear infinite;
+}
+
+.chat-workspace .workspace-skills__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+/* Single skill card — matches the mockup's colorful icon-on-muted-bg cells. */
+.chat-workspace .workspace-skill-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-2, #e5e6eb);
+  background: var(--color-fill-1, #f7f8fa);
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  outline: none;
+}
+
+.chat-workspace .workspace-skill-card:hover {
+  border-color: rgba(22, 93, 255, 0.4);
+  background: var(--color-bg-1, #ffffff);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+.chat-workspace .workspace-skill-card:focus-visible {
+  border-color: rgb(var(--primary-6, 22 93 255));
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.16);
+}
+
+.chat-workspace .workspace-skill-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+}
+
+.chat-workspace .workspace-skill-card__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-workspace .workspace-skill-card__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-1, #1d2129);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-workspace .workspace-skill-card__desc {
+  font-size: 11px;
+  color: var(--color-text-3, #86909c);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ——— Folder / file tree row polish (mockup #293 shows a more spacious
+       row layout than Arco's default) ——— */
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  margin: 1px 0;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-title {
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.chat-workspace.workspace-card .workspace-tree .arco-tree-node-selected > .arco-tree-node-title-wrapper .arco-tree-node-title {
+  background: rgba(22, 93, 255, 0.08);
+  color: rgb(var(--primary-6, 22 93 255));
+}
+
 /* Mobile tweaks — slightly larger tap targets, same card chrome */
 @media (max-width: 768px) {
   .chat-workspace.workspace-card {
@@ -297,5 +513,14 @@
     height: 20px;
     min-width: 32px;
     font-size: 12px;
+  }
+
+  .chat-workspace .workspace-card__tab {
+    font-size: 14px;
+    padding: 12px 12px;
+  }
+
+  .chat-workspace .workspace-skills__grid {
+    grid-template-columns: 1fr;
   }
 }
