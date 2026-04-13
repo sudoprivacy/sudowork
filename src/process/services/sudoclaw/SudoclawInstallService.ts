@@ -420,6 +420,16 @@ export function repairOpenClawConfig(): void {
       changed = true;
     }
 
+    // "imageAnalysisModel" is not in the gateway zod schema; migrate to "imageModel"
+    const agentDefaults = (config.agents as { defaults?: Record<string, unknown> } | undefined)?.defaults;
+    if (agentDefaults?.imageAnalysisModel !== undefined) {
+      if (agentDefaults.imageModel === undefined) {
+        agentDefaults.imageModel = agentDefaults.imageAnalysisModel;
+      }
+      delete agentDefaults.imageAnalysisModel;
+      changed = true;
+    }
+
     // Ensure gateway config exists with auth: { mode: 'none' }
     if (!config.gateway || typeof config.gateway !== 'object') {
       (config as Record<string, unknown>).gateway = {

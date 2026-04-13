@@ -361,10 +361,6 @@ export class ServiceManager {
       // whether config was manually modified, or whether repair was skipped.
       repairOpenClawConfig();
 
-      // Clean up stale keys that the gateway schema doesn't recognize,
-      // BEFORE the gateway starts and validates the config.
-      this.cleanSudoclawConfig(SUDOCLAW_CONFIG_PATH);
-
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -400,33 +396,6 @@ export class ServiceManager {
       // Resolve with null so waiters don't hang forever.
       this.gatewayReadyResolve?.(null);
       throw err;
-    }
-  }
-
-  /** Remove keys from sudoclaw.json that the gateway schema doesn't recognize. */
-  private cleanSudoclawConfig(sudoclawConfigPath: string): void {
-    try {
-      if (!fs.existsSync(sudoclawConfigPath)) return;
-      const raw = fs.readFileSync(sudoclawConfigPath, 'utf-8');
-      const config = JSON.parse(raw);
-      let dirty = false;
-
-      // "imageAnalysisModel" was renamed to "imageModel" in the gateway schema
-      if (config.agents?.defaults?.imageAnalysisModel !== undefined) {
-        // Preserve value → imageModel if imageModel is not already set
-        if (config.agents.defaults.imageModel === undefined) {
-          config.agents.defaults.imageModel = config.agents.defaults.imageAnalysisModel;
-        }
-        delete config.agents.defaults.imageAnalysisModel;
-        dirty = true;
-      }
-
-      if (dirty) {
-        fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
-        mainLog('ServiceManager', 'Cleaned unrecognized keys from sudoclaw.json');
-      }
-    } catch (err) {
-      mainWarn('ServiceManager', 'Failed to clean sudoclaw.json', err);
     }
   }
 
