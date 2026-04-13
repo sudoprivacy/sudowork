@@ -58,7 +58,7 @@ interface WeComConfigFormProps {
   onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
-const WECOM_DEV_DOCS_URL = 'https://developer.work.weixin.qq.com/document/path/101463';
+const WECOM_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/wecom.html';
 const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
