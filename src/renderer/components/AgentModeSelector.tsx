@@ -9,7 +9,7 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -232,29 +232,45 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
   }
 
   // Full mode: logo + name + optional mode label
+  // Compose a tooltip label showing the full agentName + mode so users can see
+  // the full text even when the label is truncated due to limited space.
+  const displayName = agentName || backend || '';
+  const modeLabelText = canSwitchMode && currentMode !== defaultMode ? getCurrentModeLabel() : '';
+  const tooltipLabel = modeLabelText ? `${displayName} · ${modeLabelText}` : displayName;
+
   const content = (
-    <div className={`flex items-center gap-2 bg-2 w-fit rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-      {renderLogo()}
-      <span className='text-sm text-t-primary'>{agentName || backend}</span>
+    <div className={`flex items-center gap-2 bg-2 max-w-full min-w-0 rounded-full px-[8px] py-[2px] overflow-hidden ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+      <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+      <span className='text-sm text-t-primary truncate min-w-0'>{displayName}</span>
       {canSwitchMode && (
         <>
-          {currentMode !== defaultMode && <span className='text-xs text-t-tertiary'>({getCurrentModeLabel()})</span>}
-          <Down size={12} className='text-t-tertiary' />
+          {currentMode !== defaultMode && <span className='text-xs text-t-tertiary truncate min-w-0'>({getCurrentModeLabel()})</span>}
+          <Down size={12} className='text-t-tertiary shrink-0' />
         </>
       )}
     </div>
   );
 
+  // Wrap with Tooltip so hover always reveals the full agentName + mode, even
+  // when the label is partially hidden due to container width constraints.
+  const contentWithTooltip = tooltipLabel ? (
+    <Tooltip content={tooltipLabel} position='bottom'>
+      {content}
+    </Tooltip>
+  ) : (
+    content
+  );
+
   // If mode switching is not supported, just render the content without dropdown
   if (!canSwitchMode) {
-    return <div className='ml-16px'>{content}</div>;
+    return <div className='ml-16px min-w-0 max-w-full overflow-hidden'>{contentWithTooltip}</div>;
   }
 
   // Render dropdown with mode selection menu
   return (
-    <div className='ml-16px'>
+    <div className='ml-16px min-w-0 max-w-full overflow-hidden'>
       <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
-        {content}
+        {contentWithTooltip}
       </Dropdown>
     </div>
   );

@@ -72,8 +72,13 @@ const getDiffLineStyle = (line: string, isDark: boolean): React.CSSProperties =>
 function CodeBlock(props: any) {
   const { t } = useTranslation();
   const [fold, setFlow] = useState(() => {
-    const content = String(props.children || '').replace(/\n$/, '');
-    return content.split('\n').length >= 4;
+    // Normalize trailing whitespace/newlines so we don't over-count lines.
+    // Code blocks with fewer than 4 lines default to expanded (not folded);
+    // blocks with 4 or more lines default to folded so long snippets stay tidy.
+    const content = String(props.children || '').replace(/\s+$/, '');
+    if (!content) return false;
+    const lineCount = content.split('\n').length;
+    return lineCount >= 4;
   });
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
