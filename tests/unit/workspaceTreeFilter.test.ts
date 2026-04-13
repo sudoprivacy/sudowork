@@ -47,13 +47,10 @@ describe('filterHiddenWorkspaceDirs', () => {
   });
 
   it('does not hide nested directories with the same names', () => {
-    const result = filterHiddenWorkspaceDirs(
-      [dir('src', [dir('skills'), dir('.claude')]), dir('skills')],
-      {
-        eventPrefix: 'openclaw-gateway',
-        isRoot: true,
-      }
-    );
+    const result = filterHiddenWorkspaceDirs([dir('src', [dir('skills'), dir('.claude')]), dir('skills')], {
+      eventPrefix: 'openclaw-gateway',
+      isRoot: true,
+    });
 
     expect(result.map((node: IDirOrFile) => node.name)).toEqual(['src']);
     expect(result[0]?.children?.map((node) => node.name)).toEqual(['skills', '.claude']);

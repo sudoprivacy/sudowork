@@ -58,7 +58,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
           ...conversation.extra,
           enabledSkills: latestEnabledSkills,
         },
-      };
+      } as TChatConversation;
     }
   }
 
@@ -183,6 +183,7 @@ export function initConversationBridge(): void {
       const diagnostics = task.getDiagnostics();
       const identityHash = await computeOpenClawIdentityHash(diagnostics.workspace || conversation.extra?.workspace);
       const conversationModel = (conversation as { model?: { useModel?: string } }).model;
+      const resolvedModel = diagnostics.model || conversation.extra?.openclawModelId || conversation.extra?.runtimeValidation?.expectedModel || conversationModel?.useModel;
 
       return {
         success: true,
@@ -192,7 +193,7 @@ export function initConversationBridge(): void {
             workspace: diagnostics.workspace || conversation.extra?.workspace,
             backend: diagnostics.backend || conversation.extra?.backend,
             agentName: diagnostics.agentName || conversation.extra?.agentName,
-            model: conversationModel?.useModel,
+            model: resolvedModel,
             sessionKey: diagnostics.sessionKey,
             isConnected: diagnostics.isConnected,
             hasActiveSession: diagnostics.hasActiveSession,
@@ -372,6 +373,26 @@ export function initConversationBridge(): void {
         data: {
           error: error instanceof Error ? error.message : String(error),
         },
+      };
+    }
+  });
+
+  ipcBridge.openclawConversation.setSessionModel.provider(async ({ conversation_id, modelId }) => {
+    try {
+      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgent | undefined;
+      if (!task || task.type !== 'openclaw-gateway') {
+        return { success: false, msg: 'Sudoclaw conversation not found' };
+      }
+
+      const result = await task.setSessionModel(modelId);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
       };
     }
   });
@@ -666,12 +687,13 @@ export function initConversationBridge(): void {
         return { success: true, data: { status: null } };
       }
       if (task.type === 'openclaw-gateway') {
-        const diagnostics = task.getDiagnostics();
+        const openclawTask = task as OpenClawAgent;
+        const diagnostics = openclawTask.getDiagnostics();
         return {
           success: true,
           data: {
             status: resolveOpenClawConnectionStatus({
-              lastStatus: task.lastConnectionStatus,
+              lastStatus: openclawTask.lastConnectionStatus,
               isConnected: diagnostics.isConnected,
               hasActiveSession: diagnostics.hasActiveSession,
             }),
@@ -910,7 +932,12 @@ export function initConversationBridge(): void {
           // the stored enabledSkills list when no filter is applied).
           const linkedSkillNames = await fs
             .readdir(skillsDir, { withFileTypes: true })
-            .then((entries) => entries.filter((e) => e.isSymbolicLink() || e.isDirectory()).map((e) => e.name).sort())
+            .then((entries) =>
+              entries
+                .filter((e) => e.isSymbolicLink() || e.isDirectory())
+                .map((e) => e.name)
+                .sort()
+            )
             .catch(() => skillsToInject ?? []);
           agentContent = injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
         }

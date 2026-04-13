@@ -6,11 +6,7 @@
 
 export type AgentConnectionStatus = 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error';
 
-export function resolveOpenClawConnectionStatus(params: {
-  lastStatus?: string | null;
-  isConnected: boolean;
-  hasActiveSession: boolean;
-}): AgentConnectionStatus | null {
+export function resolveOpenClawConnectionStatus(params: { lastStatus?: string | null; isConnected: boolean; hasActiveSession: boolean }): AgentConnectionStatus | null {
   const { lastStatus, isConnected, hasActiveSession } = params;
 
   if (isConnected && hasActiveSession) {

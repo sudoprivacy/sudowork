@@ -52,6 +52,7 @@
       "compareContent": "Lütfen ... ve ... arasındaki farkları ilkeler, artılar/eksiler ve kullanım alanları açısından analiz edin"
     }
   },
+  "trySuggestionPrompts": "Tıklanabilir örnek bilgi istemleri:",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "Kullanılabilir bir Ana Ajan yok. Lütfen Google'a giriş yapın veya Claude/Codex CLI kurun. Ayarlara gitmek ister misiniz?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

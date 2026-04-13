@@ -81,11 +81,7 @@ interface SkillItem {
   emoji?: string | null;
 }
 
-const resolveEmptyDescription = (
-  eventPrefix: 'acp' | 'openclaw-gateway' | undefined,
-  backend: string | undefined,
-  t: ReturnType<typeof useTranslation>['t']
-): string => {
+const resolveEmptyDescription = (eventPrefix: 'acp' | 'openclaw-gateway' | undefined, backend: string | undefined, t: ReturnType<typeof useTranslation>['t']): string => {
   if (eventPrefix === 'openclaw-gateway') {
     return t('conversation.workspace.skillsEmptyDescOpenClaw', {
       defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
@@ -418,16 +414,8 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
           <div className='workspace-card__empty-icon'>
             <Code theme='outline' size='20' fill='currentColor' />
           </div>
-          <div className='workspace-card__empty-title'>
-            {initialLoading
-              ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' })
-              : (searchQuery ?? '').trim()
-                ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' })
-                : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}
-          </div>
-          {!(searchQuery ?? '').trim() && !initialLoading && (
-            <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, t)}</div>
-          )}
+          <div className='workspace-card__empty-title'>{initialLoading ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' }) : (searchQuery ?? '').trim() ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' }) : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}</div>
+          {!(searchQuery ?? '').trim() && !initialLoading && <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, t)}</div>}
         </div>
       </div>
     );

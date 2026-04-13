@@ -69,11 +69,7 @@ async function isDirectoryLike(entryPath: string): Promise<boolean> {
   }
 }
 
-function toSkillItem(
-  skillPath: string,
-  parsed: { name?: string; description?: string; icon?: string; color?: string } | undefined,
-  meta?: SkillMeta
-): ScannedWorkspaceSkill | undefined {
+function toSkillItem(skillPath: string, parsed: { name?: string; description?: string; icon?: string; color?: string } | undefined, meta?: SkillMeta): ScannedWorkspaceSkill | undefined {
   if (!parsed?.name) return undefined;
   const iconUrl = resolveDeclaredIconUrl(skillPath, meta?.icon) || resolveDeclaredIconUrl(skillPath, parsed.icon);
   return {

@@ -429,6 +429,13 @@ export const openclawConversation = {
     }>,
     void
   >('openclaw.get-cli-info'),
+  setSessionModel: bridge.buildProvider<
+    IBridgeResponse<{
+      sessionKey: string;
+      model: string;
+    }>,
+    { conversation_id: string; modelId: string }
+  >('openclaw.set-session-model'),
 };
 
 // Database operations
