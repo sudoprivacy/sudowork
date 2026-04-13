@@ -28,7 +28,7 @@ try:
     sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
-    m = c.get('agents',{}).get('defaults',{}).get('model',{}).get('primary','')
+    m = c.get('agents',{}).get('defaults',{}).get('imageAnalysisModel','')
     model = m.split('/')[-1] if '/' in m else m
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
     print(f'_CFG_API_KEY={repr(api_key)}')

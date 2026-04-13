@@ -6,7 +6,7 @@
 
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
-import { AcpSkillManager, buildSkillsIndexText } from './AcpSkillManager';
+import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
 
 /**
@@ -202,9 +202,9 @@ export async function prepareOpenClawFirstMessage(content: string, config: First
   const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
   if (builtinSkillsIndex.length > 0) {
     const systemSkillsDir = getBuiltinSkillsDir();
-    const lines = builtinSkillsIndex.map((s) => `- ${s.name}: ${systemSkillsDir}/${s.name}/SKILL.md`);
+    const lines = builtinSkillsIndex.map((s) => `- ${s.name} (${s.description}): ${systemSkillsDir}/${s.name}/SKILL.md`);
     const skillsInstruction = `[Builtin Skills]
-The following builtin skills are available. Read the SKILL.md file to get instructions for a skill.
+The following builtin skills are available. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
 
 ${lines.join('\n')}`;
     instructions.push(skillsInstruction);
@@ -225,13 +225,29 @@ ${lines.join('\n')}`;
  * Enumerates enabled skill names so the agent knows exactly which skills exist
  * and where to find their SKILL.md files — mirroring the builtin skills instruction.
  */
-export function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): string {
-  const skillLines = enabledSkillNames && enabledSkillNames.length > 0 ? enabledSkillNames.map((name) => `- ${name}: ${skillsDir}/${name}/SKILL.md`).join('\n') : null;
+export async function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): Promise<string> {
+  // Warm the skill manager so hub/custom skill descriptions are available.
+  // discoverSkills() is idempotent — returns immediately if already initialized.
+  const skillManager = AcpSkillManager.getInstance();
+  await skillManager.discoverSkills(enabledSkillNames);
+  const descriptionMap = new Map<string, string>(
+    skillManager.getSkillsIndex().map((s: SkillIndex) => [s.name, s.description])
+  );
+
+  const skillLines =
+    enabledSkillNames && enabledSkillNames.length > 0
+      ? enabledSkillNames
+          .map((name) => {
+            const desc = descriptionMap.get(name);
+            return desc ? `- ${name} (${desc}): ${skillsDir}/${name}/SKILL.md` : `- ${name}: ${skillsDir}/${name}/SKILL.md`;
+          })
+          .join('\n')
+      : null;
 
   const hint = skillLines
     ? `[Skills Directory]
 Skills are installed at: ${skillsDir}
-Each skill has a SKILL.md file containing detailed instructions. To use a skill, read its SKILL.md file when needed.
+Each skill has a SKILL.md file containing detailed instructions. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
 
 Available workspace skills:
 ${skillLines}
