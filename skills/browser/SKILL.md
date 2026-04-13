@@ -5,10 +5,17 @@ description: "AI-native browser. Explore websites, discover page structure, take
 
 # Browser
 
-Each tool is a Python module: `python3 -m ai_dev_browser.tools.<name> --help`.
-
-List all available tools:
+## Quick Start
 
 ```bash
-python3 -c "import ai_dev_browser.tools as t, pkgutil; print('\n'.join(m.name for m in pkgutil.iter_modules(t.__path__) if not m.name.startswith('_')))"
+# Run any tool (auto-bootstraps on first use, only needs curl)
+~/sudowork/vendor/ai-dev-browser/adb <tool> [args]
+
+# List all available tools
+~/sudowork/vendor/ai-dev-browser/adb --list
+
+# Tool-specific help
+~/sudowork/vendor/ai-dev-browser/adb browser-start --help
 ```
+
+Tool names accept both hyphens (`page-find`) and underscores (`page_find`).
