@@ -39,6 +39,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
+import { detectChannelInfoCommands, executeChannelInfoCommand, stripChannelInfoCommands } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
@@ -1403,6 +1404,29 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.sendToConnection(feedbackMessage);
       }
       this.cronAccumulator.reset();
+    }
+
+    // Detect and process channel info commands
+    if (v.type === 'finish' && this.cronAccumulator.currentMsgContent) {
+      const channelInfoCommands = detectChannelInfoCommands(this.cronAccumulator.currentMsgContent);
+      if (channelInfoCommands.length > 0) {
+        const collectedResponses: string[] = [];
+        for (const cmd of channelInfoCommands) {
+          const result = await executeChannelInfoCommand(cmd);
+          collectedResponses.push(result);
+          const systemMessage: IResponseMessage = {
+            type: 'system',
+            conversation_id: this.conversation_id,
+            msg_id: uuid(),
+            data: result,
+          };
+          ipcBridge.acpConversation.responseStream.emit(systemMessage);
+        }
+        if (collectedResponses.length > 0) {
+          const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
+          await this.sendToConnection(feedbackMessage);
+        }
+      }
     }
 
     ipcBridge.acpConversation.responseStream.emit(v);
