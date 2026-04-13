@@ -339,7 +339,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     }
 
     return (
-      <div className='h-full w-full flex flex-col bg-bg-1'>
+      <div className='flex-1 min-h-0 w-full flex flex-col bg-bg-1'>
         {messageContextHolder}
 
         {!usePortalToolbar && !hideToolbar && (
@@ -365,7 +365,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
           </div>
         )}
 
-        <div className='flex-1 overflow-hidden'>
+        <div className='flex-1 min-h-0 overflow-hidden'>
           <MarkdownPreview content={markdown} hideToolbar />
         </div>
       </div>
