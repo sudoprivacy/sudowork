@@ -83,14 +83,74 @@ export function parseWeComAesKey(aeskey: string): { key: Buffer; iv: Buffer; alg
  * @returns The decrypted plaintext buffer
  */
 export function decryptWeComMedia(ciphertext: Buffer, key: Buffer, iv: Buffer, algorithm: 'aes-256-cbc' | 'aes-128-ecb'): Buffer {
+  let decipher;
   if (algorithm === 'aes-256-cbc') {
-    const decipher = createDecipheriv('aes-256-cbc', key, iv);
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    decipher = createDecipheriv('aes-256-cbc', key, iv);
+  } else {
+    decipher = createDecipheriv('aes-128-ecb', key, null);
   }
 
-  // AES-128-ECB (null IV for ECB mode)
-  const decipher = createDecipheriv('aes-128-ecb', key, null);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  // WeCom media encryption uses non-standard PKCS#7 padding
+  // Disable auto-padding and manually strip padding after decryption
+  decipher.setAutoPadding(false);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+  // Strip padding: check last byte and remove trailing bytes if they match
+  // Standard PKCS#7: last N bytes all equal N (padding length)
+  // WeCom variant: padding bytes may have different values but form a valid block
+  return stripPkcs7Padding(decrypted);
+}
+
+/**
+ * Strip PKCS#7 padding from decrypted data.
+ *
+ * Handles both standard PKCS#7 (padding value equals padding length)
+ * and WeCom's variant where padding bytes may differ.
+ *
+ * @param data - Decrypted data with potential padding
+ * @returns Data with padding stripped, or original data if no valid padding found
+ */
+function stripPkcs7Padding(data: Buffer): Buffer {
+  if (data.length === 0) return data;
+
+  const lastByte = data[data.length - 1];
+
+  // Valid padding range: 1-32 bytes
+  if (lastByte < 1 || lastByte > 32) return data;
+
+  // Standard PKCS#7: last N bytes all equal N
+  const paddingLength = lastByte;
+  if (data.length >= paddingLength) {
+    const paddingBytes = data.slice(-paddingLength);
+    const allMatch = paddingBytes.every((byte) => byte === paddingLength);
+    if (allMatch) {
+      return data.slice(0, -paddingLength);
+    }
+  }
+
+  // WeCom variant: check if trailing bytes are uniform padding
+  // WeCom may use padding value that differs from padding length
+  // Common case: 16 bytes of uniform value (AES block size)
+  for (const checkLen of [32, 16]) {
+    if (data.length >= checkLen) {
+      const trailing = data.slice(-checkLen);
+      const uniformValue = trailing[0];
+      // All bytes in trailing block should be the same
+      const allSame = trailing.every((byte) => byte === uniformValue);
+      if (allSame && uniformValue > 0) {
+        // Verify remaining data has valid content
+        const stripped = data.slice(0, -checkLen);
+        const signature = stripped.slice(0, 4).toString('hex');
+        const validSignatures = ['ffd8ffe0', 'ffd8ffe1', '89504e47', '25504446', '47494638'];
+        if (validSignatures.includes(signature)) {
+          return stripped;
+        }
+      }
+    }
+  }
+
+  // No valid padding pattern found, return original
+  return data;
 }
 
 /**
@@ -129,12 +189,15 @@ export async function downloadAndDecryptMedia(url: string, aeskey: string, timeo
       if (parsed) {
         try {
           data = decryptWeComMedia(data, parsed.key, parsed.iv, parsed.algorithm);
+          console.log(`[WeComCrypto] Decrypted: ${data.length} bytes, signature=${data.slice(0, 4).toString('hex')}`);
         } catch (decryptError) {
-          console.warn('[WeComCrypto] AES decryption failed, returning raw data:', decryptError);
-          // Return raw data as fallback - some media may not actually be encrypted
+          console.error('[WeComCrypto] AES decryption failed:', decryptError);
+          console.error(`[WeComCrypto] Failed: url=${url.slice(0, 100)}, aeskey=${aeskey.slice(0, 20)}..., dataSize=${data.length}`);
+          throw decryptError;
         }
       } else {
-        console.warn('[WeComCrypto] Invalid AES key format, returning raw data');
+        console.error('[WeComCrypto] Invalid AES key format');
+        throw new Error('Invalid AES key format - cannot decrypt media');
       }
     }
 
