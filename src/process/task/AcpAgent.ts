@@ -39,7 +39,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
-import { hasChannelInfoCommands, detectChannelInfoCommands, executeChannelInfoCommand, stripChannelInfoCommands } from './ChannelInfoDetector';
+import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
@@ -600,9 +600,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         return await this.handleImageCommand(imageMatch[1].trim(), data);
       }
 
-      // Intercept [CHANNEL_INFO] skill command
-      if (hasChannelInfoCommands(data.content)) {
-        return await this.handleChannelInfoCommand(data);
+      // Intercept channel query intent (natural language)
+      const channelQueryCommand = detectChannelQueryIntent(data.content);
+      if (channelQueryCommand) {
+        return await this.handleChannelQueryIntent(channelQueryCommand, data.msg_id);
       }
 
       const initStart = Date.now();
@@ -1417,27 +1418,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         }
       }
 
-      // Process channel info commands
-      const channelInfoCommands = detectChannelInfoCommands(savedContent);
-      if (channelInfoCommands.length > 0) {
-        const collectedResponses: string[] = [];
-        for (const cmd of channelInfoCommands) {
-          const result = await executeChannelInfoCommand(cmd);
-          collectedResponses.push(result);
-          const systemMessage: IResponseMessage = {
-            type: 'system',
-            conversation_id: this.conversation_id,
-            msg_id: uuid(),
-            data: result,
-          };
-          ipcBridge.acpConversation.responseStream.emit(systemMessage);
-        }
-        if (collectedResponses.length > 0) {
-          const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
-          await this.sendToConnection(feedbackMessage);
-        }
-      }
-
       // Reset accumulator AFTER all command processing
       this.cronAccumulator.reset();
     }
@@ -1841,7 +1821,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     return { success: true, data: null };
   }
 
-  private async handleChannelInfoCommand(data: { content: string; msg_id?: string }): Promise<AcpResult> {
+  private async handleChannelQueryIntent(command: ChannelQueryCommand, msg_id?: string): Promise<AcpResult> {
     const responseMsgId = uuid();
 
     ipcBridge.acpConversation.responseStream.emit({
@@ -1852,19 +1832,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     });
 
     try {
-      const commands = detectChannelInfoCommands(data.content);
-      const results: string[] = [];
-
-      for (const cmd of commands) {
-        const result = await executeChannelInfoCommand(cmd);
-        results.push(result);
-      }
+      const result = await executeChannelInfoCommand(command);
 
       const contentMsg = {
         type: 'content' as const,
         conversation_id: this.conversation_id,
         msg_id: responseMsgId,
-        data: results.join('\n\n'),
+        data: result,
       };
       ipcBridge.acpConversation.responseStream.emit(contentMsg);
       ipcBridge.conversation.responseStream.emit(contentMsg);
@@ -1872,7 +1846,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      mainError('[AcpAgent]', `Channel info command failed: ${msg}`);
+      mainError('[AcpAgent]', `Channel query failed: ${msg}`);
       ipcBridge.acpConversation.responseStream.emit({
         type: 'content',
         conversation_id: this.conversation_id,

@@ -11,135 +11,152 @@ vi.mock('@/process/database', () => ({
   getDatabase: vi.fn(),
 }));
 
-import { detectChannelInfoCommands, hasChannelInfoCommands, stripChannelInfoCommands } from '@/process/task/ChannelInfoDetector';
+import { detectChannelQueryIntent } from '@/process/task/ChannelInfoDetector';
 
 describe('ChannelInfoDetector', () => {
-  describe('detectChannelInfoCommands', () => {
-    it('should detect [CHANNEL_INFO] command', () => {
-      const content = 'Let me check the channels.\n[CHANNEL_INFO]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({ kind: 'list' });
+  describe('detectChannelQueryIntent', () => {
+    describe('特定渠道查询', () => {
+      it('should detect "wechat配置了吗"', () => {
+        const result = detectChannelQueryIntent('wechat配置了吗');
+        expect(result).toEqual({ kind: 'query', channelType: 'wechat' });
+      });
+
+      it('should detect "微信的渠道状态"', () => {
+        const result = detectChannelQueryIntent('微信的渠道状态');
+        expect(result).toEqual({ kind: 'query', channelType: 'wechat' });
+      });
+
+      it('should detect "telegram是否启用"', () => {
+        const result = detectChannelQueryIntent('telegram是否启用');
+        expect(result).toEqual({ kind: 'query', channelType: 'telegram' });
+      });
+
+      it('should detect "tg的连接情况"', () => {
+        const result = detectChannelQueryIntent('tg的连接情况');
+        expect(result).toEqual({ kind: 'query', channelType: 'telegram' });
+      });
+
+      it('should detect "飞书有没有配置"', () => {
+        const result = detectChannelQueryIntent('飞书有没有配置');
+        expect(result).toEqual({ kind: 'query', channelType: 'lark' });
+      });
+
+      it('should detect "lark status"', () => {
+        const result = detectChannelQueryIntent('lark status');
+        expect(result).toEqual({ kind: 'query', channelType: 'lark' });
+      });
+
+      it('should detect "钉钉的设置信息"', () => {
+        const result = detectChannelQueryIntent('钉钉的设置信息');
+        expect(result).toEqual({ kind: 'query', channelType: 'dingtalk' });
+      });
+
+      it('should detect "企业微信状态怎么样"', () => {
+        const result = detectChannelQueryIntent('企业微信状态怎么样');
+        expect(result).toEqual({ kind: 'query', channelType: 'wecom' });
+      });
+
+      it('should detect "禅道连接是否正常"', () => {
+        const result = detectChannelQueryIntent('禅道连接是否正常');
+        expect(result).toEqual({ kind: 'query', channelType: 'zentao' });
+      });
+
+      it('should be case insensitive', () => {
+        const result = detectChannelQueryIntent('WECHAT配置');
+        expect(result).toEqual({ kind: 'query', channelType: 'wechat' });
+      });
     });
 
-    it('should detect [CHANNEL_INFO: wechat] command', () => {
-      const content = 'Check WeChat status.\n[CHANNEL_INFO: wechat]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({ kind: 'query', channelType: 'wechat' });
+    describe('查询所有渠道', () => {
+      it('should detect "有哪些渠道可用"', () => {
+        const result = detectChannelQueryIntent('有哪些渠道可用');
+        expect(result).toEqual({ kind: 'list' });
+      });
+
+      it('should detect "所有渠道"', () => {
+        const result = detectChannelQueryIntent('所有渠道');
+        expect(result).toEqual({ kind: 'list' });
+      });
+
+      it('should detect "全部渠道信息"', () => {
+        const result = detectChannelQueryIntent('全部渠道信息');
+        expect(result).toEqual({ kind: 'list' });
+      });
+
+      it('should detect "渠道列表"', () => {
+        const result = detectChannelQueryIntent('渠道列表');
+        expect(result).toEqual({ kind: 'list' });
+      });
+
+      it('should detect "all channels"', () => {
+        const result = detectChannelQueryIntent('all channels');
+        expect(result).toEqual({ kind: 'list' });
+      });
     });
 
-    it('should detect [CHANNEL_INFO: telegram] command', () => {
-      const content = '[CHANNEL_INFO: telegram]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({ kind: 'query', channelType: 'telegram' });
+    describe('排除场景', () => {
+      it('should return null for "我想关闭wechat"', () => {
+        const result = detectChannelQueryIntent('我想关闭wechat');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for "不用微信"', () => {
+        const result = detectChannelQueryIntent('不用微信');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for "禁用telegram"', () => {
+        const result = detectChannelQueryIntent('禁用telegram');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for "删除钉钉配置"', () => {
+        const result = detectChannelQueryIntent('删除钉钉配置');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for "关闭飞书"', () => {
+        const result = detectChannelQueryIntent('关闭飞书');
+        expect(result).toBeNull();
+      });
+
+      it('should return null for "disable wechat"', () => {
+        const result = detectChannelQueryIntent('disable wechat');
+        expect(result).toBeNull();
+      });
     });
 
-    it('should ignore commands in code blocks', () => {
-      const content = 'Example:\n```[CHANNEL_INFO]```';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(0);
-    });
+    describe('不匹配场景', () => {
+      it('should return null for "[CHANNEL_INFO]" command format', () => {
+        const result = detectChannelQueryIntent('[CHANNEL_INFO]');
+        expect(result).toBeNull();
+      });
 
-    it('should handle empty content', () => {
-      expect(detectChannelInfoCommands('')).toHaveLength(0);
-      expect(detectChannelInfoCommands(null as any)).toHaveLength(0);
-      expect(detectChannelInfoCommands(undefined as any)).toHaveLength(0);
-    });
+      it('should return null for "[CHANNEL_INFO: wechat]" command format', () => {
+        const result = detectChannelQueryIntent('[CHANNEL_INFO: wechat]');
+        expect(result).toBeNull();
+      });
 
-    it('should ignore invalid channel types', () => {
-      const content = '[CHANNEL_INFO: invalid_type]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(0);
-    });
+      it('should return null for "wechat" without query indicators', () => {
+        const result = detectChannelQueryIntent('wechat');
+        expect(result).toBeNull();
+      });
 
-    it('should handle multiple commands in same content', () => {
-      // Implementation prioritizes specific query over list
-      const content = '[CHANNEL_INFO: telegram]\n[CHANNEL_INFO: wechat]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands.length).toBeGreaterThan(0);
-    });
+      it('should return null for "我喜欢用微信"', () => {
+        const result = detectChannelQueryIntent('我喜欢用微信');
+        expect(result).toBeNull();
+      });
 
-    it('should detect all valid channel types', () => {
-      const validTypes = ['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao'];
-      for (const type of validTypes) {
-        const content = `[CHANNEL_INFO: ${type}]`;
-        const commands = detectChannelInfoCommands(content);
-        expect(commands).toHaveLength(1);
-        expect(commands[0]).toEqual({ kind: 'query', channelType: type });
-      }
-    });
+      it('should return null for "普通聊天内容"', () => {
+        const result = detectChannelQueryIntent('普通聊天内容');
+        expect(result).toBeNull();
+      });
 
-    it('should be case insensitive for command detection', () => {
-      const content = '[channel_info: TELEGRAM]';
-      const commands = detectChannelInfoCommands(content);
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({ kind: 'query', channelType: 'telegram' });
-    });
-
-    it('should not detect list command when specific query is present', () => {
-      const content = '[CHANNEL_INFO]\n[CHANNEL_INFO: telegram]';
-      const commands = detectChannelInfoCommands(content);
-      // Only specific query is detected, not list
-      expect(commands.some((c) => c.kind === 'query')).toBe(true);
-      expect(commands.some((c) => c.kind === 'list')).toBe(false);
-    });
-  });
-
-  describe('hasChannelInfoCommands', () => {
-    it('should return true for content with commands', () => {
-      expect(hasChannelInfoCommands('[CHANNEL_INFO]')).toBe(true);
-      expect(hasChannelInfoCommands('[CHANNEL_INFO: telegram]')).toBe(true);
-      expect(hasChannelInfoCommands('Some text [CHANNEL_INFO] more text')).toBe(true);
-    });
-
-    it('should return false for content without commands', () => {
-      expect(hasChannelInfoCommands('Hello world')).toBe(false);
-      expect(hasChannelInfoCommands('')).toBe(false);
-      expect(hasChannelInfoCommands(null as any)).toBe(false);
-    });
-
-    it('should be case insensitive', () => {
-      expect(hasChannelInfoCommands('[channel_info]')).toBe(true);
-      expect(hasChannelInfoCommands('[CHANNEL_INFO]')).toBe(true);
-    });
-  });
-
-  describe('stripChannelInfoCommands', () => {
-    it('should remove [CHANNEL_INFO] from content', () => {
-      const content = 'Check channels [CHANNEL_INFO] and more text';
-      const stripped = stripChannelInfoCommands(content);
-      expect(stripped).toBe('Check channels  and more text');
-    });
-
-    it('should remove [CHANNEL_INFO: type] from content', () => {
-      const content = 'Check [CHANNEL_INFO: telegram] now';
-      const stripped = stripChannelInfoCommands(content);
-      expect(stripped).toBe('Check  now');
-    });
-
-    it('should handle multiple commands', () => {
-      const content = '[CHANNEL_INFO] text [CHANNEL_INFO: telegram]';
-      const stripped = stripChannelInfoCommands(content);
-      expect(stripped).toBe('text');
-    });
-
-    it('should handle empty content', () => {
-      expect(stripChannelInfoCommands('')).toBe('');
-      expect(stripChannelInfoCommands(null as any)).toBe(null);
-    });
-
-    it('should collapse excessive newlines', () => {
-      const content = 'text\n\n\n\n[CHANNEL_INFO]\n\n\n\nmore text';
-      const stripped = stripChannelInfoCommands(content);
-      expect(stripped).not.toContain('\n\n\n');
-    });
-
-    it('should be case insensitive when stripping', () => {
-      const content = '[channel_info] and [CHANNEL_INFO: TELEGRAM]';
-      const stripped = stripChannelInfoCommands(content);
-      expect(stripped).toBe('and');
+      it('should return null for empty content', () => {
+        expect(detectChannelQueryIntent('')).toBeNull();
+        expect(detectChannelQueryIntent(null as any)).toBeNull();
+        expect(detectChannelQueryIntent(undefined as any)).toBeNull();
+      });
     });
   });
 });

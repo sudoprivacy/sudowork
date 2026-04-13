@@ -5,95 +5,98 @@
  */
 
 import { getDatabase } from '@/process/database';
+import type { IChannelPluginStatus } from '@/channels/types';
+import { hasPluginCredentials } from '@/channels/types';
 
 /**
- * Channel info command types detected from agent message content
+ * 渠道关键词映射（按优先级排序，更具体的关键词在前）
+ * 例如："企业微信"应该在"微信"之前匹配
  */
-export type ChannelInfoCommand =
-  | { kind: 'list' }  // List all channels
-  | { kind: 'query'; channelType: string }; // Query specific channel
+const CHANNEL_KEYWORDS: Array<{ keyword: string; channelType: string }> = [
+  // 企业微信 (更具体，需要先匹配)
+  { keyword: '企业微信', channelType: 'wecom' },
+  { keyword: 'wecom', channelType: 'wecom' },
+  // 微信
+  { keyword: 'wechat', channelType: 'wechat' },
+  { keyword: '微信', channelType: 'wechat' },
+  // Telegram
+  { keyword: 'telegram', channelType: 'telegram' },
+  { keyword: 'tg', channelType: 'telegram' },
+  // 飞书
+  { keyword: '飞书', channelType: 'lark' },
+  { keyword: 'lark', channelType: 'lark' },
+  // 钉钉
+  { keyword: '钉钉', channelType: 'dingtalk' },
+  { keyword: 'dingtalk', channelType: 'dingtalk' },
+  // 禅道
+  { keyword: '禅道', channelType: 'zentao' },
+  { keyword: 'zentao', channelType: 'zentao' },
+];
 
 /**
- * Remove markdown code blocks from content to avoid detecting commands in examples
+ * 问题关键词（表示用户想查询状态）
  */
-function stripCodeBlocks(content: string): string {
-  return content.replace(/```[\s\S]*?```/g, '');
-}
+const QUERY_INDICATORS = ['配置', '状态', '连接', '启用', '开通', '设置', '是否', '有没有', '怎么样', '信息', '情况', 'configured', 'status', 'enabled', 'connected'];
 
 /**
- * Detect channel info commands in message content
+ * 排除关键词（避免误拦截）
+ */
+const EXCLUSION_PATTERNS = ['不用', '不想', '关闭', '禁用', '删除', '取消', 'disable', 'remove', 'delete', '关闭微信', '关闭wechat'];
+
+/**
+ * 渠道查询命令类型
+ */
+export type ChannelQueryCommand =
+  | { kind: 'list' } // 查询所有渠道
+  | { kind: 'query'; channelType: string }; // 查询特定渠道
+
+/**
+ * 检测用户消息中的渠道查询意图
  *
- * Supported formats:
- * - [CHANNEL_INFO] - List all channel statuses
- * - [CHANNEL_INFO: telegram] - Query specific channel type
- *
- * @param content - The text content to scan
- * @returns Array of detected commands
+ * @param userMessage - 用户输入的消息内容
+ * @returns 查询命令，如果未检测到则返回 null
  */
-export function detectChannelInfoCommands(content: string): ChannelInfoCommand[] {
-  if (!content || typeof content !== 'string') {
-    return [];
+export function detectChannelQueryIntent(userMessage: string): ChannelQueryCommand | null {
+  if (!userMessage || typeof userMessage !== 'string') {
+    return null;
   }
 
-  const cleanContent = stripCodeBlocks(content);
-  const commands: ChannelInfoCommand[] = [];
+  const lowerMsg = userMessage.toLowerCase();
 
-  // Detect [CHANNEL_INFO: xxx] - specific channel query
-  const specificMatches = cleanContent.matchAll(/\[CHANNEL_INFO:\s*([^\]]+)\]/gi);
-  for (const match of specificMatches) {
-    const channelType = match[1].trim().toLowerCase();
-    // Validate channel type
-    const validTypes = ['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao'];
-    if (channelType && validTypes.includes(channelType)) {
-      commands.push({ kind: 'query', channelType });
+  // 排除场景：用户想关闭/删除/禁用渠道
+  if (EXCLUSION_PATTERNS.some((p) => lowerMsg.includes(p.toLowerCase()))) {
+    return null;
+  }
+
+  // 检测"所有渠道"查询
+  const queryAllPatterns = ['所有渠道', '哪些渠道', '全部渠道', 'all channels', '渠道列表', '渠道信息'];
+  if (queryAllPatterns.some((p) => lowerMsg.includes(p.toLowerCase()))) {
+    return { kind: 'list' };
+  }
+
+  // 检测特定渠道查询（按优先级顺序）
+  for (const { keyword, channelType } of CHANNEL_KEYWORDS) {
+    if (lowerMsg.includes(keyword.toLowerCase())) {
+      // 检查是否有问题关键词
+      const hasQueryIntent = QUERY_INDICATORS.some((indicator) => lowerMsg.includes(indicator.toLowerCase()));
+      if (hasQueryIntent) {
+        return { kind: 'query', channelType };
+      }
     }
   }
 
-  // Detect [CHANNEL_INFO] - list all (if no specific query found)
-  if (commands.length === 0 && /\[CHANNEL_INFO\]/i.test(cleanContent)) {
-    commands.push({ kind: 'list' });
-  }
-
-  return commands;
+  return null;
 }
 
 /**
- * Check if content contains any channel info commands
+ * 格式化渠道状态显示
+ * 移除敏感凭据信息
  */
-export function hasChannelInfoCommands(content: string): boolean {
-  if (!content || typeof content !== 'string') {
-    return false;
-  }
-  return /\[CHANNEL_INFO/i.test(content);
-}
-
-/**
- * Strip channel info command blocks from content
- * Used to create clean display version for UI
- */
-export function stripChannelInfoCommands(content: string): string {
-  if (!content || typeof content !== 'string') {
-    return content;
-  }
-
-  return content
-    .replace(/\[CHANNEL_INFO:[^\]]+\]/gi, '')
-    .replace(/\[CHANNEL_INFO\]/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-/**
- * Format channel status for display
- * Removes sensitive credential information
- */
-export function formatChannelStatus(status: import('@/channels/types').IChannelPluginStatus): string {
+export function formatChannelStatus(status: IChannelPluginStatus): string {
   const enabledIcon = status.enabled ? '✅' : '❌';
   const connectedIcon = status.connected ? '✅' : '❌';
   const hasTokenIcon = status.hasToken ? '✅' : '⚠️';
-  const lastConnected = status.lastConnected
-    ? new Date(status.lastConnected).toISOString()
-    : '从未连接';
+  const lastConnected = status.lastConnected ? new Date(status.lastConnected).toLocaleString('zh-CN') : '从未连接';
 
   return `
 📡 **${status.name}** (${status.type})
@@ -106,9 +109,9 @@ export function formatChannelStatus(status: import('@/channels/types').IChannelP
 }
 
 /**
- * Execute channel info command and return formatted result
+ * 执行渠道查询命令并返回格式化结果
  */
-export async function executeChannelInfoCommand(command: ChannelInfoCommand): Promise<string> {
+export async function executeChannelInfoCommand(command: ChannelQueryCommand): Promise<string> {
   try {
     const db = getDatabase();
     const result = db.getChannelPlugins();
@@ -119,17 +122,20 @@ export async function executeChannelInfoCommand(command: ChannelInfoCommand): Pr
 
     let channels = result.data;
 
-    // Filter by channel type if specified
+    // 按渠道类型过滤
     if (command.kind === 'query') {
-      channels = channels.filter(c => c.type === command.channelType);
+      channels = channels.filter((c) => c.type === command.channelType);
       if (channels.length === 0) {
-        return `❌ 未找到渠道类型: ${command.channelType}`;
+        const validTypes = ['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao'];
+        if (!validTypes.includes(command.channelType)) {
+          return `❌ 不支持的渠道类型: ${command.channelType}\n支持的渠道: telegram, lark, dingtalk, wechat, wecom, zentao`;
+        }
+        return `❌ 未找到 ${command.channelType} 渠道配置`;
       }
     }
 
-    // Map to status objects (use existing hasPluginCredentials from types)
-    const { hasPluginCredentials } = await import('@/channels/types');
-    const statuses: import('@/channels/types').IChannelPluginStatus[] = channels.map(config => ({
+    // 构建状态对象
+    const statuses: IChannelPluginStatus[] = channels.map((config) => ({
       id: config.id,
       type: config.type,
       name: config.name,
@@ -142,7 +148,7 @@ export async function executeChannelInfoCommand(command: ChannelInfoCommand): Pr
       isExtension: false,
     }));
 
-    // Format output
+    // 格式化输出
     const lines = statuses.map(formatChannelStatus);
 
     if (command.kind === 'query') {
