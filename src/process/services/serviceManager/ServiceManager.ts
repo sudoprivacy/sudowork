@@ -361,6 +361,10 @@ export class ServiceManager {
       // whether config was manually modified, or whether repair was skipped.
       repairOpenClawConfig();
 
+      // Clean up stale keys that the gateway schema doesn't recognize,
+      // BEFORE the gateway starts and validates the config.
+      this.cleanSudoclawConfig(SUDOCLAW_CONFIG_PATH);
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -399,6 +403,33 @@ export class ServiceManager {
     }
   }
 
+  /** Remove keys from sudoclaw.json that the gateway schema doesn't recognize. */
+  private cleanSudoclawConfig(sudoclawConfigPath: string): void {
+    try {
+      if (!fs.existsSync(sudoclawConfigPath)) return;
+      const raw = fs.readFileSync(sudoclawConfigPath, 'utf-8');
+      const config = JSON.parse(raw);
+      let dirty = false;
+
+      // "imageAnalysisModel" was renamed to "imageModel" in the gateway schema
+      if (config.agents?.defaults?.imageAnalysisModel !== undefined) {
+        // Preserve value → imageModel if imageModel is not already set
+        if (config.agents.defaults.imageModel === undefined) {
+          config.agents.defaults.imageModel = config.agents.defaults.imageAnalysisModel;
+        }
+        delete config.agents.defaults.imageAnalysisModel;
+        dirty = true;
+      }
+
+      if (dirty) {
+        fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+        mainLog('ServiceManager', 'Cleaned unrecognized keys from sudoclaw.json');
+      }
+    } catch (err) {
+      mainWarn('ServiceManager', 'Failed to clean sudoclaw.json', err);
+    }
+  }
+
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
       const { ProcessConfig } = await import('@/process/initStorage');
@@ -431,8 +462,8 @@ export class ServiceManager {
         return modelId.includes('/') ? modelId : `${provider}/${modelId}`;
       };
 
-      // Sync parsing model (看图) → agents.defaults.imageAnalysisModel (read by gateway)
-      config.agents.defaults.imageAnalysisModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
+      // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
+      config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
 
       // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
       config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
