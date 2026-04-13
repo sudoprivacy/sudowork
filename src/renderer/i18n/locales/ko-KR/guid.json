@@ -52,6 +52,7 @@
       "compareContent": "...와 ...의 차이점을 원리, 장단점, 적용 사례 등의 관점에서 분석해 주세요"
     }
   },
+  "trySuggestionPrompts": "클릭하여 사용해 볼 수 있는 예시 프롬프트:",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "사용 가능한 메인 에이전트가 없습니다. Google에 로그인하거나 Claude/Codex CLI를 설치해 주세요. 설정으로 이동하시겠습니까?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

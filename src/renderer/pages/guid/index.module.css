@@ -6,6 +6,30 @@
   margin: 0 auto;
 }
 
+/* Selected assistant header: back + avatar + name + edit + agent dropdown */
+.assistantHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 12px;
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Selected assistant description text */
+.assistantDescription {
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-2);
+  background: var(--color-fill-1);
+  border: 1px solid var(--color-border-2);
+  animation: fade-in 0.3s ease-out;
+}
+
 .guidInputCard {
   width: 100%;
   box-sizing: border-box;

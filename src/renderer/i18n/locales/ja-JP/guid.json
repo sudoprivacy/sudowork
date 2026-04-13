@@ -52,6 +52,7 @@
       "compareContent": "...と...の違いを、原理、メリット・デメリット、適用場面などの観点から分析してください"
     }
   },
+  "trySuggestionPrompts": "クリックして試せるサンプルプロンプト：",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "メインエージェントが利用できません。Google にログインするか、Claude/Codex CLI をインストールしてください。設定へ移動しますか？",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",
