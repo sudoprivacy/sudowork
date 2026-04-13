@@ -677,7 +677,13 @@ class DynamicNexusService {
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      mainLog('Nexus:stdout', d.toString().trim());
+      const msg = d.toString().trim();
+      if (!msg) return;
+      // Filter out verbose HTTP INFO logs from Nexus/uvicorn (request_completed, correlation_id)
+      if (msg.includes('request_completed') || msg.includes('INFO:') && (msg.includes('"POST') || msg.includes('"GET') || msg.includes('"PUT') || msg.includes('"DELETE'))) {
+        return; // Skip verbose HTTP request logs
+      }
+      mainLog('Nexus:stdout', msg);
     });
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
