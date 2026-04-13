@@ -39,7 +39,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
-import { detectChannelInfoCommands, executeChannelInfoCommand, stripChannelInfoCommands } from './ChannelInfoDetector';
+import { hasChannelInfoCommands, detectChannelInfoCommands, executeChannelInfoCommand, stripChannelInfoCommands } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
@@ -598,6 +598,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
       if (imageMatch !== null) {
         return await this.handleImageCommand(imageMatch[1].trim(), data);
+      }
+
+      // Intercept [CHANNEL_INFO] skill command
+      if (hasChannelInfoCommands(data.content)) {
+        return await this.handleChannelInfoCommand(data);
       }
 
       const initStart = Date.now();
@@ -1814,6 +1819,57 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         conversation_id: this.conversation_id,
         msg_id: responseMsgId,
         data: `图像处理失败: ${msg}`,
+      });
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  private async handleChannelInfoCommand(data: { content: string; msg_id?: string }): Promise<AcpResult> {
+    const responseMsgId = uuid();
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+
+    try {
+      const commands = detectChannelInfoCommands(data.content);
+      const results: string[] = [];
+
+      for (const cmd of commands) {
+        const result = await executeChannelInfoCommand(cmd);
+        results.push(result);
+      }
+
+      const contentMsg = {
+        type: 'content' as const,
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: results.join('\n\n'),
+      };
+      ipcBridge.acpConversation.responseStream.emit(contentMsg);
+      ipcBridge.conversation.responseStream.emit(contentMsg);
+      const tMessage = transformMessage(contentMsg);
+      if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Channel info command failed: ${msg}`);
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: `获取渠道信息失败: ${msg}`,
       });
     }
 
