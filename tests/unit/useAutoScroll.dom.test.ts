@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAutoScroll } from '../../src/renderer/messages/useAutoScroll';
-import type { TMessage, IMessageText } from '../../src/common/chatLib';
+import type { TMessage, IMessageText, IMessageToolGroup } from '../../src/common/chatLib';
 
 // Mock VirtuosoHandle
 const createMockVirtuosoHandle = () => ({
@@ -177,5 +177,181 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
 
     // When not at bottom, should return false
     expect(result.current.handleFollowOutput(false)).toBe(false);
+  });
+});
+
+describe('useAutoScroll - tool call auto-follow (#306)', () => {
+  let mockVirtuosoHandle: ReturnType<typeof createMockVirtuosoHandle>;
+
+  beforeEach(() => {
+    mockVirtuosoHandle = createMockVirtuosoHandle();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  const createTextMessage = (position: 'left' | 'right', id: string): IMessageText => ({
+    id,
+    msg_id: id,
+    type: 'text',
+    position,
+    conversation_id: 'test-conv',
+    content: { content: 'test message' },
+    createdAt: Date.now(),
+  });
+
+  const createToolGroupMessage = (id: string, description = 'running'): IMessageToolGroup => ({
+    id,
+    msg_id: id,
+    type: 'tool_group',
+    position: 'left',
+    conversation_id: 'test-conv',
+    content: [
+      {
+        callId: `call-${id}`,
+        description,
+        name: 'run_shell_command',
+        renderOutputAsMarkdown: false,
+        status: 'Executing',
+      },
+    ],
+    createdAt: Date.now(),
+  });
+
+  it('should auto-scroll to bottom when a tool_group message is appended', async () => {
+    const initial: TMessage[] = [createTextMessage('right', 'u1')];
+
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 1 } });
+
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    // Flush the scroll-to-top that happens on user send so we can assert on the
+    // tool-call scroll independently.
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    mockVirtuosoHandle.scrollToIndex.mockClear();
+
+    // AI now starts a tool call — this is a NEW left-position message.
+    const withTool: TMessage[] = [...initial, createToolGroupMessage('t1')];
+    rerender({ messages: withTool, itemCount: 2 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 1,
+        align: 'end',
+        behavior: 'auto',
+      })
+    );
+  });
+
+  it('should auto-scroll on in-place tool_group content updates (streaming output)', async () => {
+    const userMsg = createTextMessage('right', 'u1');
+    const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
+
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    mockVirtuosoHandle.scrollToIndex.mockClear();
+
+    // Tool call content grows in place (same length, same id, new reference).
+    // This simulates streaming stdout where only the last message's content updates.
+    const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2\nstep 3')];
+    rerender({ messages: updated, itemCount: 2 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // Should still scroll even though list length did not change — this is the
+    // key behavior that was missing before the fix.
+    expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 1,
+        align: 'end',
+        behavior: 'auto',
+      })
+    );
+  });
+
+  it('should NOT auto-scroll during tool call streaming if user scrolled up', async () => {
+    const userMsg = createTextMessage('right', 'u1');
+    const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
+
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    mockVirtuosoHandle.scrollToIndex.mockClear();
+
+    // Simulate user scrolling up: first establish a high scrollTop, then scroll up by > 10px.
+    // The programmatic-scroll guard is 150ms; advance past it first.
+    act(() => {
+      vi.advanceTimersByTime(200);
+      result.current.handleScroll({ target: { scrollTop: 500 } } as unknown as React.UIEvent<HTMLDivElement>);
+      result.current.handleScroll({ target: { scrollTop: 100 } } as unknown as React.UIEvent<HTMLDivElement>);
+    });
+
+    // Tool output streams in — should NOT auto-scroll because user is reading history
+    const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2')];
+    rerender({ messages: updated, itemCount: 2 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    expect(mockVirtuosoHandle.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('should resume auto-scroll after user scrolls back to bottom', async () => {
+    const userMsg = createTextMessage('right', 'u1');
+    const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
+
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // User scrolls up
+    act(() => {
+      vi.advanceTimersByTime(200);
+      result.current.handleScroll({ target: { scrollTop: 500 } } as unknown as React.UIEvent<HTMLDivElement>);
+      result.current.handleScroll({ target: { scrollTop: 100 } } as unknown as React.UIEvent<HTMLDivElement>);
+    });
+
+    // User scrolls back to bottom (Virtuoso reports atBottom)
+    act(() => {
+      result.current.handleAtBottomStateChange(true);
+    });
+
+    mockVirtuosoHandle.scrollToIndex.mockClear();
+
+    // More streaming content arrives
+    const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2')];
+    rerender({ messages: updated, itemCount: 2 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // Auto-scroll should have resumed
+    expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(expect.objectContaining({ align: 'end' }));
   });
 });
