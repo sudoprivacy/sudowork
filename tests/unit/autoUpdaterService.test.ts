@@ -32,6 +32,7 @@ vi.mock('electron-updater', () => ({
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
     checkForUpdatesAndNotify: vi.fn(),
+    setFeedURL: vi.fn(),
   },
 }));
 

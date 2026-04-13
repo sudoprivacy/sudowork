@@ -102,7 +102,7 @@ function generatePotentialAcpClis(): PotentialAcpCli[] {
       // 排除没有 CLI 命令的后端（gemini 内置，custom 用户配置）
       // Exclude backends without CLI command (gemini is built-in, custom is user-configured)
       if (!config.cliCommand) return false;
-      if (id === 'gemini' || id === 'custom') return false;
+      if (id === 'custom') return false;
       return config.enabled;
     })
     .map(([id, config]) => ({
@@ -324,7 +324,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Google CLI',
     cliCommand: 'gemini',
     authRequired: true,
-    enabled: false,
+    enabled: true, // ✅ 内置 Gemini 后端，使用 `gemini` 命令启动（无需安装 CLI）
     supportsStreaming: true,
   },
   qwen: {
@@ -333,7 +333,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'qwen',
     defaultCliPath: 'npx @qwen-code/qwen-code',
     authRequired: true,
-    enabled: true, // ✅ 已验证支持：Qwen CLI v0.0.10+ 支持 --acp
+    enabled: false, // ✅ 已验证支持：Qwen CLI v0.0.10+ 支持 --acp
     supportsStreaming: true,
     acpArgs: ['--acp'], // Use --acp instead of deprecated --experimental-acp
   },
@@ -342,7 +342,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'iFlow CLI',
     cliCommand: 'iflow',
     authRequired: true,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
   },
   codex: {
@@ -351,7 +351,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'codex', // Detect local codex CLI (codex-acp bridge invokes it)
     defaultCliPath: `npx ${CODEX_ACP_NPX_PACKAGE}`,
     authRequired: true, // Needs OPENAI_API_KEY or ChatGPT auth
-    enabled: true, // ✅ Codex via codex-acp ACP bridge
+    enabled: false, // ✅ Codex via codex-acp ACP bridge
     supportsStreaming: false,
     acpArgs: [], // codex-acp is ACP by default, no flag needed
   },
@@ -361,7 +361,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'codebuddy',
     defaultCliPath: `npx ${CODEBUDDY_ACP_NPX_PACKAGE}`,
     authRequired: true,
-    enabled: true, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
+    enabled: false, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // codebuddy 使用 --acp flag
   },
@@ -370,7 +370,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Goose',
     cliCommand: 'goose',
     authRequired: false,
-    enabled: true, // ✅ Block's Goose CLI，使用 `goose acp` 启动
+    enabled: false, // ✅ Block's Goose CLI，使用 `goose acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // goose 使用子命令而非 flag
   },
@@ -379,7 +379,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Augment Code',
     cliCommand: 'auggie',
     authRequired: false,
-    enabled: true, // ✅ Augment Code CLI，使用 `auggie --acp` 启动
+    enabled: false, // ✅ Augment Code CLI，使用 `auggie --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // auggie 使用 --acp flag
   },
@@ -388,7 +388,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Kimi CLI',
     cliCommand: 'kimi',
     authRequired: false,
-    enabled: true, // ✅ Kimi CLI (Moonshot)，使用 `kimi acp` 启动
+    enabled: false, // ✅ Kimi CLI (Moonshot)，使用 `kimi acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // kimi 使用 acp 子命令
   },
@@ -397,7 +397,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'OpenCode',
     cliCommand: 'opencode',
     authRequired: false,
-    enabled: true, // ✅ OpenCode CLI，使用 `opencode acp` 启动
+    enabled: false, // ✅ OpenCode CLI，使用 `opencode acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // opencode 使用 acp 子命令
   },
@@ -407,7 +407,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'droid',
     // Droid uses FACTORY_API_KEY from environment, not an interactive auth flow.
     authRequired: false,
-    enabled: true, // ✅ Factory docs: `droid exec --output-format acp` (JetBrains/Zed ACP integration)
+    enabled: false, // ✅ Factory docs: `droid exec --output-format acp` (JetBrains/Zed ACP integration)
     supportsStreaming: false,
     acpArgs: ['exec', '--output-format', 'acp'],
   },
@@ -416,7 +416,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'GitHub Copilot',
     cliCommand: 'copilot',
     authRequired: false,
-    enabled: true, // ✅ GitHub Copilot CLI，使用 `copilot --acp --stdio` 启动
+    enabled: false, // ✅ GitHub Copilot CLI，使用 `copilot --acp --stdio` 启动
     supportsStreaming: false,
     acpArgs: ['--acp', '--stdio'], // copilot 使用 --acp --stdio 启动 ACP mode
   },
@@ -425,7 +425,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Qoder CLI',
     cliCommand: 'qodercli',
     authRequired: false,
-    enabled: true, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
+    enabled: false, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // qoder 使用 --acp flag
   },
@@ -434,7 +434,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Mistral Vibe',
     cliCommand: 'vibe-acp',
     authRequired: false,
-    enabled: true, // ✅ Mistral Vibe CLI，使用 `vibe-acp` 启动
+    enabled: false, // ✅ Mistral Vibe CLI，使用 `vibe-acp` 启动
     supportsStreaming: false,
     acpArgs: [],
   },
@@ -452,7 +452,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Nano Bot',
     cliCommand: 'nanobot',
     authRequired: false,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
   },
   custom: {
@@ -460,7 +460,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Custom Agent',
     cliCommand: undefined, // User-configured via settings
     authRequired: false,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
   },
 };

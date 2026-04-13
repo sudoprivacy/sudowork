@@ -9,7 +9,7 @@ import type { AvailableAgent } from './types';
 export const AVAILABLE_AGENTS_SWR_KEY = 'acp.agents.available';
 
 export function filterAvailableAgentsForUi(availableAgents: AvailableAgent[]): AvailableAgent[] {
-  return availableAgents.filter((agent) => !(agent.backend === 'gemini' && agent.cliPath));
+  return availableAgents;
 }
 
 export function splitConversationDropdownAgents(availableAgents: AvailableAgent[]): {

@@ -744,14 +744,15 @@ const DagCardList: React.FC<{
 
 export interface TaskPanelProps {
   workspaceFiles?: IDirOrFile[];
+  workspace: string;
 }
 
-const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [] }) => {
+const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], workspace }) => {
   const [fullscreen, setFullscreen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [hasScrollMore, setHasScrollMore] = useState(false);
 
-  const { dags, isLoading } = useTaskDags(workspaceFiles);
+  const { dags, isLoading } = useTaskDags(workspaceFiles, workspace);
   const { setDagCount, openFullscreenRef } = useTaskPanelHeader();
 
   // Sync dag count to header

@@ -13,7 +13,7 @@ import * as path from 'path';
 import semver from 'semver';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { isNightlyBuild, buildDate, isNightlyTag, parseNightlyDate, compareNightlyTags } from '@/common/buildInfo';
+import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit, compareNightlyTags } from '@/common/buildInfo';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -42,8 +42,128 @@ interface AutoUpdateCheckParams {
 const DEFAULT_REPO = 'sudoprivacy/sudowork';
 const DEFAULT_USER_AGENT = 'Sudowork';
 const ALLOWED_ASSET_EXTS = ['.exe', '.msi', '.dmg', '.zip', '.AppImage', '.deb', '.rpm'];
-const ALLOWED_DOWNLOAD_HOSTS = new Set<string>(['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'release-assets.githubusercontent.com']);
+const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
+  'github.com',
+  'objects.githubusercontent.com',
+  'github-releases.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  // COS mirror for Chinese users
+  'sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com',
+]);
 const MAX_REDIRECTS = 8;
+
+/** COS mirror base URL for Chinese users */
+const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+
+/** COS yml file structure */
+interface COSYmlInfo {
+  version: string;
+  releaseDate?: string;
+  path?: string;
+  files?: Array<{ url: string; size?: number }>;
+}
+
+/**
+ * Parse COS yml file to extract version info.
+ * yml format:
+ *   version: 0.1.4
+ *   releaseDate: '2026-03-29T11:39:22.037Z'
+ *   path: Sudowork-latest-win-x64.exe
+ */
+const parseCOSYml = async (ymlUrl: string): Promise<COSYmlInfo | null> => {
+  try {
+    const res = await fetch(ymlUrl, { method: 'GET' });
+    if (!res.ok) return null;
+
+    const text = await res.text();
+    const versionMatch = text.match(/^version:\s*['"]?([\d.]+)['"]?/m);
+    const releaseDateMatch = text.match(/^releaseDate:\s*['"]([^'"]+)['"]/m);
+    const pathMatch = text.match(/^path:\s*(.+)$/m);
+
+    if (!versionMatch) return null;
+
+    return {
+      version: versionMatch[1],
+      releaseDate: releaseDateMatch?.[1],
+      path: pathMatch?.[1]?.trim(),
+    };
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Get yml filename for current platform.
+ */
+const getCOSYmlFileName = (): string => {
+  const { platform, arch } = process;
+  if (platform === 'win32') {
+    return arch === 'arm64' ? 'win-arm64.yml' : 'latest.yml';
+  } else if (platform === 'darwin') {
+    return arch === 'arm64' ? 'arm64-mac.yml' : 'latest-mac.yml';
+  } else {
+    return arch === 'arm64' ? 'arm64-linux.yml' : 'latest-linux.yml';
+  }
+};
+
+/**
+ * Build UpdateReleaseInfo from COS yml data.
+ */
+const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
+  const platform = process.platform;
+  const arch = process.arch;
+
+  // Determine file extension based on platform
+  // macOS: always use .dmg (not .zip which may not exist on COS)
+  // Windows: .exe
+  // Linux: .AppImage
+  const ext = platform === 'win32' ? '.exe' : platform === 'darwin' ? '.dmg' : '.AppImage';
+  const platformName = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';
+  const archName = arch === 'arm64' ? 'arm64' : 'x64';
+
+  // For macOS, ignore yml path (which may point to .zip) and use .dmg directly
+  const fileName = `Sudowork-latest-${platformName}-${archName}${ext}`;
+
+  return {
+    tagName: `v${ymlInfo.version}`,
+    version: ymlInfo.version,
+    htmlUrl: `https://github.com/sudoprivacy/sudowork/releases/tag/v${ymlInfo.version}`,
+    publishedAt: ymlInfo.releaseDate,
+    prerelease: false,
+    draft: false,
+    assets: [
+      {
+        name: fileName,
+        url: `${COS_MIRROR_BASE}/${fileName}`,
+        size: ymlInfo.files?.[0]?.size || 0,
+      },
+    ],
+    recommendedAsset: {
+      name: fileName,
+      url: `${COS_MIRROR_BASE}/${fileName}`,
+      size: ymlInfo.files?.[0]?.size || 0,
+    },
+  };
+};
+
+/**
+ * Check for updates from COS mirror (fallback when GitHub unreachable).
+ */
+const checkUpdateFromCOS = async (): Promise<UpdateReleaseInfo | null> => {
+  const ymlFileName = getCOSYmlFileName();
+  const ymlUrl = `${COS_MIRROR_BASE}/${ymlFileName}`;
+
+  mainLog('Update', `Checking update from COS mirror: ${ymlUrl}`);
+
+  const ymlInfo = await parseCOSYml(ymlUrl);
+  if (!ymlInfo) {
+    mainLog('Update', 'Failed to parse COS yml');
+    return null;
+  }
+
+  mainLog('Update', `COS version: ${ymlInfo.version}`);
+  return buildReleaseInfoFromCOS(ymlInfo);
+};
 
 const isAllowedAssetName = (name: string) => {
   const ext = path.extname(name);
@@ -155,6 +275,55 @@ const resolveRepo = (requestRepo?: string): string => {
   const envRepo = process.env.NEXUS_GITHUB_REPO?.trim();
   const repo = (requestRepo || envRepo || DEFAULT_REPO).trim();
   return repo || DEFAULT_REPO;
+};
+
+/**
+ * Convert versioned filename to COS latest format.
+ * Sudowork-1.2.0-darwin-arm64.dmg -> Sudowork-latest-mac-arm64.dmg
+ * Sudowork-1.2.0-win32-x64.exe -> Sudowork-latest-win-x64.exe
+ */
+const convertToCOSName = (originalName: string): string => {
+  return originalName
+    .replace(/\d+\.\d+\.\d+/, 'latest')
+    .replace('darwin', 'mac')
+    .replace('win32', 'win');
+};
+
+/**
+ * Detect if GitHub is accessible with timeout.
+ */
+const detectGitHubAccessible = async (): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    await fetch('https://api.github.com/rate_limit', {
+      signal: controller.signal,
+      method: 'HEAD',
+    });
+
+    clearTimeout(timeoutId);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Select best download source based on network accessibility.
+ * Returns COS mirror URL if GitHub is unreachable.
+ */
+const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
+  const canAccessGitHub = await detectGitHubAccessible();
+
+  if (canAccessGitHub) {
+    return originalUrl; // Use original GitHub URL
+  }
+
+  // Use COS mirror
+  const cosUrl = `${COS_MIRROR_BASE}/${convertToCOSName(originalName)}`;
+  mainLog('Update', `GitHub unreachable, using COS mirror: ${cosUrl}`);
+  return cosUrl;
 };
 
 const assertAllowedUrl = (rawUrl: string) => {
@@ -291,7 +460,10 @@ const mapNightlyRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
 
 /**
  * Check for nightly-to-nightly updates.
- * Only returns an update if a newer nightly tag exists (compared by embedded date).
+ * Returns an update when:
+ *   1. A nightly with a newer date exists, OR
+ *   2. A nightly with the same date exists but has a different commit hash
+ *      (pick the one with the latest publishedAt).
  */
 const checkNightlyUpdate = async (repo: string, currentBuildDate: string): Promise<UpdateCheckResult> => {
   const currentVersion = app.getVersion();
@@ -306,19 +478,45 @@ const checkNightlyUpdate = async (repo: string, currentBuildDate: string): Promi
     return { currentVersion, updateAvailable: false };
   }
 
-  // Sort by tag date descending
-  nightlyCandidates.sort((a, b) => compareNightlyTags(b.tagName, a.tagName));
-  const latest = nightlyCandidates[0];
+  // Filter candidates whose date is >= current build date
+  const currentNorm = currentBuildDate.replace(/-/g, '');
+  const eligibleCandidates = nightlyCandidates.filter((r) => {
+    const d = parseNightlyDate(r.tagName);
+    if (!d) return false;
+    return d.replace(/-/g, '') >= currentNorm;
+  });
+
+  if (eligibleCandidates.length === 0) {
+    return { currentVersion, updateAvailable: false };
+  }
+
+  // Sort by publishedAt descending to pick the most recently published release
+  eligibleCandidates.sort((a, b) => {
+    const pa = a.publishedAt || '';
+    const pb = b.publishedAt || '';
+    return pb.localeCompare(pa);
+  });
+  const latest = eligibleCandidates[0];
 
   const latestDate = parseNightlyDate(latest.tagName);
   if (!latestDate) {
     return { currentVersion, updateAvailable: false };
   }
 
-  // Compare dates: normalize both to YYYYMMDD
   const latestNorm = latestDate.replace(/-/g, '');
-  const currentNorm = currentBuildDate.replace(/-/g, '');
-  const updateAvailable = latestNorm > currentNorm;
+
+  let updateAvailable = false;
+  if (latestNorm > currentNorm) {
+    // Newer date → always update
+    updateAvailable = true;
+  } else {
+    // Same date → update only if commit hash differs
+    const latestCommit = parseNightlyCommit(latest.tagName);
+    // When both hashes are available, compare them; otherwise fall back to no-update
+    if (latestCommit && buildCommit && buildCommit !== 'unknown') {
+      updateAvailable = latestCommit.toLowerCase() !== buildCommit.toLowerCase();
+    }
+  }
 
   return {
     currentVersion,
@@ -487,50 +685,35 @@ export function initUpdateBridge(): void {
       const includePrerelease = Boolean(params?.includePrerelease);
       const currentVersion = app.getVersion();
 
-      // Nightly builds: skip semver, use date-based comparison against nightly releases only
+      // Nightly builds: use GitHub API for date-based comparison
       if (isNightlyBuild) {
-        mainLog('Update', `Nightly build detected (date: ${buildDate}), using nightly update check`);
+        mainLog('Update', `Nightly build detected (date: ${buildDate}), using GitHub API for update check`);
         const result = await checkNightlyUpdate(repo, buildDate);
         return { success: true, data: result };
       }
 
-      // EN: Versioning note
-      // Update comparisons are pure semver: `app.getVersion()` (packaged app version) vs release `tag_name`.
-      // If you want dev/prerelease updates to work reliably, CI must inject a prerelease semver into
-      // `package.json#version` for dev builds (e.g. `1.7.2-dev.1234+sha.abcdef0`) so semver ordering holds.
-      // We intentionally avoid heuristics based on tag strings when the app version is a stable semver.
-      //
-      // 中文：版本号说明
-      // 更新比较严格使用 semver：`app.getVersion()`（应用自身版本号）对比 Release 的 `tag_name`。
-      // 若要 dev/预发布版本更新可靠生效，需要 CI 在 dev 构建时把 `package.json#version`
-      // 注入为带 prerelease 的 semver（如 `1.7.2-dev.1234+sha.abcdef0`），以保证比较顺序正确。
-      // 这里刻意不对”当前是稳定版版本号但用户勾选了 prerelease”做字符串猜测。
-
-      const releases = await fetchGitHubReleases(repo);
-      const candidates = releases
-        .filter((r) => r && !r.draft)
-        .filter((r) => (includePrerelease ? true : !r.prerelease))
-        .map(mapRelease)
-        .filter((r): r is UpdateReleaseInfo => Boolean(r));
-
+      // Stable releases: use COS mirror directly for Chinese users
+      mainLog('Update', 'Stable release, checking update from COS mirror');
       const currentSemver = semver.valid(currentVersion) || semver.coerce(currentVersion)?.version;
       if (!currentSemver) {
         return { success: true, data: { currentVersion, updateAvailable: false } };
       }
 
-      const latest = candidates.filter((r) => semver.valid(r.version)).sort((a, b) => semver.rcompare(a.version, b.version))[0];
-
-      if (!latest) {
+      // Get version info from COS yml
+      const cosRelease = await checkUpdateFromCOS();
+      if (!cosRelease) {
         return { success: true, data: { currentVersion, updateAvailable: false } };
       }
 
-      const updateAvailable = semver.gt(latest.version, currentSemver);
+      const updateAvailable = semver.gt(cosRelease.version, currentSemver);
+      mainLog('Update', `COS version: ${cosRelease.version}, current: ${currentSemver}, update available: ${updateAvailable}`);
+
       return {
         success: true,
         data: {
           currentVersion,
           updateAvailable,
-          latest,
+          latest: cosRelease,
         },
       };
     } catch (err: unknown) {
@@ -569,8 +752,25 @@ export function initUpdateBridge(): void {
       const uniquePath = ensureUniquePath(targetPath);
       downloads.set(downloadId, { abortController, filePath: uniquePath });
 
-      // Start background download, but return immediately so the UI stays responsive.
-      void startDownloadInBackground(downloadId, params.url, uniquePath, abortController);
+      // Select best download source (auto-switch to COS mirror if GitHub unreachable)
+      selectDownloadSource(params.url, baseName)
+        .then((downloadUrl) => {
+          // Validate the selected URL (COS mirror URLs should pass since we added it to ALLOWED_DOWNLOAD_HOSTS)
+          assertAllowedUrl(downloadUrl);
+          // Start background download
+          void startDownloadInBackground(downloadId, downloadUrl, uniquePath, abortController);
+        })
+        .catch((err) => {
+          mainError('Update', 'Failed to select download source:', err);
+          emitProgress({
+            downloadId,
+            status: 'error',
+            receivedBytes: 0,
+            totalBytes: undefined,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          downloads.delete(downloadId);
+        });
 
       return Promise.resolve({ success: true, data: { downloadId, filePath: uniquePath } });
     } catch (err: unknown) {
@@ -633,6 +833,15 @@ export function initUpdateBridge(): void {
       return { success: true, data: { path: filePath } };
     } catch (err: unknown) {
       return { success: true, data: { path: null } };
+    }
+  });
+
+  ipcBridge.autoUpdate.getMirrorStatus.provider(async (): Promise<{ success: boolean; data?: { useMirror: boolean; reason: string } }> => {
+    try {
+      const status = autoUpdaterService.getMirrorStatus();
+      return { success: true, data: status };
+    } catch (err: unknown) {
+      return { success: true, data: { useMirror: false, reason: 'error' } };
     }
   });
 }

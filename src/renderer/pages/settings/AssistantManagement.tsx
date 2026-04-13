@@ -27,6 +27,7 @@ import { resolveLocaleKey } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
+import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from '@/renderer/pages/settings/assistantSkillSelection';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig } from '@/types/acpTypes';
@@ -205,22 +206,27 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
   }, []);
 
   // Load installed skills from Skill Hub
-  const loadInstalledSkills = useCallback(async () => {
+  const loadInstalledSkills = useCallback(async (): Promise<IInstalledSkillInfo[]> => {
     if (!isElectronDesktop()) {
       setInstalledSkills([]);
-      return;
+      return [];
     }
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
-        // Only show skills that are enabled (builtin skills are always enabled)
-        setInstalledSkills(res.data.filter((s) => s.isBuiltin || s.enabled !== false));
+        const selectableSkills = getSelectableAssistantSkills(res.data);
+        setInstalledSkills(selectableSkills);
+        return selectableSkills;
       }
     } catch (error) {
       console.error('Failed to load installed skills:', error);
-      setInstalledSkills([]);
     }
+    setInstalledSkills([]);
+    return [];
   }, []);
+
+  const customSelectableSkills = installedSkills.filter((skill) => !skill.isBuiltin);
+  const builtinSelectableSkills = installedSkills.filter((skill) => skill.isBuiltin && !isAutoInjectedBuiltinSkill(skill));
 
   const refreshAgentDetection = useCallback(async () => {
     try {
@@ -382,8 +388,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
       setEditContext(context);
 
       // 加载已安装技能列表 / Load installed skills list
-      await loadInstalledSkills();
-      setSelectedSkills(assistant.enabledSkills || []);
+      const availableSkills = await loadInstalledSkills();
+      setSelectedSkills(sanitizeAssistantEnabledSkills(assistant.enabledSkills, availableSkills));
     } catch (error) {
       console.error('Failed to load assistant content:', error);
       setEditContext('');
@@ -425,8 +431,8 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
       const context = isExtensionAssistant(assistant) ? assistant.context || '' : await loadAssistantContext(assistant.id);
 
       setEditContext(context);
-      await loadInstalledSkills();
-      setSelectedSkills(assistant.enabledSkills || []);
+      const availableSkills = await loadInstalledSkills();
+      setSelectedSkills(sanitizeAssistantEnabledSkills(assistant.enabledSkills, availableSkills));
     } catch (error) {
       console.error('Failed to load assistant content for duplication:', error);
       setEditContext('');
@@ -463,7 +469,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           isBuiltin: false,
           presetAgentType: editAgent,
           enabled: true,
-          enabledSkills: selectedSkills,
+          enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
         };
 
         // 保存规则文件 / Save rule file
@@ -490,7 +496,7 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
           description: editDescription,
           avatar: editAvatar,
           presetAgentType: editAgent,
-          enabledSkills: selectedSkills,
+          enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
         };
 
         // 保存规则文件（如果有更改）/ Save rule file (if changed)
@@ -814,48 +820,44 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
               {/* Skills 折叠面板 / Skills Collapse */}
               <Collapse defaultActiveKey={['custom-skills']}>
                 {/* 自定义技能 / Custom Skills */}
-                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-t-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
+                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-t-secondary'>{customSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                    {installedSkills
-                      .filter((s) => !s.isBuiltin)
-                      .map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={selectedSkills.includes(skill.name)}
-                          onToggle={() => {
-                            if (selectedSkills.includes(skill.name)) {
-                              setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
-                            } else {
-                              setSelectedSkills([...selectedSkills, skill.name]);
-                            }
-                          }}
-                        />
-                      ))}
-                    {installedSkills.filter((s) => !s.isBuiltin).length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
+                    {customSelectableSkills.map((skill) => (
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        checked={selectedSkills.includes(skill.name)}
+                        onToggle={() => {
+                          if (selectedSkills.includes(skill.name)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          } else {
+                            setSelectedSkills([...selectedSkills, skill.name]);
+                          }
+                        }}
+                      />
+                    ))}
+                    {customSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
                   </div>
                 </Collapse.Item>
 
                 {/* 内置技能 / Builtin Skills */}
-                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>} name='builtin-skills' extra={<span className='text-12px text-t-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}>
+                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>} name='builtin-skills' extra={<span className='text-12px text-t-secondary'>{builtinSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                    {installedSkills
-                      .filter((s) => s.isBuiltin)
-                      .map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={selectedSkills.includes(skill.name)}
-                          onToggle={() => {
-                            if (selectedSkills.includes(skill.name)) {
-                              setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
-                            } else {
-                              setSelectedSkills([...selectedSkills, skill.name]);
-                            }
-                          }}
-                        />
-                      ))}
-                    {installedSkills.filter((s) => s.isBuiltin).length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
+                    {builtinSelectableSkills.map((skill) => (
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        checked={selectedSkills.includes(skill.name)}
+                        onToggle={() => {
+                          if (selectedSkills.includes(skill.name)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          } else {
+                            setSelectedSkills([...selectedSkills, skill.name]);
+                          }
+                        }}
+                      />
+                    ))}
+                    {builtinSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
                   </div>
                 </Collapse.Item>
               </Collapse>

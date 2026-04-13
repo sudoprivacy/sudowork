@@ -16,9 +16,9 @@ import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Empty, Input, Message, Modal, Popover, Tooltip, Tree } from '@arco-design/web-react';
+import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Down, FileText, FolderOpen, Refresh, Search } from '@icon-park/react';
+import { AudioFile, Cloudy, DownSmall, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, FolderOpen, Magic, Refresh, Search, VideoFile } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -31,9 +31,125 @@ import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
-import TaskPanel from './TaskPanel';
+// TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
+// import TaskPanel from './TaskPanel';
+import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
+import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
+import './workspace-card.css';
+
+const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
+
+function isHiddenWorkspaceEntry(name: string): boolean {
+  if (name === DRAFTS_DIR_NAME) {
+    return false;
+  }
+  return name.startsWith('.');
+}
+
+function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
+  const extension = fileName.toLowerCase().split('.').pop() ?? '';
+
+  switch (extension) {
+    case 'txt':
+    case 'log':
+    case 'text':
+      return <FileTxt theme='outline' size='16' fill='var(--color-text-3)' />;
+    case 'md':
+    case 'markdown':
+    case 'mdx':
+      return <FileText theme='outline' size='16' fill='var(--color-text-2)' />;
+    case 'doc':
+    case 'docx':
+    case 'wps':
+    case 'rtf':
+    case 'odt':
+      return <FileWord theme='outline' size='16' fill='#3b82f6' />;
+    case 'pdf':
+      return <FilePdf theme='outline' size='16' fill='#ef4444' />;
+    case 'ppt':
+    case 'pptx':
+    case 'key':
+    case 'odp':
+      return <FilePpt theme='outline' size='16' fill='#f97316' />;
+    case 'xls':
+    case 'xlsx':
+    case 'csv':
+    case 'ods':
+      return <FileExcel theme='outline' size='16' fill='#22c55e' />;
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+    case 'mjs':
+    case 'cjs':
+    case 'json':
+    case 'jsonc':
+    case 'yaml':
+    case 'yml':
+    case 'toml':
+    case 'xml':
+    case 'html':
+    case 'htm':
+    case 'css':
+    case 'scss':
+    case 'less':
+    case 'py':
+    case 'java':
+    case 'go':
+    case 'rs':
+    case 'c':
+    case 'cc':
+    case 'cpp':
+    case 'cxx':
+    case 'h':
+    case 'hpp':
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+    case 'sql':
+      return <FileCode theme='outline' size='16' fill='#8b5cf6' />;
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'webp':
+    case 'bmp':
+    case 'svg':
+    case 'ico':
+    case 'tif':
+    case 'tiff':
+    case 'avif':
+      return <FileJpg theme='outline' size='16' fill='#06b6d4' />;
+    case 'gif':
+      return <FileGif theme='outline' size='16' fill='#06b6d4' />;
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+    case 'tgz':
+    case 'bz2':
+    case 'xz':
+      return <FileZip theme='outline' size='16' fill='#f59e0b' />;
+    case 'mp3':
+    case 'wav':
+    case 'flac':
+    case 'aac':
+    case 'm4a':
+    case 'ogg':
+      return <AudioFile theme='outline' size='16' fill='#ec4899' />;
+    case 'mp4':
+    case 'mov':
+    case 'avi':
+    case 'mkv':
+    case 'webm':
+    case 'm4v':
+      return <VideoFile theme='outline' size='16' fill='#6366f1' />;
+    default:
+      return <FileText theme='outline' size='16' fill='var(--color-text-3)' />;
+  }
+}
 
 const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
   const clipPathId = useId();
@@ -53,7 +169,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -69,6 +185,61 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [searchText, setSearchText] = useState('');
   const [showSearch, setShowSearch] = useState(true);
   const searchInputRef = useRef<RefInputType | null>(null);
+
+  // Active tab (mockup #293 splits the right panel into 临时空间 / 可用技能)
+  // Persist per-workspace choice so agents that rely heavily on one tab don't
+  // keep reverting on conversation switch.
+  const [activeTab, setActiveTab] = useState<'files' | 'skills'>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_ACTIVE_TAB);
+      if (stored === 'skills' || stored === 'files') return stored;
+    } catch {
+      // ignore
+    }
+    return 'files';
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.WORKSPACE_ACTIVE_TAB, activeTab);
+    } catch {
+      // ignore
+    }
+  }, [activeTab]);
+
+  // Skill count for the skills tab pill — scanned from the workspace skill
+  // root that belongs to the current conversation backend.
+  const [skillCount, setSkillCount] = useState(0);
+  useEffect(() => {
+    if (!workspace) {
+      setSkillCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const refreshCount = async () => {
+      try {
+        const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+        const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
+        if (cancelled) return;
+        setSkillCount(result?.success ? result.data.length : 0);
+      } catch {
+        if (!cancelled) setSkillCount(0);
+      }
+    };
+    void refreshCount();
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refreshCount();
+      }, 250);
+    });
+    return () => {
+      cancelled = true;
+      if (debounce) clearTimeout(debounce);
+      unsubscribe();
+    };
+  }, [workspace, eventPrefix, backend]);
 
   // Workspace rename modal state (for root directory rename)
   const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
@@ -108,33 +279,38 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [bdpanUploadPickerVisible, setBdpanUploadPickerVisible] = useState(false);
   const [bdpanUploadLocalPath, setBdpanUploadLocalPath] = useState('');
 
-  // Workspace tree collapse state - 全局统一的折叠状态
-  // 切换会话时保持折叠状态不变，只更新工作目录内容
-  const [isWorkspaceCollapsed, setIsWorkspaceCollapsed] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_TREE_COLLAPSE);
-      if (stored) {
-        // 直接存储boolean值，不按workspace路径区分
-        return stored === 'true';
-      }
-    } catch {
-      // 忽略错误
-    }
-    return false; // 默认展开
-  });
-
-  // 持久化折叠状态 - 全局统一
+  // Skills tab refresh handle — lets the shared refresh button in the card
+  // header trigger a scan even when the file tree inotify watcher is quiet.
+  const skillsHandleRef = useRef<WorkspaceSkillsHandle | null>(null);
+  // Skills tab loading state, reported back from WorkspaceSkills so the sync
+  // footer can show a blue "正在同步…" ping while scanning.
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  // Timestamp of the last successful sync (either tree refresh or skills scan).
+  // The sync footer renders "上次同步: 刚刚 / X 分钟前 / X 小时前" from this.
+  const [lastSyncAt, setLastSyncAt] = useState<number>(() => Date.now());
+  // Tick the "last synced" label every 30 seconds so the relative string stays fresh.
+  const [, setNowTick] = useState(0);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.WORKSPACE_TREE_COLLAPSE, String(isWorkspaceCollapsed));
-    } catch {
-      // 忽略错误
-    }
-  }, [isWorkspaceCollapsed]);
+    const timer = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Previous loading state — used below (after treeHook is initialised) to
+  // bump `lastSyncAt` whenever the tree finishes a refresh cycle.
+  const prevTreeLoadingRef = useRef(false);
 
   // Initialize all hooks
-  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix });
+  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend });
   const modalsHook = useWorkspaceModals();
+
+  // Bump `lastSyncAt` whenever the file tree just finished loading
+  // (transitions from loading=true → false). This drives the sync footer.
+  useEffect(() => {
+    if (prevTreeLoadingRef.current && !treeHook.loading) {
+      setLastSyncAt(Date.now());
+    }
+    prevTreeLoadingRef.current = treeHook.loading;
+  }, [treeHook.loading]);
   const pasteHook = useWorkspacePaste({
     workspace,
     messageApi,
@@ -256,6 +432,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   useWorkspaceEvents({
     conversation_id,
     eventPrefix,
+    workspace,
     refreshWorkspace: treeHook.refreshWorkspace,
     clearSelection: treeHook.clearSelection,
     setFiles: treeHook.setFiles,
@@ -284,13 +461,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Context menu calculations
   const hasOriginalFiles = treeHook.files.length > 0 && treeHook.files[0]?.children?.length > 0;
   const rootName = treeHook.files[0]?.name ?? '';
+  // Check if this is a temporary workspace (check both path and root folder name)
+  const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
 
   // 当只有一个根目录且有子文件时，隐藏根目录直接展示子文件，因为 Toolbar 已经作为一级目录
   // Hide root directory when there's a single root with children, as Toolbar serves as the first-level directory
-  const treeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
+  const rawTreeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
+  const visibleTreeData = useMemo(() => {
+    if (!isTemporaryWorkspace) {
+      return rawTreeData;
+    }
 
-  // Check if this is a temporary workspace (check both path and root folder name)
-  const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
+    const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+      nodes
+        .filter((node) => !isHiddenWorkspaceEntry(node.name))
+        .map((node) => ({
+          ...node,
+          children: node.children ? filterNodes(node.children) : node.children,
+        }));
+
+    return filterNodes(rawTreeData);
+  }, [isTemporaryWorkspace, rawTreeData]);
+
+  const treeData = useMemo(() => {
+    const decorateNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+      nodes.map((node) => {
+        if (node.isFile) {
+          const fileIcon = resolveWorkspaceFileIcon(node.name);
+          return {
+            ...node,
+            icon: fileIcon,
+            icons: {
+              switcherIcon: <span className='workspace-tree__switcher-spacer' aria-hidden='true' />,
+            },
+            children: node.children ? decorateNodes(node.children) : node.children,
+          };
+        }
+
+        return {
+          ...node,
+          icon: <FolderOpen theme='outline' size='16' fill={WORKSPACE_FOLDER_ICON_COLOR} />,
+          icons: {
+            switcherIcon: <DownSmall theme='outline' size='14' fill='var(--color-text-3)' />,
+          },
+          children: node.children ? decorateNodes(node.children) : node.children,
+        };
+      });
+
+    return decorateNodes(visibleTreeData);
+  }, [visibleTreeData]);
 
   // Get workspace display name - prefer stored display name, fallback to path-derived name
   const workspaceDisplayName = useMemo(() => {
@@ -579,7 +798,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     <>
       {shouldRenderLocalMessageContext && messageContext}
       <div
-        className='chat-workspace size-full flex flex-col relative'
+        className='chat-workspace workspace-card size-full flex flex-col relative'
         tabIndex={0}
         onFocus={pasteHook.onFocusPaste}
         onClick={pasteHook.onFocusPaste}
@@ -839,64 +1058,88 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Bdpan Upload Dir Picker */}
         <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
 
-        {/* Copilot Task Panel — shows .tasks/ DAGs above the file tree */}
-        <TaskPanel workspaceFiles={treeHook.files} />
-
-        {/* Search Input */}
-        <div className='px-12px'>
-          {(showSearch || searchText) && (
-            <div className='pb-8px workspace-toolbar-search'>
-              <Input
-                className='w-full workspace-search-input'
-                ref={searchInputRef}
-                placeholder={t('conversation.workspace.searchPlaceholder')}
-                value={searchText}
-                onChange={(value) => {
-                  setSearchText(value);
-                  onSearch(value);
-                }}
-                allowClear
-                prefix={<Search theme='outline' size='14' fill={iconColors.secondary} style={{ cursor: 'pointer' }} onClick={() => searchInputRef.current?.focus?.()} />}
-              />
-            </div>
-          )}
+        {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
+            two equal tabs sit at the very top of the card (no separate status-
+            dot header anymore). Active tab gets a 2px primary underline and
+            a light primary tint, matching the reference. */}
+        <div
+          className='workspace-card__tabs'
+          role='tablist'
+          aria-label={t('conversation.workspace.tabsAria', { defaultValue: '工作空间视图切换' })}
+          onContextMenu={(event) => {
+            // Preserve the "right-click on workspace header to get root-level
+            // context menu" behaviour from the previous header.
+            const rootNode = treeHook.files[0];
+            if (!rootNode) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openNodeContextMenu(rootNode, event.clientX, event.clientY);
+          }}
+        >
+          <button type='button' role='tab' aria-selected={activeTab === 'files'} className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('files')} title={workspace}>
+            <Cloudy theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
+            {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
+          </button>
+          <button type='button' role='tab' aria-selected={activeTab === 'skills'} className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('skills')}>
+            <Magic theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
+            {skillCount > 0 && (
+              <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
+                {skillCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Toolbar */}
-        <div className='px-12px'>
-          {/* Border divider - 搜索框下方分界线 */}
-          {!isWorkspaceCollapsed && (showSearch || searchText) && <div className='border-b border-b-base' />}
-
-          {/* Directory name with collapse and action icons */}
-          <div
-            className='workspace-toolbar-row flex items-center justify-between gap-8px'
-            onContextMenu={(event) => {
-              const rootNode = treeHook.files[0];
-              if (!rootNode) return;
-              event.preventDefault();
-              event.stopPropagation();
-              openNodeContextMenu(rootNode, event.clientX, event.clientY);
+        {/* Shared Search + Refresh row — both tabs share the same toolbar. */}
+        <div className='workspace-card__toolbar'>
+          <Input
+            className='w-full workspace-search-input'
+            ref={searchInputRef}
+            placeholder={activeTab === 'files' ? t('conversation.workspace.searchPlaceholder') : t('conversation.workspace.skillsSearchPlaceholder', { defaultValue: '搜索技能...' })}
+            value={searchText}
+            onChange={(value) => {
+              setSearchText(value);
+              if (activeTab === 'files') {
+                onSearch(value);
+              }
             }}
-          >
-            <div className='flex items-center gap-8px cursor-pointer flex-1 min-w-0' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
-              <Down size={16} fill={iconColors.primary} className={`line-height-0 transition-transform duration-200 flex-shrink-0 ${isWorkspaceCollapsed ? '-rotate-90' : 'rotate-0'}`} />
-              <Popover content={<span style={{ overflowWrap: 'break-word', wordBreak: 'break-all' }}>{workspace}</span>} position='top' trigger='hover' className='workspace-path-popover'>
-                <span className='workspace-title-label font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
-              </Popover>
-            </div>
-            <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
-              <Tooltip content={t('conversation.workspace.refresh')}>
-                <span>
-                  <Refresh className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
-                </span>
-              </Tooltip>
-            </div>
-          </div>
+            allowClear
+            prefix={<Search theme='outline' size='14' fill={iconColors.secondary} />}
+          />
+          <Tooltip content={t('conversation.workspace.refresh')}>
+            <button
+              type='button'
+              className={`workspace-card__refresh-btn ${(activeTab === 'files' ? treeHook.loading : skillsLoading) ? 'workspace-card__refresh-btn--spinning' : ''}`}
+              aria-label={t('conversation.workspace.refresh')}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (activeTab === 'files') {
+                  treeHook.refreshWorkspace();
+                } else {
+                  void skillsHandleRef.current?.refresh();
+                }
+              }}
+            >
+              <Refresh theme='outline' size='14' fill={iconColors.secondary} />
+            </button>
+          </Tooltip>
         </div>
 
-        {/* Main content area */}
-        {!isWorkspaceCollapsed && (
-          <FlexFullContainer containerClassName='overflow-y-auto'>
+        {/* Main content area — Skills grid OR Search + Tree. */}
+        {activeTab === 'skills' && (
+          <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
+            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} />
+          </FlexFullContainer>
+        )}
+
+        {activeTab === 'files' && (
+          <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
+            {/* TaskPanel temporarily hidden per product feedback — can restore later.
+             * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
+             */}
+
             {/* Context Menu */}
             {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && (
               <div
@@ -1047,15 +1290,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
-              <div className=' flex-1 size-full flex items-center justify-center px-12px box-border'>
-                <Empty
-                  description={
-                    <div>
-                      <span className='text-t-secondary font-bold text-14px'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</span>
-                      <div className='text-t-secondary'>{searchText ? '' : t('conversation.workspace.emptyDescription')}</div>
-                    </div>
-                  }
-                />
+              <div className='workspace-card__empty flex-1 size-full'>
+                <div className='workspace-card__empty-icon'>
+                  <FolderOpen theme='outline' size='20' fill='currentColor' />
+                </div>
+                <div className='workspace-card__empty-title'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</div>
+                {!searchText && <div className='workspace-card__empty-desc'>{t('conversation.workspace.emptyDescription')}</div>}
               </div>
             ) : (
               <Tree
@@ -1077,6 +1317,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const isFile = node.dataRef.isFile;
                   const isPasteTarget = !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
+                  const directFileCount = !isFile ? (nodeData.children ?? []).filter((child) => child.isFile && !isHiddenWorkspaceEntry(child.name)).length : 0;
                   // Display .drafts with i18n name / 草稿箱目录显示本地化名称
                   const isDraftsDir = node.title === '.drafts' && !isFile;
                   const displayTitle = isDraftsDir ? t('conversation.workspace.drafts.title') : node.title;
@@ -1096,37 +1337,40 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         openNodeContextMenu(nodeData, event.clientX, event.clientY);
                       }}
                     >
-                      <span className='flex items-center gap-4px min-w-0'>
-                        <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{displayTitle}</span>
-                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded'>PASTE</span>}
+                      <span className='flex items-center gap-4px min-w-0 flex-1 overflow-hidden whitespace-nowrap'>
+                        <span className='overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0'>{displayTitle}</span>
+                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded flex-shrink-0'>PASTE</span>}
                       </span>
-                      {isMobile && (
-                        <button
-                          type='button'
-                          className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
-                          aria-label={t('common.more')}
-                          onMouseDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                            const menuWidth = 220;
-                            const menuHeight = 220;
-                            const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
-                            const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
-                            const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
-                            const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
-                            openNodeContextMenu(nodeData, menuX, menuY);
-                          }}
-                        >
-                          <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                          </div>
-                        </button>
-                      )}
+                      <span className='flex items-center gap-6px flex-shrink-0'>
+                        {!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}
+                        {isMobile && (
+                          <button
+                            type='button'
+                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
+                            aria-label={t('common.more')}
+                            onMouseDown={(event) => {
+                              event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              const menuWidth = 220;
+                              const menuHeight = 220;
+                              const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
+                              const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
+                              const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
+                              const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
+                              openNodeContextMenu(nodeData, menuX, menuY);
+                            }}
+                          >
+                            <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                              <div className='w-2px h-2px rounded-full bg-current'></div>
+                            </div>
+                          </button>
+                        )}
+                      </span>
                     </div>
                   );
                 }}
@@ -1164,6 +1408,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   treeHook.setSelected(newKeys);
                   treeHook.selectedKeysRef.current = newKeys;
 
+                  if (clickedKey) {
+                    const isExpanded = treeHook.expandedKeys.includes(clickedKey);
+                    treeHook.setExpandedKeys(isExpanded ? treeHook.expandedKeys.filter((key) => key !== clickedKey) : [...treeHook.expandedKeys, clickedKey]);
+                  }
+
                   if (extra && extra.node && nodeData && nodeData.fullPath && nodeData.relativePath != null) {
                     treeHook.selectedNodeRef.current = {
                       relativePath: nodeData.relativePath,
@@ -1176,7 +1425,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const items: Array<{ path: string; name: string; isFile: boolean; relativePath?: string }> = [];
                   for (const k of newKeys) {
                     const node = findNodeByKey(treeHook.files, k);
-                    if (node && node.fullPath) {
+                    if (node && node.fullPath && node.isFile) {
                       items.push({
                         path: node.fullPath,
                         name: node.name,
@@ -1205,6 +1454,33 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             )}
           </FlexFullContainer>
         )}
+
+        {/* Sync footer — mirrors ui.zip `task-panel.tsx` footer. Shows a pulsing
+            blue ping + "正在同步…" while a scan / refresh is running, or a
+            breathing green dot + "上次同步: <relative>" when idle. The ping dot
+            doubles as the visual cue that the inotify watcher is live. */}
+        {(() => {
+          const isSyncing = activeTab === 'files' ? treeHook.loading : skillsLoading;
+          const diffSec = Math.max(0, Math.floor((Date.now() - lastSyncAt) / 1000));
+          let relative: string;
+          if (diffSec < 10) {
+            relative = t('conversation.workspace.lastSyncJustNow', { defaultValue: '刚刚' });
+          } else if (diffSec < 60) {
+            relative = t('conversation.workspace.lastSyncSecondsAgo', { count: diffSec, defaultValue: '{{count}} 秒前' });
+          } else if (diffSec < 3600) {
+            relative = t('conversation.workspace.lastSyncMinutesAgo', { count: Math.floor(diffSec / 60), defaultValue: '{{count}} 分钟前' });
+          } else {
+            relative = t('conversation.workspace.lastSyncHoursAgo', { count: Math.floor(diffSec / 3600), defaultValue: '{{count}} 小时前' });
+          }
+          const prefix = t('conversation.workspace.lastSyncPrefix', { defaultValue: '上次同步' });
+          const syncingLabel = t('conversation.workspace.lastSyncSyncing', { defaultValue: '正在同步…' });
+          return (
+            <div className='workspace-card__footer'>
+              <span className={`workspace-card__sync-dot ${isSyncing ? 'workspace-card__sync-dot--syncing' : 'workspace-card__sync-dot--live'}`} aria-hidden='true' />
+              <span className='workspace-card__sync-label'>{isSyncing ? syncingLabel : `${prefix}: ${relative}`}</span>
+            </div>
+          );
+        })()}
       </div>
     </>
   );

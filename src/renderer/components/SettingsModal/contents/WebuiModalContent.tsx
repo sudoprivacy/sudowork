@@ -8,6 +8,7 @@ import { shell, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
+import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
@@ -40,6 +41,7 @@ const CHANNEL_LOGOS = [
   { src: ChannelTelegramLogo, alt: 'Telegram' },
   { src: ChannelLarkLogo, alt: 'Lark' },
   { src: ChannelDingTalkLogo, alt: 'DingTalk' },
+  { src: ChannelZentaoLogo, alt: 'Zentao' },
 ] as const;
 
 const ChannelModalContentLazy = React.lazy(() => import('./ChannelModalContent'));

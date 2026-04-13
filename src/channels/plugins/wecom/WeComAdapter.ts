@@ -38,15 +38,43 @@ export type WeComMsgCallback = {
   text?: { content: string };
   image?: { url: string; aeskey: string };
   mixed?: {
-    items: Array<{
-      msgtype: string;
+    /** WeCom API uses "msg_item" as the array field name */
+    msg_item?: Array<{
+      /** Item type – WeCom may use "msgtype" or "type" depending on API version */
+      msgtype?: string;
+      /** Alternative item type field used by some WeCom API versions */
+      type?: string;
       text?: { content: string };
       image?: { url: string; aeskey: string };
+      /** Local file path after download+decrypt (set by WeComPlugin) */
+      _localPath?: string;
+    }>;
+    /** @deprecated Alias kept for backward compatibility; prefer msg_item */
+    items?: Array<{
+      msgtype?: string;
+      type?: string;
+      text?: { content: string };
+      image?: { url: string; aeskey: string };
+      _localPath?: string;
+    }>;
+    /** Some WeCom API versions use singular "item" instead of "items" */
+    item?: Array<{
+      msgtype?: string;
+      type?: string;
+      text?: { content: string };
+      image?: { url: string; aeskey: string };
+      _localPath?: string;
     }>;
   };
   voice?: { content: string }; // voice-to-text transcription
   file?: { url: string; aeskey: string; filename?: string; filesize?: number };
   video?: { url: string; aeskey: string };
+  /** Local file path for downloaded+decrypted image (set by WeComPlugin) */
+  _imageLocalPath?: string;
+  /** Local file path for downloaded+decrypted file (set by WeComPlugin) */
+  _fileLocalPath?: string;
+  /** Local file path for downloaded+decrypted video (set by WeComPlugin) */
+  _videoLocalPath?: string;
 };
 
 /**
@@ -162,7 +190,37 @@ export function toUnifiedUser(data: WeComMsgCallback): IUnifiedUser | null {
 }
 
 /**
- * Extract message content from WeCom message
+ * Get default file extension for a WeCom message type.
+ */
+export function getDefaultExtension(msgtype: string): string {
+  switch (msgtype) {
+    case 'image':
+      return '.jpg';
+    case 'video':
+      return '.mp4';
+    case 'voice':
+      return '.amr';
+    case 'file':
+      return '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Get the type of a mixed message item.
+ * WeCom may use "msgtype" or "type" depending on the API version / endpoint.
+ */
+function getMixedItemType(item: NonNullable<NonNullable<WeComMsgCallback['mixed']>['msg_item']>[number]): string {
+  return item.msgtype || item.type || '';
+}
+
+/**
+ * Extract message content from WeCom message.
+ *
+ * Prefers local file paths (_localPath / _imageLocalPath / _fileLocalPath / _videoLocalPath)
+ * when available (set by WeComPlugin after downloading and decrypting media).
+ * Falls back to the original CDN URL if no local path is present.
  */
 function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
   const msgtype = data.msgtype;
@@ -178,17 +236,44 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
     }
 
     case 'mixed': {
-      // Mixed message: combine text parts
+      // Mixed message: combine text parts and extract image attachments
+      // WeCom API uses "msg_item"; fall back to "items" / "item" for backward compatibility
+      const mixedItems = data.mixed?.msg_item || data.mixed?.items || data.mixed?.item || [];
       const textParts: string[] = [];
-      for (const item of data.mixed?.items || []) {
-        if (item.msgtype === 'text' && item.text?.content) {
+      const attachments: Array<{ type: 'photo'; fileId: string }> = [];
+
+      if (mixedItems.length > 0) {
+        console.log(`[WeComAdapter] mixed items (${mixedItems.length}): ${JSON.stringify(mixedItems.map((i) => ({ msgtype: i.msgtype, type: i.type, hasText: !!i.text, hasImage: !!i.image, hasLocalPath: !!i._localPath })))}`);
+      }
+
+      for (const item of mixedItems) {
+        const itemType = getMixedItemType(item);
+        if (itemType === 'text' && item.text?.content) {
           textParts.push(item.text.content);
+        } else if (itemType === 'image') {
+          // Prefer local path (after download+decrypt), fall back to URL
+          const fileId = item._localPath || item.image?.url || '';
+          if (fileId) {
+            attachments.push({ type: 'photo', fileId });
+          }
         }
       }
+
       let text = textParts.join('\n');
       if (data.chattype === 'group') {
         text = text.replace(/@\S+\s*/g, '').trim();
       }
+
+      if (attachments.length > 0) {
+        return { type: 'photo', text, attachments };
+      }
+
+      // Fallback: if we couldn't extract any content from the mixed message,
+      // use a placeholder so ActionExecutor doesn't reject it as "unsupported"
+      if (!text && mixedItems.length > 0) {
+        text = '[图文消息]';
+      }
+
       return { type: 'text', text };
     }
 
@@ -203,7 +288,8 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
         attachments: [
           {
             type: 'photo',
-            fileId: data.image?.url || '',
+            // Prefer local path (after download+decrypt), fall back to URL
+            fileId: data._imageLocalPath || data.image?.url || '',
           },
         ],
       };
@@ -215,7 +301,8 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
         attachments: [
           {
             type: 'document',
-            fileId: data.file?.url || '',
+            // Prefer local path (after download+decrypt), fall back to URL
+            fileId: data._fileLocalPath || data.file?.url || '',
             fileName: data.file?.filename,
             size: data.file?.filesize,
           },
@@ -229,7 +316,8 @@ function extractMessageContent(data: WeComMsgCallback): IUnifiedMessageContent {
         attachments: [
           {
             type: 'video',
-            fileId: data.video?.url || '',
+            // Prefer local path (after download+decrypt), fall back to URL
+            fileId: data._videoLocalPath || data.video?.url || '',
           },
         ],
       };

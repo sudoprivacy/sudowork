@@ -14,7 +14,8 @@
  */
 
 import { secretCache, markMigrated } from './secret-cache';
-import { getSecretStoreClient, SecretStoreClient } from './secret-store';
+import type { SecretStoreClient } from './secret-store';
+import { getSecretStoreClient } from './secret-store';
 import { resolveConfig } from './config';
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
@@ -59,6 +60,7 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
   lark: ['appSecret', 'encryptKey', 'verificationToken'],
   dingtalk: ['clientSecret'],
   wechat: [], // WeChat uses token-based auth, no separate secret
+  zentao: ['zentaoPassword'],
 };
 
 // ============================================================================
@@ -121,12 +123,7 @@ export class SecretMigrationCoordinator {
     await this.loadMigrationMap();
 
     // Step 4: Migrate each secret type
-    const migrateFunctions = [
-      this.migrateChannelCredentials.bind(this),
-      this.migrateAIPlatformCredentials.bind(this),
-      this.migrateACPAuthTokens.bind(this),
-      this.migrateJWTSecrets.bind(this),
-    ];
+    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this), this.migrateJWTSecrets.bind(this)];
 
     for (const migrateFn of migrateFunctions) {
       try {
@@ -504,24 +501,8 @@ export function getMigrationCoordinator(): SecretMigrationCoordinator {
  * This should be called after Nexus is healthy.
  */
 export async function initializeSecrets(): Promise<void> {
-  const config = resolveConfig();
-
-  const hasIdentityHeaders = !!(config.subject || config.agentId || config.zoneId);
-  const hasApiKey = !!config.apiKey;
-
-  // Skip if neither apiKey nor identity headers are configured
-  if (!hasApiKey && !hasIdentityHeaders) {
-    console.warn('[SecretMigration] No Nexus credentials found (apiKey or identity headers). Skipping secret migration.');
-    return;
-  }
-
   const coordinator = getMigrationCoordinator();
-  coordinator.initialize({
-    apiKey: config.apiKey,
-    subject: config.subject,
-    agentId: config.agentId,
-    zoneId: config.zoneId,
-  });
+  coordinator.initialize();
 
   // Run migration if needed
   const migrationResult = await coordinator.migrateAll();

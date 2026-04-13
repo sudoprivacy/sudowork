@@ -19,15 +19,22 @@ interface ComponentStatus {
 /**
  * 自动组件健康监控服务
  *
- * 每隔 4 秒检测核心服务的健康状态，自动执行安装或启动操作
+ * 启动 3 分钟后开始检测核心服务健康状态，之后每隔 3 分钟执行一次。
+ * 对已安装但未运行的组件，会先等待 1 分钟再二次确认，仍未恢复才主动启动。
+ * 每次自动安装/启动成功后，会进入 3 分钟宽限期，再判断端口是否真的就绪。
  */
 class ComponentHealthMonitor {
   private pollingInterval: NodeJS.Timeout | null = null;
+  private startupDelayTimer: NodeJS.Timeout | null = null;
   private isChecking = false;
   private consecutiveFailures = new Map<string, number>();
+  private pendingStartConfirmations = new Map<string, NodeJS.Timeout>();
+  private readonly startupGraceUntil = new Map<string, number>();
   private readonly MAX_FAILURES = 3;
-  private readonly CHECK_INTERVAL_MS = 4000;
-  private readonly BACKOFF_INTERVAL_MS = 30000;
+  private readonly CHECK_INTERVAL_MS = 3 * 60 * 1000;
+  private readonly INITIAL_DELAY_MS = 3 * 60 * 1000;
+  private readonly STARTUP_GRACE_MS = 3 * 60 * 1000;
+  private readonly START_CONFIRM_DELAY_MS = 60 * 1000;
 
   private readonly COMPONENTS = ['sudoclaw', 'nexus'] as const;
 
@@ -37,12 +44,19 @@ class ComponentHealthMonitor {
   async start(): Promise<void> {
     mainLog(TAG, 'Starting component health monitor...');
 
-    // 延迟 5 秒启动，等待初始安装完成
-    setTimeout(() => {
+    if (this.pollingInterval || this.startupDelayTimer) {
+      mainLog(TAG, 'Component health monitor is already scheduled');
+      return;
+    }
+
+    // 延迟 3 分钟启动，等待核心进程完成拉起
+    this.startupDelayTimer = setTimeout(() => {
+      this.startupDelayTimer = null;
       this.pollingInterval = setInterval(() => {
         void this.checkAndHeal();
       }, this.CHECK_INTERVAL_MS);
-    }, 5000);
+      void this.checkAndHeal();
+    }, this.INITIAL_DELAY_MS);
   }
 
   /**
@@ -50,10 +64,18 @@ class ComponentHealthMonitor {
    */
   async stop(): Promise<void> {
     mainLog(TAG, 'Stopping component health monitor...');
+    if (this.startupDelayTimer) {
+      clearTimeout(this.startupDelayTimer);
+      this.startupDelayTimer = null;
+    }
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
+    for (const timer of this.pendingStartConfirmations.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingStartConfirmations.clear();
   }
 
   /**
@@ -68,16 +90,26 @@ class ComponentHealthMonitor {
 
     try {
       for (const component of this.COMPONENTS) {
+        const graceUntil = this.startupGraceUntil.get(component) || 0;
+        if (graceUntil > Date.now()) {
+          const remainingMs = graceUntil - Date.now();
+          mainLog(TAG, `Skipping ${component} health check during startup grace period (${remainingMs}ms remaining)`);
+          continue;
+        }
+
         const failures = this.consecutiveFailures.get(component) || 0;
-
-        // 如果连续失败超过阈值，延长检查间隔
-        const checkInterval = failures >= this.MAX_FAILURES ? this.BACKOFF_INTERVAL_MS : this.CHECK_INTERVAL_MS;
-
-        mainLog(TAG, `Checking ${component} (failures: ${failures}, interval: ${checkInterval}ms)`);
+        mainLog(TAG, `Checking ${component} (failures: ${failures}, interval: ${this.CHECK_INTERVAL_MS}ms)`);
 
         const status = await this.checkComponentHealth(component);
 
         if (status.needsAction) {
+          if (status.actionType === 'start') {
+            this.scheduleStartConfirmation(component);
+            continue;
+          }
+
+          this.clearPendingStartConfirmation(component);
+
           if (failures >= this.MAX_FAILURES) {
             mainWarn(TAG, `${component} 连续失败 ${failures} 次，跳过本次检查`);
             continue;
@@ -85,8 +117,9 @@ class ComponentHealthMonitor {
 
           const healed = await this.healComponent(component, status);
           if (healed) {
+            this.startupGraceUntil.set(component, Date.now() + this.STARTUP_GRACE_MS);
             this.consecutiveFailures.delete(component);
-            mainLog(TAG, `${component} 自愈成功`);
+            mainLog(TAG, `${component} 自愈成功，进入 ${this.STARTUP_GRACE_MS}ms 启动宽限期`);
           } else {
             this.consecutiveFailures.set(component, failures + 1);
             mainWarn(TAG, `${component} 自愈失败，连续失败次数：${failures + 1}`);
@@ -95,6 +128,7 @@ class ComponentHealthMonitor {
           break;
         } else {
           // 组件正常，重置失败计数
+          this.clearPendingStartConfirmation(component);
           this.consecutiveFailures.delete(component);
         }
       }
@@ -123,9 +157,9 @@ class ComponentHealthMonitor {
    * 检查 Sudoclaw 状态
    */
   private async checkSudoclawHealth(): Promise<ComponentStatus> {
-    const { getSudoclawCliPath } = await import('../sudoclaw/SudoclawInstallService');
+    const { isSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
     const { checkSudoclawHealth } = await import('../sudoclaw/sudoclawHealth');
-    const installed = getSudoclawCliPath() !== null;
+    const installed = isSudoclawInstalled();
 
     if (!installed) {
       return { installed: false, needsAction: true, actionType: 'install' };
@@ -182,6 +216,73 @@ class ComponentHealthMonitor {
       mainError(TAG, `${component} 自愈失败`, err);
       return false;
     }
+  }
+
+  private scheduleStartConfirmation(component: string): void {
+    const failures = this.consecutiveFailures.get(component) || 0;
+    if (failures >= this.MAX_FAILURES) {
+      mainWarn(TAG, `${component} 连续失败 ${failures} 次，跳过本次启动确认`);
+      return;
+    }
+
+    if (this.pendingStartConfirmations.has(component)) {
+      mainLog(TAG, `${component} 已进入启动确认等待期，跳过重复调度`);
+      return;
+    }
+
+    mainLog(TAG, `${component} 未运行，等待 ${this.START_CONFIRM_DELAY_MS}ms 后再次确认`);
+    const timer = setTimeout(() => {
+      this.pendingStartConfirmations.delete(component);
+      void this.confirmAndHealStart(component);
+    }, this.START_CONFIRM_DELAY_MS);
+    this.pendingStartConfirmations.set(component, timer);
+  }
+
+  private clearPendingStartConfirmation(component: string): void {
+    const timer = this.pendingStartConfirmations.get(component);
+    if (!timer) {
+      return;
+    }
+    clearTimeout(timer);
+    this.pendingStartConfirmations.delete(component);
+  }
+
+  private async confirmAndHealStart(component: string): Promise<void> {
+    const graceUntil = this.startupGraceUntil.get(component) || 0;
+    if (graceUntil > Date.now()) {
+      mainLog(TAG, `Skipping delayed ${component} confirmation during startup grace period`);
+      return;
+    }
+
+    const failures = this.consecutiveFailures.get(component) || 0;
+    if (failures >= this.MAX_FAILURES) {
+      mainWarn(TAG, `${component} 连续失败 ${failures} 次，跳过延迟启动`);
+      return;
+    }
+
+    const status = await this.checkComponentHealth(component);
+    if (!status.needsAction) {
+      this.consecutiveFailures.delete(component);
+      mainLog(TAG, `${component} 在延迟确认窗口内恢复，无需主动启动`);
+      return;
+    }
+
+    if (status.actionType !== 'start') {
+      mainLog(TAG, `${component} 在延迟确认后状态变为 ${status.actionType ?? 'unknown'}，按当前状态继续处理`);
+    } else {
+      mainLog(TAG, `${component} 延迟确认后仍未运行，开始主动启动`);
+    }
+
+    const healed = await this.healComponent(component, status);
+    if (healed) {
+      this.startupGraceUntil.set(component, Date.now() + this.STARTUP_GRACE_MS);
+      this.consecutiveFailures.delete(component);
+      mainLog(TAG, `${component} 自愈成功，进入 ${this.STARTUP_GRACE_MS}ms 启动宽限期`);
+      return;
+    }
+
+    this.consecutiveFailures.set(component, failures + 1);
+    mainWarn(TAG, `${component} 自愈失败，连续失败次数：${failures + 1}`);
   }
 
   /**

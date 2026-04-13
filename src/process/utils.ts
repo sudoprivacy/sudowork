@@ -155,7 +155,14 @@ export async function readDirectoryRecursive(
     const itemPath = path.join(dirPath, item);
     if (fileService && fileService.shouldIgnoreFile(itemPath)) continue;
 
-    const itemStats = await fs.stat(itemPath);
+    let itemStats: Awaited<ReturnType<typeof fs.stat>>;
+    try {
+      itemStats = await fs.stat(itemPath);
+    } catch {
+      // Item may have been deleted/recreated concurrently (e.g. skill symlink sync).
+      // Skip it rather than aborting the entire directory read.
+      continue;
+    }
     if (itemStats.isDirectory()) {
       process.dir += 1;
       const child = await readDirectoryRecursive(itemPath, {

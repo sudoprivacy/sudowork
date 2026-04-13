@@ -26,6 +26,7 @@ import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
 import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
+import CronSettings from '../settings/CronSettings';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
@@ -497,6 +498,7 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'agent' && <AgentSettings />}
             {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
+            {selectedMenu === 'cron' && <CronSettings />}
           </div>
         ) : (
           /* Normal/Assistant conversation area */

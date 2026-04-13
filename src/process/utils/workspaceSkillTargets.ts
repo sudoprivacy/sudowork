@@ -5,31 +5,41 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
-import { SKILL_SUBDIRS } from '@/process/initStorage';
+import { SKILL_SUBDIRS } from '@/process/constants/skillStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import path from 'path';
+import { normalizeSkillNames } from './conversationAssistantSkills';
 
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
-export function resolveConversationEnabledSkillNames(conversation?: TChatConversation): Set<string> | undefined {
+export function resolveConversationEnabledSkillNames(conversation?: TChatConversation, requestedSkillNames?: readonly string[]): Set<string> | undefined {
   const rawEnabledSkills = conversation?.extra?.enabledSkills;
-  if (!Array.isArray(rawEnabledSkills)) {
+
+  const normalizedEnabledSkills = normalizeSkillNames(rawEnabledSkills);
+  const normalizedRequestedSkills = normalizeSkillNames(requestedSkillNames);
+
+  if (!Array.isArray(rawEnabledSkills) && normalizedRequestedSkills.length === 0) {
     return undefined;
   }
 
-  return new Set(
-    rawEnabledSkills
-      .filter((skill): skill is string => typeof skill === 'string')
-      .map((skill) => skill.trim())
-      .filter(Boolean)
-  );
+  return new Set([...normalizedEnabledSkills, ...normalizedRequestedSkills]);
 }
 
 export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillNames?: ReadonlySet<string>): Promise<Map<string, string>> {
   const startedAt = Date.now();
   const targets = new Map<string, string>();
 
+  /**
+   * Add a skill dir as a workspace symlink target.
+   *
+   * `forceBuiltin=true` marks the skill as auto-injected builtin. Such skills:
+   *   1) are always treated as enabled regardless of meta `enabled` flag
+   *   2) bypass the `allowedSkillNames` (per-assistant enabledSkills) filter
+   *      so they surface in the workspace even when the active assistant has
+   *      a non-empty explicit skill list — matching `AcpSkillManager.discoverBuiltinSkills()`
+   *      auto-inject semantics for the LLM system prompt.
+   */
   const addSkillDir = async (skillName: string, skillDir: string, forceBuiltin = false): Promise<void> => {
     try {
       const stat = await fs.stat(path.join(skillDir, 'SKILL.md'));
@@ -40,6 +50,7 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
 
     let isBuiltin = forceBuiltin;
     let enabled = true;
+    const isAutoInjected = forceBuiltin;
 
     try {
       const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
@@ -61,7 +72,9 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
       return;
     }
 
-    if (allowedSkillNames && !allowedSkillNames.has(skillName)) {
+    // Auto-injected builtins (from `_system/_builtin/`) bypass the assistant-level
+    // enabledSkills filter — they're always available, just like `cron`.
+    if (!isAutoInjected && allowedSkillNames && !allowedSkillNames.has(skillName)) {
       return;
     }
 
@@ -83,33 +96,18 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     }
   };
 
-  // 扫描 _system/_builtin 子目录
-  const scanSystemBuiltinSubdir = async (): Promise<void> => {
-    const builtinDir = path.join(skillsDir, SKILL_SUBDIRS.system, '_builtin');
-    try {
-      const entries = await fs.readdir(builtinDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        if (entry.name === '_disable') continue;
-        await addSkillDir(entry.name, path.join(builtinDir, entry.name), true);
-      }
-    } catch {
-      // 目录不存在，跳过
-    }
-  };
-
   try {
-    // Scan in priority order: custom > hub > system
-    // For same-name skills, first match wins (higher priority)
+    // Scan in priority order: custom > hub > _system/_builtin > system
+    // For same-name skills, first match wins (higher priority).
+    //
+    // `_system/_builtin/` is scanned BEFORE `_system/` so that if an upgraded
+    // install has a stale `_system/<skill>/` (from before the skill moved into
+    // `_builtin/`), the new `_system/_builtin/<skill>/` wins — avoiding a
+    // workspace symlink that points at the stale copy.
     await scanSubdir(SKILL_SUBDIRS.custom, false);
     await scanSubdir(SKILL_SUBDIRS.hub, false);
-    await scanSubdir(SKILL_SUBDIRS.system, true);
-
-    // 扫描 _system/_builtin/ 子目录（内置技能）
-    await scanSystemBuiltinSubdir();
-
-    // Legacy: scan _builtin/ for backward compatibility
-    await scanSubdir(SKILL_SUBDIRS.legacyBuiltin, true);
+    await scanSubdir(path.join(SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin), true);
+    await scanSubdir(SKILL_SUBDIRS.system, false);
 
     // Legacy: scan flat directories for backward compatibility
     const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);

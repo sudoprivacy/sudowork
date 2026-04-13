@@ -16,13 +16,51 @@ interface UseWorkspaceTreeOptions {
   workspace: string;
   conversation_id: string;
   eventPrefix: 'acp' | 'openclaw-gateway';
+  backend?: string;
+}
+
+export function filterHiddenWorkspaceDirs(
+  nodes: IDirOrFile[],
+  options: { eventPrefix: 'acp' | 'openclaw-gateway'; backend?: string; isRoot?: boolean }
+): IDirOrFile[] {
+  const { eventPrefix, backend, isRoot = true } = options;
+  const hiddenNames = new Set<string>();
+
+  if (isRoot) {
+    if (eventPrefix === 'openclaw-gateway') {
+      hiddenNames.add('skills');
+    }
+    if (eventPrefix === 'acp' && backend === 'claude') {
+      hiddenNames.add('.claude');
+    }
+  }
+
+  return nodes
+    .filter((node) => !(hiddenNames.has(node.name) && node.isDir))
+    .map((node) => {
+      const nextChildren = node.children
+        ? filterHiddenWorkspaceDirs(node.children, {
+            eventPrefix,
+            backend,
+            // Workspace trees usually have a synthetic root node with
+            // `relativePath === ''`; its direct children are the real first
+            // level entries that should receive the hide filter.
+            isRoot: isRoot && node.relativePath === '',
+          })
+        : node.children;
+
+      return {
+        ...node,
+        children: nextChildren,
+      };
+    });
 }
 
 /**
  * useWorkspaceTree - 合并树状态管理和选择逻辑
  * Merge tree state management and selection logic
  */
-export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: UseWorkspaceTreeOptions) {
+export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend }: UseWorkspaceTreeOptions) {
   // Tree state / 树状态
   const [files, setFiles] = useState<IDirOrFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,18 +140,19 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
       return ipcBridge.conversation.getWorkspace
         .invoke({ path, workspace, conversation_id, search: search || '' })
         .then((res) => {
-          const childCount = res?.[0]?.children?.length ?? 0;
-          console.warn('[WS_DEBUG] getWorkspace returned', { seq, current: loadSeqRef.current, resLength: res?.length, childCount, rootName: res?.[0]?.name });
+          const filteredRes = filterHiddenWorkspaceDirs(res, { eventPrefix, backend });
+          const childCount = filteredRes?.[0]?.children?.length ?? 0;
+          console.warn('[WS_DEBUG] getWorkspace returned', { seq, current: loadSeqRef.current, resLength: filteredRes?.length, childCount, rootName: filteredRes?.[0]?.name });
 
           // Ignore stale responses from aborted requests:
           // The backend aborts previous getWorkspace calls, returning [].
           // Only apply the result from the latest request.
           if (seq !== loadSeqRef.current) {
             console.warn('[WS_DEBUG] ignoring stale response', { seq, current: loadSeqRef.current });
-            return res;
+            return filteredRes;
           }
 
-          setFiles(res);
+          setFiles(filteredRes);
           // 只在搜索时才重置 Tree key，否则保持选中状态
           // Only reset Tree key when searching, otherwise keep selection state
           if (search) {
@@ -127,19 +166,19 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           // First load: only expand first level
           // Subsequent refreshes: preserve user's expanded keys, only remove deleted dirs
           if (search) {
-            setExpandedKeys(getAllDirKeys(res));
+            setExpandedKeys(getAllDirKeys(filteredRes));
           } else if (isFirstLoadRef.current) {
-            setExpandedKeys(getFirstLevelKeys(res));
+            setExpandedKeys(getFirstLevelKeys(filteredRes));
           } else {
             // 保留用户展开状态，过滤掉已不存在的目录
             // Preserve user's expanded keys, filter out deleted directories
-            const validKeys = filterValidExpandedKeys(expandedKeysRef.current, res);
+            const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
             setExpandedKeys(validKeys);
           }
 
           // 根据是否有文件决定工作空间面板的展开/折叠状态
           // Determine workspace panel expand/collapse state based on files
-          const hasFiles = res.length > 0 && (res[0]?.children?.length ?? 0) > 0;
+          const hasFiles = filteredRes.length > 0 && (filteredRes[0]?.children?.length ?? 0) > 0;
 
           if (isFirstLoadRef.current) {
             // 首次加载（切换会话或打开会话）：有文件展开，没文件折叠
@@ -154,13 +193,17 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
             }
           }
 
-          return res;
+          return filteredRes;
         })
         .finally(() => {
-          setLoadingHandler(false);
+          // Only clear loading for the latest request — stale/aborted requests
+          // must not prematurely cancel the spinner while a newer request is in flight.
+          if (seq === loadSeqRef.current) {
+            setLoadingHandler(false);
+          }
         });
     },
-    [conversation_id, workspace, setLoadingHandler]
+    [backend, conversation_id, eventPrefix, workspace, setLoadingHandler]
   );
 
   /**

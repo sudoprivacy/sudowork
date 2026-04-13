@@ -7,13 +7,17 @@
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ContextMenuState } from '../types';
 import { getAllDirKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
   eventPrefix: 'acp' | 'openclaw-gateway';
+  // Absolute workspace root path — used to install an inotify-style recursive
+  // directory watcher so the tree refreshes automatically when files change
+  // outside of the agent event stream (manual file ops, external tools, etc.).
+  workspace: string;
 
   // Dependencies from useWorkspaceTree
   refreshWorkspace: () => void;
@@ -37,7 +41,16 @@ interface UseWorkspaceEventsOptions {
  * Manage all event listeners
  */
 export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
-  const { conversation_id, eventPrefix, refreshWorkspace, clearSelection, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, closeContextMenu, setContextMenu, closeRenameModal, closeDeleteModal } = options;
+  const { conversation_id, eventPrefix, workspace, refreshWorkspace, clearSelection, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, closeContextMenu, setContextMenu, closeRenameModal, closeDeleteModal } = options;
+
+  // Keep the latest refreshWorkspace callable stable for the watcher debounce
+  // callback so we don't have to tear the watcher down and rebuild it on every
+  // render (each renderer-side debounce timer still flushes to the freshest
+  // handler).
+  const refreshRef = useRef(refreshWorkspace);
+  useEffect(() => {
+    refreshRef.current = refreshWorkspace;
+  }, [refreshWorkspace]);
 
   /**
    * 监听对话切换事件 - 重置所有状态
@@ -80,6 +93,69 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       unsubscribeOpenClaw();
     };
   }, []); // Empty dependency - event listeners are stable, refreshWorkspace is captured from closure
+
+  /**
+   * inotify 风格的工作空间目录监听 — 任何文件/子目录变化都会触发刷新
+   * inotify-style directory watcher on the workspace root — any file or
+   * subdirectory change triggers a debounced tree refresh so the UI stays in
+   * sync without relying on agent stream events or manual reload. Platform
+   * differences (macOS/Windows native recursive vs. Linux per-dir walk) are
+   * handled transparently by the main-process bridge.
+   */
+  useEffect(() => {
+    if (!workspace) return;
+
+    let cancelled = false;
+    let activeWatchId: string | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      // Renderer-side debounce stacks on top of the 120ms main-process debounce
+      // to coalesce bursts (e.g. npm install writing hundreds of files) into a
+      // single tree reload.
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (cancelled) return;
+        refreshRef.current();
+      }, 200);
+    };
+
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
+      if (!activeWatchId || payload.watchId !== activeWatchId) return;
+      scheduleRefresh();
+    });
+
+    (async () => {
+      try {
+        const res = await ipcBridge.fileWatch.startWatchDir.invoke({ dirPath: workspace, recursive: true });
+        if (cancelled) {
+          if (res?.success && res.data?.watchId) {
+            ipcBridge.fileWatch.stopWatchDir.invoke({ watchId: res.data.watchId }).catch(() => {});
+          }
+          return;
+        }
+        if (res?.success && res.data?.watchId) {
+          activeWatchId = res.data.watchId;
+        }
+      } catch {
+        /* workspace may not exist yet; ignore, agent events will still refresh */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      unsubscribe();
+      if (activeWatchId) {
+        ipcBridge.fileWatch.stopWatchDir.invoke({ watchId: activeWatchId }).catch(() => {});
+        activeWatchId = null;
+      }
+    };
+  }, [workspace]);
 
   /**
    * 监听手动刷新工作空间事件

@@ -53,12 +53,12 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
 }
 
 export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
-  // Primary: read image model from sudoclaw.json agents.defaults.imageModel (updated by settings IPC)
+  // Primary: read image generation model from sudoclaw.json agents.defaults.imageGenerationModel
   let imageModelId: string | null = null;
   try {
     const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
     const config = JSON.parse(raw);
-    const imageModel = config?.agents?.defaults?.imageModel;
+    const imageModel = config?.agents?.defaults?.imageGenerationModel;
     const model = typeof imageModel === 'string' ? imageModel : imageModel?.primary;
     if (model && typeof model === 'string' && model.trim()) imageModelId = model;
   } catch {}

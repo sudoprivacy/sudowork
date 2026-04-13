@@ -144,6 +144,8 @@ export const autoUpdate = {
   getDownloadedFilePath: bridge.buildProvider<IBridgeResponse<{ path: string | null }>, void>('auto-update.get-downloaded-file-path'),
   /** Auto-update status events */
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
+  /** Get current mirror source status (for Chinese users) */
+  getMirrorStatus: bridge.buildProvider<IBridgeResponse<{ useMirror: boolean; reason: string }>, void>('auto-update.get-mirror-status'),
 };
 
 export const starOffice = {
@@ -229,7 +231,7 @@ export const fs = {
   // 导入 skill 目录 / Import skill directory
   importSkill: bridge.buildProvider<IBridgeResponse<{ skillName: string }>, { skillPath: string }>('import-skill'),
   // 扫描目录下的 skills / Scan directory for skills
-  scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string }>>, { folderPath: string }>('scan-for-skills'),
+  scanForSkills: bridge.buildProvider<IBridgeResponse<Array<{ name: string; description: string; path: string; displayName?: string; icon?: string; iconUrl?: string; color?: string; emoji?: string | null }>>, { folderPath: string }>('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
   detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
 };
@@ -239,6 +241,10 @@ export const fileWatch = {
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化
   stopAllWatches: bridge.buildProvider<IBridgeResponse, void>('file-watch-stop-all'), // 停止所有文件监听
   fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>('file-changed'), // 文件变化事件
+  // 目录监听 / Directory watching (inotify-style auto refresh)
+  startWatchDir: bridge.buildProvider<IBridgeResponse<{ watchId: string }>, { dirPath: string; recursive?: boolean }>('file-watch-dir-start'),
+  stopWatchDir: bridge.buildProvider<IBridgeResponse, { watchId: string }>('file-watch-dir-stop'),
+  dirChanged: bridge.buildEmitter<{ watchId: string; dirPath: string; eventType: string; changedPath?: string }>('dir-changed'),
 };
 
 // 文件流式更新（Agent 写入文件时实时推送内容）/ File streaming updates (real-time content push when agent writes)
@@ -512,7 +518,7 @@ export const libreOffice = {
 
 // Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
 // Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
-export type SudoclawProviderModel = { id: string; name?: string };
+export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };
 export type SudoclawProvider = {
   baseUrl?: string;
   apiKey?: string;
@@ -521,7 +527,7 @@ export type SudoclawProvider = {
 };
 export type SudoclawConfig = {
   lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; models?: Record<string, { alias?: string }> } };
+  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; imageGenerationModel?: string; models?: Record<string, { alias?: string }> } };
   models?: {
     mode?: 'merge' | 'replace';
     providers?: Record<string, SudoclawProvider>;
@@ -1091,6 +1097,8 @@ export interface IInstalledSkillInfo {
   isHubInstalled: boolean;
   /** Whether this is a built-in skill that cannot be uninstalled */
   isBuiltin: boolean;
+  /** Whether this skill comes from the auto-injected _system/_builtin directory */
+  isAutoInjectedBuiltin?: boolean;
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
@@ -1099,7 +1107,7 @@ export interface IInstalledSkillInfo {
 
 export const skillHub = {
   /** Fetch skills list from Skill Hub API with cursor-based pagination */
-  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string }>('skill-hub.fetch-skills'),
+  fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('skill-hub.fetch-skills'),
   /** Fetch skill categories from Skill Hub API */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */
@@ -1108,14 +1116,18 @@ export const skillHub = {
   downloadAndInstallSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { skillName: string; displayName: string; sourceUrl: string; version: string; checksum: string; skillMeta?: ISkillHubSkill }>('skill-hub.download-and-install-skill'),
   /** Download skill zip to local Downloads folder */
   downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
-  /** Import a local skill zip package and synthesize metadata from SKILL.md */
-  importSkillZip: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { zipPath: string }>('skill-hub.import-skill-zip'),
+  /** Import a local skill zip package or directory and synthesize metadata from SKILL.md */
+  importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill */
   setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean }>('skill-hub.set-skill-enabled'),
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
   uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
+  /** Get security audit report for a skill */
+  getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
+  /** Run security audit for a skill (re-scan) */
+  runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
 };
 
 // ==================== Channel API ====================

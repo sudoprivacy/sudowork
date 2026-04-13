@@ -15,8 +15,10 @@ import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 
 // ==================== Helpers ====================
 
@@ -67,12 +69,46 @@ async function fetchSkillDetailHttp(skillId: string): Promise<SkillDetailRespons
   return response.json();
 }
 
-async function fetchSkillsHttp(params: { cursor?: string; limit?: number; query?: string; category?: string }) {
+export type SkillStoreTab = 'store' | 'exclusive' | 'installed';
+export type LocalSkillImportSource = 'zip' | 'directory';
+
+export function resolveSkillTenantId(tab: SkillStoreTab, enterpriseCode?: string): string | undefined {
+  const normalized = enterpriseCode?.trim();
+  if (tab !== 'exclusive' || !normalized) {
+    return undefined;
+  }
+  return normalized;
+}
+
+export function getLocalSkillImportDialogOptions(source?: LocalSkillImportSource) {
+  const zipFilter = [{ name: 'Zip Archive', extensions: ['zip'] }];
+
+  if (source === 'zip') {
+    return {
+      properties: ['openFile'],
+      filters: zipFilter,
+    };
+  }
+
+  if (source === 'directory') {
+    return {
+      properties: ['openDirectory'],
+    };
+  }
+
+  return {
+    properties: ['openFile', 'openDirectory'],
+    filters: zipFilter,
+  };
+}
+
+async function fetchSkillsHttp(params: { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }) {
   const searchParams = new URLSearchParams();
   if (params.cursor) searchParams.set('cursor', params.cursor);
   if (params.limit) searchParams.set('limit', String(params.limit));
   if (params.query) searchParams.set('query', params.query);
   if (params.category) searchParams.set('categories', params.category);
+  if (params.tenantId) searchParams.set('tenant_id', params.tenantId);
   const response = await fetch(`/api/skill-hub/skills/cursor?${searchParams}`);
   return response.json();
 }
@@ -109,6 +145,10 @@ function parseCoreFeatures(jsonStr: string | null): CoreFeature[] {
   }
 }
 
+export function getInstalledSkillBadgeCount(installedList: IInstalledSkillInfo[]): number {
+  return installedList.length;
+}
+
 // ==================== SkillCard Component ====================
 
 const SkillCard: React.FC<{
@@ -130,11 +170,7 @@ const SkillCard: React.FC<{
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
-        {isInstalled && (
-          <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>
-            {hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}
-          </span>
-        )}
+        {isInstalled && <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>{hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
       </div>
 
       {/* Content */}
@@ -210,13 +246,7 @@ const InstalledSkillCard: React.FC<{
               e.stopPropagation();
             }}
           >
-            <Switch
-              size='small'
-              checked={isEnabled}
-              loading={togglingEnabled}
-              onChange={(checked) => onToggleEnabled?.(checked)}
-              className={isEnabled ? '!bg-primary !border-primary' : ''}
-            />
+            <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
           </div>
         )}
       </div>
@@ -301,7 +331,11 @@ const SkillDetailModal: React.FC<{
   skipApiFetch?: boolean;
   /** When true, hide the action buttons area entirely (e.g. when opened from installed tab) */
   hideActions?: boolean;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false }) => {
+  /** Skill directory name for audit report display */
+  auditSkillName?: string;
+  /** Callback when "View Audit Details" is clicked */
+  onViewAuditDetails?: (skillName: string) => void;
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false, auditSkillName, onViewAuditDetails }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -414,6 +448,9 @@ const SkillDetailModal: React.FC<{
                     </div>
                   </div>
                 )}
+
+                {/* Security audit section — shown for installed skills */}
+                {isInstalled && auditSkillName && <SkillAuditSummary skillName={auditSkillName} onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(auditSkillName) : undefined} />}
               </div>
             )}
           </div>
@@ -486,12 +523,13 @@ const SkillDetailModal: React.FC<{
 
 const SkillModalContent: React.FC = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'store' | 'installed'>('store');
+  const [activeTab, setActiveTab] = useState<SkillStoreTab>('store');
 
   // Store tab state
   const [skills, setSkills] = useState<ISkillHubSkill[]>([]);
@@ -525,6 +563,15 @@ const SkillModalContent: React.FC = () => {
   const [installedDetailInfo, setInstalledDetailInfo] = useState<IInstalledSkillInfo | null>(null);
   const [installedDetailVisible, setInstalledDetailVisible] = useState(false);
 
+  // Audit detail modal state
+  const [auditDetailSkillName, setAuditDetailSkillName] = useState<string | null>(null);
+  const [auditDetailVisible, setAuditDetailVisible] = useState(false);
+
+  // Standalone audit report modal state (shown after importing a custom skill)
+  const [auditReportSkillName, setAuditReportSkillName] = useState<string | null>(null);
+  const [auditReportVisible, setAuditReportVisible] = useState(false);
+  const [importSourceVisible, setImportSourceVisible] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   // Sentinel element for IntersectionObserver-based infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -539,6 +586,8 @@ const SkillModalContent: React.FC = () => {
 
   // Track whether the installed-skill comparison map has been loaded at least once
   const [installedSkillsReady, setInstalledSkillsReady] = useState(false);
+  const enterpriseCode = user?.enterprise_code?.trim();
+  const currentTenantId = resolveSkillTenantId(activeTab, enterpriseCode);
 
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
@@ -578,47 +627,59 @@ const SkillModalContent: React.FC = () => {
     }
   }, []);
 
-  const handleImportSkillZip = useCallback(async () => {
-    if (!isElectronDesktop()) return;
+  const handleImportLocalSkill = useCallback(
+    async (source?: LocalSkillImportSource) => {
+      if (!isElectronDesktop()) return;
 
-    try {
-      const dialogResult = await ipcBridge.dialog.showOpen.invoke({
-        properties: ['openFile'],
-        filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
-      });
+      try {
+        const dialogResult = await ipcBridge.dialog.showOpen.invoke(getLocalSkillImportDialogOptions(source));
 
-      if (!dialogResult.success || dialogResult.data?.canceled || !dialogResult.data?.filePaths?.[0]) {
-        return;
-      }
+        if (!dialogResult.success || dialogResult.data?.canceled || !dialogResult.data?.filePaths?.[0]) {
+          return;
+        }
 
-      const res = await skillHub.importSkillZip.invoke({ zipPath: dialogResult.data.filePaths[0] });
-      if (res.success && res.data) {
-        Message.success(
-          t('settings.skill.importSuccess', {
-            name: res.data.skillName,
-            defaultValue: `已导入技能：${res.data.skillName}`,
-          })
-        );
-        await fetchInstalledSkills();
-        await fetchInstalledList();
-      } else {
+        const res = await skillHub.importLocalSkill.invoke({ sourcePath: dialogResult.data.filePaths[0] });
+        if (res.success && res.data) {
+          const importedSkillName = res.data.skillName;
+          Message.success(
+            t('settings.skill.importSuccess', {
+              name: importedSkillName,
+              defaultValue: `已导入技能：${importedSkillName}`,
+            })
+          );
+          await fetchInstalledSkills();
+          // Refresh installed list
+          const listRes = await skillHub.getInstalledSkills.invoke();
+          if (listRes.success && listRes.data) {
+            setInstalledList(listRes.data);
+          }
+          // Open standalone audit report modal (just the audit summary, not the full detail page)
+          setAuditReportSkillName(importedSkillName);
+          setAuditReportVisible(true);
+        } else {
+          Message.error(
+            t('settings.skill.importFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `导入失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to import local skill:', err);
         Message.error(
           t('settings.skill.importFailed', {
-            msg: res.msg || 'Unknown error',
-            defaultValue: `导入失败: ${res.msg || '未知错误'}`,
+            msg: String(err),
+            defaultValue: `导入失败: ${String(err)}`,
           })
         );
       }
-    } catch (err) {
-      console.error('Failed to import skill zip:', err);
-      Message.error(
-        t('settings.skill.importFailed', {
-          msg: String(err),
-          defaultValue: `导入失败: ${String(err)}`,
-        })
-      );
-    }
-  }, [fetchInstalledList, fetchInstalledSkills, t]);
+    },
+    [fetchInstalledSkills, t]
+  );
+
+  const onImportButtonClick = useCallback(() => {
+    setImportSourceVisible(true);
+  }, []);
 
   // ---- Fetch latest versions ----
   const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
@@ -677,12 +738,20 @@ const SkillModalContent: React.FC = () => {
         // Always read the CURRENT values from refs — no stale-closure risk
         const category = selectedCategoryRef.current === 'all' ? '' : selectedCategoryRef.current;
         const query = searchQueryRef.current.trim();
+        const tenantId = currentTenantId;
+
+        if (activeTab === 'exclusive' && !tenantId) {
+          setSkills([]);
+          setNextCursor(null);
+          setHasMore(false);
+          return;
+        }
 
         let skillsRes: IBridgeResponse<ISkillHubListResponse>;
         if (isElectronDesktop()) {
-          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category });
+          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category, tenantId });
         } else {
-          skillsRes = await fetchSkillsHttp({ cursor, limit: 40, query, category });
+          skillsRes = await fetchSkillsHttp({ cursor, limit: 40, query, category, tenantId });
         }
 
         if (skillsRes.success && skillsRes.data) {
@@ -720,7 +789,7 @@ const SkillModalContent: React.FC = () => {
       }
     },
     // Minimal stable deps — selectedCategory/searchQuery/latestVersions read from refs
-    [fetchLatestVersions, t]
+    [activeTab, currentTenantId, fetchLatestVersions, t]
   );
 
   // ---- Load more ----
@@ -780,15 +849,17 @@ const SkillModalContent: React.FC = () => {
 
   // Reload when category changes — fetchSkills is now stable so no infinite loop
   useEffect(() => {
+    if (activeTab === 'installed') return;
     setSkills([]);
     setNextCursor(null);
     setHasMore(false);
     void fetchSkills();
     void fetchInstalledSkills();
-  }, [selectedCategory, fetchSkills, fetchInstalledSkills]);
+  }, [activeTab, selectedCategory, fetchSkills, fetchInstalledSkills]);
 
   // Debounced search reload
   useEffect(() => {
+    if (activeTab === 'installed') return;
     const timer = setTimeout(() => {
       setSkills([]);
       setNextCursor(null);
@@ -796,7 +867,7 @@ const SkillModalContent: React.FC = () => {
       void fetchSkills();
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, fetchSkills]);
+  }, [activeTab, searchQuery, fetchSkills]);
 
   // Fetch categories on mount
   useEffect(() => {
@@ -1134,18 +1205,21 @@ const SkillModalContent: React.FC = () => {
           <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'store' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('store')}>
             {t('settings.skill.storeTab', { defaultValue: '技能库' })}
           </button>
+          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'exclusive' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('exclusive')}>
+            {t('settings.skill.exclusiveTab', { defaultValue: '专属技能' })}
+          </button>
           <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-            {installedSkills.size > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{installedSkills.size}</span>}
+            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{getInstalledSkillBadgeCount(installedList)}</span>}
           </button>
         </div>
 
         {/* Search - always rendered to preserve layout, hidden on installed tab */}
-        <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab !== 'store' ? 'opacity-0 pointer-events-none' : '')}>
+        <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
           <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
-          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleImportSkillZip()}>
+          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
             <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <UploadOne size='13' />
             </span>
@@ -1158,7 +1232,7 @@ const SkillModalContent: React.FC = () => {
       </div>
 
       {/* ===== STORE TAB ===== */}
-      {activeTab === 'store' && (
+      {(activeTab === 'store' || activeTab === 'exclusive') && (
         <>
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
@@ -1171,7 +1245,12 @@ const SkillModalContent: React.FC = () => {
 
           {/* Skill grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleScroll}>
-            {loading || !installedSkillsReady ? (
+            {activeTab === 'exclusive' && !enterpriseCode ? (
+              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
+                <Shield size='32' className='text-t-tertiary' />
+                <span className='text-13px'>{t('settings.skill.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属技能。' })}</span>
+              </div>
+            ) : loading || !installedSkillsReady ? (
               <div className='flex justify-center items-center py-48px'>
                 <Spin size={28} />
               </div>
@@ -1286,7 +1365,31 @@ const SkillModalContent: React.FC = () => {
       )}
 
       {/* Store skill detail modal */}
-      <SkillDetailModal skill={detailSkill} visible={detailVisible} onClose={() => setDetailVisible(false)} isInstalled={detailIsInstalled} isHubInstalled={detailIsHubInstalled} hasVersion={detailHasVersion} latestVersionInfo={detailLatestVersion} installing={installingSkillId === detailSkill?.id} downloading={downloadingSkillId === detailSkill?.id} installProgress={installProgress} onInstall={() => detailSkill && void handleInstall(detailSkill.id)} onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)} onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)} uninstalling={uninstallingSkillName === detailSkill?.name} onGoUse={handleGoUse} onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)} updating={detailSkill ? updatingSkillId === detailSkill.id : false} installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined} />
+      <SkillDetailModal
+        skill={detailSkill}
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        isInstalled={detailIsInstalled}
+        isHubInstalled={detailIsHubInstalled}
+        hasVersion={detailHasVersion}
+        latestVersionInfo={detailLatestVersion}
+        installing={installingSkillId === detailSkill?.id}
+        downloading={downloadingSkillId === detailSkill?.id}
+        installProgress={installProgress}
+        onInstall={() => detailSkill && void handleInstall(detailSkill.id)}
+        onDownload={() => detailSkill && void handleDownloadZip(detailSkill.id)}
+        onUninstall={() => detailSkill && void handleUninstall(detailSkill.name)}
+        uninstalling={uninstallingSkillName === detailSkill?.name}
+        onGoUse={handleGoUse}
+        onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)}
+        updating={detailSkill ? updatingSkillId === detailSkill.id : false}
+        installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined}
+        auditSkillName={detailSkill && detailIsInstalled ? detailSkill.name : undefined}
+        onViewAuditDetails={(name) => {
+          setAuditDetailSkillName(name);
+          setAuditDetailVisible(true);
+        }}
+      />
 
       {/* Installed skill detail modal — data from local _sudowork_meta.json */}
       {(() => {
@@ -1313,18 +1416,87 @@ const SkillModalContent: React.FC = () => {
             onDownload={() => {}}
             onUninstall={() => installedDetailInfo && void handleUninstall(installedDetailInfo.name)}
             uninstalling={installedDetailInfo ? uninstallingSkillName === installedDetailInfo.name : false}
-            onGoUse={installedDetailInfo ? () => {
-              setInstalledDetailVisible(false);
-              void navigate(`/guid?skill=${encodeURIComponent(installedDetailInfo.name)}`);
-            } : undefined}
+            onGoUse={
+              installedDetailInfo
+                ? () => {
+                    setInstalledDetailVisible(false);
+                    void navigate(`/guid?skill=${encodeURIComponent(installedDetailInfo.name)}`);
+                  }
+                : undefined
+            }
             onUpdate={() => installedDetailHubId && void handleUpdate(installedDetailHubId, installedDetailInfo?.name, installedDetailInfo?.meta)}
             updating={installedDetailHubId ? updatingSkillId === installedDetailHubId : false}
             installedVersion={installedDetailInstalledVer}
             skipApiFetch
             hideActions={!installedDetailHasUpdate && !installedDetailInfo?.isHubInstalled}
+            auditSkillName={installedDetailInfo?.name}
+            onViewAuditDetails={(name) => {
+              setAuditDetailSkillName(name);
+              setAuditDetailVisible(true);
+            }}
           />
         );
       })()}
+
+      {/* Standalone audit report modal — shown after importing a custom skill */}
+      <SkillAuditReportModal
+        skillName={auditReportSkillName || ''}
+        visible={auditReportVisible}
+        onClose={() => {
+          setAuditReportVisible(false);
+          setAuditReportSkillName(null);
+        }}
+        onViewAuditDetails={(name) => {
+          setAuditDetailSkillName(name);
+          setAuditDetailVisible(true);
+        }}
+      />
+
+      {/* Audit detail modal */}
+      <SkillAuditDetailModal
+        skillName={auditDetailSkillName || ''}
+        visible={auditDetailVisible}
+        onClose={() => {
+          setAuditDetailVisible(false);
+          setAuditDetailSkillName(null);
+        }}
+      />
+
+      <Modal visible={importSourceVisible} onCancel={() => setImportSourceVisible(false)} footer={null} closable={false} maskClosable style={{ width: 420 }} className='skill-import-source-modal'>
+        <div className='flex flex-col gap-16px'>
+          <div className='flex items-center justify-between'>
+            <div className='font-semibold text-15px text-t-primary'>{t('settings.skill.importSourceTitle', { defaultValue: '导入自定义技能' })}</div>
+            <button type='button' className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
+              <Close size='14' />
+            </button>
+          </div>
+          <div className='text-12px text-t-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', { defaultValue: '请选择导入方式。' })}</div>
+          <div className='grid grid-cols-2 gap-10px'>
+            <button
+              type='button'
+              className='p-14px text-left rd-12px border border-line bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+              onClick={() => {
+                setImportSourceVisible(false);
+                void handleImportLocalSkill('zip');
+              }}
+            >
+              <div className='font-medium text-13px text-t-primary'>{t('settings.skill.importZipOption', { defaultValue: '从文件导入' })}</div>
+              <div className='mt-4px text-11px text-t-secondary'>{t('settings.skill.importZipOptionDescription', { defaultValue: '打开文件选择框，仅显示 zip 文件。' })}</div>
+            </button>
+            <button
+              type='button'
+              className='p-14px text-left rd-12px border border-line bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+              onClick={() => {
+                setImportSourceVisible(false);
+                void handleImportLocalSkill('directory');
+              }}
+            >
+              <div className='font-medium text-13px text-t-primary'>{t('settings.skill.importFolderOption', { defaultValue: '从文件夹导入' })}</div>
+              <div className='mt-4px text-11px text-t-secondary'>{t('settings.skill.importFolderOptionDescription', { defaultValue: '选择包含 SKILL.md 的技能目录。' })}</div>
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

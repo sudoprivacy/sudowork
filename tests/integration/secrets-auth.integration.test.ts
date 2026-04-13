@@ -73,13 +73,16 @@ describe('Nexus Secrets Auth Adaptation Integration Tests', () => {
     const config = resolveConfig();
     const healthUrl = `${config.baseUrl}/health`;
     console.log('[Test] Checking Nexus health at:', healthUrl);
-    console.log('[Test] Config:', JSON.stringify({
-      baseUrl: config.baseUrl,
-      hasApiKey: !!config.apiKey,
-      subject: config.subject,
-      agentId: config.agentId,
-      zoneId: config.zoneId,
-    }));
+    console.log(
+      '[Test] Config:',
+      JSON.stringify({
+        baseUrl: config.baseUrl,
+        hasApiKey: !!config.apiKey,
+        subject: config.subject,
+        agentId: config.agentId,
+        zoneId: config.zoneId,
+      })
+    );
 
     let attempts = 0;
     const maxAttempts = 30;
@@ -130,13 +133,16 @@ describe('Nexus Secrets Auth Adaptation Integration Tests', () => {
 
   it('1. resolveConfig returns configuration with identity headers', () => {
     const config = resolveConfig();
-    console.log('[Test] Config:', JSON.stringify({
-      baseUrl: config.baseUrl,
-      hasApiKey: !!config.apiKey,
-      subject: config.subject,
-      agentId: config.agentId,
-      zoneId: config.zoneId,
-    }));
+    console.log(
+      '[Test] Config:',
+      JSON.stringify({
+        baseUrl: config.baseUrl,
+        hasApiKey: !!config.apiKey,
+        subject: config.subject,
+        agentId: config.agentId,
+        zoneId: config.zoneId,
+      })
+    );
 
     // Verify baseUrl is defined
     expect(config.baseUrl).toBeDefined();

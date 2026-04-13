@@ -11,7 +11,7 @@
  * then serving from memory during runtime.
  */
 
-import { SecretStoreClient } from './secret-store-client.js';
+import type { SecretStoreClient } from './secret-store-client.js';
 import { getSecretStoreClient } from './secret-store.js';
 
 // ============================================================================
@@ -107,9 +107,7 @@ class SecretCacheImpl {
 
     // Fire-and-forget write to Nexus
     if (this.client) {
-      this.client
-        .putSecret(namespace, key, value)
-        .catch((error) => console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error));
+      this.client.putSecret(namespace, key, value).catch((error) => console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error));
     }
   }
 

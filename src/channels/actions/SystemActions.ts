@@ -156,7 +156,10 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Always create a NEW conversation for "session.new" (scoped by chatId)
   const channelChatId = context.chatId;
   const { convType, convBackend } = resolveChannelConvType(backend);
-  const name = getChannelConversationName(platform, convType, convBackend, channelChatId);
+  // 使用用户昵称作为初始标题（与自动创建会话保持一致），后续首条消息会自动更新标题
+  // Use user display name as initial title (consistent with auto-created conversations),
+  // the title will be auto-updated on the first message
+  const name = context.channelUser?.displayName || context.displayName || getChannelConversationName(platform, convType, convBackend, channelChatId);
   const result =
     backend === 'openclaw-gateway'
       ? await ConversationService.createConversation({

@@ -6,6 +6,9 @@
 
 import path from 'path';
 
+const SKILL_MARKDOWN_FILE_NAME = 'SKILL.md';
+const SKILL_MARKDOWN_FILE_NAME_LOWER = SKILL_MARKDOWN_FILE_NAME.toLowerCase();
+
 export type ParsedSkillFrontmatter = {
   name?: string;
   displayName?: string;
@@ -63,6 +66,34 @@ export function buildSkillDisplayName(skillName: string): string {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+export function isSkillMarkdownFileName(fileName: string): boolean {
+  const normalized = fileName.replaceAll('\\', '/').replace(/^\.\/+/, '');
+  return path.posix.basename(normalized).toLowerCase() === SKILL_MARKDOWN_FILE_NAME_LOWER;
+}
+
+export function canonicalizeSkillMarkdownPath(filePath: string): string {
+  const normalized = filePath.replaceAll('\\', '/').replace(/^\.\/+/, '');
+  if (!isSkillMarkdownFileName(normalized)) {
+    return normalized;
+  }
+
+  const dirName = path.posix.dirname(normalized);
+  return dirName === '.' ? SKILL_MARKDOWN_FILE_NAME : path.posix.join(dirName, SKILL_MARKDOWN_FILE_NAME);
+}
+
+export function findRootSkillMarkdownFileName(fileNames: Iterable<string>): string | undefined {
+  const matches = Array.from(fileNames).filter((fileName) => {
+    const normalized = fileName.replaceAll('\\', '/').replace(/^\.\/+/, '');
+    return !normalized.includes('/') && isSkillMarkdownFileName(normalized);
+  });
+
+  if (matches.length > 1) {
+    throw new Error('Multiple SKILL.md files found in the selected directory root');
+  }
+
+  return matches[0];
 }
 
 export function resolveSkillIconFromFiles(fileNames: Iterable<string>): string | undefined {

@@ -15,6 +15,7 @@ import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
 import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
 import { readDirectoryRecursive } from '../utils';
+import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 // ============================================================================
@@ -256,13 +257,6 @@ export function initFsBridge(): void {
     const parsedUrl = new URL(targetUrl);
     if (!allowedProtocols.has(parsedUrl.protocol)) {
       return Promise.reject(new Error('Unsupported protocol'));
-    }
-
-    // 仅允许白名单域名，避免随意访问 / Restrict to a whitelist of hosts for safety
-    const allowedHosts = ['github.com', 'raw.githubusercontent.com', 'contrib.rocks', 'img.shields.io'];
-    const isAllowedHost = allowedHosts.some((host) => parsedUrl.hostname === host || parsedUrl.hostname.endsWith(`.${host}`));
-    if (!isAllowedHost) {
-      return Promise.reject(new Error('URL not allowed for remote fetch'));
     }
 
     return new Promise((resolve, reject) => {
@@ -1024,67 +1018,26 @@ export function initFsBridge(): void {
   });
 
   // 扫描目录下的 skills / Scan directory for skills
+  //
+  // Parses YAML front matter from each SKILL.md. Besides the existing
+  // `name` / `description` fields we also extract optional `icon` / `color`
+  // so the right-side 可用技能 panel (see WorkspaceSkills.tsx) can render the
+  // icon chosen by the skill author instead of a keyword-based heuristic.
+  //
+  //   ---
+  //   name: browser
+  //   description: 浏览器操作
+  //   icon: Browser        # matches ui.zip reference → icon-park component
+  //   color: "#3B82F6"     # hex / rgb(...) / named ('blue', 'red', etc.)
+  //   ---
+  //
+  // Both fields are optional; the renderer falls back to a name-based mapping
+  // when either is missing.
   ipcBridge.fs.scanForSkills.provider(async ({ folderPath }) => {
     mainLog('fsBridge', `scanForSkills called with path: ${folderPath}`);
+
     try {
-      const skills: Array<{ name: string; description: string; path: string }> = [];
-
-      await fs.access(folderPath);
-      const entries = await fs.readdir(folderPath, { withFileTypes: true });
-      mainLog('fsBridge', `Found ${entries.length} entries in ${folderPath}`);
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-
-        const skillDir = path.join(folderPath, entry.name);
-        const skillMdPath = path.join(skillDir, 'SKILL.md');
-
-        try {
-          const content = await fs.readFile(skillMdPath, 'utf-8');
-          // 解析 YAML front matter
-          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (frontMatterMatch) {
-            const yaml = frontMatterMatch[1];
-            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
-              skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
-                path: skillDir,
-              });
-              mainLog('fsBridge', `Found skill in subdirectory: ${nameMatch[1].trim()}`);
-            }
-          }
-        } catch {
-          // Skill directory without SKILL.md, skip
-        }
-      }
-
-      // Si no se encontraron skills en subdirectorios, probamos si la carpeta seleccionada en sí es una skill
-      if (skills.length === 0) {
-        mainLog('fsBridge', `No skills in subdirectories, checking if ${folderPath} is a skill itself`);
-        const skillMdPath = path.join(folderPath, 'SKILL.md');
-        try {
-          const content = await fs.readFile(skillMdPath, 'utf-8');
-          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (frontMatterMatch) {
-            const yaml = frontMatterMatch[1];
-            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            if (nameMatch) {
-              skills.push({
-                name: nameMatch[1].trim(),
-                description: descMatch ? descMatch[1].trim() : '',
-                path: folderPath,
-              });
-              mainLog('fsBridge', `Found skill in the folder itself: ${nameMatch[1].trim()}`);
-            }
-          }
-        } catch {
-          // Not a skill directory
-        }
-      }
+      const skills = await scanWorkspaceSkills(folderPath);
 
       mainLog('fsBridge', `scanForSkills finished. Found ${skills.length} skills.`);
       return {

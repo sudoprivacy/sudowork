@@ -114,6 +114,12 @@ function buildGatewayArgs(port: number): string[] {
   return args;
 }
 
+export function buildRequireNodeOption(modulePath: string): string {
+  const normalizedPath = process.platform === 'win32' ? modulePath.replace(/\\/g, '/') : modulePath;
+  const escapedPath = normalizedPath.replace(/"/g, '\\"');
+  return `--require="${escapedPath}"`;
+}
+
 export class OpenClawGatewayManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private inProcess = false;
@@ -268,6 +274,10 @@ export class OpenClawGatewayManager extends EventEmitter {
         env.SUDOCLAW_CONFIG_PATH = path.join(this.stateDir, 'sudoclaw.json');
       }
 
+      // Prevent openclaw from auto-respawning and skip ACPX runtime probe
+      env.OPENCLAW_NO_RESPAWN = '1';
+      env.OPENCLAW_SKIP_ACPX_RUNTIME_PROBE = '1';
+
       // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
       // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
       // so no env var injection is needed here.
@@ -284,7 +294,8 @@ export class OpenClawGatewayManager extends EventEmitter {
         console.log('[OpenClawGatewayManager] Injecting safety hook:', hookJsPath);
         // Also set NODE_OPTIONS so child processes (agents) inherit the hook
         // The hook will self-regulate by polling /safe/config/enabled from Nexus
-        env.NODE_OPTIONS = `-r ${hookJsPath}`;
+        const requireHookOption = buildRequireNodeOption(hookJsPath);
+        env.NODE_OPTIONS = env.NODE_OPTIONS?.trim() ? `${requireHookOption} ${env.NODE_OPTIONS}` : requireHookOption;
       } else {
         console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
         mainWarn('OpenClawGatewayManager', 'Safety hook not found, starting without preload hook', { hookJsPath });

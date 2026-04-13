@@ -88,7 +88,7 @@ export function initSafetyBridge(): void {
       if (!hookConfig || !hookConfig.blacklist) {
         return { success: true, data: { rules: [] } };
       }
-      return { success: true, data: hookConfig.blacklist as BlacklistConfig || { rules: [] } };
+      return { success: true, data: (hookConfig.blacklist as BlacklistConfig) || { rules: [] } };
     } catch (err) {
       // If file doesn't exist, return empty config
       const errorMsg = err instanceof Error ? err.message : String(err);
