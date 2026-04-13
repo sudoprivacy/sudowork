@@ -1,0 +1,17 @@
+{
+  "id": "channel-info-skill-uuid",
+  "name": "channel-info",
+  "display_name": "渠道信息",
+  "description": "获取 Channel 渠道配置信息 - 查询 Telegram、飞书、钉钉、微信等渠道的启用状态和运行状态",
+  "icon": "icon.svg",
+  "emoji": "📡",
+  "category": "",
+  "categories": ["系统管理"],
+  "applicable_scenarios": "[\"查询渠道状态：了解当前已配置的 IM 渠道列表\",\"渠道诊断：检查渠道是否正常运行\",\"配置确认：确认渠道是否已启用\"]",
+  "core_features": "[{\"title\": \"状态查询\", \"desc\": \"获取所有已配置渠道的启用和连接状态\"}, {\"title\": \"按渠道查询\", \"desc\": \"支持查询特定渠道的详细状态\"}, {\"title\": \"安全展示\", \"desc\": \"排除敏感凭据信息\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-04-13T00:00:00.000Z"
+}
