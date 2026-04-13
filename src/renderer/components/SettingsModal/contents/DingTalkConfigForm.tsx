@@ -57,7 +57,7 @@ interface DingTalkConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
 }
 
-const DINGTALK_DEV_DOCS_URL = 'https://open.dingtalk.com/document/dingstart/custom-bot-creation-and-installation';
+const DINGTALK_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/dingtalk.html';
 const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
