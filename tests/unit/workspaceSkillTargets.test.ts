@@ -99,14 +99,13 @@ describe('listWorkspaceSkillTargets', () => {
     const skillsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'workspace-skill-targets-'));
     createdDirs.push(skillsDir);
 
-    await createSkill(skillsDir, '_system/_builtin/builtin-a', { isBuiltin: true });
     await createSkill(skillsDir, '_system/_builtin/cron', { isBuiltin: true });
     await createSkill(skillsDir, '_system/pptx', { isBuiltin: true });
 
-    // Assistant only enables pptx — builtin-a and cron must still be auto-injected.
+    // Assistant only enables pptx — cron must still be auto-injected.
     const targets = await listWorkspaceSkillTargets(skillsDir, new Set(['pptx']));
 
-    expect([...targets.keys()].sort()).toEqual(['builtin-a', 'cron', 'pptx']);
+    expect([...targets.keys()].sort()).toEqual(['cron', 'pptx']);
   });
 
   it('prefers _system/_builtin over a stale _system entry of the same name', async () => {
