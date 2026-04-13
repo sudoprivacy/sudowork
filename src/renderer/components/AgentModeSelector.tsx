@@ -9,9 +9,9 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface AgentModeSelectorProps {
@@ -231,33 +231,151 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
     );
   }
 
-  // Full mode: logo + name + optional mode label
-  const content = (
-    <div className={`flex items-center gap-2 bg-2 w-fit rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-      {renderLogo()}
-      <span className='text-sm text-t-primary'>{agentName || backend}</span>
-      {canSwitchMode && (
-        <>
-          {currentMode !== defaultMode && <span className='text-xs text-t-tertiary'>({getCurrentModeLabel()})</span>}
-          <Down size={12} className='text-t-tertiary' />
-        </>
-      )}
-    </div>
+  // Full mode: logo + name + optional mode label, hides text when space is tight.
+  // 完整模式：logo + 名称 + 可选模式标签；空间不足时仅显示 logo。
+  const displayName = agentName || backend || '';
+  const modeLabel = getCurrentModeLabel();
+  const showModeSuffix = canSwitchMode && currentMode !== defaultMode && Boolean(modeLabel);
+  const tooltipLabel = showModeSuffix ? `${displayName} · ${modeLabel}` : displayName;
+
+  const pill = (
+    <AgentModePill
+      renderLogo={renderLogo}
+      displayName={displayName}
+      modeLabel={modeLabel}
+      showModeSuffix={showModeSuffix}
+      showDropdownArrow={canSwitchMode}
+      interactive={canSwitchMode}
+      isLoading={isLoading}
+      tooltipLabel={tooltipLabel}
+    />
   );
 
-  // If mode switching is not supported, just render the content without dropdown
+  // If mode switching is not supported, just render the pill without dropdown
   if (!canSwitchMode) {
-    return <div className='ml-16px'>{content}</div>;
+    return <div className='ml-16px'>{pill}</div>;
   }
 
   // Render dropdown with mode selection menu
   return (
     <div className='ml-16px'>
       <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
-        {content}
+        {pill}
       </Dropdown>
     </div>
   );
 };
+
+/**
+ * AgentModePill — the visible full-mode pill with responsive text hiding.
+ *
+ * When horizontal space is tight (e.g. window narrows, right-side siblings
+ * grow, or the conversation header is crowded), the agent name and mode
+ * suffix are hidden entirely from the DOM render path, leaving only the logo
+ * (and optional dropdown arrow). The full label is always surfaced on hover
+ * via an Arco Tooltip.
+ *
+ * Implementation note: we render a visible pill plus an invisible "probe"
+ * pill that always contains the full content at natural width. The probe's
+ * width is compared against space available between the pill's stable left
+ * edge and the viewport's right edge. Using the left edge (which doesn't
+ * shift when we hide text, because previous siblings in the header don't
+ * reflow horizontally) avoids the flip-flop that would otherwise happen if
+ * we measured the shrunken pill's own width.
+ *
+ * 智能体模式胶囊 — 空间紧张时只显示 logo，悬停时通过 Tooltip 展示完整文字。
+ */
+interface AgentModePillProps {
+  renderLogo: () => React.ReactNode;
+  displayName: string;
+  modeLabel: string;
+  showModeSuffix: boolean;
+  showDropdownArrow: boolean;
+  interactive: boolean;
+  isLoading: boolean;
+  tooltipLabel: string;
+}
+
+const AgentModePill = React.forwardRef<HTMLDivElement, AgentModePillProps>(({ renderLogo, displayName, modeLabel, showModeSuffix, showDropdownArrow, interactive, isLoading, tooltipLabel, ...rest }, forwardedRef) => {
+  const [hideText, setHideText] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+
+  // Forward the ref to the container for Dropdown/Tooltip positioning.
+  React.useImperativeHandle(forwardedRef, () => containerRef.current as HTMLDivElement);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const probe = probeRef.current;
+    if (!container || !probe) return;
+
+    const check = () => {
+      // Pill's stable left edge (previous siblings' widths don't change when
+      // we hide our text, so this stays put regardless of current state).
+      const rect = container.getBoundingClientRect();
+      // Natural width of the full pill (probe always renders full content).
+      const needed = probe.scrollWidth;
+      // Available horizontal space until the viewport's right edge.
+      const viewportRight = document.documentElement.clientWidth;
+      const available = viewportRight - rect.left - 8; // 8px safety margin
+      setHideText(needed > available);
+    };
+
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(container);
+    ro.observe(document.documentElement);
+    if (container.parentElement) ro.observe(container.parentElement);
+    window.addEventListener('resize', check);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  }, [displayName, modeLabel, showModeSuffix, showDropdownArrow]);
+
+  const baseClass = `flex items-center gap-2 bg-2 rounded-full px-[8px] py-[2px] min-w-0 max-w-full overflow-hidden ${interactive ? 'cursor-pointer hover:bg-3' : ''}`;
+
+  const renderContent = (forProbe: boolean) => (
+    <>
+      <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+      {(forProbe || !hideText) && (
+        <>
+          <span className='text-sm text-t-primary whitespace-nowrap'>{displayName}</span>
+          {showModeSuffix && <span className='text-xs text-t-tertiary whitespace-nowrap'>({modeLabel})</span>}
+        </>
+      )}
+      {showDropdownArrow && <Down size={12} className='text-t-tertiary shrink-0' />}
+    </>
+  );
+
+  return (
+    <Tooltip content={tooltipLabel} position='bottom'>
+      <div className='relative inline-flex max-w-full' {...rest}>
+        <div ref={containerRef} className={baseClass} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+          {renderContent(false)}
+        </div>
+        {/* Invisible probe: always renders the full content to measure natural width. */}
+        <div
+          ref={probeRef}
+          aria-hidden='true'
+          className={baseClass}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            visibility: 'hidden',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            maxWidth: 'none',
+            overflow: 'visible',
+          }}
+        >
+          {renderContent(true)}
+        </div>
+      </div>
+    </Tooltip>
+  );
+});
+AgentModePill.displayName = 'AgentModePill';
 
 export default AgentModeSelector;

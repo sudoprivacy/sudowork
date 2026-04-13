@@ -136,7 +136,20 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
           {onTriggerSkillSelector && (
             <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
-              <Button type='text' shape='circle' icon={<span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>@</span>} onClick={onTriggerSkillSelector} />
+              <Button
+                type='text'
+                shape='round'
+                size='small'
+                onClick={onTriggerSkillSelector}
+                style={{ padding: '0 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                <span className='text-t-primary' style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>
+                  @
+                </span>
+                <span className='text-t-primary' style={{ fontSize: 13, lineHeight: 1 }}>
+                  {t('conversation.welcome.skill', { defaultValue: '技能' })}
+                </span>
+              </Button>
             </Tooltip>
           )}
 
