@@ -9,9 +9,9 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface AgentModeSelectorProps {
@@ -232,29 +232,115 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
   }
 
   // Full mode: logo + name + optional mode label
-  const content = (
-    <div className={`flex items-center gap-2 bg-2 w-fit rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-      {renderLogo()}
-      <span className='text-sm text-t-primary'>{agentName || backend}</span>
-      {canSwitchMode && (
+  const displayName = agentName || backend || '';
+  const modeLabel = canSwitchMode && currentMode !== defaultMode ? getCurrentModeLabel() : '';
+  const tooltipText = modeLabel ? `${displayName} · ${modeLabel}` : displayName;
+
+  return (
+    <AgentModePill
+      canSwitchMode={canSwitchMode}
+      isLoading={isLoading}
+      dropdownVisible={dropdownVisible}
+      setDropdownVisible={setDropdownVisible}
+      dropdownMenu={dropdownMenu}
+      renderLogo={renderLogo}
+      displayName={displayName}
+      modeLabel={modeLabel}
+      tooltipText={tooltipText}
+    />
+  );
+};
+
+/**
+ * Internal pill component that handles dynamic text visibility.
+ * When available width is insufficient to show the full text, the text
+ * is hidden entirely (logo-only) and the full label is shown via Tooltip on hover.
+ *
+ * 内部气泡组件，用于处理文字动态显隐：当可用宽度不足以完整显示时，
+ * 仅保留 logo，hover 时通过 Tooltip 显示完整文字。
+ */
+interface AgentModePillProps {
+  canSwitchMode: boolean;
+  isLoading: boolean;
+  dropdownVisible: boolean;
+  setDropdownVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  dropdownMenu: React.ReactNode;
+  renderLogo: () => React.ReactNode;
+  displayName: string;
+  modeLabel: string;
+  tooltipText: string;
+}
+
+const AgentModePill: React.FC<AgentModePillProps> = ({ canSwitchMode, isLoading, dropdownVisible, setDropdownVisible, dropdownMenu, renderLogo, displayName, modeLabel, tooltipText }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+  const [hideText, setHideText] = useState(false);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const probe = probeRef.current;
+    if (!container || !probe) return;
+
+    const check = () => {
+      // Pill's left position in the viewport (stable when siblings don't move; siblings to the
+      // right of the pill reflow if the pill shrinks, so the pill's left edge stays put).
+      const rect = container.getBoundingClientRect();
+      // Width required to render the pill with full text (measured from hidden probe, always natural)
+      const requiredWidth = probe.scrollWidth;
+      // Viewport inner width as the clipping boundary
+      const boundary = document.documentElement.clientWidth;
+      // Leave an 8px safety margin so we hide text a bit before the pill touches the edge
+      setHideText(rect.left + requiredWidth > boundary - 8);
+    };
+
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(container);
+    ro.observe(document.documentElement);
+    if (container.parentElement) ro.observe(container.parentElement);
+    window.addEventListener('resize', check);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  }, [displayName, modeLabel, canSwitchMode]);
+
+  const pill = (
+    <div ref={containerRef} className={`relative flex items-center gap-2 bg-2 rounded-full px-[8px] py-[2px] max-w-full min-w-0 overflow-hidden ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+      <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+      {!hideText && (
         <>
-          {currentMode !== defaultMode && <span className='text-xs text-t-tertiary'>({getCurrentModeLabel()})</span>}
-          <Down size={12} className='text-t-tertiary' />
+          <span className='text-sm text-t-primary whitespace-nowrap'>{displayName}</span>
+          {canSwitchMode && modeLabel && <span className='text-xs text-t-tertiary whitespace-nowrap'>({modeLabel})</span>}
         </>
       )}
+      {canSwitchMode && <Down size={12} className='text-t-tertiary shrink-0' />}
+      {/* Hidden probe used to measure the natural full-width of the pill */}
+      <div ref={probeRef} aria-hidden='true' className='absolute top-0 left-0 flex items-center gap-2 px-[8px] py-[2px] pointer-events-none opacity-0 invisible whitespace-nowrap'>
+        <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+        <span className='text-sm whitespace-nowrap'>{displayName}</span>
+        {canSwitchMode && modeLabel && <span className='text-xs whitespace-nowrap'>({modeLabel})</span>}
+        {canSwitchMode && <Down size={12} className='shrink-0' />}
+      </div>
     </div>
+  );
+
+  const tooltipWrapped = (
+    <Tooltip content={tooltipText} position='bottom' disabled={!tooltipText}>
+      {pill}
+    </Tooltip>
   );
 
   // If mode switching is not supported, just render the content without dropdown
   if (!canSwitchMode) {
-    return <div className='ml-16px'>{content}</div>;
+    return <div className='ml-16px min-w-0 max-w-full overflow-hidden'>{tooltipWrapped}</div>;
   }
 
   // Render dropdown with mode selection menu
   return (
-    <div className='ml-16px'>
+    <div className='ml-16px min-w-0 max-w-full overflow-hidden'>
       <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
-        {content}
+        {tooltipWrapped}
       </Dropdown>
     </div>
   );
