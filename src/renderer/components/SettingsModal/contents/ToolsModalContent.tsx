@@ -275,7 +275,7 @@ const ToolsModalContent: React.FC = () => {
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
-      // Persist to sudoclaw.json agents.defaults.imageModel so skill scripts pick it up dynamically
+      // Persist to sudoclaw.json agents.defaults.imageAnalysisModel so skill scripts pick it up dynamically
       const modelId = newImageGenerationModel.switch && newImageGenerationModel.useModel ? newImageGenerationModel.useModel : null;
       openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
       return newImageGenerationModel;

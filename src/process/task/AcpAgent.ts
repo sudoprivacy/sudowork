@@ -640,7 +640,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
               },
             });
             if (skillsDir) {
-              contentToSend = injectSkillsDirectoryHint(contentToSend, skillsDir);
+              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
             }
           }
         }
