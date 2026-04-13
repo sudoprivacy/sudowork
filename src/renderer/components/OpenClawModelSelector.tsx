@@ -19,7 +19,7 @@ type OpenClawModel = IOpenClawModelsResponse['data'][number];
 /**
  * Model selector for OpenClaw (Sudoclaw) gateway sessions.
  * Fetches model list via IPC (bypasses CORS) and displays with ratio multipliers.
- * Persists selected model to conversation extra.
+ * Persists selected model to conversation extra and syncs it to the active Gateway session.
  */
 const OpenClawModelSelector: React.FC<{
   conversationId: string;
@@ -95,6 +95,14 @@ const OpenClawModelSelector: React.FC<{
           modelId: model.model_id,
           modelRatio: model.model_ratio,
         });
+
+        const sessionPatchResult = await ipcBridge.openclawConversation.setSessionModel.invoke({
+          conversation_id: conversationId,
+          modelId: model.model_id,
+        });
+        if (!sessionPatchResult?.success) {
+          console.warn('[OpenClawModelSelector] Failed to sync model to active session:', sessionPatchResult?.msg);
+        }
 
         const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
         const currentExtra = conversation?.extra || {};
