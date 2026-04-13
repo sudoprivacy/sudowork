@@ -9,9 +9,9 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface AgentModeSelectorProps {
@@ -232,32 +232,163 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
   }
 
   // Full mode: logo + name + optional mode label
-  const content = (
-    <div className={`flex items-center gap-2 bg-2 w-fit rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-      {renderLogo()}
-      <span className='text-sm text-t-primary'>{agentName || backend}</span>
-      {canSwitchMode && (
-        <>
-          {currentMode !== defaultMode && <span className='text-xs text-t-tertiary'>({getCurrentModeLabel()})</span>}
-          <Down size={12} className='text-t-tertiary' />
-        </>
-      )}
-    </div>
-  );
+  const displayName = agentName || backend || 'Agent';
+  const modeSuffix = canSwitchMode && currentMode !== defaultMode ? `(${getCurrentModeLabel()})` : '';
+  const tooltipLabel = modeSuffix ? `${displayName} · ${modeSuffix.replace(/^\(|\)$/g, '')}` : displayName;
 
-  // If mode switching is not supported, just render the content without dropdown
+  // If mode switching is not supported, just render the pill without dropdown
   if (!canSwitchMode) {
-    return <div className='ml-16px'>{content}</div>;
+    return (
+      <div className='ml-16px'>
+        <Tooltip content={tooltipLabel} position='bottom' mini>
+          <AgentModePill displayName={displayName} modeSuffix={modeSuffix} canSwitchMode={false} isLoading={isLoading} renderLogo={renderLogo} />
+        </Tooltip>
+      </div>
+    );
   }
 
-  // Render dropdown with mode selection menu
+  // Render dropdown with mode selection menu (tooltip shows full label on hover)
   return (
     <div className='ml-16px'>
-      <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
-        {content}
-      </Dropdown>
+      <Tooltip content={tooltipLabel} position='bottom' mini>
+        <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
+          <AgentModePill displayName={displayName} modeSuffix={modeSuffix} canSwitchMode={true} isLoading={isLoading} renderLogo={renderLogo} />
+        </Dropdown>
+      </Tooltip>
     </div>
   );
 };
+
+interface AgentModePillProps {
+  displayName: string;
+  modeSuffix: string;
+  canSwitchMode: boolean;
+  isLoading: boolean;
+  renderLogo: () => React.ReactNode;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
+}
+
+/**
+ * Find the nearest ancestor that clips overflow horizontally.
+ * When the workspace sidebar ("临时空间") expands, the chat-layout-header shrinks;
+ * since that header has `overflow-hidden`, we measure against its right edge so the
+ * pill collapses to logo-only as soon as its full content would be clipped.
+ */
+const findClipAncestor = (el: HTMLElement | null): HTMLElement | null => {
+  let current: HTMLElement | null = el?.parentElement ?? null;
+  while (current && current !== document.body) {
+    const style = window.getComputedStyle(current);
+    if (style.overflow === 'hidden' || style.overflowX === 'hidden' || style.overflow === 'clip' || style.overflowX === 'clip') {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+};
+
+/**
+ * AgentModePill — wraps the visible pill with a hidden probe that always holds the
+ * full content at its natural width. We compare the probe's scrollWidth against the
+ * space remaining between the pill's (stable) left edge and the clipping ancestor's
+ * right edge. When the full content would overflow, we hide the name/mode text and
+ * leave only the logo (and optional dropdown arrow). The Tooltip always shows the
+ * full label on hover so no information is lost.
+ */
+const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function AgentModePill({ displayName, modeSuffix, canSwitchMode, isLoading, renderLogo, ...rest }, forwardedRef) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const probeRef = useRef<HTMLSpanElement | null>(null);
+  const [hideText, setHideText] = useState(false);
+
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      if (typeof forwardedRef === 'function') forwardedRef(node);
+      else if (forwardedRef) (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    },
+    [forwardedRef]
+  );
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const probe = probeRef.current;
+    if (!container || !probe) return;
+
+    const check = () => {
+      if (!containerRef.current || !probeRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const needed = probeRef.current.scrollWidth; // natural full width
+      const clipAncestor = findClipAncestor(containerRef.current);
+      const clipRight = clipAncestor ? clipAncestor.getBoundingClientRect().right : document.documentElement.clientWidth;
+      const available = clipRight - rect.left - 8; // 8px safety margin
+      setHideText(needed > available);
+    };
+
+    check();
+
+    const observers: ResizeObserver[] = [];
+    const addObserver = (el: Element | null) => {
+      if (!el) return;
+      const ro = new ResizeObserver(check);
+      ro.observe(el);
+      observers.push(ro);
+    };
+
+    addObserver(container);
+    if (container.parentElement) addObserver(container.parentElement);
+    const clipAncestor = findClipAncestor(container);
+    if (clipAncestor) addObserver(clipAncestor);
+    addObserver(document.documentElement);
+
+    window.addEventListener('resize', check);
+    return () => {
+      observers.forEach((ro) => ro.disconnect());
+      window.removeEventListener('resize', check);
+    };
+  }, [displayName, modeSuffix, canSwitchMode]);
+
+  return (
+    <div
+      ref={setRefs}
+      {...rest}
+      className={`relative inline-flex items-center gap-2 bg-2 w-fit rounded-full px-[8px] py-[2px] max-w-full min-w-0 overflow-hidden ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`}
+      style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}
+    >
+      <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+      {!hideText && (
+        <>
+          <span className='text-sm text-t-primary whitespace-nowrap'>{displayName}</span>
+          {modeSuffix && <span className='text-xs text-t-tertiary whitespace-nowrap'>{modeSuffix}</span>}
+        </>
+      )}
+      {canSwitchMode && <Down size={12} className='text-t-tertiary shrink-0' />}
+
+      {/* Hidden probe: always renders full content at natural width so we can
+          measure the stable "required width" regardless of current hideText state. */}
+      <span
+        ref={probeRef}
+        aria-hidden='true'
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '2px 8px',
+        }}
+      >
+        <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
+        <span className='text-sm whitespace-nowrap'>{displayName}</span>
+        {modeSuffix && <span className='text-xs whitespace-nowrap'>{modeSuffix}</span>}
+        {canSwitchMode && <Down size={12} />}
+      </span>
+    </div>
+  );
+});
 
 export default AgentModeSelector;
