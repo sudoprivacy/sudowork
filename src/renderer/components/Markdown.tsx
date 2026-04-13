@@ -71,10 +71,9 @@ const getDiffLineStyle = (line: string, isDark: boolean): React.CSSProperties =>
 
 function CodeBlock(props: any) {
   const { t } = useTranslation();
-  const [fold, setFlow] = useState(() => {
-    const content = String(props.children || '').replace(/\n$/, '');
-    return content.split('\n').length >= 4;
-  });
+  // Assistant-output code blocks default to expanded regardless of line count.
+  // Users can still manually fold/unfold via the toggle button in the header.
+  const [fold, setFlow] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });

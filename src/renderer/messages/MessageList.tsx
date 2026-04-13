@@ -448,7 +448,14 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             atBottomStateChange={handleAtBottomStateChange}
             components={{
               Header: () => <div className='h-10px' />,
-              Footer: () => <div className='h-20px' />,
+              // Footer doubles as the bottom buffer between the last message and
+              // the SendBox below. useAutoScroll scrolls to the absolute bottom
+              // of the scroller (not align:end), so this Footer is visible at
+              // the bottom of the viewport — keeping the last message's bottom
+              // border clear of the input area during ToolCall streaming.
+              // Footer 同时作为最后一条消息与下方输入框之间的缓冲区，确保
+              // ToolCall 流式输出时消息底边不会被输入框遮挡。
+              Footer: () => <div className='h-40px' />,
             }}
           />
         </ImagePreviewContext.Provider>

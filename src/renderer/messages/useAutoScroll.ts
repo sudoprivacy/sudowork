@@ -5,13 +5,24 @@
  */
 
 /**
- * useAutoScroll - Auto-scroll hook with user scroll detection
- * Uses Virtuoso's native followOutput for streaming auto-scroll,
- * only calls scrollToIndex for user-initiated actions (send message, click button).
+ * useAutoScroll - Auto-scroll hook with user scroll detection.
  *
- * Tool Call Optimization:
- * - Scrolls to top when user sends a message to show tool execution steps
- * - Auto-scrolls to bottom when task completes
+ * Behavior:
+ * - When the user sends a message, scrolls the prompt to the top of the viewport.
+ * - When the AI streams output (text or ToolCall), auto-scrolls to the absolute
+ *   bottom of the scroll container so the latest content stays visible. This
+ *   covers both new messages AND in-place content updates (e.g. long-running
+ *   tool output that streams into an existing message), which Virtuoso's native
+ *   `followOutput` does not handle.
+ *
+ *   We use `scrollTo({ top: MAX })` (not `scrollToIndex({ align: 'end' })`)
+ *   so that the Virtuoso Footer is visible at the bottom of the viewport,
+ *   acting as a buffer between the last message's bottom border and the input
+ *   box below the message list. Otherwise, `align: 'end'` would flush the
+ *   message bottom directly against the viewport edge, making the bottom
+ *   border appear clipped against the SendBox during streaming.
+ * - When the user manually scrolls up, auto-follow pauses to preserve their
+ *   reading position, and resumes once they scroll back to the bottom.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
@@ -56,20 +67,20 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   const previousListLengthRef = useRef(messages.length);
   const lastProgrammaticScrollTimeRef = useRef(0);
 
-  // Scroll to bottom helper - only for user messages and button clicks
-  const scrollToBottom = useCallback(
-    (behavior: 'smooth' | 'auto' = 'smooth') => {
-      if (!virtuosoRef.current) return;
+  // Scroll to absolute bottom of the scroller. Using `scrollTo` (not
+  // `scrollToIndex({ align: 'end' })`) puts the Virtuoso Footer at the bottom
+  // of the viewport, leaving the Footer's worth of breathing room below the
+  // last message. This prevents the last message's bottom border from being
+  // visually clipped against the SendBox sitting below the message list.
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (!virtuosoRef.current) return;
 
-      lastProgrammaticScrollTimeRef.current = Date.now();
-      virtuosoRef.current.scrollToIndex({
-        index: itemCount - 1,
-        behavior,
-        align: 'end',
-      });
-    },
-    [itemCount]
-  );
+    lastProgrammaticScrollTimeRef.current = Date.now();
+    virtuosoRef.current.scrollTo({
+      top: Number.MAX_SAFE_INTEGER,
+      behavior,
+    });
+  }, []);
 
   // Scroll to top helper - for when user sends a message
   const scrollToTop = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
@@ -119,7 +130,9 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     lastScrollTopRef.current = currentScrollTop;
   }, []);
 
-  // Force scroll when user sends a message or task completes
+  // Force scroll when user sends a message, or auto-follow AI output (including
+  // ToolCall streaming content updates) unless the user has manually scrolled up.
+  // 处理用户发送消息 / 跟随 AI 输出（包含 ToolCall 运行时内容更新）
   useEffect(() => {
     const currentListLength = messages.length;
     const prevLength = previousListLengthRef.current;
@@ -127,42 +140,56 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
 
     previousListLengthRef.current = currentListLength;
 
-    if (!isNewMessage) return;
+    if (!messages.length || itemCount <= 0) return;
 
     const lastMessage = messages[messages.length - 1];
 
-    // User sent a message - scroll to show the message at top of viewport
-    // 用户发送消息后滚动到合适位置，保持能看到用户输入，同时展示更多工具执行步骤空间
-    if (lastMessage?.position === 'right') {
+    // User sent a new message - scroll to show the message at top of viewport.
+    // 用户发送消息后将其滚动到视口顶部，方便用户对照自己的输入
+    if (isNewMessage && lastMessage?.position === 'right') {
       userScrolledRef.current = false;
       // Use double RAF to ensure DOM is updated before scrolling
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (virtuosoRef.current) {
             lastProgrammaticScrollTimeRef.current = Date.now();
-            // Scroll to show user message at top, keeping it visible
-            // 滚动到用户消息位置，使其位于视口顶部但仍可见
             virtuosoRef.current.scrollToIndex({
               index: itemCount - 1,
               align: 'start',
               behavior: 'auto', // Use auto for immediate positioning
             });
-
-            // Set userScrolledRef to true to prevent further auto-scrolling
-            // and pin the user prompt at the top
-            userScrolledRef.current = true;
           }
         });
       });
-    } else if (lastMessage?.position === 'left' && lastMessage.type !== 'tool_group' && lastMessage.type !== 'acp_tool_call' && lastMessage.type !== 'codex_tool_call') {
-      // Assistant final response - scroll to bottom to show completion
-      // 助手完成回复后滚动到底部，展示完成状态
-      userScrolledRef.current = false;
+      return;
+    }
+
+    // AI output (new message or in-place content update, including ToolCall streaming).
+    // Auto-scroll to the absolute bottom of the scroller so the Virtuoso Footer
+    // is visible at the bottom of the viewport — this leaves a real, visible
+    // breathing margin between the last message's bottom border and the SendBox
+    // below, preventing the bottom border from being clipped against the input
+    // box during streaming. Unless the user has manually scrolled up, in which
+    // case we respect their reading position.
+    //
+    // 自动滚动到滚动容器的绝对底部以跟随 AI 输出（含 ToolCall 运行时内容更新），
+    // 让 Virtuoso Footer 留在视口底部，作为最后一条消息底边与下方输入框之间的
+    // 缓冲区，避免消息底边紧贴输入框被遮挡。
+    // 若用户已手动向上滚动，则保留其阅读位置，不干扰阅读。
+    //
+    // Note: we intentionally do NOT update lastProgrammaticScrollTimeRef here.
+    // Auto-follow always scrolls DOWN (scrollTop increases → delta > 0), so it
+    // cannot be misdetected as a user scroll-up in handleScroll. Skipping the
+    // guard update keeps user scroll-up detection responsive during high-frequency
+    // streaming updates where the guard window would otherwise never close.
+    if (!userScrolledRef.current && lastMessage?.position === 'left') {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (virtuosoRef.current) {
-            lastProgrammaticScrollTimeRef.current = Date.now();
-            scrollToBottom('auto');
+            virtuosoRef.current.scrollTo({
+              top: Number.MAX_SAFE_INTEGER,
+              behavior: 'auto',
+            });
           }
         });
       });

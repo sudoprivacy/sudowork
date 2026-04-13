@@ -168,6 +168,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       try {
         const result = await this.connection.sessionsResolve({ key: resumeKey });
         this.connection.sessionKey = result.key;
+        await this.syncConfiguredSessionModel();
         return;
       } catch (err) {
         mainWarn('OpenClawAgent', 'Failed to resume session, using default:', err);
@@ -192,9 +193,65 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     if (this.connection.sessionKey !== resumeKey) {
       this.saveSessionKey(this.connection.sessionKey!);
     }
+
+    await this.syncConfiguredSessionModel();
+  }
+
+  private normalizeSessionModelRef(modelId: string): string {
+    const trimmed = modelId.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (trimmed.includes('/')) {
+      return trimmed;
+    }
+    return `sudorouter-${trimmed}/${trimmed}`;
+  }
+
+  private async patchSessionModel(modelId: string): Promise<void> {
+    const normalizedModel = this.normalizeSessionModelRef(modelId);
+    if (!normalizedModel || !this.connection?.sessionKey) {
+      return;
+    }
+    await this.connection.sessionsPatch({
+      key: this.connection.sessionKey,
+      model: normalizedModel,
+    });
+    this.options.model = modelId.trim();
+  }
+
+  private async syncConfiguredSessionModel(): Promise<void> {
+    if (!this.options.model) {
+      return;
+    }
+    try {
+      await this.patchSessionModel(this.options.model);
+    } catch (error) {
+      mainWarn('OpenClawAgent', 'Failed to sync configured session model:', error);
+    }
   }
 
   // ========== Public API (BaseAgent contract) ==========
+
+  async setSessionModel(modelId: string): Promise<{ sessionKey: string; model: string }> {
+    await this.bootstrap;
+
+    if (!this.connection?.isConnected || !this.connection?.sessionKey) {
+      this.bootstrap = this.connect(this.options);
+      await this.bootstrap;
+    }
+
+    if (!this.connection?.sessionKey) {
+      throw new Error('OpenClaw session is not available');
+    }
+
+    await this.patchSessionModel(modelId);
+
+    return {
+      sessionKey: this.connection.sessionKey,
+      model: modelId.trim(),
+    };
+  }
 
   async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);

@@ -52,6 +52,7 @@
       "compareContent": "Please compare... and..., analyzing their principles, pros/cons, and use cases"
     }
   },
+  "trySuggestionPrompts": "Try these clickable example prompts:",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "No Main Agent is available. Please login to Google or install Claude/Codex CLI. Go to settings?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

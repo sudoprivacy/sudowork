@@ -7,7 +7,7 @@
 import path from 'node:path';
 import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
-import type { ChatAbortParams, ChatSendParams, ConnectParams, EventFrame, HelloOk, OpenClawGatewayClientOptions, RequestFrame, ResponseFrame, SessionsResetParams, SessionsResolveParams } from './types';
+import type { ChatAbortParams, ChatSendParams, ConnectParams, EventFrame, HelloOk, OpenClawGatewayClientOptions, RequestFrame, ResponseFrame, SessionsPatchParams, SessionsResetParams, SessionsResolveParams } from './types';
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES, GATEWAY_CLOSE_CODE_HINTS, OPENCLAW_PROTOCOL_VERSION } from './types';
 import { buildDeviceAuthPayload, type DeviceIdentity, loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } from './deviceIdentity';
 import { clearDeviceAuthToken, loadDeviceAuthToken, resetDeviceIdentityForStateDir, storeDeviceAuthToken } from './deviceAuthStore';
@@ -244,6 +244,13 @@ export class OpenClawGatewayConnection {
    */
   async sessionsList(params?: { limit?: number; activeMinutes?: number }): Promise<unknown> {
     return this.request('sessions.list', params);
+  }
+
+  /**
+   * Patch current session settings
+   */
+  async sessionsPatch(params: SessionsPatchParams): Promise<unknown> {
+    return this.request('sessions.patch', params);
   }
 
   // ========== Private Methods ==========

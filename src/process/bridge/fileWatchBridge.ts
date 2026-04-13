@@ -154,10 +154,7 @@ function attachDirWatcher(entry: DirWatchEntry, dir: string): void {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOSPC') {
-      mainError(
-        'FileWatch',
-        `inotify watch count exhausted while attaching to ${dir}. Consider raising fs.inotify.max_user_watches or disabling recursive watching.`
-      );
+      mainError('FileWatch', `inotify watch count exhausted while attaching to ${dir}. Consider raising fs.inotify.max_user_watches or disabling recursive watching.`);
     } else if (code !== 'ENOENT') {
       mainWarn('FileWatch', `Failed to attach watcher to ${dir}:`, error);
     }

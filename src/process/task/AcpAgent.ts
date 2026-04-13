@@ -40,6 +40,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { hasCronCommands } from './CronCommandDetector';
+import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
@@ -604,6 +605,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         return await this.handleImageCommand(imageMatch[1].trim(), data);
       }
 
+      // Intercept channel query intent (natural language)
+      const channelQueryCommand = detectChannelQueryIntent(data.content);
+      if (channelQueryCommand) {
+        return await this.handleChannelQueryIntent(channelQueryCommand, data.msg_id);
+      }
+
       const initStart = Date.now();
       await this.initAgent(this.options);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: initAgent completed ${Date.now() - initStart}ms`);
@@ -638,7 +645,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
               },
             });
             if (skillsDir) {
-              contentToSend = injectSkillsDirectoryHint(contentToSend, skillsDir);
+              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
             }
           }
         }
@@ -1381,32 +1388,42 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
     }
 
-    if (v.type === 'finish' && this.cronAccumulator.currentMsgContent && hasCronCommands(this.cronAccumulator.currentMsgContent)) {
-      const message: TMessage = {
-        id: this.cronAccumulator.currentMsgId || uuid(),
-        msg_id: this.cronAccumulator.currentMsgId || uuid(),
-        type: 'text',
-        position: 'left',
-        conversation_id: this.conversation_id,
-        content: { content: this.cronAccumulator.currentMsgContent },
-        status: 'finish',
-        createdAt: Date.now(),
-      };
-      const collectedResponses: string[] = [];
-      await processCronInMessage(this.conversation_id, this.options.backend as any, message, (sysMsg) => {
-        collectedResponses.push(sysMsg);
-        const systemMessage: IResponseMessage = {
-          type: 'system',
+    // On finish, process any skill commands (cron, channel-info) from accumulated content
+    // Must save content BEFORE reset, then process all command types, then reset at the end
+    if (v.type === 'finish' && this.cronAccumulator.currentMsgContent) {
+      const savedContent = this.cronAccumulator.currentMsgContent;
+      const savedMsgId = this.cronAccumulator.currentMsgId;
+
+      // Process cron commands
+      if (hasCronCommands(savedContent)) {
+        const message: TMessage = {
+          id: savedMsgId || uuid(),
+          msg_id: savedMsgId || uuid(),
+          type: 'text',
+          position: 'left',
           conversation_id: this.conversation_id,
-          msg_id: uuid(),
-          data: sysMsg,
+          content: { content: savedContent },
+          status: 'finish',
+          createdAt: Date.now(),
         };
-        ipcBridge.acpConversation.responseStream.emit(systemMessage);
-      });
-      if (collectedResponses.length > 0) {
-        const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
-        await this.sendToConnection(feedbackMessage);
+        const collectedResponses: string[] = [];
+        await processCronInMessage(this.conversation_id, this.options.backend as any, message, (sysMsg) => {
+          collectedResponses.push(sysMsg);
+          const systemMessage: IResponseMessage = {
+            type: 'system',
+            conversation_id: this.conversation_id,
+            msg_id: uuid(),
+            data: sysMsg,
+          };
+          ipcBridge.acpConversation.responseStream.emit(systemMessage);
+        });
+        if (collectedResponses.length > 0) {
+          const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
+          await this.sendToConnection(feedbackMessage);
+        }
       }
+
+      // Reset accumulator AFTER all command processing
       this.cronAccumulator.reset();
     }
 
@@ -1795,6 +1812,51 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         conversation_id: this.conversation_id,
         msg_id: responseMsgId,
         data: `图像处理失败: ${msg}`,
+      });
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  private async handleChannelQueryIntent(command: ChannelQueryCommand, msg_id?: string): Promise<AcpResult> {
+    const responseMsgId = uuid();
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+
+    try {
+      const result = await executeChannelInfoCommand(command);
+
+      const contentMsg = {
+        type: 'content' as const,
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: result,
+      };
+      ipcBridge.acpConversation.responseStream.emit(contentMsg);
+      ipcBridge.conversation.responseStream.emit(contentMsg);
+      const tMessage = transformMessage(contentMsg);
+      if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Channel query failed: ${msg}`);
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: `获取渠道信息失败: ${msg}`,
       });
     }
 

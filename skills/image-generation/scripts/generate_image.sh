@@ -5,7 +5,7 @@
 #   generate_image.sh edit "<prompt>" "<image_path>" [<filename_no_ext>] [size]
 # Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH env var.
 # IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
-# (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
+# (Note: agents.defaults.imageAnalysisModel is the image *parsing* model for the gateway;
 #  image generation uses the separate imageGenerationModel field.)
 # Any leading "provider/" prefix is stripped before sending to /images/generations.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
@@ -75,8 +75,7 @@ try:
     sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
-    image_model_raw = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
-    image_model = image_model_raw.get('primary','') if isinstance(image_model_raw, dict) else image_model_raw
+    image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
     # Strip any 'provider/' prefix (e.g. 'sudorouter/gpt-image-1.5' -> 'gpt-image-1.5');
     # sudorouter /images/generations expects the bare model id.
     if isinstance(image_model, str) and '/' in image_model:
