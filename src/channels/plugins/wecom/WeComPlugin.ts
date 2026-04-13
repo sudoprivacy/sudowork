@@ -15,6 +15,52 @@ import type { WeComMsgCallback, WeComEventCallback } from './WeComAdapter';
 import { downloadAndDecryptMedia } from './WeComCrypto';
 
 /**
+ * Detect Office document type from ZIP content.
+ *
+ * DOCX/XLSX/PPTX files are ZIP archives. We check for characteristic file paths:
+ * - PPTX: contains "ppt/presentation.xml" (check first, most specific)
+ * - XLSX: contains "xl/workbook.xml"
+ * - DOCX: contains "word/document.xml"
+ *
+ * @param buffer - ZIP file buffer
+ * @returns Extension string (.docx/.xlsx/.pptx) or .docx as fallback
+ */
+function detectOfficeDocumentType(buffer: Buffer): string {
+  try {
+    // Search for characteristic paths in ZIP content
+    // Use more specific paths to avoid false matches
+    const content = buffer.toString('binary');
+
+    // Check in order of specificity (most specific first)
+    if (content.includes('ppt/presentation.xml')) {
+      return '.pptx';
+    }
+    if (content.includes('xl/workbook.xml')) {
+      return '.xlsx';
+    }
+    if (content.includes('word/document.xml')) {
+      return '.docx';
+    }
+
+    // Fallback: check for directory names (less reliable)
+    if (content.includes('ppt/')) {
+      return '.pptx';
+    }
+    if (content.includes('xl/')) {
+      return '.xlsx';
+    }
+    if (content.includes('word/')) {
+      return '.docx';
+    }
+
+    // Default to docx for unknown Office files
+    return '.docx';
+  } catch {
+    return '.docx';
+  }
+}
+
+/**
  * WeComPlugin - WeCom (WeChat Work) Bot integration via WebSocket long connection
  *
  * Uses the official WeCom AI Bot WebSocket protocol.
@@ -349,12 +395,41 @@ export class WeComPlugin extends BasePlugin {
     // Download and decrypt each media item
     for (const item of mediaItems) {
       try {
-        const ext = item.filename ? path.extname(item.filename) : getDefaultExtension(item.msgtype);
+        const buffer = await downloadAndDecryptMedia(item.url, item.aeskey);
+
+        // Detect file format from signature and determine extension
+        const signature = buffer.slice(0, 4).toString('hex');
+        const formatMap: Record<string, { format: string; ext: string }> = {
+          ffd8ffe0: { format: 'JPEG', ext: '.jpg' },
+          ffd8ffe1: { format: 'JPEG', ext: '.jpg' },
+          '89504e47': { format: 'PNG', ext: '.png' },
+          '25504446': { format: 'PDF', ext: '.pdf' },
+          '47494638': { format: 'GIF', ext: '.gif' },
+          '504b0304': { format: 'ZIP/Office', ext: '' }, // DOCX/XLSX/PPTX are ZIP archives
+        };
+        const detected = formatMap[signature];
+
+        // Determine extension: prefer detected format, then filename, then default
+        let ext: string;
+        if (detected) {
+          // For ZIP format, try to detect specific Office document type
+          if (signature === '504b0304') {
+            const officeType = detectOfficeDocumentType(buffer);
+            ext = officeType || (item.filename ? path.extname(item.filename) : '.docx');
+          } else {
+            ext = detected.ext;
+          }
+        } else if (item.filename) {
+          ext = path.extname(item.filename);
+        } else {
+          ext = getDefaultExtension(item.msgtype);
+        }
+
         const baseName = item.filename || `wecom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
         const filePath = path.join(this.mediaDir, baseName);
 
-        const buffer = await downloadAndDecryptMedia(item.url, item.aeskey);
         fs.writeFileSync(filePath, buffer);
+        console.log(`[WeComPlugin] Downloaded: type=${item.msgtype}, size=${buffer.length}, format=${detected?.format || 'unknown'}, ext=${ext}, path=${filePath}`);
 
         // Write local path back to the message body
         const mixedItemsRef = body.mixed?.msg_item || body.mixed?.items || body.mixed?.item;
@@ -373,8 +448,6 @@ export class WeComPlugin extends BasePlugin {
               break;
           }
         }
-
-        console.log(`[WeComPlugin] Downloaded media: type=${item.msgtype}, size=${buffer.length}, encrypted=${!!item.aeskey}, path=${filePath}`);
       } catch (error) {
         console.error(`[WeComPlugin] Failed to download media for type=${item.msgtype}:`, error);
       }
