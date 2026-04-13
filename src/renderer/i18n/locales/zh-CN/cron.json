@@ -88,6 +88,9 @@
   "create.conversationMode": "执行模式",
   "create.conversationMode.new": "每次新建会话（推荐）",
   "create.conversationMode.reuse": "复用已有会话（适合持续追加）",
+  "create.reuseConversation": "绑定会话",
+  "create.reuseConversationPlaceholder": "首次运行时自动创建",
+  "create.reuseConversationHint": "选择已有会话，首次运行将直接追加到该会话",
   "goToLastConversation": "查看最近执行会话",
   "sidebar.scheduled": "定时任务"
 }
