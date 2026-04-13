@@ -236,10 +236,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
           return availableCustomAgentIds.has(agent.id);
         });
 
-        // 对于内置助手，使用 ASSISTANT_PRESETS 中的最新配置更新 presetAgentType
-        // For builtin assistants, update presetAgentType from ASSISTANT_PRESETS
+        // 对于内置助手，如果用户尚未自定义 presetAgentType，则回退为 ASSISTANT_PRESETS 的默认值
+        // 已保存的用户选择会被保留，确保用户能够修改内置助手的主代理
+        // For builtin assistants, fall back to ASSISTANT_PRESETS default only when the user has not
+        // customized presetAgentType. User-saved choices are preserved so the main agent of a
+        // builtin assistant can actually be modified from the UI.
         for (const agent of list) {
-          if (agent.id.startsWith('builtin-')) {
+          if (agent.id.startsWith('builtin-') && !agent.presetAgentType) {
             const presetId = agent.id.replace('builtin-', '');
             const preset = getPresetById(presetId);
             if (preset && preset.presetAgentType) {

@@ -114,8 +114,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         const found = agents.find((a) => a.id === assistantId);
         if (cancelled || !found) return;
 
-        // Update presetAgentType from presets for builtin
-        if (found.id.startsWith('builtin-')) {
+        // Fall back to preset default presetAgentType only when the user hasn't saved one yet.
+        // Preserving the stored value ensures the dropdown reflects (and lets the user modify)
+        // the main agent of a builtin assistant instead of snapping back to the hardcoded default.
+        if (found.id.startsWith('builtin-') && !found.presetAgentType) {
           const presetId = found.id.replace('builtin-', '');
           const preset = getPresetById(presetId);
           if (preset?.presetAgentType) {
