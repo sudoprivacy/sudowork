@@ -19,10 +19,7 @@ interface UseWorkspaceTreeOptions {
   backend?: string;
 }
 
-export function filterHiddenWorkspaceDirs(
-  nodes: IDirOrFile[],
-  options: { eventPrefix: 'acp' | 'openclaw-gateway'; backend?: string; isRoot?: boolean }
-): IDirOrFile[] {
+export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventPrefix: 'acp' | 'openclaw-gateway'; backend?: string; isRoot?: boolean }): IDirOrFile[] {
   const { eventPrefix, backend, isRoot = true } = options;
   const hiddenNames = new Set<string>();
 

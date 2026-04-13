@@ -63,6 +63,10 @@ export const CONFIG_FILENAME = 'sudoclaw.json';
 /** Full path to sudoclaw.json config file */
 export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 
+const SUDOCLAW_DEFAULT_GATEWAY_RELOAD = {
+  mode: 'hot' as const,
+};
+
 /** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
 export function removeSudoclawCli(): void {
   if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
@@ -418,11 +422,21 @@ export function repairOpenClawConfig(): void {
 
     // Ensure gateway config exists with auth: { mode: 'none' }
     if (!config.gateway || typeof config.gateway !== 'object') {
-      (config as Record<string, unknown>).gateway = { port: SUDOCLAW_DEFAULT_PORT, mode: 'local', auth: { mode: 'none' } };
+      (config as Record<string, unknown>).gateway = {
+        port: SUDOCLAW_DEFAULT_PORT,
+        mode: 'local',
+        auth: { mode: 'none' },
+        reload: { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD },
+      };
       changed = true;
       mainLog('Sudoclaw', 'Added missing gateway config');
     } else {
-      const gw = config.gateway as { mode?: string; port?: number; auth?: { mode?: string } };
+      const gw = config.gateway as {
+        mode?: string;
+        port?: number;
+        auth?: { mode?: string };
+        reload?: Record<string, unknown> & { mode?: string };
+      };
       if (!gw.mode) {
         gw.mode = 'local';
         changed = true;
@@ -440,6 +454,11 @@ export function repairOpenClawConfig(): void {
         gw.auth = { mode: 'none' };
         changed = true;
         mainLog('Sudoclaw', 'Fixed gateway auth to mode: none');
+      }
+      if (!gw.reload || typeof gw.reload !== 'object' || gw.reload.mode !== SUDOCLAW_DEFAULT_GATEWAY_RELOAD.mode || Object.keys(gw.reload).some((key) => key !== 'mode')) {
+        gw.reload = { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD };
+        changed = true;
+        mainLog('Sudoclaw', 'Fixed gateway reload config to hot mode');
       }
     }
 
@@ -463,7 +482,7 @@ export function repairOpenClawConfig(): void {
   }
 }
 
-function ensureDefaultConfig(): void {
+export function ensureDefaultConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (fs.existsSync(configPath)) return;
 
@@ -486,7 +505,12 @@ function ensureDefaultConfig(): void {
         },
       },
     },
-    gateway: { port: SUDOCLAW_DEFAULT_PORT, mode: 'local' as const, auth: { mode: 'none' as const } },
+    gateway: {
+      port: SUDOCLAW_DEFAULT_PORT,
+      mode: 'local' as const,
+      auth: { mode: 'none' as const },
+      reload: { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD },
+    },
   };
 
   fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });

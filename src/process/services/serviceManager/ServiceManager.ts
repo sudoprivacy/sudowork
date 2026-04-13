@@ -340,7 +340,7 @@ export class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -351,6 +351,10 @@ export class ServiceManager {
           throw new Error(installResult.error ?? 'Sudoclaw upgrade failed before gateway start');
         }
       }
+
+      // Ensure the config file exists even when the runtime is already installed
+      // and startup skips the install/upgrade path.
+      ensureDefaultConfig();
 
       // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts.
       // This guarantees ~/.nexus/skills is always loaded regardless of platform,
@@ -418,7 +422,10 @@ export class ServiceManager {
         const providers = config.models?.providers as Record<string, { models?: Array<{ id: string }> }> | undefined;
         if (providers) {
           for (const [key, val] of Object.entries(providers)) {
-            if (val?.models?.some((m: { id: string }) => m.id === modelId)) { provider = key; break; }
+            if (val?.models?.some((m: { id: string }) => m.id === modelId)) {
+              provider = key;
+              break;
+            }
           }
         }
         return modelId.includes('/') ? modelId : `${provider}/${modelId}`;

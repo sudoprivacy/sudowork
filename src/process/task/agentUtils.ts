@@ -226,10 +226,7 @@ ${lines.join('\n')}`;
  * and where to find their SKILL.md files — mirroring the builtin skills instruction.
  */
 export function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): string {
-  const skillLines =
-    enabledSkillNames && enabledSkillNames.length > 0
-      ? enabledSkillNames.map((name) => `- ${name}: ${skillsDir}/${name}/SKILL.md`).join('\n')
-      : null;
+  const skillLines = enabledSkillNames && enabledSkillNames.length > 0 ? enabledSkillNames.map((name) => `- ${name}: ${skillsDir}/${name}/SKILL.md`).join('\n') : null;
 
   const hint = skillLines
     ? `[Skills Directory]

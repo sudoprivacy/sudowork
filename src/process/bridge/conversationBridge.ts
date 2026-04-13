@@ -910,7 +910,12 @@ export function initConversationBridge(): void {
           // the stored enabledSkills list when no filter is applied).
           const linkedSkillNames = await fs
             .readdir(skillsDir, { withFileTypes: true })
-            .then((entries) => entries.filter((e) => e.isSymbolicLink() || e.isDirectory()).map((e) => e.name).sort())
+            .then((entries) =>
+              entries
+                .filter((e) => e.isSymbolicLink() || e.isDirectory())
+                .map((e) => e.name)
+                .sort()
+            )
             .catch(() => skillsToInject ?? []);
           agentContent = injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
         }
