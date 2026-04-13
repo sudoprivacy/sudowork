@@ -608,6 +608,64 @@ IPC 处理器注册在 `src/process/bridge/channelBridge.ts` 的 `initChannelBri
 
 ---
 
+## 8.1 Channel Query Keyword Detection
+
+A keyword-based detection mechanism that allows users to query channel configuration status through natural language conversation.
+
+**Natural Language Triggers:**
+
+Users can ask about channel status using natural language:
+- "wechat配置了吗" → Returns wechat channel status
+- "微信的渠道状态" → Returns wechat channel status
+- "企业微信是否启用" → Returns wecom channel status
+- "有哪些渠道可用" → Returns all channels list
+- "telegram连接情况" → Returns telegram channel status
+- "飞书有没有配置" → Returns lark channel status
+- "钉钉的设置信息" → Returns dingtalk channel status
+
+**Exclusion Patterns:**
+
+The following patterns will NOT trigger a query (to avoid false positives):
+- "我想关闭wechat" (关闭/禁用/删除 keywords)
+- "不用微信" (不用 keyword)
+- "disable telegram" (disable keyword)
+
+**Supported Channel Keywords:**
+
+| Chinese | English | Channel Type |
+|---------|---------|--------------|
+| 微信 | wechat | wechat |
+| 企业微信 | weecom | wecom |
+| 飞书 | lark | lark |
+| 钉钉 | dingtalk | dingtalk |
+| Telegram | telegram | telegram |
+| tg | telegram | telegram |
+| 禅道 | zentao | zentao |
+
+**Response Format:**
+
+Returns formatted markdown showing:
+- Channel name and type
+- Enable status (enabled/disabled)
+- Connection status (connected/not connected)
+- Running status (running/stopped)
+- Credential configuration (configured/not configured)
+- Last connection time
+
+**Security:** Returns only status information, excludes sensitive credentials (tokens, secrets).
+
+**Implementation:**
+
+- Detector: `src/process/task/ChannelInfoDetector.ts`
+  - `detectChannelQueryIntent(userMessage)` - Keyword + query indicator matching
+  - `executeChannelInfoCommand(command)` - Database query + formatting
+  - Keyword priority: More specific terms first (e.g., "企业微信" before "微信")
+- Integration: `src/process/task/AcpAgent.ts`
+  - `sendMessage()` intercepts user input before sending to agent
+  - `handleChannelQueryIntent()` processes query and returns result directly
+
+---
+
 ## 9. 关键设计模式总结
 
 | 模式           | 应用位置                                                                       | 说明                                                           |
