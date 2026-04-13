@@ -1,5 +1,5 @@
 {
-  "id": "channel-info-skill-uuid",
+  "id": "a97c630e-aef7-4e63-b622-975a02a1ebed",
   "name": "channel-info",
   "display_name": "渠道信息",
   "description": "获取 Channel 渠道配置信息 - 查询 Telegram、飞书、钉钉、微信等渠道的启用状态和运行状态",

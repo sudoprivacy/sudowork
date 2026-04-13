@@ -608,6 +608,38 @@ IPC 处理器注册在 `src/process/bridge/channelBridge.ts` 的 `initChannelBri
 
 ---
 
+## 8.1 Channel Info Skill
+
+A builtin skill that allows users to query channel configuration status through conversation.
+
+**Usage:**
+- `[CHANNEL_INFO]` - List all channel statuses
+- `[CHANNEL_INFO: wechat]` - Query specific channel type (supports: telegram, lark, dingtalk, wechat)
+
+**Response Format:**
+Returns a formatted markdown table showing:
+- Channel type
+- Enable status (enabled/disabled)
+- Connection status (running/stopped/error etc.)
+- Bot name (when connected)
+
+**Security:** Returns only status information, excludes sensitive credentials (tokens, secrets).
+
+**Implementation:**
+- Skill files: `skills/_builtin/channel-info/`
+  - `_sudowork_meta.json` - Skill metadata
+  - `icon.svg` - Skill icon
+  - `SKILL.md` - Skill documentation
+- Detector: `src/process/task/ChannelInfoDetector.ts`
+  - Pattern detection: `/\[CHANNEL_INFO(?:\s*:\s*(\w+))?\]/gi`
+  - Status extraction from ChannelManager singleton
+- Integration: `src/process/task/AcpAgent.ts`
+  - Import and apply detector functions to user input
+
+**Design Pattern:** Uses the detector pattern (similar to ThinkDetector, PlannerDetector) to intercept and handle special commands before they reach the agent's main processing flow.
+
+---
+
 ## 9. 关键设计模式总结
 
 | 模式           | 应用位置                                                                       | 说明                                                           |
