@@ -1382,38 +1382,43 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
     }
 
-    if (v.type === 'finish' && this.cronAccumulator.currentMsgContent && hasCronCommands(this.cronAccumulator.currentMsgContent)) {
-      const message: TMessage = {
-        id: this.cronAccumulator.currentMsgId || uuid(),
-        msg_id: this.cronAccumulator.currentMsgId || uuid(),
-        type: 'text',
-        position: 'left',
-        conversation_id: this.conversation_id,
-        content: { content: this.cronAccumulator.currentMsgContent },
-        status: 'finish',
-        createdAt: Date.now(),
-      };
-      const collectedResponses: string[] = [];
-      await processCronInMessage(this.conversation_id, this.options.backend as any, message, (sysMsg) => {
-        collectedResponses.push(sysMsg);
-        const systemMessage: IResponseMessage = {
-          type: 'system',
-          conversation_id: this.conversation_id,
-          msg_id: uuid(),
-          data: sysMsg,
-        };
-        ipcBridge.acpConversation.responseStream.emit(systemMessage);
-      });
-      if (collectedResponses.length > 0) {
-        const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
-        await this.sendToConnection(feedbackMessage);
-      }
-      this.cronAccumulator.reset();
-    }
-
-    // Detect and process channel info commands
+    // On finish, process any skill commands (cron, channel-info) from accumulated content
+    // Must save content BEFORE reset, then process all command types, then reset at the end
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent) {
-      const channelInfoCommands = detectChannelInfoCommands(this.cronAccumulator.currentMsgContent);
+      const savedContent = this.cronAccumulator.currentMsgContent;
+      const savedMsgId = this.cronAccumulator.currentMsgId;
+
+      // Process cron commands
+      if (hasCronCommands(savedContent)) {
+        const message: TMessage = {
+          id: savedMsgId || uuid(),
+          msg_id: savedMsgId || uuid(),
+          type: 'text',
+          position: 'left',
+          conversation_id: this.conversation_id,
+          content: { content: savedContent },
+          status: 'finish',
+          createdAt: Date.now(),
+        };
+        const collectedResponses: string[] = [];
+        await processCronInMessage(this.conversation_id, this.options.backend as any, message, (sysMsg) => {
+          collectedResponses.push(sysMsg);
+          const systemMessage: IResponseMessage = {
+            type: 'system',
+            conversation_id: this.conversation_id,
+            msg_id: uuid(),
+            data: sysMsg,
+          };
+          ipcBridge.acpConversation.responseStream.emit(systemMessage);
+        });
+        if (collectedResponses.length > 0) {
+          const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
+          await this.sendToConnection(feedbackMessage);
+        }
+      }
+
+      // Process channel info commands
+      const channelInfoCommands = detectChannelInfoCommands(savedContent);
       if (channelInfoCommands.length > 0) {
         const collectedResponses: string[] = [];
         for (const cmd of channelInfoCommands) {
@@ -1432,6 +1437,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           await this.sendToConnection(feedbackMessage);
         }
       }
+
+      // Reset accumulator AFTER all command processing
+      this.cronAccumulator.reset();
     }
 
     ipcBridge.acpConversation.responseStream.emit(v);
