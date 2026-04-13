@@ -23,6 +23,11 @@ interface ExcelPreviewProps {
 const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
 const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 
+// 宽表格列数阈值 / Wide table column threshold
+// 当列数超过此值时，使用 JSON 渲染（支持水平滚动）而非 PDF 预览
+// When columns exceed this threshold, use JSON rendering (horizontal scroll) instead of PDF
+const WIDE_TABLE_COLUMN_THRESHOLD = 6;
+
 /**
  * Excel 表格预览组件
  *
@@ -116,42 +121,60 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       setError(null);
 
       try {
-        // 先检查 LibreOffice 是否可用
-        const available = await ipcBridge.document.libreOffice.isAvailable.invoke();
-        setUseLibreOffice(available);
+        // 先获取 Excel JSON 数据以检测列数 / First get Excel JSON data to check column count
+        const jsonResponse = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
 
-        if (available) {
-          // LibreOffice 可用：转换为 PDF
-          const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
+        if (jsonResponse.result.success && jsonResponse.result.data) {
+          const workbookData = jsonResponse.result.data as ExcelWorkbookData;
+          setExcelData(workbookData);
 
-          if (response.to !== 'libreoffice-pdf') {
-            throw new Error(t('preview.errors.conversionFailed'));
+          if (workbookData.sheets.length > 0) {
+            setActiveSheet(workbookData.sheets[0].name);
           }
 
-          if (response.result.success && response.result.data) {
-            setPdfPath(response.result.data);
-            // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
-            console.log('[ExcelViewer] Converted and cached:', filePath);
-          } else {
-            throw new Error(response.result.error || t('preview.excel.convertFailed'));
-          }
-        } else {
-          // LibreOffice 不可用：回退到 JSON 转换
-          const response = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
+          // 检测是否为宽表格 / Check if it's a wide table
+          const maxColumns = workbookData.sheets.reduce((max, sheet) => {
+            const sheetMax = (sheet.data || []).reduce((rowMax, row) => {
+              return Math.max(rowMax, Array.isArray(row) ? row.length : 0);
+            }, 0);
+            return Math.max(max, sheetMax);
+          }, 0);
 
-          if (response.to !== 'excel-json') {
-            throw new Error(t('preview.errors.conversionFailed'));
-          }
+          const isWideTable = maxColumns > WIDE_TABLE_COLUMN_THRESHOLD;
+          console.log('[ExcelViewer] Max columns:', maxColumns, 'isWideTable:', isWideTable);
 
-          if (response.result.success && response.result.data) {
-            setExcelData(response.result.data as ExcelWorkbookData);
-            if ((response.result.data as ExcelWorkbookData).sheets.length > 0) {
-              setActiveSheet((response.result.data as ExcelWorkbookData).sheets[0].name);
+          // 检查 LibreOffice 是否可用 / Check LibreOffice availability
+          const libreOfficeAvailable = await ipcBridge.document.libreOffice.isAvailable.invoke();
+
+          // 决策：宽表格优先使用 JSON 渲染（支持水平滚动），否则用 PDF
+          // Decision: Wide tables prefer JSON rendering (horizontal scroll), otherwise PDF
+          const shouldUsePdf = libreOfficeAvailable && !isWideTable;
+          setUseLibreOffice(shouldUsePdf);
+
+          if (shouldUsePdf) {
+            // LibreOffice 可用且非宽表格：转换为 PDF / LibreOffice available and not wide: convert to PDF
+            const pdfResponse = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
+
+            if (pdfResponse.to !== 'libreoffice-pdf') {
+              throw new Error(t('preview.errors.conversionFailed'));
+            }
+
+            if (pdfResponse.result.success && pdfResponse.result.data) {
+              setPdfPath(pdfResponse.result.data);
+              // 保存到缓存 / Save to cache
+              pdfCache.set(filePath, { pdfPath: pdfResponse.result.data, timestamp: Date.now() });
+              console.log('[ExcelViewer] Converted and cached:', filePath);
+            } else {
+              // PDF 转换失败，回退到 JSON 渲染 / PDF conversion failed, fallback to JSON
+              setUseLibreOffice(false);
+              throw new Error(pdfResponse.result.error || t('preview.excel.convertFailed'));
             }
           } else {
-            throw new Error(response.result.error || t('preview.excel.convertFailed'));
+            // 宽表格或 LibreOffice 不可用：使用 JSON 渲染 / Wide table or LibreOffice unavailable: use JSON
+            console.log('[ExcelViewer] Using JSON rendering (wide table or no LibreOffice)');
           }
+        } else {
+          throw new Error(jsonResponse.result.error || t('preview.excel.loadFailed'));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : t('preview.excel.loadFailed'));
