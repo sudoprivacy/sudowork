@@ -939,7 +939,7 @@ export function initConversationBridge(): void {
                 .sort()
             )
             .catch(() => skillsToInject ?? []);
-          agentContent = injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
+          agentContent = await injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
         }
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
