@@ -107,6 +107,7 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "語言",
   "closeToTray": "關閉到托盤",
+  "sessionEndNotification": "會話結束時系統通知",
   "gemini": "Gemini",
   "model": "模型",
   "runtime": "執行環境",

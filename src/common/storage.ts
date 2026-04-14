@@ -84,6 +84,15 @@ export interface IConfigStorageRefer {
   'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
+  // 客户端会话结束后系统通知配置 / System notification configuration for client session end
+  'system.sessionEndNotification'?: {
+    /** 总开关，默认 true / Master switch, defaults to true */
+    enabled: boolean;
+    /** 窗口聚焦时是否仍通知，默认 false / Whether to notify when the window is focused, defaults to false */
+    notifyWhenFocused: boolean;
+    /** 是否静音，默认 false / Whether the notification should be silent, defaults to false */
+    silent: boolean;
+  };
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**

@@ -61,5 +61,8 @@
   "setupContinuesInBackground": "Enter the app now. Runtime setup will continue in the background.",
   "refresh": "Refresh",
   "tray.showWindow": "Show Sudowork",
-  "tray.quit": "Quit"
+  "tray.quit": "Quit",
+  "notification.sessionEnd.title": "Session finished",
+  "notification.sessionEnd.body": "{{backend}} has finished the current session.",
+  "notification.sessionEnd.fallbackBackend": "Agent"
 }

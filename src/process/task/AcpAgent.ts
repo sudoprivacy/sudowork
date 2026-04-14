@@ -34,6 +34,7 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { sessionNotificationService } from '@process/services/notification/SessionNotificationService';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
@@ -1381,6 +1382,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           mainError('AcpAgent', 'Post-cleanup failed:', err);
         });
       }
+
+      // Notify user via system notification that the session has finished.
+      sessionNotificationService.notifySessionFinished({
+        conversationId: this.conversation_id,
+        backend: this.options.backend,
+      });
     }
 
     // On finish, process any skill commands (cron, channel-info) from accumulated content

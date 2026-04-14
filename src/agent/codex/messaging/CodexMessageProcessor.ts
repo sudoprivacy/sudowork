@@ -12,6 +12,7 @@ import { ERROR_CODES, globalErrorService } from '@/agent/codex/core/ErrorService
 import { hasCronCommands } from '@process/task/CronCommandDetector';
 import { processCronInMessage } from '@process/task/MessageMiddleware';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { sessionNotificationService } from '@process/services/notification/SessionNotificationService';
 import { ipcBridge } from '@/common';
 
 export class CodexMessageProcessor {
@@ -53,6 +54,12 @@ export class CodexMessageProcessor {
       },
       false
     );
+
+    // Notify user via system notification that the Codex session has finished.
+    sessionNotificationService.notifySessionFinished({
+      conversationId: this.conversation_id,
+      backend: 'codex',
+    });
   }
 
   handleReasoningMessage(msg: Extract<CodexEventMsg, { type: 'agent_reasoning_delta' }> | Extract<CodexEventMsg, { type: 'agent_reasoning' }> | Extract<CodexEventMsg, { type: 'agent_reasoning_section_break' }>) {

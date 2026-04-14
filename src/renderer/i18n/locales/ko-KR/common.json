@@ -58,5 +58,8 @@
   "setupContinuesInBackground": "먼저 앱으로 들어가고, 런타임 설치는 백그라운드에서 계속됩니다.",
   "refresh": "새로고침",
   "tray.showWindow": "Sudowork 표시",
-  "tray.quit": "종료"
+  "tray.quit": "종료",
+  "notification.sessionEnd.title": "세션이 종료되었습니다",
+  "notification.sessionEnd.body": "{{backend}}이(가) 현재 세션을 완료했습니다.",
+  "notification.sessionEnd.fallbackBackend": "에이전트"
 }

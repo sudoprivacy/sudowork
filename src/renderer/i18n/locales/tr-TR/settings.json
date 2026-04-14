@@ -105,6 +105,7 @@
   "cacheClearFailed": "Önbellek temizlenemedi",
   "language": "Dil",
   "closeToTray": "Tepsiye Kapat",
+  "sessionEndNotification": "Oturum sonunda sistem bildirimi",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Çalışma Zamanı",

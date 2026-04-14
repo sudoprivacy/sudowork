@@ -58,5 +58,8 @@
   "setupContinuesInBackground": "先にアプリへ入り、実行環境のセットアップはバックグラウンドで続行します。",
   "refresh": "更新",
   "tray.showWindow": "Sudowork を表示",
-  "tray.quit": "終了"
+  "tray.quit": "終了",
+  "notification.sessionEnd.title": "セッションが完了しました",
+  "notification.sessionEnd.body": "{{backend}} が現在のセッションを完了しました。",
+  "notification.sessionEnd.fallbackBackend": "エージェント"
 }

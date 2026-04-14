@@ -107,6 +107,7 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "Language",
   "closeToTray": "Close to Tray",
+  "sessionEndNotification": "System notification on session end",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Runtime",

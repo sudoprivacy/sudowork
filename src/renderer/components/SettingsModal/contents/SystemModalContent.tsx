@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { ISessionEndNotificationConfig } from '@/common/ipcBridge';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Button, Form, Modal, Switch, Tooltip } from '@arco-design/web-react';
@@ -108,11 +109,26 @@ const SystemModalContent: React.FC = () => {
   // 关闭到托盘状态 / Close to tray state
   const [closeToTray, setCloseToTray] = useState(false);
 
+  // 会话结束系统通知配置 / Session-end notification configuration
+  const [sessionEndNotification, setSessionEndNotification] = useState<ISessionEndNotificationConfig>({
+    enabled: true,
+    notifyWhenFocused: false,
+    silent: false,
+  });
+
   // 获取关闭到托盘设置 / Fetch close-to-tray setting
   useEffect(() => {
     ipcBridge.systemSettings.getCloseToTray
       .invoke()
       .then((enabled) => setCloseToTray(enabled))
+      .catch(() => {});
+  }, []);
+
+  // 获取会话结束系统通知配置 / Fetch session-end notification config
+  useEffect(() => {
+    ipcBridge.systemSettings.getSessionEndNotification
+      .invoke()
+      .then((cfg) => setSessionEndNotification(cfg))
       .catch(() => {});
   }, []);
 
@@ -125,6 +141,20 @@ const SystemModalContent: React.FC = () => {
       setCloseToTray(!checked);
     });
   }, []);
+
+  // 切换"会话结束系统通知" / Toggle session-end notification
+  const handleSessionEndNotificationChange = useCallback(
+    (checked: boolean) => {
+      const prev = sessionEndNotification;
+      const next: ISessionEndNotificationConfig = { ...prev, enabled: checked };
+      setSessionEndNotification(next);
+      ipcBridge.systemSettings.setSessionEndNotification.invoke(next).catch(() => {
+        // 失败时回滚 UI 状态 / Roll back UI state on failure
+        setSessionEndNotification(prev);
+      });
+    },
+    [sessionEndNotification]
+  );
 
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
@@ -147,6 +177,11 @@ const SystemModalContent: React.FC = () => {
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
     { key: 'closeToTray', label: t('settings.closeToTray'), component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} /> },
+    {
+      key: 'sessionEndNotification',
+      label: t('settings.sessionEndNotification'),
+      component: <Switch checked={sessionEndNotification.enabled} onChange={handleSessionEndNotificationChange} />,
+    },
   ];
 
   // 目录配置保存确认 / Directory configuration save confirmation

@@ -107,6 +107,7 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "言語",
   "closeToTray": "トレイに最小化",
+  "sessionEndNotification": "セッション終了時にシステム通知",
   "gemini": "Gemini",
   "model": "モデル",
   "runtime": "ランタイム",

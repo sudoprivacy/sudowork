@@ -21,6 +21,7 @@ import { AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { sessionNotificationService } from '@process/services/notification/SessionNotificationService';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
@@ -850,6 +851,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     ipcBridge.openclawConversation.responseStream.emit(msg);
     ipcBridge.conversation.responseStream.emit(msg);
     channelEventBus.emitAgentMessage(this.conversation_id, msg);
+
+    // Notify user via system notification that the OpenClaw session has finished.
+    sessionNotificationService.notifySessionFinished({
+      conversationId: this.conversation_id,
+      backend: this.options.backend ?? 'openclaw',
+    });
   }
 
   private handleDisconnect(code: number, reason: string): void {

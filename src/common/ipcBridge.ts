@@ -686,6 +686,13 @@ export const windowControls = {
   maximizedChanged: bridge.buildEmitter<{ isMaximized: boolean }>('window-controls:maximized-changed'),
 };
 
+// 会话结束系统通知配置 / Session-end system notification configuration
+export interface ISessionEndNotificationConfig {
+  enabled: boolean;
+  notifyWhenFocused: boolean;
+  silent: boolean;
+}
+
 // 系统设置接口 / System settings API
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
@@ -693,6 +700,9 @@ export const systemSettings = {
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
+  // 会话结束系统通知配置 / Session-end system notification config
+  getSessionEndNotification: bridge.buildProvider<ISessionEndNotificationConfig, void>('system-settings:get-session-end-notification'),
+  setSessionEndNotification: bridge.buildProvider<void, ISessionEndNotificationConfig>('system-settings:set-session-end-notification'),
 };
 
 // WebUI 服务管理接口 / WebUI service management API

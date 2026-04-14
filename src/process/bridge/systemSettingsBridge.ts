@@ -16,6 +16,7 @@ import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { changeLanguage } from '@process/i18n';
 import { mainError } from '@process/utils/mainLogger';
+import { DEFAULT_SESSION_END_NOTIFICATION_CONFIG, sessionNotificationService } from '@process/services/notification/SessionNotificationService';
 
 type CloseToTrayChangeListener = (enabled: boolean) => void;
 let _changeListener: CloseToTrayChangeListener | null = null;
@@ -67,5 +68,24 @@ export function initSystemSettingsBridge(): void {
     changeLanguage(language).catch((error) => {
       mainError('SystemSettings', 'Main process changeLanguage failed:', error);
     });
+  });
+
+  // 会话结束系统通知：读取 / Session-end notification: read
+  ipcBridge.systemSettings.getSessionEndNotification.provider(async () => {
+    const stored = await ProcessConfig.get('system.sessionEndNotification');
+    return { ...DEFAULT_SESSION_END_NOTIFICATION_CONFIG, ...(stored ?? {}) };
+  });
+
+  // 会话结束系统通知：写入 / Session-end notification: write
+  ipcBridge.systemSettings.setSessionEndNotification.provider(async (cfg) => {
+    const next = { ...DEFAULT_SESSION_END_NOTIFICATION_CONFIG, ...cfg };
+    await ProcessConfig.set('system.sessionEndNotification', next);
+    sessionNotificationService.updateSettings(next);
+  });
+
+  // 初始化服务（从持久化配置加载缓存、平台相关设置）
+  // Initialize service (hydrate cache from persisted config, platform wiring)
+  void sessionNotificationService.init().catch((error) => {
+    mainError('SystemSettings', 'sessionNotificationService.init failed:', error);
   });
 }

@@ -59,6 +59,7 @@ export default defineConfig({
         // Process / bridge
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
+        'src/process/services/notification/SessionNotificationService.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
