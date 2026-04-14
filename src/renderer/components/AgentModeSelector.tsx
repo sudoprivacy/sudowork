@@ -402,11 +402,7 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
   }, [displayName, modeSuffix, canSwitchMode]);
 
   return (
-    <div
-      ref={setContainerRef}
-      className={`relative inline-flex items-center gap-2 bg-2 rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`}
-      style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}
-    >
+    <div ref={setContainerRef} className={`relative inline-flex items-center gap-2 bg-2 rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
       <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
       {!hideText && (
         <>

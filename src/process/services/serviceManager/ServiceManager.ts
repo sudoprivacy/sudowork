@@ -431,8 +431,8 @@ export class ServiceManager {
         return modelId.includes('/') ? modelId : `${provider}/${modelId}`;
       };
 
-      // Sync parsing model (看图) → agents.defaults.imageAnalysisModel (read by gateway)
-      config.agents.defaults.imageAnalysisModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
+      // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
+      config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
 
       // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
       config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';

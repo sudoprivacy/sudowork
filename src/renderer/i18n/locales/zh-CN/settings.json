@@ -645,7 +645,7 @@
   },
   "lark": {
     "appId": "App ID",
-    "devConsoleLink": "飞书开放平台开发者后台",
+    "devConsoleLink": "跟随教程",
     "appIdDescSuffix": "获取 App ID",
     "appSecret": "App Secret",
     "appSecretDescSuffix": "获取 App Secret",
@@ -708,7 +708,7 @@
   },
   "wecom": {
     "botId": "Bot ID",
-    "devConsoleLink": "企业微信开发文档",
+    "devConsoleLink": "跟随教程",
     "botIdDescSuffix": "获取 Bot ID",
     "secret": "Secret",
     "secretDescSuffix": "获取 Secret",

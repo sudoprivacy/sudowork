@@ -680,7 +680,7 @@ class DynamicNexusService {
       const msg = d.toString().trim();
       if (!msg) return;
       // Filter out verbose HTTP INFO logs from Nexus/uvicorn (request_completed, correlation_id)
-      if (msg.includes('request_completed') || msg.includes('INFO:') && (msg.includes('"POST') || msg.includes('"GET') || msg.includes('"PUT') || msg.includes('"DELETE'))) {
+      if (msg.includes('request_completed') || (msg.includes('INFO:') && (msg.includes('"POST') || msg.includes('"GET') || msg.includes('"PUT') || msg.includes('"DELETE')))) {
         return; // Skip verbose HTTP request logs
       }
       mainLog('Nexus:stdout', msg);
