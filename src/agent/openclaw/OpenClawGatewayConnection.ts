@@ -499,6 +499,7 @@ export class OpenClawGatewayConnection {
     }
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 2, 30_000);
+    this.opts.onReconnectScheduled?.(this.reconnectAttempts, this.maxReconnectAttempts, delay);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.lastSeq = null; // reset seq tracking so gap detection starts fresh on new connection

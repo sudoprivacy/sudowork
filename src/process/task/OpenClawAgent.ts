@@ -37,7 +37,7 @@ const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 /** Prompt timeout range (seconds) */
 const PROMPT_TIMEOUT_MIN_SECONDS = 30;
 const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
-const CONNECTION_TIMEOUT_MS = 15_000;
+const CONNECTION_TIMEOUT_MS = 30_000;
 const CONNECTION_MAX_ATTEMPTS = 30;
 const CONNECTION_RETRY_DELAY_MS = 1_000;
 
@@ -81,9 +81,12 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private accumulatedAssistantText = '';
   private agentAssistantFallbackText = '';
   private statusMessageId: string | null = null;
+  private connectionTipMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
   private disconnectTipMessageId: string | null = null;
   private isFirstMessage: boolean = true;
+  private expectReconnectOnClose = false;
+  private hasEmittedTerminalConnectionError = false;
 
   constructor(data: OpenClawAgentData) {
     super('openclaw-gateway', data);
@@ -99,6 +102,8 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   private async connect(data: OpenClawAgentData): Promise<void> {
     try {
+      this.expectReconnectOnClose = false;
+      this.hasEmittedTerminalConnectionError = false;
       this.emitStatusMessage('connecting');
 
       const gatewayConfig = data.gateway ?? { port: SUDOCLAW_DEFAULT_PORT };
@@ -133,6 +138,10 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           onEvent: (evt) => this.handleEvent(evt),
           onHelloOk: (_hello: HelloOk) => this.handleGatewayHello(),
           onConnectError: (err) => this.handleConnectError(err),
+          onReconnectScheduled: () => {
+            this.expectReconnectOnClose = true;
+            this.emitRetryingConnectionMessage();
+          },
           onClose: (code, reason) => this.handleClose(code, reason),
           onTokenMismatch: !useExternal
             ? async () => {
@@ -157,6 +166,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           }
 
           mainWarn('OpenClawAgent', `Connection attempt ${attempt}/${CONNECTION_MAX_ATTEMPTS} failed, retrying: ${errorMsg}`);
+          this.emitRetryingConnectionMessage();
           await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_DELAY_MS));
         }
       }
@@ -166,10 +176,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       // Resolve session
       await this.resolveSession();
       this.emitStatusMessage('session_active');
+      this.emitConnectionRecoveredMessage();
     } catch (error) {
-      this.emitStatusMessage('error');
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(`Failed to start Sudoclaw agent: ${errorMsg}`);
+      this.emitTerminalConnectionErrorOnce();
       throw error;
     }
   }
@@ -258,33 +267,21 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
 
     const configuredPrimaryModel = this.getConfiguredPrimaryModelRef();
-    mainLog(
-      'OpenClawAgent',
-      `[SESSION_MODEL_SWITCH] session=${this.connection.sessionKey} requested=${modelId.trim()} normalized=${normalizedModel} configuredPrimary=${configuredPrimaryModel || '<empty>'}`,
-    );
+    mainLog('OpenClawAgent', `[SESSION_MODEL_SWITCH] session=${this.connection.sessionKey} requested=${modelId.trim()} normalized=${normalizedModel} configuredPrimary=${configuredPrimaryModel || '<empty>'}`);
 
     if (configuredPrimaryModel && configuredPrimaryModel === normalizedModel) {
       this.options.model = modelId.trim();
-      mainLog(
-        'OpenClawAgent',
-        `[SESSION_MODEL_SWITCH] skip sessions.patch because target model matches configured primary: ${configuredPrimaryModel}`,
-      );
+      mainLog('OpenClawAgent', `[SESSION_MODEL_SWITCH] skip sessions.patch because target model matches configured primary: ${configuredPrimaryModel}`);
       return;
     }
 
-    mainLog(
-      'OpenClawAgent',
-      `[SESSION_MODEL_SWITCH] execute sessions.patch session=${this.connection.sessionKey} model=${normalizedModel}`,
-    );
+    mainLog('OpenClawAgent', `[SESSION_MODEL_SWITCH] execute sessions.patch session=${this.connection.sessionKey} model=${normalizedModel}`);
     await this.connection.sessionsPatch({
       key: this.connection.sessionKey,
       model: normalizedModel,
     });
     this.options.model = modelId.trim();
-    mainLog(
-      'OpenClawAgent',
-      `[SESSION_MODEL_SWITCH] sessions.patch completed session=${this.connection.sessionKey} model=${normalizedModel}`,
-    );
+    mainLog('OpenClawAgent', `[SESSION_MODEL_SWITCH] sessions.patch completed session=${this.connection.sessionKey} model=${normalizedModel}`);
   }
 
   private async syncConfiguredSessionModel(): Promise<void> {
@@ -917,12 +914,22 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
   private handleConnectError(err: Error): void {
     mainError('OpenClawAgent', 'Connection error:', err);
-    if (!this.shouldSuppressTransientGatewayError(err.message)) {
-      this.emitErrorMessage(`Connection error: ${err.message}`);
+    if (this.isRetryingConnectionError(err.message)) {
+      this.emitRetryingConnectionMessage();
+      return;
     }
+
+    if (/^Max reconnect attempts \(\d+\) reached$/.test(err.message.trim())) {
+      this.emitTerminalConnectionErrorOnce();
+      return;
+    }
+
+    this.emitTerminalConnectionErrorOnce();
   }
 
   private handleGatewayHello(): void {
+    this.expectReconnectOnClose = false;
+    this.hasEmittedTerminalConnectionError = false;
     if (this.connection?.sessionKey) {
       this.emitStatusMessage('session_active');
       return;
@@ -932,7 +939,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleClose(code: number, reason: string): void {
-    this.handleDisconnect(code, reason);
+    const retrying = this.expectReconnectOnClose;
+    this.expectReconnectOnClose = false;
+    this.handleDisconnect(code, reason, retrying);
   }
 
   private handleEndTurn(): void {
@@ -963,9 +972,11 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     channelEventBus.emitAgentMessage(this.conversation_id, msg);
   }
 
-  private handleDisconnect(code: number, reason: string): void {
-    this.emitStatusMessage('disconnected');
-    if (!this.shouldSuppressTransientGatewayClose(code, reason)) {
+  private handleDisconnect(code: number, reason: string, retrying: boolean = false): void {
+    if (!retrying) {
+      this.emitStatusMessage('disconnected');
+    }
+    if (!retrying && !this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
       this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
     }
 
@@ -984,15 +995,65 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     this.pendingNavigationTools.clear();
   }
 
+  private isRetryingConnectionError(message: string): boolean {
+    const trimmed = message.trim();
+    return this.shouldSuppressTransientGatewayError(trimmed) || /^connect/i.test(trimmed);
+  }
+
+  private emitRetryingConnectionMessage(): void {
+    if (this.hasEmittedTerminalConnectionError) {
+      return;
+    }
+
+    this.emitStatusMessage('connecting');
+    this.emitConnectionTipMessage('正在连接中，请稍等', 'warning');
+  }
+
+  private emitConnectionRecoveredMessage(): void {
+    this.expectReconnectOnClose = false;
+    this.hasEmittedTerminalConnectionError = false;
+    if (!this.connectionTipMessageId) {
+      return;
+    }
+
+    this.emitConnectionTipMessage('已连接到 Sudoclaw', 'success');
+  }
+
+  private emitTerminalConnectionErrorOnce(): void {
+    if (this.hasEmittedTerminalConnectionError) {
+      return;
+    }
+
+    this.hasEmittedTerminalConnectionError = true;
+    this.expectReconnectOnClose = false;
+    this.emitStatusMessage('error');
+    this.emitConnectionTipMessage('连接失败，请稍后重试', 'error');
+  }
+
+  private emitConnectionTipMessage(content: string, type: 'error' | 'success' | 'warning'): void {
+    if (!this.connectionTipMessageId) {
+      this.connectionTipMessageId = uuid();
+    }
+
+    const message: TMessage = {
+      id: this.connectionTipMessageId,
+      msg_id: this.connectionTipMessageId,
+      conversation_id: this.conversation_id,
+      type: 'tips',
+      position: 'center',
+      createdAt: Date.now(),
+      content: {
+        content,
+        type,
+      },
+    };
+
+    this.emitTMessage(message);
+  }
+
   private shouldSuppressTransientGatewayError(message: string): boolean {
     const trimmed = message.trim();
-    return (
-      /^Gateway closed \(100\d\):\s*$/.test(trimmed) ||
-      trimmed === 'Gateway not connected' ||
-      trimmed === 'Connection timeout' ||
-      /^Gateway closed \(4000\): tick timeout$/.test(trimmed) ||
-      /^Request 'connect' timed out after \d+ms$/.test(trimmed)
-    );
+    return /^Gateway closed \(100\d\):\s*$/.test(trimmed) || trimmed === 'Gateway not connected' || trimmed === 'Connection timeout' || trimmed === 'WebSocket was closed before the connection was established' || /^Gateway closed \(4000\): tick timeout$/.test(trimmed) || /^Request 'connect' timed out after \d+ms$/.test(trimmed) || /^Gateway closed \(1008\): connect failed$/.test(trimmed);
   }
 
   private shouldSuppressTransientGatewayClose(code: number, reason: string): boolean {
