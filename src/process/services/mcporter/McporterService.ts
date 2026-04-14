@@ -13,7 +13,6 @@ import type { IMcpServer } from '@/common/storage';
 import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { safeExec } from '@process/utils/safeExec';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
 
 /**
  * mcporter daemon 状态
@@ -59,10 +58,8 @@ class McporterService {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      // Use getEnhancedEnv to ensure bundled Node.js is in PATH
       const result = await safeExec('npx mcporter --version', {
         timeout: 10000,
-        env: getEnhancedEnv(),
       });
       return result.stdout.trim().length > 0;
     } catch {
@@ -77,10 +74,8 @@ class McporterService {
     mainLog('McporterService', 'Installing mcporter globally...');
 
     try {
-      // Use getEnhancedEnv to ensure bundled Node.js is in PATH
       await safeExec('npm install -g mcporter', {
         timeout: 60000,
-        env: getEnhancedEnv(),
       });
       mainLog('McporterService', 'mcporter installed successfully');
     } catch (error) {
@@ -206,16 +201,17 @@ class McporterService {
     mainLog('McporterService', 'Starting mcporter daemon...');
 
     try {
-      // 使用 getEnhancedEnv 确保 bundled Node.js 在 PATH 中
-      const env = getEnhancedEnv({ MCPORTER_CONFIG: this.configPath });
+      // 使用环境变量指定配置路径
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
 
       // 启动 daemon 进程
-      // windowsHide: true 防止 Windows 上弹出控制台窗口
       this.daemonProcess = spawn('npx', ['mcporter', 'daemon', 'start', '--detach'], {
         env,
         stdio: 'ignore',
         detached: true,
-        windowsHide: process.platform === 'win32',
       });
 
       this.daemonProcess.on('error', (error) => {
@@ -250,10 +246,15 @@ class McporterService {
     mainLog('McporterService', 'Stopping mcporter daemon...');
 
     try {
-      // Use getEnhancedEnv to ensure bundled Node.js is in PATH
+      // 使用 mcporter CLI 停止 daemon
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
+
       await safeExec('npx mcporter daemon stop', {
         timeout: 10000,
-        env: getEnhancedEnv({ MCPORTER_CONFIG: this.configPath }),
+        env,
       });
 
       this.daemonProcess = null;
@@ -273,10 +274,14 @@ class McporterService {
    */
   private async reloadDaemon(): Promise<void> {
     try {
-      // Use getEnhancedEnv to ensure bundled Node.js is in PATH
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
+
       await safeExec('npx mcporter daemon restart', {
         timeout: 10000,
-        env: getEnhancedEnv({ MCPORTER_CONFIG: this.configPath }),
+        env,
       });
 
       mainLog('McporterService', 'Daemon reloaded');
@@ -290,10 +295,14 @@ class McporterService {
    */
   async getDaemonStatus(): Promise<DaemonStatus> {
     try {
-      // Use getEnhancedEnv to ensure bundled Node.js is in PATH
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
+
       const result = await safeExec('npx mcporter daemon status --json', {
         timeout: 5000,
-        env: getEnhancedEnv({ MCPORTER_CONFIG: this.configPath }),
+        env,
       });
 
       const status = JSON.parse(result.stdout) as DaemonStatus;

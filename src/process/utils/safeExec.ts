@@ -15,7 +15,6 @@
  */
 
 import { spawn } from 'child_process';
-import { platform } from 'os';
 
 type ExecResult = { stdout: string; stderr: string };
 
@@ -25,32 +24,15 @@ interface SafeExecOptions {
 }
 
 /**
- * Get the appropriate shell for the current platform.
- * - Unix (darwin, linux): uses 'sh'
- * - Windows: uses 'cmd.exe'
- */
-function getShell(): { shell: string; flag: string } {
-  if (platform() === 'win32') {
-    return { shell: 'cmd.exe', flag: '/c' };
-  }
-  return { shell: 'sh', flag: '-c' };
-}
-
-/**
  * Shell-based command execution (replacement for `child_process.exec`).
- * Runs the command in a shell with `detached: true` for cross-platform compatibility.
- * On Windows, uses `windowsHide: true` to prevent console window popup.
+ * Runs the command in `/bin/sh -c` with `detached: true`.
  */
 export function safeExec(command: string, options: SafeExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    const { shell, flag } = getShell();
-    const isWindows = platform() === 'win32';
-    const child = spawn(shell, [flag, command], {
+    const child = spawn('sh', ['-c', command], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env,
-      // Hide console window on Windows to prevent popup
-      windowsHide: isWindows,
     });
 
     let stdout = '';
@@ -107,17 +89,13 @@ export function safeExec(command: string, options: SafeExecOptions = {}): Promis
 /**
  * Direct executable invocation (replacement for `child_process.execFile`).
  * Does NOT use a shell — safer against injection.
- * On Windows, uses `windowsHide: true` to prevent console window popup.
  */
 export function safeExecFile(file: string, args: string[], options: SafeExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    const isWindows = platform() === 'win32';
     const child = spawn(file, args, {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env,
-      // Hide console window on Windows to prevent popup
-      windowsHide: isWindows,
     });
 
     let stdout = '';
