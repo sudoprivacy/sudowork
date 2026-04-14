@@ -86,7 +86,7 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 客户端会话结束后系统通知配置 / System notification configuration for client session end
   'system.sessionEndNotification'?: {
-    /** 总开关，默认 true / Master switch, defaults to true */
+    /** 总开关，默认 false / Master switch, defaults to false */
     enabled: boolean;
     /** 窗口聚焦时是否仍通知，默认 false / Whether to notify when the window is focused, defaults to false */
     notifyWhenFocused: boolean;

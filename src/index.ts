@@ -42,6 +42,12 @@ mainLog('App', `Packaged: ${app.isPackaged}, Dev: ${!app.isPackaged}`);
 // Set the app name early to ensure proper tray tooltip on macOS
 app.setName('Sudowork');
 
+// Windows: Set AppUserModelId early so notifications show correct app name and icon
+// This must be set before any notification is sent
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.sudowork.app');
+}
+
 // Hide Dock icon when running as Node.js CLI (ELECTRON_RUN_AS_NODE)
 // This prevents the Dock bounce when using the claude CLI wrapper
 if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' && app.dock) {

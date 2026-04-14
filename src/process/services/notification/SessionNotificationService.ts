@@ -16,7 +16,7 @@
  * user is aware even when Sudowork is not the active window.
  */
 
-import { BrowserWindow, Notification, app } from 'electron';
+import { BrowserWindow, Notification } from 'electron';
 import type { ISessionEndNotificationConfig } from '@/common/ipcBridge';
 import { ProcessConfig } from '@process/initStorage';
 import i18n from '@process/i18n';
@@ -104,16 +104,9 @@ export class SessionNotificationService {
       mainWarn('SessionNotification', 'Failed to load config, using defaults:', error);
     }
 
-    // Windows: 设置 AppUserModelID 以便通知显示正确的应用名
-    // Windows: set AppUserModelID so toast notifications show the correct app name
-    if (process.platform === 'win32') {
-      try {
-        app.setAppUserModelId(this.appUserModelId);
-        mainLog('SessionNotification', `Set AppUserModelId: ${this.appUserModelId}`);
-      } catch (error) {
-        mainWarn('SessionNotification', 'Failed to set AppUserModelID:', error);
-      }
-    }
+    // AppUserModelId 已在应用启动时设置（src/index.ts）
+    // AppUserModelId is already set at app startup (src/index.ts)
+    // 这里不再重复设置，避免潜在的初始化顺序问题
   }
 
   /** 更新缓存中的设置 / Update cached settings */
@@ -147,14 +140,14 @@ export class SessionNotificationService {
       const testNotification = new this.notificationCtor({
         title: 'Sudowork',
         body: '通知权限已启用',
-        silent: true,
+        silent: false,
       });
 
       testNotification.show();
       mainLog('SessionNotification', 'Sent test notification to request permission');
 
-      // 立即关闭测试通知（通知会自动消失，这里只是清理引用）
-      testNotification.close();
+      // 不要立即关闭，让通知自然消失以便系统记录应用
+      // Don't close immediately, let notification naturally disappear so system records the app
     } catch (error) {
       mainWarn('SessionNotification', 'Failed to request notification permission:', error);
     }
