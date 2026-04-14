@@ -1268,4 +1268,6 @@ export const secret = {
   put: bridge.buildProvider<IBridgeResponse, { namespace: string; key: string; value: string; description?: string }>('secret.put'),
   /** List all secrets in a namespace */
   list: bridge.buildProvider<IBridgeResponse<ISecretMetadata[]>, { namespace: string }>('secret.list'),
+  /** Test Zentao connection with provided credentials */
+  testZentao: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { serverUrl: string; username: string; password: string }>('secret.test-zentao'),
 };

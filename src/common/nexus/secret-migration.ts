@@ -60,7 +60,6 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
   lark: ['appSecret', 'encryptKey', 'verificationToken'],
   dingtalk: ['clientSecret'],
   wechat: [], // WeChat uses token-based auth, no separate secret
-  zentao: ['zentaoPassword'],
 };
 
 // ============================================================================
@@ -123,7 +122,7 @@ export class SecretMigrationCoordinator {
     await this.loadMigrationMap();
 
     // Step 4: Migrate each secret type
-    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this), this.migrateJWTSecrets.bind(this)];
+    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateZentaoToServiceNamespace.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this), this.migrateJWTSecrets.bind(this)];
 
     for (const migrateFn of migrateFunctions) {
       try {
@@ -342,6 +341,76 @@ export class SecretMigrationCoordinator {
    */
   public static getChannelCredentialFields(channelType: string): string[] {
     return CHANNEL_CREDENTIAL_FIELDS[channelType] || [];
+  }
+
+  /**
+   * Migrate Zentao credentials from old channel namespace to new service namespace.
+   * Old: channel:zentao:zentao_default/{zentaoPassword}  (+ serverUrl/zentaoUsername in SQLite)
+   * New: service:zentao/{server_url, username, password}
+   */
+  private async migrateZentaoToServiceNamespace(): Promise<number> {
+    console.log('[SecretMigration] Migrating Zentao credentials to service namespace...');
+    let migrated = 0;
+
+    try {
+      if (!this.client) return 0;
+
+      const oldNamespace = 'channel:zentao:zentao_default';
+      const newNamespace = 'service:zentao';
+
+      // Check if already migrated to new namespace
+      const existingPassword = await this.client.getSecret(newNamespace, 'password').catch((): null => null);
+      if (existingPassword) {
+        console.log('[SecretMigration] Zentao already migrated to service namespace');
+        return 0;
+      }
+
+      // Try to read password from old namespace
+      const oldPassword = await this.client.getSecret(oldNamespace, 'zentaoPassword').catch((): null => null);
+
+      // Read serverUrl and username from SQLite
+      let serverUrl = '';
+      let username = '';
+      try {
+        const db = getDatabase();
+        const rows = db.getAssistantPluginsForMigration();
+        const zentaoRow = rows?.find((r) => r.type === 'zentao');
+        if (zentaoRow) {
+          const config = JSON.parse(zentaoRow.config || '{}');
+          const credentials = config.credentials || {};
+          const decrypted = decryptCredentials(credentials);
+          if (decrypted) {
+            serverUrl = (decrypted.serverUrl as string) || '';
+            username = (decrypted.zentaoUsername as string) || '';
+          }
+        }
+      } catch {
+        // DB read failed, skip
+      }
+
+      // Migrate whatever we have
+      if (serverUrl) {
+        await this.migrateSecret(newNamespace, 'server_url', serverUrl);
+        migrated++;
+      }
+      if (username) {
+        await this.migrateSecret(newNamespace, 'username', username);
+        migrated++;
+      }
+      if (oldPassword) {
+        await this.migrateSecret(newNamespace, 'password', oldPassword);
+        migrated++;
+      }
+
+      if (migrated > 0) {
+        await this.saveMigrationMap();
+      }
+    } catch (error) {
+      console.error('[SecretMigration] Error migrating Zentao credentials:', error);
+    }
+
+    console.log(`[SecretMigration] Zentao migration complete: ${migrated} secrets migrated`);
+    return migrated;
   }
 
   /**

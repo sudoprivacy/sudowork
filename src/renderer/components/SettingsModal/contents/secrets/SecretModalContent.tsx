@@ -11,7 +11,9 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
 import jianshekuLogo from '@/renderer/assets/logos/jiansheku.png';
+import zentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import JsbConfigForm from './JsbConfigForm';
+import ZentaoSecretForm from './ZentaoSecretForm';
 
 /**
  * Secret Management Content Component
@@ -22,6 +24,7 @@ const SecretModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
 
   const [jsbCollapsed, setJsbCollapsed] = useState(true);
+  const [zentaoCollapsed, setZentaoCollapsed] = useState(true);
 
   const guideText = t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
   const setupSteps = [t('settings.secrets.step1', '选择服务并填写秘钥信息。'), t('settings.secrets.step2', '点击保存完成配置。')];
@@ -57,6 +60,22 @@ const SecretModalContent: React.FC = () => {
               className='[&_div.arco-collapse-item-content-box]:py-3'
             >
               <JsbConfigForm />
+            </Collapse.Item>
+          </Collapse>
+
+          {/* 禅道 */}
+          <Collapse activeKey={zentaoCollapsed ? [] : ['zentao']} onChange={() => setZentaoCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1'>
+            <Collapse.Item
+              header={
+                <div className='flex items-center gap-8px'>
+                  <img src={zentaoLogo} alt='Zentao' className='w-14px h-14px rd-3px shrink-0' />
+                  <span className='text-14px text-t-primary'>{t('settings.secrets.zentaoTitle', '禅道')}</span>
+                </div>
+              }
+              name='zentao'
+              className='[&_div.arco-collapse-item-content-box]:py-3'
+            >
+              <ZentaoSecretForm />
             </Collapse.Item>
           </Collapse>
         </div>

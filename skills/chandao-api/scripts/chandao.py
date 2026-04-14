@@ -68,11 +68,68 @@ class Chandao:
                 break
 
     def _load_from_sudowork(self):
-        """从 SudoClaw 本地数据库和 Secret Store 加载凭证。
+        """从 Nexus Secret Store 加载凭证。
 
-        serverUrl 和 username 从 ~/.nexus/sudowork.db 的 assistant_plugins 表读取，
-        password 从 Nexus Secret Store API 读取。
+        优先从新 namespace service:zentao 读取所有凭据（server_url, username, password），
+        若缺失则回退到旧 namespace channel:zentao:zentao_default + SQLite。
         """
+        api_key = self._get_nexus_api_key()
+        nexus_url = os.environ.get("NEXUS_URL", "http://localhost:12012")
+
+        # 1. 优先尝试新 namespace: service:zentao
+        if api_key:
+            new_ns = "service:zentao"
+            for field, attr in [("server_url", "base_url"), ("username", "account"), ("password", "password")]:
+                if getattr(self, attr):
+                    continue
+                try:
+                    secret_url = f"{nexus_url}/api/v2/secrets/{new_ns}/{field}"
+                    headers = {"Authorization": f"Bearer {api_key}"}
+                    req = urllib.request.Request(secret_url, headers=headers, method="GET")
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        value = data.get("value", "")
+                        if value:
+                            if attr == "base_url":
+                                value = value.rstrip("/")
+                            setattr(self, attr, value)
+                except Exception:
+                    pass
+
+        # 2. 回退：旧 namespace (channel:zentao:zentao_default) + SQLite
+        if not all([self.base_url, self.account]):
+            self._load_from_sudowork_legacy()
+
+        if not self.password and api_key:
+            try:
+                secret_url = (
+                    f"{nexus_url}/api/v2/secrets/"
+                    f"channel:zentao:zentao_default/zentaoPassword"
+                )
+                headers = {"Authorization": f"Bearer {api_key}"}
+                req = urllib.request.Request(secret_url, headers=headers, method="GET")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    self.password = data.get("value", "")
+            except Exception:
+                pass
+
+    def _get_nexus_api_key(self):
+        """获取 Nexus API Key"""
+        api_key = os.environ.get("NEXUS_API_KEY", "")
+        if not api_key:
+            config_yaml = Path.home() / ".nexus" / "config.yaml"
+            if config_yaml.exists():
+                try:
+                    import yaml
+                    with open(config_yaml, "r", encoding="utf-8") as f:
+                        api_key = (yaml.safe_load(f) or {}).get("apiKey", "")
+                except Exception:
+                    pass
+        return api_key
+
+    def _load_from_sudowork_legacy(self):
+        """旧路径回退：从 SQLite assistant_plugins 表读取 serverUrl 和 username。"""
         try:
             home = Path.home()
             db_path = home / ".nexus" / "sudowork.db"
@@ -81,13 +138,11 @@ class Chandao:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
-                # 先按 name 精确匹配禅道插件
                 cursor.execute(
                     "SELECT config FROM assistant_plugins WHERE name LIKE '%zentao%' LIMIT 1"
                 )
                 row = cursor.fetchone()
 
-                # 未找到则遍历所有行查找包含 serverUrl 的 config
                 if not row:
                     cursor.execute("SELECT config FROM assistant_plugins")
                     for r in cursor.fetchall():
@@ -120,30 +175,6 @@ class Chandao:
                 conn.close()
         except Exception:
             pass
-
-        # password 从 Nexus Secret Store 读取
-        if not self.password:
-            try:
-                api_key = os.environ.get("NEXUS_API_KEY", "")
-                if not api_key:
-                    config_yaml = Path.home() / ".nexus" / "config.yaml"
-                    if config_yaml.exists():
-                        import yaml
-                        with open(config_yaml, "r", encoding="utf-8") as f:
-                            api_key = (yaml.safe_load(f) or {}).get("apiKey", "")
-
-                nexus_url = os.environ.get("NEXUS_URL", "http://localhost:12012")
-                secret_url = (
-                    f"{nexus_url}/api/v2/secrets/"
-                    f"channel:zentao:zentao_default/zentaoPassword"
-                )
-                headers = {"Authorization": f"Bearer {api_key}"}
-                req = urllib.request.Request(secret_url, headers=headers, method="GET")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    self.password = data.get("value", "")
-            except Exception:
-                pass
 
     @property
     def token(self):
