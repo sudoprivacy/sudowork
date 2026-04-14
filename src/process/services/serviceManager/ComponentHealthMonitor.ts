@@ -5,6 +5,7 @@
  */
 
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { SUDOCLAW_HEALTH_TIMEOUT_MS } from '../sudoclaw/sudoclawHealth';
 import { serviceManager } from './ServiceManager';
 
 const TAG = 'ComponentHealthMonitor';
@@ -166,7 +167,7 @@ class ComponentHealthMonitor {
     }
 
     try {
-      const running = await checkSudoclawHealth('127.0.0.1', 17863, 5000);
+      const running = await checkSudoclawHealth('127.0.0.1', 17863, SUDOCLAW_HEALTH_TIMEOUT_MS);
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Sudoclaw health check failed: ${err instanceof Error ? err.message : String(err)}`);

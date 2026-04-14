@@ -6,6 +6,8 @@
 
 import * as http from 'node:http';
 
+export const SUDOCLAW_HEALTH_TIMEOUT_MS = 15_000;
+
 export interface SudoclawHealthPayload {
   ok: true;
   status: 'live';
@@ -18,7 +20,7 @@ export function isSudoclawHealthPayload(value: unknown): value is SudoclawHealth
   return payload.ok === true && payload.status === 'live';
 }
 
-export async function checkSudoclawHealth(host: string, port: number, timeoutMs = 1000): Promise<boolean> {
+export async function checkSudoclawHealth(host: string, port: number, timeoutMs = SUDOCLAW_HEALTH_TIMEOUT_MS): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     const req = http.get(
       {

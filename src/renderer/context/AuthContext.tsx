@@ -203,9 +203,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       throw new Error('登录响应缺少 Sudoclaw API Key 配置');
     }
 
-    setStatus('syncing');
     setReady(true);
-    setSyncMessage('正在同步 Sudoclaw 配置...');
 
     try {
       const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
@@ -234,18 +232,6 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       if (!saveRes?.success) {
         throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
       }
-
-      setSyncMessage('正在重启 Sudoclaw...');
-      const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-      if (!restartRes?.success) {
-        throw new Error(restartRes?.msg || 'Sudoclaw restartGateway failed');
-      }
-
-      if (!(await ensureSudoclawHasApiKey())) {
-        throw new Error('Sudoclaw API Key 同步失败');
-      }
-
-      console.log('[Auth] Sudoclaw 配置已更新并重启完成');
     } catch (error) {
       setSyncMessage(null);
       setUser(null);
@@ -260,6 +246,21 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
+
+  if (isDesktopRuntime) {
+    void ipcBridge.sudoclaw.restartGateway
+      .invoke()
+      .then((restartRes) => {
+        if (!restartRes?.success) {
+          console.error('[Auth] Sudoclaw 后台重启失败:', restartRes?.msg || 'Sudoclaw restartGateway failed');
+          return;
+        }
+        console.log('[Auth] Sudoclaw 正在后台重启');
+      })
+      .catch((error) => {
+        console.error('[Auth] Sudoclaw 后台重启失败:', error);
+      });
+  }
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
