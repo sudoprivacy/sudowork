@@ -32,13 +32,13 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
-  const { status, syncMessage } = useAuth();
+  const { status } = useAuth();
 
-  if (status === 'checking' || status === 'syncing') {
-    return <AppLoader text={status === 'syncing' ? syncMessage || '正在准备 Sudoclaw...' : undefined} subtext={status === 'syncing' ? '正在等待 Sudoclaw 重启完成后进入聊天页面。' : undefined} />;
+  if (status === 'checking') {
+    return <AppLoader />;
   }
 
-  if (status !== 'authenticated') {
+  if (status !== 'authenticated' && status !== 'syncing') {
     return <Navigate to='/login' replace />;
   }
 
@@ -47,12 +47,13 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
+  const isSignedIn = status === 'authenticated' || status === 'syncing';
 
   return (
     <HashRouter>
       <Routes>
-        <Route path='/login' element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
-        <Route path='/register' element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
+        <Route path='/login' element={isSignedIn ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
+        <Route path='/register' element={isSignedIn ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
@@ -76,7 +77,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings' element={<Navigate to='/settings/agent' replace />} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
-        <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />
+        <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />
       </Routes>
     </HashRouter>
   );

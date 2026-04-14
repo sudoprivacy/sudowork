@@ -28,7 +28,7 @@ const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' clas
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, syncMessage, login, register } = useAuth();
+  const { status, login, register } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginPhone, setLoginPhone] = useState('');
@@ -251,8 +251,8 @@ const LoginPage: React.FC = () => {
 
   const currentCountdown = mode === 'login' ? loginCountdown : registerCountdown;
 
-  if (status === 'checking' || status === 'syncing') {
-    return <AppLoader text={status === 'syncing' ? syncMessage || '正在同步 Sudoclaw...' : undefined} subtext={status === 'syncing' ? '登录已完成，正在写入 API Key 并等待 Sudoclaw 重启成功。' : undefined} />;
+  if (status === 'checking') {
+    return <AppLoader />;
   }
 
   if (statusMsg) {
