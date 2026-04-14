@@ -5,24 +5,23 @@
  */
 
 /**
- * useAutoScroll - Auto-scroll hook with user scroll detection.
+ * useAutoScroll - Auto-scroll hook with user scroll detection and a dynamic
+ * bottom spacer that pins the latest user prompt to the top of the viewport.
  *
- * Behavior:
- * - When the user sends a message, scrolls the prompt to the top of the viewport.
- * - When the AI streams output (text or ToolCall), auto-scrolls to the absolute
- *   bottom of the scroll container so the latest content stays visible. This
- *   covers both new messages AND in-place content updates (e.g. long-running
- *   tool output that streams into an existing message), which Virtuoso's native
- *   `followOutput` does not handle.
- *
- *   We use `scrollTo({ top: MAX })` (not `scrollToIndex({ align: 'end' })`)
- *   so that the Virtuoso Footer is visible at the bottom of the viewport,
- *   acting as a buffer between the last message's bottom border and the input
- *   box below the message list. Otherwise, `align: 'end'` would flush the
- *   message bottom directly against the viewport edge, making the bottom
- *   border appear clipped against the SendBox during streaming.
- * - When the user manually scrolls up, auto-follow pauses to preserve their
- *   reading position, and resumes once they scroll back to the bottom.
+ * Behavior (see #345):
+ * - When the user sends a message, the message is pinned to the top of the
+ *   viewport and a "bottom spacer" is reserved below the last rendered item so
+ *   the viewport under the prompt is initially empty — giving the upcoming AI
+ *   response a full viewport of "canvas" to stream into, similar to ChatGPT /
+ *   Claude.ai. The spacer shrinks 1:1 as the AI streams content, so the prompt
+ *   stays pinned at the top while content fills the empty area below it.
+ * - Once the turn's content (user prompt + AI output) reaches the viewport
+ *   height, the spacer collapses to 0 and auto-follow resumes — the prompt is
+ *   then free to scroll off the top as we keep the latest AI output in view.
+ * - In idle state (no active turn, or the current turn has already overflowed
+ *   the viewport) the spacer is 0 and the list behaves like a regular chat log.
+ * - When the user manually scrolls up, auto-follow pauses so their reading
+ *   position is preserved; it resumes once they scroll back to the bottom.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
@@ -30,6 +29,15 @@ import type { TMessage } from '@/common/chatLib';
 
 // Ignore scroll events within this window after a programmatic scroll (ms)
 const PROGRAMMATIC_SCROLL_GUARD_MS = 150;
+
+/**
+ * Baseline breathing room between the last rendered message and the SendBox
+ * that sits below the message list. This is applied as a static Footer height
+ * outside of `bottomSpacerHeight`, so the spacer itself can cleanly go to 0 in
+ * idle state without the last message's bottom border being clipped against
+ * the input box.
+ */
+export const BOTTOM_BUFFER_PX = 40;
 
 interface UseAutoScrollOptions {
   /** Message list for detecting new messages */
@@ -47,6 +55,8 @@ interface UseAutoScrollReturn {
   handleAtBottomStateChange: (atBottom: boolean) => void;
   /** Virtuoso followOutput callback for streaming auto-scroll */
   handleFollowOutput: (isAtBottom: boolean) => false | 'auto';
+  /** Virtuoso scrollerRef callback — lets us measure the viewport for spacer sizing */
+  handleScrollerRef: (ref: HTMLElement | Window | null) => void;
   /** Whether to show scroll-to-bottom button */
   showScrollButton: boolean;
   /** Manually scroll to bottom (e.g., when clicking button) */
@@ -55,11 +65,18 @@ interface UseAutoScrollReturn {
   hideScrollButton: () => void;
   /** Manually scroll to top (e.g., when user sends message) */
   scrollToTop: (behavior?: 'smooth' | 'auto') => void;
+  /**
+   * Extra bottom padding (on top of BOTTOM_BUFFER_PX) that keeps the user's
+   * latest prompt pinned to the top of the viewport while the AI streams into
+   * the empty area below. 0 in idle state.
+   */
+  bottomSpacerHeight: number;
 }
 
 export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): UseAutoScrollReturn {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [bottomSpacerHeight, setBottomSpacerHeight] = useState(0);
 
   // Refs for scroll control
   const userScrolledRef = useRef(false);
@@ -67,11 +84,143 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   const previousListLengthRef = useRef(messages.length);
   const lastProgrammaticScrollTimeRef = useRef(0);
 
+  // Turn-mode refs — track the "pin user prompt to top" state.
+  const turnStartMsgIdRef = useRef<string | null>(null);
+  const isPinnedRef = useRef(false);
+  /**
+   * Mirrors `bottomSpacerHeight` state so `recomputeSpacer` can reason about
+   * the current spacer without reading stale state. Updating the state inside
+   * `recomputeSpacer` would otherwise feed back into `scrollHeight`, creating
+   * a circular dependency.
+   */
+  const spacerHeightRef = useRef(0);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const viewportHeightRef = useRef(0);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
+  const resetTurnMode = useCallback(() => {
+    turnStartMsgIdRef.current = null;
+    isPinnedRef.current = false;
+    if (spacerHeightRef.current !== 0) {
+      spacerHeightRef.current = 0;
+      setBottomSpacerHeight(0);
+    }
+  }, []);
+
+  /**
+   * Recompute the bottom spacer so the user prompt can reach the top of the
+   * viewport with the "empty canvas" effect below it.
+   *
+   *   spacer = max(0, viewportHeight - heightOfContentSinceTurnStart)
+   *
+   * Where heightOfContentSinceTurnStart is the distance from the top of the
+   * user-prompt element to the bottom of the last rendered item (excluding the
+   * spacer itself and the static BOTTOM_BUFFER_PX Footer). As the AI streams
+   * more content, the second term grows and the spacer shrinks 1:1, so the
+   * prompt stays pinned at the top until the turn's content fills the viewport.
+   *
+   * Once the spacer collapses to 0, we clear `isPinnedRef` so auto-follow can
+   * resume — the prompt is then free to scroll off the top as we keep the
+   * latest AI output in view.
+   */
+  const recomputeSpacer = useCallback(() => {
+    const scroller = scrollerElRef.current;
+    const vh = viewportHeightRef.current;
+    const turnMsgId = turnStartMsgIdRef.current;
+
+    if (!turnMsgId || !scroller || vh <= 0) {
+      if (spacerHeightRef.current !== 0) {
+        spacerHeightRef.current = 0;
+        setBottomSpacerHeight(0);
+      }
+      isPinnedRef.current = false;
+      return;
+    }
+
+    // `CSS.escape` may not exist in all test environments — fall back to a
+    // naive quote escape for IDs that don't contain special characters.
+    const escapeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(turnMsgId) : turnMsgId.replace(/"/g, '\\"');
+    const userEl = scroller.querySelector(`[data-message-id="${escapeId}"]`) as HTMLElement | null;
+    if (!userEl) {
+      // The user prompt is no longer rendered (either virtualized off-screen
+      // because the turn overflowed, or the conversation was swapped out).
+      // Either way, no spacer is needed anymore.
+      if (spacerHeightRef.current !== 0) {
+        spacerHeightRef.current = 0;
+        setBottomSpacerHeight(0);
+      }
+      isPinnedRef.current = false;
+      return;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const userRect = userEl.getBoundingClientRect();
+    // Offset of the user prompt's top within the scroll content.
+    const userOffsetInScroll = userRect.top - scrollerRect.top + scroller.scrollTop;
+
+    // scrollHeight includes both the current spacer and the static footer
+    // buffer, so subtract them to get the content height without padding.
+    const footerHeight = BOTTOM_BUFFER_PX + spacerHeightRef.current;
+    const turnContent = Math.max(0, scroller.scrollHeight - footerHeight - userOffsetInScroll);
+
+    const desiredSpacer = Math.max(0, vh - turnContent);
+
+    if (Math.abs(desiredSpacer - spacerHeightRef.current) >= 1) {
+      spacerHeightRef.current = desiredSpacer;
+      setBottomSpacerHeight(desiredSpacer);
+    }
+
+    // When the turn content has filled the viewport there is nothing left to
+    // pin — let auto-follow take over.
+    if (desiredSpacer === 0) {
+      isPinnedRef.current = false;
+    }
+  }, []);
+
+  // Virtuoso calls this with the scroll container (an HTMLElement) or null on
+  // unmount / remount. We use it to measure the viewport for spacer sizing.
+  const handleScrollerRef = useCallback(
+    (ref: HTMLElement | Window | null) => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+
+      const el = ref instanceof HTMLElement ? ref : null;
+      scrollerElRef.current = el;
+      if (!el) return;
+
+      viewportHeightRef.current = el.clientHeight;
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            viewportHeightRef.current = (entry.target as HTMLElement).clientHeight;
+          }
+          recomputeSpacer();
+        });
+        ro.observe(el);
+        resizeObserverRef.current = ro;
+      }
+
+      recomputeSpacer();
+    },
+    [recomputeSpacer]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+    };
+  }, []);
+
   // Scroll to absolute bottom of the scroller. Using `scrollTo` (not
-  // `scrollToIndex({ align: 'end' })`) puts the Virtuoso Footer at the bottom
-  // of the viewport, leaving the Footer's worth of breathing room below the
-  // last message. This prevents the last message's bottom border from being
-  // visually clipped against the SendBox sitting below the message list.
+  // `scrollToIndex({ align: 'end' })`) keeps the static BOTTOM_BUFFER_PX footer
+  // visible at the bottom of the viewport, preventing the last message's
+  // bottom border from being clipped against the SendBox below.
   const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
     if (!virtuosoRef.current) return;
 
@@ -95,9 +244,12 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   }, []);
 
   // Virtuoso native followOutput - handles streaming auto-scroll internally
-  // without external scrollToIndex calls that cause jitter
+  // without external scrollToIndex calls that cause jitter. Disabled while we
+  // are pinning the user prompt at the top, so the empty spacer below gets
+  // filled instead of scrolling the prompt off the screen.
   const handleFollowOutput = useCallback((isAtBottom: boolean): false | 'auto' => {
     if (userScrolledRef.current || !isAtBottom) return false;
+    if (isPinnedRef.current) return false;
     return 'auto';
   }, []);
 
@@ -131,8 +283,8 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   }, []);
 
   // Force scroll when user sends a message, or auto-follow AI output (including
-  // ToolCall streaming content updates) unless the user has manually scrolled up.
-  // 处理用户发送消息 / 跟随 AI 输出（包含 ToolCall 运行时内容更新）
+  // ToolCall streaming content updates) unless the user has manually scrolled
+  // up or we're currently pinning the user prompt at the top.
   useEffect(() => {
     const currentListLength = messages.length;
     const prevLength = previousListLengthRef.current;
@@ -140,14 +292,35 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
 
     previousListLengthRef.current = currentListLength;
 
-    if (!messages.length || itemCount <= 0) return;
+    if (!messages.length || itemCount <= 0) {
+      // Conversation cleared — drop any stale turn state.
+      resetTurnMode();
+      return;
+    }
 
     const lastMessage = messages[messages.length - 1];
 
-    // User sent a new message - scroll to show the message at top of viewport.
-    // 用户发送消息后将其滚动到视口顶部，方便用户对照自己的输入
+    // User sent a new message - pin it to the top of the viewport and reserve a
+    // viewport-tall spacer below so the AI has an empty canvas to stream into.
+    // We only enter pinned mode when we actually have a scroller to measure —
+    // in headless / test environments without a scroller we preserve the old
+    // "just scroll to top" behavior.
     if (isNewMessage && lastMessage?.position === 'right') {
       userScrolledRef.current = false;
+      const vh = viewportHeightRef.current;
+      const canPin = vh > 0 && scrollerElRef.current !== null;
+      if (canPin) {
+        turnStartMsgIdRef.current = lastMessage.id;
+        isPinnedRef.current = true;
+        // Seed the spacer at full viewport height so the user prompt can
+        // actually reach the top on the first scrollToIndex call. The next
+        // recompute (after layout settles) will refine it to the exact value.
+        if (spacerHeightRef.current !== vh) {
+          spacerHeightRef.current = vh;
+          setBottomSpacerHeight(vh);
+        }
+      }
+
       // Use double RAF to ensure DOM is updated before scrolling
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -158,30 +331,41 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
               align: 'start',
               behavior: 'auto', // Use auto for immediate positioning
             });
+            if (canPin) {
+              requestAnimationFrame(() => recomputeSpacer());
+            }
           }
         });
       });
       return;
     }
 
-    // AI output (new message or in-place content update, including ToolCall streaming).
-    // Auto-scroll to the absolute bottom of the scroller so the Virtuoso Footer
-    // is visible at the bottom of the viewport — this leaves a real, visible
-    // breathing margin between the last message's bottom border and the SendBox
-    // below, preventing the bottom border from being clipped against the input
-    // box during streaming. Unless the user has manually scrolled up, in which
-    // case we respect their reading position.
-    //
-    // 自动滚动到滚动容器的绝对底部以跟随 AI 输出（含 ToolCall 运行时内容更新），
-    // 让 Virtuoso Footer 留在视口底部，作为最后一条消息底边与下方输入框之间的
-    // 缓冲区，避免消息底边紧贴输入框被遮挡。
-    // 若用户已手动向上滚动，则保留其阅读位置，不干扰阅读。
+    // AI output (new message or in-place content update, including ToolCall
+    // streaming). First, keep the spacer in sync with the new content so we
+    // can correctly decide whether to stay pinned or resume auto-follow.
+    if (turnStartMsgIdRef.current) {
+      requestAnimationFrame(() => recomputeSpacer());
+    }
+
+    // While pinned we intentionally do NOT auto-scroll — the user prompt needs
+    // to stay at the top, and the AI content fills the empty spacer below.
+    // Once the turn overflows the viewport, `recomputeSpacer` clears
+    // `isPinnedRef` and subsequent updates fall through to the follow branch.
+    if (isPinnedRef.current) return;
+
+    // Auto-scroll to the absolute bottom of the scroller so the Virtuoso
+    // Footer is visible at the bottom of the viewport — this leaves a real,
+    // visible breathing margin between the last message's bottom border and
+    // the SendBox below, preventing the bottom border from being clipped
+    // against the input box during streaming. Unless the user has manually
+    // scrolled up, in which case we respect their reading position.
     //
     // Note: we intentionally do NOT update lastProgrammaticScrollTimeRef here.
     // Auto-follow always scrolls DOWN (scrollTop increases → delta > 0), so it
     // cannot be misdetected as a user scroll-up in handleScroll. Skipping the
-    // guard update keeps user scroll-up detection responsive during high-frequency
-    // streaming updates where the guard window would otherwise never close.
+    // guard update keeps user scroll-up detection responsive during high-
+    // frequency streaming updates where the guard window would otherwise
+    // never close.
     if (!userScrolledRef.current && lastMessage?.position === 'left') {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -194,7 +378,7 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
         });
       });
     }
-  }, [messages, itemCount]);
+  }, [messages, itemCount, recomputeSpacer, resetTurnMode]);
 
   // Hide scroll button handler
   const hideScrollButton = useCallback(() => {
@@ -207,9 +391,11 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     handleScroll,
     handleAtBottomStateChange,
     handleFollowOutput,
+    handleScrollerRef,
     showScrollButton,
     scrollToBottom,
     hideScrollButton,
     scrollToTop,
+    bottomSpacerHeight,
   };
 }

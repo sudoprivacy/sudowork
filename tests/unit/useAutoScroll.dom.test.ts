@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useAutoScroll } from '../../src/renderer/messages/useAutoScroll';
+import { BOTTOM_BUFFER_PX, useAutoScroll } from '../../src/renderer/messages/useAutoScroll';
 import type { TMessage, IMessageText, IMessageToolGroup } from '../../src/common/chatLib';
 
 // Mock VirtuosoHandle
@@ -363,5 +363,255 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
 
     // Auto-scroll should have resumed (scroll to absolute bottom).
     expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: Number.MAX_SAFE_INTEGER }));
+  });
+});
+
+/**
+ * Helpers for building a jsdom scroller element with the size properties
+ * needed by `recomputeSpacer`. jsdom defaults clientHeight/scrollHeight to 0
+ * and doesn't expose a real ResizeObserver, so we stub both.
+ */
+const setSize = (el: HTMLElement, prop: 'clientHeight' | 'scrollHeight' | 'scrollTop', value: number) => {
+  Object.defineProperty(el, prop, { value, configurable: true, writable: true });
+};
+
+const mockRect = (el: HTMLElement, top: number, height: number) => {
+  el.getBoundingClientRect = () =>
+    ({
+      top,
+      left: 0,
+      right: 800,
+      bottom: top + height,
+      width: 800,
+      height,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+};
+
+describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
+  let mockVirtuosoHandle: ReturnType<typeof createMockVirtuosoHandle>;
+  let scrollerEl: HTMLElement;
+  let originalResizeObserver: typeof ResizeObserver | undefined;
+
+  beforeEach(() => {
+    mockVirtuosoHandle = createMockVirtuosoHandle();
+    vi.useFakeTimers();
+
+    originalResizeObserver = (globalThis as any).ResizeObserver;
+    class StubResizeObserver {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    (globalThis as any).ResizeObserver = StubResizeObserver;
+
+    scrollerEl = document.createElement('div');
+    setSize(scrollerEl, 'clientHeight', 600);
+    setSize(scrollerEl, 'scrollHeight', 0);
+    setSize(scrollerEl, 'scrollTop', 0);
+    mockRect(scrollerEl, 0, 600);
+    document.body.appendChild(scrollerEl);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+    document.body.removeChild(scrollerEl);
+    (globalThis as any).ResizeObserver = originalResizeObserver;
+  });
+
+  const createMessage = (position: 'left' | 'right', id: string): IMessageText => ({
+    id,
+    msg_id: id,
+    type: 'text',
+    position,
+    conversation_id: 'test-conv',
+    content: { content: 'test message' },
+    createdAt: Date.now(),
+  });
+
+  /**
+   * Render a `data-message-id` child on the scroller and set the scroller's
+   * `scrollHeight` to reflect a realistic DOM state:
+   *
+   *   scrollHeight = itemsTotalHeight + BOTTOM_BUFFER_PX + currentSpacer
+   *
+   * where `currentSpacer` must match what the hook currently thinks the spacer
+   * is — otherwise the recompute sees an inconsistent layout. Tests should
+   * pass `result.current.bottomSpacerHeight` for this argument after the
+   * previous rerender has settled.
+   */
+  const renderTurnDom = (userMsgId: string, userTop: number, userHeight: number, itemsTotalHeight: number, currentSpacer: number) => {
+    scrollerEl.innerHTML = '';
+    const el = document.createElement('div');
+    el.setAttribute('data-message-id', userMsgId);
+    mockRect(el, userTop, userHeight);
+    scrollerEl.appendChild(el);
+    setSize(scrollerEl, 'scrollHeight', itemsTotalHeight + BOTTOM_BUFFER_PX + currentSpacer);
+    setSize(scrollerEl, 'scrollTop', 0);
+  };
+
+  it('starts with no bottom spacer in idle state', () => {
+    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    });
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    act(() => {
+      result.current.handleScrollerRef(scrollerEl);
+    });
+
+    expect(result.current.bottomSpacerHeight).toBe(0);
+  });
+
+  it('seeds the spacer to full viewport height when the user sends a message', async () => {
+    const initial: TMessage[] = [];
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+      initialProps: { messages: initial, itemCount: 0 },
+    });
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    act(() => {
+      result.current.handleScrollerRef(scrollerEl);
+    });
+
+    // Before rerender, hook's spacer is still 0 (idle). DOM reflects that.
+    renderTurnDom('u1', 10, 100, 100, 0);
+
+    const next: TMessage[] = [createMessage('right', 'u1')];
+    rerender({ messages: next, itemCount: 1 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // scrollToIndex pins the user message to the top.
+    expect(mockVirtuosoHandle.scrollToIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 0,
+        align: 'start',
+        behavior: 'auto',
+      })
+    );
+    // Spacer is active (> 0) and bounded by the viewport height.
+    expect(result.current.bottomSpacerHeight).toBeGreaterThan(0);
+    expect(result.current.bottomSpacerHeight).toBeLessThanOrEqual(600);
+  });
+
+  it('does NOT auto-scroll while pinned — AI output fills the spacer instead', async () => {
+    const userMsg = createMessage('right', 'u1');
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    });
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    act(() => {
+      result.current.handleScrollerRef(scrollerEl);
+    });
+
+    // User sends — enter pinned mode.
+    renderTurnDom('u1', 10, 100, 100, 0);
+    rerender({ messages: [userMsg], itemCount: 1 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    expect(result.current.bottomSpacerHeight).toBeGreaterThan(0);
+    mockVirtuosoHandle.scrollTo.mockClear();
+    mockVirtuosoHandle.scrollToIndex.mockClear();
+
+    // AI streams a short response that still fits inside the viewport:
+    // user(100) + ai(200) = 300 < 600 (viewport), so we should remain pinned.
+    renderTurnDom('u1', 10, 100, 300, result.current.bottomSpacerHeight);
+    const aiMsg = createMessage('left', 'a1');
+    rerender({ messages: [userMsg, aiMsg], itemCount: 2 });
+
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // Pinned → no auto-scroll: neither scrollTo nor scrollToIndex should fire.
+    expect(mockVirtuosoHandle.scrollTo).not.toHaveBeenCalled();
+    expect(mockVirtuosoHandle.scrollToIndex).not.toHaveBeenCalled();
+    // And the spacer should still be positive (we haven't overflowed yet).
+    expect(result.current.bottomSpacerHeight).toBeGreaterThan(0);
+  });
+
+  it('releases the pin and resumes auto-follow once turn content overflows the viewport', async () => {
+    const userMsg = createMessage('right', 'u1');
+    const aiMsg = createMessage('left', 'a1');
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    });
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    act(() => {
+      result.current.handleScrollerRef(scrollerEl);
+    });
+
+    // User sends.
+    renderTurnDom('u1', 10, 100, 100, 0);
+    rerender({ messages: [userMsg], itemCount: 1 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    expect(result.current.bottomSpacerHeight).toBeGreaterThan(0);
+
+    // AI response grows large enough to overflow the viewport
+    // (user 100 + AI 700 = items 800 > 600 viewport) → spacer should collapse
+    // to 0 and the pin should release.
+    renderTurnDom('u1', 10, 100, 800, result.current.bottomSpacerHeight);
+    rerender({ messages: [userMsg, aiMsg], itemCount: 2 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    expect(result.current.bottomSpacerHeight).toBe(0);
+
+    mockVirtuosoHandle.scrollTo.mockClear();
+
+    // Further AI streaming after overflow should trigger auto-follow to the
+    // absolute bottom of the scroller.
+    renderTurnDom('u1', 10, 100, 900, 0);
+    const aiMsg2 = createMessage('left', 'a2');
+    rerender({ messages: [userMsg, aiMsg, aiMsg2], itemCount: 3 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    expect(result.current.bottomSpacerHeight).toBe(0);
+    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        top: Number.MAX_SAFE_INTEGER,
+        behavior: 'auto',
+      })
+    );
+  });
+
+  it('clears the spacer when the message list becomes empty (e.g., conversation switch)', async () => {
+    const userMsg = createMessage('right', 'u1');
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+      initialProps: { messages: [userMsg], itemCount: 1 },
+    });
+    (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
+
+    act(() => {
+      result.current.handleScrollerRef(scrollerEl);
+    });
+
+    // Simulate a fresh user send establishing pinned state.
+    renderTurnDom('u1', 10, 100, 100, 0);
+    rerender({ messages: [userMsg, createMessage('right', 'u2')], itemCount: 2 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    // Conversation cleared.
+    rerender({ messages: [] as TMessage[], itemCount: 0 });
+    await act(async () => {
+      vi.runAllTimers();
+    });
+
+    expect(result.current.bottomSpacerHeight).toBe(0);
   });
 });
