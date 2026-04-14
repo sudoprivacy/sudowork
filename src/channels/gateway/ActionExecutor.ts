@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
@@ -501,9 +502,14 @@ export class ActionExecutor {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
       } else if (isMediaContentType(content.type)) {
-        // Media message (photo, document, voice, video) - extract file paths and send to AI
+        // Media message (photo, document, voice, video) - extract file paths and send to AI.
+        // Persist attachments using NEXUS_FILES_MARKER so the desktop renderer can show
+        // FilePreview thumbnails, matching how the desktop client stores attachments.
+        // When no files are available we fall back to a human-readable placeholder so the
+        // message is still visible in the chat history.
         const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
-        const text = content.text || `[${content.type} message]`;
+        const baseText = content.text || '';
+        const text = files.length > 0 ? `${baseText}${baseText ? '\n\n' : ''}${NEXUS_FILES_MARKER}\n${files.join('\n')}` : baseText || `[${content.type} message]`;
         await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
