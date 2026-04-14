@@ -85,7 +85,7 @@ export class SessionNotificationService {
     this.translate = options.translate ?? ((key, params) => i18n.t(key, params ?? {}));
     this.now = options.now ?? (() => Date.now());
     this.setAppUserModelId = options.setAppUserModelId;
-    this.appUserModelId = options.appUserModelId ?? 'ai.sudowork.Sudowork';
+    this.appUserModelId = options.appUserModelId ?? 'com.sudowork.app';
   }
 
   /**
