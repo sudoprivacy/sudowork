@@ -7,7 +7,6 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
@@ -503,19 +502,25 @@ export class ActionExecutor {
         await this.handleChatMessage(context, content.text);
       } else if (isMediaContentType(content.type)) {
         // Media message (photo, document, voice, video) - extract file paths and send to AI.
-        // Persist the message in the same format as the desktop client so `MessagetText`
-        // can render a `FilePreview` instead of showing the hardcoded `[photo message]`
-        // placeholder: caption (if any) on top, followed by `NEXUS_FILES_MARKER` and one
-        // file path per line. When there are no attachments at all we fall back to the
-        // human-readable placeholder so the message is not persisted as empty.
-        const files = content.attachments?.map((a) => a.fileId).filter((id): id is string => !!id) || [];
-        const caption = content.text?.trim() ?? '';
-        let text: string;
-        if (files.length > 0) {
-          text = caption ? `${caption}\n\n${NEXUS_FILES_MARKER}\n${files.join('\n')}` : `${NEXUS_FILES_MARKER}\n${files.join('\n')}`;
-        } else {
-          text = caption || `[${content.type} message]`;
-        }
+        //
+        // NOTE: An earlier revision of this block persisted the caption together with
+        // `NEXUS_FILES_MARKER` + raw attachment paths so `MessagetText` could render a
+        // `FilePreview`. That shortcut broke the renderer in several ways:
+        //   1. The attachment paths are the channel's download paths (e.g. WeChat's
+        //      decrypted image dir), not the conversation workspace, so `FilePreview`
+        //      and the agent's `@path` refs diverge from what the desktop flow produces.
+        //   2. When there is no caption the persisted content starts with the marker,
+        //      which leaves `MessagetText` rendering an empty bordered bubble.
+        //   3. Conversation list / tab previews do not strip the marker, so sidebars
+        //      end up leaking `[[NEXUS_FILES]] ...` as the last message preview.
+        //
+        // Properly fixing chat-history previews for channels requires copying the
+        // attachments into the conversation workspace (like `conversationBridge` does
+        // for desktop sends) and only emitting the marker on OpenClaw-backed sessions,
+        // matching `OpenClawSendBox` / `AcpSendBox` behaviour. Until that work lands
+        // we keep the human-readable placeholder and rely on `files` for agent @refs.
+        const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
+        const text = content.text || `[${content.type} message]`;
         await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
