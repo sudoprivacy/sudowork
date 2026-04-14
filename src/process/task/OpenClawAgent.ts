@@ -30,6 +30,14 @@ import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageRe
 import { buildDraftsInstruction } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import * as nodePath from 'node:path';
+import { ProcessConfig } from '@process/initStorage';
+
+/** Default prompt timeout in seconds */
+const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
+
+/** Prompt timeout range (seconds) */
+const PROMPT_TIMEOUT_MIN_SECONDS = 30;
+const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -232,6 +240,41 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
   }
 
+  /**
+   * Apply prompt timeout from user config before sending message.
+   * Reads agent.promptTimeout from ProcessConfig and sets it on the gateway connection.
+   * Falls back to DEFAULT_PROMPT_TIMEOUT_SECONDS (300s) if not configured.
+   * Uses synchronous read to avoid IPC blocking issues.
+   */
+  private applyPromptTimeoutFromConfig(): void {
+    if (!this.connection) {
+      mainWarn('OpenClawAgent', 'applyPromptTimeoutFromConfig: connection is null');
+      return;
+    }
+
+    mainLog('OpenClawAgent', 'applyPromptTimeoutFromConfig: reading config synchronously');
+    try {
+      // Use synchronous read to avoid IPC blocking
+      const timeoutSeconds = ProcessConfig.getSync('agent.promptTimeout');
+
+      mainLog('OpenClawAgent', `Read promptTimeout from config: ${timeoutSeconds}`);
+      if (timeoutSeconds && timeoutSeconds > 0) {
+        // Clamp to valid range
+        const clampedSeconds = Math.max(PROMPT_TIMEOUT_MIN_SECONDS, Math.min(PROMPT_TIMEOUT_MAX_SECONDS, timeoutSeconds));
+        const timeoutMs = clampedSeconds * 1000;
+        this.connection.setPromptTimeout(timeoutMs);
+        mainLog('OpenClawAgent', `Applied prompt timeout: ${clampedSeconds}s (${timeoutMs}ms), current connection timeout: ${this.connection.getPromptTimeout()}ms`);
+      } else {
+        // Use default if not configured
+        this.connection.setPromptTimeout(DEFAULT_PROMPT_TIMEOUT_SECONDS * 1000);
+        mainLog('OpenClawAgent', `Using default prompt timeout: ${DEFAULT_PROMPT_TIMEOUT_SECONDS}s`);
+      }
+    } catch (error) {
+      mainWarn('OpenClawAgent', 'Failed to read prompt timeout config, using default:', error);
+      this.connection.setPromptTimeout(DEFAULT_PROMPT_TIMEOUT_SECONDS * 1000);
+    }
+  }
+
   // ========== Public API (BaseAgent contract) ==========
 
   async setSessionModel(modelId: string): Promise<{ sessionKey: string; model: string }> {
@@ -257,8 +300,10 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    mainLog('OpenClawAgent', `sendMessage called: content="${data.content?.substring(0, 50)}..."`);
     try {
       await this.bootstrap;
+      mainLog('OpenClawAgent', 'sendMessage: bootstrap completed');
 
       // Auto-reconnect if needed
       if (!this.connection?.isConnected || !this.connection?.sessionKey) {
@@ -316,11 +361,18 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         processedContent = `[Skills: ${data.skills.join(', ')}]\n\n${processedContent}`;
       }
 
+      // Apply prompt timeout from config before sending
+      mainLog('OpenClawAgent', 'sendMessage: about to call applyPromptTimeoutFromConfig');
+      this.applyPromptTimeoutFromConfig();
+      mainLog('OpenClawAgent', 'sendMessage: applyPromptTimeoutFromConfig completed');
+
       // Send chat message
+      mainLog('OpenClawAgent', `sendMessage: about to call chatSend with sessionKey=${this.connection!.sessionKey}`);
       await this.connection!.chatSend({
         sessionKey: this.connection!.sessionKey!,
         message: processedContent,
       });
+      mainLog('OpenClawAgent', 'sendMessage: chatSend completed');
 
       return { success: true, data: null } as AcpResult;
     } catch (error) {

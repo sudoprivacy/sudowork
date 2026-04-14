@@ -60,6 +60,7 @@ export default defineConfig({
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
         'src/process/services/notification/SessionNotificationService.ts',
+        'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
@@ -70,6 +71,8 @@ export default defineConfig({
         'src/agent/acp/modelInfo.ts',
         // Common
         'src/common/chatLib.ts',
+        'src/common/nexusFiles.ts',
+        'src/common/sudoworkAuthLogin.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
         // Renderer utils
