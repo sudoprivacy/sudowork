@@ -37,6 +37,9 @@ const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 /** Prompt timeout range (seconds) */
 const PROMPT_TIMEOUT_MIN_SECONDS = 30;
 const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
+const CONNECTION_TIMEOUT_MS = 15_000;
+const CONNECTION_MAX_ATTEMPTS = 30;
+const CONNECTION_RETRY_DELAY_MS = 1_000;
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -120,28 +123,44 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         connectPort = gw.port;
       }
 
-      // Create and configure connection
-      this.connection = new OpenClawGatewayConnection({
-        url: `ws://${connectHost}:${connectPort}`,
-        stateDir: stateDir ?? undefined,
-        token,
-        password,
-        onEvent: (evt) => this.handleEvent(evt),
-        onHelloOk: (_hello: HelloOk) => this.handleGatewayHello(),
-        onConnectError: (err) => this.handleConnectError(err),
-        onClose: (code, reason) => this.handleClose(code, reason),
-        onTokenMismatch: !useExternal
-          ? async () => {
-              const { serviceManager } = await import('@process/services/serviceManager');
-              await serviceManager.restartOpenClaw();
-            }
-          : undefined,
-      });
+      for (let attempt = 1; attempt <= CONNECTION_MAX_ATTEMPTS; attempt += 1) {
+        this.connection?.stop();
+        this.connection = new OpenClawGatewayConnection({
+          url: `ws://${connectHost}:${connectPort}`,
+          stateDir: stateDir ?? undefined,
+          token,
+          password,
+          onEvent: (evt) => this.handleEvent(evt),
+          onHelloOk: (_hello: HelloOk) => this.handleGatewayHello(),
+          onConnectError: (err) => this.handleConnectError(err),
+          onClose: (code, reason) => this.handleClose(code, reason),
+          onTokenMismatch: !useExternal
+            ? async () => {
+                const { serviceManager } = await import('@process/services/serviceManager');
+                await serviceManager.restartOpenClaw();
+              }
+            : undefined,
+        });
 
-      this.connection.start();
+        this.connection.start();
 
-      // Wait for connection
-      await this.waitForConnection();
+        try {
+          await this.waitForConnection(CONNECTION_TIMEOUT_MS);
+          break;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          this.connection?.stop();
+          this.connection = null;
+
+          if (attempt >= CONNECTION_MAX_ATTEMPTS) {
+            throw error;
+          }
+
+          mainWarn('OpenClawAgent', `Connection attempt ${attempt}/${CONNECTION_MAX_ATTEMPTS} failed, retrying: ${errorMsg}`);
+          await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_DELAY_MS));
+        }
+      }
+
       this.emitStatusMessage('connected');
 
       // Resolve session
@@ -155,7 +174,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
   }
 
-  private async waitForConnection(timeoutMs = 30000): Promise<void> {
+  private async waitForConnection(timeoutMs = CONNECTION_TIMEOUT_MS): Promise<void> {
     const startTime = Date.now();
     while (!this.connection?.isConnected) {
       if (Date.now() - startTime > timeoutMs) {
@@ -926,7 +945,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private shouldSuppressTransientGatewayError(message: string): boolean {
-    return /^Gateway closed \(100\d\):\s*$/.test(message.trim());
+    const trimmed = message.trim();
+    return (
+      /^Gateway closed \(100\d\):\s*$/.test(trimmed) ||
+      trimmed === 'Gateway not connected' ||
+      trimmed === 'Connection timeout' ||
+      /^Gateway closed \(4000\): tick timeout$/.test(trimmed) ||
+      /^Request 'connect' timed out after \d+ms$/.test(trimmed)
+    );
   }
 
   private shouldSuppressTransientGatewayClose(code: number, reason: string): boolean {
