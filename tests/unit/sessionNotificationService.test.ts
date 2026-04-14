@@ -121,7 +121,7 @@ describe('SessionNotificationService', () => {
 
   it('exposes sensible defaults', () => {
     expect(DEFAULT_SESSION_END_NOTIFICATION_CONFIG).toEqual({
-      enabled: true,
+      enabled: false,
       notifyWhenFocused: false,
       silent: false,
     });
@@ -159,6 +159,7 @@ describe('SessionNotificationService', () => {
 
   it('notifies when no windows exist (background state)', () => {
     const { service, instances } = buildService();
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1', backend: 'codex' });
     expect(instances).toHaveLength(1);
     expect(instances[0].options.body).toBe('Session has finished. You can view the results on the conversation page.');
@@ -166,12 +167,14 @@ describe('SessionNotificationService', () => {
 
   it('ignores destroyed focused windows', () => {
     const { service, instances } = buildService({ windows: [makeWindow(true, true)] });
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });
     expect(instances).toHaveLength(1);
   });
 
   it('throttles repeated notifications for the same conversation', () => {
     const { service, instances } = buildService({ now: 1000 });
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });
     // Same clock → throttled
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });
@@ -200,6 +203,7 @@ describe('SessionNotificationService', () => {
     });
 
     currentTime = 100;
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });
     expect(calls).toHaveLength(1);
 
@@ -221,6 +225,7 @@ describe('SessionNotificationService', () => {
 
   it('shows notification with correct title and body', () => {
     const { service, instances } = buildService();
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1' });
     expect(instances).toHaveLength(1);
     expect(instances[0].options.body).toBe('Session has finished. You can view the results on the conversation page.');
@@ -229,12 +234,13 @@ describe('SessionNotificationService', () => {
   it('getSettings returns a defensive copy', () => {
     const { service } = buildService();
     const snapshot = service.getSettings();
-    snapshot.enabled = false;
-    expect(service.getSettings().enabled).toBe(true);
+    snapshot.enabled = true;
+    expect(service.getSettings().enabled).toBe(false);
   });
 
   it('clearThrottle resets the dedupe map', () => {
     const { service, instances } = buildService();
+    service.updateSettings({ enabled: true, notifyWhenFocused: false, silent: false });
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });
     service.clearThrottle();
     service.notifySessionFinished({ conversationId: 'c1', backend: 'claude' });

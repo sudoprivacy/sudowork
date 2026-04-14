@@ -112,7 +112,7 @@ const SystemModalContent: React.FC = () => {
 
   // 会话结束系统通知配置 / Session-end notification configuration
   const [sessionEndNotification, setSessionEndNotification] = useState<ISessionEndNotificationConfig>({
-    enabled: true,
+    enabled: false,
     notifyWhenFocused: false,
     silent: false,
   });

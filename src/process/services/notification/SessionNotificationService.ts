@@ -22,9 +22,9 @@ import { ProcessConfig } from '@process/initStorage';
 import i18n from '@process/i18n';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
-/** 默认配置：开启、窗口聚焦时不通知、不静音 / Default: enabled, skip when focused, not silent */
+/** 默认配置：关闭、窗口聚焦时不通知、不静音 / Default: disabled, skip when focused, not silent */
 export const DEFAULT_SESSION_END_NOTIFICATION_CONFIG: ISessionEndNotificationConfig = {
-  enabled: true,
+  enabled: false,
   notifyWhenFocused: false,
   silent: false,
 };
