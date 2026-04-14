@@ -300,6 +300,7 @@ export interface OpenClawGatewayClientOptions {
   onEvent?: (evt: EventFrame) => void;
   onHelloOk?: (hello: HelloOk) => void;
   onConnectError?: (err: Error) => void;
+  onReconnectScheduled?: (attempt: number, maxAttempts: number, delayMs: number) => void;
   onClose?: (code: number, reason: string) => void;
   /** Called on device token mismatch before reset; use to restart gateway so it loads fresh device store */
   onTokenMismatch?: () => void | Promise<void>;

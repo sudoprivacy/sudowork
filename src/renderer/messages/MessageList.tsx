@@ -264,6 +264,8 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       if (message.type === 'agent_status') continue;
       // Hide gateway-disconnected tips from chat
       if (message.type === 'tips' && typeof message.content?.content === 'string' && message.content.content.startsWith('Gateway disconnected:')) continue;
+      // Hide transient Sudoclaw recovery tip from chat after the reconnecting banner is cleared
+      if (message.type === 'tips' && message.content?.content === '已连接到 Sudoclaw') continue;
 
       // Flush turn actions before a user message
       if (message.position === 'right') {
