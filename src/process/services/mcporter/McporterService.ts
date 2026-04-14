@@ -206,17 +206,16 @@ class McporterService {
     mainLog('McporterService', 'Starting mcporter daemon...');
 
     try {
-      // 使用环境变量指定配置路径
-      const env = {
-        ...process.env,
-        MCPORTER_CONFIG: this.configPath,
-      };
+      // 使用 getEnhancedEnv 确保 bundled Node.js 在 PATH 中
+      const env = getEnhancedEnv({ MCPORTER_CONFIG: this.configPath });
 
       // 启动 daemon 进程
+      // windowsHide: true 防止 Windows 上弹出控制台窗口
       this.daemonProcess = spawn('npx', ['mcporter', 'daemon', 'start', '--detach'], {
         env,
         stdio: 'ignore',
         detached: true,
+        windowsHide: process.platform === 'win32',
       });
 
       this.daemonProcess.on('error', (error) => {

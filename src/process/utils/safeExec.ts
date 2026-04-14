@@ -39,14 +39,18 @@ function getShell(): { shell: string; flag: string } {
 /**
  * Shell-based command execution (replacement for `child_process.exec`).
  * Runs the command in a shell with `detached: true` for cross-platform compatibility.
+ * On Windows, uses `windowsHide: true` to prevent console window popup.
  */
 export function safeExec(command: string, options: SafeExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     const { shell, flag } = getShell();
+    const isWindows = platform() === 'win32';
     const child = spawn(shell, [flag, command], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env,
+      // Hide console window on Windows to prevent popup
+      windowsHide: isWindows,
     });
 
     let stdout = '';
@@ -103,13 +107,17 @@ export function safeExec(command: string, options: SafeExecOptions = {}): Promis
 /**
  * Direct executable invocation (replacement for `child_process.execFile`).
  * Does NOT use a shell — safer against injection.
+ * On Windows, uses `windowsHide: true` to prevent console window popup.
  */
 export function safeExecFile(file: string, args: string[], options: SafeExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
+    const isWindows = platform() === 'win32';
     const child = spawn(file, args, {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env,
+      // Hide console window on Windows to prevent popup
+      windowsHide: isWindows,
     });
 
     let stdout = '';
