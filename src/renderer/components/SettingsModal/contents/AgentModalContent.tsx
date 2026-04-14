@@ -114,13 +114,15 @@ const InstalledAssistantCard: React.FC<{
     >
       {/* Avatar + toggle */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 flex items-center justify-center'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
           {avatarImage ? (
             <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
           ) : hasEmojiAvatar ? (
-            <span className='text-22px'>{resolvedAvatar}</span>
+            <div className='w-full h-full flex items-center justify-center text-22px'>{resolvedAvatar}</div>
           ) : (
-            <Robot theme='outline' size={22} className='text-t-secondary' />
+            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+              <Robot theme='filled' size='22' className='text-primary' />
+            </div>
           )}
         </div>
         {isCustom && (
@@ -588,7 +590,7 @@ const AgentModalContent: React.FC = () => {
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
   const renderAssistantGrid = (list: AssistantListItem[]) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+    <div className='grid grid-cols-2 gap-8px'>
       {list.map((assistant) => (
         <InstalledAssistantCard
           key={assistant.id}
@@ -674,6 +676,10 @@ const AgentModalContent: React.FC = () => {
             <div className='flex flex-col items-center justify-center py-48px gap-8px'>
               <Robot theme='outline' size={32} className='text-t-tertiary' />
               <div className='text-13px text-t-secondary'>{t('settings.assistantsEmpty', { defaultValue: '暂无助手' })}</div>
+              <div className='text-12px text-t-tertiary'>{t('settings.assistantsEmptyHint', { defaultValue: '点击下方"创建助手"按钮添加你的助手' })}</div>
+              <Button size='small' type='outline' className='mt-4px' onClick={() => handleCreate()}>
+                {t('settings.createAssistant', { defaultValue: '创建助手' })}
+              </Button>
             </div>
           ) : (
             <div className='pb-16px space-y-20px'>
