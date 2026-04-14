@@ -156,6 +156,9 @@ const SystemModalContent: React.FC = () => {
 
       // 开启时提示用户去系统设置中授权通知权限 / Prompt user to grant notification permission when enabling
       if (checked) {
+        // 先请求通知权限，触发系统授权弹窗 / Request notification permission first
+        ipcBridge.shell.requestNotificationPermission.invoke().catch(() => {});
+
         modal.confirm({
           title: t('settings.sessionEndNotificationPermissionTitle'),
           content: isMacOS() ? t('settings.sessionEndNotificationPermissionHint') : t('settings.sessionEndNotificationPermissionHintNonMac'),

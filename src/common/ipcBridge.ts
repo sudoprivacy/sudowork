@@ -30,6 +30,7 @@ export const shell = {
   showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
   openSystemNotificationSettings: bridge.buildProvider<void, void>('open-system-notification-settings'), // 打开系统通知设置
+  requestNotificationPermission: bridge.buildProvider<void, void>('request-notification-permission'), // 请求通知权限
 };
 
 // OpenClaw model selector - fetch models from pricing API (bypasses CORS)

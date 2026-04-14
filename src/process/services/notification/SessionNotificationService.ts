@@ -131,6 +131,35 @@ export class SessionNotificationService {
   }
 
   /**
+   * 请求通知权限（发送一个测试通知触发系统授权弹窗）
+   * Request notification permission by sending a test notification to trigger system authorization dialog
+   */
+  requestPermission(): void {
+    try {
+      if (!this.isSupported()) {
+        mainWarn('SessionNotification', 'Notification is not supported on this platform');
+        return;
+      }
+
+      // macOS: 发送一个测试通知来触发系统授权请求
+      // macOS: send a test notification to trigger system authorization request
+      const testNotification = new this.notificationCtor({
+        title: 'Sudowork',
+        body: '通知权限已启用',
+        silent: true,
+      });
+
+      testNotification.show();
+      mainLog('SessionNotification', 'Sent test notification to request permission');
+
+      // 立即关闭测试通知（通知会自动消失，这里只是清理引用）
+      testNotification.close();
+    } catch (error) {
+      mainWarn('SessionNotification', 'Failed to request notification permission:', error);
+    }
+  }
+
+  /**
    * 通知一个会话已结束。失败时只记日志，不抛出。
    * Notify that a session has finished. Errors are logged, not thrown.
    */

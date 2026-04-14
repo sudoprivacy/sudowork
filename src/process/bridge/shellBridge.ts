@@ -8,6 +8,7 @@ import { shell } from 'electron';
 import { ipcBridge } from '../../common';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { exec } from 'child_process';
+import { sessionNotificationService } from '@process/services/notification/SessionNotificationService';
 
 export function initShellBridge(): void {
   ipcBridge.shell.openFile.provider(async (path) => {
@@ -30,20 +31,17 @@ export function initShellBridge(): void {
         // macOS 15+ (Sequoia): 系统设置(System Settings)而非系统偏好设置(System Preferences)
         mainLog('ShellBridge', 'Opening macOS notification settings');
         // macOS Sequoia 使用 System Settings，pane ID 为 com.apple.notifications-settings
-        exec(
-          'osascript -e \'tell application "System Settings"\' -e \'activate\' -e \'end tell\'',
-          (error) => {
-            if (error) {
-              mainWarn('ShellBridge', 'Failed to open System Settings:', error);
-              // 备用方案：直接打开系统设置应用
-              exec('open "/System/Applications/System Settings.app"', (err2) => {
-                if (err2) {
-                  mainWarn('ShellBridge', 'Failed to open System Settings app:', err2);
-                }
-              });
-            }
+        exec("osascript -e 'tell application \"System Settings\"' -e 'activate' -e 'end tell'", (error) => {
+          if (error) {
+            mainWarn('ShellBridge', 'Failed to open System Settings:', error);
+            // 备用方案：直接打开系统设置应用
+            exec('open "/System/Applications/System Settings.app"', (err2) => {
+              if (err2) {
+                mainWarn('ShellBridge', 'Failed to open System Settings app:', err2);
+              }
+            });
           }
-        );
+        });
         // 打开后尝试导航到通知设置
         exec('open "x-apple-systemsettings:com.apple.notifications-settings"', (error) => {
           if (error) {
@@ -62,5 +60,11 @@ export function initShellBridge(): void {
     } catch (error) {
       mainWarn('ShellBridge', 'Failed to open system notification settings:', error);
     }
+  });
+
+  // 请求通知权限 / Request notification permission
+  ipcBridge.shell.requestNotificationPermission.provider(() => {
+    sessionNotificationService.requestPermission();
+    return Promise.resolve();
   });
 }
