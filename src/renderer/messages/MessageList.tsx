@@ -414,6 +414,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
                       setToolSummaryStates((prev) => ({ ...prev, [id]: !prev[id] }));
                     }
                   }}
+                  isStreaming={isStreaming}
                 />
               );
             })()}
