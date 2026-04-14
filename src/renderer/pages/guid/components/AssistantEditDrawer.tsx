@@ -13,7 +13,7 @@
 import { ipcBridge, skillHub } from '@/common';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { getPresetById } from '@/common/presets/presetResolver';
-import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
+import { resolveAssistantName, fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
@@ -110,7 +110,8 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
 
     const loadAssistant = async () => {
       try {
-        const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
+        // Load from assistantHub (new architecture) instead of ConfigStorage
+        const agents = await fetchAssistantsAsConfigs();
         const found = agents.find((a) => a.id === assistantId);
         if (cancelled || !found) return;
 
@@ -126,8 +127,8 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         }
 
         setAssistant(found);
-        setEditName(found.name || '');
-        setEditDescription(found.description || '');
+        setEditName(found.nameI18n?.[localeKey] || found.name || '');
+        setEditDescription(found.descriptionI18n?.[localeKey] || found.description || '');
         setEditAvatar(found.avatar || '');
         setEditAgent(found.presetAgentType || 'sudoclaw');
         setSelectedSkills(found.enabledSkills || []);
