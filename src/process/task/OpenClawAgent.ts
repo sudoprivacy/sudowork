@@ -235,16 +235,56 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     return `sudorouter-${trimmed}/${trimmed}`;
   }
 
+  private extractModelId(modelRef: string): string {
+    const trimmed = modelRef.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const parts = trimmed.split('/');
+    return (parts[parts.length - 1] || '').trim();
+  }
+
+  private getConfiguredPrimaryModelRef(): string {
+    const stateDir = this.options.gateway?.stateDir ?? SUDOCLAW_DIR;
+    const config = readOpenClawConfigFromDir(stateDir) as { agents?: { defaults?: { model?: { primary?: string } } } } | null;
+    const primaryModel = config?.agents?.defaults?.model?.primary?.trim() || '';
+    return primaryModel ? this.normalizeSessionModelRef(this.extractModelId(primaryModel)) : '';
+  }
+
   private async patchSessionModel(modelId: string): Promise<void> {
     const normalizedModel = this.normalizeSessionModelRef(modelId);
     if (!normalizedModel || !this.connection?.sessionKey) {
       return;
     }
+
+    const configuredPrimaryModel = this.getConfiguredPrimaryModelRef();
+    mainLog(
+      'OpenClawAgent',
+      `[SESSION_MODEL_SWITCH] session=${this.connection.sessionKey} requested=${modelId.trim()} normalized=${normalizedModel} configuredPrimary=${configuredPrimaryModel || '<empty>'}`,
+    );
+
+    if (configuredPrimaryModel && configuredPrimaryModel === normalizedModel) {
+      this.options.model = modelId.trim();
+      mainLog(
+        'OpenClawAgent',
+        `[SESSION_MODEL_SWITCH] skip sessions.patch because target model matches configured primary: ${configuredPrimaryModel}`,
+      );
+      return;
+    }
+
+    mainLog(
+      'OpenClawAgent',
+      `[SESSION_MODEL_SWITCH] execute sessions.patch session=${this.connection.sessionKey} model=${normalizedModel}`,
+    );
     await this.connection.sessionsPatch({
       key: this.connection.sessionKey,
       model: normalizedModel,
     });
     this.options.model = modelId.trim();
+    mainLog(
+      'OpenClawAgent',
+      `[SESSION_MODEL_SWITCH] sessions.patch completed session=${this.connection.sessionKey} model=${normalizedModel}`,
+    );
   }
 
   private async syncConfiguredSessionModel(): Promise<void> {
