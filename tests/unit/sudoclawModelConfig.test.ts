@@ -10,7 +10,11 @@ describe('sudoclawModelConfig', () => {
       preservePrimary: false,
     });
 
-    expect(config.models?.providers?.sudorouter).toBeUndefined();
+    expect(config.models?.providers?.sudorouter).toMatchObject({
+      baseUrl: 'https://custom.example.com/v1',
+      apiKey: 'test-key',
+      models: [{ id: 'gemini-3-flash-preview' }, { id: 'claude-sonnet-4' }],
+    });
     expect(config.models?.providers?.[getSudorouterProviderName('gemini-3-flash-preview')]).toMatchObject({
       baseUrl: 'https://hk.sudorouter.ai/v1',
       api: 'google-generative-ai',
@@ -26,7 +30,7 @@ describe('sudoclawModelConfig', () => {
     expect(config.agents?.defaults?.model?.primary).toBe(getSudorouterPrimaryModelPath('gemini-3-flash-preview'));
   });
 
-  it('keeps an existing sudorouter provider untouched instead of recreating it', () => {
+  it('updates an existing sudorouter provider with latest login models and credentials', () => {
     const config = mergeSudorouterProvidersIntoConfig(
       {
         models: {
@@ -48,8 +52,8 @@ describe('sudoclawModelConfig', () => {
 
     expect(config.models?.providers?.sudorouter).toMatchObject({
       baseUrl: 'https://existing.example.com/v1',
-      apiKey: 'existing-key',
-      models: [{ id: 'legacy-model' }],
+      apiKey: 'test-key',
+      models: [{ id: 'gemini-3-flash-preview' }],
     });
     expect(config.models?.providers?.[getSudorouterProviderName('gemini-3-flash-preview')]).toBeTruthy();
   });
