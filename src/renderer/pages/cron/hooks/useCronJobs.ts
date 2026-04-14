@@ -231,229 +231,31 @@ export function useAllCronJobs() {
 }
 
 /**
- * Hook for getting cron job status for all conversations
- * Used by ChatHistory to show indicators
+ * Hook for refreshing conversation list when cron jobs run.
+ * No longer tracks job status per-conversation — conversation icons are unchanged by scheduled tasks.
  */
 export function useCronJobsMap() {
-  const [jobsMap, setJobsMap] = useState<Map<string, ICronJob[]>>(new Map());
-  const [loading, setLoading] = useState(true);
-  // Track conversations with unread cron executions (red dot indicator)
-  const [unreadConversations, setUnreadConversations] = useState<Set<string>>(() => {
-    // Restore from localStorage
-    try {
-      const stored = localStorage.getItem('aionui_cron_unread');
-      if (stored) {
-        return new Set(JSON.parse(stored));
-      }
-    } catch {
-      // ignore
-    }
-    return new Set();
-  });
-  // Track lastRunAtMs for each job to detect new executions
-  const lastRunAtMapRef = useRef<Map<string, number>>(new Map());
-  // Track current active conversation (use ref to access latest value in event handlers)
-  const activeConversationIdRef = useRef<string | null>(null);
-
-  // Persist unread state to localStorage
+  // Emit chat.history.refresh when jobs are created or updated so the list re-sorts
   useEffect(() => {
-    try {
-      localStorage.setItem('aionui_cron_unread', JSON.stringify([...unreadConversations]));
-    } catch {
-      // ignore
-    }
-  }, [unreadConversations]);
-
-  // Fetch all jobs and group by conversation
-  const fetchAllJobs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const allJobs = await ipcBridge.cron.listJobs.invoke();
-      const map = new Map<string, ICronJob[]>();
-
-      for (const job of allJobs || []) {
-        const convId = job.metadata.conversationId;
-        if (!map.has(convId)) {
-          map.set(convId, []);
-        }
-        map.get(convId)!.push(job);
-        // Initialize lastRunAtMap for detecting new executions
-        if (job.state.lastRunAtMs) {
-          lastRunAtMapRef.current.set(job.id, job.state.lastRunAtMs);
-        }
-      }
-
-      setJobsMap(map);
-    } catch (err) {
-      console.error('[useCronJobsMap] Failed to fetch jobs:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Initial fetch
-  useEffect(() => {
-    void fetchAllJobs();
-  }, [fetchAllJobs]);
-
-  // Event handlers
-  const eventHandlers = useMemo<CronJobEventHandlers>(
-    () => ({
-      onJobCreated: (job: ICronJob) => {
-        setJobsMap((prev) => {
-          const convId = job.metadata.conversationId;
-          const existing = prev.get(convId) || [];
-          if (existing.some((j) => j.id === job.id)) {
-            return prev;
-          }
-          const newMap = new Map(prev);
-          newMap.set(convId, [...existing, job]);
-          return newMap;
-        });
-        // Refresh conversation list to update sorting (modifyTime was updated)
-        console.log('[useCronJobsMap] onJobCreated, triggering chat.history.refresh');
-        emitter.emit('chat.history.refresh');
-      },
-      onJobUpdated: (job: ICronJob) => {
-        const convId = job.metadata.conversationId;
-
-        // Check if this is a new execution (lastRunAtMs changed)
-        const prevLastRunAt = lastRunAtMapRef.current.get(job.id);
-        const newLastRunAt = job.state.lastRunAtMs;
-        if (newLastRunAt && newLastRunAt !== prevLastRunAt) {
-          lastRunAtMapRef.current.set(job.id, newLastRunAt);
-
-          // Mark as unread only if user is not currently viewing this conversation
-          // Use ref to access the latest activeConversationId value
-          if (activeConversationIdRef.current !== convId) {
-            setUnreadConversations((prev) => {
-              if (prev.has(convId)) return prev;
-              const newSet = new Set(prev);
-              newSet.add(convId);
-              return newSet;
-            });
-          }
-
-          // Refresh conversation list to update sorting (modifyTime was updated after execution)
-          emitter.emit('chat.history.refresh');
-        }
-
-        setJobsMap((prev) => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(convId) || [];
-          newMap.set(
-            convId,
-            existing.map((j) => (j.id === job.id ? job : j))
-          );
-          return newMap;
-        });
-      },
-      onJobRemoved: ({ jobId }: { jobId: string }) => {
-        setJobsMap((prev) => {
-          const newMap = new Map(prev);
-          for (const [convId, convJobs] of newMap.entries()) {
-            const filtered = convJobs.filter((j) => j.id !== jobId);
-            if (filtered.length === 0) {
-              newMap.delete(convId);
-            } else if (filtered.length !== convJobs.length) {
-              newMap.set(convId, filtered);
-            }
-          }
-          return newMap;
-        });
-      },
-    }),
-    []
-  );
-
-  useEffect(() => {
-    const unsubCreate = ipcBridge.cron.onJobCreated.on(eventHandlers.onJobCreated);
-    const unsubUpdate = ipcBridge.cron.onJobUpdated.on(eventHandlers.onJobUpdated);
-    const unsubRemove = ipcBridge.cron.onJobRemoved.on(eventHandlers.onJobRemoved);
-
+    const onCreated = () => emitter.emit('chat.history.refresh');
+    const onUpdated = () => emitter.emit('chat.history.refresh');
+    const unsubCreate = ipcBridge.cron.onJobCreated.on(onCreated);
+    const unsubUpdate = ipcBridge.cron.onJobUpdated.on(onUpdated);
     return () => {
       unsubCreate();
       unsubUpdate();
-      unsubRemove();
     };
-  }, [eventHandlers]);
-
-  // Helper functions
-  const hasJobsForConversation = useCallback(
-    (conversationId: string) => {
-      return jobsMap.has(conversationId) && jobsMap.get(conversationId)!.length > 0;
-    },
-    [jobsMap]
-  );
-
-  const getJobsForConversation = useCallback(
-    (conversationId: string): ICronJob[] => {
-      return jobsMap.get(conversationId) || [];
-    },
-    [jobsMap]
-  );
-
-  const getJobStatus = useCallback(
-    (conversationId: string): 'none' | 'active' | 'paused' | 'error' | 'unread' => {
-      const convJobs = jobsMap.get(conversationId);
-      if (!convJobs || convJobs.length === 0) {
-        return 'none';
-      }
-
-      // Check if conversation has unread cron executions (highest priority for visual indicator)
-      if (unreadConversations.has(conversationId)) return 'unread';
-
-      // Check if any job has error
-      if (convJobs.some((j) => j.state.lastStatus === 'error')) return 'error';
-
-      // Check if all jobs are paused
-      if (convJobs.every((j) => !j.enabled)) return 'paused';
-
-      return 'active';
-    },
-    [jobsMap, unreadConversations]
-  );
-
-  // Mark a conversation as read (clear unread status)
-  const markAsRead = useCallback((conversationId: string) => {
-    activeConversationIdRef.current = conversationId;
-    setUnreadConversations((prev) => {
-      if (!prev.has(conversationId)) {
-        return prev;
-      }
-      const newSet = new Set(prev);
-      newSet.delete(conversationId);
-      return newSet;
-    });
   }, []);
 
-  // Update active conversation ref without triggering state update
-  // Use this to sync the ref when route changes (e.g., URL navigation)
-  const setActiveConversation = useCallback((conversationId: string) => {
-    activeConversationIdRef.current = conversationId;
-  }, []);
-
-  // Check if a conversation has unread cron executions
-  const hasUnread = useCallback(
-    (conversationId: string) => {
-      return unreadConversations.has(conversationId);
-    },
-    [unreadConversations]
-  );
+  // Stubs kept for call-site compatibility
+  const getJobStatus = useCallback((_conversationId: string): 'none' | 'active' | 'paused' | 'error' | 'unread' => 'none', []);
+  const markAsRead = useCallback((_conversationId: string) => {}, []);
+  const setActiveConversation = useCallback((_conversationId: string) => {}, []);
+  const hasUnread = useCallback((_conversationId: string) => false, []);
 
   return useMemo(
-    () => ({
-      jobsMap,
-      loading,
-      hasJobsForConversation,
-      getJobsForConversation,
-      getJobStatus,
-      markAsRead,
-      setActiveConversation,
-      hasUnread,
-      refetch: fetchAllJobs,
-    }),
-    [jobsMap, loading, hasJobsForConversation, getJobsForConversation, getJobStatus, markAsRead, setActiveConversation, hasUnread, fetchAllJobs]
+    () => ({ getJobStatus, markAsRead, setActiveConversation, hasUnread }),
+    [getJobStatus, markAsRead, setActiveConversation, hasUnread]
   );
 }
 
