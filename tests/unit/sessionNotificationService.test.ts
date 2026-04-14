@@ -17,10 +17,10 @@ vi.mock('@process/initStorage', () => ({
 // Mock '@process/i18n' to provide a deterministic translator
 vi.mock('@process/i18n', () => ({
   default: {
-    t: (key: string, params?: Record<string, string>) => {
-      if (key === 'notification.sessionEnd.title') return 'Session finished';
-      if (key === 'notification.sessionEnd.body') return `${params?.backend ?? 'Agent'} has finished the current session.`;
-      if (key === 'notification.sessionEnd.fallbackBackend') return 'Agent';
+    t: (key: string) => {
+      if (key === 'common.notification.sessionEnd.title') return 'Session finished';
+      if (key === 'common.notification.sessionEnd.body') return 'Session has finished. You can view the results on the conversation page.';
+      if (key === 'common.notification.sessionEnd.fallbackBackend') return 'Agent';
       return key;
     },
   },
@@ -102,10 +102,10 @@ function buildService(overrides?: { isSupported?: boolean; windows?: FakeWindow[
     notificationCtor: FakeNotification as unknown as typeof import('electron').Notification,
     isSupported: () => overrides?.isSupported ?? true,
     getAllWindows: () => (overrides?.windows ?? []) as unknown as Electron.BrowserWindow[],
-    translate: (key, params) => {
-      if (key === 'notification.sessionEnd.title') return 'Session finished';
-      if (key === 'notification.sessionEnd.body') return `${params?.backend ?? 'Agent'} done`;
-      if (key === 'notification.sessionEnd.fallbackBackend') return 'Agent';
+    translate: (key) => {
+      if (key === 'common.notification.sessionEnd.title') return 'Session finished';
+      if (key === 'common.notification.sessionEnd.body') return 'Session has finished. You can view the results on the conversation page.';
+      if (key === 'common.notification.sessionEnd.fallbackBackend') return 'Agent';
       return key;
     },
     now: () => overrides?.now ?? 1000,
@@ -153,7 +153,7 @@ describe('SessionNotificationService', () => {
     expect(instances).toHaveLength(1);
     expect(instances[0].show).toHaveBeenCalledTimes(1);
     expect(instances[0].options.title).toBe('Session finished');
-    expect(instances[0].options.body).toBe('claude done');
+    expect(instances[0].options.body).toBe('Session has finished. You can view the results on the conversation page.');
     expect(instances[0].options.silent).toBe(false);
   });
 
@@ -161,7 +161,7 @@ describe('SessionNotificationService', () => {
     const { service, instances } = buildService();
     service.notifySessionFinished({ conversationId: 'c1', backend: 'codex' });
     expect(instances).toHaveLength(1);
-    expect(instances[0].options.body).toBe('codex done');
+    expect(instances[0].options.body).toBe('Session has finished. You can view the results on the conversation page.');
   });
 
   it('ignores destroyed focused windows', () => {
@@ -219,11 +219,11 @@ describe('SessionNotificationService', () => {
     expect(instances[0].options.silent).toBe(true);
   });
 
-  it('falls back to a generic backend name when backend is missing', () => {
+  it('shows notification with correct title and body', () => {
     const { service, instances } = buildService();
     service.notifySessionFinished({ conversationId: 'c1' });
     expect(instances).toHaveLength(1);
-    expect(instances[0].options.body).toBe('Agent done');
+    expect(instances[0].options.body).toBe('Session has finished. You can view the results on the conversation page.');
   });
 
   it('getSettings returns a defensive copy', () => {

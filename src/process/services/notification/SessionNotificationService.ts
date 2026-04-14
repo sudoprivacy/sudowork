@@ -16,7 +16,7 @@
  * user is aware even when Sudowork is not the active window.
  */
 
-import { BrowserWindow, Notification } from 'electron';
+import { BrowserWindow, Notification, app } from 'electron';
 import type { ISessionEndNotificationConfig } from '@/common/ipcBridge';
 import { ProcessConfig } from '@process/initStorage';
 import i18n from '@process/i18n';
@@ -106,9 +106,10 @@ export class SessionNotificationService {
 
     // Windows: 设置 AppUserModelID 以便通知显示正确的应用名
     // Windows: set AppUserModelID so toast notifications show the correct app name
-    if (process.platform === 'win32' && this.setAppUserModelId) {
+    if (process.platform === 'win32') {
       try {
-        this.setAppUserModelId(this.appUserModelId);
+        app.setAppUserModelId(this.appUserModelId);
+        mainLog('SessionNotification', `Set AppUserModelId: ${this.appUserModelId}`);
       } catch (error) {
         mainWarn('SessionNotification', 'Failed to set AppUserModelID:', error);
       }
@@ -141,8 +142,8 @@ export class SessionNotificationService {
         return;
       }
 
-      // macOS: 发送一个测试通知来触发系统授权请求
-      // macOS: send a test notification to trigger system authorization request
+      // 发送一个测试通知来触发系统授权请求（macOS 和 Windows 都适用）
+      // Send a test notification to trigger system authorization request (works on both macOS and Windows)
       const testNotification = new this.notificationCtor({
         title: 'Sudowork',
         body: '通知权限已启用',
@@ -181,8 +182,8 @@ export class SessionNotificationService {
       }
       this.lastNotifiedAt.set(payload.conversationId, currentTime);
 
-      const title = this.translate('notification.sessionEnd.title');
-      const body = this.translate('notification.sessionEnd.body');
+      const title = this.translate('common.notification.sessionEnd.title');
+      const body = this.translate('common.notification.sessionEnd.body');
 
       const notification = new this.notificationCtor({
         title,
