@@ -2,7 +2,7 @@ import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
-import { mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
+import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
@@ -209,12 +209,26 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
 
     try {
       const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
+      const hadSudoclawApiKey = hasSudoclawApiKey(currentConfig?.data);
       const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
         modelIds: loginSudoclawPayload.models,
         apiKey: loginSudoclawPayload.sudorouterKey,
         baseUrl: loginSudoclawPayload.modelServiceUrl,
-        preservePrimary: true,
+        preservePrimary: hadSudoclawApiKey,
       });
+
+      if (!hadSudoclawApiKey) {
+        patch.agents = {
+          ...patch.agents,
+          defaults: {
+            ...patch.agents?.defaults,
+            model: {
+              ...patch.agents?.defaults?.model,
+              primary: getSudorouterPrimaryModelPath('gemini-3-flash-preview'),
+            },
+          },
+        };
+      }
 
       const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
       if (!saveRes?.success) {

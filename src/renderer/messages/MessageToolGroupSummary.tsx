@@ -346,7 +346,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
 
   const overallStatus: ToolStatus = errorCount > 0 ? 'error' : runningCount > 0 ? 'running' : completedCount === totalCount && totalCount > 0 ? 'success' : 'default';
 
-  const headerLabel = overallStatus === 'running' ? '执行中...' : overallStatus === 'error' ? '执行失败' : overallStatus === 'success' ? '执行完成' : '查看步骤';
+  const headerLabel = overallStatus === 'running' ? '执行中...' : overallStatus === 'success' || overallStatus === 'error' ? '执行完成' : '查看步骤';
 
   return (
     <div ref={containerRef} className='tool-steps-card' onClick={(e) => e.stopPropagation()}>
@@ -361,18 +361,16 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
           <span
             className={classNames('tool-steps-status-dot', {
               'tool-steps-status-dot--running': overallStatus === 'running',
-              'tool-steps-status-dot--done': overallStatus === 'success',
-              'tool-steps-status-dot--error': overallStatus === 'error',
+              'tool-steps-status-dot--done': overallStatus === 'success' || overallStatus === 'error',
               'tool-steps-status-dot--default': overallStatus === 'default',
             })}
             aria-hidden='true'
           />
-          <span className='tool-steps-card__title'>{headerLabel}</span>
+          <span className={classNames('tool-steps-card__title', { 'tool-steps-card__title--muted': overallStatus !== 'running' })}>{headerLabel}</span>
           <span
             className={classNames('tool-steps-card__count', {
               'tool-steps-card__count--running': overallStatus === 'running',
-              'tool-steps-card__count--error': overallStatus === 'error',
-              'tool-steps-card__count--done': overallStatus === 'success',
+              'tool-steps-card__count--done': overallStatus === 'success' || overallStatus === 'error',
             })}
           >
             {completedCount}/{totalCount}
