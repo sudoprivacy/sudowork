@@ -19,7 +19,7 @@ import { getGatewayPort, SUDOCLAW_DEFAULT_PORT } from '../../agent/openclaw/open
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
-import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
+import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
 import { prepareFirstMessage, prepareOpenClawFirstMessage, injectSkillsDirectoryHint } from '../task/agentUtils';
@@ -212,7 +212,7 @@ export function initConversationBridge(): void {
     try {
       const gatewayHost = '127.0.0.1';
       const gatewayPort = getGatewayPort(SUDOCLAW_DIR);
-      const gatewayRunning = await checkSudoclawHealth(gatewayHost, gatewayPort, 1000);
+      const gatewayRunning = await checkSudoclawHealth(gatewayHost, gatewayPort, SUDOCLAW_HEALTH_TIMEOUT_MS);
 
       const baseData = {
         gatewayRunning,
@@ -949,7 +949,9 @@ export function initConversationBridge(): void {
         payload.agentContent = agentContent;
       }
 
+      mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
       await task.sendMessage(payload);
+      mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
       return { success: true };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };

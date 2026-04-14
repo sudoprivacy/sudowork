@@ -5,6 +5,7 @@
  */
 
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { SUDOCLAW_HEALTH_TIMEOUT_MS } from '../sudoclaw/sudoclawHealth';
 import { serviceManager } from './ServiceManager';
 
 const TAG = 'ComponentHealthMonitor';
@@ -19,9 +20,9 @@ interface ComponentStatus {
 /**
  * 自动组件健康监控服务
  *
- * 启动 3 分钟后开始检测核心服务健康状态，之后每隔 3 分钟执行一次。
- * 对已安装但未运行的组件，会先等待 1 分钟再二次确认，仍未恢复才主动启动。
- * 每次自动安装/启动成功后，会进入 3 分钟宽限期，再判断端口是否真的就绪。
+ * 启动 10 分钟后开始检测核心服务健康状态，之后每隔 10 分钟执行一次。
+ * 对已安装但未运行的组件，会先等待 10 分钟再二次确认，仍未恢复才主动启动。
+ * 每次自动安装/启动成功后，会进入 10 分钟宽限期，再判断端口是否真的就绪。
  */
 class ComponentHealthMonitor {
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -31,10 +32,10 @@ class ComponentHealthMonitor {
   private pendingStartConfirmations = new Map<string, NodeJS.Timeout>();
   private readonly startupGraceUntil = new Map<string, number>();
   private readonly MAX_FAILURES = 3;
-  private readonly CHECK_INTERVAL_MS = 3 * 60 * 1000;
-  private readonly INITIAL_DELAY_MS = 3 * 60 * 1000;
-  private readonly STARTUP_GRACE_MS = 3 * 60 * 1000;
-  private readonly START_CONFIRM_DELAY_MS = 60 * 1000;
+  private readonly CHECK_INTERVAL_MS = 10 * 60 * 1000;
+  private readonly INITIAL_DELAY_MS = 10 * 60 * 1000;
+  private readonly STARTUP_GRACE_MS = 10 * 60 * 1000;
+  private readonly START_CONFIRM_DELAY_MS = 10 * 60 * 1000;
 
   private readonly COMPONENTS = ['sudoclaw', 'nexus'] as const;
 
@@ -49,7 +50,7 @@ class ComponentHealthMonitor {
       return;
     }
 
-    // 延迟 3 分钟启动，等待核心进程完成拉起
+    // 延迟 10 分钟启动，等待核心进程完成拉起
     this.startupDelayTimer = setTimeout(() => {
       this.startupDelayTimer = null;
       this.pollingInterval = setInterval(() => {
@@ -166,7 +167,7 @@ class ComponentHealthMonitor {
     }
 
     try {
-      const running = await checkSudoclawHealth('127.0.0.1', 17863, 2000);
+      const running = await checkSudoclawHealth('127.0.0.1', 17863, SUDOCLAW_HEALTH_TIMEOUT_MS);
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Sudoclaw health check failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -188,7 +189,7 @@ class ComponentHealthMonitor {
     // 检查 HTTP 健康
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const res = await fetch('http://localhost:12012/health', { signal: controller.signal });
       clearTimeout(timeoutId);
       const running = res.ok;

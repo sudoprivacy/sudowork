@@ -31,7 +31,7 @@ import MessageToolGroupSummary from './MessageToolGroupSummary';
 import MessageText from './MessagetText';
 import TurnActions from './TurnActions';
 import type { WriteFileResult } from './types';
-import { useAutoScroll } from './useAutoScroll';
+import { BOTTOM_BUFFER_PX, useAutoScroll } from './useAutoScroll';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import { copyText } from '@/renderer/utils/clipboard';
 import { IconCopy } from '@arco-design/web-react/icon';
@@ -264,6 +264,8 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       if (message.type === 'agent_status') continue;
       // Hide gateway-disconnected tips from chat
       if (message.type === 'tips' && typeof message.content?.content === 'string' && message.content.content.startsWith('Gateway disconnected:')) continue;
+      // Hide transient Sudoclaw recovery tip from chat after the reconnecting banner is cleared
+      if (message.type === 'tips' && message.content?.content === '已连接到 Sudoclaw') continue;
 
       // Flush turn actions before a user message
       if (message.position === 'right') {
@@ -339,7 +341,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   }, [list]);
 
   // Use auto-scroll hook
-  const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, showScrollButton, scrollToBottom, hideScrollButton } = useAutoScroll({
+  const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
     itemCount: processedList.length,
   });
@@ -437,10 +439,14 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
           <Virtuoso
             ref={virtuosoRef}
+            scrollerRef={handleScrollerRef}
             className='flex-1 h-full pb-10px box-border'
             data={processedList}
             initialTopMostItemIndex={processedList.length - 1}
-            atBottomThreshold={100}
+            // atBottom must encompass the dynamic spacer so "at bottom" still
+            // means "the last message is in view" while the user prompt is
+            // pinned at the top with an empty canvas below it.
+            atBottomThreshold={bottomSpacerHeight + 100}
             increaseViewportBy={200}
             itemContent={renderItem}
             followOutput={handleFollowOutput}
@@ -448,14 +454,13 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             atBottomStateChange={handleAtBottomStateChange}
             components={{
               Header: () => <div className='h-10px' />,
-              // Footer doubles as the bottom buffer between the last message and
-              // the SendBox below. useAutoScroll scrolls to the absolute bottom
-              // of the scroller (not align:end), so this Footer is visible at
-              // the bottom of the viewport — keeping the last message's bottom
-              // border clear of the input area during ToolCall streaming.
-              // Footer 同时作为最后一条消息与下方输入框之间的缓冲区，确保
-              // ToolCall 流式输出时消息底边不会被输入框遮挡。
-              Footer: () => <div className='h-40px' />,
+              // Footer = static BOTTOM_BUFFER_PX (breathing room between the
+              // last message and the SendBox below) + dynamic bottomSpacerHeight
+              // that pins the user prompt to the top of the viewport while the
+              // AI streams into the empty canvas below. bottomSpacerHeight is 0
+              // in idle state, so the chat log looks like a regular list when
+              // no turn is active.
+              Footer: () => <div style={{ height: BOTTOM_BUFFER_PX + bottomSpacerHeight }} />,
             }}
           />
         </ImagePreviewContext.Provider>

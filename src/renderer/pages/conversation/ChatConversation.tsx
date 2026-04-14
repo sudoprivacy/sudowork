@@ -8,7 +8,6 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
-import { CronJobManager } from '@/renderer/pages/cron';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
@@ -167,11 +166,6 @@ const ChatConversation: React.FC<{
           /> */}
         </div>
       )}
-      {conversation ? (
-        <div className='shrink-0'>
-          <CronJobManager conversationId={conversation.id} />
-        </div>
-      ) : null}
     </div>
   );
 
