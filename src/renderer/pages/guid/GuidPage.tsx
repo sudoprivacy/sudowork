@@ -12,7 +12,7 @@ import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { ConfigStorage } from '@/common/storage';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import { ipcBridge } from '@/common';
 import { skillHub } from '@/common/ipcBridge';
 import AgentPillBar from './components/AgentPillBar';
@@ -380,9 +380,12 @@ const GuidPage: React.FC = () => {
       if (!agentInfo?.customAgentId) return;
 
       try {
-        const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-        const updatedAgents = agents.map((a) => (a.id === agentInfo.customAgentId ? { ...a, presetAgentType: newAgentType } : a));
-        await ConfigStorage.set('acp.customAgents', updatedAgents);
+        // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
+        const lookupName = resolveAssistantName(agentInfo.customAgentId);
+        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+          name: lookupName,
+          updates: { presetAgentType: newAgentType },
+        });
 
         // Refresh agents to pick up the change
         await ipcBridge.acpConversation.refreshCustomAgents.invoke();

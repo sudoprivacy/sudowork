@@ -13,7 +13,7 @@
 import { ipcBridge, skillHub } from '@/common';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { getPresetById } from '@/common/presets/presetResolver';
-import { ConfigStorage } from '@/common/storage';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
@@ -201,15 +201,18 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
     }
 
     try {
-      const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-      const updatedAgent: AcpBackendConfig = {
-        ...assistant,
-        name: editName,
-        description: editDescription,
-        avatar: editAvatar,
-        presetAgentType: editAgent,
-        enabledSkills: selectedSkills,
-      };
+      // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
+      const lookupName = resolveAssistantName(assistant.id);
+      await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+        name: lookupName,
+        updates: {
+          nameI18n: { 'zh-CN': editName },
+          descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+          avatar: editAvatar,
+          presetAgentType: editAgent,
+          enabledSkills: selectedSkills,
+        },
+      });
 
       // Save rules file if changed
       if (editContext.trim()) {
@@ -219,9 +222,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           content: editContext,
         });
       }
-
-      const updatedAgents = agents.map((a) => (a.id === assistant.id ? updatedAgent : a));
-      await ConfigStorage.set('acp.customAgents', updatedAgents);
 
       // Refresh agent detection
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();

@@ -592,6 +592,22 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
     try {
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
       await mutate('acp.agents.available');
+
+      // Reload customAgents state from assistantHub
+      const agents = await fetchAssistantsAsConfigs();
+
+      // Apply presetAgentType fallback for builtin assistants
+      for (const agent of agents) {
+        if (agent.id.startsWith('builtin-') && !agent.presetAgentType) {
+          const presetId = agent.id.replace('builtin-', '');
+          const preset = getPresetById(presetId);
+          if (preset && preset.presetAgentType) {
+            agent.presetAgentType = preset.presetAgentType;
+          }
+        }
+      }
+
+      setCustomAgents(agents);
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);
     }
