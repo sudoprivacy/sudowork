@@ -205,4 +205,235 @@ describe('DingTalkPlugin watchdog', () => {
     expect((plugin as unknown as { healthCheckTimer: unknown }).healthCheckTimer).toBeNull();
     expect((plugin as unknown as { restartTimer: unknown }).restartTimer).toBeNull();
   });
+
+  it('starts watchdog even when initial connection fails, and auto-recovers when network returns', async () => {
+    vi.useFakeTimers();
+
+    const DingTalkPlugin = await loadPluginClass();
+    const plugin = new DingTalkPlugin();
+    stubHttp(plugin);
+
+    // Make initial connection fail.
+    mockControl.connectImpl = () => Promise.reject(new Error('network down'));
+
+    await plugin.initialize(createConfig());
+    await expect(plugin.start()).rejects.toThrow('network down');
+
+    // Plugin is in error state, but watchdog should still be running.
+    expect(plugin.status).toBe('error');
+    expect((plugin as unknown as { healthCheckTimer: unknown }).healthCheckTimer).not.toBeNull();
+
+    // Fix the network and wait for the next health check tick (30s).
+    mockControl.connectImpl = () => Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    // Wait for the 2s restart backoff.
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // A new client should have been created, and plugin recovered to running.
+    expect(mockControl.instances.length).toBeGreaterThanOrEqual(1);
+    expect(plugin.status).toBe('running');
+  });
+
+  it('uses exponential backoff with correct delays', async () => {
+    vi.useFakeTimers();
+
+    const DingTalkPlugin = await loadPluginClass();
+    const plugin = new DingTalkPlugin();
+    stubHttp(plugin);
+
+    const restartLog: Array<{ timerTime: number; attempt: string }> = [];
+    let timerElapsed = 0;
+
+    await plugin.initialize(createConfig());
+    await plugin.start();
+
+    // Break connection and make all restarts fail.
+    mockControl.connectImpl = () => {
+      restartLog.push({ timerTime: timerElapsed, attempt: '' });
+      return Promise.reject(new Error('fail'));
+    };
+    const client = mockControl.instances[0];
+    client.connected = false;
+    client.registered = false;
+
+    // We spy on console.warn to capture the backoff delay from log messages.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Tick 1: health check (30s) → restart scheduled in 2s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(2_000);
+    timerElapsed += 2_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Tick 2: health check (30s) → restart scheduled in 4s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(4_000);
+    timerElapsed += 4_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Tick 3: health check (30s) → restart scheduled in 8s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(8_000);
+    timerElapsed += 8_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Tick 4: health check (30s) → restart scheduled in 16s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(16_000);
+    timerElapsed += 16_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Tick 5: health check (30s) → restart scheduled in 32s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(32_000);
+    timerElapsed += 32_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Tick 6: health check (30s) → restart scheduled in 60s (capped).
+    await vi.advanceTimersByTimeAsync(30_000);
+    timerElapsed += 30_000;
+    await vi.advanceTimersByTimeAsync(60_000);
+    timerElapsed += 60_000;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(restartLog).toHaveLength(6);
+
+    // Verify backoff delays from log messages.
+    const backoffMessages = warnSpy.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('Scheduling restart'));
+
+    expect(backoffMessages[0]).toMatch(/in 2s/);
+    expect(backoffMessages[1]).toMatch(/in 4s/);
+    expect(backoffMessages[2]).toMatch(/in 8s/);
+    expect(backoffMessages[3]).toMatch(/in 16s/);
+    expect(backoffMessages[4]).toMatch(/in 32s/);
+    expect(backoffMessages[5]).toMatch(/in 60s/);
+
+    expect(plugin.status).toBe('error');
+
+    warnSpy.mockRestore();
+  });
+
+  it('falls back to floor interval after max consecutive failures', async () => {
+    vi.useFakeTimers();
+
+    const DingTalkPlugin = await loadPluginClass();
+    const plugin = new DingTalkPlugin();
+    stubHttp(plugin);
+
+    await plugin.initialize(createConfig());
+    await plugin.start();
+
+    // Break connection and make all restarts fail.
+    mockControl.connectImpl = () => Promise.reject(new Error('fail'));
+    const client = mockControl.instances[0];
+    client.connected = false;
+    client.registered = false;
+
+    // Run enough cycles to exhaust 10 fast retries, then verify floor retry.
+    // Each cycle: 30s health check + backoff delay.
+    // Attempts 1-10 use exponential backoff (2s to 60s).
+    // After attempt 10, floor interval (5 min) kicks in.
+
+    // Advance through all 10 fast retry cycles.
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+      // The backoff delay varies but we just need enough time for it.
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(plugin.status).toBe('error');
+
+    // After 10 failures, the next health check should schedule a floor retry.
+    const instanceCountBefore = mockControl.instances.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(5 * 60_000); // 5 min floor interval
+    await vi.advanceTimersByTimeAsync(0);
+
+    // A new client should have been created (floor retry fired).
+    expect(mockControl.instances.length).toBeGreaterThan(instanceCountBefore);
+  });
+
+  it('resets failure counter on stop + start', async () => {
+    vi.useFakeTimers();
+
+    const DingTalkPlugin = await loadPluginClass();
+    const plugin = new DingTalkPlugin();
+    stubHttp(plugin);
+
+    await plugin.initialize(createConfig());
+    await plugin.start();
+
+    // Break connection and accumulate failures.
+    mockControl.connectImpl = () => Promise.reject(new Error('fail'));
+    const client = mockControl.instances[0];
+    client.connected = false;
+    client.registered = false;
+
+    // Let watchdog detect and attempt restart twice.
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect((plugin as unknown as { consecutiveRestartFailures: number }).consecutiveRestartFailures).toBeGreaterThan(0);
+
+    // Stop and restart — counter should reset.
+    await plugin.stop();
+    mockControl.connectImpl = () => Promise.resolve();
+    await plugin.start();
+
+    expect(plugin.status).toBe('running');
+    expect((plugin as unknown as { consecutiveRestartFailures: number }).consecutiveRestartFailures).toBe(0);
+  });
+
+  it('does not flip status back to running when stop() is called during a restart', async () => {
+    vi.useFakeTimers();
+
+    const DingTalkPlugin = await loadPluginClass();
+    const plugin = new DingTalkPlugin();
+    stubHttp(plugin);
+
+    const statusEvents: Array<{ status: string }> = [];
+    plugin.onStatusChange((status) => {
+      statusEvents.push({ status });
+    });
+
+    await plugin.initialize(createConfig());
+    await plugin.start();
+
+    // Break connection.
+    mockControl.connectImpl = () => Promise.reject(new Error('fail'));
+    const client = mockControl.instances[0];
+    client.connected = false;
+    client.registered = false;
+
+    // Trigger health check → schedule restart (2s).
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    // Just before restart fires, stop the plugin.
+    await plugin.stop();
+
+    // Let the restart timer fire — it should be a no-op because shuttingDown is true.
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(plugin.status).toBe('stopped');
+    // No 'running' event should appear after 'stopped'.
+    const stoppedIdx = statusEvents.findIndex((e) => e.status === 'stopped');
+    const runningAfterStop = statusEvents.slice(stoppedIdx + 1).some((e) => e.status === 'running');
+    expect(runningAfterStop).toBe(false);
+  });
 });

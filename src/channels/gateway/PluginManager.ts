@@ -170,22 +170,6 @@ export class PluginManager {
       plugin.onConfirm(this.confirmHandler);
     }
 
-    // Observe autonomous status transitions (e.g. watchdog-driven reconnect)
-    // so the UI and database reflect real connection health.
-    plugin.onStatusChange((status, error) => {
-      this.pluginErrors.set(id, error ?? '');
-      if (!error) {
-        this.pluginErrors.delete(id);
-      }
-      try {
-        const db = getDatabase();
-        db.updateChannelPluginStatus(id, status, status === 'running' ? Date.now() : undefined);
-      } catch (err) {
-        console.warn(`[PluginManager] Failed to persist status for ${id}:`, err);
-      }
-      this.emitStatusChange(id, plugin);
-    });
-
     try {
       // Start plugin
       // 启动插件
@@ -204,6 +188,24 @@ export class PluginManager {
 
       throw error;
     }
+
+    // Observe autonomous status transitions (e.g. watchdog-driven reconnect)
+    // so the UI and database reflect real connection health.
+    // Registered after start() succeeds to avoid duplicate DB writes during
+    // the initial starting → running transition.
+    plugin.onStatusChange((status, error) => {
+      this.pluginErrors.set(id, error ?? '');
+      if (!error) {
+        this.pluginErrors.delete(id);
+      }
+      try {
+        const db = getDatabase();
+        db.updateChannelPluginStatus(id, status, status === 'running' ? Date.now() : undefined);
+      } catch (err) {
+        console.warn(`[PluginManager] Failed to persist status for ${id}:`, err);
+      }
+      this.emitStatusChange(id, plugin);
+    });
 
     // Store in registry
     this.plugins.set(id, plugin);
@@ -227,6 +229,13 @@ export class PluginManager {
 
     // Stop plugin
     await plugin.stop();
+
+    // Clear status change handler to prevent stale callbacks from firing
+    // after the plugin is removed from the registry.
+    plugin.onStatusChange(null);
+
+    // Clear cached error so stopped plugins don't show stale error info.
+    this.pluginErrors.delete(pluginId);
 
     // Remove from registry
     this.plugins.delete(pluginId);

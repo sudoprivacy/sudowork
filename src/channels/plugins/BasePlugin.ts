@@ -101,11 +101,12 @@ export abstract class BasePlugin {
    */
   protected setStatus(status: PluginStatus, error?: string): void {
     const oldStatus = this._status;
+    const oldError = this.errorMessage;
     this._status = status;
     this.errorMessage = error ?? null;
     console.log(`[${this.type}Plugin] Status: ${oldStatus} → ${status}${error ? ` (${error})` : ''}`);
 
-    if (oldStatus !== status && this.statusChangeHandler) {
+    if (this.statusChangeHandler && (oldStatus !== status || oldError !== this.errorMessage)) {
       try {
         this.statusChangeHandler(status, this.errorMessage);
       } catch (err) {
@@ -200,7 +201,7 @@ export abstract class BasePlugin {
    * Called by PluginManager to observe autonomous status transitions
    * (e.g., a plugin reconnecting itself) so the UI can be refreshed.
    */
-  onStatusChange(handler: PluginStatusChangeHandler): void {
+  onStatusChange(handler: PluginStatusChangeHandler | null): void {
     this.statusChangeHandler = handler;
   }
 

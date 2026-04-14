@@ -35,6 +35,7 @@ const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
 const RESTART_BACKOFF_INITIAL = 2 * 1000; // 2 seconds
 const RESTART_BACKOFF_MAX = 60 * 1000; // 60 seconds
 const MAX_CONSECUTIVE_RESTART_FAILURES = 10;
+const RESTART_BACKOFF_FLOOR = 5 * 60 * 1000; // 5 minutes — keepalive retry after giving up
 
 // DingTalk API base URL (new version)
 const DINGTALK_API_BASE = 'https://api.dingtalk.com';
@@ -128,14 +129,15 @@ export class DingTalkPlugin extends BasePlugin {
     this.shuttingDown = false;
     this.consecutiveRestartFailures = 0;
 
+    // Start watchdog before connectStream so it runs even if initial
+    // connection fails — enabling auto-recovery when the network comes back.
+    this.startHealthCheck();
+
     try {
       await this.connectStream();
 
       // Start event cache cleanup timer
       this.startEventCleanup();
-
-      // Start connection health watchdog
-      this.startHealthCheck();
 
       console.log(`[DingTalkPlugin] Started for client ${this.clientId}`);
     } catch (error) {
@@ -894,7 +896,14 @@ export class DingTalkPlugin extends BasePlugin {
 
     const attempt = this.consecutiveRestartFailures + 1;
     if (attempt > MAX_CONSECUTIVE_RESTART_FAILURES) {
-      console.error(`[DingTalkPlugin] Giving up after ${MAX_CONSECUTIVE_RESTART_FAILURES} failed restarts (${reason})`);
+      // Don't give up entirely — keep retrying at a long floor interval so the
+      // plugin can auto-recover when the network comes back.
+      const delay = RESTART_BACKOFF_FLOOR;
+      console.warn(`[DingTalkPlugin] Max restart failures reached, retrying in ${Math.round(delay / 1000)}s (reason: ${reason})`);
+      this.restartTimer = setTimeout(() => {
+        this.restartTimer = null;
+        void this.performRestart();
+      }, delay);
       return;
     }
 
@@ -922,7 +931,7 @@ export class DingTalkPlugin extends BasePlugin {
       // Keep status = 'error'; schedule next attempt via watchdog tick.
       // (We intentionally don't recursively call scheduleRestart here to
       // let the next health-check interval drive the backoff cadence.)
-      this.setError(`Restart failed: ${error?.message || String(error)}`);
+      this.setStatus('error', `Restart failed: ${error?.message || String(error)}`);
     } finally {
       this.restartInProgress = false;
     }
