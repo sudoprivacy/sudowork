@@ -5,7 +5,7 @@
 #   generate_image.sh edit "<prompt>" "<image_path>" [<filename_no_ext>] [size]
 # Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH env var.
 # IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
-# (Note: agents.defaults.imageAnalysisModel is the image *parsing* model for the gateway;
+# (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
 #  image generation uses the separate imageGenerationModel field.)
 # Any leading "provider/" prefix is stripped before sending to /images/generations.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
