@@ -359,6 +359,10 @@ const CronJobFormDrawer: React.FC<{
       const schedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
       const isManual = frequency === 'manual';
 
+      // When a conversation is bound in reuse mode, assistant & workspace come from
+      // that conversation — ignore the form values.
+      const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
+
       // Derive agentType from selected assistant's presetAgentType; default to openclaw-gateway (Sudoclaw)
       const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
       const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
@@ -384,14 +388,14 @@ const CronJobFormDrawer: React.FC<{
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
-              agentType,
+              agentType: isBoundConversation ? editJob.metadata.agentType : agentType,
               conversationMode,
               // Bind/unbind conversation for reuse mode. New mode keeps the
               // existing conversationId untouched (it's auto-managed via state.lastConversationId).
               conversationId: conversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
               conversationTitle: conversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
-              workspace: workspace || undefined,
-              presetAssistantId: isDefaultAssistant ? null : effectiveAssistantId,
+              workspace: isBoundConversation ? editJob.metadata.workspace : workspace || undefined,
+              presetAssistantId: isBoundConversation ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
             },
           },
         });
@@ -413,9 +417,13 @@ const CronJobFormDrawer: React.FC<{
       Message.success(t('cron.drawer.saveSuccess'));
       onSaved();
       onClose();
-    } catch (err) {
+    } catch (err: unknown) {
+      // Arco form.validate() rejects with a non-Error object on validation
+      // failure — only show a toast for actual runtime / IPC errors.
       if (err instanceof Error) {
         Message.error(err.message);
+      } else if (typeof err === 'string') {
+        Message.error(err);
       }
     } finally {
       setSaving(false);
@@ -464,7 +472,7 @@ const CronJobFormDrawer: React.FC<{
         </Form.Item>
 
         {/* Description */}
-        <Form.Item label={t('cron.create.description', { defaultValue: '描述' })} field='description' rules={[{ required: true }]}>
+        <Form.Item label={t('cron.create.description', { defaultValue: '描述' })} field='description'>
           <Input placeholder={t('cron.create.descriptionPlaceholder', { defaultValue: '简述任务目的' })} />
         </Form.Item>
 
@@ -530,32 +538,6 @@ const CronJobFormDrawer: React.FC<{
 
           {showMore && (
             <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-              {/* Agent/Assistant selector */}
-              <div>
-                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)}>
-                  <Select.Option value={DEFAULT_ASSISTANT}>
-                    <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
-                  </Select.Option>
-                  {assistants.map((a) => (
-                    <Select.Option key={a.id} value={a.id}>
-                      <span className='flex items-center gap-6px'>
-                        {a.avatar && <span>{a.avatar}</span>}
-                        <span>{a.nameI18n?.[localeKey] || a.name}</span>
-                      </span>
-                    </Select.Option>
-                  ))}
-                </Select>
-              </div>
-
-              {/* Workspace selector */}
-              <div>
-                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
-                <Button long onClick={handleSelectFolder} className='!justify-start !text-left'>
-                  {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
-                </Button>
-              </div>
-
               {/* Execution mode */}
               <div className='col-span-2'>
                 <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
@@ -591,6 +573,40 @@ const CronJobFormDrawer: React.FC<{
                     ))}
                   </Select>
                   <div className='text-12px text-t-secondary mt-4px'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
+                </div>
+              )}
+
+              {/* Agent/Assistant selector — hidden when a conversation is bound in reuse mode */}
+              {!(conversationMode === 'reuse' && selectedConversationId) && (
+                <div>
+                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+                  <Select
+                    value={selectedAssistantId}
+                    onChange={(v) => setSelectedAssistantId(v as string)}
+                    disabled={editJob != null && conversationMode === 'reuse'}
+                  >
+                    <Select.Option value={DEFAULT_ASSISTANT}>
+                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
+                    </Select.Option>
+                    {assistants.map((a) => (
+                      <Select.Option key={a.id} value={a.id}>
+                        <span className='flex items-center gap-6px'>
+                          {a.avatar && <span>{a.avatar}</span>}
+                          <span>{a.nameI18n?.[localeKey] || a.name}</span>
+                        </span>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+
+              {/* Workspace selector — hidden when a conversation is bound in reuse mode */}
+              {!(conversationMode === 'reuse' && selectedConversationId) && (
+                <div>
+                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+                  <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
+                    {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
+                  </Button>
                 </div>
               )}
             </div>
