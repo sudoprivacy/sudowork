@@ -60,11 +60,17 @@ export function initInitBridge(): void {
         if (fs.existsSync(readyFile)) fs.rmSync(readyFile, { force: true });
       } else {
         const { SUDOCLAW_DIR, removeSudoclawCli } = await import('../services/sudoclaw/SudoclawInstallService');
+        const sudoclawManifestPath = path.join(SUDOCLAW_DIR, 'install-manifest.json');
+        const sudoclawCliStagingDir = path.join(SUDOCLAW_DIR, 'cli.new');
+        const sudoclawCliBackupDir = path.join(SUDOCLAW_DIR, 'cli.old');
 
         initStatusManager.addLog('↻ 手动触发 Sudoclaw 重装...');
         await serviceManager.stopOpenClaw().catch(() => {});
         if (fs.existsSync(SUDOCLAW_DIR)) {
           removeSudoclawCli();
+          if (fs.existsSync(sudoclawCliStagingDir)) fs.rmSync(sudoclawCliStagingDir, { recursive: true, force: true });
+          if (fs.existsSync(sudoclawCliBackupDir)) fs.rmSync(sudoclawCliBackupDir, { recursive: true, force: true });
+          if (fs.existsSync(sudoclawManifestPath)) fs.rmSync(sudoclawManifestPath, { force: true });
         }
       }
 
