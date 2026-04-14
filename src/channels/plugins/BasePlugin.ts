@@ -22,6 +22,13 @@ export type PluginMessageHandler = (message: IUnifiedIncomingMessage) => Promise
 export type PluginConfirmHandler = (userId: string, platform: string, callId: string, value: string) => Promise<void>;
 
 /**
+ * Plugin status change handler type
+ * Fired when the plugin transitions between lifecycle statuses (including
+ * autonomous transitions such as watchdog-triggered reconnects).
+ */
+export type PluginStatusChangeHandler = (status: PluginStatus, error: string | null) => void;
+
+/**
  * BasePlugin - Abstract base class for all platform plugins
  *
  * Each platform plugin (Telegram, Slack, Discord) extends this class and implements:
@@ -64,6 +71,13 @@ export abstract class BasePlugin {
   protected confirmHandler: PluginConfirmHandler | null = null;
 
   /**
+   * Status change handler callback (set by PluginManager)
+   * Used to notify the manager when the plugin transitions status on its own
+   * (e.g., watchdog-triggered reconnects) so the UI can be updated.
+   */
+  protected statusChangeHandler: PluginStatusChangeHandler | null = null;
+
+  /**
    * Error message if status is 'error'
    */
   protected errorMessage: string | null = null;
@@ -90,6 +104,14 @@ export abstract class BasePlugin {
     this._status = status;
     this.errorMessage = error ?? null;
     console.log(`[${this.type}Plugin] Status: ${oldStatus} → ${status}${error ? ` (${error})` : ''}`);
+
+    if (oldStatus !== status && this.statusChangeHandler) {
+      try {
+        this.statusChangeHandler(status, this.errorMessage);
+      } catch (err) {
+        console.warn(`[${this.type}Plugin] statusChangeHandler threw:`, err);
+      }
+    }
   }
 
   /**
@@ -171,6 +193,15 @@ export abstract class BasePlugin {
    */
   onConfirm(handler: PluginConfirmHandler): void {
     this.confirmHandler = handler;
+  }
+
+  /**
+   * Register status change handler
+   * Called by PluginManager to observe autonomous status transitions
+   * (e.g., a plugin reconnecting itself) so the UI can be refreshed.
+   */
+  onStatusChange(handler: PluginStatusChangeHandler): void {
+    this.statusChangeHandler = handler;
   }
 
   /**

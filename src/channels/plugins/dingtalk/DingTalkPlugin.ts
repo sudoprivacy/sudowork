@@ -25,6 +25,17 @@ import type { DingTalkStreamMessage } from './DingTalkAdapter';
 const EVENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const EVENT_CACHE_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
+// Connection health watchdog settings
+// The underlying dingtalk-stream SDK keeps an internal WebSocket with ping/pong,
+// but its status is never surfaced to us. We actively poll `client.connected`
+// and `client.registered` so the plugin status reflects reality and we can
+// force a full reconnect when the stream dies silently (idle NAT timeout,
+// upstream `disconnect` system message, or autoReconnect giving up).
+const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
+const RESTART_BACKOFF_INITIAL = 2 * 1000; // 2 seconds
+const RESTART_BACKOFF_MAX = 60 * 1000; // 60 seconds
+const MAX_CONSECUTIVE_RESTART_FAILURES = 10;
+
 // DingTalk API base URL (new version)
 const DINGTALK_API_BASE = 'https://api.dingtalk.com';
 
@@ -83,6 +94,14 @@ export class DingTalkPlugin extends BasePlugin {
   // Store sessionWebhook per chatId for fallback sending
   private webhookCache: Map<string, string> = new Map();
 
+  // Connection health watchdog state
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartInProgress: boolean = false;
+  private consecutiveRestartFailures: number = 0;
+  // Intentionally stopped — prevents watchdog from racing with onStop()
+  private shuttingDown: boolean = false;
+
   /**
    * Initialize the DingTalk client
    */
@@ -106,56 +125,17 @@ export class DingTalkPlugin extends BasePlugin {
       throw new Error('Credentials not available');
     }
 
+    this.shuttingDown = false;
+    this.consecutiveRestartFailures = 0;
+
     try {
-      // Refresh access token first
-      await this.refreshAccessToken();
-
-      // Create DWClient
-      this.client = new DWClient({
-        clientId: this.clientId,
-        clientSecret: this.clientSecret,
-        keepAlive: true,
-        debug: false,
-      });
-
-      // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
-      this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
-        // Immediately acknowledge the message to prevent retry
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process message asynchronously
-        try {
-          const data: DingTalkStreamMessage = JSON.parse(msg.data);
-          void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
-            console.error('[DingTalkPlugin] Error handling robot message:', error);
-          });
-        } catch (error) {
-          console.error('[DingTalkPlugin] Failed to parse robot message:', error);
-        }
-      });
-
-      // Register card callback listener
-      this.client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
-        // Acknowledge card callback
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process card action asynchronously
-        try {
-          const data = JSON.parse(msg.data);
-          void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
-            console.error('[DingTalkPlugin] Error handling card callback:', error);
-          });
-        } catch (error) {
-          console.error('[DingTalkPlugin] Failed to parse card callback:', error);
-        }
-      });
-
-      // Connect
-      await this.client.connect();
-      this.isConnected = true;
+      await this.connectStream();
 
       // Start event cache cleanup timer
       this.startEventCleanup();
+
+      // Start connection health watchdog
+      this.startHealthCheck();
 
       console.log(`[DingTalkPlugin] Started for client ${this.clientId}`);
     } catch (error) {
@@ -165,9 +145,88 @@ export class DingTalkPlugin extends BasePlugin {
   }
 
   /**
+   * Create a fresh DWClient, register listeners and connect.
+   * Used by both initial start and watchdog-triggered restart.
+   */
+  private async connectStream(): Promise<void> {
+    // Refresh access token first (forces a new one on restart)
+    this.tokenCache = null;
+    await this.refreshAccessToken();
+
+    // Tear down any pre-existing client before creating a new one so the
+    // SDK's autoReconnect + heartbeat timers don't leak across restarts.
+    if (this.client) {
+      try {
+        this.client.disconnect();
+      } catch {
+        // Ignore disconnect errors
+      }
+      this.client = null;
+    }
+
+    // Create DWClient
+    const client = new DWClient({
+      clientId: this.clientId,
+      clientSecret: this.clientSecret,
+      keepAlive: true,
+      debug: false,
+    });
+
+    // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
+    client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
+      // Immediately acknowledge the message to prevent retry
+      client.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process message asynchronously
+      try {
+        const data: DingTalkStreamMessage = JSON.parse(msg.data);
+        void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
+          console.error('[DingTalkPlugin] Error handling robot message:', error);
+        });
+      } catch (error) {
+        console.error('[DingTalkPlugin] Failed to parse robot message:', error);
+      }
+    });
+
+    // Register card callback listener
+    client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
+      // Acknowledge card callback
+      client.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process card action asynchronously
+      try {
+        const data = JSON.parse(msg.data);
+        void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
+          console.error('[DingTalkPlugin] Error handling card callback:', error);
+        });
+      } catch (error) {
+        console.error('[DingTalkPlugin] Failed to parse card callback:', error);
+      }
+    });
+
+    // Connect — on failure, dispose of the half-initialized client so the
+    // SDK's internal reconnect loop (if any) doesn't linger in the background.
+    try {
+      await client.connect();
+    } catch (error) {
+      try {
+        client.disconnect();
+      } catch {
+        // Ignore disconnect errors on cleanup
+      }
+      throw error;
+    }
+
+    this.client = client;
+    this.isConnected = true;
+  }
+
+  /**
    * Stop connection and cleanup
    */
   protected async onStop(): Promise<void> {
+    this.shuttingDown = true;
+    this.stopHealthCheck();
     this.stopEventCleanup();
 
     if (this.client) {
@@ -185,6 +244,8 @@ export class DingTalkPlugin extends BasePlugin {
     this.aiCardSessions.clear();
     this.webhookCache.clear();
     this.isConnected = false;
+    this.restartInProgress = false;
+    this.consecutiveRestartFailures = 0;
 
     console.log('[DingTalkPlugin] Stopped and cleaned up');
   }
@@ -766,6 +827,104 @@ export class DingTalkPlugin extends BasePlugin {
       if (now - timestamp > EVENT_CACHE_TTL) {
         this.processedEvents.delete(eventId);
       }
+    }
+  }
+
+  // ==================== Connection Health Watchdog ====================
+
+  /**
+   * Start periodic health check on the underlying DWClient.
+   *
+   * Why this exists: `dingtalk-stream`'s autoReconnect can fail silently
+   * (getEndpoint 5xx, DNS, etc.), and upstream `disconnect` system messages
+   * flip `client.connected` to false without closing the TCP socket. In both
+   * cases the plugin status would otherwise remain `running`, matching the
+   * symptom in issue #335 (UI says "connected" but the bot is unresponsive
+   * after an idle period).
+   */
+  private startHealthCheck(): void {
+    if (this.healthCheckTimer) return;
+
+    this.healthCheckTimer = setInterval(() => {
+      this.performHealthCheck();
+    }, HEALTH_CHECK_INTERVAL);
+  }
+
+  private stopHealthCheck(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+  }
+
+  private performHealthCheck(): void {
+    if (this.shuttingDown || this.restartInProgress) return;
+
+    const client = this.client;
+    if (!client) {
+      this.scheduleRestart('client missing');
+      return;
+    }
+
+    // `connected` & `registered` are public fields on DWClient — they flip
+    // to false on socket close, SDK `disconnect` system message, and while
+    // autoReconnect is still trying.
+    const connected = client.connected === true;
+    const registered = client.registered === true;
+
+    if (!connected || !registered) {
+      this.scheduleRestart(`unhealthy (connected=${connected}, registered=${registered})`);
+    }
+  }
+
+  /**
+   * Schedule a restart with exponential backoff. Idempotent — if a restart
+   * is already pending or in progress, this is a no-op.
+   */
+  private scheduleRestart(reason: string): void {
+    if (this.shuttingDown || this.restartInProgress || this.restartTimer) return;
+
+    // Surface the degraded state so the UI no longer shows "connected".
+    this.setStatus('error', `DingTalk stream disconnected: ${reason}`);
+    this.isConnected = false;
+
+    const attempt = this.consecutiveRestartFailures + 1;
+    if (attempt > MAX_CONSECUTIVE_RESTART_FAILURES) {
+      console.error(`[DingTalkPlugin] Giving up after ${MAX_CONSECUTIVE_RESTART_FAILURES} failed restarts (${reason})`);
+      return;
+    }
+
+    const delay = Math.min(RESTART_BACKOFF_INITIAL * Math.pow(2, attempt - 1), RESTART_BACKOFF_MAX);
+    console.warn(`[DingTalkPlugin] Scheduling restart in ${Math.round(delay / 1000)}s (attempt ${attempt}, reason: ${reason})`);
+
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      void this.performRestart();
+    }, delay);
+  }
+
+  private async performRestart(): Promise<void> {
+    if (this.shuttingDown || this.restartInProgress) return;
+
+    this.restartInProgress = true;
+    try {
+      await this.connectStream();
+      this.consecutiveRestartFailures = 0;
+      this.setStatus('running');
+      console.log('[DingTalkPlugin] Restart successful');
+    } catch (error: any) {
+      this.consecutiveRestartFailures += 1;
+      console.error('[DingTalkPlugin] Restart failed:', error);
+      // Keep status = 'error'; schedule next attempt via watchdog tick.
+      // (We intentionally don't recursively call scheduleRestart here to
+      // let the next health-check interval drive the backoff cadence.)
+      this.setError(`Restart failed: ${error?.message || String(error)}`);
+    } finally {
+      this.restartInProgress = false;
     }
   }
 
