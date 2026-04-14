@@ -48,6 +48,9 @@ export class AcpConnection {
   private configOptions: AcpSessionConfigOption[] | null = null;
   private models: AcpSessionModels | null = null;
 
+  // Configurable prompt timeout (ms), defaults to 300s (5 minutes)
+  private promptTimeoutMs: number = 300000;
+
   // Performance tracking: timestamp when last prompt was sent
   private lastPromptSentAt: number = 0;
   private firstChunkReceived: boolean = true;
@@ -404,7 +407,7 @@ export class AcpConnection {
     return new Promise((resolve, reject) => {
       // Use longer timeout for session/prompt requests as they involve LLM processing
       // Complex tasks like document processing may need significantly more time
-      const timeoutDuration = method === 'session/prompt' ? 300000 : 60000; // 5 minutes for prompts, 1 minute for others
+      const timeoutDuration = method === 'session/prompt' ? this.promptTimeoutMs : 60000;
       const startTime = Date.now();
 
       const createTimeoutHandler = () => {
@@ -987,5 +990,19 @@ export class AcpConnection {
       sessionId: params.sessionId || '',
     });
     return await writeTextFile(resolvedWritePath, params.content);
+  }
+
+  /**
+   * Set prompt timeout in milliseconds
+   */
+  setPromptTimeout(timeoutMs: number): void {
+    this.promptTimeoutMs = timeoutMs;
+  }
+
+  /**
+   * Get current prompt timeout in milliseconds
+   */
+  getPromptTimeout(): number {
+    return this.promptTimeoutMs;
   }
 }
