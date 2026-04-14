@@ -8,6 +8,19 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { init } from '@/common/ipcBridge';
 import { useInit } from '../context/InitContext';
+import WindowControls from './WindowControls';
+
+// 运行时判断 / Runtime check
+const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+
+// 窗口控制按钮悬浮容器样式 / Floating container style for window controls
+const WINDOW_CONTROLS_WRAPPER_STYLE: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  right: 0,
+  zIndex: 9999,
+  WebkitAppRegion: 'no-drag',
+} as React.CSSProperties;
 
 // ── Step definitions ─────────────────────────────────────────────────────────
 type StepId = 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan';
@@ -272,6 +285,12 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           } as React.CSSProperties
         }
       >
+        {/* 桌面端窗口控制按钮 / Window controls for desktop */}
+        {isDesktopRuntime && (
+          <div style={WINDOW_CONTROLS_WRAPPER_STYLE}>
+            <WindowControls />
+          </div>
+        )}
         <div
           style={{
             width: '100%',
@@ -519,6 +538,12 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
         } as React.CSSProperties
       }
     >
+      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
+      {isDesktopRuntime && (
+        <div style={WINDOW_CONTROLS_WRAPPER_STYLE}>
+          <WindowControls />
+        </div>
+      )}
       <div
         style={{
           width: '100%',
