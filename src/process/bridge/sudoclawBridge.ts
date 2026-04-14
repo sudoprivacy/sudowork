@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig } from '@/common/ipcBridge';
+import { cachePut } from '@common/nexus/secret-cache';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -25,6 +26,8 @@ interface InstallState {
 const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
+const MAIN_AGENT_DIR = path.join(SUDOCLAW_DIR, 'agents', 'main', 'agent');
+const MAIN_AGENT_MODELS_PATH = path.join(MAIN_AGENT_DIR, 'models.json');
 let installState: InstallState = { installing: false };
 
 function readConfig(): SudoclawConfig | null {
@@ -64,6 +67,52 @@ function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): Su
     }
   }
   return base;
+}
+
+function syncSecretsToCache(config: SudoclawConfig): void {
+  const providers = config.models?.providers || {};
+  for (const [providerId, provider] of Object.entries(providers)) {
+    if (provider.apiKey?.trim()) {
+      cachePut(`provider:${providerId}`, 'api_key', provider.apiKey.trim());
+    }
+  }
+}
+
+function syncRuntimeAgentModels(config: SudoclawConfig): void {
+  const providers = config.models?.providers || {};
+  fs.mkdirSync(MAIN_AGENT_DIR, { recursive: true });
+
+  let existingProviders: Record<string, any> = {};
+  if (fs.existsSync(MAIN_AGENT_MODELS_PATH)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(MAIN_AGENT_MODELS_PATH, 'utf8')) as { providers?: Record<string, any> };
+      existingProviders = existing.providers || {};
+    } catch {
+      existingProviders = {};
+    }
+  }
+
+  const nextProviders = Object.fromEntries(
+    Object.entries(providers).map(([providerId, provider]) => {
+      const existingProvider = existingProviders[providerId] || {};
+      const existingModels = new Map<string, any>(((existingProvider.models as any[]) || []).map((model) => [String(model.id || ''), model]));
+      const nextModels = (provider.models || []).map((model) => ({
+        ...(existingModels.get(model.id) || {}),
+        ...model,
+      }));
+
+      return [
+        providerId,
+        {
+          ...existingProvider,
+          ...provider,
+          models: nextModels,
+        },
+      ];
+    })
+  );
+
+  fs.writeFileSync(MAIN_AGENT_MODELS_PATH, JSON.stringify({ providers: nextProviders }, null, 2), 'utf8');
 }
 
 /**
@@ -127,6 +176,9 @@ export function initSudoclawBridge(): void {
           // ignore
         }
       }
+
+      syncSecretsToCache(config);
+      syncRuntimeAgentModels(config);
 
       // Sync to ~/.claude/settings.json for Claude CLI
       syncToClaudeSettings(config);
