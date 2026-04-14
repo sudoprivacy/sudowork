@@ -361,6 +361,19 @@ export class ServiceManager {
       // whether config was manually modified, or whether repair was skipped.
       repairOpenClawConfig();
 
+      // CRITICAL: Initialize safety hook config before gateway starts.
+      // hook.js (preload script) requires /safe/config/hook to exist,
+      // otherwise it will wait indefinitely for Nexus to be ready.
+      // SafetyPollingService normally creates this, but it starts AFTER gateway.
+      try {
+        const { ensureSecurityHookDirs, ensureEnabledState } = await import('../safety/SecurityHookFile');
+        await ensureSecurityHookDirs();
+        await ensureEnabledState();
+        mainLog('ServiceManager', 'Safety hook config initialized before gateway start');
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to initialize safety hook config (non-critical):', err);
+      }
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
