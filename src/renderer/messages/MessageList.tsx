@@ -339,7 +339,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   }, [list]);
 
   // Use auto-scroll hook
-  const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, showScrollButton, scrollToBottom, hideScrollButton } = useAutoScroll({
+  const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleRangeChanged, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
     itemCount: processedList.length,
   });
@@ -437,25 +437,36 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
           <Virtuoso
             ref={virtuosoRef}
+            scrollerRef={handleScrollerRef}
             className='flex-1 h-full pb-10px box-border'
             data={processedList}
-            initialTopMostItemIndex={processedList.length - 1}
-            atBottomThreshold={100}
+            // Land on the latest message with its bottom near the viewport
+            // bottom (and a small buffer above the SendBox), instead of pinning
+            // it to the top with the viewport-tall empty spacer below.
+            // 初次加载时让最后一条消息出现在视口底部附近（保留与输入框之间的视觉缓冲），
+            // 避免下方的整屏空白 spacer 占据视口造成"看不到最新消息"的错觉。
+            initialTopMostItemIndex={{ index: processedList.length - 1, align: 'end', offset: -40 }}
+            // Threshold widens by the bottom spacer so "at bottom" semantically
+            // means "the last message is in view", not "scrolled past the
+            // empty spacer at the very bottom of the scroller".
+            // 加上底部空白 spacer 的高度，使 "atBottom" 判定变成"最后一条消息已在视口内"。
+            atBottomThreshold={bottomSpacerHeight + 100}
             increaseViewportBy={200}
             itemContent={renderItem}
             followOutput={handleFollowOutput}
             onScroll={handleScroll}
             atBottomStateChange={handleAtBottomStateChange}
+            rangeChanged={handleRangeChanged}
             components={{
               Header: () => <div className='h-10px' />,
-              // Footer doubles as the bottom buffer between the last message and
-              // the SendBox below. useAutoScroll scrolls to the absolute bottom
-              // of the scroller (not align:end), so this Footer is visible at
-              // the bottom of the viewport — keeping the last message's bottom
-              // border clear of the input area during ToolCall streaming.
-              // Footer 同时作为最后一条消息与下方输入框之间的缓冲区，确保
-              // ToolCall 流式输出时消息底边不会被输入框遮挡。
-              Footer: () => <div className='h-40px' />,
+              // Bottom spacer: a viewport-tall blank area below the last message
+              // that lets `scrollToIndex({ align: 'start' })` actually pin the
+              // user's freshly-sent message to the top of the viewport. The AI
+              // response then streams into this empty area below the prompt,
+              // mirroring the ChatGPT/Claude.ai layout.
+              // 底部空白：视口高度的 spacer，使 scrollToIndex 能真正把用户消息顶到视口顶端，
+              // AI 回复在用户消息下方的空白区域中流式填充，类似 ChatGPT/Claude.ai 的布局。
+              Footer: () => <div style={{ height: `${bottomSpacerHeight}px` }} />,
             }}
           />
         </ImagePreviewContext.Provider>
