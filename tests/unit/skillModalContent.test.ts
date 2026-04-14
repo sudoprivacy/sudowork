@@ -5,7 +5,6 @@
  */
 
 import { describe, expect, it } from 'vitest';
-
 import { getInstalledSkillBadgeCount, getLocalSkillImportDialogOptions } from '@/renderer/components/SettingsModal/contents/SkillModalContent';
 
 describe('getInstalledSkillBadgeCount', () => {
