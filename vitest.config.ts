@@ -69,6 +69,7 @@ export default defineConfig({
         'src/agent/acp/modelInfo.ts',
         // Common
         'src/common/chatLib.ts',
+        'src/common/nexusFiles.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
         // Renderer utils

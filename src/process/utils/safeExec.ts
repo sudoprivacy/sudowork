@@ -15,6 +15,7 @@
  */
 
 import { spawn } from 'child_process';
+import { platform } from 'os';
 
 type ExecResult = { stdout: string; stderr: string };
 
@@ -24,12 +25,25 @@ interface SafeExecOptions {
 }
 
 /**
+ * Get the appropriate shell for the current platform.
+ * - Unix (darwin, linux): uses 'sh'
+ * - Windows: uses 'cmd.exe'
+ */
+function getShell(): { shell: string; flag: string } {
+  if (platform() === 'win32') {
+    return { shell: 'cmd.exe', flag: '/c' };
+  }
+  return { shell: 'sh', flag: '-c' };
+}
+
+/**
  * Shell-based command execution (replacement for `child_process.exec`).
- * Runs the command in `/bin/sh -c` with `detached: true`.
+ * Runs the command in a shell with `detached: true` for cross-platform compatibility.
  */
 export function safeExec(command: string, options: SafeExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn('sh', ['-c', command], {
+    const { shell, flag } = getShell();
+    const child = spawn(shell, [flag, command], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env,

@@ -2,7 +2,7 @@ import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
-import type { SudoclawConfig } from '@/common/ipcBridge';
+import { mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 
 type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
@@ -158,46 +158,13 @@ async function handleLoginSuccess(data: any, setUser: (user: AuthUser) => void, 
   // 自动配置 Sudoclaw
   if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
     try {
-      // 获取当前配置（保留用户其他设置）
       const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
-      const currentProviders = currentConfig?.data?.models?.providers || {};
-      const existingSudorouter = currentProviders['sudorouter'] || {};
-
-      // 构建 provider models
-      const providerModels = authData.models.map((id: string) => ({ id, name: id }));
-
-      // 构建 provider 配置（保留原有的 api 字段）
-      const providers = {
-        ...currentProviders,
-        sudorouter: {
-          ...existingSudorouter,
-          baseUrl: authData.model_service_url,
-          apiKey: authData.sudorouter_key,
-          models: providerModels,
-        },
-      };
-
-      // 确定 primary model（优先使用 gemini-3-flash-preview）
-      const primaryModel = authData.models.includes('gemini-3-flash-preview') ? 'gemini-3-flash-preview' : authData.models[0] || 'gemini-3-flash-preview';
-
-      // 更新配置（保留所有原有字段）
-      const patch: SudoclawConfig = {
-        ...currentConfig?.data,
-        models: {
-          mode: currentConfig?.data?.models?.mode || 'merge',
-          providers,
-        },
-        agents: {
-          ...currentConfig?.data?.agents,
-          defaults: {
-            ...currentConfig?.data?.agents?.defaults,
-            model: {
-              ...currentConfig?.data?.agents?.defaults?.model,
-              primary: `sudorouter/${primaryModel}`,
-            },
-          },
-        },
-      };
+      const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
+        modelIds: authData.models,
+        apiKey: authData.sudorouter_key,
+        baseUrl: authData.model_service_url,
+        preservePrimary: true,
+      });
 
       await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
       console.log('[Auth] Sudoclaw 配置已更新');
