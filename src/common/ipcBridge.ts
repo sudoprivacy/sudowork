@@ -522,13 +522,42 @@ export type SudoclawProvider = {
   models?: SudoclawProviderModel[];
 };
 export type SudoclawConfig = {
-  lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; models?: Record<string, { alias?: string }> } };
+  // Metadata (auto-managed by OpenClaw)
+  meta?: { lastTouchedVersion?: string; lastTouchedAt?: string | null };
+  // Setup wizard state (auto-managed by OpenClaw)
+  wizard?: { lastRunAt?: string; lastRunVersion?: string; lastRunCommand?: string; lastRunMode?: string };
+  // Gateway configuration (managed by repair logic + OpenClaw)
+  gateway?: { port?: number; mode?: string; auth?: { mode?: string }; reload?: { mode?: string } };
+  // Agent configuration
+  agents?: {
+    defaults?: {
+      model?: { primary?: string; fallbacks?: string[] };
+      imageModel?: string;
+      imageGenerationModel?: string;
+      workspace?: string;
+      models?: Record<string, { alias?: string }>;
+    };
+    list?: Array<{ id: string; identity?: { name?: string; emoji?: string; avatar?: string } }>;
+  };
+  // Model providers
   models?: {
     mode?: 'merge' | 'replace';
     providers?: Record<string, SudoclawProvider>;
   };
+  // Environment variables
   env?: { vars?: Record<string, string> };
+  // Tool access control
+  tools?: { deny?: string[] };
+  // Command configuration
+  commands?: Record<string, unknown>;
+  // Channel configurations
+  channels?: Record<string, unknown>;
+  // Skills configuration
+  skills?: { load?: { extraDirs?: string[] } };
+  // Browser runtime controls
+  browser?: { enabled?: boolean; headless?: boolean; cdpUrl?: string };
+  // Catch-all for any other OpenClaw config keys we don't explicitly type
+  [key: string]: unknown;
 };
 
 export type SudoclawTestGatewayResult = {

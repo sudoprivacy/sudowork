@@ -39,18 +39,19 @@ function readConfig(): SudoclawConfig | null {
 }
 
 function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): SudoclawConfig {
-  const base = existing ? JSON.parse(JSON.stringify(existing)) : {};
+  const base: Record<string, unknown> = existing ? JSON.parse(JSON.stringify(existing)) : {};
   if ('lastRunMode' in base) delete base.lastRunMode;
   if (patch.agents?.defaults) {
-    base.agents = base.agents || {};
-    base.agents.defaults = { ...base.agents.defaults, ...patch.agents.defaults };
+    const baseAgents = (base.agents as SudoclawConfig['agents']) || {};
+    baseAgents.defaults = { ...baseAgents.defaults, ...patch.agents.defaults };
     if (patch.agents.defaults.model) {
-      base.agents.defaults.model = { ...base.agents?.defaults?.model, ...patch.agents.defaults.model };
+      baseAgents.defaults.model = { ...baseAgents.defaults?.model, ...patch.agents.defaults.model };
     }
+    base.agents = baseAgents;
   }
   if (patch.models) {
-    base.models = base.models || {};
-    if (patch.models.mode !== undefined) base.models.mode = patch.models.mode;
+    const baseModels = (base.models as SudoclawConfig['models']) || {};
+    if (patch.models.mode !== undefined) baseModels.mode = patch.models.mode;
     if (patch.models.providers) {
       // Ensure each provider has models as array (not undefined)
       const providersWithModels: typeof patch.models.providers = {};
@@ -60,10 +61,16 @@ function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): Su
           models: prov.models ?? [],
         };
       }
-      base.models.providers = providersWithModels;
+      baseModels.providers = providersWithModels;
     }
+    base.models = baseModels;
   }
-  return base;
+  // Overlay any other patch keys (env, etc.) onto base, preserving base keys not in patch
+  for (const key of Object.keys(patch)) {
+    if (key === 'agents' || key === 'models') continue; // already merged above
+    base[key] = patch[key];
+  }
+  return base as SudoclawConfig;
 }
 
 /**
@@ -119,7 +126,10 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.saveConfig.provider(async ({ config }) => {
     try {
       fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+      // Read existing config to preserve keys not in the patch
+      const existing = readConfig();
+      const merged = mergeConfig(existing, config);
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf8');
       if (process.platform !== 'win32') {
         try {
           fs.chmodSync(CONFIG_PATH, 0o600);
@@ -129,7 +139,7 @@ export function initSudoclawBridge(): void {
       }
 
       // Sync to ~/.claude/settings.json for Claude CLI
-      syncToClaudeSettings(config);
+      syncToClaudeSettings(merged);
 
       return { success: true };
     } catch (err) {
