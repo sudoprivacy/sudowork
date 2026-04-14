@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
@@ -501,9 +502,20 @@ export class ActionExecutor {
         // Regular text message - send to AI
         await this.handleChatMessage(context, content.text);
       } else if (isMediaContentType(content.type)) {
-        // Media message (photo, document, voice, video) - extract file paths and send to AI
-        const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
-        const text = content.text || `[${content.type} message]`;
+        // Media message (photo, document, voice, video) - extract file paths and send to AI.
+        // Persist the message in the same format as the desktop client so `MessagetText`
+        // can render a `FilePreview` instead of showing the hardcoded `[photo message]`
+        // placeholder: caption (if any) on top, followed by `NEXUS_FILES_MARKER` and one
+        // file path per line. When there are no attachments at all we fall back to the
+        // human-readable placeholder so the message is not persisted as empty.
+        const files = content.attachments?.map((a) => a.fileId).filter((id): id is string => !!id) || [];
+        const caption = content.text?.trim() ?? '';
+        let text: string;
+        if (files.length > 0) {
+          text = caption ? `${caption}\n\n${NEXUS_FILES_MARKER}\n${files.join('\n')}` : `${NEXUS_FILES_MARKER}\n${files.join('\n')}`;
+        } else {
+          text = caption || `[${content.type} message]`;
+        }
         await this.handleChatMessage(context, text, files);
       } else {
         // Unsupported content type
