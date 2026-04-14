@@ -32,10 +32,10 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
-  const { status } = useAuth();
+  const { status, syncMessage } = useAuth();
 
-  if (status === 'checking') {
-    return <AppLoader />;
+  if (status === 'checking' || status === 'syncing') {
+    return <AppLoader text={status === 'syncing' ? syncMessage || '正在准备 Sudoclaw...' : undefined} subtext={status === 'syncing' ? '正在等待 Sudoclaw 重启完成后进入聊天页面。' : undefined} />;
   }
 
   if (status !== 'authenticated') {

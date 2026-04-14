@@ -13,6 +13,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
+import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
 import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
@@ -26,8 +27,6 @@ interface InstallState {
 const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
-const MAIN_AGENT_DIR = path.join(SUDOCLAW_DIR, 'agents', 'main', 'agent');
-const MAIN_AGENT_MODELS_PATH = path.join(MAIN_AGENT_DIR, 'models.json');
 let installState: InstallState = { installing: false };
 
 function readConfig(): SudoclawConfig | null {
@@ -69,52 +68,6 @@ function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): Su
   return base;
 }
 
-function syncSecretsToCache(config: SudoclawConfig): void {
-  const providers = config.models?.providers || {};
-  for (const [providerId, provider] of Object.entries(providers)) {
-    if (provider.apiKey?.trim()) {
-      cachePut(`provider:${providerId}`, 'api_key', provider.apiKey.trim());
-    }
-  }
-}
-
-function syncRuntimeAgentModels(config: SudoclawConfig): void {
-  const providers = config.models?.providers || {};
-  fs.mkdirSync(MAIN_AGENT_DIR, { recursive: true });
-
-  let existingProviders: Record<string, any> = {};
-  if (fs.existsSync(MAIN_AGENT_MODELS_PATH)) {
-    try {
-      const existing = JSON.parse(fs.readFileSync(MAIN_AGENT_MODELS_PATH, 'utf8')) as { providers?: Record<string, any> };
-      existingProviders = existing.providers || {};
-    } catch {
-      existingProviders = {};
-    }
-  }
-
-  const nextProviders = Object.fromEntries(
-    Object.entries(providers).map(([providerId, provider]) => {
-      const existingProvider = existingProviders[providerId] || {};
-      const existingModels = new Map<string, any>(((existingProvider.models as any[]) || []).map((model) => [String(model.id || ''), model]));
-      const nextModels = (provider.models || []).map((model) => ({
-        ...(existingModels.get(model.id) || {}),
-        ...model,
-      }));
-
-      return [
-        providerId,
-        {
-          ...existingProvider,
-          ...provider,
-          models: nextModels,
-        },
-      ];
-    })
-  );
-
-  fs.writeFileSync(MAIN_AGENT_MODELS_PATH, JSON.stringify({ providers: nextProviders }, null, 2), 'utf8');
-}
-
 /**
  * Sync sudorouter provider config to ~/.claude/settings.json for Claude CLI
  * Only writes if settings.json doesn't exist yet.
@@ -126,12 +79,13 @@ function syncToClaudeSettings(config: SudoclawConfig): void {
     return;
   }
 
-  const sudorouter = config.models?.providers?.sudorouter;
-  if (!sudorouter) return;
-
-  const apiKey = sudorouter.apiKey || '';
   const primaryModel = config.agents?.defaults?.model?.primary || '';
-  const modelId = primaryModel.startsWith('sudorouter/') ? primaryModel.slice('sudorouter/'.length) : primaryModel;
+  const [providerId, modelIdPart] = primaryModel.split('/');
+  const provider = providerId ? config.models?.providers?.[providerId] : undefined;
+  const apiKey = provider?.apiKey || '';
+  const modelId = modelIdPart || primaryModel;
+
+  if (!apiKey) return;
 
   // Create new settings with fixed values
   const settings: Record<string, unknown> = {
@@ -177,8 +131,11 @@ export function initSudoclawBridge(): void {
         }
       }
 
-      syncSecretsToCache(config);
-      syncRuntimeAgentModels(config);
+      syncSudoclawRuntimeState(config, {
+        stateDir: SUDOCLAW_DIR,
+        claudeSettingsPath: CLAUDE_SETTINGS_PATH,
+        secretWriter: cachePut,
+      });
 
       // Sync to ~/.claude/settings.json for Claude CLI
       syncToClaudeSettings(config);

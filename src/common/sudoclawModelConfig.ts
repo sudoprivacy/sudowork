@@ -91,6 +91,19 @@ export function mergeSudorouterProvidersIntoConfig(config: SudoclawConfig | null
     ...existingProviders,
   };
 
+  const canonicalSudorouterModels = modelIds.map((modelId) => buildSudorouterProviderModel(modelId));
+  const existingCanonicalProvider = existingProviders.sudorouter;
+  mergedProviders.sudorouter = {
+    ...existingCanonicalProvider,
+    baseUrl: params.baseUrl?.trim() || existingCanonicalProvider?.baseUrl || SUDOROUTER_BASE_URL,
+    api: existingCanonicalProvider?.api || getSudorouterApiType(getPreferredSudorouterPrimaryModel(modelIds)),
+    models: canonicalSudorouterModels,
+  };
+
+  if (canonicalApiKey) {
+    mergedProviders.sudorouter.apiKey = canonicalApiKey;
+  }
+
   for (const modelId of modelIds) {
     const providerName = getSudorouterProviderName(modelId);
     mergedProviders[providerName] = buildSudorouterProvider(modelId, canonicalApiKey, existingProviders[providerName]);

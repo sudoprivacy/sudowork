@@ -3,8 +3,9 @@ import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
+import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 
-type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
 
 export interface AuthUser {
   id: string;
@@ -48,6 +49,7 @@ interface LoginResult {
   success: boolean;
   message?: string;
   code?: LoginErrorCode;
+  status?: number;
   need_register?: boolean;
   register_token?: string;
   phone?: string;
@@ -65,10 +67,36 @@ interface RegisterResult {
   code?: LoginErrorCode;
 }
 
+type LoginSuccessResponse = {
+  data: {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    user?: AuthUser;
+  };
+};
+
+type AuthApiResponse = {
+  success?: boolean;
+  msg?: string;
+  message?: string;
+  status?: number;
+  need_register?: boolean;
+  register_token?: string;
+  phone?: string;
+  data?: LoginSuccessResponse['data'];
+};
+
+type SetAuthUser = (user: AuthUser | null) => void;
+type SetAuthStatus = (status: AuthStatus) => void;
+type SetAuthReady = (ready: boolean) => void;
+type SetSyncMessage = (message: string | null) => void;
+
 interface AuthContextValue {
   ready: boolean;
   user: AuthUser | null;
   status: AuthStatus;
+  syncMessage: string | null;
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
   logout: () => Promise<void>;
@@ -84,6 +112,24 @@ const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+
+function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { apiKey?: string }> } } | null | undefined): boolean {
+  return Object.values(config?.models?.providers || {}).some((provider) => !!provider?.apiKey?.trim());
+}
+
+async function ensureSudoclawHasApiKey(): Promise<boolean> {
+  if (!isDesktopRuntime) {
+    return true;
+  }
+
+  try {
+    const res = await ipcBridge.sudoclaw.getConfig.invoke();
+    return hasSudoclawApiKey(res?.data);
+  } catch (error) {
+    console.error('[Auth] Failed to inspect Sudoclaw config:', error);
+    return false;
+  }
+}
 
 // 获取或创建设备 ID
 function getDeviceId(): string {
@@ -122,30 +168,24 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
 }
 
 // 处理登录成功后的通用逻辑
-async function handleLoginSuccess(data: any, setUser: (user: AuthUser) => void, setStatus: (status: AuthStatus) => void, setReady: (ready: boolean) => void) {
+async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage) {
   const deviceId = getDeviceId();
+  const mergedUser = mergeLoginUserData(data) as unknown as AuthUser;
+  const loginSudoclawPayload = extractLoginSudoclawPayload(data);
 
   // 新的存储结构
   const authStorage: AuthStorage = {
     access_token: data.data.access_token,
     refresh_token: data.data.refresh_token,
     expires_at: Date.now() + data.data.expires_in * 1000,
-    user: data.data.user,
+    user: mergedUser,
     device_id: deviceId,
   };
 
-  // 兼容旧代码：user 对象也包含 token
-  const authData = { ...data.data.user, token: data.data.access_token };
-
-  setUser(authData);
-  setStatus('authenticated');
+  const authData = { ...mergedUser, token: data.data.access_token };
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authStorage));
-  // 清理旧的存储
   localStorage.removeItem('sudowork_auth_v1');
-  setReady(true);
 
-  // 保存用户手机号到配置文件供 skill 读取
-  // Save user phone to config file for skill access
   if (isDesktopRuntime && authData.phone) {
     try {
       await ipcBridge.sudoworkAuth.saveUserPhone.invoke({ phone: authData.phone });
@@ -155,29 +195,63 @@ async function handleLoginSuccess(data: any, setUser: (user: AuthUser) => void, 
     }
   }
 
-  // 自动配置 Sudoclaw
-  if (authData.model_service_url && authData.sudorouter_key && authData.models?.length) {
+  if (isDesktopRuntime) {
+    if (!loginSudoclawPayload) {
+      setUser(null);
+      setStatus('unauthenticated');
+      setReady(true);
+      throw new Error('登录响应缺少 Sudoclaw API Key 配置');
+    }
+
+    setStatus('syncing');
+    setReady(true);
+    setSyncMessage('正在同步 Sudoclaw 配置...');
+
     try {
       const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
       const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
-        modelIds: authData.models,
-        apiKey: authData.sudorouter_key,
-        baseUrl: authData.model_service_url,
+        modelIds: loginSudoclawPayload.models,
+        apiKey: loginSudoclawPayload.sudorouterKey,
+        baseUrl: loginSudoclawPayload.modelServiceUrl,
         preservePrimary: true,
       });
 
-      await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-      console.log('[Auth] Sudoclaw 配置已更新');
+      const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
+      if (!saveRes?.success) {
+        throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
+      }
+
+      setSyncMessage('正在重启 Sudoclaw...');
+      const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+      if (!restartRes?.success) {
+        throw new Error(restartRes?.msg || 'Sudoclaw restartGateway failed');
+      }
+
+      if (!(await ensureSudoclawHasApiKey())) {
+        throw new Error('Sudoclaw API Key 同步失败');
+      }
+
+      console.log('[Auth] Sudoclaw 配置已更新并重启完成');
     } catch (error) {
+      setSyncMessage(null);
+      setUser(null);
+      setStatus('unauthenticated');
+      setReady(true);
       console.error('[Auth] Sudoclaw 配置失败:', error);
-      // 不阻止登录流程
+      throw error;
     }
   }
+
+  setSyncMessage(null);
+  setUser(authData);
+  setStatus('authenticated');
+  setReady(true);
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>('checking');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -293,6 +367,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (stored) {
       try {
         const authStorage: AuthStorage = JSON.parse(stored);
+        const hasApiKey = await ensureSudoclawHasApiKey();
+        if (!hasApiKey) {
+          setSyncMessage(null);
+          setUser(null);
+          setStatus('unauthenticated');
+          setReady(true);
+          return;
+        }
+
         setUser({ ...authStorage.user, token: authStorage.access_token });
         setStatus('authenticated');
         setReady(true);
@@ -319,6 +402,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (oldStored) {
       try {
         const parsed = JSON.parse(oldStored);
+        const hasApiKey = await ensureSudoclawHasApiKey();
+        if (!hasApiKey) {
+          setSyncMessage(null);
+          setUser(null);
+          setStatus('unauthenticated');
+          setReady(true);
+          return;
+        }
+
         // 旧 token 没有 refresh_token，用户需要重新登录才能获得新机制
         setUser(parsed);
         setStatus('authenticated');
@@ -366,7 +458,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [refresh]);
 
-  const login = useCallback(async ({ phone, code, enterprise_code, invitation_code, remember }: LoginParams): Promise<LoginResult> => {
+  const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
 
     try {
@@ -379,12 +471,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         body: JSON.stringify({ phone, code, enterprise_code }),
       });
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as AuthApiResponse;
 
       // 用户不存在，需要注册
       if (data.need_register) {
         return {
           success: false,
+          status: data.status,
           need_register: true,
           register_token: data.register_token,
           phone: data.phone,
@@ -395,18 +488,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (!response.ok || !data.success || !data.data) {
         return {
           success: false,
+          status: data.status,
           message: data?.msg || data?.message || '登录失败',
           code: 'invalidCredentials',
         };
       }
 
-      await handleLoginSuccess(data, setUser, setStatus, setReady);
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage);
       return { success: true };
     } catch (error) {
       console.error('Login request failed:', error);
       return {
         success: false,
-        message: '连接到中控服务器失败',
+        message: error instanceof Error ? error.message : '连接到中控服务器失败',
         code: 'networkError',
       };
     }
@@ -425,7 +519,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         body: JSON.stringify({ register_token, nickname, invitation_code }),
       });
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as AuthApiResponse;
 
       if (!response.ok || !data.success || !data.data) {
         return {
@@ -435,13 +529,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         };
       }
 
-      await handleLoginSuccess(data, setUser, setStatus, setReady);
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage);
       return { success: true };
     } catch (error) {
       console.error('Register request failed:', error);
       return {
         success: false,
-        message: '连接到中控服务器失败',
+        message: error instanceof Error ? error.message : '连接到中控服务器失败',
         code: 'networkError',
       };
     }
@@ -480,6 +574,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       setUser(null);
       setStatus('unauthenticated');
+      setSyncMessage(null);
       setReady(true);
       return;
     }
@@ -498,6 +593,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     } finally {
       setUser(null);
       setStatus('unauthenticated');
+      setSyncMessage(null);
     }
   }, []);
 
@@ -506,6 +602,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ready,
       user,
       status,
+      syncMessage,
       login,
       register,
       logout,
@@ -513,7 +610,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
     }),
-    [login, register, logout, ready, refresh, status, user, ensureValidToken, forceRefreshToken]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
