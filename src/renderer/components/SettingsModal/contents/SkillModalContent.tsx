@@ -340,30 +340,7 @@ const SkillDetailModal: React.FC<{
   auditSkillName?: string;
   /** Callback when "View Audit Details" is clicked */
   onViewAuditDetails?: (skillName: string) => void;
-}> = ({
-  skill,
-  visible,
-  onClose,
-  isInstalled,
-  isHubInstalled,
-  hasVersion,
-  latestVersionInfo,
-  installing,
-  downloading,
-  installProgress,
-  onInstall,
-  onDownload,
-  onUninstall,
-  uninstalling,
-  onGoUse,
-  onUpdate,
-  updating = false,
-  installedVersion,
-  skipApiFetch = false,
-  hideActions = false,
-  auditSkillName,
-  onViewAuditDetails,
-}) => {
+}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false, auditSkillName, onViewAuditDetails }) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1434,10 +1411,7 @@ const SkillModalContent: React.FC = () => {
         const installedDetailHubId = installedDetailInfo?.meta?.id;
         const installedDetailLatestVer = installedDetailHubId ? latestVersions.get(installedDetailHubId) : undefined;
         const installedDetailInstalledVer = normalizeSkillVersion(installedDetailInfo?.version);
-        const installedDetailHasUpdate =
-          !!installedDetailInfo?.isHubInstalled &&
-          !!installedDetailLatestVer &&
-          (!installedDetailInstalledVer || installedDetailLatestVer.version !== installedDetailInstalledVer);
+        const installedDetailHasUpdate = !!installedDetailInfo?.isHubInstalled && !!installedDetailLatestVer && (!installedDetailInstalledVer || installedDetailLatestVer.version !== installedDetailInstalledVer);
         return (
           <SkillDetailModal
             skill={installedDetailInfo?.meta ? installedInfoToSkill(installedDetailInfo) : null}

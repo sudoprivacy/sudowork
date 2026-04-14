@@ -10,11 +10,6 @@ import { mainLog, mainError } from '@/process/utils/mainLogger';
 
 const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
 
-function getModelInput(modelId: string): string[] {
-  if (/gemini|claude|gpt-4|qwen-vl/i.test(modelId)) return ['text', 'image'];
-  return ['text'];
-}
-
 export function initOpenClawBridge(): void {
   ipcBridge.openclaw.getModels.provider(async () => {
     try {
@@ -67,85 +62,7 @@ export function initOpenClawBridge(): void {
       modelRatio: params.modelRatio,
       timestamp: new Date().toISOString(),
     });
-
-    // 修改 sudoclaw.json 配置文件
-    const { SUDOCLAW_CONFIG_PATH } = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    const fs = await import('fs');
-
-    if (fs.existsSync(SUDOCLAW_CONFIG_PATH)) {
-      try {
-        const raw = fs.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-        const config = JSON.parse(raw) as SudoclawConfig;
-
-        // 1. 确定 API 类型
-        let apiType: string;
-        if (params.modelId.includes('gemini')) {
-          apiType = 'google-generative-ai';
-        } else if (params.modelId.includes('claude')) {
-          apiType = 'anthropic-messages';
-        } else {
-          apiType = 'openai-completions';
-        }
-
-        // 2. 创建对应的 provider 名称（如 sudorouter-gemini-3-pro-preview）
-        const providerName = `sudorouter-${params.modelId}`;
-
-        // 3. 确保 models.providers 结构存在
-        if (!config.models) {
-          config.models = { providers: {} };
-        }
-        const models = config.models as NonNullable<SudoclawConfig['models']>;
-        if (!models.providers) {
-          models.providers = {};
-        }
-
-        const providers = models.providers;
-        const providerEntries = Object.entries(providers) as Array<[string, NonNullable<SudoclawConfig['models']>['providers'][string]]>;
-
-        // 4. 确保该 provider 存在，并始终使用最新的 baseUrl 和 api 类型
-        if (!providers[providerName]) {
-          providers[providerName] = {
-            models: [],
-          };
-        }
-        const provider = providers[providerName];
-        provider.baseUrl = 'https://hk.sudorouter.ai/v1';
-        provider.api = apiType;
-
-        // 5. 确保 provider 只包含当前模型
-        provider.models = [{ id: params.modelId, name: params.modelId, input: getModelInput(params.modelId) }];
-
-        // 6. 确定最新的全局 apiKey (优先使用 'sudorouter' 的 Key，其次是第一个非空的 Key)
-        const canonicalApiKey = providers['sudorouter']?.apiKey || providerEntries.map(([, item]) => item?.apiKey).find((key): key is string => typeof key === 'string' && key.trim().length > 0);
-
-        // 始终刷新 apiKey 以保持同步
-        if (canonicalApiKey) {
-          provider.apiKey = canonicalApiKey;
-        }
-
-        // 7. 确保 agents.defaults.model.primary 是选中的模型，包含完整路径
-        if (!config.agents) {
-          config.agents = { defaults: {} };
-        }
-        const agents = config.agents as NonNullable<SudoclawConfig['agents']>;
-        if (!agents.defaults) {
-          agents.defaults = {};
-        }
-        if (!agents.defaults.model) {
-          agents.defaults.model = { primary: `${providerName}/${params.modelId}` };
-        }
-        const fullModelPath = `${providerName}/${params.modelId}`;
-        if (agents.defaults.model.primary !== fullModelPath) {
-          agents.defaults.model.primary = fullModelPath;
-        }
-
-        // 8. 保存修改后的配置
-        fs.writeFileSync(SUDOCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
-        mainLog('OpenClawBridge', 'Updated sudoclaw.json config');
-      } catch (error) {
-        mainError('OpenClawBridge', 'Failed to update sudoclaw.json config', error);
-      }
-    }
+    return undefined;
   });
 
   ipcBridge.openclaw.updateImageModel.provider(async (params) => {

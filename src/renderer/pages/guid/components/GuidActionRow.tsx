@@ -138,7 +138,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
             <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
               <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small' onClick={onTriggerSkillSelector}>
                 <span className='flex items-center gap-6px min-w-0'>
-                  <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>@</span>
+                  <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
+                    @
+                  </span>
                   <span>{t('conversation.welcome.skill', { defaultValue: '技能' })}</span>
                 </span>
               </Button>

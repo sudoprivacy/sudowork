@@ -230,9 +230,7 @@ export async function injectSkillsDirectoryHint(content: string, skillsDir: stri
   // discoverSkills() is idempotent — returns immediately if already initialized.
   const skillManager = AcpSkillManager.getInstance();
   await skillManager.discoverSkills(enabledSkillNames);
-  const descriptionMap = new Map<string, string>(
-    skillManager.getSkillsIndex().map((s: SkillIndex) => [s.name, s.description])
-  );
+  const descriptionMap = new Map<string, string>(skillManager.getSkillsIndex().map((s: SkillIndex) => [s.name, s.description]));
 
   const skillLines =
     enabledSkillNames && enabledSkillNames.length > 0
