@@ -60,6 +60,6 @@
   "tray.showWindow": "Sudowork'ü Göster",
   "tray.quit": "Çıkış",
   "notification.sessionEnd.title": "Oturum tamamlandı",
-  "notification.sessionEnd.body": "{{backend}} geçerli oturumu tamamladı.",
+  "notification.sessionEnd.body": "Oturum tamamlandı. Sonuçları sohbet sayfasında görüntüleyebilirsiniz.",
   "notification.sessionEnd.fallbackBackend": "Ajan"
 }

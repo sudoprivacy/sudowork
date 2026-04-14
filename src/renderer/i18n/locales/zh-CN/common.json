@@ -63,6 +63,6 @@
   "tray.showWindow": "显示 Sudowork",
   "tray.quit": "退出",
   "notification.sessionEnd.title": "会话已结束",
-  "notification.sessionEnd.body": "{{backend}} 当前会话已完成。",
+  "notification.sessionEnd.body": "会话已结束。您可以在会话页面查看结果。",
   "notification.sessionEnd.fallbackBackend": "智能体"
 }

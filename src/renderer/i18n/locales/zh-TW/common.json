@@ -60,6 +60,6 @@
   "tray.showWindow": "顯示 Sudowork",
   "tray.quit": "結束",
   "notification.sessionEnd.title": "會話已結束",
-  "notification.sessionEnd.body": "{{backend}} 目前的會話已完成。",
+  "notification.sessionEnd.body": "會話已結束。您可以在會話頁面查看結果。",
   "notification.sessionEnd.fallbackBackend": "助理"
 }

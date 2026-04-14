@@ -29,6 +29,7 @@ export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
   showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
+  openSystemNotificationSettings: bridge.buildProvider<void, void>('open-system-notification-settings'), // 打开系统通知设置
 };
 
 // OpenClaw model selector - fetch models from pricing API (bypasses CORS)

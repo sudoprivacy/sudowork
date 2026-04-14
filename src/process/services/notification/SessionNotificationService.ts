@@ -153,8 +153,7 @@ export class SessionNotificationService {
       this.lastNotifiedAt.set(payload.conversationId, currentTime);
 
       const title = this.translate('notification.sessionEnd.title');
-      const backendName = payload.backend || payload.conversationTitle || this.translate('notification.sessionEnd.fallbackBackend');
-      const body = this.translate('notification.sessionEnd.body', { backend: backendName });
+      const body = this.translate('notification.sessionEnd.body');
 
       const notification = new this.notificationCtor({
         title,
@@ -177,7 +176,7 @@ export class SessionNotificationService {
       });
 
       notification.show();
-      mainLog('SessionNotification', `Notified session finish: ${payload.conversationId} (${backendName})`);
+      mainLog('SessionNotification', `Notified session finish: ${payload.conversationId}`);
     } catch (error) {
       mainWarn('SessionNotification', 'Failed to show notification:', error);
     }

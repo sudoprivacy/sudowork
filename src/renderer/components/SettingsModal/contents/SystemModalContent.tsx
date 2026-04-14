@@ -16,6 +16,7 @@ import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { isMacOS } from '@/renderer/utils/platform';
 
 /**
  * 目录选择输入组件 / Directory selection input component
@@ -152,8 +153,24 @@ const SystemModalContent: React.FC = () => {
         // 失败时回滚 UI 状态 / Roll back UI state on failure
         setSessionEndNotification(prev);
       });
+
+      // 开启时提示用户去系统设置中授权通知权限 / Prompt user to grant notification permission when enabling
+      if (checked) {
+        modal.confirm({
+          title: t('settings.sessionEndNotificationPermissionTitle'),
+          content: isMacOS() ? t('settings.sessionEndNotificationPermissionHint') : t('settings.sessionEndNotificationPermissionHintNonMac'),
+          okText: isMacOS() ? t('settings.openSystemNotificationSettings') : t('settings.gotIt'),
+          cancelText: null,
+          autoFocus: false,
+          maskClosable: true,
+          onOk: () => {
+            // 打开系统通知设置 / Open system notification settings
+            ipcBridge.shell.openSystemNotificationSettings.invoke().catch(() => {});
+          },
+        });
+      }
     },
-    [sessionEndNotification]
+    [sessionEndNotification, t, modal]
   );
 
   // Get system directory info

@@ -60,6 +60,6 @@
   "tray.showWindow": "Sudowork 표시",
   "tray.quit": "종료",
   "notification.sessionEnd.title": "세션이 종료되었습니다",
-  "notification.sessionEnd.body": "{{backend}}이(가) 현재 세션을 완료했습니다.",
+  "notification.sessionEnd.body": "세션이 종료되었습니다. 대화 페이지에서 결과를 확인할 수 있습니다.",
   "notification.sessionEnd.fallbackBackend": "에이전트"
 }

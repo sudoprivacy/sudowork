@@ -63,6 +63,6 @@
   "tray.showWindow": "Show Sudowork",
   "tray.quit": "Quit",
   "notification.sessionEnd.title": "Session finished",
-  "notification.sessionEnd.body": "{{backend}} has finished the current session.",
+  "notification.sessionEnd.body": "Session has finished. You can view the results on the conversation page.",
   "notification.sessionEnd.fallbackBackend": "Agent"
 }

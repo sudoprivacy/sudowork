@@ -60,6 +60,6 @@
   "tray.showWindow": "Sudowork を表示",
   "tray.quit": "終了",
   "notification.sessionEnd.title": "セッションが完了しました",
-  "notification.sessionEnd.body": "{{backend}} が現在のセッションを完了しました。",
+  "notification.sessionEnd.body": "セッションが完了しました。会話ページで結果を確認できます。",
   "notification.sessionEnd.fallbackBackend": "エージェント"
 }
