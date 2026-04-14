@@ -14,7 +14,7 @@ import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
-import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
+import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 
@@ -154,7 +154,7 @@ export function initSudoclawBridge(): void {
 
       const port = SUDOCLAW_DEFAULT_PORT;
       const host = '127.0.0.1';
-      const isGatewayRunning = await checkSudoclawHealth(host, port, 1000);
+      const isGatewayRunning = await checkSudoclawHealth(host, port, SUDOCLAW_HEALTH_TIMEOUT_MS);
 
       const data: any = {
         installed,
@@ -215,7 +215,7 @@ export function initSudoclawBridge(): void {
     const testPort = SUDOCLAW_DEFAULT_PORT;
     const host = '127.0.0.1';
 
-    const isRunning = await checkSudoclawHealth(host, testPort, 1000);
+    const isRunning = await checkSudoclawHealth(host, testPort, SUDOCLAW_HEALTH_TIMEOUT_MS);
 
     if (isRunning) {
       mainLog('SudoclawBridge', 'Gateway running, connection test passed');

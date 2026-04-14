@@ -38,7 +38,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <AppLoader />;
   }
 
-  if (status !== 'authenticated' && status !== 'syncing') {
+  if (status !== 'authenticated') {
     return <Navigate to='/login' replace />;
   }
 
@@ -47,7 +47,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
-  const isSignedIn = status === 'authenticated' || status === 'syncing';
+  const isSignedIn = status === 'authenticated';
 
   return (
     <HashRouter>

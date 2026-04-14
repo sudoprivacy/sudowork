@@ -8,10 +8,9 @@ import { ipcBridge } from '@/common';
 import { ConfigStorage, type ICssTheme } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import { SafetyWarningModal } from '@/renderer/components/SafetyWarningModal';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { useSafetyCheck } from '@/renderer/hooks/useSafetyCheck';
 import Titlebar from '@/renderer/components/Titlebar';
-import { Layout as ArcoLayout, Spin } from '@arco-design/web-react';
+import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -83,7 +82,6 @@ const Layout: React.FC<{
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
   const { hasEvent, status, confirm, cancel } = useSafetyCheck();
-  const { status: authStatus, syncMessage } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window === 'undefined' ? 390 : window.innerWidth));
@@ -271,8 +269,6 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
 
-  const isAuthSyncing = authStatus === 'syncing';
-
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
       <div className='app-shell relative flex flex-col size-full min-h-0'>
@@ -366,14 +362,6 @@ const Layout: React.FC<{
             <SafetyWarningModal visible={hasEvent} status={status} onConfirm={confirm} onCancel={cancel} />
           </ArcoLayout.Content>
         </ArcoLayout>
-        {isAuthSyncing && (
-          <div className='absolute inset-0 z-200 flex items-center justify-center bg-transparent'>
-            <div className='flex flex-col items-center gap-12px rounded-16px bg-[var(--color-bg-1)]/92 px-28px py-24px shadow-[0_16px_40px_rgba(0,0,0,0.08)]'>
-              <Spin dot />
-              <div className='text-14px font-500 text-t-primary'>{syncMessage || '正在启动，请稍等'}</div>
-            </div>
-          </div>
-        )}
       </div>
     </LayoutContext.Provider>
   );
