@@ -865,6 +865,10 @@ export interface ICreateConversationParams {
     cronJobId?: string;
     /** Cron job name that created this conversation */
     cronJobName?: string;
+    /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
+    cronJobBoundId?: string;
+    /** Cron job name this conversation is pre-bound to */
+    cronJobBoundName?: string;
   };
 }
 interface IResetConversationParams {

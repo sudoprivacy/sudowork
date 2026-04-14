@@ -7,6 +7,7 @@
   "lastError": "错误信息",
   "message": "执行内容",
   "goToConversation": "跳转到所属会话",
+  "goToConversationLink": "查看会话",
   "status": {
     "active": "运行中",
     "paused": "已暂停",

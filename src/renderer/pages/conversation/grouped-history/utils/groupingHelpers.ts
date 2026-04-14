@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ICronJob } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
@@ -121,31 +122,70 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: TChatCon
   return sections;
 };
 
-const buildScheduledGroups = (cronConvs: TChatConversation[]): ScheduledGroup[] => {
-  const groupMap = new Map<string, TChatConversation[]>();
+/**
+ * Build scheduled-task groups.
+ *
+ * Groups are keyed by cron job (one group per job) so a conversation bound to
+ * multiple jobs appears in multiple groups. Sources:
+ *   - For every cron job: if it has a bound conversation (metadata.conversationId),
+ *     that conversation appears in this job's group.
+ *   - Auto-created run-record conversations (tagged with `extra.cronJobId`) are
+ *     slotted into the matching job's group too, so per-run history still shows up.
+ *
+ * A conversation tagged with `extra.cronJobId` is a cron-generated run record and
+ * must NOT appear in the regular timeline — see `buildGroupedHistory` below.
+ */
+const buildScheduledGroups = (conversations: TChatConversation[], cronJobs: ICronJob[]): ScheduledGroup[] => {
+  const convById = new Map<string, TChatConversation>();
+  conversations.forEach((c) => convById.set(c.id, c));
 
-  cronConvs.forEach((conv) => {
-    const jobName = ((conv.extra as any)?.cronJobName as string) || 'Scheduled';
-    if (!groupMap.has(jobName)) {
-      groupMap.set(jobName, []);
-    }
-    groupMap.get(jobName)!.push(conv);
+  // Group run-record conversations by the job id recorded in their extra.
+  const runRecordsByJob = new Map<string, TChatConversation[]>();
+  conversations.forEach((conv) => {
+    const jobId = (conv.extra as any)?.cronJobId as string | undefined;
+    if (!jobId) return;
+    if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
+    runRecordsByJob.get(jobId)!.push(conv);
   });
 
   const groups: ScheduledGroup[] = [];
-  groupMap.forEach((convs, jobName) => {
-    const sorted = [...convs].sort((a, b) => getActivityTime(b) - getActivityTime(a));
-    groups.push({ jobName, conversations: sorted });
+  cronJobs.forEach((job) => {
+    const convs: TChatConversation[] = [];
+    const seen = new Set<string>();
+
+    // Pre-bound conversation (if any) appears in this job's group.
+    const boundId = job.metadata.conversationId;
+    if (boundId) {
+      const bound = convById.get(boundId);
+      if (bound) {
+        convs.push(bound);
+        seen.add(bound.id);
+      }
+    }
+
+    // Per-run records tagged with this job id.
+    (runRecordsByJob.get(job.id) || []).forEach((conv) => {
+      if (!seen.has(conv.id)) {
+        convs.push(conv);
+        seen.add(conv.id);
+      }
+    });
+
+    if (convs.length === 0) return;
+    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
+    groups.push({ jobName: job.name, conversations: convs });
   });
 
-  // Sort groups by most recent conversation within each group
+  // Sort groups by most recent conversation within each group.
   groups.sort((a, b) => getActivityTime(b.conversations[0]) - getActivityTime(a.conversations[0]));
   return groups;
 };
 
-export const buildGroupedHistory = (conversations: TChatConversation[], t: (key: string) => string): GroupedHistoryResult => {
-  // Separate cron-execution conversations — they go to the Scheduled section, not Recents
-  const cronConvs = conversations.filter((conv) => !!(conv.extra as any)?.cronJobId);
+export const buildGroupedHistory = (conversations: TChatConversation[], t: (key: string) => string, cronJobs: ICronJob[] = []): GroupedHistoryResult => {
+  // Conversations with `extra.cronJobId` are cron-created run records → Scheduled only.
+  // Pre-bound user conversations are NOT tagged; they stay in the regular timeline
+  // and are also included in the scheduled group for every job that binds them
+  // (resolved via cronJobs in buildScheduledGroups).
   const regularConvs = conversations.filter((conv) => !(conv.extra as any)?.cronJobId);
 
   const pinnedConversations = regularConvs
@@ -164,6 +204,6 @@ export const buildGroupedHistory = (conversations: TChatConversation[], t: (key:
   return {
     pinnedConversations,
     timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations, t),
-    scheduledGroups: buildScheduledGroups(cronConvs),
+    scheduledGroups: buildScheduledGroups(conversations, cronJobs),
   };
 };

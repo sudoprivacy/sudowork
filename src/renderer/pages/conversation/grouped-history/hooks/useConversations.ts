@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
+import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -96,9 +97,11 @@ export const useConversations = () => {
     }
   }, [expandedWorkspaces]);
 
+  const { jobs: cronJobs } = useAllCronJobs();
+
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
-    return buildGroupedHistory(conversations, t);
-  }, [conversations, t]);
+    return buildGroupedHistory(conversations, t, cronJobs);
+  }, [conversations, t, cronJobs]);
 
   const { pinnedConversations, timelineSections, scheduledGroups } = groupedHistory;
 
