@@ -71,6 +71,11 @@ async function fetchSkillDetailHttp(skillId: string): Promise<SkillDetailRespons
 
 export type SkillStoreTab = 'store' | 'exclusive' | 'installed';
 export type LocalSkillImportSource = 'zip' | 'directory';
+type LocalSkillImportDialogOptions = {
+  defaultPath?: string;
+  properties?: Array<'openFile' | 'openDirectory'>;
+  filters?: Array<{ name: string; extensions: string[] }>;
+};
 
 export function resolveSkillTenantId(tab: SkillStoreTab, enterpriseCode?: string): string | undefined {
   const normalized = enterpriseCode?.trim();
@@ -80,7 +85,7 @@ export function resolveSkillTenantId(tab: SkillStoreTab, enterpriseCode?: string
   return normalized;
 }
 
-export function getLocalSkillImportDialogOptions(source?: LocalSkillImportSource) {
+export function getLocalSkillImportDialogOptions(source?: LocalSkillImportSource): LocalSkillImportDialogOptions {
   const zipFilter = [{ name: 'Zip Archive', extensions: ['zip'] }];
 
   if (source === 'zip') {
@@ -335,7 +340,30 @@ const SkillDetailModal: React.FC<{
   auditSkillName?: string;
   /** Callback when "View Audit Details" is clicked */
   onViewAuditDetails?: (skillName: string) => void;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false, auditSkillName, onViewAuditDetails }) => {
+}> = ({
+  skill,
+  visible,
+  onClose,
+  isInstalled,
+  isHubInstalled,
+  hasVersion,
+  latestVersionInfo,
+  installing,
+  downloading,
+  installProgress,
+  onInstall,
+  onDownload,
+  onUninstall,
+  uninstalling,
+  onGoUse,
+  onUpdate,
+  updating = false,
+  installedVersion,
+  skipApiFetch = false,
+  hideActions = false,
+  auditSkillName,
+  onViewAuditDetails,
+}) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -372,7 +400,7 @@ const SkillDetailModal: React.FC<{
     if (!visible) {
       setDetail(null);
     }
-  }, [visible, skill, skipApiFetch]);
+  }, [detail, visible, skill, skipApiFetch]);
 
   if (!skill) return null;
 
@@ -591,15 +619,21 @@ const SkillModalContent: React.FC = () => {
 
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop()) {
+      setInstalledSkillsReady(true);
+      return;
+    }
+
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
         const map = new Map<string, string>();
-        // Only hub-installed skills should participate in the store comparison
         for (const s of res.data) {
           if (s.meta?.source_type === 'hub' || (!s.meta?.source_type && s.isHubInstalled)) {
             map.set(s.name, s.version);
+            if (s.meta?.id) {
+              map.set(s.meta.id, s.version);
+            }
           }
         }
         setInstalledSkills(map);
@@ -613,7 +647,10 @@ const SkillModalContent: React.FC = () => {
 
   // ---- Fetch installed list (for installed tab) ----
   const fetchInstalledList = useCallback(async () => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop()) {
+      setInstalledSkillsReady(true);
+      return;
+    }
     setInstalledLoading(true);
     try {
       const res = await skillHub.getInstalledSkills.invoke();
@@ -624,6 +661,7 @@ const SkillModalContent: React.FC = () => {
       console.error('Failed to fetch installed list:', err);
     } finally {
       setInstalledLoading(false);
+      setInstalledSkillsReady(true);
     }
   }, []);
 
@@ -648,11 +686,7 @@ const SkillModalContent: React.FC = () => {
             })
           );
           await fetchInstalledSkills();
-          // Refresh installed list
-          const listRes = await skillHub.getInstalledSkills.invoke();
-          if (listRes.success && listRes.data) {
-            setInstalledList(listRes.data);
-          }
+          await fetchInstalledList();
           // Open standalone audit report modal (just the audit summary, not the full detail page)
           setAuditReportSkillName(importedSkillName);
           setAuditReportVisible(true);
@@ -674,7 +708,7 @@ const SkillModalContent: React.FC = () => {
         );
       }
     },
-    [fetchInstalledSkills, t]
+    [fetchInstalledSkills, fetchInstalledList, t]
   );
 
   const onImportButtonClick = useCallback(() => {
@@ -687,7 +721,7 @@ const SkillModalContent: React.FC = () => {
     const toFetch = skillList.filter((s) => !versionMap.has(s.id));
     if (toFetch.length === 0) {
       setLatestVersions(versionMap);
-      return;
+      return versionMap;
     }
 
     const batchSize = 5;
@@ -724,6 +758,7 @@ const SkillModalContent: React.FC = () => {
       }
     }
     setLatestVersions(versionMap);
+    return versionMap;
   }, []);
 
   // ---- Fetch skills list ----
@@ -777,7 +812,6 @@ const SkillModalContent: React.FC = () => {
           const hasMoreValue = skillsRes.data.has_more === true || raw.hasMore === true;
           setNextCursor(nextCursorValue);
           setHasMore(hasMoreValue);
-          // Use ref so latestVersions not needed in deps
           void fetchLatestVersions(newSkills, append ? latestVersionsRef.current : undefined);
         }
       } catch (err) {
@@ -851,17 +885,19 @@ const SkillModalContent: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'installed') return;
     setSkills([]);
+    setLatestVersions(new Map());
     setNextCursor(null);
     setHasMore(false);
     void fetchSkills();
     void fetchInstalledSkills();
-  }, [activeTab, selectedCategory, fetchSkills, fetchInstalledSkills]);
+  }, [activeTab, selectedCategory, fetchInstalledSkills, fetchSkills]);
 
   // Debounced search reload
   useEffect(() => {
     if (activeTab === 'installed') return;
     const timer = setTimeout(() => {
       setSkills([]);
+      setLatestVersions(new Map());
       setNextCursor(null);
       setHasMore(false);
       void fetchSkills();
@@ -1155,9 +1191,11 @@ const SkillModalContent: React.FC = () => {
 
   // ==================== Render ====================
 
-  const detailIsInstalled = detailSkill ? installedSkills.has(detailSkill.name) : false;
+  const findInstalledHubSkillInfo = (skill: Pick<ISkillHubSkill, 'id' | 'name'>) => installedList.find((installedSkill) => (installedSkill.meta?.id && installedSkill.meta.id === skill.id) || installedSkill.name === skill.name);
+
+  const detailIsInstalled = detailSkill ? installedSkills.has(detailSkill.name) || installedSkills.has(detailSkill.id) : false;
   // Hub-installed = in installedList and has isHubInstalled flag
-  const detailIsHubInstalled = detailSkill ? (installedList.find((s) => s.name === detailSkill.name)?.isHubInstalled ?? false) : false;
+  const detailIsHubInstalled = detailSkill ? (findInstalledHubSkillInfo(detailSkill)?.isHubInstalled ?? false) : false;
   const detailLatestVersion = detailSkill ? latestVersions.get(detailSkill.id) : undefined;
   const detailHasVersion = !!detailLatestVersion;
   const customInstalledSkills = installedList.filter((skill) => !skill.isBuiltin && skill.meta?.source_type === 'upload');
@@ -1262,11 +1300,11 @@ const SkillModalContent: React.FC = () => {
             ) : (
               <div className='grid grid-cols-2 gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                 {skills.map((skill) => {
-                  const isInstalled = installedSkills.has(skill.name);
+                  const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
                   const hasVersion = latestVersions.has(skill.id);
                   const isInstalling = installingSkillId === skill.id;
                   const isUpdating = updatingSkillId === skill.id;
-                  const installedVer = normalizeSkillVersion(installedSkills.get(skill.name));
+                  const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
                   const latestVer = latestVersions.get(skill.id);
                   const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
                   return (
@@ -1383,7 +1421,7 @@ const SkillModalContent: React.FC = () => {
         onGoUse={handleGoUse}
         onUpdate={() => detailSkill && void handleUpdate(detailSkill.id)}
         updating={detailSkill ? updatingSkillId === detailSkill.id : false}
-        installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.name)) : undefined}
+        installedVersion={detailSkill ? normalizeSkillVersion(installedSkills.get(detailSkill.id) || installedSkills.get(detailSkill.name)) : undefined}
         auditSkillName={detailSkill && detailIsInstalled ? detailSkill.name : undefined}
         onViewAuditDetails={(name) => {
           setAuditDetailSkillName(name);
@@ -1396,7 +1434,10 @@ const SkillModalContent: React.FC = () => {
         const installedDetailHubId = installedDetailInfo?.meta?.id;
         const installedDetailLatestVer = installedDetailHubId ? latestVersions.get(installedDetailHubId) : undefined;
         const installedDetailInstalledVer = normalizeSkillVersion(installedDetailInfo?.version);
-        const installedDetailHasUpdate = !!installedDetailInfo?.isHubInstalled && !!installedDetailLatestVer && (!installedDetailInstalledVer || installedDetailLatestVer.version !== installedDetailInstalledVer);
+        const installedDetailHasUpdate =
+          !!installedDetailInfo?.isHubInstalled &&
+          !!installedDetailLatestVer &&
+          (!installedDetailInstalledVer || installedDetailLatestVer.version !== installedDetailInstalledVer);
         return (
           <SkillDetailModal
             skill={installedDetailInfo?.meta ? installedInfoToSkill(installedDetailInfo) : null}
