@@ -949,7 +949,9 @@ export function initConversationBridge(): void {
         payload.agentContent = agentContent;
       }
 
+      mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
       await task.sendMessage(payload);
+      mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
       return { success: true };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };

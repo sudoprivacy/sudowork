@@ -861,5 +861,9 @@
   "secrets.appSecretRequired": "Please enter App Secret",
   "secrets.save": "Save",
   "secrets.saveSuccess": "Secrets saved successfully",
-  "secrets.saveFailed": "Failed to save secrets"
+  "secrets.saveFailed": "Failed to save secrets",
+  "promptTimeout": "LLM Request Timeout",
+  "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
+  "idleTimeout": "Agent Idle Timeout",
+  "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes"
 }

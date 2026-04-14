@@ -5,9 +5,10 @@
  */
 
 import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@/common/storage';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Button, Form, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +16,18 @@ import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { useSettingsViewMode } from '../settingsViewContext';
+
+/** Default prompt timeout in seconds */
+const DEFAULT_PROMPT_TIMEOUT = 300;
+/** Prompt timeout range (seconds) */
+const PROMPT_TIMEOUT_MIN = 30;
+const PROMPT_TIMEOUT_MAX = 3600;
+
+/** Default idle timeout in minutes */
+const DEFAULT_IDLE_TIMEOUT = 5;
+/** Idle timeout range (minutes) */
+const IDLE_TIMEOUT_MIN = 1;
+const IDLE_TIMEOUT_MAX = 60;
 
 /**
  * 目录选择输入组件 / Directory selection input component
@@ -78,9 +91,14 @@ const PreferenceRow: React.FC<{
   label: string;
   /** 控件元素 / Control element */
   children: React.ReactNode;
-}> = ({ label, children }) => (
+  /** 提示文本 / Hint text */
+  hint?: string;
+}> = ({ label, children, hint }) => (
   <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='text-14px text-2'>{label}</div>
+    <div className='flex flex-col'>
+      <div className='text-14px text-2'>{label}</div>
+      {hint && <div className='text-12px text-t-secondary opacity-60'>{hint}</div>}
+    </div>
     <div className='flex-1 flex justify-end'>{children}</div>
   </div>
 );
@@ -126,6 +144,42 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
+  // 超时设置状态 / Timeout settings state
+  const [promptTimeout, setPromptTimeout] = useState(DEFAULT_PROMPT_TIMEOUT);
+  const [idleTimeout, setIdleTimeout] = useState(DEFAULT_IDLE_TIMEOUT);
+
+  // 获取超时设置 / Fetch timeout settings
+  useEffect(() => {
+    ConfigStorage.get('agent.promptTimeout')
+      .then((value) => {
+        if (value && value > 0) {
+          setPromptTimeout(Math.max(PROMPT_TIMEOUT_MIN, Math.min(PROMPT_TIMEOUT_MAX, value)));
+        }
+      })
+      .catch(() => {});
+    ConfigStorage.get('agent.idleTimeout')
+      .then((value) => {
+        if (value && value > 0) {
+          setIdleTimeout(Math.max(IDLE_TIMEOUT_MIN, Math.min(IDLE_TIMEOUT_MAX, value)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // 保存 promptTimeout（失焦时校验范围） / Save promptTimeout on blur with range clamping
+  const handlePromptTimeoutBlur = useCallback(() => {
+    const clamped = Math.max(PROMPT_TIMEOUT_MIN, Math.min(PROMPT_TIMEOUT_MAX, promptTimeout));
+    setPromptTimeout(clamped);
+    ConfigStorage.set('agent.promptTimeout', clamped).catch(() => {});
+  }, [promptTimeout]);
+
+  // 保存 idleTimeout（失焦时校验范围） / Save idleTimeout on blur with range clamping
+  const handleIdleTimeoutBlur = useCallback(() => {
+    const clamped = Math.max(IDLE_TIMEOUT_MIN, Math.min(IDLE_TIMEOUT_MAX, idleTimeout));
+    setIdleTimeout(clamped);
+    ConfigStorage.set('agent.idleTimeout', clamped).catch(() => {});
+  }, [idleTimeout]);
+
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
@@ -147,6 +201,18 @@ const SystemModalContent: React.FC = () => {
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
     { key: 'closeToTray', label: t('settings.closeToTray'), component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} /> },
+    {
+      key: 'promptTimeout',
+      label: t('settings.promptTimeout'),
+      hint: t('settings.promptTimeoutDesc'),
+      component: <InputNumber value={promptTimeout} onChange={setPromptTimeout} onBlur={handlePromptTimeoutBlur} min={PROMPT_TIMEOUT_MIN} max={PROMPT_TIMEOUT_MAX} step={30} style={{ width: 120 }} suffix='s' />,
+    },
+    {
+      key: 'idleTimeout',
+      label: t('settings.idleTimeout'),
+      hint: t('settings.idleTimeoutDesc'),
+      component: <InputNumber value={idleTimeout} onChange={setIdleTimeout} onBlur={handleIdleTimeoutBlur} min={IDLE_TIMEOUT_MIN} max={IDLE_TIMEOUT_MAX} step={5} style={{ width: 120 }} suffix='min' />,
+    },
   ];
 
   // 目录配置保存确认 / Directory configuration save confirmation
@@ -209,7 +275,7 @@ const SystemModalContent: React.FC = () => {
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
             <div className='w-full flex flex-col divide-y divide-border-2'>
               {preferenceItems.map((item) => (
-                <PreferenceRow key={item.key} label={item.label}>
+                <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
                   {item.component}
                 </PreferenceRow>
               ))}
