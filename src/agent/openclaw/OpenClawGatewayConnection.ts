@@ -62,6 +62,9 @@ export class OpenClawGatewayConnection {
   private deviceIdentity: DeviceIdentity;
   private hasRetriedAfterTokenMismatch = false;
 
+  // Configurable prompt timeout (ms), defaults to 120s
+  private promptTimeoutMs: number = 120_000;
+
   constructor(opts: OpenClawGatewayClientOptions) {
     // Use stateDir for identity path so client matches gateway (avoids "device token mismatch")
     const identityPath = opts.stateDir ? path.join(opts.stateDir, 'identity', 'device.json') : undefined;
@@ -201,8 +204,24 @@ export class OpenClawGatewayConnection {
     const fullParams: ChatSendParams = {
       ...params,
       idempotencyKey: randomUUID(),
+      timeoutMs: this.promptTimeoutMs, // Pass timeout to Gateway for LLM calls
     };
-    return this.request('chat.send', fullParams);
+    console.log(`[OpenClawGateway] chatSend with timeout: ${this.promptTimeoutMs}ms`);
+    return this.request('chat.send', fullParams, { timeoutMs: this.promptTimeoutMs });
+  }
+
+  /**
+   * Set prompt timeout in milliseconds
+   */
+  setPromptTimeout(timeoutMs: number): void {
+    this.promptTimeoutMs = timeoutMs;
+  }
+
+  /**
+   * Get current prompt timeout in milliseconds
+   */
+  getPromptTimeout(): number {
+    return this.promptTimeoutMs;
   }
 
   /**
