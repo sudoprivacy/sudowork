@@ -11,6 +11,24 @@ from ai_dev_browser.core.page import js_evaluate
 
 
 
+async def resolve_element_center(tab, selector: str) -> tuple[int, int]:
+    """Resolve a CSS selector to the element's center (x, y) coordinates.
+
+    Used as a convenience param resolver for click — converts
+    `element: "textarea"` into `x, y` core params.
+    """
+    r = await js_evaluate(tab, f"""(() => {{
+        const el = document.querySelector({repr(selector)});
+        if (!el) return JSON.stringify(null);
+        const r = el.getBoundingClientRect();
+        return JSON.stringify([Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]);
+    }})()""")
+    coords = json.loads(r.get("result", "null"))
+    if coords is None:
+        raise ValueError(f"Element not found: {selector}")
+    return tuple(coords)
+
+
 async def react_key_fallback(tab, value: str) -> dict:
     """Fall back to React-compatible text injection when key events don't work.
 

@@ -35,7 +35,13 @@ primitives:
 
   # --- Element Interaction (§12.5) ---
 
-  click: {}
+  click:
+    convenience_params:
+      element:
+        type: string
+        description: "CSS selector — resolve to element center coordinates"
+        resolves_to: [x, y]
+        resolver: "utils.resolve_element_center"
 
   # --- Wheel ---
 
