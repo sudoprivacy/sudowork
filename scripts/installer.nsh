@@ -376,6 +376,21 @@ $\r$\n\
       ${else}
         StrCpy $1 ""
       ${endif}
+      ; Defensive fallback for the "Run Sudowork" finish-page checkbox.
+      ;
+      ; electron-builder's installSection.nsh sets $launchLink to the start
+      ; menu shortcut (.lnk) BEFORE customInstall runs. If the user unchecks
+      ; "创建开始菜单快捷方式" on our Shortcut Options page, customInstall
+      ; deletes that .lnk — leaving $launchLink pointing to a path that no
+      ; longer exists. ${StdUtils.ExecShellAsUser} then fails silently and
+      ; the app never starts, even though the user ticked "Run Sudowork".
+      ;
+      ; Fall back to the executable itself when the .lnk is gone. This also
+      ; protects against any other environment where the .lnk becomes
+      ; inaccessible (permissions, AV quarantine, etc.).
+      ${IfNot} ${FileExists} "$launchLink"
+        StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      ${EndIf}
       ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
     FunctionEnd
 
@@ -424,6 +439,12 @@ $\r$\n\
     !else
       Delete "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
     !endif
+    ; installSection.nsh sets $launchLink to the start menu .lnk before
+    ; customInstall runs. Since we just deleted it, repoint $launchLink at
+    ; the executable so the "Run Sudowork" option on the finish page still
+    ; launches the app (otherwise ExecShellAsUser hits a missing file and
+    ; fails silently — see issue #366).
+    StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
     DetailPrint "Skipped start menu shortcut per user preference."
   ${EndIf}
 
