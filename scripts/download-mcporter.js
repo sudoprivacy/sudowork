@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Download and extract mcporter npm package for bundling with the app.
+ * Download mcporter npm package with all dependencies for bundling with the app.
  * Run during build process: bun run mcporter:download
  *
- * Uses npm pack to download the package as a tgz, then extracts it
- * to resources/mcporter directory for inclusion as extraResources.
+ * Uses npm install --production to create a self-contained bundle with all
+ * dependencies in node_modules, then copies to resources/mcporter directory.
  *
  * Usage: node scripts/download-mcporter.js [--force] [--version <version>]
  *   --force           Re-download even if directory already exists
@@ -14,6 +14,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -22,12 +23,13 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const MCPORTER_DIR = path.join(RESOURCES_DIR, 'mcporter');
 
 /**
- * Download mcporter npm package using npm pack and extract to resources directory
+ * Download mcporter with all production dependencies
+ * Similar approach to download-claude-code.js for self-contained bundle
  */
 async function downloadMcporter(force = false, version = DEFAULT_VERSION) {
   // Check if already downloaded
   if (fs.existsSync(MCPORTER_DIR) && !force) {
-    console.log(`Already exists: ${MCPORTER_DIR} (use --force to re-download)`);
+    console.log(`[mcporter] Already exists: ${MCPORTER_DIR} (use --force to re-download)`);
     return true;
   }
 
@@ -36,99 +38,110 @@ async function downloadMcporter(force = false, version = DEFAULT_VERSION) {
 
   // Clean up existing directory if forcing
   if (fs.existsSync(MCPORTER_DIR)) {
-    console.log(`Removing existing: ${MCPORTER_DIR}`);
+    console.log(`[mcporter] Removing existing: ${MCPORTER_DIR}`);
     fs.rmSync(MCPORTER_DIR, { recursive: true, force: true });
   }
 
-  console.log(`Downloading mcporter@${version}...`);
+  console.log(`[mcporter] Fetching version info for mcporter@${version}...`);
+  let actualVersion = version;
+  try {
+    const info = JSON.parse(execSync(`npm show mcporter@${version} --json`, {
+      encoding: 'utf8',
+      timeout: 30000,
+    }));
+    actualVersion = info.version;
+    console.log(`[mcporter] Target version: ${actualVersion}`);
+  } catch (err) {
+    console.log(`[mcporter] Could not fetch version info, using: ${version}`);
+  }
+
+  // Create temporary directory for installation
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcporter-build-'));
 
   try {
-    // Use npm pack to download the package as a tgz file
-    // npm pack downloads from npm registry and creates a local tgz file
-    const tgzName = execSync(`npm pack mcporter@${version}`, {
-      cwd: RESOURCES_DIR,
-      encoding: 'utf8',
-      timeout: 60000,
-    }).trim();
+    // 1. Initialize a dummy package.json
+    fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
+      name: 'mcporter-bundle',
+      private: true,
+    }));
 
-    const tgzPath = path.join(RESOURCES_DIR, tgzName);
-    console.log(`Downloaded: ${tgzName}`);
+    // 2. Install mcporter with all production dependencies
+    console.log('[mcporter] Installing mcporter with dependencies...');
 
-    // Extract the tgz file
-    console.log('Extracting...');
-    execSync(`tar -xzf "${tgzName}"`, {
-      cwd: RESOURCES_DIR,
-      timeout: 30000,
+    const installEnv = {
+      ...process.env,
+      NODE_ENV: 'production',
+    };
+
+    // Log platform being installed for
+    const platform = process.env.npm_config_platform || process.platform;
+    const arch = process.env.npm_config_arch || process.arch;
+    console.log(`[mcporter] Target platform: ${platform}-${arch}`);
+
+    execSync(`npm install mcporter@${actualVersion} --production --no-save`, {
+      cwd: tmpDir,
+      stdio: 'inherit',
+      env: installEnv,
+      timeout: 120000,
     });
 
-    // npm pack extracts to a 'package' directory
-    // Rename it to 'mcporter'
-    const packageDir = path.join(RESOURCES_DIR, 'package');
-    if (fs.existsSync(packageDir)) {
-      fs.renameSync(packageDir, MCPORTER_DIR);
-      console.log(`Extracted to: ${MCPORTER_DIR}`);
-    } else {
-      // Some packages may have different structure
-      // Check for alternative extraction patterns
-      const extractedItems = fs.readdirSync(RESOURCES_DIR);
-      const extractedDir = extractedItems.find(item =>
-        item !== tgzName &&
-        fs.statSync(path.join(RESOURCES_DIR, item)).isDirectory() &&
-        item.startsWith('mcporter')
-      );
+    // 3. Copy the entire directory (including node_modules with hoisted dependencies)
+    // npm install puts dependencies at root node_modules (hoisted), not inside each package
+    console.log('[mcporter] Copying to resources directory...');
 
-      if (extractedDir) {
-        console.log(`Found extracted directory: ${extractedDir}`);
-        // Use the existing name if it's already named correctly
-        if (extractedDir !== 'mcporter') {
-          fs.renameSync(path.join(RESOURCES_DIR, extractedDir), MCPORTER_DIR);
-          console.log(`Renamed to: ${MCPORTER_DIR}`);
-        }
-      } else {
-        throw new Error('Could not find extracted package directory');
-      }
+    // Copy everything from tmpDir to MCPORTER_DIR
+    // This includes: node_modules/ (with mcporter and all its dependencies)
+    // For cleaner structure, we'll move mcporter to root and keep dependencies in node_modules
+    const installedMcporterPath = path.join(tmpDir, 'node_modules', 'mcporter');
+
+    if (!fs.existsSync(installedMcporterPath)) {
+      throw new Error('mcporter package not found in node_modules after installation');
     }
 
-    // Clean up tgz file
-    fs.unlinkSync(tgzPath);
-    console.log('Cleaned up tgz file');
+    // Copy mcporter package content to MCPORTER_DIR root
+    fs.cpSync(installedMcporterPath, MCPORTER_DIR, { recursive: true });
 
-    // Verify CLI entry point exists
-    // mcporter typically has bin/cli.js or similar entry point
+    // Copy other dependencies (excluding mcporter itself) to node_modules subfolder
+    const nodeModulesSrc = path.join(tmpDir, 'node_modules');
+    const nodeModulesDest = path.join(MCPORTER_DIR, 'node_modules');
+    fs.mkdirSync(nodeModulesDest, { recursive: true });
+
+    const dependencies = fs.readdirSync(nodeModulesSrc).filter(name => name !== 'mcporter');
+    for (const dep of dependencies) {
+      const srcPath = path.join(nodeModulesSrc, dep);
+      const destPath = path.join(nodeModulesDest, dep);
+      fs.cpSync(srcPath, destPath, { recursive: true });
+    }
+
+    console.log(`[mcporter] Copied ${dependencies.length} dependency packages`);
+
+    // 4. Verify CLI entry point exists
     const possibleEntryPoints = [
+      path.join(MCPORTER_DIR, 'dist', 'cli.js'),
       path.join(MCPORTER_DIR, 'bin', 'cli.js'),
       path.join(MCPORTER_DIR, 'cli.js'),
-      path.join(MCPORTER_DIR, 'dist', 'cli.js'),
       path.join(MCPORTER_DIR, 'src', 'cli.js'),
       path.join(MCPORTER_DIR, 'index.js'),
     ];
 
     const entryPoint = possibleEntryPoints.find(p => fs.existsSync(p));
-    if (!entryPoint) {
-      // List the directory structure for debugging
-      console.log('Package structure:');
-      const listDir = (dir, indent = '') => {
-        const items = fs.readdirSync(dir);
-        for (const item of items) {
-          const full = path.join(dir, item);
-          const stat = fs.statSync(full);
-          console.log(`${indent}${item}${stat.isDirectory() ? '/' : ''}`);
-          if (stat.isDirectory() && indent.length < 4) {
-            listDir(full, indent + '  ');
-          }
-        }
-      };
-      listDir(MCPORTER_DIR);
-
-      console.warn('⚠️  Could not find CLI entry point. Package structure may be different.');
+    if (entryPoint) {
+      console.log(`[mcporter] CLI entry point: ${path.relative(MCPORTER_DIR, entryPoint)}`);
     } else {
-      console.log(`CLI entry point: ${path.relative(MCPORTER_DIR, entryPoint)}`);
+      console.warn('[mcporter] ⚠️  Could not find CLI entry point');
+      console.log('[mcporter] Package structure:');
+      const items = fs.readdirSync(MCPORTER_DIR);
+      for (const item of items) {
+        console.log(`  - ${item}`);
+      }
     }
 
-    console.log('✅ mcporter download completed');
+    console.log('[mcporter] ✅ Download completed successfully');
+    console.log(`[mcporter] Bundle location: ${MCPORTER_DIR}`);
     return true;
+
   } catch (err) {
-    console.error(`❌ Failed to download mcporter: ${err.message}`);
+    console.error(`[mcporter] ❌ Failed to download: ${err.message}`);
 
     // Clean up any partial downloads
     try {
@@ -138,6 +151,11 @@ async function downloadMcporter(force = false, version = DEFAULT_VERSION) {
     } catch {}
 
     return false;
+  } finally {
+    // Clean up temp directory
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
   }
 }
 
@@ -152,8 +170,8 @@ async function main() {
     version = args[versionIndex + 1];
   }
 
-  console.log(`mcporter version: ${version}`);
-  console.log(`Output directory: ${MCPORTER_DIR}`);
+  console.log(`[mcporter] Version to download: ${version}`);
+  console.log(`[mcporter] Output directory: ${MCPORTER_DIR}`);
 
   const success = await downloadMcporter(force, version);
 
@@ -162,6 +180,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Error:', err.message);
+  console.error('[mcporter] Error:', err.message);
   process.exit(0);
 });
