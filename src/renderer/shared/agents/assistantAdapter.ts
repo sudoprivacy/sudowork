@@ -18,7 +18,8 @@ import type { AcpBackendConfig } from '@/types/acpTypes';
 /** Convert a single IAssistantInfo to AcpBackendConfig for renderer consumption. */
 export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
   const meta = info.meta;
-  const id = info.isBuiltin ? `builtin-${meta.id || info.name}` : (meta.id || info.name);
+  // Always use directory name (info.name) as id for consistent lookup
+  const id = info.isBuiltin ? `builtin-${info.name}` : info.name;
   return {
     id,
     name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.id || info.name,

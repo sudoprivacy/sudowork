@@ -11,6 +11,9 @@ export const ASSISTANT_SUBDIRS = {
   custom: '_my-custom-assistant',
 } as const;
 
+/** Metadata file name for assistant presets */
+export const ASSISTANT_META_FILE = '_sudowork_meta.json';
+
 /**
  * Assistant preset metadata stored in _sudowork_meta.json.
  * Parallel to ISkillMeta in SkillManager.ts.
@@ -22,6 +25,8 @@ export const ASSISTANT_SUBDIRS = {
  */
 export interface IAssistantMeta {
   id?: string;
+  /** Assistant name (directory name, used as identifier) */
+  name?: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -40,6 +45,7 @@ export interface IAssistantMeta {
     default?: string | number | boolean;
   }>;
   avatar?: string;
+  emoji?: string | null;
   /**
    * Path to an ops entry point script (e.g. 'tests/e2e/run_op.py').
    * When set, direct ai-dev-browser CLI calls are redirected through this wrapper.
@@ -65,4 +71,21 @@ export interface IAssistantMeta {
   enabled?: boolean;
   installed_version?: string;
   installed_at?: string;
+  // Hub API fields
+  /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin) */
+  tag?: 'hub' | 'custom' | 'system';
+  /** Associated skill IDs from Hub API (skills guaranteed to exist in Skill Hub) */
+  skills?: string[];
+  /** Hub category ID */
+  category_id?: string;
+  /** Hub categories (display names) */
+  categories?: string[];
+  /** Hub author ID */
+  author_id?: string;
+  /** Hub homepage URL */
+  homepage?: string | null;
+  /** Applicable scenarios (JSON string from Hub) */
+  applicable_scenarios?: string | null;
+  /** Core features (JSON string from Hub) */
+  core_features?: string | null;
 }

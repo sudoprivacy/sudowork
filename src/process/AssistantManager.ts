@@ -10,11 +10,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getAssistantsDir } from './initStorage';
-import { ASSISTANT_SUBDIRS } from './constants/assistantStorage';
+import { ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from './constants/assistantStorage';
 import { mainLog, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
-
-const ASSISTANT_META_FILE = '_sudowork_meta.json';
 
 export type AssistantCategory = 'custom' | 'hub' | 'system';
 
@@ -257,16 +255,20 @@ export class AssistantManager {
 
       await fs.mkdir(assistantDir, { recursive: true });
 
+      // If ruleContent provided, write AGENT.md and set ruleFile
+      let ruleFile: string | undefined = undefined;
+      if (ruleContent) {
+        await fs.writeFile(path.join(assistantDir, 'AGENT.md'), ruleContent, 'utf-8');
+        ruleFile = 'AGENT.md';
+      }
+
       const fullMeta: IAssistantMeta = {
         source_type: 'custom',
         enabled: true,
+        ruleFile: ruleFile,
         ...meta,
       };
       await fs.writeFile(path.join(assistantDir, ASSISTANT_META_FILE), JSON.stringify(fullMeta, null, 2), 'utf-8');
-
-      if (ruleContent) {
-        await fs.writeFile(path.join(assistantDir, 'AGENT.md'), ruleContent, 'utf-8');
-      }
 
       mainLog('AssistantManager', `Created assistant: ${id}`);
       return { success: true };

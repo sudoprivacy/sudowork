@@ -279,6 +279,30 @@ const getAssistantsDir = () => {
 };
 
 /**
+ * 获取 Hub 安装助手目录路径 (_hub 子目录)
+ * Get hub-installed assistants directory path
+ */
+const getHubAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_hub');
+};
+
+/**
+ * 获取系统/内置助手目录路径 (_system 子目录)
+ * Get system/builtin assistants directory path
+ */
+const getSystemAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_system');
+};
+
+/**
+ * 获取自定义助手目录路径 (_my-custom-assistant 子目录)
+ * Get custom assistants directory path
+ */
+const getCustomAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_my-custom-assistant');
+};
+
+/**
  * 获取技能脚本目录路径
  * Get skills scripts directory path
  */
@@ -1005,7 +1029,7 @@ export const getSystemDir = () => {
  * 获取助手规则目录路径（供其他模块使用）
  * Get assistant rules directory path (for use by other modules)
  */
-export { getAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
+export { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
 
 /**
  * Skills 内容缓存，避免重复从文件系统读取

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge, skillHub } from '@/common';
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import { ipcBridge, skillHub, assistantHub } from '@/common';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
 import { resolveLocaleKey } from '@/common/utils';
@@ -17,12 +17,14 @@ import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssis
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig } from '@/types/acpTypes';
-import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Select, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Delete, Lightning, Plus, Robot, Shield } from '@icon-park/react';
+import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
+import { Close, Delete, Lightning, Plus, Robot, Shield, Search, Install } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/renderer/context/AuthContext';
 import useSWR, { mutate } from 'swr';
+import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 // ==================== Types ====================
@@ -43,15 +45,16 @@ interface SkillCardProps {
   skill: IInstalledSkillInfo;
   checked: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }
 
-const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle }) => {
+const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disabled }) => {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
 
   return (
-    <div className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative'>
-      <Checkbox checked={checked} onChange={onToggle} className='mt-2px cursor-pointer' />
+    <div className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      <Checkbox checked={checked} onChange={onToggle} disabled={disabled} className={`mt-2px ${disabled ? '' : 'cursor-pointer'}`} />
       <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
         {icon ? (
           <img src={icon} alt={displayName} className='w-full h-full object-cover' />
@@ -165,7 +168,251 @@ const InstalledAssistantCard: React.FC<{
   );
 };
 
-// ==================== AgentModalContent ====================
+// ==================== HubAssistantCard (for store tab) ====================
+
+const HubAssistantCard: React.FC<{
+  assistant: IAssistantHubSkill;
+  isInstalled: boolean;
+  installing: boolean;
+  installProgress: number;
+  onInstall: (e: React.MouseEvent) => void;
+  onClick: () => void;
+}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onClick }) => {
+  const { t } = useTranslation();
+
+  const displayName = assistant.display_name || assistant.name;
+  const resolvedAvatar = assistant.avatar?.trim();
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
+
+  return (
+    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+      {/* Icon */}
+      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+          {resolvedAvatar ? (
+            hasEmojiAvatar ? (
+              <div className='w-full h-full flex items-center justify-center text-22px'>{resolvedAvatar}</div>
+            ) : (
+              <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
+            )
+          ) : assistant.emoji ? (
+            <div className='w-full h-full flex items-center justify-center text-22px'>{assistant.emoji}</div>
+          ) : (
+            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+              <Robot theme='filled' size='22' className='text-primary' />
+            </div>
+          )}
+        </div>
+        {isInstalled && <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.assistant.installed', { defaultValue: '已安装' })}</span>}
+      </div>
+
+      {/* Content */}
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-6px pr-58px min-w-0'>
+          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
+        </div>
+        <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
+        {assistant.skills && assistant.skills.length > 0 && (
+          <div className='mt-4px flex items-center gap-4px'>
+            <Lightning size='12' className='text-primary flex-shrink-0' />
+            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Action - top right */}
+      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
+        {installing ? (
+          <div className='w-52px'>
+            <Progress percent={installProgress} size='mini' />
+          </div>
+        ) : !isInstalled ? (
+          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
+            <Install size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.install', { defaultValue: '安装' })}</span>
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+// ==================== AssistantDetailModal (for store assistants) ====================
+
+const AssistantDetailModal: React.FC<{
+  assistant: IAssistantHubSkill | null;
+  visible: boolean;
+  onClose: () => void;
+  isInstalled: boolean;
+  installing: boolean;
+  installProgress: number;
+  onInstall: (installSkills: boolean) => void;
+  onGoUse?: () => void;
+  installedSkills: Set<string>;
+}> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, onGoUse, installedSkills }) => {
+  const { t } = useTranslation();
+  const [detail, setDetail] = useState<IAssistantHubDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [installSkillsChoice, setInstallSkillsChoice] = useState(true);
+
+  useEffect(() => {
+    if (visible && assistant && !detail) {
+      setLoading(true);
+      const fetchDetail = async () => {
+        try {
+          if (isElectronDesktop()) {
+            const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
+            if (res.success && res.data) {
+              setDetail(res.data);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch assistant detail:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      void fetchDetail();
+    }
+    if (!visible) {
+      setDetail(null);
+    }
+  }, [visible, assistant, detail]);
+
+  if (!assistant) return null;
+
+  // Parse skills - check which are installed
+  const skills = assistant.skills || [];
+  const installedSkillCount = skills.filter((s) => installedSkills.has(s)).length;
+  const missingSkills = skills.filter((s) => !installedSkills.has(s));
+
+  const displayName = assistant.display_name || assistant.name;
+  const resolvedAvatar = assistant.avatar?.trim();
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
+
+  return (
+    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='assistant-detail-modal' wrapClassName='assistant-detail-modal-wrap'>
+      <div className='flex flex-col max-h-80vh'>
+        {/* Close button */}
+        <div className='flex justify-end mb-4px'>
+          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
+            <Close size='14' />
+          </div>
+        </div>
+
+        <AionScrollArea className='flex-1 min-h-0'>
+          <div className='px-8px pb-16px'>
+            {/* Icon + Name header */}
+            <div className='flex flex-col items-center mb-20px'>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
+                {resolvedAvatar ? (
+                  hasEmojiAvatar ? (
+                    <div className='w-full h-full flex items-center justify-center text-34px'>{resolvedAvatar}</div>
+                  ) : (
+                    <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
+                  )
+                ) : assistant.emoji ? (
+                  <div className='w-full h-full flex items-center justify-center text-34px'>{assistant.emoji}</div>
+                ) : (
+                  <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                    <Robot theme='filled' size='34' className='text-primary' />
+                  </div>
+                )}
+              </div>
+              <div className='font-semibold text-17px text-t-primary text-center'>{displayName}</div>
+              {assistant.categories && assistant.categories.length > 0 && (
+                <div className='flex gap-4px mt-6px flex-wrap justify-center'>
+                  {assistant.categories.map((cat, idx) => (
+                    <span key={idx} className='px-7px py-1px bg-fill-2 text-t-secondary text-11px rd-4px'>
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {loading ? (
+              <div className='flex justify-center py-32px'>
+                <Spin />
+              </div>
+            ) : (
+              <div className='space-y-16px'>
+                {/* Assistant intro */}
+                <div className='bg-fill-1 rd-10px p-14px'>
+                  <div className='flex items-center gap-6px mb-8px'>
+                    <span className='text-14px'>✦</span>
+                    <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.introduction', { defaultValue: '助手介绍' })}</span>
+                  </div>
+                  <div className='text-12px text-t-secondary leading-relaxed'>{assistant.description}</div>
+                </div>
+
+                {/* Associated skills */}
+                {skills.length > 0 && (
+                  <div className='bg-fill-1 rd-10px p-14px'>
+                    <div className='flex items-center gap-6px mb-10px'>
+                      <Lightning size='14' className='text-primary' />
+                      <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
+                    </div>
+                    <div className='space-y-6px'>
+                      {skills.map((skillId) => {
+                        const isSkillInstalled = installedSkills.has(skillId);
+                        return (
+                          <div key={skillId} className='flex items-center gap-6px'>
+                            <span className='text-t-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                            <span className='text-12px text-t-secondary flex-1'>{skillId}</span>
+                            {isSkillInstalled ? (
+                              <span className='px-4px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap'>{t('settings.skill.installed', { defaultValue: '已安装' })}</span>
+                            ) : (
+                              <span className='px-4px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap'>{t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {missingSkills.length > 0 && !isInstalled && (
+                      <div className='mt-10px pt-10px border-t border-line'>
+                        <div className='flex items-center gap-8px'>
+                          <Checkbox checked={installSkillsChoice} onChange={setInstallSkillsChoice} />
+                          <span className='text-12px text-t-secondary'>{t('settings.assistant.installSkillsTogether', { defaultValue: `同时安装 ${missingSkills.length} 个关联技能` })}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AionScrollArea>
+
+        {/* Action buttons */}
+        <div className='px-8px pt-12px border-t border-line mt-4px'>
+          <div className='flex gap-8px items-center'>
+            {isInstalled ? (
+              <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
+                {t('settings.skill.goUse', { defaultValue: '去使用' })}
+              </Button>
+            ) : installing ? (
+              <div className='flex-1'>
+                <Progress percent={installProgress} size='small' />
+              </div>
+            ) : (
+              <Button type='primary' long size='large' onClick={() => onInstall(installSkillsChoice)}>
+                <span className='flex items-center gap-6px justify-center'>
+                  <Install size='15' />
+                  {t('settings.assistant.install', { defaultValue: '安装助手' })}
+                </span>
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ==================== Types ====================
 
 const AgentModalContent: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -175,7 +422,7 @@ const AgentModalContent: React.FC = () => {
   const localeKey = resolveLocaleKey(i18n.language);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<AssistantStoreTab>('installed');
+  const [activeTab, setActiveTab] = useState<AssistantStoreTab>('store');
 
   // Assistant list state
   const [assistants, setAssistants] = useState<AssistantListItem[]>([]);
@@ -198,6 +445,25 @@ const AgentModalContent: React.FC = () => {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Hub state (for store/exclusive tabs)
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [hubAssistantList, setHubAssistantList] = useState<IAssistantHubSkill[]>([]);
+  const [hubCategories, setHubCategories] = useState<string[]>([]);
+  const [selectedHubCategory, setSelectedHubCategory] = useState('all');
+  const [hubSearchQuery, setHubSearchQuery] = useState('');
+  const [hubLoading, setHubLoading] = useState(true);
+  const [hubLoadingMore, setHubLoadingMore] = useState(false);
+  const [hubHasMore, setHubHasMore] = useState(false);
+  const [hubNextCursor, setHubNextCursor] = useState<string | null>(null);
+  const [hubDetailAssistant, setHubDetailAssistant] = useState<IAssistantHubSkill | null>(null);
+  const [hubDetailVisible, setHubDetailVisible] = useState(false);
+  const [hubInstalledAssistantNames, setHubInstalledAssistantNames] = useState<Set<string>>(new Set());
+  const [installingAssistantId, setInstallingAssistantId] = useState<string | null>(null);
+  const [installProgress, setInstallProgress] = useState(0);
+  const [hubInstalledSkillsReady, setHubInstalledSkillsReady] = useState(false);
+  const enterpriseCode = user?.enterprise_code?.trim();
 
   const avatarImageMap = React.useMemo<Record<string, string>>(
     () => ({
@@ -288,6 +554,7 @@ const AgentModalContent: React.FC = () => {
   const loadInstalledSkills = useCallback(async (): Promise<IInstalledSkillInfo[]> => {
     if (!isElectronDesktop()) {
       setInstalledSkills([]);
+      setHubInstalledSkillsReady(true);
       return [];
     }
     try {
@@ -295,17 +562,193 @@ const AgentModalContent: React.FC = () => {
       if (res.success && res.data) {
         const selectableSkills = getSelectableAssistantSkills(res.data);
         setInstalledSkills(selectableSkills);
+        setHubInstalledSkillsReady(true);
         return selectableSkills;
       }
     } catch (error) {
       console.error('Failed to load installed skills:', error);
     }
     setInstalledSkills([]);
+    setHubInstalledSkillsReady(true);
     return [];
   }, []);
 
   const customSelectableSkills = installedSkills.filter((skill) => !skill.isBuiltin);
   const builtinSelectableSkills = installedSkills.filter((skill) => skill.isBuiltin && !isAutoInjectedBuiltinSkill(skill));
+
+  // Hub refs for infinite scroll (mirrors SkillModalContent pattern)
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const selectedHubCategoryRef = useRef(selectedHubCategory);
+  selectedHubCategoryRef.current = selectedHubCategory;
+  const hubSearchQueryRef = useRef(hubSearchQuery);
+  hubSearchQueryRef.current = hubSearchQuery;
+
+  // Resolve tenant ID for exclusive tab
+  const resolveAssistantTenantId = useCallback((tab: AssistantStoreTab): string | undefined => {
+    const normalized = enterpriseCode;
+    if (tab !== 'exclusive' || !normalized) return undefined;
+    return normalized;
+  }, [enterpriseCode]);
+
+  const currentAssistantTenantId = resolveAssistantTenantId(activeTab);
+
+  // Fetch installed assistants for comparison with Hub
+  const fetchInstalledAssistantNames = useCallback(async () => {
+    if (!isElectronDesktop()) return;
+    try {
+      const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+      if (res.success && res.data) {
+        const names = new Set(res.data.map((a) => a.name));
+        setHubInstalledAssistantNames(names);
+      }
+    } catch (err) {
+      console.error('Failed to fetch installed assistants:', err);
+    }
+  }, []);
+
+  // Fetch Hub assistants list
+  const fetchHubAssistants = useCallback(
+    async (cursor?: string, append = false) => {
+      try {
+        if (append) setHubLoadingMore(true);
+        else setHubLoading(true);
+
+        const category = selectedHubCategoryRef.current === 'all' ? '' : selectedHubCategoryRef.current;
+        const query = hubSearchQueryRef.current.trim();
+        const tenantId = currentAssistantTenantId;
+
+        if (activeTab === 'exclusive' && !tenantId) {
+          setHubAssistantList([]);
+          setHubNextCursor(null);
+          setHubHasMore(false);
+          return;
+        }
+
+        if (isElectronDesktop()) {
+          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, categoryId: category, tenantId });
+          if (res.success && res.data) {
+            const newAssistants = res.data.assistants || [];
+            if (append) {
+              setHubAssistantList((prev) => {
+                const existingIds = new Set(prev.map((a) => a.id));
+                const unique = newAssistants.filter((a) => !existingIds.has(a.id));
+                return [...prev, ...unique];
+              });
+            } else {
+              setHubAssistantList(newAssistants);
+            }
+
+            const raw = res.data as unknown as Record<string, unknown>;
+            let nextCursorValue: string | null = null;
+            if (typeof res.data.next_cursor === 'string' && res.data.next_cursor.length > 0) {
+              nextCursorValue = res.data.next_cursor;
+            } else if (typeof raw.nextCursor === 'string' && (raw.nextCursor as string).length > 0) {
+              nextCursorValue = raw.nextCursor as string;
+            }
+
+            const hasMoreValue = res.data.has_more === true || raw.hasMore === true;
+            setHubNextCursor(nextCursorValue);
+            setHubHasMore(hasMoreValue);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch Hub assistants:', err);
+        Message.error(t('settings.assistant.fetchFailed', { defaultValue: '获取助手失败' }));
+      } finally {
+        setHubLoading(false);
+        setHubLoadingMore(false);
+      }
+    },
+    [activeTab, currentAssistantTenantId, t]
+  );
+
+  // Load more Hub assistants (infinite scroll)
+  const loadMoreHubAssistants = useCallback(() => {
+    if (!hubLoadingMore && hubHasMore && hubNextCursor) {
+      void fetchHubAssistants(hubNextCursor, true);
+    }
+  }, [hubLoadingMore, hubHasMore, hubNextCursor, fetchHubAssistants]);
+
+  const loadMoreRef = useRef(loadMoreHubAssistants);
+  loadMoreRef.current = loadMoreHubAssistants;
+
+  // Fetch Hub categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        if (isElectronDesktop()) {
+          const res = await assistantHub.fetchCategories.invoke();
+          if (res.success && res.data) {
+            setHubCategories(res.data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch assistant categories:', err);
+      }
+    };
+    void fetchCategories();
+  }, []);
+
+  // Reload Hub assistants when category changes
+  useEffect(() => {
+    if (activeTab === 'installed') return;
+    setHubAssistantList([]);
+    setHubNextCursor(null);
+    setHubHasMore(false);
+    void fetchHubAssistants();
+    void fetchInstalledAssistantNames();
+    void loadInstalledSkills();
+  }, [activeTab, selectedHubCategory, fetchHubAssistants, fetchInstalledAssistantNames, loadInstalledSkills]);
+
+  // Debounced search reload for Hub
+  useEffect(() => {
+    if (activeTab === 'installed') return;
+    const timer = setTimeout(() => {
+      setHubAssistantList([]);
+      setHubNextCursor(null);
+      setHubHasMore(false);
+      void fetchHubAssistants();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [activeTab, hubSearchQuery, fetchHubAssistants]);
+
+  // IntersectionObserver for infinite scroll
+  const findScrollParent = useCallback((el: HTMLElement | null): HTMLElement | null => {
+    let node = el?.parentElement ?? null;
+    while (node) {
+      const { overflowY } = window.getComputedStyle(node);
+      if (overflowY === 'auto' || overflowY === 'scroll') return node;
+      node = node.parentElement;
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const root = findScrollParent(sentinel);
+    if (!root) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) loadMoreRef.current();
+      },
+      { root, threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [findScrollParent, hubHasMore]);
+
+  // Handle scroll for fallback infinite scroll
+  const handleHubScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollHeight - scrollTop - clientHeight < 100) loadMoreHubAssistants();
+    },
+    [loadMoreHubAssistants]
+  );
 
   const refreshAgentDetection = useCallback(async () => {
     try {
@@ -385,8 +828,77 @@ const AgentModalContent: React.FC = () => {
     void loadAssistants();
   }, [loadAssistants]);
 
+  // Install Hub assistant (defined after loadAssistants since it depends on it)
+  const handleInstallHubAssistant = useCallback(
+    async (assistantId: string, installSkills: boolean = true) => {
+      if (!isElectronDesktop()) {
+        Message.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手安装仅在桌面端可用' }));
+        return;
+      }
+
+      const assistant = hubAssistantList.find((a) => a.id === assistantId);
+      if (!assistant) return;
+
+      // sourceUrl is directly available from list API (mapped to _sourceUrl)
+      const sourceUrl = assistant._sourceUrl;
+      if (!sourceUrl) {
+        Message.error(t('settings.assistant.noVersion', { defaultValue: '无法获取安装包信息' }));
+        return;
+      }
+
+      setInstallingAssistantId(assistantId);
+      setInstallProgress(0);
+
+      try {
+        // Use default version since API doesn't provide version info
+        const version = '1.0.0';
+        const res = await assistantHub.downloadAndInstallAssistant.invoke({
+          assistantName: assistant.name,
+          displayName: assistant.display_name || assistant.name,
+          sourceUrl: sourceUrl,
+          version: version,
+          checksum: '',
+          assistantMeta: assistant,
+          installSkills,
+        });
+
+        if (res.success && res.data) {
+          const installedSkillCount = res.data.installedSkills?.length || 0;
+          const displayName = assistant.display_name || assistant.name;
+          Message.success(
+            t('settings.assistant.installSuccess', {
+              name: displayName,
+              skillCount: installedSkillCount,
+              defaultValue: `成功安装 ${displayName}${installedSkillCount > 0 ? ` 及 ${installedSkillCount} 个关联技能` : ''}`,
+            })
+          );
+          await fetchInstalledAssistantNames();
+          await loadAssistants();
+          setHubDetailVisible(false);
+        } else {
+          Message.error(t('settings.assistant.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `安装失败: ${res.msg || '未知错误'}` }));
+        }
+      } catch (err) {
+        console.error('Failed to install assistant:', err);
+        Message.error(t('settings.assistant.installFailed', { msg: String(err), defaultValue: `安装失败: ${String(err)}` }));
+      } finally {
+        setInstallingAssistantId(null);
+        setInstallProgress(0);
+      }
+    },
+    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, t]
+  );
+
+  // Go use installed assistant (navigate to guid page)
+  const handleGoUseHubAssistant = useCallback(() => {
+    if (!hubDetailAssistant) return;
+    setHubDetailVisible(false);
+    void navigate(`/guid?assistant=${encodeURIComponent(hubDetailAssistant.name)}`);
+  }, [hubDetailAssistant, navigate]);
+
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
-  const isReadonlyAssistant = Boolean(activeAssistant && isExtensionAssistant(activeAssistant));
+  // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
+  const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
 
   // Categorize assistants into 3 groups by metadata (mirrors skill pattern: source_type / isBuiltin)
   const hubAssistants = assistants.filter((a) => !a.isBuiltin && a._isHubInstalled);
@@ -461,17 +973,11 @@ const AgentModalContent: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      if (!editName.trim()) {
-        agentMessage.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
-        return;
-      }
-
-      if (!isCreating && activeAssistant && isExtensionAssistant(activeAssistant)) {
-        agentMessage.warning(t('settings.extensionAssistantReadonly', { defaultValue: 'Extension assistants are read-only. You can duplicate it and edit the copy.' }));
-        return;
-      }
-
       if (isCreating) {
+        if (!editName.trim()) {
+          agentMessage.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
+          return;
+        }
         const newId = `custom-${Date.now()}`;
         await ipcBridge.assistantHub.createAssistant.invoke({
           meta: {
@@ -492,27 +998,41 @@ const AgentModalContent: React.FC = () => {
       } else {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
-        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
-          name: lookupName,
-          updates: {
-            nameI18n: { 'zh-CN': editName },
-            descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
-            avatar: editAvatar,
-            presetAgentType: editAgent,
-            enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
-          },
-        });
 
-        if (editContext.trim()) {
-          await ipcBridge.fs.writeAssistantRule.invoke({
-            assistantId: activeAssistant.id,
-            locale: localeKey,
-            content: editContext,
+        // For readonly assistants (hub, builtin, extension), only save presetAgentType
+        if (isReadonlyAssistant) {
+          await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+            name: lookupName,
+            updates: {
+              presetAgentType: editAgent,
+            },
           });
-        }
+          await loadAssistants();
+          agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+        } else {
+          // For custom assistants, save all fields
+          await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+            name: lookupName,
+            updates: {
+              nameI18n: { 'zh-CN': editName },
+              descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+              avatar: editAvatar,
+              presetAgentType: editAgent,
+              enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
+            },
+          });
 
-        await loadAssistants();
-        agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+          if (editContext.trim()) {
+            await ipcBridge.fs.writeAssistantRule.invoke({
+              assistantId: activeAssistant.id,
+              locale: localeKey,
+              content: editContext,
+            });
+          }
+
+          await loadAssistants();
+          agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+        }
       }
 
       setEditVisible(false);
@@ -590,7 +1110,7 @@ const AgentModalContent: React.FC = () => {
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
   const renderAssistantGrid = (list: AssistantListItem[]) => (
-    <div className='grid grid-cols-2 gap-8px'>
+    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => (
         <InstalledAssistantCard
           key={assistant.id}
@@ -612,7 +1132,7 @@ const AgentModalContent: React.FC = () => {
     <div className='flex flex-col h-full w-full'>
       {agentMessageContext}
 
-      {/* Header: tabs + create button */}
+      {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
         <div className='flex items-center bg-fill-2 rd-8px p-2px gap-1px flex-shrink-0'>
@@ -628,8 +1148,10 @@ const AgentModalContent: React.FC = () => {
           </button>
         </div>
 
-        {/* Spacer */}
-        <div className='flex-1' />
+        {/* Search - for store/exclusive tabs */}
+        <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
+          <Input placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='assistant-hub-input' />
+        </div>
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
@@ -649,24 +1171,82 @@ const AgentModalContent: React.FC = () => {
         )}
       </div>
 
-      {/* ===== STORE TAB (placeholder) ===== */}
-      {activeTab === 'store' && (
-        <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
-          <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-            <Robot theme='outline' size={32} className='text-t-tertiary' />
-            <span className='text-13px'>{t('settings.assistant.comingSoon', { defaultValue: '敬请期待' })}</span>
+      {/* ===== STORE TAB ===== */}
+      {(activeTab === 'store' || activeTab === 'exclusive') && (
+        <>
+          {/* Category filter */}
+          <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
+            {[{ key: 'all', label: t('settings.assistant.allCategories', { defaultValue: '全部分类' }) }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
+              <span key={key} className={classNames('px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0', selectedHubCategory === key ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary')} onClick={() => setSelectedHubCategory(key)}>
+                {label}
+              </span>
+            ))}
           </div>
-        </AionScrollArea>
-      )}
 
-      {/* ===== EXCLUSIVE TAB (placeholder) ===== */}
-      {activeTab === 'exclusive' && (
-        <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
-          <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-            <Shield size={32} className='text-t-tertiary' />
-            <span className='text-13px'>{t('settings.assistant.comingSoon', { defaultValue: '敬请期待' })}</span>
-          </div>
-        </AionScrollArea>
+          {/* Assistant grid */}
+          <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleHubScroll}>
+            {activeTab === 'exclusive' && !enterpriseCode ? (
+              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
+                <Shield size='32' className='text-t-tertiary' />
+                <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属助手。' })}</span>
+              </div>
+            ) : hubLoading || !hubInstalledSkillsReady ? (
+              <div className='flex justify-center items-center py-48px'>
+                <Spin size={28} />
+              </div>
+            ) : hubAssistantList.length === 0 ? (
+              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
+                <Robot theme='outline' size={32} className='text-t-tertiary' />
+                <span className='text-13px'>{t('settings.assistant.noResults', { defaultValue: '暂无助手' })}</span>
+              </div>
+            ) : (
+              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                {hubAssistantList.map((assistant) => {
+                  const isInstalled = hubInstalledAssistantNames.has(assistant.name);
+                  const isInstalling = installingAssistantId === assistant.id;
+                  return (
+                    <HubAssistantCard
+                      key={assistant.id}
+                      assistant={assistant}
+                      isInstalled={isInstalled}
+                      installing={isInstalling}
+                      installProgress={installProgress}
+                      onInstall={(e) => {
+                        e.stopPropagation();
+                        // Open detail modal for install options
+                        setHubDetailAssistant(assistant);
+                        setHubDetailVisible(true);
+                      }}
+                      onClick={() => {
+                        setHubDetailAssistant(assistant);
+                        setHubDetailVisible(true);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Loading skeleton cards */}
+            {hubLoadingMore && (
+              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
+                    <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />
+                    <div className='flex-1 min-w-0 flex flex-col gap-6px pt-2px'>
+                      <div className='h-14px w-3/5 rd-4px bg-fill-3' />
+                      <div className='h-10px w-full rd-4px bg-fill-3' />
+                      <div className='h-10px w-4/5 rd-4px bg-fill-3' />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Sentinel for IntersectionObserver */}
+            {hubHasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
+          </AionScrollArea>
+        </>
       )}
 
       {/* ===== INSTALLED TAB ===== */}
@@ -757,7 +1337,7 @@ const AgentModalContent: React.FC = () => {
         footer={
           <div className='flex items-center justify-between w-full'>
             <div className='flex items-center gap-8px'>
-              <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
+              <Button type='primary' onClick={handleSave} className='w-[100px] rounded-[100px]'>
                 {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
               </Button>
               <Button
@@ -811,7 +1391,7 @@ const AgentModalContent: React.FC = () => {
             {/* Main Agent */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonlyAssistant}>
+              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)}>
                 {[
                   { value: 'gemini', label: 'Gemini CLI' },
                   { value: 'claude', label: 'Claude Code' },
@@ -886,12 +1466,14 @@ const AgentModalContent: React.FC = () => {
                         skill={skill}
                         checked={selectedSkills.includes(skill.name)}
                         onToggle={() => {
+                          if (isReadonlyAssistant) return;
                           if (selectedSkills.includes(skill.name)) {
                             setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
                           } else {
                             setSelectedSkills([...selectedSkills, skill.name]);
                           }
                         }}
+                        disabled={isReadonlyAssistant}
                       />
                     ))}
                     {customSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
@@ -905,12 +1487,14 @@ const AgentModalContent: React.FC = () => {
                         skill={skill}
                         checked={selectedSkills.includes(skill.name)}
                         onToggle={() => {
+                          if (isReadonlyAssistant) return;
                           if (selectedSkills.includes(skill.name)) {
                             setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
                           } else {
                             setSelectedSkills([...selectedSkills, skill.name]);
                           }
                         }}
+                        disabled={isReadonlyAssistant}
                       />
                     ))}
                     {builtinSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
@@ -946,6 +1530,26 @@ const AgentModalContent: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Hub Assistant Detail Modal */}
+      <AssistantDetailModal
+        assistant={hubDetailAssistant}
+        visible={hubDetailVisible}
+        onClose={() => {
+          setHubDetailVisible(false);
+          setHubDetailAssistant(null);
+        }}
+        isInstalled={hubDetailAssistant ? hubInstalledAssistantNames.has(hubDetailAssistant.name) : false}
+        installing={installingAssistantId === hubDetailAssistant?.id}
+        installProgress={installProgress}
+        onInstall={(installSkills) => {
+          if (hubDetailAssistant) {
+            void handleInstallHubAssistant(hubDetailAssistant.id, installSkills);
+          }
+        }}
+        onGoUse={handleGoUseHubAssistant}
+        installedSkills={new Set(installedSkills.map((s) => s.name))}
+      />
     </div>
   );
 };
