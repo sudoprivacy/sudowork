@@ -37,9 +37,12 @@ const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 /** Prompt timeout range (seconds) */
 const PROMPT_TIMEOUT_MIN_SECONDS = 30;
 const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
-const CONNECTION_TIMEOUT_MS = 30_000;
-const CONNECTION_MAX_ATTEMPTS = 30;
-const CONNECTION_RETRY_DELAY_MS = 1_000;
+/** Connection timeout per attempt (shortened to avoid long waits during gateway restart) */
+const CONNECTION_TIMEOUT_MS = 5_000;
+/** Maximum connection attempts before giving up */
+const CONNECTION_MAX_ATTEMPTS = 10;
+/** Delay between connection retry attempts */
+const CONNECTION_RETRY_DELAY_MS = 500;
 
 export interface OpenClawAgentData {
   conversation_id: string;

@@ -651,6 +651,10 @@ export class ServiceManager {
   }
 
   async stopOpenClaw(): Promise<void> {
+    // Clear gateway readiness promise so agents wait for new gateway after restart
+    this.gatewayReadyPromise = null;
+    this.gatewayReadyResolve = null;
+
     if (!this.gateway) return;
     try {
       await this.gateway.stop();
