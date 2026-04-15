@@ -7,7 +7,7 @@ import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
 import type { IBridgeResponse } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
-import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir } from '@/process/initStorage';
+import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
@@ -206,8 +206,6 @@ async function selectRuleFileFromDirectory(assistantDir: string, assistantName: 
 // ==================== Bridge Initialization ====================
 
 export function initAssistantHubBridge(): void {
-  mainLog('AssistantHub', 'Initializing AssistantHub bridge...');
-
   // === Local CRUD operations ===
 
   ipcBridge.assistantHub.getInstalledAssistants.provider(async () => {
@@ -270,7 +268,6 @@ export function initAssistantHubBridge(): void {
   // Fetch assistants list from Hub API with cursor-based pagination
   ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
-      mainLog('AssistantHub', 'Fetching assistants with params:', { cursor, limit, query, category, tenantId });
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
@@ -282,7 +279,6 @@ export function initAssistantHubBridge(): void {
         headers: { Authorization: AUTHORIZATION },
       });
       const result = await response.json();
-      mainLog('AssistantHub', 'Assistants raw response:', JSON.stringify(result, null, 2));
 
       // Map API response to our type structure
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
@@ -318,7 +314,6 @@ export function initAssistantHubBridge(): void {
         has_more: result.data?.has_more || false,
       };
 
-      mainLog('AssistantHub', 'Mapped assistants:', mappedData.assistants.length);
       return { success: true, data: mappedData };
     } catch (error) {
       mainError('AssistantHub', 'Failed to fetch assistants:', error);
@@ -329,12 +324,10 @@ export function initAssistantHubBridge(): void {
   // Fetch assistant categories from Hub API (type=1 for assistants)
   ipcBridge.assistantHub.fetchCategories.provider(async () => {
     try {
-      mainLog('AssistantHub', 'Fetching assistant categories');
       const response = await fetch(`${ASSISTANT_CATEGORY_URL}?type=1`, {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
-      mainLog('AssistantHub', 'Categories response:', data);
       return { success: true, data: data.data || [] };
     } catch (error) {
       mainError('AssistantHub', 'Failed to fetch categories:', error);
@@ -345,15 +338,11 @@ export function initAssistantHubBridge(): void {
   // Fetch assistant detail from Hub API
   ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId }) => {
     try {
-      mainLog('AssistantHub', 'Fetching assistant detail:', assistantId);
       const url = `${ASSISTANT_HUB_BASE_URL}/${assistantId}`;
-      mainLog('AssistantHub', 'Request URL:', url);
       const response = await fetch(url, {
         headers: { Authorization: AUTHORIZATION },
       });
-      mainLog('AssistantHub', 'Response status:', response.status);
       const data = await response.json();
-      mainLog('AssistantHub', 'Assistant detail response:', JSON.stringify(data, null, 2));
       return { success: true, data: data.data };
     } catch (error) {
       mainError('AssistantHub', 'Failed to fetch assistant detail:', error);
@@ -368,8 +357,6 @@ export function initAssistantHubBridge(): void {
         return { success: true, data: [] };
       }
 
-      mainLog('AssistantHub', `Fetching skill details for IDs: ${skillIds.join(', ')}`);
-
       // Fetch all skills in parallel
       const responses = await Promise.all(
         skillIds.map(async (id) => {
@@ -382,15 +369,13 @@ export function initAssistantHubBridge(): void {
               return data.data.skill as ISkillHubSkill;
             }
             return null;
-          } catch (err) {
-            mainWarn('AssistantHub', `Failed to fetch skill ${id}:`, err);
+          } catch {
             return null;
           }
         })
       );
 
       const skills = responses.filter((s): s is ISkillHubSkill => s !== null);
-      mainLog('AssistantHub', `Fetched ${skills.length} skill details`);
       return { success: true, data: skills };
     } catch (error) {
       mainError('AssistantHub', 'Failed to fetch skill details:', error);
@@ -401,13 +386,8 @@ export function initAssistantHubBridge(): void {
   // Download and install assistant from Hub, optionally installing selected associated skills
   ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, selectedSkillIds }) => {
     try {
-      mainLog('AssistantHub', `Downloading assistant: ${assistantName} version: ${version}`);
-      mainLog('AssistantHub', `Selected skills to install: ${selectedSkillIds?.join(', ') || 'none'}`);
-
       // Download zip file
-      const zipBuffer = await downloadFile(sourceUrl, (percent) => {
-        mainLog('AssistantHub', `Download progress: ${percent}%`);
-      });
+      const zipBuffer = await downloadFile(sourceUrl);
 
       // Verify checksum if provided
       if (checksum) {
@@ -438,22 +418,39 @@ export function initAssistantHubBridge(): void {
 
       // Scan for .md files and select ruleFile
       const ruleFile = await selectRuleFileFromDirectory(assistantDir, assistantName);
-      mainLog('AssistantHub', `Selected ruleFile: ${ruleFile}`);
 
-      // Install selected associated skills FIRST, collect skill names for meta
+      // Install selected associated skills FIRST, collect skill IDs for meta
       const installedSkillNames: string[] = [];
       const failedSkillIds: string[] = [];
-      const allAssociatedSkillNames: string[] = []; // All skill names (installed + already installed)
+      const allAssociatedSkillIds: string[] = []; // All skill IDs (installed + already installed)
 
       if (selectedSkillIds && selectedSkillIds.length > 0) {
-        mainLog('AssistantHub', `Installing selected skills: ${selectedSkillIds.join(', ')}`);
-
         // Get current installed skills to check which need installation
         const installedSkills = await skillManager.getInstalledSkills();
-        const installedSkillNamesSet = new Set(installedSkills.map((s) => s.name));
+        // Build a map for quick lookup by skill ID (meta.id) and name
+        const installedSkillByIdMap = new Map<string, { name: string; isBuiltin: boolean }>();
+        const installedSkillNamesSet = new Set<string>();
+        for (const skill of installedSkills) {
+          installedSkillNamesSet.add(skill.name);
+          if (skill.meta?.id) {
+            installedSkillByIdMap.set(skill.meta.id, { name: skill.name, isBuiltin: skill.isBuiltin === true });
+          }
+        }
 
         for (const skillId of selectedSkillIds) {
-          // Fetch skill detail from Hub to get name and download URL
+          // First check if skill is already installed locally (including builtin skills)
+          const localSkillInfo = installedSkillByIdMap.get(skillId);
+          if (localSkillInfo) {
+            // Track all associated skill IDs (for enabledSkills)
+            allAssociatedSkillIds.push(skillId);
+
+            if (installedSkillNamesSet.has(localSkillInfo.name)) {
+              // Skill already installed (builtin or previously installed hub skill)
+              continue;
+            }
+          }
+
+          // Fetch skill detail from Hub to get name and download URL (for non-builtin skills)
           try {
             const skillDetailResponse = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${skillId}`, {
               headers: { Authorization: AUTHORIZATION },
@@ -464,12 +461,11 @@ export function initAssistantHubBridge(): void {
               const skillInfo = skillDetailData.data.skill as ISkillHubSkill;
               const skillName = skillInfo.name;
 
-              // Track all associated skill names (for enabledSkills)
-              allAssociatedSkillNames.push(skillName);
+              // Track all associated skill IDs (for enabledSkills)
+              allAssociatedSkillIds.push(skillId);
 
-              // Skip if already installed
+              // Skip if already installed (check by name as fallback)
               if (installedSkillNamesSet.has(skillName)) {
-                mainLog('AssistantHub', `Skill "${skillName}" already installed, skipping download`);
                 continue;
               }
 
@@ -553,7 +549,6 @@ export function initAssistantHubBridge(): void {
 
               installedSkillNames.push(skillName);
               installedSkillNamesSet.add(skillName); // Update set for subsequent checks
-              mainLog('AssistantHub', `Installed associated skill: ${skillName}`);
             } else {
               mainWarn('AssistantHub', `Failed to fetch skill detail for "${skillId}"`);
               failedSkillIds.push(skillId);
@@ -565,7 +560,7 @@ export function initAssistantHubBridge(): void {
         }
       }
 
-      // Write assistant meta with CORRECT enabledSkills (skill names, not UUIDs)
+      // Write assistant meta with skill IDs in enabledSkills
       const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
       const meta: AssistantHubMeta = {
         id: assistantMeta.id,
@@ -577,8 +572,8 @@ export function initAssistantHubBridge(): void {
         presetAgentType: assistantMeta.preset_agent_type || 'sudoclaw',
         source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
         tag: assistantMeta.tag || 'hub',
-        // skills: store skill names for reference (not UUIDs)
-        skills: allAssociatedSkillNames,
+        // skills: store skill IDs (UUID format)
+        skills: allAssociatedSkillIds,
         category_id: assistantMeta.category,
         categories: assistantMeta.categories,
         author_id: assistantMeta.author_id,
@@ -589,15 +584,12 @@ export function initAssistantHubBridge(): void {
         enabled: true,
         installed_version: version,
         installed_at: new Date().toISOString(),
-        // enabledSkills: skill names that will be enabled for this assistant
-        enabledSkills: allAssociatedSkillNames,
+        // enabledSkills: skill IDs that will be enabled for this assistant
+        enabledSkills: allAssociatedSkillIds,
         // Rule file for displaying assistant rules
         ruleFile: ruleFile,
       };
       await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-
-      mainLog('AssistantHub', `Successfully installed assistant "${assistantName}" v${version} to ${assistantDir}`);
-      mainLog('AssistantHub', `Assistant enabledSkills: ${allAssociatedSkillNames.join(', ')}`);
 
       return {
         success: true,
@@ -643,7 +635,7 @@ export function registerUploadAssistantToHubBridge() {
 
     try {
       // Get custom assistants directory
-      const assistantsDir = getAssistantsDir();
+      const assistantsDir = getCustomAssistantsDir();
       const assistantDir = path.join(assistantsDir, name);
 
       // Check if assistant exists
@@ -652,7 +644,7 @@ export function registerUploadAssistantToHubBridge() {
       } catch {
         return {
           success: false,
-          msg: `Assistant "${name}" not found`,
+          msg: `助手 "${name}" 未找到`,
         };
       }
 
@@ -694,8 +686,6 @@ export function registerUploadAssistantToHubBridge() {
       // Generate zip buffer
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
       const zipFileName = `${name}.zip`;
-
-      mainLog('AssistantHub', `Created zip file "${zipFileName}" with ${files.length - 1} files`);
 
       // Build multipart/form-data request
       const formData = new FormData();
@@ -756,8 +746,6 @@ export function registerUploadAssistantToHubBridge() {
       // Upload to Hub API
       const uploadUrl = ASSISTANT_HUB_BASE_URL;
 
-      mainLog('AssistantHub', `Uploading assistant "${displayName}" to ${uploadUrl} with tenantId: ${tenantId}`);
-
       // Real API call
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -777,7 +765,6 @@ export function registerUploadAssistantToHubBridge() {
       }
 
       const result = await response.json();
-      mainLog('AssistantHub', `Upload response: ${JSON.stringify(result)}`);
 
       return {
         success: true,

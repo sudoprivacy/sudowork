@@ -77,12 +77,14 @@ type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
   isGoogleAuth: boolean;
   localeKey: string;
+  /** URL query parameter for assistant name to pre-select */
+  assistantFromUrl?: string | null;
 };
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
@@ -284,6 +286,18 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       isActive = false;
     };
   }, [availableCustomAgentIds]);
+
+  // Pre-select assistant from URL parameter (assistantFromUrl)
+  useEffect(() => {
+    if (!assistantFromUrl || !customAgents || customAgents.length === 0) return;
+
+    // Find the assistant by name (assistantFromUrl is the assistant name, not ID)
+    const matchedAgent = customAgents.find((agent) => agent.name === assistantFromUrl || agent.id === assistantFromUrl);
+    if (matchedAgent) {
+      const agentKey = `custom:${matchedAgent.id}`;
+      setSelectedAgentKey(agentKey);
+    }
+  }, [assistantFromUrl, customAgents, setSelectedAgentKey]);
 
   // Load cached ACP model lists
   useEffect(() => {

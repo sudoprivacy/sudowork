@@ -61,6 +61,7 @@ const GuidPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
+  const assistantParam = searchParams.get('assistant');
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -125,6 +126,7 @@ const GuidPage: React.FC = () => {
     modelList: modelSelection.modelList,
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
+    assistantFromUrl: assistantParam,
   });
 
   const guidInput = useGuidInput({

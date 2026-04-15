@@ -468,16 +468,17 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       const displayVersion = normalizeSkillVersion(skill.version);
+                      const skillId = skill.meta?.id || skill.name;
                       return (
                         <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skill.name)}
+                            checked={selectedSkills.includes(skillId)}
                             onChange={() => {
                               if (isReadonly) return;
-                              if (selectedSkills.includes(skill.name)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                              if (selectedSkills.includes(skillId)) {
+                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                               } else {
-                                setSelectedSkills([...selectedSkills, skill.name]);
+                                setSelectedSkills([...selectedSkills, skillId]);
                               }
                             }}
                             disabled={isReadonly}
@@ -535,16 +536,17 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .filter((s) => s.isBuiltin)
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+                      const skillId = skill.meta?.id || skill.name;
                       return (
                         <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skill.name)}
+                            checked={selectedSkills.includes(skillId)}
                             onChange={() => {
                               if (isReadonly) return;
-                              if (selectedSkills.includes(skill.name)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                              if (selectedSkills.includes(skillId)) {
+                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                               } else {
-                                setSelectedSkills([...selectedSkills, skill.name]);
+                                setSelectedSkills([...selectedSkills, skillId]);
                               }
                             }}
                             disabled={isReadonly}

@@ -8,7 +8,7 @@ import { ipcBridge, skillHub, assistantHub } from '@/common';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
-import { resolveLocaleKey } from '@/common/utils';
+import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
@@ -20,7 +20,7 @@ import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
 import { Close, Copy, Delete, Lightning, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import useSWR, { mutate } from 'swr';
@@ -151,6 +151,12 @@ const InstalledAssistantCard: React.FC<{
         <div className='mt-3px min-h-30px'>
           {description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{assistant.id}</div>}
         </div>
+        {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
+          <div className='mt-4px flex items-center gap-4px'>
+            <Lightning size='12' className='text-primary flex-shrink-0' />
+            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
+          </div>
+        )}
       </div>
 
       {/* Top-right: upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
@@ -241,11 +247,13 @@ const HubAssistantCard: React.FC<{
 
       {/* Actions - top right */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
-        {/* Duplicate button - always visible */}
-        <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
-          <Copy size='13' />
-          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
-        </button>
+        {/* Duplicate button - only for installed assistants */}
+        {isInstalled && (
+          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
+            <Copy size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
+          </button>
+        )}
         {/* Install button or progress - only show if hasDownloadUrl */}
         {installing ? (
           <div className='w-52px'>
@@ -273,19 +281,39 @@ const AssistantDetailModal: React.FC<{
   installProgress: number;
   onInstall: (selectedSkillIds: string[]) => void;
   onGoUse?: () => void;
-  installedSkills: Set<string>;
+  installedSkills: IInstalledSkillInfo[];
 }> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, onGoUse, installedSkills }) => {
   const { t } = useTranslation();
   const [detail, setDetail] = useState<IAssistantHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
+  const [relatedSkillTags, setRelatedSkillTags] = useState<Map<string, string>>(new Map());
   const [loadingSkills, setLoadingSkills] = useState(false);
 
   // Check if assistant has a valid download URL
   const hasDownloadUrl = Boolean(assistant?._sourceUrl);
 
+  // Build a map of local installed skills by ID for quick lookup (memoized to prevent infinite loops)
+  const localSkillByIdMap = useMemo(() => {
+    const map = new Map<string, IInstalledSkillInfo>();
+    for (const skill of installedSkills) {
+      if (skill.meta?.id) {
+        map.set(skill.meta.id, skill);
+      }
+    }
+    return map;
+  }, [installedSkills]);
+
+  const localSkillByNameSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const skill of installedSkills) {
+      set.add(skill.name);
+    }
+    return set;
+  }, [installedSkills]);
+
   // Count installed skills for display
-  const installedSkillCount = relatedSkillDetails.filter((s) => installedSkills.has(s.name)).length;
+  const installedSkillCount = relatedSkillDetails.filter((s) => localSkillByNameSet.has(s.name)).length;
 
   // Fetch assistant detail and related skill details
   useEffect(() => {
@@ -310,10 +338,70 @@ const AssistantDetailModal: React.FC<{
           // Fetch related skill details by IDs
           const skillIds = assistant.skills || [];
           if (skillIds.length > 0) {
-            const skillsRes = await assistantHub.fetchSkillDetailsByIds.invoke({ skillIds });
-            if (skillsRes.success && skillsRes.data) {
-              setRelatedSkillDetails(skillsRes.data);
+            // First, find skills from local installed skills (including builtin skills)
+            const localFoundSkills: ISkillHubSkill[] = [];
+            const localFoundSkillTags: Map<string, string> = new Map(); // Track skill tags separately
+            const notFoundSkillIds: string[] = [];
+
+            for (const skillId of skillIds) {
+              const localSkill = localSkillByIdMap.get(skillId);
+              if (localSkill && localSkill.meta) {
+                // Convert local skill info to ISkillHubSkill format
+                localFoundSkills.push({
+                  id: localSkill.meta.id || skillId,
+                  name: localSkill.meta.name || localSkill.name,
+                  display_name: localSkill.meta.display_name || localSkill.name,
+                  description: localSkill.meta.description || '',
+                  icon: localSkill.meta.icon || '',
+                  emoji: localSkill.meta.emoji || null,
+                  category: localSkill.meta.category || '',
+                  categories: localSkill.meta.categories || [],
+                  star_count: 0,
+                  homepage: localSkill.meta.homepage || null,
+                  author_id: localSkill.meta.author_id || '',
+                  applicable_scenarios: localSkill.meta.applicable_scenarios || null,
+                  core_features: localSkill.meta.core_features || null,
+                  created_at: localSkill.meta.installed_at || '',
+                  updated_at: localSkill.meta.installed_at || '',
+                });
+                // Track skill source type for builtin detection
+                const skillTag = localSkill.meta.source_type || (localSkill.isBuiltin ? 'builtin' : 'hub');
+                localFoundSkillTags.set(skillId, skillTag);
+              } else {
+                // Not found locally, need to fetch from Hub API
+                notFoundSkillIds.push(skillId);
+              }
             }
+
+            // Fetch remaining skills from Hub API
+            let hubSkills: ISkillHubSkill[] = [];
+            if (notFoundSkillIds.length > 0) {
+              const skillsRes = await assistantHub.fetchSkillDetailsByIds.invoke({ skillIds: notFoundSkillIds });
+              if (skillsRes.success && skillsRes.data) {
+                hubSkills = skillsRes.data;
+                // Hub skills are from hub
+                for (const skillId of notFoundSkillIds) {
+                  localFoundSkillTags.set(skillId, 'hub');
+                }
+              }
+            }
+
+            // Combine local and hub skills, preserving original order
+            const allSkills: ISkillHubSkill[] = [];
+            for (const skillId of skillIds) {
+              const localSkill = localFoundSkills.find((s) => s.id === skillId);
+              if (localSkill) {
+                allSkills.push(localSkill);
+              } else {
+                const hubSkill = hubSkills.find((s) => s.id === skillId);
+                if (hubSkill) {
+                  allSkills.push(hubSkill);
+                }
+              }
+            }
+
+            setRelatedSkillDetails(allSkills);
+            setRelatedSkillTags(localFoundSkillTags);
           }
         }
       } catch (err) {
@@ -324,7 +412,7 @@ const AssistantDetailModal: React.FC<{
       }
     };
     void fetchData();
-  }, [visible, assistant]);
+  }, [visible, assistant, localSkillByIdMap]);
 
   if (!assistant) return null;
 
@@ -407,13 +495,27 @@ const AssistantDetailModal: React.FC<{
                     ) : (
                       <div className='space-y-8px'>
                         {relatedSkillDetails.map((skill) => {
-                          const isSkillInstalled = installedSkills.has(skill.name);
+                          const isSkillInstalled = localSkillByNameSet.has(skill.name);
+                          const skillTag = relatedSkillTags.get(skill.id);
+                          const isBuiltinSkill = skillTag === 'builtin' || skillTag === 'system';
                           const skillDisplayName = skill.display_name || skill.name;
+                          // Resolve icon URL based on skill source type
+                          // - Builtin skills: icon is aion-asset:// or file:// URL, use resolveExtensionAssetUrl
+                          // - Hub skills: icon may be relative path, need to prepend COS URL
+                          let skillIconUrl: string | undefined;
+                          if (isBuiltinSkill) {
+                            skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
+                          } else {
+                            // Hub skills: if icon is relative path, prepend COS URL
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://')
+                              ? `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}`
+                              : skill.icon;
+                          }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
                               <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
-                                {skill.icon ? (
-                                  <img src={`https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}`} alt={skillDisplayName} className='w-full h-full object-cover' />
+                                {skillIconUrl ? (
+                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' />
                                 ) : skill.emoji ? (
                                   <div className='w-full h-full flex items-center justify-center text-16px'>{skill.emoji}</div>
                                 ) : (
@@ -423,7 +525,10 @@ const AssistantDetailModal: React.FC<{
                                 )}
                               </div>
                               <div className='flex-1 min-w-0'>
-                                <div className='font-medium text-13px text-t-primary truncate'>{skillDisplayName}</div>
+                                <div className='flex items-center gap-4px'>
+                                  <span className='font-medium text-13px text-t-primary truncate'>{skillDisplayName}</span>
+                                  {isBuiltinSkill && <Shield size='12' className='text-primary flex-shrink-0' />}
+                                </div>
                                 <div className='text-11px text-t-tertiary truncate'>{skill.description}</div>
                               </div>
                               <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-t-secondary'}`}>
@@ -1005,7 +1110,7 @@ const AgentModalContent: React.FC = () => {
       if (duplicateAssistant) {
         const baseName = duplicateAssistant.display_name || duplicateAssistant.name;
         const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
-        const customId = `custom-${duplicateAssistant.name}-${Date.now()}`;
+        const customId = uuid(36); // Generate UUID for assistant ID
 
         // Read the assistant rule content if already installed
         let ruleContent: string | undefined = undefined;
@@ -1045,7 +1150,7 @@ const AgentModalContent: React.FC = () => {
       if (duplicateInstalledAssistant) {
         const baseName = duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name;
         const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
-        const customId = `custom-${duplicateInstalledAssistant.id}-${Date.now()}`;
+        const customId = uuid(36); // Generate UUID for assistant ID
 
         // Read the assistant rule content
         let ruleContent: string | undefined = undefined;
@@ -1235,7 +1340,7 @@ const AgentModalContent: React.FC = () => {
           agentMessage.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
           return;
         }
-        const newId = `custom-${Date.now()}`;
+        const newId = uuid(36); // Generate UUID for assistant ID
         await ipcBridge.assistantHub.createAssistant.invoke({
           meta: {
             id: newId,
@@ -1366,7 +1471,7 @@ const AgentModalContent: React.FC = () => {
           onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
           onDelete={() => void handleDeleteFromCard(assistant)}
           onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
-          onUpload={!assistant.isBuiltin && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
+          onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
           onClick={() => void handleEdit(assistant)}
         />
       ))}
@@ -1715,13 +1820,14 @@ const AgentModalContent: React.FC = () => {
                       <SkillCard
                         key={skill.name}
                         skill={skill}
-                        checked={selectedSkills.includes(skill.name)}
+                        checked={selectedSkills.includes(skill.meta?.id || skill.name)}
                         onToggle={() => {
+                          const skillId = skill.meta?.id || skill.name;
                           if (isReadonlyAssistant) return;
-                          if (selectedSkills.includes(skill.name)) {
-                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          if (selectedSkills.includes(skillId)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                           } else {
-                            setSelectedSkills([...selectedSkills, skill.name]);
+                            setSelectedSkills([...selectedSkills, skillId]);
                           }
                         }}
                         disabled={isReadonlyAssistant}
@@ -1736,13 +1842,14 @@ const AgentModalContent: React.FC = () => {
                       <SkillCard
                         key={skill.name}
                         skill={skill}
-                        checked={selectedSkills.includes(skill.name)}
+                        checked={selectedSkills.includes(skill.meta?.id || skill.name)}
                         onToggle={() => {
+                          const skillId = skill.meta?.id || skill.name;
                           if (isReadonlyAssistant) return;
-                          if (selectedSkills.includes(skill.name)) {
-                            setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                          if (selectedSkills.includes(skillId)) {
+                            setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                           } else {
-                            setSelectedSkills([...selectedSkills, skill.name]);
+                            setSelectedSkills([...selectedSkills, skillId]);
                           }
                         }}
                         disabled={isReadonlyAssistant}
@@ -1872,7 +1979,7 @@ const AgentModalContent: React.FC = () => {
         wrapStyle={{ zIndex: 10000 }}
         maskStyle={{ zIndex: 9999 }}
       >
-        <p>{t('settings.uploadAssistantConfirm', { defaultValue: '确认上传该助手到助手商店？上传后其他用户可以下载使用。' })}</p>
+        <p>{t('settings.uploadAssistantConfirm', { defaultValue: '确认上传该助手到助手商店？上传后同一租户下的其他用户可以下载使用。' })}</p>
         {/* Assistant preview */}
         {uploadAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
@@ -1913,7 +2020,7 @@ const AgentModalContent: React.FC = () => {
           }
         }}
         onGoUse={handleGoUseHubAssistant}
-        installedSkills={new Set(installedSkills.map((s) => s.name))}
+        installedSkills={installedSkills}
       />
     </div>
   );

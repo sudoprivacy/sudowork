@@ -1064,9 +1064,28 @@ export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
 }
 
 /**
+ * 获取 skill ID → skill name 的映射
+ * 用于 enabledSkills 存储 IDs 后，加载技能内容时转换为 name 定位目录
+ * Get skill ID → skill name mapping
+ * Used when enabledSkills stores IDs, converts to name for directory lookup
+ */
+export async function getSkillIdToNameMap(): Promise<Map<string, string>> {
+  const { skillManager } = await import('@/process/SkillManager');
+  const skills = await skillManager.getInstalledSkills();
+
+  const idToNameMap = new Map<string, string>();
+  for (const skill of skills) {
+    if (skill.meta?.id) {
+      idToNameMap.set(skill.meta.id, skill.name);
+    }
+  }
+  return idToNameMap;
+}
+
+/**
  * 加载指定 skills 的内容（带缓存）
  * Load content of specified skills (with caching)
- * @param enabledSkills - skill 名称列表 / list of skill names
+ * @param enabledSkills - skill ID列表（UUID格式）/ list of skill IDs
  * @returns 合并后的 skills 内容 / merged skills content
  */
 export const loadSkillsContent = async (enabledSkills: string[]): Promise<string> => {
@@ -1074,9 +1093,27 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
     return '';
   }
 
+  // 判断是 skill IDs (UUID) 还是 skill names
+  // UUID 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  const isUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const looksLikeIds = enabledSkills.every((s) => isUuidPattern.test(s));
+
+  let skillNames: string[];
+  if (looksLikeIds) {
+    // 转换 skill IDs → skill names
+    const idToNameMap = await getSkillIdToNameMap();
+    skillNames = enabledSkills
+      .map((id) => idToNameMap.get(id))
+      .filter((name): name is string => Boolean(name));
+    mainLog('Sudowork', `Converted skill IDs to names: ${enabledSkills.join(',')} → ${skillNames.join(',')}`);
+  } else {
+    // 直接作为 skill names 使用
+    skillNames = enabledSkills;
+  }
+
   // 使用排序后的 skill 名称作为缓存 key，确保相同组合命中缓存
   // Use sorted skill names as cache key to ensure same combinations hit cache
-  const cacheKey = [...enabledSkills].sort().join(',');
+  const cacheKey = [...skillNames].sort().join(',');
   const cached = skillsContentCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
@@ -1085,7 +1122,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
   const skillsDir = getSkillsDir();
   const skillContents: string[] = [];
 
-  for (const skillName of enabledSkills) {
+  for (const skillName of skillNames) {
     // 按优先级搜索：自定义 > Hub > 内置 > 旧版扁平结构
     // Search by priority: custom > hub > builtin > legacy flat structure
     const candidates = [
