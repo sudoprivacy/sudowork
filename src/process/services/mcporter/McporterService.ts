@@ -5,14 +5,16 @@
  */
 
 import type { ChildProcess } from 'child_process';
-import { exec, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { app } from 'electron';
 import path from 'path';
 import os from 'os';
 import type { IMcpServer } from '@/common/storage';
 import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { safeExec } from '@process/utils/safeExec';
+import { getNodeBinaryPath, ensureNodeInstalled, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 
 /**
  * mcporter daemon 状态
@@ -25,18 +27,81 @@ export interface DaemonStatus {
 }
 
 /**
+ * 执行mcporter命令的结果
+ */
+interface McporterExecResult {
+  stdout: string;
+  stderr: string;
+}
+
+/**
  * mcporter 服务 - 管理 MCP 配置和 daemon
+ *
+ * 支持两种运行模式：
+ * 1. 内嵌模式（打包后）：使用内嵌的Node.js runtime和内嵌的mcporter npm包
+ * 2. 开发模式：使用npx运行系统安装的mcporter
  */
 class McporterService {
   private configPath: string;
   private configDir: string;
   private daemonProcess: ChildProcess | null = null;
   private readonly TIMEOUT = 30000;
+  private isBundledMode: boolean;
 
   constructor() {
     // 配置路径: ~/.nexus/mcporter/mcporter.json
     this.configDir = path.join(os.homedir(), '.nexus', 'mcporter');
     this.configPath = path.join(this.configDir, 'mcporter.json');
+
+    // 判断是否使用内嵌模式
+    this.isBundledMode = app.isPackaged && this.getMcporterCliPath() !== null;
+  }
+
+  /**
+   * 获取内嵌mcporter CLI路径
+   * 打包模式下返回内嵌资源路径，开发模式返回null
+   */
+  private getMcporterCliPath(): string | null {
+    // 打包模式：从resources目录获取
+    if (app.isPackaged) {
+      // 尝试多种可能的CLI入口路径（优先使用dist/cli.js，这是mcporter的实际入口）
+      const possiblePaths = [path.join(process.resourcesPath, 'mcporter', 'dist', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'bin', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'src', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'index.js')];
+
+      for (const cliPath of possiblePaths) {
+        if (existsSync(cliPath)) {
+          return cliPath;
+        }
+      }
+
+      // 尗试检查package.json中的bin字段来确定入口
+      const packageJsonPath = path.join(process.resourcesPath, 'mcporter', 'package.json');
+      if (existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+          if (packageJson.bin) {
+            // bin可能是对象或字符串
+            const binPath = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin.mcporter || packageJson.bin['mcporter-cli'] || Object.values(packageJson.bin)[0];
+
+            if (binPath) {
+              const fullPath = path.join(process.resourcesPath, 'mcporter', binPath);
+              if (existsSync(fullPath)) {
+                return fullPath;
+              }
+            }
+          }
+        } catch {
+          // 解析失败，继续使用其他方法
+        }
+      }
+    }
+
+    // 开发模式：从项目resources目录获取（如果存在）
+    const devPath = path.join(app.getAppPath(), 'resources', 'mcporter', 'dist', 'cli.js');
+    if (existsSync(devPath)) {
+      return devPath;
+    }
+
+    return null;
   }
 
   /**
@@ -55,8 +120,27 @@ class McporterService {
 
   /**
    * 检查 mcporter 是否可用
+   * 打包模式：检查内嵌资源
+   * 开发模式：使用npx检查
    */
   async isAvailable(): Promise<boolean> {
+    // 打包模式：检查内嵌资源
+    if (app.isPackaged) {
+      const cliPath = this.getMcporterCliPath();
+      const nodeAvailable = isNodeInstalled();
+
+      if (cliPath && nodeAvailable) {
+        mainLog('McporterService', 'Bundled mcporter available:', cliPath);
+        return true;
+      }
+
+      // 内嵌资源不存在，fallback到npx
+      if (!cliPath) {
+        mainWarn('McporterService', 'Bundled mcporter not found, falling back to npx');
+      }
+    }
+
+    // 开发模式或fallback：检查npx
     try {
       const result = await safeExec('npx mcporter --version', {
         timeout: 10000,
@@ -68,10 +152,16 @@ class McporterService {
   }
 
   /**
-   * 安装 mcporter (全局安装)
+   * 安装 mcporter (全局安装) - 仅用于开发模式
+   * 打包模式不需要安装，直接使用内嵌资源
    */
   async install(): Promise<void> {
-    mainLog('McporterService', 'Installing mcporter globally...');
+    if (app.isPackaged) {
+      mainLog('McporterService', 'Packaged mode - skipping npm install, using bundled resources');
+      return;
+    }
+
+    mainLog('McporterService', 'Installing mcporter globally (dev mode)...');
 
     try {
       await safeExec('npm install -g mcporter', {
@@ -82,6 +172,108 @@ class McporterService {
       mainError('McporterService', 'Failed to install mcporter:', error);
       throw error;
     }
+  }
+
+  /**
+   * 执行 mcporter 命令
+   * 打包模式：使用内嵌Node和内嵌mcporter
+   * 开发模式：使用npx
+   */
+  private async runMcporterCommand(args: string[], timeout?: number): Promise<McporterExecResult> {
+    const mcporterCliPath = this.getMcporterCliPath();
+
+    // 打包模式：使用内嵌Node直接运行mcporter CLI
+    if (mcporterCliPath && app.isPackaged) {
+      // 确保Node runtime已安装
+      await ensureNodeInstalled();
+      const nodePath = getNodeBinaryPath();
+
+      mainLog('McporterService', `Running bundled mcporter: node ${mcporterCliPath} ${args.join(' ')}`);
+
+      return this.spawnCommand(nodePath, [mcporterCliPath, ...args], timeout || this.TIMEOUT);
+    }
+
+    // 开发模式：使用npx
+    mainLog('McporterService', `Running mcporter via npx: npx mcporter ${args.join(' ')}`);
+    return safeExec(`npx mcporter ${args.join(' ')}`, {
+      timeout: timeout || this.TIMEOUT,
+      env: { ...process.env, MCPORTER_CONFIG: this.configPath },
+    });
+  }
+
+  /**
+   * 使用spawn执行命令（静默模式，Windows下不弹窗）
+   */
+  private spawnCommand(executable: string, args: string[], timeout: number): Promise<McporterExecResult> {
+    return new Promise((resolve, reject) => {
+      const isWindows = process.platform === 'win32';
+
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
+
+      // Windows静默执行配置
+      const spawnOptions = {
+        env,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'] as ('ignore' | 'pipe')[], // 使用可变数组类型
+        windowsHide: isWindows, // Windows下不创建控制台窗口
+        ...(isWindows && { windowsVerbatimArguments: true }),
+      };
+
+      const child = spawn(executable, args, spawnOptions);
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+
+      if (child.stdout) {
+        child.stdout.on('data', (chunk: Buffer) => {
+          stdout += chunk.toString();
+        });
+      }
+
+      if (child.stderr) {
+        child.stderr.on('data', (chunk: Buffer) => {
+          stderr += chunk.toString();
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try {
+            process.kill(-child.pid!, 'SIGTERM');
+          } catch {
+            // already exited
+          }
+          reject(Object.assign(new Error(`Command timed out after ${timeout}ms`), { stdout, stderr }));
+        }
+      }, timeout);
+
+      child.on('error', (err) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+
+      child.on('close', (code) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          if (code === 0) {
+            resolve({ stdout, stderr });
+          } else {
+            reject(Object.assign(new Error(`Command failed with exit code ${code}`), { stdout, stderr, code }));
+          }
+        }
+      });
+
+      // 不阻止Node进程退出
+      child.unref();
+    });
   }
 
   /**
@@ -189,6 +381,8 @@ class McporterService {
 
   /**
    * 启动 mcporter daemon
+   * 打包模式：使用内嵌Node和内嵌mcporter
+   * 开发模式：使用npx
    */
   async startDaemon(): Promise<void> {
     if (this.daemonProcess) {
@@ -198,10 +392,79 @@ class McporterService {
 
     this.ensureConfigDir();
 
-    mainLog('McporterService', 'Starting mcporter daemon...');
+    const mcporterCliPath = this.getMcporterCliPath();
+
+    // 打包模式：使用内嵌Node运行mcporter daemon
+    if (mcporterCliPath && app.isPackaged) {
+      await this.startDaemonBundled(mcporterCliPath);
+      return;
+    }
+
+    // 开发模式：使用npx
+    await this.startDaemonNpx();
+  }
+
+  /**
+   * 启动daemon - 使用内嵌资源（打包模式）
+   */
+  private async startDaemonBundled(mcporterCliPath: string): Promise<void> {
+    mainLog('McporterService', 'Starting mcporter daemon using bundled resources...');
 
     try {
-      // 使用环境变量指定配置路径
+      // 确保Node runtime已安装
+      await ensureNodeInstalled();
+      const nodePath = getNodeBinaryPath();
+
+      const env = {
+        ...process.env,
+        MCPORTER_CONFIG: this.configPath,
+      };
+
+      const isWindows = process.platform === 'win32';
+
+      // 完全静默启动，Windows下不弹出窗口
+      const spawnOptions = {
+        env,
+        detached: true,
+        stdio: 'ignore' as const,
+        windowsHide: isWindows, // Windows下不创建控制台窗口
+        ...(isWindows && { windowsVerbatimArguments: true }),
+      };
+
+      mainLog('McporterService', `Executing: node ${mcporterCliPath} daemon start --detach`);
+
+      this.daemonProcess = spawn(nodePath, [mcporterCliPath, 'daemon', 'start', '--detach'], spawnOptions);
+
+      this.daemonProcess.on('error', (error) => {
+        mainError('McporterService', 'Daemon process error:', error);
+        this.daemonProcess = null;
+      });
+
+      this.daemonProcess.on('exit', (code, signal) => {
+        mainLog('McporterService', `Daemon process exited with code ${code}, signal ${signal}`);
+        this.daemonProcess = null;
+      });
+
+      // 不阻止Node进程退出
+      this.daemonProcess.unref();
+
+      // 等待daemon启动
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      mainLog('McporterService', 'mcporter daemon started (bundled mode)');
+    } catch (error) {
+      mainError('McporterService', 'Failed to start daemon (bundled):', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 启动daemon - 使用npx（开发模式）
+   */
+  private async startDaemonNpx(): Promise<void> {
+    mainLog('McporterService', 'Starting mcporter daemon via npx (dev mode)...');
+
+    try {
       const env = {
         ...process.env,
         MCPORTER_CONFIG: this.configPath,
@@ -227,9 +490,9 @@ class McporterService {
       // 等待 daemon 启动
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      mainLog('McporterService', 'mcporter daemon started');
+      mainLog('McporterService', 'mcporter daemon started (npx mode)');
     } catch (error) {
-      mainError('McporterService', 'Failed to start daemon:', error);
+      mainError('McporterService', 'Failed to start daemon (npx):', error);
       throw error;
     }
   }
@@ -246,16 +509,8 @@ class McporterService {
     mainLog('McporterService', 'Stopping mcporter daemon...');
 
     try {
-      // 使用 mcporter CLI 停止 daemon
-      const env = {
-        ...process.env,
-        MCPORTER_CONFIG: this.configPath,
-      };
-
-      await safeExec('npx mcporter daemon stop', {
-        timeout: 10000,
-        env,
-      });
+      // 使用runMcporterCommand停止daemon
+      await this.runMcporterCommand(['daemon', 'stop'], 10000);
 
       this.daemonProcess = null;
       mainLog('McporterService', 'mcporter daemon stopped');
@@ -274,16 +529,7 @@ class McporterService {
    */
   private async reloadDaemon(): Promise<void> {
     try {
-      const env = {
-        ...process.env,
-        MCPORTER_CONFIG: this.configPath,
-      };
-
-      await safeExec('npx mcporter daemon restart', {
-        timeout: 10000,
-        env,
-      });
-
+      await this.runMcporterCommand(['daemon', 'restart'], 10000);
       mainLog('McporterService', 'Daemon reloaded');
     } catch (error) {
       mainWarn('McporterService', 'Failed to reload daemon:', error);
@@ -295,16 +541,7 @@ class McporterService {
    */
   async getDaemonStatus(): Promise<DaemonStatus> {
     try {
-      const env = {
-        ...process.env,
-        MCPORTER_CONFIG: this.configPath,
-      };
-
-      const result = await safeExec('npx mcporter daemon status --json', {
-        timeout: 5000,
-        env,
-      });
-
+      const result = await this.runMcporterCommand(['daemon', 'status', '--json'], 5000);
       const status = JSON.parse(result.stdout) as DaemonStatus;
       return status;
     } catch {
@@ -317,12 +554,20 @@ class McporterService {
    */
   async initialize(servers: IMcpServer[]): Promise<void> {
     mainLog('McporterService', 'Initializing mcporter...');
+    mainLog('McporterService', `Mode: ${this.isBundledMode ? 'bundled' : 'npx'}`);
 
     // 检查 mcporter 是否可用
     const available = await this.isAvailable();
     if (!available) {
-      mainLog('McporterService', 'mcporter not available, installing...');
-      await this.install();
+      // 打包模式应该总是可用（内嵌资源）
+      if (app.isPackaged) {
+        mainError('McporterService', 'Bundled mcporter not available - this should not happen');
+        // 不抛出错误，让应用继续启动
+      } else {
+        // 开发模式：尝试安装
+        mainLog('McporterService', 'mcporter not available, installing...');
+        await this.install();
+      }
     }
 
     // 同步配置
