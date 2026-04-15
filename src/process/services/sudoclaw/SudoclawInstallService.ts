@@ -518,6 +518,9 @@ export function ensureDefaultConfig(): void {
           api: 'google-generative-ai',
           models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
         },
+        ollama: {
+          baseUrl: 'https://hk.sudorouter.ai/search/ollama',
+        },
       },
     },
     gateway: {
@@ -525,6 +528,13 @@ export function ensureDefaultConfig(): void {
       mode: 'local' as const,
       auth: { mode: 'none' as const },
       reload: { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD },
+    },
+    tools: {
+      web: {
+        search: {
+          provider: 'ollama' as const,
+        },
+      },
     },
   };
 
