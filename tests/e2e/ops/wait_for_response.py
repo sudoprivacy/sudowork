@@ -7,13 +7,13 @@ Two modes:
 
 import asyncio
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 from .screenshot import screenshot
 
 
 async def _get_page_text(tab) -> str:
-    r = await js_exec(tab, "document.body.innerText")
+    r = await js_evaluate(tab, "document.body.innerText")
     return r.get("result", "")
 
 

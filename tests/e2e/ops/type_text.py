@@ -2,7 +2,7 @@
 
 import asyncio
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 async def type_text(tab, text: str, wait: float = 1) -> dict:
@@ -13,7 +13,7 @@ async def type_text(tab, text: str, wait: float = 1) -> dict:
     Returns:
         {"typed": True} or {"error": str}
     """
-    await js_exec(tab, "document.querySelector('textarea')?.focus()")
+    await js_evaluate(tab, "document.querySelector('textarea')?.focus()")
     await asyncio.sleep(0.3)
 
     js = """(() => {
@@ -27,7 +27,7 @@ async def type_text(tab, text: str, wait: float = 1) -> dict:
         return 'ok';
     })()""" % repr(text)
 
-    r = await js_exec(tab, js)
+    r = await js_evaluate(tab, js)
     if r.get("result") != "ok":
         return {"error": f"Could not type: {r.get('result')}"}
 

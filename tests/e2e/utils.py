@@ -7,7 +7,7 @@ parameters (x, y coordinates, etc).
 
 import json
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 
@@ -18,7 +18,7 @@ async def react_key_fallback(tab, value: str) -> dict:
     state updates. This function uses the native property setter to
     append the character to the current textarea value.
     """
-    r = await js_exec(tab, """(() => {
+    r = await js_evaluate(tab, """(() => {
         const ta = document.querySelector('textarea') || document.querySelector('input[type="text"]');
         if (!ta) return JSON.stringify({"error": "no input element found"});
         const setter = Object.getOwnPropertyDescriptor(

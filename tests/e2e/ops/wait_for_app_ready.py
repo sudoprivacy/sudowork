@@ -5,7 +5,7 @@ Uses the init IPC API (phase === 'ready') rather than text polling.
 
 import asyncio
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 async def wait_for_app_ready(tab, timeout: float = 300) -> dict:
@@ -17,7 +17,7 @@ async def wait_for_app_ready(tab, timeout: float = 300) -> dict:
     for _ in range(int(timeout / 2)):
         await asyncio.sleep(2)
 
-        r = await js_exec(tab, """
+        r = await js_evaluate(tab, """
             (function() {
                 var text = document.body.innerText || '';
                 if (text.includes('正在准备运行环境')) return 'pending';
