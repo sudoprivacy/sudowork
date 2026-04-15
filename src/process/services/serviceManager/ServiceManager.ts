@@ -596,7 +596,7 @@ export class ServiceManager {
         for (const line of stdout.trim().split('\n')) {
           const pid = line.trim().split(/\s+/).at(-1) ?? '';
           if (pid && /^\d+$/.test(pid) && pid !== '0') {
-            await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
+            await execAsync(`taskkill /F /T /PID ${pid}`).catch(() => {});
           }
         }
       } else {
@@ -670,7 +670,7 @@ export class ServiceManager {
           const parts = line.trim().split(/\s+/);
           const pid = parts[parts.length - 1];
           if (pid && /^\d+$/.test(pid) && pid !== '0') {
-            await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
+            await execAsync(`taskkill /F /T /PID ${pid}`).catch(() => {});
           }
         }
       } else {
