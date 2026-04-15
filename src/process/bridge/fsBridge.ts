@@ -14,6 +14,7 @@ import { app } from 'electron';
 import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
 import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
+import { ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from '../constants/assistantStorage';
 import { readDirectoryRecursive } from '../utils';
 import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -112,12 +113,72 @@ async function readBuiltinResource(resourceType: ResourceType, fileName: string)
 /**
  * Read assistant resource file with locale fallback
  * 读取助手资源文件，支持语言回退
+ *
+ * Directory structure:
+ * - Hub: _hub/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
+ * - System: _system/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
+ * - Custom: _my-custom-assistant/{id}/AGENT.md
  */
 async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const assistantsDir = getAssistantsDir();
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
-  // 1. Try user data directory first
+  // 1. Try new directory structure (hub, system, custom)
+  const subdirs = [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
+  for (const subdir of subdirs) {
+    const assistantDir = path.join(assistantsDir, subdir, assistantId);
+    try {
+      // Check if directory exists
+      await fs.access(assistantDir);
+
+      // Read _sudowork_meta.json to get ruleFile
+      let ruleFile: string | undefined = undefined;
+      try {
+        const metaRaw = await fs.readFile(path.join(assistantDir, ASSISTANT_META_FILE), 'utf-8');
+        const meta = JSON.parse(metaRaw) as { ruleFile?: string };
+        ruleFile = meta.ruleFile;
+      } catch {
+        // No meta file, will scan for .md files
+      }
+
+      // If ruleFile is specified, try locale variants first
+      if (ruleFile) {
+        const ruleFileBase = ruleFile.replace('.md', '');
+        for (const loc of locales) {
+          const localeFile = `${ruleFileBase}.${loc}.md`;
+          try {
+            return await fs.readFile(path.join(assistantDir, localeFile), 'utf-8');
+          } catch {
+            // Try next locale
+          }
+        }
+        // Fallback to ruleFile itself
+        try {
+          return await fs.readFile(path.join(assistantDir, ruleFile), 'utf-8');
+        } catch {
+          // Fall through to scan
+        }
+      }
+
+      // No ruleFile or not found - scan for any .md file
+      try {
+        const files = await fs.readdir(assistantDir);
+        const mdFiles = files.filter((f) => f.endsWith('.md') && !f.endsWith('-skills.md'));
+        if (mdFiles.length > 0) {
+          // Priority: {assistantId}.md > any .md file
+          const primaryFile = mdFiles.find((f) => f === `${assistantId}.md`);
+          const targetFile = primaryFile || mdFiles[0];
+          return await fs.readFile(path.join(assistantDir, targetFile), 'utf-8');
+        }
+      } catch {
+        // No .md files found
+      }
+    } catch {
+      // Directory doesn't exist, try next
+    }
+  }
+
+  // 2. Try user data directory (legacy flat structure)
   for (const loc of locales) {
     const fileName = fileNamePattern(assistantId, loc);
     try {
@@ -127,7 +188,7 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
     }
   }
 
-  // 2. Fallback to builtin directory
+  // 3. Fallback to builtin directory
   const builtinDir = await findBuiltinResourceDir(resourceType);
   for (const loc of locales) {
     const fileName = fileNamePattern(assistantId, loc);
@@ -145,10 +206,23 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
 /**
  * Write assistant resource file to user directory
  * 写入助手资源文件到用户目录
+ *
+ * New directory structure for custom assistants:
+ * - Custom: _my-custom-assistant/{id}/AGENT.md
  */
 async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
   try {
     const assistantsDir = getAssistantsDir();
+
+    // For custom assistants, use new directory structure
+    if (assistantId.startsWith('custom-')) {
+      const customDir = path.join(assistantsDir, ASSISTANT_SUBDIRS.custom, assistantId);
+      await fs.mkdir(customDir, { recursive: true });
+      await fs.writeFile(path.join(customDir, 'AGENT.md'), content, 'utf-8');
+      return true;
+    }
+
+    // For other assistants, use legacy flat structure
     await fs.mkdir(assistantsDir, { recursive: true });
     const fileName = fileNamePattern(assistantId, locale);
     await fs.writeFile(path.join(assistantsDir, fileName), content, 'utf-8');

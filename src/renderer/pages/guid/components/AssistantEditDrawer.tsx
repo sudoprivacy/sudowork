@@ -13,7 +13,7 @@
 import { ipcBridge, skillHub } from '@/common';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { getPresetById } from '@/common/presets/presetResolver';
-import { ConfigStorage } from '@/common/storage';
+import { resolveAssistantName, fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
@@ -35,6 +35,11 @@ type AssistantEditDrawerProps = {
   onSaved: () => void;
 };
 
+/** Extended assistant config with hub-installed flag for readonly check */
+type AssistantConfigWithMeta = AcpBackendConfig & {
+  _isHubInstalled?: boolean;
+};
+
 const AVATAR_IMAGE_MAP: Record<string, string> = {
   'cowork.svg': coworkSvg,
   '\u{1F6E0}\u{FE0F}': coworkSvg,
@@ -42,12 +47,12 @@ const AVATAR_IMAGE_MAP: Record<string, string> = {
 
 /** Built-in agent options with backend IDs for filtering */
 const AGENT_OPTIONS = [
-  { value: 'gemini', label: 'Gemini CLI' },
-  { value: 'claude', label: 'Claude Code' },
-  { value: 'qwen', label: 'Qwen Code' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'codebuddy', label: 'CodeBuddy' },
-  { value: 'opencode', label: 'OpenCode' },
+  { value: 'gemini', label: 'Gemini CLI', backendId: 'gemini' },
+  { value: 'claude', label: 'Claude Code', backendId: 'claude' },
+  { value: 'qwen', label: 'Qwen Code', backendId: 'qwen' },
+  { value: 'codex', label: 'Codex', backendId: 'codex' },
+  { value: 'codebuddy', label: 'CodeBuddy', backendId: 'codebuddy' },
+  { value: 'opencode', label: 'OpenCode', backendId: 'opencode' },
   { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
 ] as const;
 
@@ -72,11 +77,14 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
 
   // Current assistant data
-  const [assistant, setAssistant] = useState<AcpBackendConfig | null>(null);
+  const [assistant, setAssistant] = useState<AssistantConfigWithMeta | null>(null);
   const isBuiltin = Boolean(assistant?.isBuiltin);
+  const isHubInstalled = Boolean(assistant?._isHubInstalled);
   // Extension assistants are loaded from extensions, not from acp.customAgents,
   // so they won't be found by the drawer loader. This check is a safety fallback.
   const isExtension = assistant?.id?.startsWith('ext-') ?? false;
+  // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
+  const isReadonly = isExtension || isHubInstalled || isBuiltin;
 
   // Responsive drawer width
   useEffect(() => {
@@ -110,9 +118,30 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
 
     const loadAssistant = async () => {
       try {
-        const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-        const found = agents.find((a) => a.id === assistantId);
-        if (cancelled || !found) return;
+        // Load from assistantHub (new architecture) to get full info including _isHubInstalled
+        const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+        if (!res.success || !res.data) return;
+
+        // Find the assistant by id (directory name)
+        const foundInfo = res.data.find((a) => a.name === assistantId || a.meta.id === assistantId);
+        if (cancelled || !foundInfo) return;
+
+        // Convert to config format, preserving isHubInstalled flag
+        const found: AssistantConfigWithMeta = {
+          id: foundInfo.isBuiltin ? `builtin-${foundInfo.name}` : foundInfo.name,
+          name: foundInfo.meta.nameI18n?.['zh-CN'] || foundInfo.meta.nameI18n?.['en-US'] || foundInfo.meta.id || foundInfo.name,
+          nameI18n: foundInfo.meta.nameI18n,
+          descriptionI18n: foundInfo.meta.descriptionI18n,
+          avatar: foundInfo.meta.avatar,
+          enabled: foundInfo.enabled,
+          isPreset: true,
+          presetAgentType: foundInfo.meta.presetAgentType,
+          promptsI18n: foundInfo.meta.promptsI18n,
+          enabledSkills: foundInfo.meta.enabledSkills ?? foundInfo.meta.defaultEnabledSkills,
+          isBuiltin: foundInfo.isBuiltin,
+          apiKeyFields: foundInfo.meta.apiKeyFields,
+          _isHubInstalled: foundInfo.isHubInstalled,
+        };
 
         // Fall back to preset default presetAgentType only when the user hasn't saved one yet.
         // Preserving the stored value ensures the dropdown reflects (and lets the user modify)
@@ -126,8 +155,8 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         }
 
         setAssistant(found);
-        setEditName(found.name || '');
-        setEditDescription(found.description || '');
+        setEditName(found.nameI18n?.[localeKey] || found.name || '');
+        setEditDescription(found.descriptionI18n?.[localeKey] || found.description || '');
         setEditAvatar(found.avatar || '');
         setEditAgent(found.presetAgentType || 'sudoclaw');
         setSelectedSkills(found.enabledSkills || []);
@@ -191,25 +220,32 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
 
   const handleSave = useCallback(async () => {
     if (!assistant) return;
-    if (isExtension) {
+
+    // Block saving for readonly assistants (hub, builtin, extension)
+    if (isReadonly) {
       Message.warning(
-        t('settings.extensionAssistantReadonly', {
-          defaultValue: 'Extension assistants are read-only. You can duplicate it and edit the copy.',
+        t('settings.assistantReadonly', {
+          defaultValue: 'Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑',
         })
       );
       return;
     }
 
     try {
-      const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-      const updatedAgent: AcpBackendConfig = {
-        ...assistant,
-        name: editName,
-        description: editDescription,
-        avatar: editAvatar,
-        presetAgentType: editAgent,
-        enabledSkills: selectedSkills,
-      };
+      // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
+      const lookupName = resolveAssistantName(assistant.id);
+
+      // For custom assistants, save all fields
+      await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+        name: lookupName,
+        updates: {
+          nameI18n: { 'zh-CN': editName },
+          descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+          avatar: editAvatar,
+          presetAgentType: editAgent,
+          enabledSkills: selectedSkills,
+        },
+      });
 
       // Save rules file if changed
       if (editContext.trim()) {
@@ -219,9 +255,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           content: editContext,
         });
       }
-
-      const updatedAgents = agents.map((a) => (a.id === assistant.id ? updatedAgent : a));
-      await ConfigStorage.set('acp.customAgents', updatedAgents);
 
       // Refresh agent detection
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
@@ -234,10 +267,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       console.error('Failed to save assistant:', error);
       Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
-  }, [assistant, isExtension, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
+  }, [assistant, isReadonly, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
 
   const editAvatarImage = resolveAvatarImage(editAvatar);
-  const isReadonly = isExtension;
 
   return (
     <Drawer
@@ -436,18 +468,21 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       const displayVersion = normalizeSkillVersion(skill.version);
+                      const skillId = skill.meta?.id || skill.name;
                       return (
-                        <div key={skill.name} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative'>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skill.name)}
+                            checked={selectedSkills.includes(skillId)}
                             onChange={() => {
-                              if (selectedSkills.includes(skill.name)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                              if (isReadonly) return;
+                              if (selectedSkills.includes(skillId)) {
+                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                               } else {
-                                setSelectedSkills([...selectedSkills, skill.name]);
+                                setSelectedSkills([...selectedSkills, skillId]);
                               }
                             }}
-                            className='mt-2px cursor-pointer'
+                            disabled={isReadonly}
+                            className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
@@ -501,18 +536,21 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .filter((s) => s.isBuiltin)
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+                      const skillId = skill.meta?.id || skill.name;
                       return (
-                        <div key={skill.name} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative'>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skill.name)}
+                            checked={selectedSkills.includes(skillId)}
                             onChange={() => {
-                              if (selectedSkills.includes(skill.name)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
+                              if (isReadonly) return;
+                              if (selectedSkills.includes(skillId)) {
+                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
                               } else {
-                                setSelectedSkills([...selectedSkills, skill.name]);
+                                setSelectedSkills([...selectedSkills, skillId]);
                               }
                             }}
-                            className='mt-2px cursor-pointer'
+                            disabled={isReadonly}
+                            className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (

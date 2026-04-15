@@ -279,6 +279,30 @@ const getAssistantsDir = () => {
 };
 
 /**
+ * 获取 Hub 安装助手目录路径 (_hub 子目录)
+ * Get hub-installed assistants directory path
+ */
+const getHubAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_hub');
+};
+
+/**
+ * 获取系统/内置助手目录路径 (_system 子目录)
+ * Get system/builtin assistants directory path
+ */
+const getSystemAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_system');
+};
+
+/**
+ * 获取自定义助手目录路径 (_my-custom-assistant 子目录)
+ * Get custom assistants directory path
+ */
+const getCustomAssistantsDir = () => {
+  return path.join(getAssistantsDir(), '_my-custom-assistant');
+};
+
+/**
  * 获取技能脚本目录路径
  * Get skills scripts directory path
  */
@@ -1005,7 +1029,7 @@ export const getSystemDir = () => {
  * 获取助手规则目录路径（供其他模块使用）
  * Get assistant rules directory path (for use by other modules)
  */
-export { getAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
+export { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getSkillsDir, getSystemSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, SKILL_SUBDIRS };
 
 /**
  * Skills 内容缓存，避免重复从文件系统读取
@@ -1040,9 +1064,28 @@ export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
 }
 
 /**
+ * 获取 skill ID → skill name 的映射
+ * 用于 enabledSkills 存储 IDs 后，加载技能内容时转换为 name 定位目录
+ * Get skill ID → skill name mapping
+ * Used when enabledSkills stores IDs, converts to name for directory lookup
+ */
+export async function getSkillIdToNameMap(): Promise<Map<string, string>> {
+  const { skillManager } = await import('@/process/SkillManager');
+  const skills = await skillManager.getInstalledSkills();
+
+  const idToNameMap = new Map<string, string>();
+  for (const skill of skills) {
+    if (skill.meta?.id) {
+      idToNameMap.set(skill.meta.id, skill.name);
+    }
+  }
+  return idToNameMap;
+}
+
+/**
  * 加载指定 skills 的内容（带缓存）
  * Load content of specified skills (with caching)
- * @param enabledSkills - skill 名称列表 / list of skill names
+ * @param enabledSkills - skill ID列表（UUID格式）/ list of skill IDs
  * @returns 合并后的 skills 内容 / merged skills content
  */
 export const loadSkillsContent = async (enabledSkills: string[]): Promise<string> => {
@@ -1050,9 +1093,27 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
     return '';
   }
 
+  // 判断是 skill IDs (UUID) 还是 skill names
+  // UUID 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  const isUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const looksLikeIds = enabledSkills.every((s) => isUuidPattern.test(s));
+
+  let skillNames: string[];
+  if (looksLikeIds) {
+    // 转换 skill IDs → skill names
+    const idToNameMap = await getSkillIdToNameMap();
+    skillNames = enabledSkills
+      .map((id) => idToNameMap.get(id))
+      .filter((name): name is string => Boolean(name));
+    mainLog('Sudowork', `Converted skill IDs to names: ${enabledSkills.join(',')} → ${skillNames.join(',')}`);
+  } else {
+    // 直接作为 skill names 使用
+    skillNames = enabledSkills;
+  }
+
   // 使用排序后的 skill 名称作为缓存 key，确保相同组合命中缓存
   // Use sorted skill names as cache key to ensure same combinations hit cache
-  const cacheKey = [...enabledSkills].sort().join(',');
+  const cacheKey = [...skillNames].sort().join(',');
   const cached = skillsContentCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
@@ -1061,7 +1122,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
   const skillsDir = getSkillsDir();
   const skillContents: string[] = [];
 
-  for (const skillName of enabledSkills) {
+  for (const skillName of skillNames) {
     // 按优先级搜索：自定义 > Hub > 内置 > 旧版扁平结构
     // Search by priority: custom > hub > builtin > legacy flat structure
     const candidates = [

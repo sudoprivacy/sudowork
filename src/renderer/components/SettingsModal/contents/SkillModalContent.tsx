@@ -1180,7 +1180,7 @@ const SkillModalContent: React.FC = () => {
   const builtinInstalledSkills = installedList.filter((skill) => skill.isBuiltin);
 
   const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[]) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {skillList.map((skill) => {
         const skillHubId = skill.meta?.id;
         const latestVer = skillHubId ? latestVersions.get(skillHubId) : undefined;
@@ -1231,7 +1231,7 @@ const SkillModalContent: React.FC = () => {
 
         {/* Search - always rendered to preserve layout, hidden on installed tab */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索技能库...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
+          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
           <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
@@ -1275,7 +1275,7 @@ const SkillModalContent: React.FC = () => {
                 <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
               </div>
             ) : (
-              <div className='grid grid-cols-2 gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {skills.map((skill) => {
                   const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
                   const hasVersion = latestVersions.has(skill.id);
@@ -1311,7 +1311,7 @@ const SkillModalContent: React.FC = () => {
 
             {/* Loading skeleton cards — match grid layout for a seamless feel */}
             {loadingMore && (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
                     <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />

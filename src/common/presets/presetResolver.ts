@@ -9,13 +9,16 @@
  *
  * Pure functions only (no fs, no IPC). Safe for both renderer and main process.
  * For main-process side effects (env injection, fs writes), see process/task/presetRuntime.ts.
+ *
+ * The registry is populated at runtime:
+ * - Main process: after initBuiltinAssistantRules via registerAssistantMetas()
+ * - Renderer: after assistantHub.getInstalledAssistants via registerAssistantMetas()
  */
 
-import { ASSISTANT_PRESETS, type AssistantPreset } from './assistantPresets';
-import type { PresetAgentType } from '@/types/acpTypes';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 
-// O(1) lookup map — built once at import time
-const PRESET_MAP = new Map<string, AssistantPreset>(ASSISTANT_PRESETS.map((p) => [p.id, p]));
+// Runtime-populated registry — replaces the old ASSISTANT_PRESETS constant
+const presetRegistry = new Map<string, IAssistantMeta>();
 
 // Backend-specific session mode mapping for yolo/auto-approve
 const YOLO_SESSION_MODES: Record<string, string> = {
@@ -27,15 +30,28 @@ const YOLO_SESSION_MODES: Record<string, string> = {
   qwen: 'yolo',
 };
 
-/** O(1) lookup by preset ID. */
-export function getPresetById(presetId: string): AssistantPreset | undefined {
-  return PRESET_MAP.get(presetId);
+/**
+ * Populate the preset registry with assistant metadata.
+ * Called once at startup (main process) and whenever assistants are refreshed (renderer).
+ */
+export function registerAssistantMetas(metas: IAssistantMeta[]): void {
+  presetRegistry.clear();
+  for (const meta of metas) {
+    if (meta.id) {
+      presetRegistry.set(meta.id, meta);
+    }
+  }
+}
+
+/** O(1) lookup by preset ID (e.g. 'copilot', 'sudoclaw-doctor'). */
+export function getPresetById(presetId: string): IAssistantMeta | undefined {
+  return presetRegistry.get(presetId);
 }
 
 /** Strip 'builtin-' prefix and lookup. Used by most consumers. */
-export function getPresetByAgentId(customAgentId: string | undefined): AssistantPreset | undefined {
+export function getPresetByAgentId(customAgentId: string | undefined): IAssistantMeta | undefined {
   if (!customAgentId?.startsWith('builtin-')) return undefined;
-  return PRESET_MAP.get(customAgentId.replace('builtin-', ''));
+  return presetRegistry.get(customAgentId.replace('builtin-', ''));
 }
 
 /**
@@ -48,20 +64,6 @@ export function resolveSessionMode(defaultMode: string | undefined, backend: str
   if (selectedMode !== 'default') return selectedMode; // user explicitly set a mode
   if (defaultMode !== 'yolo') return selectedMode;
   return YOLO_SESSION_MODES[backend || ''] || 'yolo';
-}
-
-/**
- * Resolve rule file path for a given locale with fallback.
- */
-export function resolveRuleFile(preset: AssistantPreset, locale: string): string | undefined {
-  return preset.ruleFiles?.[locale] || preset.ruleFiles?.['en-US'];
-}
-
-/**
- * Resolve skill file path for a given locale with fallback.
- */
-export function resolveSkillFile(preset: AssistantPreset, locale: string): string | undefined {
-  return preset.skillFiles?.[locale] || preset.skillFiles?.['en-US'];
 }
 
 /**

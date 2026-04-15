@@ -10,15 +10,15 @@ import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
-import type { AcpBackendConfig, AcpBackendAll } from '@/types/acpTypes';
+import type { AcpBackendAll } from '@/types/acpTypes';
 import { powerSaveBlocker, app } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
 import { copyFilesToDirectory } from '../../utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { readBuiltinResource, readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
-import { getPresetById } from '@/common/presets/presetResolver';
+import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
+import { assistantManager } from '@/process/AssistantManager';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { createConversation } from '../conversationService';
@@ -402,44 +402,16 @@ class CronService {
           rules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
           skillsText = await readAssistantResource('skills', presetAssistantId, localeKey, skillFilePattern).catch(() => '');
 
-          // 2. For builtin presets, also try via preset ruleFiles/skillFiles config
-          if (!rules || !skillsText) {
-            const presetId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.replace('builtin-', '') : null;
-            if (presetId) {
-              const preset = getPresetById(presetId);
-              if (preset) {
-                if (!rules && preset.ruleFiles) {
-                  const ruleFile = preset.ruleFiles[localeKey] || preset.ruleFiles['en-US'];
-                  if (ruleFile) rules = await readBuiltinResource('rules', ruleFile).catch(() => '');
-                }
-                if (!skillsText && preset.skillFiles) {
-                  const skillFile = preset.skillFiles[localeKey] || preset.skillFiles['en-US'];
-                  if (skillFile) skillsText = await readBuiltinResource('skills', skillFile).catch(() => '');
-                }
-              }
-            }
-          }
-
           presetContext = rules || undefined;
 
-          // 3. Get enabledSkills + display info from customAgents config.
-          // NOTE: ConfigStorage.get() routes through the renderer-bound IPC adapter
-          // and HANGS when called from the main process. Use ProcessConfig (the
-          // file-backed store) directly instead.
-          const agents = await ProcessConfig.get('acp.customAgents').catch((): AcpBackendConfig[] | undefined => undefined);
-          const agent = agents?.find((a: AcpBackendConfig) => a.id === presetAssistantId);
-          enabledSkills = agent?.enabledSkills;
-          presetAgentName = agent?.name;
-          presetCliPath = agent?.defaultCliPath;
+          // 3. Get enabledSkills + display info from AssistantManager (filesystem SSOT)
+          const lookupId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.slice('builtin-'.length) : presetAssistantId;
+          const meta = await assistantManager.getAssistantMeta(lookupId);
+          enabledSkills = meta?.enabledSkills ?? meta?.defaultEnabledSkills;
+          presetAgentName = meta?.nameI18n?.['en-US'];
 
           // 4. Determine correct conversation type from presetAgentType
-          // Check customAgents first, then ASSISTANT_PRESETS
-          let presetAgentType = agent?.presetAgentType;
-          if (!presetAgentType && presetAssistantId.startsWith('builtin-')) {
-            const preset = getPresetById(presetAssistantId.replace('builtin-', ''));
-            presetAgentType = preset?.presetAgentType;
-          }
-          presetAgentType = presetAgentType || 'sudoclaw';
+          const presetAgentType = meta?.presetAgentType || 'sudoclaw';
 
           if (presetAgentType === 'sudoclaw') {
             resolvedAgentType = 'openclaw-gateway';

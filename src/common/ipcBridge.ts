@@ -905,7 +905,7 @@ export interface IResponseMessage {
   conversation_id: string;
 }
 
-interface IBridgeResponse<D = {}> {
+export interface IBridgeResponse<D = {}> {
   success: boolean;
   data?: D;
   msg?: string;
@@ -1139,6 +1139,99 @@ export const skillHub = {
   getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
   /** Run security audit for a skill (re-scan) */
   runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
+};
+
+// ==================== Assistant Hub API ====================
+
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
+import type { IAssistantInfo } from '@/process/AssistantManager';
+
+/** Assistant from Hub API (mirrors ISkillHubSkill pattern) */
+export interface IAssistantHubSkill {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  avatar: string | null;
+  emoji: string | null;
+  category: string;
+  categories: string[];
+  preset_agent_type: string | null;
+  /** Associated skill IDs (skills guaranteed to exist in Skill Hub) */
+  skills: string[];
+  /** Source tag: 'hub' (store), 'custom' (user-created), 'system' (builtin) */
+  tag: 'hub' | 'custom' | 'system';
+  homepage: string | null;
+  author_id: string;
+  star_count: number;
+  applicable_scenarios: string | null;
+  core_features: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Internal: download URL from API (mapped from sourceUrl) */
+  _sourceUrl?: string;
+}
+
+export interface IAssistantHubVersion {
+  id: string;
+  version: string;
+  source_url: string;
+  checksum: string;
+  changelog: string | null;
+  readme_content: string | null;
+  created_at: string;
+  assistant_id: string;
+}
+
+export interface IAssistantHubDetail {
+  assistant: IAssistantHubSkill;
+  versions: IAssistantHubVersion[];
+}
+
+export interface IAssistantHubListResponse {
+  assistants: IAssistantHubSkill[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface IAssistantInstallResult {
+  assistantName: string;
+  installedVersion: string;
+  /** Skills installed alongside the assistant (skill names) */
+  installedSkills?: string[];
+  /** Skills that failed to install (skill names or IDs) */
+  failedSkills?: string[];
+}
+
+export const assistantHub = {
+  /** Get all installed assistants (enabled + disabled) with full metadata */
+  getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
+  /** Enable an assistant (set meta.enabled = true) */
+  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.enable-assistant'),
+  /** Disable an assistant (set meta.enabled = false) */
+  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.disable-assistant'),
+  /** Merge partial updates into an assistant's _sudowork_meta.json */
+  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta> }>('assistant-hub.update-assistant-meta'),
+  /** Read _sudowork_meta.json for a specific assistant */
+  getAssistantMeta: bridge.buildProvider<IBridgeResponse<IAssistantMeta | null>, { name: string }>('assistant-hub.get-assistant-meta'),
+  /** Create a new custom assistant with metadata and optional rule content */
+  createAssistant: bridge.buildProvider<IBridgeResponse<void>, { meta: IAssistantMeta; ruleContent?: string }>('assistant-hub.create-assistant'),
+  /** Uninstall an assistant (delete directory; blocks builtins) */
+  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.uninstall-assistant'),
+
+  // === Hub API methods (parallel to skillHub) ===
+  /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('assistant-hub.fetch-assistants'),
+  /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
+  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
+  /** Fetch assistant detail from Assistant Hub API */
+  fetchAssistantDetail: bridge.buildProvider<IBridgeResponse<IAssistantHubDetail>, { assistantId: string }>('assistant-hub.fetch-assistant-detail'),
+  /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
+  fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
+  /** Download and install assistant from Hub, optionally installing selected associated skills */
+  downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; selectedSkillIds?: string[] }>('assistant-hub.download-and-install-assistant'),
+  /** Upload custom assistant to Hub (create zip and POST to /api/assistants) */
+  uploadAssistantToHub: bridge.buildProvider<IBridgeResponse<{ success: boolean; message?: string }>, { name: string; displayName: string; profession: string; description?: string; categories?: string[]; skills?: string[]; tenantId: string }>('assistant-hub.upload-assistant-to-hub'),
 };
 
 // ==================== Channel API ====================

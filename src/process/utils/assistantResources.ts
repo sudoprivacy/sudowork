@@ -14,12 +14,21 @@ import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
 import { getAssistantsDir } from '../initStorage';
+import { ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
 import { mainWarn } from '@process/utils/mainLogger';
 
 type ResourceType = 'rules' | 'skills';
 
 export const ruleFilePattern = (id: string, loc: string) => `${id}.${loc}.md`;
 export const skillFilePattern = (id: string, loc: string) => `${id}-skills.${loc}.md`;
+
+/**
+ * Map resource type to the file name used in the directory structure.
+ * rules -> AGENT.md, skills -> SKILLS.md
+ */
+const resourceTypeToFile = (resourceType: ResourceType): string => {
+  return resourceType === 'rules' ? 'AGENT.md' : 'SKILLS.md';
+};
 
 /**
  * Find the builtin resource directory (rules or skills)
@@ -66,28 +75,59 @@ export async function readBuiltinResource(resourceType: ResourceType, fileName: 
 }
 
 /**
- * Read assistant resource file with locale fallback
+ * Read assistant resource file with directory-based priority search.
+ *
+ * Search order:
+ * 1. Custom: _my-custom-assistant/{id}/AGENT.md (or SKILLS.md)
+ * 2. Hub: _hub/{id}/AGENT.md
+ * 3. System: _system/{strippedId}/AGENT.md (strips `builtin-` prefix)
+ * 4. Legacy flat files: {assistantsDir}/{id}.{locale}.md (backward compat)
+ * 5. Bundled fallback: builtin resource directory
  */
 export async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
+  const fileName = resourceTypeToFile(resourceType);
+
+  // 1. Try directory-based paths with priority: custom > hub > system
+  const dirCandidates: string[] = [
+    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom, assistantId, fileName),
+    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub, assistantId, fileName),
+  ];
+
+  // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
+  const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+  dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, strippedId, fileName));
+  // Also try with the full id in system/
+  if (strippedId !== assistantId) {
+    dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, assistantId, fileName));
+  }
+
+  for (const candidate of dirCandidates) {
+    try {
+      return await fs.readFile(candidate, 'utf-8');
+    } catch {
+      // Try next
+    }
+  }
+
+  // 2. Legacy flat file fallback (backward compat with pre-directory structure)
   const assistantsDir = getAssistantsDir();
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
-  // 1. Try user data directory first
   for (const loc of locales) {
-    const fileName = fileNamePattern(assistantId, loc);
+    const legacyFileName = fileNamePattern(assistantId, loc);
     try {
-      return await fs.readFile(path.join(assistantsDir, fileName), 'utf-8');
+      return await fs.readFile(path.join(assistantsDir, legacyFileName), 'utf-8');
     } catch {
       // Try next locale
     }
   }
 
-  // 2. Fallback to builtin directory
+  // 3. Bundled fallback (builtin resource directory in app bundle)
   const builtinDir = await findBuiltinResourceDir(resourceType);
   for (const loc of locales) {
-    const fileName = fileNamePattern(assistantId, loc);
+    const builtinFileName = fileNamePattern(assistantId, loc);
     try {
-      return await fs.readFile(path.join(builtinDir, fileName), 'utf-8');
+      return await fs.readFile(path.join(builtinDir, builtinFileName), 'utf-8');
     } catch {
       // Try next locale
     }

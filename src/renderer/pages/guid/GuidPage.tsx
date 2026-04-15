@@ -12,7 +12,7 @@ import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { ConfigStorage } from '@/common/storage';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import { ipcBridge } from '@/common';
 import { skillHub } from '@/common/ipcBridge';
 import AgentPillBar from './components/AgentPillBar';
@@ -61,6 +61,7 @@ const GuidPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
+  const assistantParam = searchParams.get('assistant');
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -125,6 +126,7 @@ const GuidPage: React.FC = () => {
     modelList: modelSelection.modelList,
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
+    assistantFromUrl: assistantParam,
   });
 
   const guidInput = useGuidInput({
@@ -380,9 +382,12 @@ const GuidPage: React.FC = () => {
       if (!agentInfo?.customAgentId) return;
 
       try {
-        const agents: AcpBackendConfig[] = (await ConfigStorage.get('acp.customAgents')) || [];
-        const updatedAgents = agents.map((a) => (a.id === agentInfo.customAgentId ? { ...a, presetAgentType: newAgentType } : a));
-        await ConfigStorage.set('acp.customAgents', updatedAgents);
+        // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
+        const lookupName = resolveAssistantName(agentInfo.customAgentId);
+        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+          name: lookupName,
+          updates: { presetAgentType: newAgentType },
+        });
 
         // Refresh agents to pick up the change
         await ipcBridge.acpConversation.refreshCustomAgents.invoke();
@@ -444,19 +449,25 @@ const GuidPage: React.FC = () => {
 
   // --- Resolve selected assistant info for header ---
   const selectedAssistantConfig = useMemo(() => {
-    if (!agentSelection.isPresetAgent || !agentSelection.selectedAgentInfo) return null;
+    // Show assistant header for any assistant (preset or user-created custom)
+    if (!agentSelection.selectedAgentInfo) return null;
     const customAgentId = agentSelection.selectedAgentInfo.customAgentId;
     if (!customAgentId) return null;
 
+    // Include preset agents (builtin + hub-installed) and user-created custom assistants
+    const presetAgents = agentSelection.customAgents.filter((a) => a.isPreset);
+    const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
+
+    // Filter builtin presets to allowed list
     const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-    const nobuildin = agentSelection.customAgents.filter((a) => a.isPreset).filter((_) => !_.id.startsWith('builtin-'));
-    const filteredAgents = agentSelection.customAgents
-      .filter((a) => a.isPreset)
-      .filter((_) => allowedPresetIds.includes(_.id))
-      .concat(nobuildin);
+    const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+    const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
+
+    // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
+    const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents];
 
     return filteredAgents.find((a) => a.id === customAgentId) || null;
-  }, [agentSelection.isPresetAgent, agentSelection.selectedAgentInfo, agentSelection.customAgents]);
+  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
 
   // Resolve avatar for selected assistant header
   const selectedAssistantAvatar = useMemo(() => {
@@ -476,8 +487,8 @@ const GuidPage: React.FC = () => {
     return selectedAssistantConfig.presetAgentType || 'sudoclaw';
   }, [selectedAssistantConfig]);
 
-  // Whether we are in selected assistant mode
-  const isAssistantMode = agentSelection.isPresetAgent && selectedAssistantConfig !== null;
+  // Whether we are in selected assistant mode (preset or user-created custom)
+  const isAssistantMode = selectedAssistantConfig !== null;
 
   // Get the suggestion prompts for the selected assistant
   const assistantPrompts = useMemo(() => {
@@ -526,20 +537,13 @@ const GuidPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Agent dropdown */}
-                  {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} />}
+                  {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
+                  {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />}
                 </div>
 
                 {/* Agent Fallback Notice */}
                 {agentSelection.currentEffectiveAgentInfo.isFallback && (
-                  <div
-                    className='mb-12px px-12px py-8px rd-8px text-12px flex items-center gap-8px'
-                    style={{
-                      background: 'rgb(var(--warning-1))',
-                      border: '1px solid rgb(var(--warning-3))',
-                      color: 'rgb(var(--warning-6))',
-                    }}
-                  >
+                  <div className={styles.agentFallbackNotice}>
                     <span>
                       {t('guid.agentFallbackNotice', {
                         original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),

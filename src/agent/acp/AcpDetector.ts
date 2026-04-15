@@ -14,6 +14,7 @@ import * as path from 'path';
 import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
 import { POTENTIAL_ACP_CLIS } from '@/types/acpTypes';
 import { ProcessConfig } from '@/process/initStorage';
+import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { getSudoclawCliPath, SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
@@ -97,35 +98,36 @@ class AcpDetector {
    */
   private async addCustomAgentsToList(detected: DetectedAgent[]): Promise<void> {
     try {
-      const customAgents = await ProcessConfig.get('acp.customAgents');
-      if (!customAgents || !Array.isArray(customAgents) || customAgents.length === 0) return;
-
-      // 过滤出已启用且有有效 CLI 路径或标记为预设的代理 / Filter enabled agents with valid CLI path or marked as preset
-      const enabledAgents = customAgents.filter((agent) => agent.enabled && (agent.defaultCliPath || agent.isPreset));
-      if (enabledAgents.length === 0) return;
-
-      // 将所有自定义代理追加到列表末尾 / Append all custom agents to the end
-      const customDetectedAgents: DetectedAgent[] = enabledAgents.map((agent) => ({
-        backend: 'custom',
-        name: agent.name || 'Custom Agent',
-        cliPath: agent.defaultCliPath,
-        acpArgs: agent.acpArgs,
-        customAgentId: agent.id, // 存储 UUID 用于标识 / Store the UUID for identification
-        isPreset: agent.isPreset,
-        context: agent.context,
-        avatar: agent.avatar,
-        presetAgentType: agent.presetAgentType, // 主 Agent 类型 / Primary agent type
-      }));
-
-      detected.push(...customDetectedAgents);
-    } catch (error) {
-      // 配置读取失败时区分预期错误和非预期错误
-      // Distinguish expected vs unexpected errors when reading config
-      if (error instanceof Error && (error.message.includes('ENOENT') || error.message.includes('not found'))) {
-        // 未配置自定义代理 - 这是正常情况 / No custom agents configured - this is normal
-        return;
+      // 1. Add preset assistants from AssistantManager (filesystem SSOT)
+      const assistants = await assistantManager.getInstalledAssistants();
+      const enabledAssistants = assistants.filter((a) => a.enabled && a.meta);
+      for (const a of enabledAssistants) {
+        const customAgentId = a.isBuiltin ? `builtin-${a.meta.id || a.name}` : (a.meta.id || a.name);
+        detected.push({
+          backend: 'custom',
+          name: a.meta.nameI18n?.['zh-CN'] || a.meta.nameI18n?.['en-US'] || a.meta.id || a.name,
+          customAgentId,
+          isPreset: true,
+          avatar: a.meta.avatar,
+          presetAgentType: a.meta.presetAgentType as PresetAgentType | undefined,
+        });
       }
-      console.warn('[AcpDetector] Unexpected error loading custom agents:', error);
+
+      // 2. Add CLI custom agents from ConfigStorage (non-preset only)
+      const cliAgents = (await ProcessConfig.get('acp.customAgents')) || [];
+      for (const agent of cliAgents) {
+        if (agent.isPreset) continue; // presets come from AssistantManager
+        if (!agent.enabled) continue;
+        detected.push({
+          backend: 'custom',
+          name: agent.name,
+          customAgentId: agent.id,
+          cliPath: agent.defaultCliPath,
+          acpArgs: agent.acpArgs,
+        });
+      }
+    } catch (error) {
+      console.warn('[AcpDetector] Unexpected error loading agents:', error);
     }
   }
 

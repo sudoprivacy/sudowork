@@ -9,6 +9,7 @@ export function getSelectableAssistantSkills(installedSkills: IInstalledSkillInf
 }
 
 export function sanitizeAssistantEnabledSkills(enabledSkills: string[] | undefined, installedSkills: IInstalledSkillInfo[]): string[] {
-  const selectableNames = new Set(getSelectableAssistantSkills(installedSkills).map((skill) => skill.name));
-  return (enabledSkills || []).filter((skillName) => selectableNames.has(skillName));
+  // Build a set of selectable skill IDs (using meta.id if available, fallback to name)
+  const selectableIds = new Set(getSelectableAssistantSkills(installedSkills).map((skill) => skill.meta?.id || skill.name));
+  return (enabledSkills || []).filter((skillId) => selectableIds.has(skillId));
 }
