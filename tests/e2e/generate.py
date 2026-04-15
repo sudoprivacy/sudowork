@@ -107,7 +107,7 @@ IMPLEMENTATIONS = {
             return {"paused": True, "duration": duration}"""),
     },
     "screenshot": {
-        "imports": "from ai_dev_browser.core.page import screenshot as _take_screenshot",
+        "imports": "from ai_dev_browser.core.page import page_screenshot as _take_screenshot",
         "body": textwrap.dedent("""\
             result = await _take_screenshot(tab, path=path, css_scale=True)
             return {"screenshot": True, **result}"""),

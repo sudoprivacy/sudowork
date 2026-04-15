@@ -14,22 +14,24 @@ steps:
   - op: mouse_click
     text: "Nexus"
   - op: pause
-    duration: 2000
+    duration: 5000
 
   # Turn 1: Simple response (no tools needed)
+  # First message triggers ACP session init (nexus chat --acp spawn),
+  # so we need a longer timeout for the initial connection.
   - op: type_text
     text: "What is 7 * 8? Reply with just the number."
   - op: press_key
     key: "Enter"
     wait: 3
   - op: wait_for_response
-    timeout: 30
+    timeout: 90
   - op: screenshot
     path: "screenshots/nexus-conv-01-math.png"
   - op: judge
     expect: "56"
 
-  # Turn 2: Context recall
+  # Turn 2: Context recall (nexus already connected, fast)
   - op: type_text
     text: "Add 6 to the number you just gave me. Reply with just the number."
   - op: press_key
