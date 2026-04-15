@@ -1,0 +1,55 @@
+name: No Merge Commits
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  check:
+    name: Block Merge Commits in PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject merge commits in PR branch
+        run: |
+          HEAD_REF="${{ github.head_ref }}"
+          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          BASE_REF=${{ github.event.pull_request.base.ref }}
+
+          # dev→main merges naturally contain merge commits from merged PRs.
+          if [ "$HEAD_REF" = "dev" ] && [ "$BASE_REF" = "main" ] && [ "$HEAD_REPO" = "${{ github.repository }}" ]; then
+            echo "✅ dev → main merge (same repo) — skipping merge commit check"
+            exit 0
+          fi
+
+          HEAD_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA=$(git merge-base "origin/${BASE_REF}" "$HEAD_SHA" 2>/dev/null || echo "")
+          if [ -z "$BASE_SHA" ]; then
+            echo "⚠️ Could not compute merge-base for origin/${BASE_REF}..${HEAD_SHA}, skipping"
+            exit 0
+          fi
+
+          echo "Checking commits between $BASE_SHA and $HEAD_SHA for merge commits..."
+
+          MERGE_COMMITS=$(git rev-list --merges "$BASE_SHA".."$HEAD_SHA" 2>/dev/null || true)
+
+          if [ -n "$MERGE_COMMITS" ]; then
+            echo ""
+            echo "❌ ERROR: PR branch contains merge commit(s)!"
+            echo ""
+            echo "Found merge commits:"
+            for mc in $MERGE_COMMITS; do
+              echo "  - $(git log --format='%h %s' -1 $mc)"
+            done
+            echo ""
+            echo "Fix: rebase your branch instead of merging:"
+            echo "  git rebase origin/dev"
+            echo ""
+            exit 1
+          fi
+
+          echo "✅ No merge commits found in PR branch"
