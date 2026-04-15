@@ -54,7 +54,13 @@ class McporterService {
     this.configPath = path.join(this.configDir, 'mcporter.json');
 
     // 判断是否使用内嵌模式
-    this.isBundledMode = app.isPackaged && this.getMcporterCliPath() !== null;
+    // 开发模式下可通过环境变量 MCPORTER_BUNDLED=1 强制使用内嵌包测试
+    const forceBundled = process.env.MCPORTER_BUNDLED === '1';
+    this.isBundledMode = (app.isPackaged || forceBundled) && this.getMcporterCliPath() !== null;
+
+    if (forceBundled && !app.isPackaged) {
+      mainLog('McporterService', 'DEV mode: MCPORTER_BUNDLED=1 - forcing bundled mode for testing');
+    }
   }
 
   /**
@@ -124,8 +130,9 @@ class McporterService {
    * 开发模式：使用npx检查
    */
   async isAvailable(): Promise<boolean> {
-    // 打包模式：检查内嵌资源
-    if (app.isPackaged) {
+    // 打包模式或强制内嵌模式：检查内嵌资源
+    const forceBundled = process.env.MCPORTER_BUNDLED === '1';
+    if (app.isPackaged || forceBundled) {
       const cliPath = this.getMcporterCliPath();
       const nodeAvailable = isNodeInstalled();
 
@@ -181,9 +188,10 @@ class McporterService {
    */
   private async runMcporterCommand(args: string[], timeout?: number): Promise<McporterExecResult> {
     const mcporterCliPath = this.getMcporterCliPath();
+    const forceBundled = process.env.MCPORTER_BUNDLED === '1';
 
-    // 打包模式：使用内嵌Node直接运行mcporter CLI
-    if (mcporterCliPath && app.isPackaged) {
+    // 打包模式或强制内嵌模式：使用内嵌Node直接运行mcporter CLI
+    if (mcporterCliPath && (app.isPackaged || forceBundled)) {
       // 确保Node runtime已安装
       await ensureNodeInstalled();
       const nodePath = getNodeBinaryPath();
@@ -393,9 +401,10 @@ class McporterService {
     this.ensureConfigDir();
 
     const mcporterCliPath = this.getMcporterCliPath();
+    const forceBundled = process.env.MCPORTER_BUNDLED === '1';
 
-    // 打包模式：使用内嵌Node运行mcporter daemon
-    if (mcporterCliPath && app.isPackaged) {
+    // 打包模式或强制内嵌模式：使用内嵌Node运行mcporter daemon
+    if (mcporterCliPath && (app.isPackaged || forceBundled)) {
       await this.startDaemonBundled(mcporterCliPath);
       return;
     }
