@@ -1,0 +1,44 @@
+name: nexus conversation
+description: 'Basic conversation test: verify ACP connection, streaming response,
+  and multi-turn context without any tool calls. Run this first to isolate ACP/streaming
+  issues from tool-specific failures.
+
+  '
+steps:
+- op: wait_for_app_ready
+  timeout: 300
+- op: click
+  x: 530
+  y: 27
+- op: pause
+  duration: 3000
+- op: mouse_click
+  text: Nexus
+- op: pause
+  duration: 5000
+- op: type_text
+  text: What is 7 * 8? Reply with just the number.
+- op: click
+  element: textarea
+- op: press_key
+  key: Enter
+  wait: 3
+- op: wait_for_response
+  timeout: 90
+- op: screenshot
+  path: screenshots/nexus-conv-01-math.png
+- op: judge
+  expect: '56'
+- op: type_text
+  text: Add 6 to the number you just gave me. Reply with just the number.
+- op: click
+  element: textarea
+- op: press_key
+  key: Enter
+  wait: 3
+- op: wait_for_response
+  timeout: 30
+- op: screenshot
+  path: screenshots/nexus-conv-02-context.png
+- op: judge
+  expect: '62'

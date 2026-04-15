@@ -4,11 +4,11 @@
 # Spec: https://github.com/sudoprivacy/human-browser-primitives
 # Source: WebDriver §12.4.4 — Get Element Text
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 async def get_text(tab, element: str = None) -> dict:
     """WebDriver §12.4.4 — Get Element Text."""
-    r = await js_exec(tab, """(() => {
+    r = await js_evaluate(tab, """(() => {
         function walk(root) {
             let text = '';
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);

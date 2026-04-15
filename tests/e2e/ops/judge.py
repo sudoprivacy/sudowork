@@ -9,7 +9,7 @@ Falls back to keyword matching if agent judgment fails.
 import asyncio
 import os
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 from .screenshot import screenshot
 from .type_text import type_text
@@ -18,7 +18,7 @@ from .press_key import press_key
 
 async def _get_shadow_text(tab):
     """Get text including Shadow DOM content."""
-    r = await js_exec(tab, """(() => {
+    r = await js_evaluate(tab, """(() => {
         const texts = [];
         function collect(root) {
             if (!root) return;

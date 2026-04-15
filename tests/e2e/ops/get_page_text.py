@@ -4,7 +4,7 @@ Sudowork renders messages inside Shadow DOM (markdown-shadow),
 so we need to traverse shadowRoots to get the actual text.
 """
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 async def get_page_text(tab) -> dict:
@@ -13,7 +13,7 @@ async def get_page_text(tab) -> dict:
     Returns:
         {"text": str}
     """
-    r = await js_exec(tab, """(() => {
+    r = await js_evaluate(tab, """(() => {
         const texts = [];
 
         function collect(root) {

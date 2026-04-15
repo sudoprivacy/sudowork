@@ -107,15 +107,15 @@ IMPLEMENTATIONS = {
             return {"paused": True, "duration": duration}"""),
     },
     "screenshot": {
-        "imports": "from ai_dev_browser.core.page import screenshot as _take_screenshot",
+        "imports": "from ai_dev_browser.core.page import page_screenshot as _take_screenshot",
         "body": textwrap.dedent("""\
             result = await _take_screenshot(tab, path=path, css_scale=True)
             return {"screenshot": True, **result}"""),
     },
     "get_text": {
-        "imports": "from ai_dev_browser.core.page import js_exec",
+        "imports": "from ai_dev_browser.core.page import js_evaluate",
         "body": textwrap.dedent("""\
-            r = await js_exec(tab, \"\"\"(() => {
+            r = await js_evaluate(tab, \"\"\"(() => {
                 function walk(root) {
                     let text = '';
                     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -130,21 +130,21 @@ IMPLEMENTATIONS = {
             return {"text": r.get("result", "")}"""),
     },
     "get_attribute": {
-        "imports": "from ai_dev_browser.core.page import js_exec\nimport json as _json",
+        "imports": "from ai_dev_browser.core.page import js_evaluate\nimport json as _json",
         "body": textwrap.dedent("""\
             _sel = _json.dumps(element)
             _attr = _json.dumps(name)
-            r = await js_exec(tab, f\"\"\"(() => {{
+            r = await js_evaluate(tab, f\"\"\"(() => {{
                 const el = document.querySelector({_sel});
                 return el ? el.getAttribute({_attr}) : null;
             }})()\"\"\")
             return {"value": r.get("result")}"""),
     },
     "is_displayed": {
-        "imports": "from ai_dev_browser.core.page import js_exec\nimport json as _json",
+        "imports": "from ai_dev_browser.core.page import js_evaluate\nimport json as _json",
         "body": textwrap.dedent("""\
             _sel = _json.dumps(element)
-            r = await js_exec(tab, f\"\"\"(() => {{
+            r = await js_evaluate(tab, f\"\"\"(() => {{
                 const el = document.querySelector({_sel});
                 if (!el) return false;
                 const style = window.getComputedStyle(el);
