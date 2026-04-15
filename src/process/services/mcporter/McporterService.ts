@@ -311,9 +311,13 @@ class McporterService {
       // 2. 同步到 Claude Code 配置 (~/.claude.json)
       await this.syncToClaudeCode(config.mcpServers);
 
-      // 如果 daemon 正在运行，发送重新加载信号
-      if (this.daemonProcess) {
+      // 如果系统 daemon 正在运行，发送重新加载信号（无论是本进程启动的还是之前启动的）
+      const daemonStatus = await this.getDaemonStatus();
+      if (daemonStatus.running) {
+        mainLog('McporterService', `Daemon running (pid: ${daemonStatus.pid}), reloading config...`);
         await this.reloadDaemon();
+      } else {
+        mainLog('McporterService', 'Daemon not running, config will be loaded on next daemon start');
       }
     } catch (error) {
       mainError('McporterService', 'Failed to sync config:', error);
@@ -393,8 +397,10 @@ class McporterService {
    * 开发模式：使用npx
    */
   async startDaemon(): Promise<void> {
-    if (this.daemonProcess) {
-      mainLog('McporterService', 'Daemon already running');
+    // 先检查系统是否已有 daemon 运行（可能是之前启动的或其他进程启动的）
+    const existingStatus = await this.getDaemonStatus();
+    if (existingStatus.running) {
+      mainLog('McporterService', `Daemon already running in system (pid: ${existingStatus.pid}), skipping start`);
       return;
     }
 
