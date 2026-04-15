@@ -238,13 +238,25 @@ const CronJobDetail: React.FC<{
       {/* Conversation link */}
       {(() => {
         const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
-        const targetConvId = isNewMode ? job.state.lastConversationId : job.metadata.conversationId;
-        const targetConvTitle = isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle;
+        let targetConvId: string | undefined;
+        let targetConvTitle: string;
+        if (isNewMode) {
+          targetConvId = job.state.lastConversationId;
+          targetConvTitle = t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' });
+        } else if (job.metadata.conversationId) {
+          targetConvId = job.metadata.conversationId;
+          targetConvTitle = job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' });
+        } else {
+          // reuse mode without pre-binding — fall back to lastConversationId
+          targetConvId = job.state.lastConversationId;
+          targetConvTitle = t('cron.goToConversationLink', { defaultValue: '查看会话' });
+        }
         if (!targetConvId) return null;
+        const convId = targetConvId;
         return (
           <div>
             <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
-            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(targetConvId)}>
+            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(convId)}>
               {targetConvTitle}
             </span>
           </div>
@@ -375,11 +387,12 @@ const CronJobFormDrawer: React.FC<{
       const reuseConvId = conversationMode === 'reuse' ? selectedConversationId : '';
       const reuseConvTitle = reuseConvId ? conversations.find((c) => c.id === reuseConvId)?.name : undefined;
 
+      let result: unknown;
       if (editJob) {
         // Update existing job. JSON IPC strips `undefined`, so we pass an explicit
         // `null` sentinel when clearing the assistant back to Default — the backend
         // normalizes `null` → cleared field.
-        await ipcBridge.cron.updateJob.invoke({
+        result = await ipcBridge.cron.updateJob.invoke({
           jobId: editJob.id,
           updates: {
             name: values.name,
@@ -400,7 +413,7 @@ const CronJobFormDrawer: React.FC<{
           },
         });
       } else {
-        await ipcBridge.cron.addJob.invoke({
+        result = await ipcBridge.cron.addJob.invoke({
           name: values.name,
           schedule: schedule || { kind: 'cron', expr: '0 9 * * *', description: values.description || values.name },
           message: values.prompt,
@@ -412,6 +425,14 @@ const CronJobFormDrawer: React.FC<{
           workspace: workspace || undefined,
           presetAssistantId: effectiveAssistantId,
         });
+      }
+
+      // The cron bridge wraps provider errors in an envelope so the IPC layer
+      // (which has no rejection path) doesn't hang the UI. Unwrap it here.
+      const errorEnvelope = result as { __error?: string } | null | undefined;
+      if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
+        Message.error(errorEnvelope.__error);
+        return;
       }
 
       Message.success(t('cron.drawer.saveSuccess'));

@@ -7,6 +7,7 @@
   "lastError": "エラー",
   "message": "実行内容",
   "goToConversation": "会話に移動",
+  "goToConversationLink": "会話を表示",
   "status": {
     "active": "実行中",
     "paused": "一時停止中",

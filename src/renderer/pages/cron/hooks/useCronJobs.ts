@@ -22,10 +22,24 @@ interface CronJobActionsResult {
 /**
  * Creates common cron job action handlers
  */
+/**
+ * The cron bridge providers return an `{ __error: string }` envelope instead of
+ * rejecting, because the underlying IPC library has no rejection path (see
+ * src/process/bridge/cronBridge.ts). This helper unwraps the envelope and
+ * throws a real Error so callers can use normal try/catch.
+ */
+function unwrapCronResult<T>(result: T): T {
+  const envelope = result as { __error?: unknown } | null | undefined;
+  if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
+    throw new Error(envelope.__error);
+  }
+  return result;
+}
+
 function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): CronJobActionsResult {
   const pauseJob = useCallback(
     async (jobId: string) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: false } });
+      const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: false } }));
       onJobUpdated?.(jobId, updated);
     },
     [onJobUpdated]
@@ -33,7 +47,7 @@ function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void
 
   const resumeJob = useCallback(
     async (jobId: string) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: true } });
+      const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: true } }));
       onJobUpdated?.(jobId, updated);
     },
     [onJobUpdated]
@@ -49,7 +63,7 @@ function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void
 
   const updateJob = useCallback(
     async (jobId: string, updates: Partial<ICronJob>) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates });
+      const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId, updates }));
       onJobUpdated?.(jobId, updated);
       return updated;
     },

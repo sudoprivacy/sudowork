@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { CronJobIndicator, useCronJobsMap } from '@/renderer/pages/cron';
+import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
@@ -82,6 +83,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { getJobStatus, markAsRead } = useCronJobsMap();
+  const { jobs: cronJobs } = useAllCronJobs();
   const siderTooltipProps = getSiderTooltipProps(collapsed && !isMobile);
 
   useScrollIntoView(id);
@@ -283,22 +285,41 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     );
   };
 
-  // Split into scheduled (cron-execution) and recent conversations
-  const scheduledConvs = chatHistory.filter((c) => !!(c.extra as any)?.cronJobId);
+  // Recent section: exclude cron-created run records (tagged with `extra.cronJobId`).
+  // Pre-bound user conversations stay in their original timeline slot.
   const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
 
-  // Group scheduled by cronJobName, sorted by most recent first
-  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
-  scheduledConvs.forEach((conv) => {
-    const jobName = ((conv.extra as any)?.cronJobName as string) || 'Unknown';
-    const group = scheduledGroups.find((g) => g.jobName === jobName);
-    if (group) {
-      group.convs.push(conv);
-    } else {
-      scheduledGroups.push({ jobName, convs: [conv] });
-    }
+  // Scheduled section: one group per cron job, sourced from the cron jobs table
+  // so a single conversation bound to multiple jobs appears in multiple groups.
+  const convById = new Map(chatHistory.map((c) => [c.id, c]));
+  const runRecordsByJob = new Map<string, TChatConversation[]>();
+  chatHistory.forEach((conv) => {
+    const jobId = (conv.extra as any)?.cronJobId as string | undefined;
+    if (!jobId) return;
+    if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
+    runRecordsByJob.get(jobId)!.push(conv);
   });
-  // Sort groups by most recent conversation within each group
+  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
+  cronJobs.forEach((job) => {
+    const convs: TChatConversation[] = [];
+    const seen = new Set<string>();
+    if (job.metadata.conversationId) {
+      const bound = convById.get(job.metadata.conversationId);
+      if (bound) {
+        convs.push(bound);
+        seen.add(bound.id);
+      }
+    }
+    (runRecordsByJob.get(job.id) || []).forEach((conv) => {
+      if (!seen.has(conv.id)) {
+        convs.push(conv);
+        seen.add(conv.id);
+      }
+    });
+    if (convs.length === 0) return;
+    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
+    scheduledGroups.push({ jobName: job.name, convs });
+  });
   scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
 
   return (
