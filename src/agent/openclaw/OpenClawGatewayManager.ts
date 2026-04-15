@@ -210,19 +210,14 @@ export class OpenClawGatewayManager extends EventEmitter {
 
     // Load safety hook before gateway entry (for in-process mode)
     // Hook will self-regulate by polling /safe/config/enabled from Nexus
-    // TEMP: Disable safety hook for testing Gateway startup delay
-    if (process.env.SUDOWORK_SAFETY_HOOK !== 'false') {
-      const hookJsPath = getHookJsPath();
-      if (fs.existsSync(hookJsPath)) {
-        try {
-          console.log('[OpenClawGatewayManager] Loading safety hook for in-process gateway:', hookJsPath);
-          await import(pathToFileURL(hookJsPath).href);
-        } catch (err) {
-          console.warn('[OpenClawGatewayManager] Failed to load safety hook:', err);
-        }
+    const hookJsPath = getHookJsPath();
+    if (fs.existsSync(hookJsPath)) {
+      try {
+        console.log('[OpenClawGatewayManager] Loading safety hook for in-process gateway:', hookJsPath);
+        await import(pathToFileURL(hookJsPath).href);
+      } catch (err) {
+        console.warn('[OpenClawGatewayManager] Failed to load safety hook:', err);
       }
-    } else {
-      console.log('[OpenClawGatewayManager] Safety hook disabled for testing (SUDOWORK_SAFETY_HOOK=false)');
     }
 
     try {
@@ -283,9 +278,6 @@ export class OpenClawGatewayManager extends EventEmitter {
       env.OPENCLAW_NO_RESPAWN = '1';
       env.OPENCLAW_SKIP_ACPX_RUNTIME_PROBE = '1';
 
-      // TEMP: Disable safety hook for testing Gateway startup delay
-      env.SUDOWORK_SAFETY_HOOK = 'false';
-
       // Skills (e.g. image-analysis) read SUDOROUTER credentials and CHAT_MODEL
       // directly from sudoclaw.json via SUDOCLAW_CONFIG_PATH at each invocation,
       // so no env var injection is needed here.
@@ -294,16 +286,11 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       // Inject safety hook for Sudoclaw gateway process
       // Hook will self-regulate by polling /safe/config/enabled from Nexus
-      // TEMP: Disable safety hook for testing Gateway startup delay
       const hookJsPath = getHookJsPath();
-      const hookDisabled = env.SUDOWORK_SAFETY_HOOK === 'false';
-      const hookExists = !hookDisabled && fs.existsSync(hookJsPath);
+      const hookExists = fs.existsSync(hookJsPath);
       const nodeArgs = hookExists ? ['-r', hookJsPath, launcherPath] : [launcherPath];
 
-      if (hookDisabled) {
-        console.log('[OpenClawGatewayManager] Safety hook disabled for testing (SUDOWORK_SAFETY_HOOK=false)');
-        mainLog('OpenClawGatewayManager', 'Safety hook disabled for testing');
-      } else if (hookExists) {
+      if (hookExists) {
         console.log('[OpenClawGatewayManager] Injecting safety hook:', hookJsPath);
         // Also set NODE_OPTIONS so child processes (agents) inherit the hook
         // The hook will self-regulate by polling /safe/config/enabled from Nexus
