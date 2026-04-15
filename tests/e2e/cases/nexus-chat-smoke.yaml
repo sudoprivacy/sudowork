@@ -1,0 +1,38 @@
+name: "nexus chat smoke"
+description: "Verify Nexus agent: ACP handshake, streaming, basic conversation"
+
+steps:
+  # ── Phase 0: Wait for app ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Start fresh conversation ──
+  - op: mouse_click
+    text: "新会话"
+  - op: pause
+    duration: 3000
+
+  # ── Phase 2: Switch to Nexus agent ──
+  - op: mouse_click
+    text: "Nexus"
+  - op: pause
+    duration: 2000
+  - op: screenshot
+    path: "screenshots/nexus-00-selected.png"
+
+  # ── Phase 3: Send simple message ──
+  - op: type_text
+    text: "Reply with exactly: NEXUS_SMOKE_OK"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+
+  # ── Phase 4: Wait for response ──
+  - op: wait_for_response
+    timeout: 30
+
+  # ── Phase 5: Verify response ──
+  - op: screenshot
+    path: "screenshots/nexus-01-smoke-response.png"
+  - op: judge
+    expect: "NEXUS_SMOKE_OK"
