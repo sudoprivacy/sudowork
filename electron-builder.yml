@@ -135,8 +135,11 @@ extraResources:
   - from: resources/claude-code.tgz
     to: claude-code.tgz
   # mcporter package (bundled at build time, unpacked for direct execution)
+  # Include all files including node_modules (override global node_modules exclusions)
   - from: resources/mcporter
     to: mcporter
+    filter:
+      - "**/*"
   # Sudoclaw/OpenClaw runtime for macOS - versioned archive + manifest
   - from: resources
     to: .
