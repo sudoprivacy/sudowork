@@ -22,7 +22,7 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Select, Typography } from '@arco-design/web-react';
-import { Close, Lightning, Robot, Shield } from '@icon-park/react';
+import { Close, Copy, Lightning, Robot, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -221,39 +221,39 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   const handleSave = useCallback(async () => {
     if (!assistant) return;
 
+    // Block saving for readonly assistants (hub, builtin, extension)
+    if (isReadonly) {
+      Message.warning(
+        t('settings.assistantReadonly', {
+          defaultValue: 'Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑',
+        })
+      );
+      return;
+    }
+
     try {
       // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
       const lookupName = resolveAssistantName(assistant.id);
 
-      // For readonly assistants (hub, builtin, extension), only save presetAgentType
-      if (isReadonly) {
-        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
-          name: lookupName,
-          updates: {
-            presetAgentType: editAgent,
-          },
-        });
-      } else {
-        // For custom assistants, save all fields
-        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
-          name: lookupName,
-          updates: {
-            nameI18n: { 'zh-CN': editName },
-            descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
-            avatar: editAvatar,
-            presetAgentType: editAgent,
-            enabledSkills: selectedSkills,
-          },
-        });
+      // For custom assistants, save all fields
+      await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+        name: lookupName,
+        updates: {
+          nameI18n: { 'zh-CN': editName },
+          descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+          avatar: editAvatar,
+          presetAgentType: editAgent,
+          enabledSkills: selectedSkills,
+        },
+      });
 
-        // Save rules file if changed
-        if (editContext.trim()) {
-          await ipcBridge.fs.writeAssistantRule.invoke({
-            assistantId: assistant.id,
-            locale: localeKey,
-            content: editContext,
-          });
-        }
+      // Save rules file if changed
+      if (editContext.trim()) {
+        await ipcBridge.fs.writeAssistantRule.invoke({
+          assistantId: assistant.id,
+          locale: localeKey,
+          content: editContext,
+        });
       }
 
       // Refresh agent detection
@@ -268,6 +268,57 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
   }, [assistant, isReadonly, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
+
+  // Duplicate assistant to custom list
+  const handleDuplicate = useCallback(async () => {
+    if (!assistant) return;
+
+    try {
+      const baseName = assistant.nameI18n?.[localeKey] || assistant.name;
+      const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+      const customId = `custom-${assistant.id}-${Date.now()}`;
+
+      // Read the assistant rule content
+      let ruleContent: string | undefined = undefined;
+      try {
+        const content = await ipcBridge.fs.readAssistantRule.invoke({
+          assistantId: assistant.id,
+          locale: localeKey,
+        });
+        if (content && content.trim()) {
+          ruleContent = content;
+        }
+      } catch {
+        // No rule content available
+      }
+
+      // Create new custom assistant
+      await ipcBridge.assistantHub.createAssistant.invoke({
+        meta: {
+          id: customId,
+          nameI18n: { 'zh-CN': customName },
+          descriptionI18n: assistant.descriptionI18n || (assistant.description ? { 'zh-CN': assistant.description } : undefined),
+          avatar: assistant.avatar,
+          presetAgentType: assistant.presetAgentType || 'sudoclaw',
+          enabled: true,
+          source_type: 'custom',
+          enabledSkills: assistant.enabledSkills || [],
+        },
+        ruleContent: ruleContent,
+      });
+
+      // Refresh agent detection
+      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+      await mutate('acp.agents.available');
+
+      Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Failed to duplicate assistant:', error);
+      Message.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
+    }
+  }, [assistant, localeKey, onSaved, onClose, t]);
 
   const editAvatarImage = resolveAvatarImage(editAvatar);
 
@@ -304,13 +355,20 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       footer={
         <div className='flex items-center justify-between w-full'>
           <div className='flex items-center gap-8px'>
-            <Button type='primary' onClick={handleSave} className='w-[100px] rounded-[100px]'>
+            <Button type='primary' onClick={handleSave} disabled={isReadonly} className='w-[100px] rounded-[100px]'>
               {t('common.save', { defaultValue: 'Save' })}
             </Button>
             <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
               {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
           </div>
+          {/* Duplicate button for all assistant types */}
+          {assistant && (
+            <Button onClick={handleDuplicate} className='rounded-[100px] bg-fill-2 flex items-center gap-4px'>
+              <Copy size='14' />
+              <span>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
+            </Button>
+          )}
         </div>
       }
     >
@@ -375,7 +433,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                 defaultValue: 'Main Agent',
               })}
             </Typography.Text>
-            <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)}>
+            <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonly}>
               {AGENT_OPTIONS.filter((opt) => availableBackends.has(opt.backendId || opt.value)).map((opt) => (
                 <Select.Option key={opt.value} value={opt.value}>
                   <span className='flex items-center gap-6px'>

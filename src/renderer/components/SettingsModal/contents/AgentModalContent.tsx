@@ -18,7 +18,7 @@ import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/util
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Delete, Lightning, Plus, Robot, Shield, Search, Install } from '@icon-park/react';
+import { Close, Copy, Delete, Lightning, Plus, Robot, Shield, Search, Install } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -87,8 +87,10 @@ const InstalledAssistantCard: React.FC<{
   avatarImageMap: Record<string, string>;
   onToggleEnabled: (enabled: boolean) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onClick: () => void;
-}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onClick }) => {
+}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onClick }) => {
+  const { t } = useTranslation();
   const isCustom = !assistant.isBuiltin && !isExtension;
   const isEnabled = isExtension ? true : assistant.enabled !== false;
 
@@ -112,7 +114,7 @@ const InstalledAssistantCard: React.FC<{
 
   return (
     <div
-      className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')}
+      className={classNames('group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')}
       onClick={onClick}
     >
       {/* Avatar + toggle */}
@@ -141,7 +143,7 @@ const InstalledAssistantCard: React.FC<{
       </div>
 
       {/* Content */}
-      <div className='flex-1 min-w-0 pr-28px'>
+      <div className='flex-1 min-w-0 pr-58px'>
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
@@ -150,15 +152,20 @@ const InstalledAssistantCard: React.FC<{
         </div>
       </div>
 
-      {/* Top-right: shield (builtin) or delete (custom) */}
-      <div className='absolute top-10px right-10px' onClick={(e) => e.stopPropagation()}>
+      {/* Top-right: duplicate button + shield (builtin) or delete (custom) */}
+      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {/* Duplicate button - available for all assistant types */}
+        <button type='button' className='h-22px px-6px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-3px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary opacity-0 group-hover:opacity-100' onClick={onDuplicate}>
+          <Copy size='12' />
+        </button>
+        {/* Shield (builtin/extension) or Delete (custom) */}
         {assistant.isBuiltin || isExtension ? (
           <div className='w-22px h-22px flex items-center justify-center text-primary' title='内置助手'>
             <Shield size='15' />
           </div>
         ) : (
           <Popconfirm title='确认删除该助手？' onOk={onDelete} okText='删除' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-            <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors'>
+            <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors opacity-0 group-hover:opacity-100'>
               <Delete size='15' />
             </div>
           </Popconfirm>
@@ -176,8 +183,9 @@ const HubAssistantCard: React.FC<{
   installing: boolean;
   installProgress: number;
   onInstall: (e: React.MouseEvent) => void;
+  onDuplicate: (e: React.MouseEvent) => void;
   onClick: () => void;
-}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onClick }) => {
+}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onDuplicate, onClick }) => {
   const { t } = useTranslation();
 
   const displayName = assistant.display_name || assistant.name;
@@ -209,7 +217,7 @@ const HubAssistantCard: React.FC<{
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-58px min-w-0'>
+        <div className='flex items-center gap-6px pr-100px min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
         <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
@@ -221,8 +229,14 @@ const HubAssistantCard: React.FC<{
         )}
       </div>
 
-      {/* Action - top right */}
-      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
+      {/* Actions - top right */}
+      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {/* Duplicate button - always visible */}
+        <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
+          <Copy size='13' />
+          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
+        </button>
+        {/* Install button or progress */}
         {installing ? (
           <div className='w-52px'>
             <Progress percent={installProgress} size='mini' />
@@ -463,6 +477,10 @@ const AgentModalContent: React.FC = () => {
   const [installingAssistantId, setInstallingAssistantId] = useState<string | null>(null);
   const [installProgress, setInstallProgress] = useState(0);
   const [hubInstalledSkillsReady, setHubInstalledSkillsReady] = useState(false);
+  // Duplicate assistant state
+  const [duplicateConfirmVisible, setDuplicateConfirmVisible] = useState(false);
+  const [duplicateAssistant, setDuplicateAssistant] = useState<IAssistantHubSkill | null>(null);
+  const [duplicateInstalledAssistant, setDuplicateInstalledAssistant] = useState<AssistantListItem | null>(null);
   const enterpriseCode = user?.enterprise_code?.trim();
 
   const avatarImageMap = React.useMemo<Record<string, string>>(
@@ -896,6 +914,117 @@ const AgentModalContent: React.FC = () => {
     void navigate(`/guid?assistant=${encodeURIComponent(hubDetailAssistant.name)}`);
   }, [hubDetailAssistant, navigate]);
 
+  // Open duplicate confirm modal for hub assistant
+  const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
+    setDuplicateAssistant(assistant);
+    setDuplicateInstalledAssistant(null);
+    setDuplicateConfirmVisible(true);
+  }, []);
+
+  // Open duplicate confirm modal for installed assistant
+  const handleOpenDuplicateModalFromInstalled = useCallback((assistant: AssistantListItem) => {
+    setDuplicateAssistant(null);
+    setDuplicateInstalledAssistant(assistant);
+    setDuplicateConfirmVisible(true);
+  }, []);
+
+  // Duplicate assistant to custom list
+  const handleDuplicateConfirm = useCallback(async () => {
+    if (!duplicateAssistant && !duplicateInstalledAssistant) return;
+    if (!isElectronDesktop()) {
+      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手复制仅在桌面端可用' }));
+      return;
+    }
+
+    try {
+      // Handle hub assistant duplication
+      if (duplicateAssistant) {
+        const baseName = duplicateAssistant.display_name || duplicateAssistant.name;
+        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+        const customId = `custom-${duplicateAssistant.name}-${Date.now()}`;
+
+        // Read the assistant rule content if already installed
+        let ruleContent: string | undefined = undefined;
+        if (hubInstalledAssistantNames.has(duplicateAssistant.name)) {
+          try {
+            const content = await ipcBridge.fs.readAssistantRule.invoke({
+              assistantId: duplicateAssistant.name,
+              locale: localeKey,
+            });
+            if (content && content.trim()) {
+              ruleContent = content;
+            }
+          } catch {
+            // No rule content available
+          }
+        }
+
+        // Create new custom assistant
+        await ipcBridge.assistantHub.createAssistant.invoke({
+          meta: {
+            id: customId,
+            nameI18n: { 'zh-CN': customName },
+            descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
+            avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
+            presetAgentType: duplicateAssistant.preset_agent_type || 'sudoclaw',
+            enabled: true,
+            source_type: 'custom',
+            enabledSkills: duplicateAssistant.skills || [],
+          },
+          ruleContent: ruleContent,
+        });
+
+        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      }
+
+      // Handle installed assistant duplication
+      if (duplicateInstalledAssistant) {
+        const baseName = duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name;
+        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+        const customId = `custom-${duplicateInstalledAssistant.id}-${Date.now()}`;
+
+        // Read the assistant rule content
+        let ruleContent: string | undefined = undefined;
+        try {
+          const content = await ipcBridge.fs.readAssistantRule.invoke({
+            assistantId: duplicateInstalledAssistant.id,
+            locale: localeKey,
+          });
+          if (content && content.trim()) {
+            ruleContent = content;
+          }
+        } catch {
+          // No rule content available
+        }
+
+        // Create new custom assistant
+        await ipcBridge.assistantHub.createAssistant.invoke({
+          meta: {
+            id: customId,
+            nameI18n: { 'zh-CN': customName },
+            descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
+            avatar: duplicateInstalledAssistant.avatar,
+            presetAgentType: duplicateInstalledAssistant.presetAgentType || 'sudoclaw',
+            enabled: true,
+            source_type: 'custom',
+            enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
+          },
+          ruleContent: ruleContent,
+        });
+
+        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      }
+
+      await loadAssistants();
+      setDuplicateConfirmVisible(false);
+      setDuplicateAssistant(null);
+      setDuplicateInstalledAssistant(null);
+    } catch (err) {
+      console.error('Failed to duplicate assistant:', err);
+      agentMessage.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
+    }
+  }, [duplicateAssistant, duplicateInstalledAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t]);
+
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
   const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
@@ -973,6 +1102,12 @@ const AgentModalContent: React.FC = () => {
 
   const handleSave = async () => {
     try {
+      // Block saving for readonly assistants (hub, builtin, extension)
+      if (!isCreating && isReadonlyAssistant) {
+        agentMessage.warning(t('settings.assistantReadonly', { defaultValue: 'Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑' }));
+        return;
+      }
+
       if (isCreating) {
         if (!editName.trim()) {
           agentMessage.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
@@ -999,40 +1134,28 @@ const AgentModalContent: React.FC = () => {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
 
-        // For readonly assistants (hub, builtin, extension), only save presetAgentType
-        if (isReadonlyAssistant) {
-          await ipcBridge.assistantHub.updateAssistantMeta.invoke({
-            name: lookupName,
-            updates: {
-              presetAgentType: editAgent,
-            },
-          });
-          await loadAssistants();
-          agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
-        } else {
-          // For custom assistants, save all fields
-          await ipcBridge.assistantHub.updateAssistantMeta.invoke({
-            name: lookupName,
-            updates: {
-              nameI18n: { 'zh-CN': editName },
-              descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
-              avatar: editAvatar,
-              presetAgentType: editAgent,
-              enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
-            },
-          });
+        // For custom assistants, save all fields
+        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+          name: lookupName,
+          updates: {
+            nameI18n: { 'zh-CN': editName },
+            descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+            avatar: editAvatar,
+            presetAgentType: editAgent,
+            enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
+          },
+        });
 
-          if (editContext.trim()) {
-            await ipcBridge.fs.writeAssistantRule.invoke({
-              assistantId: activeAssistant.id,
-              locale: localeKey,
-              content: editContext,
-            });
-          }
-
-          await loadAssistants();
-          agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+        if (editContext.trim()) {
+          await ipcBridge.fs.writeAssistantRule.invoke({
+            assistantId: activeAssistant.id,
+            locale: localeKey,
+            content: editContext,
+          });
         }
+
+        await loadAssistants();
+        agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
       }
 
       setEditVisible(false);
@@ -1120,6 +1243,7 @@ const AgentModalContent: React.FC = () => {
           avatarImageMap={avatarImageMap}
           onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
           onDelete={() => void handleDeleteFromCard(assistant)}
+          onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
           onClick={() => void handleEdit(assistant)}
         />
       ))}
@@ -1216,6 +1340,10 @@ const AgentModalContent: React.FC = () => {
                         // Open detail modal for install options
                         setHubDetailAssistant(assistant);
                         setHubDetailVisible(true);
+                      }}
+                      onDuplicate={(e) => {
+                        e.stopPropagation();
+                        handleOpenDuplicateModal(assistant);
                       }}
                       onClick={() => {
                         setHubDetailAssistant(assistant);
@@ -1337,7 +1465,7 @@ const AgentModalContent: React.FC = () => {
         footer={
           <div className='flex items-center justify-between w-full'>
             <div className='flex items-center gap-8px'>
-              <Button type='primary' onClick={handleSave} className='w-[100px] rounded-[100px]'>
+              <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
                 {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
               </Button>
               <Button
@@ -1391,7 +1519,7 @@ const AgentModalContent: React.FC = () => {
             {/* Main Agent */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)}>
+              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonlyAssistant}>
                 {[
                   { value: 'gemini', label: 'Gemini CLI' },
                   { value: 'claude', label: 'Claude Code' },
@@ -1526,6 +1654,80 @@ const AgentModalContent: React.FC = () => {
             <div>
               <div className='font-medium'>{activeAssistant.nameI18n?.[localeKey] || activeAssistant.name}</div>
               <div className='text-12px text-t-secondary'>{activeAssistant.descriptionI18n?.[localeKey] || activeAssistant.description}</div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Duplicate Confirmation Modal */}
+      <Modal
+        title={t('settings.duplicateAssistantTitle', { defaultValue: '复制助手' })}
+        visible={duplicateConfirmVisible}
+        onCancel={() => {
+          setDuplicateConfirmVisible(false);
+          setDuplicateAssistant(null);
+          setDuplicateInstalledAssistant(null);
+        }}
+        onOk={handleDuplicateConfirm}
+        okText={t('common.confirm', { defaultValue: '确认' })}
+        cancelText={t('common.cancel', { defaultValue: '取消' })}
+        className='w-[90vw] md:w-[400px]'
+        wrapStyle={{ zIndex: 10000 }}
+        maskStyle={{ zIndex: 9999 }}
+      >
+        <p>{t('settings.duplicateAssistantConfirm', { defaultValue: '确认复制该助手到自定义列表？复制后可在"我的助手"中进行编辑。' })}</p>
+        {/* Hub assistant preview */}
+        {duplicateAssistant && (
+          <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <Avatar.Group size={32}>
+              <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
+                {(() => {
+                  const resolvedAvatar = duplicateAssistant.avatar?.trim();
+                  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+                  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
+                  if (resolvedAvatar && !hasEmojiAvatar) return <img src={resolvedAvatar} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
+                  if (hasEmojiAvatar) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
+                  return <Robot theme='outline' size={16} />;
+                })()}
+              </Avatar>
+            </Avatar.Group>
+            <div>
+              <div className='font-medium'>{duplicateAssistant.display_name || duplicateAssistant.name}</div>
+              <div className='text-12px text-t-secondary line-clamp-2'>{duplicateAssistant.description}</div>
+            </div>
+          </div>
+        )}
+        {/* Installed assistant preview */}
+        {duplicateInstalledAssistant && (
+          <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <Avatar.Group size={32}>
+              <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
+                {(() => {
+                  const resolvedAvatar = duplicateInstalledAssistant.avatar?.trim();
+                  const avatarImg = resolveAvatarImageSrc(resolvedAvatar);
+                  const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
+                  if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
+                  if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
+                  return <Robot theme='outline' size={16} />;
+                })()}
+              </Avatar>
+            </Avatar.Group>
+            <div>
+              <div className='font-medium'>{duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name}</div>
+              <div className='text-12px text-t-secondary line-clamp-2'>{duplicateInstalledAssistant.descriptionI18n?.[localeKey] || duplicateInstalledAssistant.description}</div>
+            </div>
+          </div>
+        )}
+        {/* Name hint */}
+        {(duplicateAssistant || duplicateInstalledAssistant) && (
+          <div className='mt-12px p-12px bg-primary-light rounded-lg'>
+            <div className='text-12px text-primary'>
+              {t('settings.duplicateAssistantNameHint', {
+                name: duplicateAssistant
+                  ? duplicateAssistant.display_name || duplicateAssistant.name
+                  : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
+                defaultValue: `复制后的助手名称: 自定义-${duplicateAssistant ? (duplicateAssistant.display_name || duplicateAssistant.name) : (duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name)}`,
+              })}
             </div>
           </div>
         )}
