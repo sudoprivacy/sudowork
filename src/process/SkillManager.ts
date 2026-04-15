@@ -284,7 +284,6 @@ export class SkillManager {
 
     return skills;
   }
-
   // 查找技能目录
   private async findSkillDir(skillName: string, includeDisabled = true): Promise<{ dir: string; category: SkillCategory; isDisabled: boolean } | null> {
     // 搜索启用目录

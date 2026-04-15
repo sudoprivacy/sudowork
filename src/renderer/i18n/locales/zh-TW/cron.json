@@ -7,6 +7,7 @@
   "lastError": "錯誤訊息",
   "message": "執行內容",
   "goToConversation": "跳轉到所屬對話",
+  "goToConversationLink": "查看對話",
   "status": {
     "active": "執行中",
     "paused": "已暫停",

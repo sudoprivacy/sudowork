@@ -268,9 +268,10 @@ const Layout: React.FC<{
   useEffect(() => {
     collapsedRef.current = collapsed;
   }, [collapsed]);
+
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
-      <div className='app-shell flex flex-col size-full min-h-0'>
+      <div className='app-shell relative flex flex-col size-full min-h-0'>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
         {isMobile && !collapsed && <div className='fixed inset-0 bg-black/30 z-90' onClick={() => setCollapsed(true)} aria-hidden='true' />}

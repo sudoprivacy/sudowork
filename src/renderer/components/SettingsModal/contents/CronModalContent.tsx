@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
+import { ConfigStorage, type TChatConversation } from '@/common/storage';
 import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
@@ -238,13 +239,25 @@ const CronJobDetail: React.FC<{
       {/* Conversation link */}
       {(() => {
         const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
-        const targetConvId = isNewMode ? job.state.lastConversationId : job.metadata.conversationId;
-        const targetConvTitle = isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle;
+        let targetConvId: string | undefined;
+        let targetConvTitle: string;
+        if (isNewMode) {
+          targetConvId = job.state.lastConversationId;
+          targetConvTitle = t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' });
+        } else if (job.metadata.conversationId) {
+          targetConvId = job.metadata.conversationId;
+          targetConvTitle = job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' });
+        } else {
+          // reuse mode without pre-binding — fall back to lastConversationId
+          targetConvId = job.state.lastConversationId;
+          targetConvTitle = t('cron.goToConversationLink', { defaultValue: '查看会话' });
+        }
         if (!targetConvId) return null;
+        const convId = targetConvId;
         return (
           <div>
             <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
-            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(targetConvId)}>
+            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(convId)}>
               {targetConvTitle}
             </span>
           </div>
@@ -281,6 +294,8 @@ const CronJobFormDrawer: React.FC<{
   const [workspace, setWorkspace] = useState('');
   const [conversationMode, setConversationMode] = useState<'new' | 'reuse'>('new');
   const [selectedAssistantId, setSelectedAssistantId] = useState<string>(DEFAULT_ASSISTANT);
+  const [selectedConversationId, setSelectedConversationId] = useState<string>('');
+  const [conversations, setConversations] = useState<TChatConversation[]>([]);
 
   useEffect(() => {
     if (visible) {
@@ -293,6 +308,7 @@ const CronJobFormDrawer: React.FC<{
         setConversationMode(editJob.metadata.conversationMode ?? 'new');
         setWorkspace(editJob.metadata.workspace ?? '');
         setSelectedAssistantId(editJob.metadata.presetAssistantId || DEFAULT_ASSISTANT);
+        setSelectedConversationId(editJob.metadata.conversationId || '');
         form.setFieldsValue({
           name: editJob.name,
           description: editJob.schedule.description,
@@ -308,9 +324,34 @@ const CronJobFormDrawer: React.FC<{
         setShowMore(false);
         setConversationMode('new');
         setSelectedAssistantId(DEFAULT_ASSISTANT);
+        setSelectedConversationId('');
       }
     }
   }, [visible, editJob, form]);
+
+  // Lazily fetch conversation list when reuse mode is selected. Filter out
+  // health-check conversations (same predicate as `useConversations` hook).
+  useEffect(() => {
+    if (!visible || conversationMode !== 'reuse') return;
+    let cancelled = false;
+    ipcBridge.database.getUserConversations
+      .invoke({ page: 0, pageSize: 10000 })
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data)) {
+          const filtered = data.filter((conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true);
+          setConversations(filtered);
+        } else {
+          setConversations([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setConversations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, conversationMode]);
 
   const handleSelectFolder = useCallback(async () => {
     try {
@@ -331,6 +372,10 @@ const CronJobFormDrawer: React.FC<{
       const schedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
       const isManual = frequency === 'manual';
 
+      // When a conversation is bound in reuse mode, assistant & workspace come from
+      // that conversation — ignore the form values.
+      const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
+
       // Derive agentType from selected assistant's presetAgentType; default to openclaw-gateway (Sudoclaw)
       const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
       const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
@@ -338,11 +383,17 @@ const CronJobFormDrawer: React.FC<{
       const presetAgentType = selectedAssistant?.presetAgentType || 'sudoclaw';
       const agentType = (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackendAll;
 
+      // For reuse mode, allow optionally binding an existing conversation so the
+      // very first run appends to it. New mode ignores the picker entirely.
+      const reuseConvId = conversationMode === 'reuse' ? selectedConversationId : '';
+      const reuseConvTitle = reuseConvId ? conversations.find((c) => c.id === reuseConvId)?.name : undefined;
+
+      let result: unknown;
       if (editJob) {
         // Update existing job. JSON IPC strips `undefined`, so we pass an explicit
         // `null` sentinel when clearing the assistant back to Default — the backend
         // normalizes `null` → cleared field.
-        await ipcBridge.cron.updateJob.invoke({
+        result = await ipcBridge.cron.updateJob.invoke({
           jobId: editJob.id,
           updates: {
             name: values.name,
@@ -351,19 +402,24 @@ const CronJobFormDrawer: React.FC<{
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
-              agentType,
+              agentType: isBoundConversation ? editJob.metadata.agentType : agentType,
               conversationMode,
-              workspace: workspace || undefined,
-              presetAssistantId: isDefaultAssistant ? null : effectiveAssistantId,
+              // Bind/unbind conversation for reuse mode. New mode keeps the
+              // existing conversationId untouched (it's auto-managed via state.lastConversationId).
+              conversationId: conversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
+              conversationTitle: conversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
+              workspace: isBoundConversation ? editJob.metadata.workspace : workspace || undefined,
+              presetAssistantId: isBoundConversation ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
             },
           },
         });
       } else {
-        await ipcBridge.cron.addJob.invoke({
+        result = await ipcBridge.cron.addJob.invoke({
           name: values.name,
           schedule: schedule || { kind: 'cron', expr: '0 9 * * *', description: values.description || values.name },
           message: values.prompt,
-          conversationId: '',
+          conversationId: reuseConvId,
+          conversationTitle: reuseConvTitle,
           agentType,
           createdBy: 'user',
           conversationMode,
@@ -372,12 +428,24 @@ const CronJobFormDrawer: React.FC<{
         });
       }
 
+      // The cron bridge wraps provider errors in an envelope so the IPC layer
+      // (which has no rejection path) doesn't hang the UI. Unwrap it here.
+      const errorEnvelope = result as { __error?: string } | null | undefined;
+      if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
+        Message.error(errorEnvelope.__error);
+        return;
+      }
+
       Message.success(t('cron.drawer.saveSuccess'));
       onSaved();
       onClose();
-    } catch (err) {
+    } catch (err: unknown) {
+      // Arco form.validate() rejects with a non-Error object on validation
+      // failure — only show a toast for actual runtime / IPC errors.
       if (err instanceof Error) {
         Message.error(err.message);
+      } else if (typeof err === 'string') {
+        Message.error(err);
       }
     } finally {
       setSaving(false);
@@ -426,7 +494,7 @@ const CronJobFormDrawer: React.FC<{
         </Form.Item>
 
         {/* Description */}
-        <Form.Item label={t('cron.create.description', { defaultValue: '描述' })} field='description' rules={[{ required: true }]}>
+        <Form.Item label={t('cron.create.description', { defaultValue: '描述' })} field='description'>
           <Input placeholder={t('cron.create.descriptionPlaceholder', { defaultValue: '简述任务目的' })} />
         </Form.Item>
 
@@ -492,32 +560,6 @@ const CronJobFormDrawer: React.FC<{
 
           {showMore && (
             <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-              {/* Agent/Assistant selector */}
-              <div>
-                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)}>
-                  <Select.Option value={DEFAULT_ASSISTANT}>
-                    <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
-                  </Select.Option>
-                  {assistants.map((a) => (
-                    <Select.Option key={a.id} value={a.id}>
-                      <span className='flex items-center gap-6px'>
-                        {a.avatar && <span>{a.avatar}</span>}
-                        <span>{a.nameI18n?.[localeKey] || a.name}</span>
-                      </span>
-                    </Select.Option>
-                  ))}
-                </Select>
-              </div>
-
-              {/* Workspace selector */}
-              <div>
-                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
-                <Button long onClick={handleSelectFolder} className='!justify-start !text-left'>
-                  {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
-                </Button>
-              </div>
-
               {/* Execution mode */}
               <div className='col-span-2'>
                 <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
@@ -526,6 +568,69 @@ const CronJobFormDrawer: React.FC<{
                   <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话（适合持续追加）' })}</Select.Option>
                 </Select>
               </div>
+
+              {/* Reuse-mode conversation picker — optional. Empty means "auto-create on first run". */}
+              {conversationMode === 'reuse' && (
+                <div className='col-span-2'>
+                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.reuseConversation', { defaultValue: '绑定会话' })}</div>
+                  <Select
+                    value={selectedConversationId}
+                    onChange={(v) => setSelectedConversationId(v as string)}
+                    showSearch
+                    filterOption={(inputValue, option) => {
+                      const optionValue = (option as React.ReactElement<{ value?: string }>)?.props?.value;
+                      if (!optionValue) return true; // keep the placeholder visible while searching
+                      const conv = conversations.find((c) => c.id === optionValue);
+                      const label = conv?.name || optionValue;
+                      return label.toLowerCase().includes(inputValue.toLowerCase());
+                    }}
+                  >
+                    <Select.Option value=''>
+                      <span className='text-t-secondary'>{t('cron.create.reuseConversationPlaceholder', { defaultValue: '首次运行时自动创建' })}</span>
+                    </Select.Option>
+                    {conversations.map((c) => (
+                      <Select.Option key={c.id} value={c.id}>
+                        {c.name || c.id}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                  <div className='text-12px text-t-secondary mt-4px'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
+                </div>
+              )}
+
+              {/* Agent/Assistant selector — hidden when a conversation is bound in reuse mode */}
+              {!(conversationMode === 'reuse' && selectedConversationId) && (
+                <div>
+                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+                  <Select
+                    value={selectedAssistantId}
+                    onChange={(v) => setSelectedAssistantId(v as string)}
+                    disabled={editJob != null && conversationMode === 'reuse'}
+                  >
+                    <Select.Option value={DEFAULT_ASSISTANT}>
+                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
+                    </Select.Option>
+                    {assistants.map((a) => (
+                      <Select.Option key={a.id} value={a.id}>
+                        <span className='flex items-center gap-6px'>
+                          {a.avatar && <span>{a.avatar}</span>}
+                          <span>{a.nameI18n?.[localeKey] || a.name}</span>
+                        </span>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+
+              {/* Workspace selector — hidden when a conversation is bound in reuse mode */}
+              {!(conversationMode === 'reuse' && selectedConversationId) && (
+                <div>
+                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+                  <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
+                    {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

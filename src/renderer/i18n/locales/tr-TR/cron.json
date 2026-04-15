@@ -7,6 +7,7 @@
   "lastError": "Error",
   "message": "Message",
   "goToConversation": "Go to conversation",
+  "goToConversationLink": "Konuşmayı görüntüle",
   "status": {
     "active": "Active",
     "paused": "Paused",

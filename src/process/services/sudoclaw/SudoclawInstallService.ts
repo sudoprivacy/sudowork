@@ -420,6 +420,16 @@ export function repairOpenClawConfig(): void {
       changed = true;
     }
 
+    // "imageAnalysisModel" is not in the gateway zod schema; migrate to "imageModel"
+    const agentDefaults = (config.agents as { defaults?: Record<string, unknown> } | undefined)?.defaults;
+    if (agentDefaults?.imageAnalysisModel !== undefined) {
+      if (agentDefaults.imageModel === undefined) {
+        agentDefaults.imageModel = agentDefaults.imageAnalysisModel;
+      }
+      delete agentDefaults.imageAnalysisModel;
+      changed = true;
+    }
+
     // Ensure gateway config exists with auth: { mode: 'none' }
     if (!config.gateway || typeof config.gateway !== 'object') {
       (config as Record<string, unknown>).gateway = {
@@ -499,6 +509,11 @@ export function ensureDefaultConfig(): void {
       mode: 'merge' as const,
       providers: {
         sudorouter: {
+          baseUrl: 'https://hk.sudorouter.ai/v1',
+          api: 'google-generative-ai',
+          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
+        },
+        'sudorouter-gemini-3-flash-preview': {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
           models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],

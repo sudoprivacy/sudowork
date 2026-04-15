@@ -5,6 +5,7 @@
  */
 
 import type { IChannelPluginStatus } from '@/channels/types';
+import { openExternalUrl } from '@/renderer/utils/platform';
 import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
@@ -15,6 +16,8 @@ import { Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
+
+const WECHAT_GUIDE_URL = 'https://sudoclaw.sudoprivacy.com/guides/weixin-clawbot.html';
 
 /**
  * Preference row component (matches DingTalk pattern)
@@ -239,7 +242,19 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
     return (
       <div className='flex flex-col gap-12px'>
-        <div className='text-13px text-t-secondary leading-relaxed'>{t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')}</div>
+        <div className='text-13px text-t-secondary leading-relaxed'>
+          {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')}{' '}
+          <a
+            className='text-primary hover:underline cursor-pointer text-12px'
+            href={WECHAT_GUIDE_URL}
+            onClick={(e) => {
+              e.preventDefault();
+              openExternalUrl(WECHAT_GUIDE_URL).catch(console.error);
+            }}
+          >
+            跟随教程
+          </a>
+        </div>
         <Button type='primary' onClick={handleStartLogin} className='self-start'>
           {t('settings.channels.wechat.install', 'Connect WeChat')}
         </Button>

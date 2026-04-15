@@ -514,6 +514,17 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     return pushMessage(message);
   }
 
+  // Handle tips message merging by msg_id so transient status prompts can be updated in place
+  if (message.type === 'tips' && message.msg_id) {
+    for (let i = 0, len = list.length; i < len; i++) {
+      const msg = list[i];
+      if (msg.type === 'tips' && msg.msg_id === message.msg_id) {
+        return updateMessage(i, { ...msg, ...message, content: { ...msg.content, ...message.content } });
+      }
+    }
+    return pushMessage(message);
+  }
+
   // Handle codex_tool_call message merging
   if (message.type === 'codex_tool_call') {
     for (let i = 0, len = list.length; i < len; i++) {

@@ -57,7 +57,7 @@ interface LarkConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
 }
 
-const LARK_DEV_DOCS_URL = 'https://open.feishu.cn/document/develop-an-echo-bot/introduction';
+const LARK_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/feishu.html';
 const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {

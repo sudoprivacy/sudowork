@@ -7,6 +7,7 @@
   "lastError": "오류",
   "message": "실행 내용",
   "goToConversation": "대화로 이동",
+  "goToConversationLink": "대화 보기",
   "status": {
     "active": "실행 중",
     "paused": "일시 중지됨",

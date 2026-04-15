@@ -4,7 +4,7 @@
 # Spec: https://github.com/sudoprivacy/human-browser-primitives
 # Source: WebDriver §18.1 — Take Screenshot
 
-from ai_dev_browser.core.page import screenshot as _take_screenshot
+from ai_dev_browser.core.page import page_screenshot as _take_screenshot
 
 async def screenshot(tab, path: str = None) -> dict:
     """WebDriver §18.1 — Take Screenshot."""

@@ -7,7 +7,7 @@ actively generating. It's a circle button with a small square icon
 
 import asyncio
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 async def stop_conversation(tab, wait: float = 2, timeout: float = 0) -> dict:
@@ -28,7 +28,7 @@ async def stop_conversation(tab, wait: float = 2, timeout: float = 0) -> dict:
         elapsed = 0.0
         step = 0.5
         while elapsed < timeout:
-            r = await js_exec(tab, """(() => {
+            r = await js_evaluate(tab, """(() => {
                 const btn = document.querySelector('button.bg-animate');
                 return btn ? 'found' : null;
             })()""")
@@ -38,7 +38,7 @@ async def stop_conversation(tab, wait: float = 2, timeout: float = 0) -> dict:
             elapsed += step
 
     # Click the stop button
-    r = await js_exec(tab, """(() => {
+    r = await js_evaluate(tab, """(() => {
         // Primary selector: the animated circle button with the square icon
         const btn = document.querySelector('button.bg-animate');
         if (btn) {

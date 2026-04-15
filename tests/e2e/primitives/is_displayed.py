@@ -4,13 +4,13 @@
 # Spec: https://github.com/sudoprivacy/human-browser-primitives
 # Source: WebDriver §12.4.8 — Is Element Displayed
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 import json as _json
 
 async def is_displayed(tab, element: str) -> dict:
     """WebDriver §12.4.8 — Is Element Displayed."""
     _sel = _json.dumps(element)
-    r = await js_exec(tab, f"""(() => {{
+    r = await js_evaluate(tab, f"""(() => {{
         const el = document.querySelector({_sel});
         if (!el) return false;
         const style = window.getComputedStyle(el);

@@ -259,12 +259,14 @@ jobs:
           TAG_NAME="${{ needs.release.outputs.tag_name }}"
           REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
           RELEASE_URL="${REPO_URL}/releases/tag/${TAG_NAME}"
+          MIRROR_URL="https://sudoclaw.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
           DATE=$(date -u +%Y-%m-%d)
 
           echo "=========================================="
           echo "📢 Nightly Build Notification"
           echo "=========================================="
           echo "Tag: $TAG_NAME"
+          echo "Mirror URL: $MIRROR_URL"
           echo "Release URL: $RELEASE_URL"
 
           # 检查是否配置了飞书 Webhook
@@ -307,16 +309,34 @@ jobs:
                   ]
                 },
                 {
+                  "tag": "note",
+                  "elements": [
+                    {
+                      "tag": "lark_md",
+                      "content": "🚀 **推荐使用「国内加速下载」**，国内镜像加速，速度更快。原 GitHub 下载保留作为备用渠道。"
+                    }
+                  ]
+                },
+                {
                   "tag": "action",
                   "actions": [
                     {
                       "tag": "button",
                       "text": {
+                        "tag": "lark_md",
+                        "content": "🚀 **国内加速下载（推荐）**"
+                      },
+                      "url": "${MIRROR_URL}",
+                      "type": "primary"
+                    },
+                    {
+                      "tag": "button",
+                      "text": {
                         "tag": "plain_text",
-                        "content": "📥 Download Release"
+                        "content": "GitHub 原始下载（备用）"
                       },
                       "url": "${RELEASE_URL}",
-                      "type": "primary"
+                      "type": "default"
                     }
                   ]
                 }
@@ -350,7 +370,8 @@ jobs:
           echo "📢 Nightly Build Notification"
           echo "=========================================="
           echo "Tag: $TAG_NAME"
-          echo "Download: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG_NAME}"
+          echo "Mirror (推荐): https://sudoclaw.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
+          echo "GitHub (备用): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG_NAME}"
           echo "Date: $(date -u +%Y-%m-%d)"
           echo "=========================================="
           echo ""

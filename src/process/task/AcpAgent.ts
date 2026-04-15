@@ -39,6 +39,13 @@ import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
+
+/** Default prompt timeout in seconds */
+const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
+
+/** Prompt timeout range (seconds) */
+const PROMPT_TIMEOUT_MIN_SECONDS = 30;
+const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
@@ -564,6 +571,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     try {
+      // Apply prompt timeout from config before sending
+      this.applyPromptTimeoutFromConfig();
+
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
         const userMessage: TMessage = {
@@ -706,6 +716,39 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           reject(e);
         });
       });
+    }
+  }
+
+  /**
+   * Apply prompt timeout from user config before sending message.
+   * Reads agent.promptTimeout from ProcessConfig and sets it on the AcpConnection.
+   * Falls back to DEFAULT_PROMPT_TIMEOUT_SECONDS (300s) if not configured.
+   * Uses synchronous read to avoid IPC blocking issues.
+   */
+  private applyPromptTimeoutFromConfig(): void {
+    if (!this.connection) {
+      mainWarn('AcpAgent', 'applyPromptTimeoutFromConfig: connection is null');
+      return;
+    }
+
+    try {
+      // Use synchronous read to avoid IPC blocking
+      const timeoutSeconds = ProcessConfig.getSync('agent.promptTimeout');
+      mainLog('AcpAgent', `Read promptTimeout from config: ${timeoutSeconds}`);
+      if (timeoutSeconds && timeoutSeconds > 0) {
+        // Clamp to valid range
+        const clampedSeconds = Math.max(PROMPT_TIMEOUT_MIN_SECONDS, Math.min(PROMPT_TIMEOUT_MAX_SECONDS, timeoutSeconds));
+        const timeoutMs = clampedSeconds * 1000;
+        this.connection.setPromptTimeout(timeoutMs);
+        mainLog('AcpAgent', `Applied prompt timeout: ${clampedSeconds}s (${timeoutMs}ms), current connection timeout: ${this.connection.getPromptTimeout()}ms`);
+      } else {
+        // Use default if not configured
+        this.connection.setPromptTimeout(DEFAULT_PROMPT_TIMEOUT_SECONDS * 1000);
+        mainLog('AcpAgent', `Using default prompt timeout: ${DEFAULT_PROMPT_TIMEOUT_SECONDS}s`);
+      }
+    } catch (error) {
+      mainWarn('AcpAgent', 'Failed to read prompt timeout config, using default:', error);
+      this.connection.setPromptTimeout(DEFAULT_PROMPT_TIMEOUT_SECONDS * 1000);
     }
   }
 

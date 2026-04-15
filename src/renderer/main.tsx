@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import AppLoader from './components/AppLoader';
 import InitLoading from './components/InitLoading';
 import { useAuth } from './context/AuthContext';
 import { useInit } from './context/InitContext';
@@ -17,21 +18,26 @@ const Main = () => {
   const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
 
   if (!hasResolvedInitialStatus) {
-    return null;
+    return <AppLoader text='正在获取初始化状态...' />;
   }
 
   if (!initReady && !isInitScreenSkipped) {
     if (status.phase === 'pending' && !status.displayMode) {
-      return null;
+      return <AppLoader text='正在准备运行环境...' />;
     }
     return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 
-  if (!authReady) {
-    return null;
-  }
-
-  return <Router layout={<Layout sider={<Sider />} />} />;
+  return (
+    <div className='size-full relative'>
+      <Router layout={<Layout sider={<Sider />} />} />
+      {!authReady && (
+        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', zIndex: 9999, pointerEvents: 'none' }}>
+          <AppLoader />
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Main;

@@ -9,7 +9,7 @@ import * as http from 'node:http';
 import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
-import { isSudoclawHealthPayload, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
+import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
 import { runtimeInstaller } from './RuntimeInstaller';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
@@ -431,8 +431,8 @@ export class ServiceManager {
         return modelId.includes('/') ? modelId : `${provider}/${modelId}`;
       };
 
-      // Sync parsing model (看图) → agents.defaults.imageAnalysisModel (read by gateway)
-      config.agents.defaults.imageAnalysisModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
+      // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
+      config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
 
       // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
       config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
@@ -512,7 +512,7 @@ export class ServiceManager {
           host: '127.0.0.1',
           port,
           path: '/health',
-          timeout: 1_500,
+          timeout: SUDOCLAW_HEALTH_TIMEOUT_MS,
         },
         (res) => {
           let body = '';

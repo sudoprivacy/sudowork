@@ -76,20 +76,12 @@ class CronService {
   }
 
   /**
-   * Add a new cron job
-   * @throws Error if conversation already has a cron job (one job per conversation limit)
+   * Add a new cron job. Multiple jobs may bind the same conversation.
    */
   async addJob(params: CreateCronJobParams): Promise<CronJob> {
-    // Check if conversation already has a cron job (one job per conversation limit)
-    // Skip this check when conversationId is empty (job created from Settings, not bound to a conversation)
-    if (params.conversationId) {
-      const existingJobs = cronStore.listByConversation(params.conversationId);
-      if (existingJobs.length > 0) {
-        const existingJob = existingJobs[0];
-        throw new Error(`This conversation already has a scheduled task "${existingJob.name}" (ID: ${existingJob.id}). Please delete it first before creating a new one, or use [CRON_LIST] to view existing tasks.`);
-      }
-    }
-
+    // Multiple scheduled tasks are allowed to bind the same conversation — each
+    // job appears as its own group in the sidebar, and a shared conversation
+    // shows up under every group it is bound to.
     const now = Date.now();
     const jobId = `cron_${uuid()}`;
 
@@ -561,21 +553,11 @@ class CronService {
           cronStore.update(job.id, { metadata: job.metadata, state: job.state });
 
           task = await WorkerManage.getTaskByIdRollbackBuild(activeConversationId, { yoloMode: true });
-        } else {
-          // Tag the existing conversation with cronJobId/cronJobName so it appears
-          // in the Scheduled sidebar section (only needs to happen once, idempotent)
-          try {
-            const db = getDatabase();
-            const existing = db.getConversation(activeConversationId);
-            if (existing.success && existing.data && !(existing.data.extra as any)?.cronJobId) {
-              db.updateConversation(activeConversationId, {
-                extra: { ...(existing.data.extra as any), cronJobId: job.id, cronJobName: job.name } as any,
-              });
-            }
-          } catch (err) {
-            mainWarn('CronService', 'Failed to tag reuse conversation with cronJobId:', err);
-          }
         }
+        // NOTE: We do NOT tag the pre-bound conversation with cron metadata on `extra`.
+        // The scheduled sidebar groups are built from the cron jobs table at render time
+        // (see groupingHelpers.buildGroupedHistory), which correctly supports a single
+        // conversation bound to multiple jobs.
       }
 
       if (!task) {

@@ -153,6 +153,10 @@ export interface IConfigStorageRefer {
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
   'safetyHook.blacklist'?: import('./safetyTypes').BlacklistConfig;
+  // LLM request timeout in seconds / LLM 请求超时（秒）
+  'agent.promptTimeout'?: number;
+  // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
+  'agent.idleTimeout'?: number;
 }
 
 export interface IEnvStorageRefer {
@@ -229,6 +233,10 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
+          cronJobBoundId?: string;
+          /** Cron job name this conversation is pre-bound to */
+          cronJobBoundName?: string;
         }
       >,
       'model'
@@ -288,6 +296,10 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
+          cronJobBoundId?: string;
+          /** Cron job name this conversation is pre-bound to */
+          cronJobBoundName?: string;
         }
       >,
       'model'

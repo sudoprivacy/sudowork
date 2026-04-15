@@ -8,7 +8,7 @@ import asyncio
 import json
 
 from ai_dev_browser.cdp import input_ as cdp_input
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 
 async def mouse_click(tab, x: int = None, y: int = None,
@@ -29,7 +29,7 @@ async def mouse_click(tab, x: int = None, y: int = None,
     # Resolve coordinates from text or selector
     if x is None or y is None:
         if text:
-            r = await js_exec(tab, """JSON.stringify((() => {
+            r = await js_evaluate(tab, """JSON.stringify((() => {
                 const all = document.querySelectorAll('*');
                 for (const el of all) {
                     const own = Array.from(el.childNodes)
@@ -52,7 +52,7 @@ async def mouse_click(tab, x: int = None, y: int = None,
                 return null;
             })())""" % (repr(text), repr(text)))
         elif selector:
-            r = await js_exec(tab, """JSON.stringify((() => {
+            r = await js_evaluate(tab, """JSON.stringify((() => {
                 const el = document.querySelector(%s);
                 if (el) {
                     const rect = el.getBoundingClientRect();

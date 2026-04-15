@@ -1,12 +1,9 @@
-import loginLogo from '@renderer/assets/logos/app.png';
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User } from '@icon-park/react';
-import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
@@ -30,7 +27,6 @@ function isValidPhone(phone: string): boolean {
 const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
 
 const LoginPage: React.FC = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { status, login, register } = useAuth();
 
@@ -196,9 +192,9 @@ const LoginPage: React.FC = () => {
       setLoading(false);
       return;
     } else {
-      const statusCode = (result as any).status;
-      const needRegister = (result as any).need_register;
-      const registerToken = (result as any).register_token;
+      const statusCode = result.status;
+      const needRegister = result.need_register;
+      const registerToken = result.register_token;
 
       if (needRegister && registerToken) {
         // 保存 register_token 供后续使用
@@ -255,7 +251,9 @@ const LoginPage: React.FC = () => {
 
   const currentCountdown = mode === 'login' ? loginCountdown : registerCountdown;
 
-  if (status === 'checking') return <AppLoader />;
+  if (status === 'checking') {
+    return <AppLoader />;
+  }
 
   if (statusMsg) {
     return (

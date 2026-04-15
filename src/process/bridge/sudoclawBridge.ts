@@ -6,13 +6,15 @@
 
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig } from '@/common/ipcBridge';
+import { cachePut } from '@common/nexus/secret-cache';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
-import { checkSudoclawHealth } from '../services/sudoclaw/sudoclawHealth';
+import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
+import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 
@@ -77,12 +79,13 @@ function syncToClaudeSettings(config: SudoclawConfig): void {
     return;
   }
 
-  const sudorouter = config.models?.providers?.sudorouter;
-  if (!sudorouter) return;
-
-  const apiKey = sudorouter.apiKey || '';
   const primaryModel = config.agents?.defaults?.model?.primary || '';
-  const modelId = primaryModel.startsWith('sudorouter/') ? primaryModel.slice('sudorouter/'.length) : primaryModel;
+  const [providerId, modelIdPart] = primaryModel.split('/');
+  const provider = providerId ? config.models?.providers?.[providerId] : undefined;
+  const apiKey = provider?.apiKey || '';
+  const modelId = modelIdPart || primaryModel;
+
+  if (!apiKey) return;
 
   // Create new settings with fixed values
   const settings: Record<string, unknown> = {
@@ -128,6 +131,12 @@ export function initSudoclawBridge(): void {
         }
       }
 
+      syncSudoclawRuntimeState(config, {
+        stateDir: SUDOCLAW_DIR,
+        claudeSettingsPath: CLAUDE_SETTINGS_PATH,
+        secretWriter: cachePut,
+      });
+
       // Sync to ~/.claude/settings.json for Claude CLI
       syncToClaudeSettings(config);
 
@@ -145,7 +154,7 @@ export function initSudoclawBridge(): void {
 
       const port = SUDOCLAW_DEFAULT_PORT;
       const host = '127.0.0.1';
-      const isGatewayRunning = await checkSudoclawHealth(host, port, 1000);
+      const isGatewayRunning = await checkSudoclawHealth(host, port, SUDOCLAW_HEALTH_TIMEOUT_MS);
 
       const data: any = {
         installed,
@@ -206,7 +215,7 @@ export function initSudoclawBridge(): void {
     const testPort = SUDOCLAW_DEFAULT_PORT;
     const host = '127.0.0.1';
 
-    const isRunning = await checkSudoclawHealth(host, testPort, 1000);
+    const isRunning = await checkSudoclawHealth(host, testPort, SUDOCLAW_HEALTH_TIMEOUT_MS);
 
     if (isRunning) {
       mainLog('SudoclawBridge', 'Gateway running, connection test passed');

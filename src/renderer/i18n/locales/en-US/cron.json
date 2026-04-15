@@ -7,6 +7,7 @@
   "lastError": "Error",
   "message": "Message",
   "goToConversation": "Go to conversation",
+  "goToConversationLink": "View conversation",
   "status": {
     "active": "Active",
     "paused": "Paused",
@@ -88,6 +89,9 @@
   "create.conversationMode": "Execution Mode",
   "create.conversationMode.new": "New conversation each run (Recommended)",
   "create.conversationMode.reuse": "Reuse existing conversation (for continuous append)",
+  "create.reuseConversation": "Bind Conversation",
+  "create.reuseConversationPlaceholder": "Auto-create on first run",
+  "create.reuseConversationHint": "Pick an existing conversation to append to on the very first run",
   "goToLastConversation": "View latest run conversation",
   "sidebar.scheduled": "Scheduled"
 }

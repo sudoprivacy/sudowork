@@ -59,7 +59,21 @@ export const getWorkspaceDisplayName = (workspacePath: string, t?: (key: string)
 
   // For regular workspace, show the last directory name
   const parts = splitPathSegments(workspacePath);
-  return parts[parts.length - 1] || workspacePath;
+  const lastDir = parts[parts.length - 1] || workspacePath;
+
+  // Map channel-media platform directories to friendly names
+  const channelNameMap: Record<string, string> = {
+    lark: '飞书',
+    wecom: '企业微信',
+    dingtalk: '钉钉',
+    wechat: '个人微信',
+    telegram: 'Telegram',
+  };
+  if (parts.includes('channel-media') && channelNameMap[lastDir]) {
+    return channelNameMap[lastDir];
+  }
+
+  return lastDir;
 };
 
 /**

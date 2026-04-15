@@ -645,7 +645,7 @@
   },
   "lark": {
     "appId": "App ID",
-    "devConsoleLink": "飞书开放平台开发者后台",
+    "devConsoleLink": "跟随教程",
     "appIdDescSuffix": "获取 App ID",
     "appSecret": "App Secret",
     "appSecretDescSuffix": "获取 App Secret",
@@ -708,7 +708,7 @@
   },
   "wecom": {
     "botId": "Bot ID",
-    "devConsoleLink": "企业微信开发文档",
+    "devConsoleLink": "跟随教程",
     "botIdDescSuffix": "获取 Bot ID",
     "secret": "Secret",
     "secretDescSuffix": "获取 Secret",
@@ -863,5 +863,9 @@
   "secrets.appSecretRequired": "请输入 App Secret",
   "secrets.save": "保存",
   "secrets.saveSuccess": "秘钥保存成功",
-  "secrets.saveFailed": "秘钥保存失败"
+  "secrets.saveFailed": "秘钥保存失败",
+  "promptTimeout": "LLM 请求超时",
+  "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
+  "idleTimeout": "Agent 空闲超时",
+  "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟"
 }

@@ -7,13 +7,13 @@ Two modes:
 
 import asyncio
 
-from ai_dev_browser.core.page import js_exec
+from ai_dev_browser.core.page import js_evaluate
 
 from .screenshot import screenshot
 
 
 async def _get_page_text(tab) -> str:
-    r = await js_exec(tab, "document.body.innerText")
+    r = await js_evaluate(tab, "document.body.innerText")
     return r.get("result", "")
 
 
@@ -37,7 +37,12 @@ async def wait_for_response(tab, timeout: float = 120, mode: str = "programmatic
 
 
 async def _wait_programmatic(tab, timeout: float) -> dict:
-    """Check loading indicator + require text stability (no changes for 10s)."""
+    """Check loading indicator + require text stability (no changes for 10s).
+
+    Detects both Sudoclaw ("正在处理中") and Nexus (CSS spinner) loading states.
+    Only considers text stable when loading indicators are absent AND the
+    conversation area contains at least one agent reply (not just the user message).
+    """
     prev_text = ""
     stable_count = 0
 
@@ -48,7 +53,16 @@ async def _wait_programmatic(tab, timeout: float) -> dict:
         has_loading = "正在处理中" in text
         has_permission = "Always Allow" in text and "Reject" in text
 
-        if has_loading or has_permission:
+        # Check for CSS-based loading spinner (Nexus uses animation, not text)
+        spinner_check = await js_evaluate(tab, """(() => {
+            const spinner = document.querySelector('.loading-spinner, .ant-spin, [class*="spinner"], [class*="loading"]');
+            const sendBtn = document.querySelector('[class*="send"]');
+            const isProcessing = sendBtn && sendBtn.closest('[class*="processing"], [class*="disabled"]');
+            return !!(spinner || isProcessing);
+        })()""")
+        has_spinner = spinner_check.get("result", False)
+
+        if has_loading or has_permission or has_spinner:
             stable_count = 0
             prev_text = text
             continue
