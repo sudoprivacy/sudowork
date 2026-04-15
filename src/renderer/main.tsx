@@ -29,7 +29,7 @@ const Main = () => {
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className='size-full relative'>
       <Router layout={<Layout sider={<Sider />} />} />
       {!authReady && (
         <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', zIndex: 9999, pointerEvents: 'none' }}>
