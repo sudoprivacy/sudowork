@@ -28,11 +28,16 @@ const Main = () => {
     return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
 
-  if (!authReady) {
-    return <AppLoader text='正在准备登录状态...' />;
-  }
-
-  return <Router layout={<Layout sider={<Sider />} />} />;
+  return (
+    <div style={{ position: 'relative' }}>
+      <Router layout={<Layout sider={<Sider />} />} />
+      {!authReady && (
+        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', zIndex: 9999, pointerEvents: 'none' }}>
+          <AppLoader />
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Main;

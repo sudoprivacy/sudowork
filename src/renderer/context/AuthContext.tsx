@@ -117,18 +117,35 @@ function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { api
   return Object.values(config?.models?.providers || {}).some((provider) => !!provider?.apiKey?.trim());
 }
 
+async function invokeWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs)),
+  ]);
+}
+
 async function ensureSudoclawHasApiKey(): Promise<boolean> {
   if (!isDesktopRuntime) {
     return true;
   }
 
-  try {
-    const res = await ipcBridge.sudoclaw.getConfig.invoke();
-    return hasSudoclawApiKey(res?.data);
-  } catch (error) {
-    console.error('[Auth] Failed to inspect Sudoclaw config:', error);
-    return false;
+  const maxRetries = 3;
+  const timeoutMs = 3000;
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await invokeWithTimeout(() => ipcBridge.sudoclaw.getConfig.invoke(), timeoutMs);
+      return hasSudoclawApiKey(res?.data);
+    } catch (error) {
+      console.warn(`[Auth] getConfig attempt ${i + 1}/${maxRetries} failed:`, error);
+      if (i < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
   }
+
+  console.error('[Auth] ensureSudoclawHasApiKey failed after all retries, treating as no api key');
+  return false;
 }
 
 // 获取或创建设备 ID
