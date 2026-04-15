@@ -1226,6 +1226,8 @@ export const assistantHub = {
   fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
   /** Download and install assistant from Hub, optionally installing selected associated skills */
   downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; selectedSkillIds?: string[] }>('assistant-hub.download-and-install-assistant'),
+  /** Upload custom assistant to Hub (create zip and POST to /api/assistants) */
+  uploadAssistantToHub: bridge.buildProvider<IBridgeResponse<{ success: boolean; message?: string }>, { name: string; displayName: string; profession: string; description?: string; categories?: string[]; skills?: string[]; tenantId: string }>('assistant-hub.upload-assistant-to-hub'),
 };
 
 // ==================== Channel API ====================

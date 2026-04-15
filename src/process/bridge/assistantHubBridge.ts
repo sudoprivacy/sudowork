@@ -616,4 +616,182 @@ export function initAssistantHubBridge(): void {
       };
     }
   });
+
+  // Register upload handler
+  registerUploadAssistantToHubBridge();
+}
+
+// ==================== Upload Assistant to Hub ====================
+
+/**
+ * Register upload assistant to Hub handler.
+ * Creates a zip file from assistant directory (excluding _sudowork_meta.json),
+ * and uploads to /api/assistants endpoint.
+ * Requires tenantId - users without tenantId cannot upload.
+ */
+export function registerUploadAssistantToHubBridge() {
+  ipcBridge.assistantHub.uploadAssistantToHub.provider(async (params) => {
+    const { name, displayName, profession, description, categories, skills, tenantId } = params;
+
+    // Validate tenantId - required for upload
+    if (!tenantId || !tenantId.trim()) {
+      return {
+        success: false,
+        msg: '用户无租户ID，无法上传助手',
+      };
+    }
+
+    try {
+      // Get custom assistants directory
+      const assistantsDir = getAssistantsDir();
+      const assistantDir = path.join(assistantsDir, name);
+
+      // Check if assistant exists
+      try {
+        await fs.access(assistantDir);
+      } catch {
+        return {
+          success: false,
+          msg: `Assistant "${name}" not found`,
+        };
+      }
+
+      // Read assistant meta for additional info
+      const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
+      let assistantMeta: AssistantHubMeta | null = null;
+      try {
+        const metaContent = await fs.readFile(metaFilePath, 'utf-8');
+        assistantMeta = JSON.parse(metaContent) as AssistantHubMeta;
+      } catch {
+        mainWarn('AssistantHub', `No meta file found for assistant "${name}"`);
+      }
+
+      // Create zip file (excluding _sudowork_meta.json)
+      const zip = new JSZip();
+      const files = await fs.readdir(assistantDir, { withFileTypes: true });
+
+      let promptFilePath: string | null = null;
+      let avatarFilePath: string | null = null;
+
+      for (const file of files) {
+        if (file.isDirectory()) continue;
+        if (file.name === ASSISTANT_META_FILE) continue; // Exclude meta file
+
+        const filePath = path.join(assistantDir, file.name);
+        const content = await fs.readFile(filePath);
+
+        zip.file(file.name, content);
+
+        // Track prompt file (.md) and avatar file (.png)
+        if (file.name.endsWith('.md') && !promptFilePath) {
+          promptFilePath = filePath;
+        }
+        if (file.name.match(/\.(png|jpg|jpeg|svg|webp|gif)$/i) && !avatarFilePath) {
+          avatarFilePath = filePath;
+        }
+      }
+
+      // Generate zip buffer
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+      const zipFileName = `${name}.zip`;
+
+      mainLog('AssistantHub', `Created zip file "${zipFileName}" with ${files.length - 1} files`);
+
+      // Build multipart/form-data request
+      const formData = new FormData();
+
+      // Required fields
+      formData.append('name', displayName);
+      formData.append('profession', profession);
+
+      // Optional fields
+      if (description) {
+        formData.append('description', description);
+      }
+
+      // Default init prompt from description
+      if (description) {
+        formData.append('default_init_prompt', description);
+      }
+
+      // Categories
+      if (categories && categories.length > 0) {
+        formData.append('categories', JSON.stringify(categories));
+      }
+
+      // Skills
+      if (skills && skills.length > 0) {
+        formData.append('skills', JSON.stringify(skills));
+      } else if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
+        formData.append('skills', JSON.stringify(assistantMeta.enabledSkills));
+      }
+
+      // TenantId (required)
+      formData.append('tenant_id', tenantId.trim());
+
+      // Prompt file (.md)
+      if (promptFilePath) {
+        const promptContent = await fs.readFile(promptFilePath);
+        const promptBlob = new Blob([new Uint8Array(promptContent)], { type: 'text/markdown' });
+        formData.append('prompt_file', promptBlob, path.basename(promptFilePath));
+      }
+
+      // Avatar file
+      if (avatarFilePath) {
+        const avatarContent = await fs.readFile(avatarFilePath);
+        const avatarExt = path.extname(avatarFilePath).toLowerCase();
+        const avatarMimeType = avatarExt === '.png' ? 'image/png' :
+          avatarExt === '.jpg' || avatarExt === '.jpeg' ? 'image/jpeg' :
+          avatarExt === '.svg' ? 'image/svg+xml' :
+          avatarExt === '.webp' ? 'image/webp' :
+          avatarExt === '.gif' ? 'image/gif' : 'application/octet-stream';
+        const avatarBlob = new Blob([new Uint8Array(avatarContent)], { type: avatarMimeType });
+        formData.append('avatar', avatarBlob, path.basename(avatarFilePath));
+      }
+
+      // Source url (zip file)
+      const zipBlob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
+      formData.append('source_url', zipBlob, zipFileName);
+
+      // Upload to Hub API
+      const uploadUrl = ASSISTANT_HUB_BASE_URL;
+
+      mainLog('AssistantHub', `Uploading assistant "${displayName}" to ${uploadUrl} with tenantId: ${tenantId}`);
+
+      // Real API call
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': AUTHORIZATION,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        mainError('AssistantHub', `Upload failed: ${response.status} - ${errorText}`);
+        return {
+          success: false,
+          msg: `上传失败: ${response.status} - ${errorText}`,
+        };
+      }
+
+      const result = await response.json();
+      mainLog('AssistantHub', `Upload response: ${JSON.stringify(result)}`);
+
+      return {
+        success: true,
+        data: {
+          success: true,
+          message: `助手 "${displayName}" 上传成功`,
+        },
+      };
+    } catch (error) {
+      mainError('AssistantHub', 'Failed to upload assistant:', error);
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 }

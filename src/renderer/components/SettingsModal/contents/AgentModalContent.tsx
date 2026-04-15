@@ -18,7 +18,7 @@ import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/util
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Lightning, Plus, Robot, Shield, Search, Install } from '@icon-park/react';
+import { Close, Copy, Delete, Lightning, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -88,8 +88,9 @@ const InstalledAssistantCard: React.FC<{
   onToggleEnabled: (enabled: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onUpload?: () => void;
   onClick: () => void;
-}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onClick }) => {
+}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick }) => {
   const { t } = useTranslation();
   const isCustom = !assistant.isBuiltin && !isExtension;
   const isEnabled = isExtension ? true : assistant.enabled !== false;
@@ -152,8 +153,14 @@ const InstalledAssistantCard: React.FC<{
         </div>
       </div>
 
-      {/* Top-right: duplicate button + shield (builtin) or delete (custom) */}
+      {/* Top-right: upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {/* Upload button - only for custom assistants */}
+        {isCustom && onUpload && (
+          <button type='button' className='h-22px px-6px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-3px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary opacity-0 group-hover:opacity-100' onClick={onUpload}>
+            <Upload size='12' />
+          </button>
+        )}
         {/* Duplicate button - available for all assistant types */}
         <button type='button' className='h-22px px-6px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-3px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary opacity-0 group-hover:opacity-100' onClick={onDuplicate}>
           <Copy size='12' />
@@ -522,6 +529,10 @@ const AgentModalContent: React.FC = () => {
   const [duplicateConfirmVisible, setDuplicateConfirmVisible] = useState(false);
   const [duplicateAssistant, setDuplicateAssistant] = useState<IAssistantHubSkill | null>(null);
   const [duplicateInstalledAssistant, setDuplicateInstalledAssistant] = useState<AssistantListItem | null>(null);
+  // Upload assistant state
+  const [uploadConfirmVisible, setUploadConfirmVisible] = useState(false);
+  const [uploadAssistant, setUploadAssistant] = useState<AssistantListItem | null>(null);
+  const [uploading, setUploading] = useState(false);
   const enterpriseCode = user?.enterprise_code?.trim();
 
   const avatarImageMap = React.useMemo<Record<string, string>>(
@@ -1078,6 +1089,64 @@ const AgentModalContent: React.FC = () => {
     }
   }, [duplicateAssistant, duplicateInstalledAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t]);
 
+  // Open upload confirm modal for custom assistant
+  const handleUploadAssistant = useCallback((assistant: AssistantListItem) => {
+    // Check tenantId - required for upload
+    if (!enterpriseCode) {
+      agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
+      return;
+    }
+    setUploadAssistant(assistant);
+    setUploadConfirmVisible(true);
+  }, [enterpriseCode, t]);
+
+  // Upload assistant to Hub
+  const handleUploadConfirm = useCallback(async () => {
+    if (!uploadAssistant) return;
+    if (!isElectronDesktop()) {
+      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手上传仅在桌面端可用' }));
+      return;
+    }
+
+    // Check tenantId again before upload
+    if (!enterpriseCode) {
+      agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
+      setUploadConfirmVisible(false);
+      setUploadAssistant(null);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const displayName = uploadAssistant.nameI18n?.[localeKey] || uploadAssistant.name;
+      const description = uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description;
+
+      // Upload to Hub with tenantId
+      const result = await ipcBridge.assistantHub.uploadAssistantToHub.invoke({
+        name: uploadAssistant.id,
+        displayName,
+        profession: displayName, // Use display name as profession
+        description,
+        categories: uploadAssistant._category ? [uploadAssistant._category] : undefined,
+        skills: uploadAssistant.enabledSkills,
+        tenantId: enterpriseCode,
+      });
+
+      if (result.success) {
+        agentMessage.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `助手 "${displayName}" 已上传成功` }));
+        setUploadConfirmVisible(false);
+        setUploadAssistant(null);
+      } else {
+        agentMessage.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
+      }
+    } catch (err) {
+      console.error('Failed to upload assistant:', err);
+      agentMessage.error(t('settings.assistant.uploadFailed', { msg: String(err), defaultValue: `上传失败: ${String(err)}` }));
+    } finally {
+      setUploading(false);
+    }
+  }, [uploadAssistant, localeKey, enterpriseCode, t]);
+
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
   const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
@@ -1297,6 +1366,7 @@ const AgentModalContent: React.FC = () => {
           onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
           onDelete={() => void handleDeleteFromCard(assistant)}
           onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
+          onUpload={!assistant.isBuiltin && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
           onClick={() => void handleEdit(assistant)}
         />
       ))}
@@ -1781,6 +1851,46 @@ const AgentModalContent: React.FC = () => {
                   : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
                 defaultValue: `复制后的助手名称: 自定义-${duplicateAssistant ? (duplicateAssistant.display_name || duplicateAssistant.name) : (duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name)}`,
               })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Upload Confirmation Modal */}
+      <Modal
+        title={t('settings.uploadAssistantTitle', { defaultValue: '上传助手' })}
+        visible={uploadConfirmVisible}
+        onCancel={() => {
+          setUploadConfirmVisible(false);
+          setUploadAssistant(null);
+        }}
+        onOk={handleUploadConfirm}
+        okText={t('common.confirm', { defaultValue: '确认' })}
+        cancelText={t('common.cancel', { defaultValue: '取消' })}
+        confirmLoading={uploading}
+        className='w-[90vw] md:w-[400px]'
+        wrapStyle={{ zIndex: 10000 }}
+        maskStyle={{ zIndex: 9999 }}
+      >
+        <p>{t('settings.uploadAssistantConfirm', { defaultValue: '确认上传该助手到助手商店？上传后其他用户可以下载使用。' })}</p>
+        {/* Assistant preview */}
+        {uploadAssistant && (
+          <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <Avatar.Group size={32}>
+              <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
+                {(() => {
+                  const resolvedAvatar = uploadAssistant.avatar?.trim();
+                  const avatarImg = resolveAvatarImageSrc(resolvedAvatar);
+                  const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
+                  if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
+                  if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
+                  return <Robot theme='outline' size={16} />;
+                })()}
+              </Avatar>
+            </Avatar.Group>
+            <div>
+              <div className='font-medium'>{uploadAssistant.nameI18n?.[localeKey] || uploadAssistant.name}</div>
+              <div className='text-12px text-t-secondary line-clamp-2'>{uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description}</div>
             </div>
           </div>
         )}
