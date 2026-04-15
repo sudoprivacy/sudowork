@@ -24,7 +24,6 @@ import LarkConfigForm from './LarkConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
 import WeChatConfigForm from './WeChatConfigForm';
 import WeComConfigForm from './WeComConfigForm';
-import ZentaoConfigForm from './ZentaoConfigForm';
 
 type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
 
@@ -41,7 +40,7 @@ type ExtensionFieldSchema = {
 
 type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
 
-const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao']);
+const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
 
 /**
  * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence
@@ -162,10 +161,6 @@ const ChannelModalContent: React.FC = () => {
   const [wecomPluginStatus, setWecomPluginStatus] = useState<IChannelPluginStatus | null>(null);
   const [wecomEnableLoading, setWecomEnableLoading] = useState(false);
 
-  // Zentao plugin state
-  const [zentaoPluginStatus, setZentaoPluginStatus] = useState<IChannelPluginStatus | null>(null);
-  const [zentaoEnableLoading, setZentaoEnableLoading] = useState(false);
-
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
 
@@ -179,7 +174,6 @@ const ChannelModalContent: React.FC = () => {
     dingtalk: true,
     wechat: true,
     wecom: true,
-    zentao: true,
   });
 
   // Model selection state — uses unified hook with ConfigStorage persistence
@@ -199,15 +193,13 @@ const ChannelModalContent: React.FC = () => {
         const dingtalkPlugin = result.data.find((p) => p.type === 'dingtalk');
         const wechatPlugin = result.data.find((p) => p.type === 'wechat');
         const wecomPlugin = result.data.find((p) => p.type === 'wecom');
-        const zentaoPlugin = result.data.find((p) => p.type === 'zentao');
-        const extensionPlugins = result.data.filter((p) => !BUILTIN_CHANNEL_TYPES.has(p.type));
+        const extensionPlugins = result.data.filter((p) => !BUILTIN_CHANNEL_TYPES.has(p.type) && p.type !== 'zentao');
 
         setPluginStatus(telegramPlugin || null);
         setLarkPluginStatus(larkPlugin || null);
         setDingtalkPluginStatus(dingtalkPlugin || null);
         setWechatPluginStatus(wechatPlugin || null);
         setWecomPluginStatus(wecomPlugin || null);
-        setZentaoPluginStatus(zentaoPlugin || null);
         setExtensionStatuses(() => {
           const next: Record<string, IChannelPluginStatus> = {};
           for (const plugin of extensionPlugins) {
@@ -269,8 +261,6 @@ const ChannelModalContent: React.FC = () => {
         setWechatPluginStatus(status);
       } else if (status.type === 'wecom') {
         setWecomPluginStatus(status);
-      } else if (status.type === 'zentao') {
-        setZentaoPluginStatus(status);
       } else if (!BUILTIN_CHANNEL_TYPES.has(status.type)) {
         setExtensionStatuses((prev) => ({
           ...prev,
@@ -532,45 +522,6 @@ const ChannelModalContent: React.FC = () => {
     }
   };
 
-  // Enable/Disable Zentao plugin
-  const handleToggleZentaoPlugin = async (enabled: boolean) => {
-    setZentaoEnableLoading(true);
-    try {
-      if (enabled) {
-        if (!zentaoPluginStatus?.hasToken) {
-          Message.warning(t('settings.zentao.credentialsRequired', 'Please configure Zentao credentials first'));
-          setZentaoEnableLoading(false);
-          return;
-        }
-
-        const result = await channel.enablePlugin.invoke({
-          pluginId: 'zentao_default',
-          config: {},
-        });
-
-        if (result.success) {
-          Message.success(t('settings.zentao.pluginEnabled', 'Zentao enabled'));
-          await loadPluginStatus();
-        } else {
-          Message.error(result.msg || t('settings.zentao.enableFailed', 'Failed to enable Zentao'));
-        }
-      } else {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'zentao_default' });
-
-        if (result.success) {
-          Message.success(t('settings.zentao.pluginDisabled', 'Zentao disabled'));
-          await loadPluginStatus();
-        } else {
-          Message.error(result.msg || t('settings.zentao.disableFailed', 'Failed to disable Zentao'));
-        }
-      }
-    } catch (error: any) {
-      Message.error(error.message);
-    } finally {
-      setZentaoEnableLoading(false);
-    }
-  };
-
   const updateExtensionFieldValue = useCallback((pluginType: string, key: string, value: string | number | boolean) => {
     setExtensionFieldValues((prev) => ({
       ...prev,
@@ -789,17 +740,6 @@ const ChannelModalContent: React.FC = () => {
       ),
     };
 
-    const zentaoChannel: ChannelConfig = {
-      id: 'zentao',
-      title: t('settings.channels.zentaoTitle', 'Zentao'),
-      description: t('settings.channels.zentaoDesc', 'Connect Zentao project management, AI can read and create bugs'),
-      status: 'active',
-      enabled: zentaoPluginStatus?.enabled || false,
-      disabled: zentaoEnableLoading,
-      isConnected: zentaoPluginStatus?.connected || false,
-      content: <ZentaoConfigForm pluginStatus={zentaoPluginStatus} onStatusChange={setZentaoPluginStatus} />,
-    };
-
     const extensionChannels: ChannelConfig[] = Object.values(extensionStatuses)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((status) => ({
@@ -817,8 +757,8 @@ const ChannelModalContent: React.FC = () => {
 
     const extensionTypeSet = new Set(extensionChannels.map((channel) => String(channel.id).toLowerCase()));
 
-    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, zentaoChannel, ...extensionChannels];
-  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, zentaoPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection, wechatEnableLoading, wecomEnableLoading, zentaoEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
+    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
+  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection, wechatEnableLoading, wecomEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {
@@ -827,7 +767,6 @@ const ChannelModalContent: React.FC = () => {
     if (channelId === 'dingtalk') return handleToggleDingtalkPlugin;
     if (channelId === 'wechat') return handleToggleWechatPlugin;
     if (channelId === 'wecom') return handleToggleWecomPlugin;
-    if (channelId === 'zentao') return handleToggleZentaoPlugin;
     if (extensionStatuses[channelId]) {
       return (enabled: boolean) => {
         void handleToggleExtensionPlugin(channelId, enabled);

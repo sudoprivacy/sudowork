@@ -29,7 +29,7 @@ const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; re
   </div>
 );
 
-const JsbConfigForm: React.FC = () => {
+const JsbConfigForm: React.FC<{ disabled?: boolean; onSaveSuccess?: () => void }> = ({ disabled, onSaveSuccess }) => {
   const { t } = useTranslation();
   const [appKey, setAppKey] = useState('');
   const [appSecret, setAppSecret] = useState('');
@@ -82,6 +82,7 @@ const JsbConfigForm: React.FC = () => {
 
       if (keyResult.success && secretResult.success) {
         Message.success(t('settings.secrets.saveSuccess', '秘钥保存成功'));
+        onSaveSuccess?.();
       } else {
         Message.error(t('settings.secrets.saveFailed', '秘钥保存失败'));
       }
@@ -97,14 +98,14 @@ const JsbConfigForm: React.FC = () => {
     <div className='flex flex-col gap-24px'>
       <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
         <PreferenceRow label={t('settings.secrets.appKey', 'App Key')} description={t('settings.secrets.appKeyDesc', '建设库开放平台的应用标识')} required>
-          <Input value={appKey} onChange={setAppKey} placeholder={t('settings.secrets.appKeyPlaceholder', '请输入 App Key')} style={{ width: 240 }} disabled={loading} />
+          <Input value={appKey} onChange={setAppKey} placeholder={t('settings.secrets.appKeyPlaceholder', '请输入 App Key')} style={{ width: 240 }} disabled={loading || disabled} />
         </PreferenceRow>
         <PreferenceRow label={t('settings.secrets.appSecret', 'App Secret')} description={t('settings.secrets.appSecretDesc', '建设库开放平台的应用密钥')} required>
-          <Input.Password value={appSecret} onChange={setAppSecret} placeholder={t('settings.secrets.appSecretPlaceholder', '请输入 App Secret')} style={{ width: 240 }} disabled={loading} />
+          <Input.Password value={appSecret} onChange={setAppSecret} placeholder={t('settings.secrets.appSecretPlaceholder', '请输入 App Secret')} style={{ width: 240 }} disabled={loading || disabled} />
         </PreferenceRow>
       </div>
       <div className='flex justify-end'>
-        <Button type='primary' loading={saving} disabled={loading} onClick={handleSave}>
+        <Button type='primary' loading={saving} disabled={loading || disabled} onClick={handleSave}>
           {t('settings.secrets.save', '保存')}
         </Button>
       </div>
