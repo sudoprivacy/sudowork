@@ -37,9 +37,10 @@ type AssistantAgentDropdownProps = {
   availableAgents: AvailableAgent[];
   currentAgentType: string;
   onSelectAgent: (agentType: string) => void;
+  disabled?: boolean;
 };
 
-const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent }) => {
+const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent, disabled }) => {
   const [visible, setVisible] = useState(false);
 
   // Build set of available backends from detected agents
@@ -68,6 +69,15 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
   const extensionAgent = !currentLogo ? availableAgents.find((a) => a.isExtension && (a.customAgentId === currentAgentType || a.backend === currentAgentType)) : undefined;
   const extensionAvatar = extensionAgent ? resolveExtensionAssetUrl(extensionAgent.avatar) : undefined;
   const displayLogo = currentLogo || extensionAvatar;
+
+  // When disabled, render static display without dropdown functionality
+  if (disabled) {
+    return (
+      <div className='flex items-center gap-4px select-none px-8px py-4px rd-8px' style={{ cursor: 'default', opacity: 0.85 }}>
+        {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Robot theme='outline' size={24} />}
+      </div>
+    );
+  }
 
   return (
     <Popover

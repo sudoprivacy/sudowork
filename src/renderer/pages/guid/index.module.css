@@ -28,6 +28,40 @@
   background: var(--color-fill-1);
   border: 1px solid var(--color-border-2);
   animation: fade-in 0.3s ease-out;
+  box-sizing: border-box;
+}
+
+/* 移动端描述框宽度与输入框保持一致 */
+@media (max-width: 768px) {
+  .assistantDescription {
+    width: calc(100% + 28px);
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 20px;
+  }
+
+  .agentFallbackNotice {
+    width: calc(100% + 28px);
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 20px;
+  }
+}
+
+/* Agent Fallback Notice */
+.agentFallbackNotice {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgb(var(--warning-1));
+  border: 1px solid rgb(var(--warning-3));
+  color: rgb(var(--warning-6));
+  box-sizing: border-box;
 }
 
 .guidInputCard {

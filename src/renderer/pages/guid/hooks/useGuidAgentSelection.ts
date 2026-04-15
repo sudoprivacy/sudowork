@@ -230,9 +230,12 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey }: Us
       .then(([agents, extAssistants]) => {
         if (!isActive) return;
         const list = agents.filter((agent: AcpBackendConfig) => {
-          // Keep preset assistants visible on Guid homepage even when ACP detection
-          // has not produced custom IDs yet (startup race / transient detection failure).
+          // Keep preset assistants (builtin + hub-installed) visible on Guid homepage
+          // even when ACP detection has not produced custom IDs yet.
           if (agent.isPreset) return true;
+          // User-created custom assistants should always be visible regardless of ACP detection
+          // (they don't need to be detected as they use existing backends like gemini/claude)
+          if (!agent.isBuiltin) return true;
           return availableCustomAgentIds.has(agent.id);
         });
 

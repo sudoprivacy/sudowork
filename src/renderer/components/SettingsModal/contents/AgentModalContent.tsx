@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge, skillHub, assistantHub } from '@/common';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
 import { resolveLocaleKey } from '@/common/utils';
@@ -193,6 +193,9 @@ const HubAssistantCard: React.FC<{
   const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
 
+  // Check if assistant has a valid download URL (null/undefined means no installable package)
+  const hasDownloadUrl = Boolean(assistant._sourceUrl);
+
   return (
     <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
@@ -236,12 +239,12 @@ const HubAssistantCard: React.FC<{
           <Copy size='13' />
           <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
         </button>
-        {/* Install button or progress */}
+        {/* Install button or progress - only show if hasDownloadUrl */}
         {installing ? (
           <div className='w-52px'>
             <Progress percent={installProgress} size='mini' />
           </div>
-        ) : !isInstalled ? (
+        ) : !isInstalled && hasDownloadUrl ? (
           <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
             <Install size='13' />
             <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.install', { defaultValue: '安装' })}</span>
@@ -261,45 +264,62 @@ const AssistantDetailModal: React.FC<{
   isInstalled: boolean;
   installing: boolean;
   installProgress: number;
-  onInstall: (installSkills: boolean) => void;
+  onInstall: (selectedSkillIds: string[]) => void;
   onGoUse?: () => void;
   installedSkills: Set<string>;
 }> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, onGoUse, installedSkills }) => {
   const { t } = useTranslation();
   const [detail, setDetail] = useState<IAssistantHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [installSkillsChoice, setInstallSkillsChoice] = useState(true);
+  const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
 
+  // Check if assistant has a valid download URL
+  const hasDownloadUrl = Boolean(assistant?._sourceUrl);
+
+  // Count installed skills for display
+  const installedSkillCount = relatedSkillDetails.filter((s) => installedSkills.has(s.name)).length;
+
+  // Fetch assistant detail and related skill details
   useEffect(() => {
-    if (visible && assistant && !detail) {
-      setLoading(true);
-      const fetchDetail = async () => {
-        try {
-          if (isElectronDesktop()) {
-            const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
-            if (res.success && res.data) {
-              setDetail(res.data);
+    if (!visible || !assistant) {
+      setDetail(null);
+      setRelatedSkillDetails([]);
+      return;
+    }
+
+    setLoading(true);
+    setLoadingSkills(true);
+
+    const fetchData = async () => {
+      try {
+        if (isElectronDesktop()) {
+          // Fetch assistant detail
+          const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
+          if (res.success && res.data) {
+            setDetail(res.data);
+          }
+
+          // Fetch related skill details by IDs
+          const skillIds = assistant.skills || [];
+          if (skillIds.length > 0) {
+            const skillsRes = await assistantHub.fetchSkillDetailsByIds.invoke({ skillIds });
+            if (skillsRes.success && skillsRes.data) {
+              setRelatedSkillDetails(skillsRes.data);
             }
           }
-        } catch (err) {
-          console.error('Failed to fetch assistant detail:', err);
-        } finally {
-          setLoading(false);
         }
-      };
-      void fetchDetail();
-    }
-    if (!visible) {
-      setDetail(null);
-    }
-  }, [visible, assistant, detail]);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      } finally {
+        setLoading(false);
+        setLoadingSkills(false);
+      }
+    };
+    void fetchData();
+  }, [visible, assistant]);
 
   if (!assistant) return null;
-
-  // Parse skills - check which are installed
-  const skills = assistant.skills || [];
-  const installedSkillCount = skills.filter((s) => installedSkills.has(s)).length;
-  const missingSkills = skills.filter((s) => !installedSkills.has(s));
 
   const displayName = assistant.display_name || assistant.name;
   const resolvedAvatar = assistant.avatar?.trim();
@@ -363,36 +383,53 @@ const AssistantDetailModal: React.FC<{
                 </div>
 
                 {/* Associated skills */}
-                {skills.length > 0 && (
+                {relatedSkillDetails.length > 0 && !isInstalled && (
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <Lightning size='14' className='text-primary' />
                       <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
+                      <span className='text-12px text-t-tertiary'>({relatedSkillDetails.length})</span>
+                      {installedSkillCount > 0 && (
+                        <span className='text-12px text-t-tertiary'>
+                          · {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}
+                        </span>
+                      )}
                     </div>
-                    <div className='space-y-6px'>
-                      {skills.map((skillId) => {
-                        const isSkillInstalled = installedSkills.has(skillId);
-                        return (
-                          <div key={skillId} className='flex items-center gap-6px'>
-                            <span className='text-t-tertiary text-11px mt-1px flex-shrink-0'>•</span>
-                            <span className='text-12px text-t-secondary flex-1'>{skillId}</span>
-                            {isSkillInstalled ? (
-                              <span className='px-4px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap'>{t('settings.skill.installed', { defaultValue: '已安装' })}</span>
-                            ) : (
-                              <span className='px-4px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap'>{t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {missingSkills.length > 0 && !isInstalled && (
-                      <div className='mt-10px pt-10px border-t border-line'>
-                        <div className='flex items-center gap-8px'>
-                          <Checkbox checked={installSkillsChoice} onChange={setInstallSkillsChoice} />
-                          <span className='text-12px text-t-secondary'>{t('settings.assistant.installSkillsTogether', { defaultValue: `同时安装 ${missingSkills.length} 个关联技能` })}</span>
-                        </div>
+                    {loadingSkills ? (
+                      <div className='text-center text-t-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
+                    ) : (
+                      <div className='space-y-8px'>
+                        {relatedSkillDetails.map((skill) => {
+                          const isSkillInstalled = installedSkills.has(skill.name);
+                          const skillDisplayName = skill.display_name || skill.name;
+                          return (
+                            <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
+                              <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
+                                {skill.icon ? (
+                                  <img src={`https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}`} alt={skillDisplayName} className='w-full h-full object-cover' />
+                                ) : skill.emoji ? (
+                                  <div className='w-full h-full flex items-center justify-center text-16px'>{skill.emoji}</div>
+                                ) : (
+                                  <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                                    <Lightning size='14' className='text-primary' />
+                                  </div>
+                                )}
+                              </div>
+                              <div className='flex-1 min-w-0'>
+                                <div className='font-medium text-13px text-t-primary truncate'>{skillDisplayName}</div>
+                                <div className='text-11px text-t-tertiary truncate'>{skill.description}</div>
+                              </div>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-t-secondary'}`}>
+                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
+                    <div className='mt-12px text-11px text-t-tertiary'>
+                      {t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -407,12 +444,16 @@ const AssistantDetailModal: React.FC<{
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                 {t('settings.skill.goUse', { defaultValue: '去使用' })}
               </Button>
+            ) : !hasDownloadUrl ? (
+              <div className='flex-1 text-center text-t-secondary text-13px py-12px'>
+                {t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}
+              </div>
             ) : installing ? (
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
-              <Button type='primary' long size='large' onClick={() => onInstall(installSkillsChoice)}>
+              <Button type='primary' long size='large' onClick={() => onInstall(relatedSkillDetails.map((s) => s.id))}>
                 <span className='flex items-center gap-6px justify-center'>
                   <Install size='15' />
                   {t('settings.assistant.install', { defaultValue: '安装助手' })}
@@ -643,7 +684,7 @@ const AgentModalContent: React.FC = () => {
         }
 
         if (isElectronDesktop()) {
-          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, categoryId: category, tenantId });
+          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId });
           if (res.success && res.data) {
             const newAssistants = res.data.assistants || [];
             if (append) {
@@ -793,7 +834,6 @@ const AgentModalContent: React.FC = () => {
   const sortAssistants = useCallback((agents: AssistantListItem[]) => {
     const builtinOrder = ['builtin-copilot', 'builtin-sudoclaw-doctor'];
     return agents
-      .filter((agent) => agent.isPreset)
       .sort((a, b) => {
         const indexA = builtinOrder.indexOf(a.id);
         const indexB = builtinOrder.indexOf(b.id);
@@ -848,7 +888,7 @@ const AgentModalContent: React.FC = () => {
 
   // Install Hub assistant (defined after loadAssistants since it depends on it)
   const handleInstallHubAssistant = useCallback(
-    async (assistantId: string, installSkills: boolean = true) => {
+    async (assistantId: string, selectedSkillIds: string[] = []) => {
       if (!isElectronDesktop()) {
         Message.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手安装仅在桌面端可用' }));
         return;
@@ -857,10 +897,10 @@ const AgentModalContent: React.FC = () => {
       const assistant = hubAssistantList.find((a) => a.id === assistantId);
       if (!assistant) return;
 
-      // sourceUrl is directly available from list API (mapped to _sourceUrl)
+      // Check for valid download URL (some assistants like builtin ones don't have downloadable packages)
       const sourceUrl = assistant._sourceUrl;
       if (!sourceUrl) {
-        Message.error(t('settings.assistant.noVersion', { defaultValue: '无法获取安装包信息' }));
+        Message.error(t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' }));
         return;
       }
 
@@ -877,19 +917,32 @@ const AgentModalContent: React.FC = () => {
           version: version,
           checksum: '',
           assistantMeta: assistant,
-          installSkills,
+          selectedSkillIds,
         });
 
         if (res.success && res.data) {
           const installedSkillCount = res.data.installedSkills?.length || 0;
+          const failedSkillCount = res.data.failedSkills?.length || 0;
           const displayName = assistant.display_name || assistant.name;
-          Message.success(
-            t('settings.assistant.installSuccess', {
-              name: displayName,
-              skillCount: installedSkillCount,
-              defaultValue: `成功安装 ${displayName}${installedSkillCount > 0 ? ` 及 ${installedSkillCount} 个关联技能` : ''}`,
-            })
-          );
+
+          if (failedSkillCount > 0) {
+            Message.warning(
+              t('settings.assistant.installPartial', {
+                name: displayName,
+                skillCount: installedSkillCount,
+                failedCount: failedSkillCount,
+                defaultValue: `${displayName} 安装成功，${installedSkillCount} 个技能安装成功，${failedSkillCount} 个技能安装失败`,
+              })
+            );
+          } else {
+            Message.success(
+              t('settings.assistant.installSuccess', {
+                name: displayName,
+                skillCount: installedSkillCount,
+                defaultValue: `成功安装 ${displayName}${installedSkillCount > 0 ? ` 及 ${installedSkillCount} 个关联技能` : ''}`,
+              })
+            );
+          }
           await fetchInstalledAssistantNames();
           await loadAssistants();
           setHubDetailVisible(false);
@@ -1744,9 +1797,9 @@ const AgentModalContent: React.FC = () => {
         isInstalled={hubDetailAssistant ? hubInstalledAssistantNames.has(hubDetailAssistant.name) : false}
         installing={installingAssistantId === hubDetailAssistant?.id}
         installProgress={installProgress}
-        onInstall={(installSkills) => {
+        onInstall={(selectedSkillIds) => {
           if (hubDetailAssistant) {
-            void handleInstallHubAssistant(hubDetailAssistant.id, installSkills);
+            void handleInstallHubAssistant(hubDetailAssistant.id, selectedSkillIds);
           }
         }}
         onGoUse={handleGoUseHubAssistant}

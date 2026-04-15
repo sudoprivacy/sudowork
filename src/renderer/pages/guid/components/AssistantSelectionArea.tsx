@@ -27,22 +27,26 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Only render if there are preset agents
-  if (!customAgents || !customAgents.some((a) => a.isPreset)) return null;
+  // Only render if there are any assistants (preset or user-created)
+  if (!customAgents || customAgents.length === 0) return null;
+
+  // Separate preset assistants (builtin + hub-installed) from user-created custom assistants
+  const presetAgents = customAgents.filter((a) => a.isPreset);
+  const userCreatedAgents = customAgents.filter((a) => !a.isPreset);
 
   const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-  const nobuildin = customAgents.filter((a) => a.isPreset).filter((_) => !_.id.startsWith('builtin-'));
-  const filteredAgents = customAgents
-    .filter((a) => a.isPreset)
-    .filter((_) => allowedPresetIds.includes(_.id))
-    .concat(nobuildin);
+  const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+  const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
+
+  // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
+  const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents];
 
   // Assistant List View
   return (
     <div className='mt-16px w-full'>
       <div className='flex flex-wrap gap-8px justify-center'>
         {filteredAgents
-          .filter((a) => a.isPreset && a.enabled !== false)
+          .filter((a) => a.enabled !== false)
           .sort((a, b) => {
             if (a.id === 'cowork') return -1;
             if (b.id === 'cowork') return 1;

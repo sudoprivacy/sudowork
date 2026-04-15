@@ -1193,8 +1193,10 @@ export interface IAssistantHubListResponse {
 export interface IAssistantInstallResult {
   assistantName: string;
   installedVersion: string;
-  /** Skills installed alongside the assistant */
+  /** Skills installed alongside the assistant (skill names) */
   installedSkills?: string[];
+  /** Skills that failed to install (skill names or IDs) */
+  failedSkills?: string[];
 }
 
 export const assistantHub = {
@@ -1215,13 +1217,15 @@ export const assistantHub = {
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
-  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; categoryId?: string; tenantId?: string }>('assistant-hub.fetch-assistants'),
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
   fetchAssistantDetail: bridge.buildProvider<IBridgeResponse<IAssistantHubDetail>, { assistantId: string }>('assistant-hub.fetch-assistant-detail'),
-  /** Download and install assistant from Hub, optionally installing associated skills */
-  downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; installSkills?: boolean }>('assistant-hub.download-and-install-assistant'),
+  /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
+  fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
+  /** Download and install assistant from Hub, optionally installing selected associated skills */
+  downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; selectedSkillIds?: string[] }>('assistant-hub.download-and-install-assistant'),
 };
 
 // ==================== Channel API ====================

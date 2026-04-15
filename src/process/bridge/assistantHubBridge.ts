@@ -268,14 +268,14 @@ export function initAssistantHubBridge(): void {
   // === Hub API operations ===
 
   // Fetch assistants list from Hub API with cursor-based pagination
-  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', categoryId = '', tenantId }) => {
+  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
-      mainLog('AssistantHub', 'Fetching assistants with params:', { cursor, limit, query, categoryId, tenantId });
+      mainLog('AssistantHub', 'Fetching assistants with params:', { cursor, limit, query, category, tenantId });
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
       if (query) params.set('query', query);
-      if (categoryId) params.set('category_id', categoryId);
+      if (category) params.set('category', category);
       if (typeof tenantId === 'string' && tenantId.trim()) params.set('tenant_id', tenantId.trim());
 
       const response = await fetch(`${ASSISTANT_HUB_CURSOR_URL}?${params}`, {
@@ -285,9 +285,9 @@ export function initAssistantHubBridge(): void {
       mainLog('AssistantHub', 'Assistants raw response:', JSON.stringify(result, null, 2));
 
       // Map API response to our type structure
-      // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categoryId, sourceUrl, ... }] } }
-      // We need: { assistants: [{ id, name, display_name, description, avatar, category, ... }] }
+      // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
+
       const mappedAssistants = rawAssistants.map((a: Record<string, unknown>): IAssistantHubSkill => ({
         id: a.id as string,
         name: a.name as string,
@@ -295,10 +295,11 @@ export function initAssistantHubBridge(): void {
         description: a.description as string,
         avatar: a.avatar as string | null,
         emoji: null as string | null,
-        category: a.categoryId as string,
-        categories: [] as string[],
+        // Use categories array from API (may be null)
+        categories: (a.categories as string[]) || [],
+        category: ((a.categories as string[]) || [])[0] || '',
         preset_agent_type: null as string | null,
-        skills: [] as string[],
+        skills: (a.skills as string[]) || [] as string[],
         tag: 'hub' as const,
         homepage: null as string | null,
         author_id: '',
@@ -360,10 +361,48 @@ export function initAssistantHubBridge(): void {
     }
   });
 
-  // Download and install assistant from Hub, optionally installing associated skills
-  ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, installSkills = true }) => {
+  // Fetch skill details by IDs from Skill Hub API (for installation preview)
+  ipcBridge.assistantHub.fetchSkillDetailsByIds.provider(async ({ skillIds }) => {
+    try {
+      if (!skillIds || skillIds.length === 0) {
+        return { success: true, data: [] };
+      }
+
+      mainLog('AssistantHub', `Fetching skill details for IDs: ${skillIds.join(', ')}`);
+
+      // Fetch all skills in parallel
+      const responses = await Promise.all(
+        skillIds.map(async (id) => {
+          try {
+            const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${id}`, {
+              headers: { Authorization: AUTHORIZATION },
+            });
+            const data = await response.json();
+            if (data.success && data.data?.skill) {
+              return data.data.skill as ISkillHubSkill;
+            }
+            return null;
+          } catch (err) {
+            mainWarn('AssistantHub', `Failed to fetch skill ${id}:`, err);
+            return null;
+          }
+        })
+      );
+
+      const skills = responses.filter((s): s is ISkillHubSkill => s !== null);
+      mainLog('AssistantHub', `Fetched ${skills.length} skill details`);
+      return { success: true, data: skills };
+    } catch (error) {
+      mainError('AssistantHub', 'Failed to fetch skill details:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Download and install assistant from Hub, optionally installing selected associated skills
+  ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, selectedSkillIds }) => {
     try {
       mainLog('AssistantHub', `Downloading assistant: ${assistantName} version: ${version}`);
+      mainLog('AssistantHub', `Selected skills to install: ${selectedSkillIds?.join(', ') || 'none'}`);
 
       // Download zip file
       const zipBuffer = await downloadFile(sourceUrl, (percent) => {
@@ -401,84 +440,62 @@ export function initAssistantHubBridge(): void {
       const ruleFile = await selectRuleFileFromDirectory(assistantDir, assistantName);
       mainLog('AssistantHub', `Selected ruleFile: ${ruleFile}`);
 
-      // Write _sudowork_meta.json with all Hub fields (AGENT.md already exists from zip)
-      const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
-      const meta: AssistantHubMeta = {
-        id: assistantMeta.id,
-        name: assistantMeta.name,
-        nameI18n: { 'zh-CN': assistantMeta.display_name },
-        descriptionI18n: assistantMeta.description ? { 'zh-CN': assistantMeta.description } : undefined,
-        avatar: assistantMeta.avatar || assistantMeta.emoji || undefined,
-        emoji: assistantMeta.emoji,
-        presetAgentType: assistantMeta.preset_agent_type || 'sudoclaw',
-        source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
-        tag: assistantMeta.tag || 'hub',
-        skills: assistantMeta.skills || [],
-        category_id: assistantMeta.category,
-        categories: assistantMeta.categories,
-        author_id: assistantMeta.author_id,
-        homepage: assistantMeta.homepage,
-        applicable_scenarios: assistantMeta.applicable_scenarios,
-        core_features: assistantMeta.core_features,
-        is_builtin: assistantMeta.tag === 'system',
-        enabled: true,
-        installed_version: version,
-        installed_at: new Date().toISOString(),
-        // Default enabled skills to Hub-provided skills list
-        enabledSkills: assistantMeta.skills || [],
-        // Rule file for displaying assistant rules
-        ruleFile: ruleFile,
-      };
-      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-
-      mainLog('AssistantHub', `Successfully installed assistant "${assistantName}" v${version} to ${assistantDir}`);
-
-      // Install associated skills if requested
+      // Install selected associated skills FIRST, collect skill names for meta
       const installedSkillNames: string[] = [];
-      if (installSkills && assistantMeta.skills && assistantMeta.skills.length > 0) {
-        mainLog('AssistantHub', `Installing associated skills: ${assistantMeta.skills.join(', ')}`);
+      const failedSkillIds: string[] = [];
+      const allAssociatedSkillNames: string[] = []; // All skill names (installed + already installed)
+
+      if (selectedSkillIds && selectedSkillIds.length > 0) {
+        mainLog('AssistantHub', `Installing selected skills: ${selectedSkillIds.join(', ')}`);
 
         // Get current installed skills to check which need installation
         const installedSkills = await skillManager.getInstalledSkills();
         const installedSkillNamesSet = new Set(installedSkills.map((s) => s.name));
 
-        for (const skillId of assistantMeta.skills) {
-          // Skip if already installed
-          if (installedSkillNamesSet.has(skillId)) {
-            mainLog('AssistantHub', `Skill "${skillId}" already installed, skipping`);
-            continue;
-          }
-
-          // Fetch skill detail from Hub to get download URL
+        for (const skillId of selectedSkillIds) {
+          // Fetch skill detail from Hub to get name and download URL
           try {
             const skillDetailResponse = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${skillId}`, {
               headers: { Authorization: AUTHORIZATION },
             });
             const skillDetailData = await skillDetailResponse.json();
 
-            if (skillDetailData.success && skillDetailData.data?.versions?.[0]) {
-              const latestVersion = skillDetailData.data.versions[0];
+            if (skillDetailData.success && skillDetailData.data?.skill) {
               const skillInfo = skillDetailData.data.skill as ISkillHubSkill;
+              const skillName = skillInfo.name;
 
-              // Use skillHubBridge logic to install skill
-              // Import skillHubBridge to reuse its install logic
-              const { initSkillHubBridge } = await import('./skillHubBridge');
-              // The skillHubBridge is already initialized, we need to call downloadAndInstallSkill directly
-              // Instead, we'll call the skillManager methods directly
+              // Track all associated skill names (for enabledSkills)
+              allAssociatedSkillNames.push(skillName);
 
+              // Skip if already installed
+              if (installedSkillNamesSet.has(skillName)) {
+                mainLog('AssistantHub', `Skill "${skillName}" already installed, skipping download`);
+                continue;
+              }
+
+              // Need version info for download
+              if (!skillDetailData.data?.versions?.[0]) {
+                mainWarn('AssistantHub', `Skill "${skillName}" has no versions available`);
+                failedSkillIds.push(skillId);
+                continue;
+              }
+
+              const latestVersion = skillDetailData.data.versions[0];
+
+              // Download and install skill
               const skillZipBuffer = await downloadFile(latestVersion.source_url);
               if (latestVersion.checksum) {
                 const isValid = await verifyChecksum(skillZipBuffer, latestVersion.checksum);
                 if (!isValid) {
-                  mainWarn('AssistantHub', `Skill "${skillId}" checksum verification failed, but continuing`);
+                  mainWarn('AssistantHub', `Skill "${skillName}" checksum verification failed, but continuing`);
                 }
               }
 
-              // Import skill installation logic from skillHubBridge
+              // Get hub skills directory
               const { getHubSkillsDir } = await import('@/process/initStorage');
               const hubSkillsDir = getHubSkillsDir();
               await fs.mkdir(hubSkillsDir, { recursive: true });
-              const skillDir = path.join(hubSkillsDir, skillInfo.name);
+              const skillDir = path.join(hubSkillsDir, skillName);
 
               // Remove existing
               try {
@@ -488,7 +505,7 @@ export function initAssistantHubBridge(): void {
 
               await fs.mkdir(skillDir, { recursive: true });
 
-              // Extract skill zip (simplified — full logic in skillHubBridge)
+              // Extract skill zip
               const skillZip = await JSZip.loadAsync(skillZipBuffer);
               for (const zipEntry of Object.values(skillZip.files)) {
                 if (zipEntry.dir) continue;
@@ -498,10 +515,8 @@ export function initAssistantHubBridge(): void {
                 if (!normalizedPath.includes('/')) {
                   // Root file — use directly
                 } else {
-                  // Check for single top-level directory
                   const parts = normalizedPath.split('/');
                   if (parts.length > 1) {
-                    // Assume first part is wrapper directory
                     targetPath = parts.slice(1).join('/');
                   }
                 }
@@ -536,16 +551,53 @@ export function initAssistantHubBridge(): void {
               };
               await fs.writeFile(path.join(skillDir, '_sudowork_meta.json'), JSON.stringify(skillMeta, null, 2), 'utf-8');
 
-              installedSkillNames.push(skillInfo.name);
-              mainLog('AssistantHub', `Installed associated skill: ${skillInfo.name}`);
+              installedSkillNames.push(skillName);
+              installedSkillNamesSet.add(skillName); // Update set for subsequent checks
+              mainLog('AssistantHub', `Installed associated skill: ${skillName}`);
             } else {
-              mainWarn('AssistantHub', `Failed to fetch skill detail for "${skillId}", skipping`);
+              mainWarn('AssistantHub', `Failed to fetch skill detail for "${skillId}"`);
+              failedSkillIds.push(skillId);
             }
           } catch (skillError) {
             mainWarn('AssistantHub', `Failed to install associated skill "${skillId}":`, skillError);
+            failedSkillIds.push(skillId);
           }
         }
       }
+
+      // Write assistant meta with CORRECT enabledSkills (skill names, not UUIDs)
+      const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
+      const meta: AssistantHubMeta = {
+        id: assistantMeta.id,
+        name: assistantMeta.name,
+        nameI18n: { 'zh-CN': assistantMeta.display_name },
+        descriptionI18n: assistantMeta.description ? { 'zh-CN': assistantMeta.description } : undefined,
+        avatar: assistantMeta.avatar || assistantMeta.emoji || undefined,
+        emoji: assistantMeta.emoji,
+        presetAgentType: assistantMeta.preset_agent_type || 'sudoclaw',
+        source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
+        tag: assistantMeta.tag || 'hub',
+        // skills: store skill names for reference (not UUIDs)
+        skills: allAssociatedSkillNames,
+        category_id: assistantMeta.category,
+        categories: assistantMeta.categories,
+        author_id: assistantMeta.author_id,
+        homepage: assistantMeta.homepage,
+        applicable_scenarios: assistantMeta.applicable_scenarios,
+        core_features: assistantMeta.core_features,
+        is_builtin: assistantMeta.tag === 'system',
+        enabled: true,
+        installed_version: version,
+        installed_at: new Date().toISOString(),
+        // enabledSkills: skill names that will be enabled for this assistant
+        enabledSkills: allAssociatedSkillNames,
+        // Rule file for displaying assistant rules
+        ruleFile: ruleFile,
+      };
+      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+
+      mainLog('AssistantHub', `Successfully installed assistant "${assistantName}" v${version} to ${assistantDir}`);
+      mainLog('AssistantHub', `Assistant enabledSkills: ${allAssociatedSkillNames.join(', ')}`);
 
       return {
         success: true,
@@ -553,6 +605,7 @@ export function initAssistantHubBridge(): void {
           assistantName,
           installedVersion: version,
           installedSkills: installedSkillNames,
+          failedSkills: failedSkillIds,
         },
       };
     } catch (error) {

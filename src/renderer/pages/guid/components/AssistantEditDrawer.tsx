@@ -22,7 +22,7 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Select, Typography } from '@arco-design/web-react';
-import { Close, Copy, Lightning, Robot, Shield } from '@icon-park/react';
+import { Close, Lightning, Robot, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -269,57 +269,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
     }
   }, [assistant, isReadonly, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
 
-  // Duplicate assistant to custom list
-  const handleDuplicate = useCallback(async () => {
-    if (!assistant) return;
-
-    try {
-      const baseName = assistant.nameI18n?.[localeKey] || assistant.name;
-      const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
-      const customId = `custom-${assistant.id}-${Date.now()}`;
-
-      // Read the assistant rule content
-      let ruleContent: string | undefined = undefined;
-      try {
-        const content = await ipcBridge.fs.readAssistantRule.invoke({
-          assistantId: assistant.id,
-          locale: localeKey,
-        });
-        if (content && content.trim()) {
-          ruleContent = content;
-        }
-      } catch {
-        // No rule content available
-      }
-
-      // Create new custom assistant
-      await ipcBridge.assistantHub.createAssistant.invoke({
-        meta: {
-          id: customId,
-          nameI18n: { 'zh-CN': customName },
-          descriptionI18n: assistant.descriptionI18n || (assistant.description ? { 'zh-CN': assistant.description } : undefined),
-          avatar: assistant.avatar,
-          presetAgentType: assistant.presetAgentType || 'sudoclaw',
-          enabled: true,
-          source_type: 'custom',
-          enabledSkills: assistant.enabledSkills || [],
-        },
-        ruleContent: ruleContent,
-      });
-
-      // Refresh agent detection
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
-      await mutate('acp.agents.available');
-
-      Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
-      onSaved();
-      onClose();
-    } catch (error) {
-      console.error('Failed to duplicate assistant:', error);
-      Message.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
-    }
-  }, [assistant, localeKey, onSaved, onClose, t]);
-
   const editAvatarImage = resolveAvatarImage(editAvatar);
 
   return (
@@ -362,13 +311,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
           </div>
-          {/* Duplicate button for all assistant types */}
-          {assistant && (
-            <Button onClick={handleDuplicate} className='rounded-[100px] bg-fill-2 flex items-center gap-4px'>
-              <Copy size='14' />
-              <span>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
-            </Button>
-          )}
         </div>
       }
     >

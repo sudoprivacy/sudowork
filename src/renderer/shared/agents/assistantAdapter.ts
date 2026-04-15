@@ -20,6 +20,8 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
   const meta = info.meta;
   // Always use directory name (info.name) as id for consistent lookup
   const id = info.isBuiltin ? `builtin-${info.name}` : info.name;
+  // isPreset = builtin or hub-installed (NOT user-created custom assistants)
+  const isPreset = info.isBuiltin || info.isHubInstalled;
   return {
     id,
     name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.id || info.name,
@@ -27,7 +29,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
     descriptionI18n: meta.descriptionI18n,
     avatar: meta.avatar,
     enabled: info.enabled,
-    isPreset: true,
+    isPreset,
     presetAgentType: meta.presetAgentType,
     promptsI18n: meta.promptsI18n,
     enabledSkills: meta.enabledSkills ?? meta.defaultEnabledSkills,
