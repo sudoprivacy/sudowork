@@ -58,6 +58,12 @@ export interface WorkspaceSkillsProps {
   onLoadingChange?: (loading: boolean) => void;
   /** Notifies the parent that a refresh cycle just finished. */
   onSynced?: () => void;
+  /**
+   * Ref to the workspace directory watcher ID. When provided, dirChanged
+   * events are filtered to only this watcher — preventing a global feedback
+   * loop where scanForSkills file reads trigger more dirChanged events.
+   */
+  watchIdRef?: React.RefObject<string | null>;
 }
 
 export interface WorkspaceSkillsHandle {
@@ -328,7 +334,7 @@ const SkillIconGraphic: React.FC<{
   return <Icon theme='outline' size='16' fill={fillColor} />;
 };
 
-const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced }, ref) => {
+const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced, watchIdRef }, ref) => {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -339,12 +345,19 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   loadingCallbackRef.current = onLoadingChange;
   syncedCallbackRef.current = onSynced;
 
+  // Minimum interval between dirChanged-triggered scans to prevent feedback
+  // loops on Windows where file reads during scanForSkills can trigger
+  // further fs.watch events, causing infinite re-renders.
+  const lastScanAtRef = useRef(0);
+  const SCAN_COOLDOWN_MS = 2000;
+
   const scanBoth = useCallback(async () => {
     if (!workspace) {
       setSkills([]);
       return;
     }
     const mySeq = ++reqSeqRef.current;
+    lastScanAtRef.current = Date.now();
     setLoading(true);
     loadingCallbackRef.current?.(true);
     try {
@@ -380,11 +393,28 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   // inotify-style auto-refresh: piggyback on the same `dirChanged` stream the
   // file tree listens to. We don't need a separate watcher — the workspace
   // watcher already covers `skills/` and `.claude/skills/`.
+  //
+  // IMPORTANT: Block ALL events when watchIdRef is not yet set — mirrors the
+  // guard in workspace/index.tsx. The previous condition
+  // `if (watchIdRef?.current && ...)` had an inverted check that passed
+  // ALL events through when watchIdRef was null, causing an infinite loop
+  // during initial mount (before the workspace watcher resolved).
+  //
+  // Additionally, enforce a minimum interval between dirChanged-triggered
+  // scans to prevent feedback loops on Windows where file system reads
+  // (stat, readdir, readFile) during scanForSkills can spuriously trigger
+  // further fs.watch events.
   useEffect(() => {
-    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
+      // Block events when the workspace watcher hasn't been set up yet, or
+      // when the event comes from a different watcher (e.g. one created by
+      // a scanForSkills call on the backend).
+      if (!watchIdRef?.current || payload.watchId !== watchIdRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
+        // Skip if a scan ran recently — prevents the scan → dirChanged → scan loop
+        if (Date.now() - lastScanAtRef.current < SCAN_COOLDOWN_MS) return;
         void scanBoth();
       }, 250);
     });

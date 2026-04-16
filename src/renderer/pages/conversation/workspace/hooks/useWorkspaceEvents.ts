@@ -39,6 +39,10 @@ interface UseWorkspaceEventsOptions {
 /**
  * useWorkspaceEvents - 管理所有事件监听器
  * Manage all event listeners
+ *
+ * Returns { watchIdRef } so sibling hooks (skillCount, WorkspaceSkills) can
+ * filter dirChanged events by the same watchId instead of reacting to every
+ * file-system event globally.
  */
 export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   const { conversation_id, eventPrefix, workspace, refreshWorkspace, clearSelection, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, closeContextMenu, setContextMenu, closeRenameModal, closeDeleteModal } = options;
@@ -51,6 +55,10 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   useEffect(() => {
     refreshRef.current = refreshWorkspace;
   }, [refreshWorkspace]);
+
+  // Expose the active directory-watch ID so other hooks can filter dirChanged
+  // events to only the workspace watcher, avoiding a global feedback loop.
+  const watchIdRef = useRef<string | null>(null);
 
   /**
    * 监听对话切换事件 - 重置所有状态
@@ -102,12 +110,18 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    * differences (macOS/Windows native recursive vs. Linux per-dir walk) are
    * handled transparently by the main-process bridge.
    */
+  // Minimum interval between dirChanged-triggered refreshes to prevent
+  // feedback loops on Windows where file system reads during getWorkspace
+  // (stat, readdir) can spuriously trigger further fs.watch events.
+  const lastDirRefreshAtRef = useRef(0);
+
   useEffect(() => {
     if (!workspace) return;
 
     let cancelled = false;
-    let activeWatchId: string | null = null;
+    let localWatchId: string | null = null;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const DIR_REFRESH_COOLDOWN_MS = 1000;
 
     const scheduleRefresh = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -117,12 +131,16 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
         if (cancelled) return;
+        // Skip if we refreshed recently — prevents the refresh → file reads
+        // → dirChanged → refresh loop that occurs on Windows.
+        if (Date.now() - lastDirRefreshAtRef.current < DIR_REFRESH_COOLDOWN_MS) return;
+        lastDirRefreshAtRef.current = Date.now();
         refreshRef.current();
       }, 200);
     };
 
     const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
-      if (!activeWatchId || payload.watchId !== activeWatchId) return;
+      if (!localWatchId || payload.watchId !== localWatchId) return;
       scheduleRefresh();
     });
 
@@ -136,7 +154,8 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
           return;
         }
         if (res?.success && res.data?.watchId) {
-          activeWatchId = res.data.watchId;
+          localWatchId = res.data.watchId;
+          watchIdRef.current = res.data.watchId;
         }
       } catch {
         /* workspace may not exist yet; ignore, agent events will still refresh */
@@ -150,10 +169,11 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
         debounceTimer = null;
       }
       unsubscribe();
-      if (activeWatchId) {
-        ipcBridge.fileWatch.stopWatchDir.invoke({ watchId: activeWatchId }).catch(() => {});
-        activeWatchId = null;
+      if (localWatchId) {
+        ipcBridge.fileWatch.stopWatchDir.invoke({ watchId: localWatchId }).catch(() => {});
+        localWatchId = null;
       }
+      watchIdRef.current = null;
     };
   }, [workspace]);
 
@@ -244,4 +264,6 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [closeContextMenu]);
+
+  return { watchIdRef };
 }

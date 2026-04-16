@@ -208,14 +208,31 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
   // Skill count for the skills tab pill — scanned from the workspace skill
   // root that belongs to the current conversation backend.
+  //
+  // IMPORTANT: We filter dirChanged events by the workspace watchId to avoid a
+  // feedback loop where scanForSkills file-system reads trigger further
+  // dirChanged events, which trigger more scanForSkills calls, causing
+  // infinite flickering in non-fullscreen windows.
+  //
+  // Additionally, we enforce a minimum interval between dirChanged-triggered
+  // scans to prevent feedback loops on Windows where file-system reads (stat,
+  // readdir) during scanForSkills can spuriously trigger further fs.watch
+  // events on the same directory tree.
+  //
+  // NOTE: `watchIdRef` is defined later (from useWorkspaceEvents) but this is
+  // safe because useEffect callbacks run after the entire component body, so
+  // watchIdRef is always initialized before the listener fires.
   const [skillCount, setSkillCount] = useState(0);
+  const lastSkillScanAtRef = useRef(0);
   useEffect(() => {
     if (!workspace) {
       setSkillCount(0);
       return undefined;
     }
     let cancelled = false;
+    const SKILL_SCAN_COOLDOWN_MS = 2000;
     const refreshCount = async () => {
+      lastSkillScanAtRef.current = Date.now();
       try {
         const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
         const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
@@ -227,10 +244,16 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     };
     void refreshCount();
     let debounce: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
+      // Only react to events from our workspace watcher — not all watchers
+      // globally. This prevents the scanForSkills → file read → dirChanged
+      // feedback loop that caused infinite re-renders.
+      if (!watchIdRef.current || payload.watchId !== watchIdRef.current) return;
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         debounce = null;
+        // Skip if a scan ran recently — prevents the scan → dirChanged → scan loop
+        if (Date.now() - lastSkillScanAtRef.current < SKILL_SCAN_COOLDOWN_MS) return;
         void refreshCount();
       }, 250);
     });
@@ -428,8 +451,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     openPreview,
   });
 
-  // Setup events
-  useWorkspaceEvents({
+  // Setup events — capture the watchIdRef so the skillCount effect below can
+  // filter dirChanged events to only the workspace watcher, preventing a
+  // global feedback loop (scanForSkills → file reads → dirChanged → repeat).
+  const { watchIdRef } = useWorkspaceEvents({
     conversation_id,
     eventPrefix,
     workspace,
@@ -1130,7 +1155,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Main content area — Skills grid OR Search + Tree. */}
         {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} />
+            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} watchIdRef={watchIdRef} />
           </FlexFullContainer>
         )}
 
