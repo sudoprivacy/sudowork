@@ -1,3 +1,6 @@
 [submodule "vendor/ai-dev-browser"]
 	path = vendor/ai-dev-browser
 	url = https://github.com/sudoprivacy/ai-dev-browser.git
+[submodule "vendor/chandao-cli"]
+	path = vendor/chandao-cli
+	url = https://github.com/sudoprivacy/chandao-cli.git
