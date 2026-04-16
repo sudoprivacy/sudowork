@@ -8,6 +8,97 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
+
+/** mcporter CLI 路径（解压后的 JS 文件，跨平台相同） */
+const MCPORTER_CLI_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
+
+/** mcporter 配置文件路径 */
+const MCPORTER_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'mcporter.json');
+
+/**
+ * mcporter 配置格式
+ */
+interface McporterConfig {
+  mcpServers: Record<string, McporterServerConfig>;
+}
+
+interface McporterServerConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  baseUrl?: string;
+  headers?: Record<string, string>;
+  description?: string;
+}
+
+/**
+ * 同步读取 mcporter 配置
+ * Read mcporter config synchronously
+ */
+export function readMcporterConfigSync(): McporterConfig | null {
+  try {
+    if (!fs.existsSync(MCPORTER_CONFIG_PATH)) {
+      return null;
+    }
+    const content = fs.readFileSync(MCPORTER_CONFIG_PATH, 'utf-8');
+    return JSON.parse(content) as McporterConfig;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 检查是否有 MCP 服务器配置
+ * Check if any MCP servers are configured
+ */
+export function hasMcpServersConfigured(): boolean {
+  const config = readMcporterConfigSync();
+  return config && Object.keys(config.mcpServers).length > 0;
+}
+
+/**
+ * 构建 mcporter 执行命令提示词（跨平台）
+ * Build mcporter execution command hint (cross-platform)
+ */
+export function buildMcporterCommandHint(): string {
+  const isWindows = process.platform === 'win32';
+  const nodeInstalled = isNodeInstalled();
+
+  if (!nodeInstalled) {
+    // Node 未安装时的提示
+    return `[MCP Integration]
+MCP servers are configured but Node.js runtime is not installed.
+To use MCP tools, install Node.js first via the app settings.`;
+  }
+
+  const nodePath = getNodeBinaryPath();
+
+  // 跨平台命令格式：node <mcporter_cli_path> <args>
+  // Windows 和 Mac/Linux 都用这个格式，只是 node 路径不同
+  const mcporterCommand = `${nodePath} ${MCPORTER_CLI_PATH}`;
+
+  return `[MCP Integration]
+When working with external services or APIs, use mcporter CLI to discover MCP tools available in your environment.
+
+Discovery workflow:
+1. List available MCP servers:
+   ${mcporterCommand} list --output json
+   (Environment: MCPORTER_CONFIG=${MCPORTER_CONFIG_PATH})
+
+2. Discover tools from a server:
+   ${mcporterCommand} list <server_name> --schema --output json
+
+3. Call a tool:
+   ${mcporterCommand} call <server_name>.<tool_name> key=value --output json
+
+Example: If user asks about document operations, first run 'mcporter list' to see available MCP servers, then discover tools from relevant servers.
+
+The mcporter config is at: ${MCPORTER_CONFIG_PATH}`;
+}
 
 /**
  * 首次消息处理配置
