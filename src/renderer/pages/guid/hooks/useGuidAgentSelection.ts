@@ -16,6 +16,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
 
+/**
+ * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
+ * Also detects [Identity Override] blocks that we inject
+ */
+function hasExplicitIdentity(rules: string): boolean {
+  if (!rules) return false;
+  // Check for Identity Override block (injected by our system)
+  if (rules.includes('[Identity Override')) return true;
+  // Chinese patterns: "你是 XX 助手", "你是 **XX**", "你的身份是"
+  const zhPatterns = [/你是\s+.{1,20}助手/, /你是\s+\*{0,2}.{1,20}\*{0,2}[，,。]/, /你的身份是[:：]?/];
+  // English patterns: "You are XX assistant", "I am XX", "Your identity is"
+  const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
+  return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
+}
+
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
   try {
@@ -241,7 +256,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           return availableCustomAgentIds.has(agent.id);
         });
 
-// 对于内置助手，如果用户尚未自定义 presetAgentType，则回退为 ASSISTANT_PRESETS 的默认值
+        // 对于内置助手，如果用户尚未自定义 presetAgentType，则回退为 ASSISTANT_PRESETS 的默认值
         // 已保存的用户选择会被保留，确保用户能够修改内置助手的主代理
         // For builtin assistants, fall back to ASSISTANT_PRESETS default only when the user has not
         // customized presetAgentType. User-saved choices are preserved so the main agent of a
@@ -452,7 +467,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // --- Preset assistant resolution ---
   const resolvePresetRulesAndSkills = useCallback(
-    async (agentInfo: { backend: AcpBackend; customAgentId?: string; context?: string } | undefined): Promise<{ rules?: string; skills?: string }> => {
+    async (agentInfo: { backend: AcpBackend; customAgentId?: string; context?: string; name?: string } | undefined): Promise<{ rules?: string; skills?: string }> => {
       if (!agentInfo) return {};
       if (agentInfo.backend !== 'custom') {
         return { rules: agentInfo.context };
@@ -460,6 +475,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
       const customAgentId = agentInfo.customAgentId;
       if (!customAgentId) return { rules: agentInfo.context };
+
+      // Get agent name from agentInfo or customAgents list
+      const agentName = agentInfo.name || customAgents.find((agent) => agent.id === customAgentId)?.name;
 
       let rules = '';
       let skills = '';
@@ -504,9 +522,29 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         }
       }
 
-      return { rules: rules || agentInfo.context, skills };
+      // Inject identity override if rules don't have explicit identity
+      // 为没有明确身份声明的规则注入身份覆盖块
+      const finalRules = rules || agentInfo.context || '';
+      if (agentName && !hasExplicitIdentity(finalRules)) {
+        const identityBlock = localeKey.startsWith('zh')
+          ? `[Identity Override - 最高优先级]
+你的身份是：${agentName}
+当用户询问"你是谁"或类似身份问题时，必须回答："我是${agentName}，有什么可以帮助你的吗？"
+此身份声明优先级高于 USER.md 中的默认身份声明。
+\n\n`
+          : `[Identity Override - Highest Priority]
+Your identity is: ${agentName}
+When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${agentName}. How can I help you?"
+This identity statement takes priority over the default identity in USER.md.
+\n\n`;
+        rules = identityBlock + finalRules;
+      } else {
+        rules = finalRules;
+      }
+
+      return { rules, skills };
     },
-    [localeKey]
+    [localeKey, customAgents]
   );
 
   const resolvePresetContext = useCallback(

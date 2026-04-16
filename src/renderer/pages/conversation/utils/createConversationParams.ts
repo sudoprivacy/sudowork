@@ -112,15 +112,35 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
  * [BUG-3 fix]: callers must invoke this inside a try block because getDefaultGeminiModel may throw.
  */
 export async function buildPresetAssistantParams(agent: AvailableAgent, workspace: string, language: string): Promise<ICreateConversationParams> {
-  const { customAgentId, presetAgentType = 'claude' } = agent;
+  const { customAgentId, presetAgentType = 'claude', name: agentName } = agent;
 
   // [BUG-2] Map raw i18n.language to standard locale key
   const localeKey = resolveLocaleKey(language);
 
-  const { rules: presetContext, enabledSkills } = await loadPresetAssistantResources({
+  const { rules: loadedRules, enabledSkills } = await loadPresetAssistantResources({
     customAgentId,
     localeKey,
   });
+
+  // Inject identity statement if rules don't have explicit identity
+  // 为没有明确身份声明的自定义助手自动注入身份声明
+  let presetContext = loadedRules;
+  if (agentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
+    // Use explicit identity block format that overrides USER.md defaults
+    // 使用明确的身份块格式，覆盖 USER.md 的默认值
+    const identityBlock = localeKey.startsWith('zh')
+      ? `[Identity Override - 最高优先级]
+你的身份是：${agentName}
+当用户询问"你是谁"或类似身份问题时，必须回答："我是${agentName}，有什么可以帮助你的吗？"
+此身份声明优先级高于 USER.md 中的默认身份声明。
+\n\n`
+      : `[Identity Override - Highest Priority]
+Your identity is: ${agentName}
+When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${agentName}. How can I help you?"
+This identity statement takes priority over the default identity in USER.md.
+\n\n`;
+    presetContext = identityBlock + (loadedRules || '');
+  }
 
   const type = getConversationTypeForPreset(presetAgentType);
 
@@ -130,11 +150,27 @@ export async function buildPresetAssistantParams(agent: AvailableAgent, workspac
     enabledSkills,
     presetAssistantId: customAgentId,
     presetContext,
+    agentName, // Add agentName for placeholder display
     // Sudoclaw preset type maps to openclaw-gateway backend
     backend: (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackend,
   };
 
   const model = {} as TProviderWithModel;
 
-  return { type, model, name: agent.name, extra };
+  return { type, model, name: agentName, extra };
+}
+
+/**
+ * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
+ * Also detects [Identity Override] blocks that we inject
+ */
+function hasExplicitIdentity(rules: string): boolean {
+  if (!rules) return false;
+  // Check for Identity Override block (injected by our system)
+  if (rules.includes('[Identity Override')) return true;
+  // Chinese patterns: "你是 XX 助手", "你是 **XX**", "你的身份是"
+  const zhPatterns = [/你是\s+.{1,20}助手/, /你是\s+\*{0,2}.{1,20}\*{0,2}[，,。]/, /你的身份是[:：]?/];
+  // English patterns: "You are XX assistant", "I am XX", "Your identity is"
+  const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[::]?/i];
+  return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
 }

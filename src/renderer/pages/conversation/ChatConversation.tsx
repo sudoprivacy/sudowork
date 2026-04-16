@@ -110,21 +110,25 @@ const ChatConversation: React.FC<{
   const { openPreview } = usePreviewContext();
   const workspaceEnabled = Boolean(conversation?.extra?.workspace);
 
+  // 使用统一的 Hook 获取预设助手信息（ACP 会话）
+  // Use unified hook for preset assistant info (ACP conversations)
+  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
+
+  // Resolve agentName: prefer preset assistant name, then extra.agentName, then undefined
+  // 优先使用预设助手名称，然后是 extra.agentName
+  const resolvedAgentName = presetAssistantInfo?.name || (conversation?.extra as { agentName?: string })?.agentName;
+
   const conversationNode = useMemo(() => {
     if (!conversation) return null;
     switch (conversation.type) {
       case 'acp':
-        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={(conversation.extra as { agentName?: string })?.agentName}></AcpChat>;
+        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
       case 'openclaw-gateway':
-        return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} />;
+        return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} agentName={resolvedAgentName} />;
       default:
         return null;
     }
-  }, [conversation]);
-
-  // 使用统一的 Hook 获取预设助手信息（ACP 会话）
-  // Use unified hook for preset assistant info (ACP conversations)
-  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
+  }, [conversation, resolvedAgentName]);
 
   const modelSelector = useMemo(() => {
     if (!conversation) return undefined;

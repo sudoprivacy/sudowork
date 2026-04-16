@@ -97,7 +97,8 @@ const EMPTY_UPLOAD_FILES: string[] = [];
 const OpenClawSendBox: React.FC<{
   conversation_id: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ conversation_id, onAiProcessingChange }) => {
+  agentName?: string;
+}> = ({ conversation_id, onAiProcessingChange, agentName }) => {
   const aiProcessingContext = React.useContext(AIProcessingContext);
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
@@ -602,8 +603,8 @@ const OpenClawSendBox: React.FC<{
           aiProcessing
             ? t('conversation.chat.processing')
             : t('acp.sendbox.placeholder', {
-                backend: 'Sudoclaw',
-                defaultValue: `Send message to OpenClaw...`,
+                backend: agentName || 'Sudoclaw',
+                defaultValue: `Send message to {{backend}}...`,
               })
         }
         onStop={handleStop}

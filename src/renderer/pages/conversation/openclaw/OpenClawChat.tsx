@@ -21,7 +21,8 @@ export const AIProcessingContext = createContext<boolean>(false);
 const OpenClawChat: React.FC<{
   conversation_id: string;
   workspace: string;
-}> = ({ conversation_id, workspace }) => {
+  agentName?: string;
+}> = ({ conversation_id, workspace, agentName }) => {
   useMessageLstCache(conversation_id);
   const updateLocalImage = LocalImageView.useUpdateLocalImage();
   const [aiProcessing, setAiProcessing] = useState(false);
@@ -45,7 +46,7 @@ const OpenClawChat: React.FC<{
           </FlexFullContainer>
           <SafetyChatConfirm conversation_id={conversation_id}>
             <ConversationChatConfirm conversation_id={conversation_id}>
-              <OpenClawSendBox conversation_id={conversation_id} onAiProcessingChange={setAiProcessing} />
+              <OpenClawSendBox conversation_id={conversation_id} onAiProcessingChange={setAiProcessing} agentName={agentName} />
             </ConversationChatConfirm>
           </SafetyChatConfirm>
         </div>

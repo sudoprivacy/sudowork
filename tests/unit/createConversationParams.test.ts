@@ -38,7 +38,7 @@ describe('createConversationParams', () => {
 
   it('uses the shared locale resolver for Turkish', async () => {
     loadPresetAssistantResources.mockResolvedValue({
-      rules: 'preset rules',
+      rules: 'You are Preset Assistant, an intelligent assistant.\n\npreset rules',
       skills: '',
       enabledSkills: ['moltbook'],
     });
@@ -61,15 +61,17 @@ describe('createConversationParams', () => {
       localeKey: 'tr-TR',
     });
     expect(params.type).toBe('acp');
-    expect(params.extra.presetContext).toBe('preset rules');
+    // Rules with explicit identity should not be modified
+    expect(params.extra.presetContext).toBe('You are Preset Assistant, an intelligent assistant.\n\npreset rules');
     expect(params.extra.enabledSkills).toEqual(['moltbook']);
+    expect(params.extra.agentName).toBe('Preset Assistant'); // agentName should be set for placeholder display
     // ACP conversations don't resolve a model at creation time — the backend determines it
     expect(params.extra.backend).toBe('claude');
   });
 
   it('maps acp preset assistants to presetContext and backend', async () => {
     loadPresetAssistantResources.mockResolvedValue({
-      rules: 'acp preset rules',
+      rules: '你是 Codebuddy 助手，专门用于代码辅助。\n\nacp preset rules',
       skills: '',
       enabledSkills: undefined,
     });
@@ -87,7 +89,37 @@ describe('createConversationParams', () => {
     );
 
     expect(params.type).toBe('acp');
-    expect(params.extra.presetContext).toBe('acp preset rules');
+    // Rules with explicit identity should not be modified
+    expect(params.extra.presetContext).toBe('你是 Codebuddy 助手，专门用于代码辅助。\n\nacp preset rules');
     expect(params.extra.backend).toBe('codebuddy');
+    expect(params.extra.agentName).toBe('Codebuddy Assistant'); // agentName should be set for placeholder display
+  });
+
+  it('injects identity prefix when rules lack explicit identity', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: 'Some generic rules without identity',
+      skills: '',
+      enabledSkills: ['skill-1'],
+    });
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'custom',
+        name: '自定义助手',
+        customAgentId: 'custom-1',
+        isPreset: true,
+        presetAgentType: 'sudoclaw',
+      },
+      '/tmp/workspace',
+      'zh-CN'
+    );
+
+    expect(params.type).toBe('openclaw-gateway');
+    // Should inject identity override block for rules without explicit identity
+    expect(params.extra.presetContext).toContain('[Identity Override - 最高优先级]');
+    expect(params.extra.presetContext).toContain('你的身份是：自定义助手');
+    expect(params.extra.presetContext).toContain('我是自定义助手');
+    expect(params.extra.presetContext).toContain('Some generic rules without identity');
+    expect(params.extra.agentName).toBe('自定义助手');
   });
 });
