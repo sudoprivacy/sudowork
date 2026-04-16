@@ -118,7 +118,10 @@ function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { api
 }
 
 async function invokeWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([fn(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs))]);
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs)),
+  ]);
 }
 
 async function ensureSudoclawHasApiKey(): Promise<boolean> {
@@ -260,6 +263,21 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
+
+  if (isDesktopRuntime) {
+    void ipcBridge.sudoclaw.restartGateway
+      .invoke()
+      .then((restartRes) => {
+        if (!restartRes?.success) {
+          console.error('[Auth] Sudoclaw 后台重启失败:', restartRes?.msg || 'Sudoclaw restartGateway failed');
+          return;
+        }
+        console.log('[Auth] Sudoclaw 正在后台重启');
+      })
+      .catch((error) => {
+        console.error('[Auth] Sudoclaw 后台重启失败:', error);
+      });
+  }
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
