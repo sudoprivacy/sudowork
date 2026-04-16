@@ -1021,7 +1021,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
 
     this.emitStatusMessage('connecting');
-    this.emitConnectionTipMessage('正在连接中，请稍等', 'warning');
   }
 
   private emitConnectionRecoveredMessage(): void {

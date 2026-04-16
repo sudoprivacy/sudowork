@@ -694,7 +694,7 @@ module.exports = async function afterPack(context) {
       // Resources dir not readable — sudoclaw archives will be skipped
     }
 
-    const fixedArchives = ['claude-code.tgz'];
+    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
