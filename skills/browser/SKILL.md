@@ -5,17 +5,10 @@ description: "AI-native browser. Explore websites, discover page structure, take
 
 # Browser
 
-## Quick Start
+Tools directory: `~/sudowork/vendor/ai-dev-browser/ai_dev_browser/tools/`
 
-```bash
-# Run any tool (auto-bootstraps on first use, only needs curl)
-~/sudowork/vendor/ai-dev-browser/adb <tool> [args]
+Every CLI tool has an identical Python function in `ai_dev_browser.core` — explore interactively with CLI, then script with the same functions:
 
-# List all available tools
-~/sudowork/vendor/ai-dev-browser/adb --list
-
-# Tool-specific help
-~/sudowork/vendor/ai-dev-browser/adb browser-start --help
+```python
+from ai_dev_browser.core import page_goto, click_by_text, page_screenshot
 ```
-
-Tool names accept both hyphens (`page-find`) and underscores (`page_find`).
