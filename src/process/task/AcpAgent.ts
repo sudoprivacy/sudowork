@@ -863,17 +863,51 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   }
 
   async stop(): Promise<void> {
-    await this.connection.disconnect();
-    this.emitStatusMessage('disconnected');
-    this.approvalStore.clear();
+    // 1. Flush buffered streaming text
+    this.streamTextBuffer.flushAll();
+
+    // 2. Respond to pending permission requests with Cancelled
+    //    (ACP spec: client MUST do this when cancelling)
+    for (const [callId, pending] of this.pendingPermissions) {
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingPermissions.clear();
     this.permissionRequestMeta.clear();
-    // Emit finish event
-    this.handleStreamEvent({
-      type: 'finish',
-      conversation_id: this.conversation_id,
-      msg_id: uuid(),
-      data: null,
-    });
+
+    // 3. Clear confirmation UI
+    for (const confirmation of this.confirmations) {
+      ipcBridge.conversation.confirmation.remove.emit({
+        conversation_id: this.conversation_id,
+        id: confirmation.id,
+      });
+    }
+    this.confirmations = [];
+
+    // 4. Cancel the current turn (waits for backend to confirm, or kills after 3s)
+    let result: 'cancelled' | 'disconnected';
+    try {
+      result = await this.connection.cancel();
+    } catch {
+      await this.connection.disconnect();
+      result = 'disconnected';
+    }
+
+    if (result === 'disconnected') {
+      // Backend didn't respond to cancel — process was killed
+      this.emitStatusMessage('disconnected');
+      this.approvalStore.clear();
+      // Clear bootstrap so next message re-initializes
+      this.bootstrap = undefined;
+      // Emit finish only for disconnect path (cancel path already emitted via onEndTurn)
+      this.handleStreamEvent({
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      });
+    }
+    // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
+    // The finish event was already emitted by handleEndTurn() when the backend responded
   }
 
   kill() {

@@ -882,6 +882,7 @@ export const ACP_METHODS = {
   READ_TEXT_FILE: 'fs/read_text_file',
   WRITE_TEXT_FILE: 'fs/write_text_file',
   SET_CONFIG_OPTION: 'session/set_config_option',
+  SESSION_CANCEL: 'session/cancel',
 } as const;
 
 export type AcpMethod = (typeof ACP_METHODS)[keyof typeof ACP_METHODS];
