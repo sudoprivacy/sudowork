@@ -719,21 +719,37 @@ export class AcpConnection {
     // Build _meta for Claude/CodeBuddy ACP resume support
     // claude-agent-acp and codebuddy use _meta.claudeCode.options.resume for session resume
     const useMetaResume = (this.backend === 'claude' || this.backend === 'codebuddy') && options?.resumeSessionId;
-    const meta = useMetaResume
-      ? {
-          claudeCode: {
-            options: {
-              resume: options.resumeSessionId,
-            },
-          },
-        }
-      : undefined;
+
+    // Disallow chrome-devtools MCP tools — browser automation should use the
+    // app-level NavigationInterceptor / browser skill instead of raw CDP access
+    // which can navigate the Electron main window and cause hangs on permission prompts.
+    const disallowedChromeDevToolsTools = [
+      'mcp__chrome-devtools__navigate_page',
+      'mcp__chrome-devtools__new_page',
+      'mcp__chrome-devtools__list_pages',
+      'mcp__chrome-devtools__select_page',
+      'mcp__chrome-devtools__take_screenshot',
+      'mcp__chrome-devtools__take_snapshot',
+      'mcp__chrome-devtools__click',
+      'mcp__chrome-devtools__fill',
+      'mcp__chrome-devtools__fill_form',
+      'mcp__chrome-devtools__evaluate_script',
+      'mcp__chrome-devtools__wait_for',
+    ];
+
+    const meta = {
+      claudeCode: {
+        options: {
+          ...(useMetaResume && { resume: options.resumeSessionId }),
+          disallowedTools: disallowedChromeDevToolsTools,
+        },
+      },
+    };
 
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
       mcpServers: [] as unknown[],
-      // Claude/CodeBuddy ACP uses _meta for resume
-      ...(meta && { _meta: meta }),
+      _meta: meta,
       // Generic resume parameters for other ACP backends
       ...(this.backend !== 'claude' && this.backend !== 'codebuddy' && options?.resumeSessionId && { resumeSessionId: options.resumeSessionId }),
       ...(options?.forkSession && { forkSession: options.forkSession }),
@@ -766,6 +782,25 @@ export class AcpConnection {
       sessionId,
       cwd: normalizedCwd,
       mcpServers: [] as unknown[],
+      _meta: {
+        claudeCode: {
+          options: {
+            disallowedTools: [
+              'mcp__chrome-devtools__navigate_page',
+              'mcp__chrome-devtools__new_page',
+              'mcp__chrome-devtools__list_pages',
+              'mcp__chrome-devtools__select_page',
+              'mcp__chrome-devtools__take_screenshot',
+              'mcp__chrome-devtools__take_snapshot',
+              'mcp__chrome-devtools__click',
+              'mcp__chrome-devtools__fill',
+              'mcp__chrome-devtools__fill_form',
+              'mcp__chrome-devtools__evaluate_script',
+              'mcp__chrome-devtools__wait_for',
+            ],
+          },
+        },
+      },
     });
 
     // session/load returns modes/models/configOptions but not sessionId — keep the one we sent
