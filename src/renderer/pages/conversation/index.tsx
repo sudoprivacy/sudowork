@@ -37,7 +37,7 @@ const ChatConversationIndex: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     return addEventListener('chat.history.refresh', () => {
-      mutate();
+      void mutate();
     });
   }, [id, mutate]);
 

@@ -204,11 +204,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Handle custom backend
       if (data.backend === 'custom' && data.customAgentId) {
         // Look up from AssistantManager (filesystem SSOT)
-        const strippedId = data.customAgentId.startsWith('builtin-')
-          ? data.customAgentId.slice('builtin-'.length)
-          : data.customAgentId;
+        const strippedId = data.customAgentId.startsWith('builtin-') ? data.customAgentId.slice('builtin-'.length) : data.customAgentId;
         const meta = await assistantManager.getAssistantMeta(strippedId);
-        let customAgentConfig = meta ? { id: data.customAgentId, name: meta.nameI18n?.['en-US'] || strippedId } as any : undefined;
+        let customAgentConfig = meta ? ({ id: data.customAgentId, name: meta.nameI18n?.['en-US'] || strippedId } as any) : undefined;
 
         if (!customAgentConfig && data.customAgentId.startsWith('ext:')) {
           const [, extensionName, ...idParts] = data.customAgentId.split(':');

@@ -602,11 +602,7 @@ const CronJobFormDrawer: React.FC<{
               {!(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                  <Select
-                    value={selectedAssistantId}
-                    onChange={(v) => setSelectedAssistantId(v as string)}
-                    disabled={editJob != null && conversationMode === 'reuse'}
-                  >
+                  <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
                       <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
                     </Select.Option>

@@ -61,7 +61,9 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
     const imageModel = config?.agents?.defaults?.imageGenerationModel;
     const model = typeof imageModel === 'string' ? imageModel : imageModel?.primary;
     if (model && typeof model === 'string' && model.trim()) imageModelId = model;
-  } catch {}
+  } catch {
+    // ignored
+  }
 
   // Fallback: ProcessConfig (before user has changed settings in this session)
   if (!imageModelId) {

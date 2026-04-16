@@ -90,13 +90,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
           'justify-start': message.position === 'left',
         })}
       >
-        {isAiMessage && (
-          <img
-            src={streamingAvatar}
-            alt='AI Avatar'
-            className={`flex-shrink-0 mr-12px mt-4px ${avatarSize} object-contain`}
-          />
-        )}
+        {isAiMessage && <img src={streamingAvatar} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSize} object-contain`} />}
         {props.children}
       </div>
     );
@@ -426,11 +420,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       const avatarSizeForSummary = isStreamingForSummary ? 'w-40px h-40px' : 'w-24px h-24px';
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <img
-            src={streamingAvatarForSummary}
-            alt='AI Avatar'
-            className={`flex-shrink-0 mr-12px mt-4px ${avatarSizeForSummary} object-contain`}
-          />
+          <img src={streamingAvatarForSummary} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSizeForSummary} object-contain`} />
           <div className='flex-1 min-w-0'>
             {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
             {item.type === 'tool_summary' &&

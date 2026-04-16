@@ -129,7 +129,7 @@ export async function initBlacklist(): Promise<void> {
     await client.mkdir(CONFIG_DIR, true);
     const merged = {
       ...(hookConfig || DEFAULT_HOOK_CONFIG),
-      blacklist: { rules: [] },
+      blacklist: { rules: [] as BlacklistRule[] },
     };
     await writeHookConfig(merged);
     mainLog('SafetyBlacklist', 'Initialized empty blacklist in unified config');

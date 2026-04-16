@@ -1102,9 +1102,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
   if (looksLikeIds) {
     // 转换 skill IDs → skill names
     const idToNameMap = await getSkillIdToNameMap();
-    skillNames = enabledSkills
-      .map((id) => idToNameMap.get(id))
-      .filter((name): name is string => Boolean(name));
+    skillNames = enabledSkills.map((id) => idToNameMap.get(id)).filter((name): name is string => Boolean(name));
     mainLog('Sudowork', `Converted skill IDs to names: ${enabledSkills.join(',')} → ${skillNames.join(',')}`);
   } else {
     // 直接作为 skill names 使用

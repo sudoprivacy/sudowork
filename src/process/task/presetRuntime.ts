@@ -41,9 +41,7 @@ export async function applyPresetRuntime(ctx: PresetRuntimeContext): Promise<Pre
   if (!ctx.presetAssistantId) return result;
 
   // Look up from AssistantManager (reads _sudowork_meta.json)
-  const strippedId = ctx.presetAssistantId.startsWith('builtin-')
-    ? ctx.presetAssistantId.slice('builtin-'.length)
-    : ctx.presetAssistantId;
+  const strippedId = ctx.presetAssistantId.startsWith('builtin-') ? ctx.presetAssistantId.slice('builtin-'.length) : ctx.presetAssistantId;
   const meta = await assistantManager.getAssistantMeta(strippedId);
   if (!meta) return result;
 

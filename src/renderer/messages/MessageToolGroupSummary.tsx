@@ -262,7 +262,13 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
       return true;
     });
 
-    if (allCompleted && wasInProgress && isExpanded) {
+    const hasErrors = messages.some((m) => {
+      if (m.type === 'tool_group') return m.content.some((t) => t.status === 'Error');
+      if (m.type === 'acp_tool_call') return m.content.update.status === 'failed';
+      return false;
+    });
+
+    if (allCompleted && wasInProgress && isExpanded && !hasErrors) {
       const timer = setTimeout(() => {
         onToggle(summaryId);
       }, 100);

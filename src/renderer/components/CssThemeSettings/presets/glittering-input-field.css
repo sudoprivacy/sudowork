@@ -95,18 +95,7 @@
   --hl-chip-border: #d7ccb7;
 
   /* ===== Aurora Input Accent ===== */
-  --retroma-aurora-input-gradient: linear-gradient(
-    90deg,
-    #ff6a01 0%,
-    #f8c91c 12.5%,
-    #8a2be2 25%,
-    #00bfff 37.5%,
-    #ff6a01 50%,
-    #f8c91c 62.5%,
-    #8a2be2 75%,
-    #00bfff 87.5%,
-    #ff6a01 100%
-  );
+  --retroma-aurora-input-gradient: linear-gradient(90deg, #ff6a01 0%, #f8c91c 12.5%, #8a2be2 25%, #00bfff 37.5%, #ff6a01 50%, #f8c91c 62.5%, #8a2be2 75%, #00bfff 87.5%, #ff6a01 100%);
   --retroma-aurora-input-ring: rgba(255, 162, 84, 0.24);
   --retroma-aurora-input-shadow: 0 18px 40px rgba(110, 58, 102, 0.16), 0 0 28px rgba(15, 120, 135, 0.1);
   --retroma-aurora-input-shadow-strong: 0 22px 48px rgba(110, 58, 102, 0.2), 0 0 34px rgba(0, 191, 255, 0.18);
@@ -480,8 +469,7 @@ body {
   overflow: visible !important;
   border: 2px solid transparent !important;
   background-color: var(--dialog-fill-0) !important;
-  background-image:
-    linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--retroma-aurora-input-gradient) !important;
+  background-image: linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--retroma-aurora-input-gradient) !important;
   background-size:
     100% 100%,
     220% 100% !important;

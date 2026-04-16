@@ -88,10 +88,7 @@ export async function readAssistantResource(resourceType: ResourceType, assistan
   const fileName = resourceTypeToFile(resourceType);
 
   // 1. Try directory-based paths with priority: custom > hub > system
-  const dirCandidates: string[] = [
-    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom, assistantId, fileName),
-    path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub, assistantId, fileName),
-  ];
+  const dirCandidates: string[] = [path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom, assistantId, fileName), path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub, assistantId, fileName)];
 
   // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
   const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;

@@ -100,18 +100,7 @@
   --horizon-focus-ring: rgba(89, 91, 202, 0.18);
   --horizon-shadow-soft: 0 8px 24px -22px rgba(45, 52, 68, 0.22);
   --horizon-shadow-hover: 0 16px 28px -24px rgba(89, 91, 202, 0.24);
-  --horizon-aurora-input-gradient: linear-gradient(
-    90deg,
-    #ff6a01 0%,
-    #f8c91c 12.5%,
-    #8a2be2 25%,
-    #00bfff 37.5%,
-    #ff6a01 50%,
-    #f8c91c 62.5%,
-    #8a2be2 75%,
-    #00bfff 87.5%,
-    #ff6a01 100%
-  );
+  --horizon-aurora-input-gradient: linear-gradient(90deg, #ff6a01 0%, #f8c91c 12.5%, #8a2be2 25%, #00bfff 37.5%, #ff6a01 50%, #f8c91c 62.5%, #8a2be2 75%, #00bfff 87.5%, #ff6a01 100%);
   --horizon-aurora-input-ring: rgba(255, 162, 84, 0.24);
   --horizon-aurora-input-shadow: 0 18px 40px rgba(110, 58, 102, 0.16), 0 0 28px rgba(15, 120, 135, 0.1);
   --horizon-aurora-input-shadow-strong: 0 22px 48px rgba(110, 58, 102, 0.2), 0 0 34px rgba(0, 191, 255, 0.18);
@@ -216,18 +205,7 @@
   --horizon-focus-ring: rgba(123, 127, 240, 0.22);
   --horizon-shadow-soft: 0 12px 28px -24px rgba(0, 0, 0, 0.45);
   --horizon-shadow-hover: 0 18px 32px -24px rgba(0, 0, 0, 0.58);
-  --horizon-aurora-input-gradient: linear-gradient(
-    90deg,
-    #ff6a01 0%,
-    #f8c91c 12.5%,
-    #8a2be2 25%,
-    #00bfff 37.5%,
-    #ff6a01 50%,
-    #f8c91c 62.5%,
-    #8a2be2 75%,
-    #00bfff 87.5%,
-    #ff6a01 100%
-  );
+  --horizon-aurora-input-gradient: linear-gradient(90deg, #ff6a01 0%, #f8c91c 12.5%, #8a2be2 25%, #00bfff 37.5%, #ff6a01 50%, #f8c91c 62.5%, #8a2be2 75%, #00bfff 87.5%, #ff6a01 100%);
   --horizon-aurora-input-ring: rgba(166, 214, 255, 0.22);
   --horizon-aurora-input-shadow: 0 22px 48px rgba(6, 10, 18, 0.5), 0 0 32px rgba(138, 43, 226, 0.16);
   --horizon-aurora-input-shadow-strong: 0 26px 54px rgba(4, 8, 16, 0.62), 0 0 38px rgba(0, 191, 255, 0.22);
@@ -691,8 +669,7 @@ body {
   overflow: visible !important;
   border: 1px solid transparent !important;
   background-color: var(--dialog-fill-0) !important;
-  background-image:
-    linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--horizon-aurora-input-gradient) !important;
+  background-image: linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--horizon-aurora-input-gradient) !important;
   background-size:
     100% 100%,
     220% 100% !important;
@@ -1289,11 +1266,7 @@ body {
 .arco-tooltip-inner,
 .arco-popover-inner,
 .arco-popover-content {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--horizon-surface) 94%, var(--aou-1)) 0%,
-    var(--horizon-surface-soft) 100%
-  ) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--horizon-surface) 94%, var(--aou-1)) 0%, var(--horizon-surface-soft) 100%) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-base) !important;
   border-radius: 12px !important;
@@ -1312,11 +1285,7 @@ body {
 }
 
 .arco-modal-header {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--horizon-selected) 58%, var(--horizon-surface)) 0%,
-    var(--horizon-surface) 100%
-  ) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--horizon-selected) 58%, var(--horizon-surface)) 0%, var(--horizon-surface) 100%) !important;
   border-bottom: 1px solid color-mix(in srgb, var(--border-base) 82%, transparent) !important;
   color: var(--text-primary) !important;
 }
@@ -1361,8 +1330,7 @@ body {
 .aionui-modal-wrapper .cm-content,
 .aionui-modal-wrapper .cm-line,
 .aionui-modal-wrapper .cm-gutters {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
 }
 
 .aionui-modal-wrapper .arco-btn {

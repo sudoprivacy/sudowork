@@ -76,7 +76,9 @@
   font-weight: 500;
   cursor: pointer;
   position: relative;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
   border-bottom: 2px solid transparent;
   box-sizing: border-box;
   outline: none;
@@ -161,7 +163,9 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
   outline: none;
 }
 
@@ -399,7 +403,9 @@
   min-height: 52px;
   height: 100%;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
   outline: none;
 }
 
@@ -425,7 +431,9 @@
   border: 1px solid color-mix(in srgb, var(--bg-3) 72%, transparent);
   background: var(--color-bg-1, transparent);
   overflow: hidden;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .chat-workspace .workspace-skill-card__icon-image {

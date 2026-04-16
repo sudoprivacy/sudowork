@@ -9,7 +9,9 @@
  * 目录名合法性验证工具函数
  */
 
+// eslint-disable-next-line no-control-regex
 const INVALID_CHARS_WINDOWS = /[<>:"/\\|?*\x00-\x1f]/;
+// eslint-disable-next-line no-control-regex
 const INVALID_CHARS_UNIX = /[/\x00]/;
 const RESERVED_NAMES_WINDOWS = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
 

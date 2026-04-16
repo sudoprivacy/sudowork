@@ -216,12 +216,12 @@ class CronService {
    * button) can show a toast instead of silently updating the job row.
    */
   async triggerJob(jobId: string): Promise<void> {
-    const job = await cronStore.getById(jobId);
+    const job = cronStore.getById(jobId);
     if (!job) {
       throw new Error(`Job ${jobId} not found`);
     }
     await this.executeJob(job);
-    const updated = await cronStore.getById(jobId);
+    const updated = cronStore.getById(jobId);
     if (updated?.state.lastStatus === 'error' && updated.state.lastError) {
       throw new Error(updated.state.lastError);
     }
