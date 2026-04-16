@@ -9,6 +9,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 
+/** COS base URL for Hub skill icons */
+const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+
 export type ScannedWorkspaceSkill = {
   name: string;
   description: string;
@@ -84,17 +87,47 @@ function toSkillItem(skillPath: string, parsed: { name?: string; description?: s
   };
 }
 
+/**
+ * Check if a URL is a relative path (not absolute URL or protocol URL)
+ * Used to detect Hub skill icon paths that need COS URL prefix.
+ */
+function isRelativePath(url: string): boolean {
+  if (!url) return false;
+  return !url.startsWith('http://') &&
+    !url.startsWith('https://') &&
+    !url.startsWith('data:') &&
+    !url.startsWith('/') &&
+    !url.startsWith('aion-asset://') &&
+    !url.startsWith('file://') &&
+    !url.startsWith('./');
+}
+
 function resolveDeclaredIconUrl(skillPath: string, icon?: string): string | undefined {
   const normalized = icon?.trim();
   if (!normalized) return undefined;
-  if (normalized.startsWith('http') || normalized.startsWith('/') || normalized.startsWith('aion-asset://') || normalized.startsWith('data:')) {
+
+  // Absolute URLs and protocol URLs: return directly
+  if (normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/') || normalized.startsWith('aion-asset://') || normalized.startsWith('data:') || normalized.startsWith('file://')) {
     return normalized;
   }
+
+  // Relative paths that are NOT image files: treat as Hub skill icon path
+  // e.g., "skills/some-skill/icon.png" from Hub API
   if (!IMAGE_FILE_RE.test(normalized)) {
+    // If it looks like a relative path (contains path separators), prepend COS URL
+    if (isRelativePath(normalized)) {
+      return `${HUB_SKILL_ICON_COS_BASE}${normalized}`;
+    }
     return undefined;
   }
+
+  // Image file paths: try to resolve locally
   const iconPath = path.join(skillPath, normalized);
   if (!existsSync(iconPath)) {
+    // File not found locally: if it's a relative path, prepend COS URL
+    if (isRelativePath(normalized)) {
+      return `${HUB_SKILL_ICON_COS_BASE}${normalized}`;
+    }
     return undefined;
   }
   return toAssetUrl(iconPath);
