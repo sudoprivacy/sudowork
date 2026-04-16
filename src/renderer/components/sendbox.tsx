@@ -640,7 +640,12 @@ const SendBox: React.FC<{
           )}
         </div>
         <div className={isSingleLine ? 'flex items-center gap-2 w-full min-w-0 overflow-hidden' : 'w-full overflow-hidden'}>
-          {isSingleLine && <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'flex-shrink-0 sendbox-tools flex items-center'}>{tools}{skillTriggerButton}</div>}
+          {isSingleLine && (
+            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'flex-shrink-0 sendbox-tools flex items-center'}>
+              {tools}
+              {skillTriggerButton}
+            </div>
+          )}
           <Input.TextArea
             autoFocus={!isMobile}
             disabled={disabled}
@@ -695,7 +700,10 @@ const SendBox: React.FC<{
         </div>
         {!isSingleLine && (
           <div className='flex items-center justify-between gap-2 w-full'>
-            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'sendbox-tools flex items-center'}>{tools}{skillTriggerButton}</div>
+            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'sendbox-tools flex items-center'}>
+              {tools}
+              {skillTriggerButton}
+            </div>
             <div className='flex items-center gap-2'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
