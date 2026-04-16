@@ -31,6 +31,7 @@ import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
+import { skillManager } from '../SkillManager';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -66,7 +67,38 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
   if (!workspaceSkillsDir) return;
   await fs.mkdir(workspaceSkillsDir, { recursive: true });
 
-  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), resolveConversationEnabledSkillNames(conversation, requestedSkillNames));
+  // Convert skill IDs (UUID) to skill names for workspace skill matching
+  // enabledSkills stores UUIDs, but listWorkspaceSkillTargets expects skill directory names
+  const rawAllowedSkillIds = resolveConversationEnabledSkillNames(conversation, requestedSkillNames);
+  let allowedSkillNames: Set<string> | undefined = undefined;
+
+  if (rawAllowedSkillIds && rawAllowedSkillIds.size > 0) {
+    // Build ID → name mapping from installed skills
+    const installedSkills = await skillManager.getInstalledSkills();
+    const idToNameMap = new Map<string, string>();
+    for (const skill of installedSkills) {
+      // Map by skill ID (UUID)
+      if (skill.meta?.id) {
+        idToNameMap.set(skill.meta.id, skill.name);
+      }
+      // Also support direct name matching (for legacy data or builtin skills without ID)
+      idToNameMap.set(skill.name, skill.name);
+    }
+
+    // Convert UUIDs to names
+    allowedSkillNames = new Set<string>();
+    for (const skillId of rawAllowedSkillIds) {
+      const skillName = idToNameMap.get(skillId);
+      if (skillName) {
+        allowedSkillNames.add(skillName);
+      } else {
+        // Skill not found locally - may not be installed yet
+        mainWarn('ConversationSkillSync', `Skill "${skillId}" not found in installed skills, skipping`);
+      }
+    }
+  }
+
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), allowedSkillNames);
   const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
   const existingNames = new Set(existingEntries.map((entry) => entry.name));
   let removedCount = 0;
