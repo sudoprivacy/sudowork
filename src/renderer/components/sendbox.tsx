@@ -13,7 +13,7 @@ import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
-import { Button, Input, Message, Tag } from '@arco-design/web-react';
+import { Button, Input, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/slash/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +30,7 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, buildSkillDisplayName } from '@/renderer/utils/skillDisplay';
+import { iconColors } from '@/renderer/theme/colors';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -366,6 +367,35 @@ const SendBox: React.FC<{
     [skillSelectorController.filteredSkills]
   );
 
+  // Trigger skill selector via @ button (conversation interface)
+  const handleTriggerSkillSelector = useCallback(() => {
+    const newInput = input.trim() ? `${input} @` : '@';
+    setInput(newInput);
+    // Focus the textarea after setting input
+    setTimeout(() => {
+      const textarea = containerRef.current?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        const len = newInput.length;
+        textarea.setSelectionRange(len, len);
+      }
+    }, 0);
+  }, [input, setInput]);
+
+  // Skill trigger button - shown when running in Electron desktop
+  const skillTriggerButton = isElectronDesktop() ? (
+    <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
+      <Button className='sendbox-model-btn' shape='round' size='small' onClick={handleTriggerSkillSelector}>
+        <span className='flex items-center gap-6px min-w-0'>
+          <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
+            @
+          </span>
+          <span>{t('conversation.welcome.skill', { defaultValue: '技能' })}</span>
+        </span>
+      </Button>
+    </Tooltip>
+  ) : null;
+
   // 使用共享的输入法合成处理
   const { compositionHandlers, createKeyDownHandler } = useCompositionInput();
 
@@ -610,7 +640,7 @@ const SendBox: React.FC<{
           )}
         </div>
         <div className={isSingleLine ? 'flex items-center gap-2 w-full min-w-0 overflow-hidden' : 'w-full overflow-hidden'}>
-          {isSingleLine && <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'flex-shrink-0 sendbox-tools'}>{tools}</div>}
+          {isSingleLine && <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'flex-shrink-0 sendbox-tools flex items-center'}>{tools}{skillTriggerButton}</div>}
           <Input.TextArea
             autoFocus={!isMobile}
             disabled={disabled}
@@ -665,7 +695,7 @@ const SendBox: React.FC<{
         </div>
         {!isSingleLine && (
           <div className='flex items-center justify-between gap-2 w-full'>
-            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'sendbox-tools'}>{tools}</div>
+            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'sendbox-tools flex items-center'}>{tools}{skillTriggerButton}</div>
             <div className='flex items-center gap-2'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
