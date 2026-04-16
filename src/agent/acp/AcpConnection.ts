@@ -554,7 +554,7 @@ export class AcpConnection {
           // Check for end_turn message and extract usage data
           if (message.result && typeof message.result === 'object') {
             const promptResult = message.result as Record<string, unknown>;
-            if (promptResult.stopReason === 'end_turn') {
+            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
               this.onEndTurn();
             }
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
@@ -929,8 +929,94 @@ export class AcpConnection {
     return this.models;
   }
 
+  /**
+   * Cancel the current turn via ACP session/cancel.
+   * Sends the cancel notification and waits for the backend to confirm
+   * by responding to the pending session/prompt with stopReason: 'cancelled'.
+   * Falls back to disconnect() if the backend doesn't respond within timeout.
+   */
+  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'disconnected'> {
+    if (!this.child || !this.sessionId) {
+      await this.disconnect();
+      return 'disconnected';
+    }
+
+    // 1. Send session/cancel notification
+    this.sendMessage({
+      jsonrpc: JSONRPC_VERSION,
+      method: ACP_METHODS.SESSION_CANCEL,
+      params: { sessionId: this.sessionId },
+    });
+
+    // 2. Check if there's a pending session/prompt to wait for
+    const pendingPromptId = this.findPendingPromptRequestId();
+    if (pendingPromptId === null) {
+      // No pending prompt — cancel is a no-op, session is already idle
+      return 'cancelled';
+    }
+
+    // 3. Wait for the backend to respond to the pending prompt
+    //    (it should respond with stopReason: 'cancelled')
+    const resolved = await this.waitForRequestResolution(pendingPromptId, timeoutMs);
+
+    if (!resolved) {
+      // Backend didn't respond in time — force kill
+      await this.disconnect();
+      return 'disconnected';
+    }
+
+    return 'cancelled';
+  }
+
+  /** Find the request ID of a pending session/prompt request, if any. */
+  private findPendingPromptRequestId(): number | null {
+    for (const [id, request] of this.pendingRequests) {
+      if (request.method === 'session/prompt') return id;
+    }
+    return null;
+  }
+
+  /** Wait for a specific pending request to resolve/reject, with timeout. */
+  private waitForRequestResolution(requestId: number, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      // If already resolved (race), return immediately
+      if (!this.pendingRequests.has(requestId)) {
+        resolve(true);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        resolve(false); // Timed out
+      }, timeoutMs);
+
+      // Wrap the existing resolve/reject to detect completion
+      const pending = this.pendingRequests.get(requestId)!;
+      const origResolve = pending.resolve;
+      const origReject = pending.reject;
+
+      pending.resolve = (value: unknown) => {
+        clearTimeout(timer);
+        origResolve(value);
+        resolve(true);
+      };
+      pending.reject = (error: Error) => {
+        clearTimeout(timer);
+        origReject(error);
+        resolve(true);
+      };
+    });
+  }
+
   async disconnect(): Promise<void> {
     await this.terminateChild();
+
+    // Reject all pending requests so their callers' Promises settle
+    for (const [, request] of this.pendingRequests) {
+      if (request.timeoutId) {
+        clearTimeout(request.timeoutId);
+      }
+      request.reject(new Error('ACP connection disconnected'));
+    }
 
     // Reset session-level state
     this.pendingRequests.clear();
