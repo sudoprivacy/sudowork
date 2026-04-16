@@ -42,6 +42,8 @@ const TurnActions: React.FC<{ turnTexts: string[]; conversationId?: string }> = 
       if (res?.success && res.data) {
         Message.success(t('messages.convertSuccess', { defaultValue: 'Converted to Word successfully' }));
         emitter.emit('chat.history.refresh');
+        emitter.emit('acp.workspace.refresh');
+        emitter.emit('openclaw-gateway.workspace.refresh');
         void ipcBridge.shell.showItemInFolder.invoke(res.data);
       } else {
         Message.error(res?.msg || t('messages.convertFailed', { defaultValue: 'Failed to convert to Word' }));
