@@ -110,12 +110,18 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    * differences (macOS/Windows native recursive vs. Linux per-dir walk) are
    * handled transparently by the main-process bridge.
    */
+  // Minimum interval between dirChanged-triggered refreshes to prevent
+  // feedback loops on Windows where file system reads during getWorkspace
+  // (stat, readdir) can spuriously trigger further fs.watch events.
+  const lastDirRefreshAtRef = useRef(0);
+
   useEffect(() => {
     if (!workspace) return;
 
     let cancelled = false;
     let localWatchId: string | null = null;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const DIR_REFRESH_COOLDOWN_MS = 1000;
 
     const scheduleRefresh = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -125,6 +131,10 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
         if (cancelled) return;
+        // Skip if we refreshed recently — prevents the refresh → file reads
+        // → dirChanged → refresh loop that occurs on Windows.
+        if (Date.now() - lastDirRefreshAtRef.current < DIR_REFRESH_COOLDOWN_MS) return;
+        lastDirRefreshAtRef.current = Date.now();
         refreshRef.current();
       }, 200);
     };

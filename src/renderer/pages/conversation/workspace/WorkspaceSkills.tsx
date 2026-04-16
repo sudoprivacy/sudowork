@@ -345,12 +345,19 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   loadingCallbackRef.current = onLoadingChange;
   syncedCallbackRef.current = onSynced;
 
+  // Minimum interval between dirChanged-triggered scans to prevent feedback
+  // loops on Windows where file reads during scanForSkills can trigger
+  // further fs.watch events, causing infinite re-renders.
+  const lastScanAtRef = useRef(0);
+  const SCAN_COOLDOWN_MS = 2000;
+
   const scanBoth = useCallback(async () => {
     if (!workspace) {
       setSkills([]);
       return;
     }
     const mySeq = ++reqSeqRef.current;
+    lastScanAtRef.current = Date.now();
     setLoading(true);
     loadingCallbackRef.current?.(true);
     try {
@@ -387,16 +394,27 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   // file tree listens to. We don't need a separate watcher — the workspace
   // watcher already covers `skills/` and `.claude/skills/`.
   //
-  // When watchIdRef is provided, only react to events from the workspace
-  // watcher — not all watchers globally. This prevents a feedback loop where
-  // scanForSkills file reads trigger further dirChanged events.
+  // IMPORTANT: Block ALL events when watchIdRef is not yet set — mirrors the
+  // guard in workspace/index.tsx. The previous condition
+  // `if (watchIdRef?.current && ...)` had an inverted check that passed
+  // ALL events through when watchIdRef was null, causing an infinite loop
+  // during initial mount (before the workspace watcher resolved).
+  //
+  // Additionally, enforce a minimum interval between dirChanged-triggered
+  // scans to prevent feedback loops on Windows where file system reads
+  // (stat, readdir, readFile) during scanForSkills can spuriously trigger
+  // further fs.watch events.
   useEffect(() => {
     const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
-      // Filter by workspace watchId when available to avoid global feedback loop
-      if (watchIdRef?.current && payload.watchId !== watchIdRef.current) return;
+      // Block events when the workspace watcher hasn't been set up yet, or
+      // when the event comes from a different watcher (e.g. one created by
+      // a scanForSkills call on the backend).
+      if (!watchIdRef?.current || payload.watchId !== watchIdRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
+        // Skip if a scan ran recently — prevents the scan → dirChanged → scan loop
+        if (Date.now() - lastScanAtRef.current < SCAN_COOLDOWN_MS) return;
         void scanBoth();
       }, 250);
     });
