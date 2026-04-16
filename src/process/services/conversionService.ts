@@ -5,7 +5,6 @@
  */
 
 import type { ConversionResult, ExcelWorkbookData, PPTJsonData, PPTSlideData } from '@/common/types/conversion';
-import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { DOMParser } from '@xmldom/xmldom';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
@@ -308,11 +307,8 @@ class ConversionService {
         return { success: false, error: 'Workspace not found for this conversation' };
       }
 
-      const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
-      await fs.mkdir(draftsDir, { recursive: true });
-
       const name = fileName || `AI_Response_${Date.now()}.docx`;
-      const targetPath = path.join(draftsDir, name);
+      const targetPath = path.join(workspace, name);
 
       const { documentConverter } = await import('../../common/document/DocumentConverter');
       const arrayBuffer = await documentConverter.markdownToWord(markdown);
