@@ -26,7 +26,7 @@ import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService'
 import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
-import { buildDraftsInstruction } from './agentUtils';
+import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import * as nodePath from 'node:path';
 import { ProcessConfig } from '@process/initStorage';
@@ -392,17 +392,32 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         return await this.handleImageCommand(imageMatch[1].trim());
       }
 
-      // On the first message, prepend a workspace directive so the agent uses the
-      // per-conversation workspace dir for all file operations and bash commands.
-      // Also inject drafts instruction for intermediate file management.
+      // On the first message, prepend system instructions:
+      // 1. MCP tool discovery guidance (if MCP servers are configured)
+      // 2. Workspace directive (if workspace is set)
+      // 3. Drafts instruction for intermediate file management (if workspace is set)
       let processedContent = data.agentContent || data.content;
-      if (this.isFirstMessage && this.workspace) {
+      if (this.isFirstMessage) {
         this.isFirstMessage = false;
-        const configuredWorkspace = getSudoclawWorkspaceRoot();
-        const draftsInstruction = buildDraftsInstruction(this.workspace);
-        processedContent = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}\n\n` + processedContent;
-      } else {
-        this.isFirstMessage = false;
+
+        const systemInstructions: string[] = [];
+
+        // MCP tool discovery - only inject if MCP servers are configured
+        if (hasMcpServersConfigured()) {
+          systemInstructions.push(buildMcporterCommandHint());
+        }
+
+        // Workspace directive - tell agent to use per-conversation workspace
+        if (this.workspace) {
+          const configuredWorkspace = getSudoclawWorkspaceRoot();
+          const draftsInstruction = buildDraftsInstruction(this.workspace);
+          systemInstructions.push(`[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}`);
+        }
+
+        // Combine all instructions
+        if (systemInstructions.length > 0) {
+          processedContent = `${systemInstructions.join('\n\n')}\n\n${processedContent}`;
+        }
       }
 
       // Process file references
