@@ -662,10 +662,150 @@ class McporterService {
       }
     }
 
+    // 创建 wrapper script（让用户可以直接用 mcporter 命令）
+    this.ensureWrapperCreated();
+
     await this.syncConfig(servers);
     await this.startDaemon();
 
     mainLog('McporterService', 'mcporter initialized');
+  }
+
+  /**
+   * Wrapper script 目录（复用 sudoclaw 的 bin 目录）
+   */
+  private getBinDir(): string {
+    return path.join(os.homedir(), '.nexus', 'bin');
+  }
+
+  /**
+   * 确保 wrapper script 已创建（让用户可以直接用 mcporter 命令）
+   */
+  private ensureWrapperCreated(): void {
+    if (!app.isPackaged) {
+      // 开发模式不需要创建 wrapper（用户用 npx mcporter）
+      return;
+    }
+
+    const cliPath = this.getMcporterCliPath();
+    if (!cliPath) {
+      mainWarn('McporterService', 'CLI not available, skipping wrapper creation');
+      return;
+    }
+
+    const binDir = this.getBinDir();
+    if (!existsSync(binDir)) {
+      mkdirSync(binDir, { recursive: true });
+    }
+
+    const isWindows = process.platform === 'win32';
+    const wrapperPath = isWindows ? path.join(binDir, 'mcporter.cmd') : path.join(binDir, 'mcporter');
+
+    if (existsSync(wrapperPath)) {
+      // 已存在，检查是否需要更新（CLI 路径是否正确）
+      const existingContent = require('fs').readFileSync(wrapperPath, 'utf-8');
+      if (existingContent.includes(cliPath)) {
+        mainLog('McporterService', 'Wrapper already exists and is up-to-date');
+        return;
+      }
+    }
+
+    mainLog('McporterService', 'Creating wrapper at:', wrapperPath);
+
+    if (isWindows) {
+      this.createWindowsWrapper(cliPath, wrapperPath);
+    } else {
+      this.createUnixWrapper(cliPath, wrapperPath);
+    }
+
+    mainLog('McporterService', 'Wrapper created successfully');
+  }
+
+  /**
+   * 创建 Windows wrapper script (.cmd)
+   */
+  private createWindowsWrapper(cliPath: string, wrapperPath: string): void {
+    const nodePath = getNodeBinaryPath();
+    const lines = [
+      '@echo off',
+      'setlocal',
+      `set "MCPORTER_CONFIG=${this.configPath}"`,
+      `set "CLI=${cliPath}"`,
+      '',
+      ':: 1. Bundled Node.js (from Sudowork)',
+      `set "BUNDLED_NODE=${nodePath}"`,
+      'if exist "%BUNDLED_NODE%" (',
+      '  "%BUNDLED_NODE%" "%CLI%" %*',
+      '  exit /b %ERRORLEVEL%',
+      ')',
+      '',
+      ':: 2. Electron as Node',
+      'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"',
+      'set "ELECTRON="',
+      'if exist "%ELECTRON_PATH_FILE%" (',
+      '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"',
+      ')',
+      'if defined ELECTRON (',
+      '  if exist "!ELECTRON!" (',
+      '    set ELECTRON_RUN_AS_NODE=1',
+      '    "!ELECTRON!" "%CLI%" %*',
+      '    exit /b %ERRORLEVEL%',
+      '  )',
+      ')',
+      '',
+      ':: 3. Fallback: system Node.js',
+      'where node >nul 2>nul',
+      'if %ERRORLEVEL% equ 0 (',
+      '  node "%CLI%" %*',
+      '  exit /b %ERRORLEVEL%',
+      ')',
+      '',
+      'echo Error: Node.js not found. Please install Node.js or open Sudowork to refresh paths.',
+      'exit /b 1',
+    ];
+
+    require('fs').writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
+  }
+
+  /**
+   * 创建 Unix wrapper script (macOS/Linux)
+   */
+  private createUnixWrapper(cliPath: string, wrapperPath: string): void {
+    const nodePath = getNodeBinaryPath();
+    const lines = [
+      '#!/bin/sh',
+      '# mcporter wrapper — managed by Sudowork',
+      `MCPORTER_CONFIG="${this.configPath}"`,
+      `CLI="${cliPath}"`,
+      '',
+      '# 1. Bundled Node.js (from Sudowork)',
+      `BUNDLED_NODE="${nodePath}"`,
+      'if [ -x "$BUNDLED_NODE" ]; then',
+      '  export MCPORTER_CONFIG',
+      '  exec "$BUNDLED_NODE" "$CLI" "$@"',
+      'fi',
+      '',
+      '# 2. Electron as Node',
+      'ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"',
+      'if [ -f "$ELECTRON_PATH_FILE" ]; then',
+      '  ELECTRON=$(cat "$ELECTRON_PATH_FILE")',
+      '  if [ -x "$ELECTRON" ]; then',
+      '    export MCPORTER_CONFIG',
+      '    ELECTRON_RUN_AS_NODE=1 exec "$ELECTRON" "$CLI" "$@"',
+      '  fi',
+      'fi',
+      '',
+      '# 3. Fallback: system Node.js',
+      'if command -v node >/dev/null 2>&1; then',
+      '  export MCPORTER_CONFIG',
+      '  exec node "$CLI" "$@"',
+      'fi',
+      '',
+      'echo "Error: Node.js not found. Please install Node.js or open Sudowork to refresh paths."',
+      'exit 1',
+    ];
+
+    require('fs').writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
   }
 
   /**
