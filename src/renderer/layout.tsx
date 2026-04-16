@@ -13,7 +13,7 @@ import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
 import { useDeepLink } from './hooks/useDeepLink';
@@ -269,8 +269,17 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
 
+  // Memoize the context value to prevent unnecessary re-renders of all
+  // LayoutContext consumers when unrelated state (e.g. viewportWidth) changes.
+  // Without this, every resize event creates a new object reference, causing
+  // all consumers (including ChatWorkspace) to re-render.
+  const layoutContextValue = useMemo(
+    () => ({ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }),
+    [isMobile, collapsed, setCollapsed]
+  );
+
   return (
-    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
+    <LayoutContext.Provider value={layoutContextValue}>
       <div className='app-shell relative flex flex-col size-full min-h-0'>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}

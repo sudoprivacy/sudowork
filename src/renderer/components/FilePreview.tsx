@@ -47,32 +47,52 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   const fileExt = getFileExtension(path).toUpperCase().replace('.', '');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [fileSize, setFileSize] = useState<string>('');
+  // Track whether the file was not found (ENOENT) so we don't retry on
+  // remount and avoid spamming the backend with repeated IPC calls for a
+  // file that doesn't exist.
+  const [fileError, setFileError] = useState(false);
 
   useEffect(() => {
     // bdpan:// paths are remote — skip local fs operations
     if (path.startsWith('bdpan://')) return;
 
+    // Reset error state when path changes
+    setFileError(false);
+
+    let cancelled = false;
+
     // 获取文件大小
     ipcBridge.fs.getFileMetadata
       .invoke({ path })
       .then((metadata) => {
-        setFileSize(formatFileSize(metadata.size));
+        if (!cancelled) setFileSize(formatFileSize(metadata.size));
       })
       .catch((error) => {
-        console.error('[FilePreview] Failed to get file metadata:', { path, error });
+        if (!cancelled) {
+          console.error('[FilePreview] Failed to get file metadata:', { path, error });
+          setFileError(true);
+        }
       });
 
     // 如果是图片，获取图片的base64
+    // If it's an image, get its base64 data
     if (isImage) {
       ipcBridge.fs.getImageBase64
         .invoke({ path })
         .then((base64) => {
-          setImageUrl(base64);
+          if (!cancelled) setImageUrl(base64);
         })
         .catch((error) => {
-          console.error('[FilePreview] Failed to load image:', { path, error });
+          if (!cancelled) {
+            console.error('[FilePreview] Failed to load image:', { path, error });
+            setFileError(true);
+          }
         });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [path, isImage]);
 
   const handleRemove = (e: React.MouseEvent) => {
@@ -84,8 +104,11 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
     return (
       <div className='relative inline-block'>
         <div className='rd-8px overflow-hidden border-1 border-solid b-color-border-2'>
-          <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' style={{ display: imageUrl ? 'block' : 'none' }} preview={imageUrl ? true : false} />
-          {!imageUrl && <div className='w-60px h-60px bg-bg-3'></div>}
+          {imageUrl ? (
+            <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview />
+          ) : (
+            <div className='w-60px h-60px bg-bg-3'></div>
+          )}
         </div>
         {!readonly && (
           <div className='absolute -top-4px -right-4px w-16px h-16px rd-50% bg-white dark:bg-gray-700 cursor-pointer flex items-center justify-center shadow-md hover:shadow-lg transition-all z-10 border-1 border-solid border-gray-200 dark:border-gray-600' onClick={handleRemove}>
