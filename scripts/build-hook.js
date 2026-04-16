@@ -59,13 +59,7 @@ function buildPythonSafetyHook() {
 
   // Check if hook source exists
   if (!fs.existsSync(hookDir)) {
-    console.log('⚠️  hook/python directory not found, skipping hook build');
-    return true;
-  }
-
-  // Skip build if dist already exists
-  if (fs.existsSync(hookDist)) {
-    console.log('✅ Python safety hook already built (skipping)');
+    console.log('⚠️  hook/node directory not found, skipping hook build');
     return true;
   }
 
