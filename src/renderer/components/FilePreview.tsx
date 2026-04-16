@@ -47,19 +47,31 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   const fileExt = getFileExtension(path).toUpperCase().replace('.', '');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [fileSize, setFileSize] = useState<string>('');
+  // Track whether the file was not found (ENOENT) so we don't retry on
+  // remount and avoid spamming the backend with repeated IPC calls for a
+  // file that doesn't exist.
+  const [fileError, setFileError] = useState(false);
 
   useEffect(() => {
     // bdpan:// paths are remote — skip local fs operations
     if (path.startsWith('bdpan://')) return;
 
+    // Reset error state when path changes
+    setFileError(false);
+
+    let cancelled = false;
+
     // 获取文件大小
     ipcBridge.fs.getFileMetadata
       .invoke({ path })
       .then((metadata) => {
-        setFileSize(formatFileSize(metadata.size));
+        if (!cancelled) setFileSize(formatFileSize(metadata.size));
       })
       .catch((error) => {
-        console.error('[FilePreview] Failed to get file metadata:', { path, error });
+        if (!cancelled) {
+          console.error('[FilePreview] Failed to get file metadata:', { path, error });
+          setFileError(true);
+        }
       });
 
     // 如果是图片，获取图片的base64
@@ -68,12 +80,19 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
       ipcBridge.fs.getImageBase64
         .invoke({ path })
         .then((base64) => {
-          setImageUrl(base64);
+          if (!cancelled) setImageUrl(base64);
         })
         .catch((error) => {
-          console.error('[FilePreview] Failed to load image:', { path, error });
+          if (!cancelled) {
+            console.error('[FilePreview] Failed to load image:', { path, error });
+            setFileError(true);
+          }
         });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [path, isImage]);
 
   const handleRemove = (e: React.MouseEvent) => {

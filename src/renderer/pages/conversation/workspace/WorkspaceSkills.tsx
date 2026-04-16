@@ -58,6 +58,12 @@ export interface WorkspaceSkillsProps {
   onLoadingChange?: (loading: boolean) => void;
   /** Notifies the parent that a refresh cycle just finished. */
   onSynced?: () => void;
+  /**
+   * Ref to the workspace directory watcher ID. When provided, dirChanged
+   * events are filtered to only this watcher — preventing a global feedback
+   * loop where scanForSkills file reads trigger more dirChanged events.
+   */
+  watchIdRef?: React.RefObject<string | null>;
 }
 
 export interface WorkspaceSkillsHandle {
@@ -328,7 +334,7 @@ const SkillIconGraphic: React.FC<{
   return <Icon theme='outline' size='16' fill={fillColor} />;
 };
 
-const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced }, ref) => {
+const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced, watchIdRef }, ref) => {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -380,8 +386,14 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   // inotify-style auto-refresh: piggyback on the same `dirChanged` stream the
   // file tree listens to. We don't need a separate watcher — the workspace
   // watcher already covers `skills/` and `.claude/skills/`.
+  //
+  // When watchIdRef is provided, only react to events from the workspace
+  // watcher — not all watchers globally. This prevents a feedback loop where
+  // scanForSkills file reads trigger further dirChanged events.
   useEffect(() => {
-    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
+      // Filter by workspace watchId when available to avoid global feedback loop
+      if (watchIdRef?.current && payload.watchId !== watchIdRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
