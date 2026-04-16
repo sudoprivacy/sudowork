@@ -267,10 +267,7 @@ export function useCronJobsMap() {
   const setActiveConversation = useCallback((_conversationId: string) => {}, []);
   const hasUnread = useCallback((_conversationId: string) => false, []);
 
-  return useMemo(
-    () => ({ getJobStatus, markAsRead, setActiveConversation, hasUnread }),
-    [getJobStatus, markAsRead, setActiveConversation, hasUnread]
-  );
+  return useMemo(() => ({ getJobStatus, markAsRead, setActiveConversation, hasUnread }), [getJobStatus, markAsRead, setActiveConversation, hasUnread]);
 }
 
 export default useCronJobs;

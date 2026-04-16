@@ -144,7 +144,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       scheduleRefresh();
     });
 
-    (async () => {
+    void (async () => {
       try {
         const res = await ipcBridge.fileWatch.startWatchDir.invoke({ dirPath: workspace, recursive: true });
         if (cancelled) {

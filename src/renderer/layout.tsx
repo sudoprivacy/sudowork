@@ -273,10 +273,7 @@ const Layout: React.FC<{
   // LayoutContext consumers when unrelated state (e.g. viewportWidth) changes.
   // Without this, every resize event creates a new object reference, causing
   // all consumers (including ChatWorkspace) to re-render.
-  const layoutContextValue = useMemo(
-    () => ({ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }),
-    [isMobile, collapsed, setCollapsed]
-  );
+  const layoutContextValue = useMemo(() => ({ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [isMobile, collapsed, setCollapsed]);
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>

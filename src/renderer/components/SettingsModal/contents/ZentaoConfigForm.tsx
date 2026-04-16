@@ -316,7 +316,7 @@ export const ZentaoChannelItem: React.FC = () => {
         setEnableLoading(false);
       }
     },
-    [pluginStatus, loadPluginStatus, t],
+    [pluginStatus, loadPluginStatus, t]
   );
 
   const channelConfig: ChannelConfig = {

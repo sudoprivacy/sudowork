@@ -359,6 +359,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     if (!folderName) return;
 
     // Validate folder name characters
+    // eslint-disable-next-line no-control-regex
     const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1f]/;
     if (invalidCharsRegex.test(folderName)) {
       Message.error(t('conversation.workspace.newFolder.invalidName'));
@@ -381,7 +382,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       if (result) {
         Message.success(t('conversation.workspace.newFolder.success'));
         setNewFolderModal({ visible: false, name: '', parentPath: '' });
-        treeHook.refreshWorkspace();
+        void treeHook.refreshWorkspace();
       } else {
         Message.error(t('conversation.workspace.newFolder.failed'));
       }
@@ -1141,7 +1142,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               onClick={(event) => {
                 event.stopPropagation();
                 if (activeTab === 'files') {
-                  treeHook.refreshWorkspace();
+                  void treeHook.refreshWorkspace();
                 } else {
                   void skillsHandleRef.current?.refresh();
                 }

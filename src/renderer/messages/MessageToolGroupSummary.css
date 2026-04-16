@@ -42,7 +42,9 @@
   border-radius: 12px;
   background: var(--color-bg-1, #ffffff);
   overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .tool-steps-card:hover {
@@ -319,7 +321,9 @@
   color: var(--color-text-4, #c9cdd4);
   flex-shrink: 0;
   cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .tool-step-row__toggle:hover {

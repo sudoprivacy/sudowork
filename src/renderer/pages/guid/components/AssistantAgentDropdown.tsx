@@ -9,6 +9,7 @@
  * Shown on the right side of the assistant header in the GUID page.
  */
 
+import type { AcpBackend } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';
@@ -48,7 +49,7 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
 
   // Filter options to only show available agents, plus extension agents
   const filteredOptions = useMemo(() => {
-    const builtinFiltered = BUILTIN_AGENT_OPTIONS.filter((opt) => availableBackends.has(opt.backendId || opt.value));
+    const builtinFiltered = BUILTIN_AGENT_OPTIONS.filter((opt) => availableBackends.has((opt.backendId ?? opt.value) as AcpBackend));
 
     // Add extension-contributed agents
     const extensionOptions: AgentOption[] = availableAgents

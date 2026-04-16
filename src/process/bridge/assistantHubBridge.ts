@@ -4,8 +4,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
-import type { IBridgeResponse } from '@/common/ipcBridge';
+import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
@@ -220,23 +219,17 @@ export function initAssistantHubBridge(): void {
 
   ipcBridge.assistantHub.enableAssistant.provider(async ({ name }) => {
     const result = await assistantManager.enableAssistant(name);
-    return result.success
-      ? { success: true, data: undefined }
-      : { success: false, msg: result.msg };
+    return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
   ipcBridge.assistantHub.disableAssistant.provider(async ({ name }) => {
     const result = await assistantManager.disableAssistant(name);
-    return result.success
-      ? { success: true, data: undefined }
-      : { success: false, msg: result.msg };
+    return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
   ipcBridge.assistantHub.updateAssistantMeta.provider(async ({ name, updates }) => {
     const result = await assistantManager.updateAssistantMeta(name, updates);
-    return result.success
-      ? { success: true, data: undefined }
-      : { success: false, msg: result.msg };
+    return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
   ipcBridge.assistantHub.getAssistantMeta.provider(async ({ name }) => {
@@ -251,16 +244,12 @@ export function initAssistantHubBridge(): void {
 
   ipcBridge.assistantHub.createAssistant.provider(async ({ meta, ruleContent }) => {
     const result = await assistantManager.createAssistant(meta, ruleContent);
-    return result.success
-      ? { success: true, data: undefined }
-      : { success: false, msg: result.msg };
+    return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
   ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name }) => {
     const result = await assistantManager.uninstallAssistant(name);
-    return result.success
-      ? { success: true, data: undefined }
-      : { success: false, msg: result.msg };
+    return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
   // === Hub API operations ===
@@ -284,29 +273,31 @@ export function initAssistantHubBridge(): void {
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
 
-      const mappedAssistants = rawAssistants.map((a: Record<string, unknown>): IAssistantHubSkill => ({
-        id: a.id as string,
-        name: a.name as string,
-        display_name: (a.profession as string) || (a.name as string),
-        description: a.description as string,
-        avatar: a.avatar as string | null,
-        emoji: null as string | null,
-        // Use categories array from API (may be null)
-        categories: (a.categories as string[]) || [],
-        category: ((a.categories as string[]) || [])[0] || '',
-        preset_agent_type: null as string | null,
-        skills: (a.skills as string[]) || [] as string[],
-        tag: 'hub' as const,
-        homepage: null as string | null,
-        author_id: '',
-        star_count: 0,
-        applicable_scenarios: null as string | null,
-        core_features: null as string | null,
-        created_at: a.createdAt as string,
-        updated_at: a.updatedAt as string,
-        // Store sourceUrl for download (not in original type but needed for install)
-        _sourceUrl: a.sourceUrl as string,
-      }));
+      const mappedAssistants = rawAssistants.map(
+        (a: Record<string, unknown>): IAssistantHubSkill => ({
+          id: a.id as string,
+          name: a.name as string,
+          display_name: (a.profession as string) || (a.name as string),
+          description: a.description as string,
+          avatar: a.avatar as string | null,
+          emoji: null as string | null,
+          // Use categories array from API (may be null)
+          categories: (a.categories as string[]) || [],
+          category: ((a.categories as string[]) || [])[0] || '',
+          preset_agent_type: null as string | null,
+          skills: (a.skills as string[]) || ([] as string[]),
+          tag: 'hub' as const,
+          homepage: null as string | null,
+          author_id: '',
+          star_count: 0,
+          applicable_scenarios: null as string | null,
+          core_features: null as string | null,
+          created_at: a.createdAt as string,
+          updated_at: a.updatedAt as string,
+          // Store sourceUrl for download (not in original type but needed for install)
+          _sourceUrl: a.sourceUrl as string,
+        })
+      );
 
       const mappedData = {
         assistants: mappedAssistants,
@@ -497,7 +488,9 @@ export function initAssistantHubBridge(): void {
               try {
                 await fs.access(skillDir);
                 await fs.rm(skillDir, { recursive: true, force: true });
-              } catch { }
+              } catch {
+                // ignored
+              }
 
               await fs.mkdir(skillDir, { recursive: true });
 
@@ -730,11 +723,7 @@ export function registerUploadAssistantToHubBridge() {
       if (avatarFilePath) {
         const avatarContent = await fs.readFile(avatarFilePath);
         const avatarExt = path.extname(avatarFilePath).toLowerCase();
-        const avatarMimeType = avatarExt === '.png' ? 'image/png' :
-          avatarExt === '.jpg' || avatarExt === '.jpeg' ? 'image/jpeg' :
-          avatarExt === '.svg' ? 'image/svg+xml' :
-          avatarExt === '.webp' ? 'image/webp' :
-          avatarExt === '.gif' ? 'image/gif' : 'application/octet-stream';
+        const avatarMimeType = avatarExt === '.png' ? 'image/png' : avatarExt === '.jpg' || avatarExt === '.jpeg' ? 'image/jpeg' : avatarExt === '.svg' ? 'image/svg+xml' : avatarExt === '.webp' ? 'image/webp' : avatarExt === '.gif' ? 'image/gif' : 'application/octet-stream';
         const avatarBlob = new Blob([new Uint8Array(avatarContent)], { type: avatarMimeType });
         formData.append('avatar', avatarBlob, path.basename(avatarFilePath));
       }
@@ -750,7 +739,7 @@ export function registerUploadAssistantToHubBridge() {
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          'Authorization': AUTHORIZATION,
+          Authorization: AUTHORIZATION,
         },
         body: formData,
       });

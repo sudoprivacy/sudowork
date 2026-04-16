@@ -118,10 +118,7 @@ function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { api
 }
 
 async function invokeWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    fn(),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs)),
-  ]);
+  return Promise.race([fn(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs))]);
 }
 
 async function ensureSudoclawHasApiKey(): Promise<boolean> {

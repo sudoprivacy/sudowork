@@ -27,9 +27,11 @@ const SecretModalContent: React.FC = () => {
   const [jsbEnabled, setJsbEnabled] = useState(false);
 
   useEffect(() => {
-    ConfigStorage.get('settings.jsb.enabled').then((val) => {
-      if (typeof val === 'boolean') setJsbEnabled(val);
-    }).catch(() => {});
+    ConfigStorage.get('settings.jsb.enabled')
+      .then((val) => {
+        if (typeof val === 'boolean') setJsbEnabled(val);
+      })
+      .catch(() => {});
   }, []);
 
   const handleJsbToggle = useCallback(async (checked: boolean) => {
@@ -71,13 +73,26 @@ const SecretModalContent: React.FC = () => {
                     <img src={jianshekuLogo} alt='Jiansheku' className='w-14px h-14px rd-3px shrink-0' />
                     <span className='text-14px text-t-primary'>{t('settings.secrets.jsbTitle', '建设库')}</span>
                   </div>
-                  <Switch size='small' checked={jsbEnabled} onChange={(checked) => { handleJsbToggle(checked); }} onClick={(e) => e.stopPropagation()} />
+                  <Switch
+                    size='small'
+                    checked={jsbEnabled}
+                    onChange={(checked) => {
+                      void handleJsbToggle(checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 </div>
               }
               name='jsb'
               className='[&_div.arco-collapse-item-content-box]:py-3'
             >
-              <JsbConfigForm disabled={jsbEnabled} onSaveSuccess={() => { setJsbEnabled(true); void ConfigStorage.set('settings.jsb.enabled', true); }} />
+              <JsbConfigForm
+                disabled={jsbEnabled}
+                onSaveSuccess={() => {
+                  setJsbEnabled(true);
+                  void ConfigStorage.set('settings.jsb.enabled', true);
+                }}
+              />
             </Collapse.Item>
           </Collapse>
 

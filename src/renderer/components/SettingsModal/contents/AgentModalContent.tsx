@@ -114,10 +114,7 @@ const InstalledAssistantCard: React.FC<{
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
 
   return (
-    <div
-      className={classNames('group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')}
-      onClick={onClick}
-    >
+    <div className={classNames('group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar + toggle */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -148,9 +145,7 @@ const InstalledAssistantCard: React.FC<{
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
         </div>
-        <div className='mt-3px min-h-30px'>
-          {description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{assistant.id}</div>}
-        </div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{assistant.id}</div>}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
@@ -484,11 +479,7 @@ const AssistantDetailModal: React.FC<{
                       <Lightning size='14' className='text-primary' />
                       <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
                       <span className='text-12px text-t-tertiary'>({relatedSkillDetails.length})</span>
-                      {installedSkillCount > 0 && (
-                        <span className='text-12px text-t-tertiary'>
-                          · {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}
-                        </span>
-                      )}
+                      {installedSkillCount > 0 && <span className='text-12px text-t-tertiary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
                     </div>
                     {loadingSkills ? (
                       <div className='text-center text-t-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
@@ -507,9 +498,7 @@ const AssistantDetailModal: React.FC<{
                             skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
                           } else {
                             // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://')
-                              ? `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}`
-                              : skill.icon;
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
                           }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
@@ -531,17 +520,13 @@ const AssistantDetailModal: React.FC<{
                                 </div>
                                 <div className='text-11px text-t-tertiary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-t-secondary'}`}>
-                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
-                              </span>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-t-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <div className='mt-12px text-11px text-t-tertiary'>
-                      {t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}
-                    </div>
+                    <div className='mt-12px text-11px text-t-tertiary'>{t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}</div>
                   </div>
                 )}
               </div>
@@ -557,9 +542,7 @@ const AssistantDetailModal: React.FC<{
                 {t('settings.skill.goUse', { defaultValue: '去使用' })}
               </Button>
             ) : !hasDownloadUrl ? (
-              <div className='flex-1 text-center text-t-secondary text-13px py-12px'>
-                {t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}
-              </div>
+              <div className='flex-1 text-center text-t-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}</div>
             ) : installing ? (
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
@@ -759,11 +742,14 @@ const AgentModalContent: React.FC = () => {
   hubSearchQueryRef.current = hubSearchQuery;
 
   // Resolve tenant ID for exclusive tab
-  const resolveAssistantTenantId = useCallback((tab: AssistantStoreTab): string | undefined => {
-    const normalized = enterpriseCode;
-    if (tab !== 'exclusive' || !normalized) return undefined;
-    return normalized;
-  }, [enterpriseCode]);
+  const resolveAssistantTenantId = useCallback(
+    (tab: AssistantStoreTab): string | undefined => {
+      const normalized = enterpriseCode;
+      if (tab !== 'exclusive' || !normalized) return undefined;
+      return normalized;
+    },
+    [enterpriseCode]
+  );
 
   const currentAssistantTenantId = resolveAssistantTenantId(activeTab);
 
@@ -949,17 +935,16 @@ const AgentModalContent: React.FC = () => {
 
   const sortAssistants = useCallback((agents: AssistantListItem[]) => {
     const builtinOrder = ['builtin-copilot', 'builtin-sudoclaw-doctor'];
-    return agents
-      .sort((a, b) => {
-        const indexA = builtinOrder.indexOf(a.id);
-        const indexB = builtinOrder.indexOf(b.id);
-        if (indexA !== -1 || indexB !== -1) {
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          return indexA - indexB;
-        }
-        return 0;
-      });
+    return agents.sort((a, b) => {
+      const indexA = builtinOrder.indexOf(a.id);
+      const indexB = builtinOrder.indexOf(b.id);
+      if (indexA !== -1 || indexB !== -1) {
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      }
+      return 0;
+    });
   }, []);
 
   const loadAssistants = useCallback(async () => {
@@ -1195,15 +1180,18 @@ const AgentModalContent: React.FC = () => {
   }, [duplicateAssistant, duplicateInstalledAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t]);
 
   // Open upload confirm modal for custom assistant
-  const handleUploadAssistant = useCallback((assistant: AssistantListItem) => {
-    // Check tenantId - required for upload
-    if (!enterpriseCode) {
-      agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
-      return;
-    }
-    setUploadAssistant(assistant);
-    setUploadConfirmVisible(true);
-  }, [enterpriseCode, t]);
+  const handleUploadAssistant = useCallback(
+    (assistant: AssistantListItem) => {
+      // Check tenantId - required for upload
+      if (!enterpriseCode) {
+        agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
+        return;
+      }
+      setUploadAssistant(assistant);
+      setUploadConfirmVisible(true);
+    },
+    [enterpriseCode, t]
+  );
 
   // Upload assistant to Hub
   const handleUploadConfirm = useCallback(async () => {
@@ -1462,18 +1450,7 @@ const AgentModalContent: React.FC = () => {
   const renderAssistantGrid = (list: AssistantListItem[]) => (
     <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => (
-        <InstalledAssistantCard
-          key={assistant.id}
-          assistant={assistant}
-          isExtension={isExtensionAssistant(assistant)}
-          localeKey={localeKey}
-          avatarImageMap={avatarImageMap}
-          onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
-          onDelete={() => void handleDeleteFromCard(assistant)}
-          onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
-          onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
-          onClick={() => void handleEdit(assistant)}
-        />
+        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} />
       ))}
     </div>
   );
@@ -1507,11 +1484,7 @@ const AgentModalContent: React.FC = () => {
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
-          <button
-            type='button'
-            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
-            onClick={() => void handleCreate()}
-          >
+          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleCreate()}>
             <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <Plus size='13' />
             </span>
@@ -1625,11 +1598,7 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-t-primary'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                 </div>
-                {customAssistants.length > 0 ? (
-                  renderAssistantGrid(customAssistants)
-                ) : (
-                  <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>
-                )}
+                {customAssistants.length > 0 ? renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
               </section>
 
               {/* Hub/store assistants section */}
@@ -1638,11 +1607,7 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-t-primary'>{t('settings.hubAssistants', { defaultValue: '商店助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                 </div>
-                {hubAssistants.length > 0 ? (
-                  renderAssistantGrid(hubAssistants)
-                ) : (
-                  <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>
-                )}
+                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
               </section>
 
               {/* Builtin assistants section */}
@@ -1651,11 +1616,7 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-t-primary'>{t('settings.builtinAssistants', { defaultValue: '内置助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinAssistants.length}</span>
                 </div>
-                {builtinAssistants.length > 0 ? (
-                  renderAssistantGrid(builtinAssistants)
-                ) : (
-                  <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>
-                )}
+                {builtinAssistants.length > 0 ? renderAssistantGrid(builtinAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>}
               </section>
             </div>
           )}
@@ -1953,10 +1914,8 @@ const AgentModalContent: React.FC = () => {
           <div className='mt-12px p-12px bg-primary-light rounded-lg'>
             <div className='text-12px text-primary'>
               {t('settings.duplicateAssistantNameHint', {
-                name: duplicateAssistant
-                  ? duplicateAssistant.display_name || duplicateAssistant.name
-                  : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
-                defaultValue: `复制后的助手名称: 自定义-${duplicateAssistant ? (duplicateAssistant.display_name || duplicateAssistant.name) : (duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name)}`,
+                name: duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
+                defaultValue: `复制后的助手名称: 自定义-${duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name}`,
               })}
             </div>
           </div>

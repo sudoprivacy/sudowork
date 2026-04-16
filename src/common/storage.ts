@@ -153,6 +153,8 @@ export interface IConfigStorageRefer {
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
   'safetyHook.blacklist'?: import('./safetyTypes').BlacklistConfig;
+  // 建设库 enabled state / 建设库启用状态
+  'settings.jsb.enabled'?: boolean;
   // LLM request timeout in seconds / LLM 请求超时（秒）
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收

@@ -93,13 +93,7 @@ function toSkillItem(skillPath: string, parsed: { name?: string; description?: s
  */
 function isRelativePath(url: string): boolean {
   if (!url) return false;
-  return !url.startsWith('http://') &&
-    !url.startsWith('https://') &&
-    !url.startsWith('data:') &&
-    !url.startsWith('/') &&
-    !url.startsWith('aion-asset://') &&
-    !url.startsWith('file://') &&
-    !url.startsWith('./');
+  return !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:') && !url.startsWith('/') && !url.startsWith('aion-asset://') && !url.startsWith('file://') && !url.startsWith('./');
 }
 
 function resolveDeclaredIconUrl(skillPath: string, icon?: string): string | undefined {

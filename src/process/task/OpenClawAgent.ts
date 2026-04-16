@@ -28,6 +28,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
+import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import * as nodePath from 'node:path';
 import { ProcessConfig } from '@process/initStorage';
 
@@ -809,6 +810,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         let status: 'pending' | 'in_progress' | 'completed' | 'failed';
         if (toolData.phase === 'result') {
           status = toolData.isError ? 'failed' : 'completed';
+          if (status === 'completed' && inferToolFailure(toolData.content, toolData.meta)) {
+            status = 'failed';
+          }
         } else {
           status = phaseToStatus[toolData.phase ?? ''] ?? ((toolData.status as 'pending' | 'in_progress' | 'completed' | 'failed') || 'pending');
         }

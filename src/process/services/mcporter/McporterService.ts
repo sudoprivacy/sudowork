@@ -151,9 +151,12 @@ class McporterService {
       // 列出解压后的目录结构帮助调试
       mainWarn('McporterService', 'Expected CLI not found, listing extracted structure...');
       try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const items = require('fs').readdirSync(MCPORTER_EXTRACT_DIR);
         mainLog('McporterService', 'Extracted items:', items.join(', '));
-      } catch {}
+      } catch {
+        // ignored
+      }
       throw new Error('mcporter CLI not found after extraction');
     }
 
@@ -703,6 +706,7 @@ class McporterService {
 
     if (existsSync(wrapperPath)) {
       // 已存在，检查是否需要更新（CLI 路径是否正确）
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const existingContent = require('fs').readFileSync(wrapperPath, 'utf-8');
       if (existingContent.includes(cliPath)) {
         mainLog('McporterService', 'Wrapper already exists and is up-to-date');
@@ -764,6 +768,7 @@ class McporterService {
       'exit /b 1',
     ];
 
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('fs').writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
   }
 
@@ -805,6 +810,7 @@ class McporterService {
       'exit 1',
     ];
 
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('fs').writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
   }
 

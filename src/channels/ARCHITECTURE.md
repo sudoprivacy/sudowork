@@ -615,6 +615,7 @@ A keyword-based detection mechanism that allows users to query channel configura
 **Natural Language Triggers:**
 
 Users can ask about channel status using natural language:
+
 - "wechat配置了吗" → Returns wechat channel status
 - "微信的渠道状态" → Returns wechat channel status
 - "企业微信是否启用" → Returns wecom channel status
@@ -626,25 +627,27 @@ Users can ask about channel status using natural language:
 **Exclusion Patterns:**
 
 The following patterns will NOT trigger a query (to avoid false positives):
+
 - "我想关闭wechat" (关闭/禁用/删除 keywords)
 - "不用微信" (不用 keyword)
 - "disable telegram" (disable keyword)
 
 **Supported Channel Keywords:**
 
-| Chinese | English | Channel Type |
-|---------|---------|--------------|
-| 微信 | wechat | wechat |
-| 企业微信 | weecom | wecom |
-| 飞书 | lark | lark |
-| 钉钉 | dingtalk | dingtalk |
-| Telegram | telegram | telegram |
-| tg | telegram | telegram |
-| 禅道 | zentao | zentao |
+| Chinese  | English  | Channel Type |
+| -------- | -------- | ------------ |
+| 微信     | wechat   | wechat       |
+| 企业微信 | weecom   | wecom        |
+| 飞书     | lark     | lark         |
+| 钉钉     | dingtalk | dingtalk     |
+| Telegram | telegram | telegram     |
+| tg       | telegram | telegram     |
+| 禅道     | zentao   | zentao       |
 
 **Response Format:**
 
 Returns formatted markdown showing:
+
 - Channel name and type
 - Enable status (enabled/disabled)
 - Connection status (connected/not connected)

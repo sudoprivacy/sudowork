@@ -46,9 +46,18 @@ export class AssistantManager {
     this._initialized = true;
   }
 
-  private get hubDir(): string { this.init(); return this._hubDir!; }
-  private get systemDir(): string { this.init(); return this._systemDir!; }
-  private get customDir(): string { this.init(); return this._customDir!; }
+  private get hubDir(): string {
+    this.init();
+    return this._hubDir!;
+  }
+  private get systemDir(): string {
+    this.init();
+    return this._systemDir!;
+  }
+  private get customDir(): string {
+    this.init();
+    return this._customDir!;
+  }
 
   private ensureDirs(): void {
     for (const dir of [getAssistantsDir(), this._hubDir!, this._systemDir!, this._customDir!]) {
