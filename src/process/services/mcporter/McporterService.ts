@@ -6,7 +6,7 @@
 
 import type { ChildProcess } from 'child_process';
 import { spawn } from 'child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { app } from 'electron';
 import path from 'path';
 import os from 'os';
@@ -34,11 +34,14 @@ interface McporterExecResult {
   stderr: string;
 }
 
+// mcporter 解压目录（用户目录下，可写入）
+const MCPORTER_EXTRACT_DIR = path.join(os.homedir(), '.nexus', 'mcporter', 'package');
+
 /**
  * mcporter 服务 - 管理 MCP 配置和 daemon
  *
  * 支持两种运行模式：
- * 1. 内嵌模式（打包后）：使用内嵌的Node.js runtime和内嵌的mcporter npm包
+ * 1. 内嵌模式（打包后）：从 mcporter.tgz 解压到用户目录，使用内嵌Node.js runtime运行
  * 2. 开发模式：使用npx运行系统安装的mcporter
  */
 class McporterService {
@@ -47,6 +50,7 @@ class McporterService {
   private daemonProcess: ChildProcess | null = null;
   private readonly TIMEOUT = 30000;
   private isBundledMode: boolean;
+  private extractPromise: Promise<void> | null = null;
 
   constructor() {
     // 配置路径: ~/.nexus/mcporter/mcporter.json
@@ -56,7 +60,7 @@ class McporterService {
     // 判断是否使用内嵌模式
     // 开发模式下可通过环境变量 MCPORTER_BUNDLED=1 强制使用内嵌包测试
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
-    this.isBundledMode = (app.isPackaged || forceBundled) && this.getMcporterCliPath() !== null;
+    this.isBundledMode = (app.isPackaged || forceBundled);
 
     if (forceBundled && !app.isPackaged) {
       mainLog('McporterService', 'DEV mode: MCPORTER_BUNDLED=1 - forcing bundled mode for testing');
@@ -64,47 +68,140 @@ class McporterService {
   }
 
   /**
-   * 获取内嵌mcporter CLI路径
-   * 打包模式下返回内嵌资源路径，开发模式返回null
+   * 确保mcporter已从tgz解压到用户目录
+   * 解压后目录结构：~/.nexus/mcporter/package/node_modules/mcporter/dist/cli.js
    */
-  private getMcporterCliPath(): string | null {
-    // 打包模式：从resources目录获取
-    if (app.isPackaged) {
-      // 尝试多种可能的CLI入口路径（优先使用dist/cli.js，这是mcporter的实际入口）
-      const possiblePaths = [path.join(process.resourcesPath, 'mcporter', 'dist', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'bin', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'src', 'cli.js'), path.join(process.resourcesPath, 'mcporter', 'index.js')];
-
-      for (const cliPath of possiblePaths) {
-        if (existsSync(cliPath)) {
-          return cliPath;
-        }
-      }
-
-      // 尗试检查package.json中的bin字段来确定入口
-      const packageJsonPath = path.join(process.resourcesPath, 'mcporter', 'package.json');
-      if (existsSync(packageJsonPath)) {
-        try {
-          const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-          if (packageJson.bin) {
-            // bin可能是对象或字符串
-            const binPath = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin.mcporter || packageJson.bin['mcporter-cli'] || Object.values(packageJson.bin)[0];
-
-            if (binPath) {
-              const fullPath = path.join(process.resourcesPath, 'mcporter', binPath);
-              if (existsSync(fullPath)) {
-                return fullPath;
-              }
-            }
-          }
-        } catch {
-          // 解析失败，继续使用其他方法
-        }
-      }
+  private async ensureMcporterExtracted(): Promise<void> {
+    // 如果已经解压过，直接返回
+    if (existsSync(MCPORTER_EXTRACT_DIR) && existsSync(path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter'))) {
+      mainLog('McporterService', 'mcporter already extracted to:', MCPORTER_EXTRACT_DIR);
+      return;
     }
 
-    // 开发模式：从项目resources目录获取（如果存在）
-    const devPath = path.join(app.getAppPath(), 'resources', 'mcporter', 'dist', 'cli.js');
+    // 防止并发解压
+    if (this.extractPromise) {
+      return this.extractPromise;
+    }
+
+    this.extractPromise = this.doExtract();
+    try {
+      await this.extractPromise;
+    } finally {
+      this.extractPromise = null;
+    }
+  }
+
+  /**
+   * 执行解压操作
+   */
+  private async doExtract(): Promise<void> {
+    mainLog('McporterService', 'Extracting mcporter.tgz...');
+
+    // 确保目标目录存在
+    mkdirSync(this.configDir, { recursive: true });
+
+    // 清理旧的解压目录（如果存在但结构不完整）
+    if (existsSync(MCPORTER_EXTRACT_DIR)) {
+      rmSync(MCPORTER_EXTRACT_DIR, { recursive: true, force: true });
+    }
+
+    // 获取tgz路径
+    const tgzPath = this.getMcporterTgzPath();
+    if (!tgzPath || !existsSync(tgzPath)) {
+      throw new Error(`mcporter.tgz not found at ${tgzPath}`);
+    }
+
+    // 使用tar解压（通过Node spawn调用系统tar命令）
+    const isWindows = process.platform === 'win32';
+
+    // Windows可能没有tar命令，使用Node内置方式或其他方法
+    // 现代Windows 10+ 已经有内置tar命令
+    const tarCommand = isWindows ? 'tar' : 'tar';
+    const tarArgs = ['-xzf', tgzPath, '-C', MCPORTER_EXTRACT_DIR];
+
+    mainLog('McporterService', `Extracting: ${tarCommand} ${tarArgs.join(' ')}`);
+
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(tarCommand, tarArgs, {
+        stdio: 'pipe',
+        windowsHide: isWindows,
+      });
+
+      let stderr = '';
+
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      child.on('error', (err) => {
+        mainError('McporterService', 'Extract failed:', err);
+        reject(err);
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          mainLog('McporterService', 'Extract completed successfully');
+          resolve();
+        } else {
+          mainError('McporterService', `Extract failed with code ${code}:`, stderr);
+          reject(new Error(`tar exited with code ${code}: ${stderr}`));
+        }
+      });
+    });
+
+    // 验证解压结果
+    const expectedCliPath = path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'dist', 'cli.js');
+    if (!existsSync(expectedCliPath)) {
+      // 列出解压后的目录结构帮助调试
+      mainWarn('McporterService', 'Expected CLI not found, listing extracted structure...');
+      try {
+        const items = require('fs').readdirSync(MCPORTER_EXTRACT_DIR);
+        mainLog('McporterService', 'Extracted items:', items.join(', '));
+      } catch {}
+      throw new Error('mcporter CLI not found after extraction');
+    }
+
+    mainLog('McporterService', 'mcporter CLI available at:', expectedCliPath);
+  }
+
+  /**
+   * 获取mcporter.tgz路径
+   */
+  private getMcporterTgzPath(): string | null {
+    if (app.isPackaged) {
+      // 打包模式：从resources目录获取
+      return path.join(process.resourcesPath, 'mcporter.tgz');
+    }
+
+    // 开发模式：从项目resources目录获取
+    const devPath = path.join(app.getAppPath(), 'resources', 'mcporter.tgz');
     if (existsSync(devPath)) {
       return devPath;
+    }
+
+    return null;
+  }
+
+  /**
+   * 获取mcporter CLI路径（解压后）
+   */
+  private getMcporterCliPath(): string | null {
+    // 解压后的CLI路径
+    const cliPath = path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'dist', 'cli.js');
+    if (existsSync(cliPath)) {
+      return cliPath;
+    }
+
+    // 备选路径
+    const altPaths = [
+      path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'bin', 'cli.js'),
+      path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'cli.js'),
+    ];
+
+    for (const altPath of altPaths) {
+      if (existsSync(altPath)) {
+        return altPath;
+      }
     }
 
     return null;
@@ -126,13 +223,19 @@ class McporterService {
 
   /**
    * 检查 mcporter 是否可用
-   * 打包模式：检查内嵌资源
-   * 开发模式：使用npx检查
    */
   async isAvailable(): Promise<boolean> {
-    // 打包模式或强制内嵌模式：检查内嵌资源
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
+
     if (app.isPackaged || forceBundled) {
+      // 先确保解压完成
+      try {
+        await this.ensureMcporterExtracted();
+      } catch (err) {
+        mainError('McporterService', 'Failed to extract mcporter:', err);
+        return false;
+      }
+
       const cliPath = this.getMcporterCliPath();
       const nodeAvailable = isNodeInstalled();
 
@@ -141,13 +244,17 @@ class McporterService {
         return true;
       }
 
-      // 内嵌资源不存在，fallback到npx
       if (!cliPath) {
-        mainWarn('McporterService', 'Bundled mcporter not found, falling back to npx');
+        mainWarn('McporterService', 'Bundled mcporter CLI not found after extraction');
       }
+      if (!nodeAvailable) {
+        mainWarn('McporterService', 'Node runtime not installed');
+      }
+
+      return false;
     }
 
-    // 开发模式或fallback：检查npx
+    // 开发模式：检查npx
     try {
       const result = await safeExec('npx mcporter --version', {
         timeout: 10000,
@@ -160,7 +267,6 @@ class McporterService {
 
   /**
    * 安装 mcporter (全局安装) - 仅用于开发模式
-   * 打包模式不需要安装，直接使用内嵌资源
    */
   async install(): Promise<void> {
     if (app.isPackaged) {
@@ -183,15 +289,19 @@ class McporterService {
 
   /**
    * 执行 mcporter 命令
-   * 打包模式：使用内嵌Node和内嵌mcporter
-   * 开发模式：使用npx
    */
   private async runMcporterCommand(args: string[], timeout?: number): Promise<McporterExecResult> {
-    const mcporterCliPath = this.getMcporterCliPath();
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
 
-    // 打包模式或强制内嵌模式：使用内嵌Node直接运行mcporter CLI
-    if (mcporterCliPath && (app.isPackaged || forceBundled)) {
+    if (app.isPackaged || forceBundled) {
+      // 确保已解压
+      await this.ensureMcporterExtracted();
+
+      const mcporterCliPath = this.getMcporterCliPath();
+      if (!mcporterCliPath) {
+        throw new Error('mcporter CLI not found after extraction');
+      }
+
       // 确保Node runtime已安装
       await ensureNodeInstalled();
       const nodePath = getNodeBinaryPath();
@@ -221,12 +331,11 @@ class McporterService {
         MCPORTER_CONFIG: this.configPath,
       };
 
-      // Windows静默执行配置
       const spawnOptions = {
         env,
         detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'] as ('ignore' | 'pipe')[], // 使用可变数组类型
-        windowsHide: isWindows, // Windows下不创建控制台窗口
+        stdio: ['ignore', 'pipe', 'pipe'] as ('ignore' | 'pipe')[],
+        windowsHide: isWindows,
         ...(isWindows && { windowsVerbatimArguments: true }),
       };
 
@@ -279,7 +388,6 @@ class McporterService {
         }
       });
 
-      // 不阻止Node进程退出
       child.unref();
     });
   }
@@ -304,14 +412,11 @@ class McporterService {
     const configJson = JSON.stringify(config, null, 2);
 
     try {
-      // 1. 同步到 mcporter 配置
       writeFileSync(this.configPath, configJson, 'utf-8');
       mainLog('McporterService', `Synced ${Object.keys(config.mcpServers).length} MCP servers to ${this.configPath}`);
 
-      // 2. 同步到 Claude Code 配置 (~/.claude.json)
       await this.syncToClaudeCode(config.mcpServers);
 
-      // 如果系统 daemon 正在运行，发送重新加载信号（无论是本进程启动的还是之前启动的）
       const daemonStatus = await this.getDaemonStatus();
       if (daemonStatus.running) {
         mainLog('McporterService', `Daemon running (pid: ${daemonStatus.pid}), reloading config...`);
@@ -332,29 +437,24 @@ class McporterService {
     const claudeConfigPath = path.join(os.homedir(), '.claude.json');
 
     try {
-      // 读取现有配置
       let claudeConfig: Record<string, unknown> = {};
       if (existsSync(claudeConfigPath)) {
         const content = readFileSync(claudeConfigPath, 'utf-8');
         claudeConfig = JSON.parse(content);
       }
 
-      // 转换为 Claude Code 格式
       const claudeMcpServers: Record<string, { type?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string> }> = {};
 
       for (const [name, server] of Object.entries(mcpServers)) {
         if (server.baseUrl) {
-          // HTTP/SSE 类型
           claudeMcpServers[name] = {
             type: 'sse',
             url: server.baseUrl,
           };
           if (server.headers) {
-            // Claude Code 不直接支持 headers，但 mcporter 可以处理
             claudeMcpServers[name].url = server.baseUrl;
           }
         } else if (server.command) {
-          // Stdio 类型
           claudeMcpServers[name] = {
             command: server.command,
             args: server.args,
@@ -363,15 +463,12 @@ class McporterService {
         }
       }
 
-      // 更新配置
       claudeConfig['mcpServers'] = claudeMcpServers;
 
-      // 写回文件
       writeFileSync(claudeConfigPath, JSON.stringify(claudeConfig, null, 2), 'utf-8');
       mainLog('McporterService', `Synced ${Object.keys(claudeMcpServers).length} MCP servers to Claude Code`);
     } catch (error) {
       mainWarn('McporterService', 'Failed to sync to Claude Code:', error);
-      // 不抛出错误，因为这不是关键操作
     }
   }
 
@@ -393,11 +490,8 @@ class McporterService {
 
   /**
    * 启动 mcporter daemon
-   * 打包模式：使用内嵌Node和内嵌mcporter
-   * 开发模式：使用npx
    */
   async startDaemon(): Promise<void> {
-    // 先检查系统是否已有 daemon 运行（可能是之前启动的或其他进程启动的）
     const existingStatus = await this.getDaemonStatus();
     if (existingStatus.running) {
       mainLog('McporterService', `Daemon already running in system (pid: ${existingStatus.pid}), skipping start`);
@@ -406,16 +500,18 @@ class McporterService {
 
     this.ensureConfigDir();
 
-    const mcporterCliPath = this.getMcporterCliPath();
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
 
-    // 打包模式或强制内嵌模式：使用内嵌Node运行mcporter daemon
-    if (mcporterCliPath && (app.isPackaged || forceBundled)) {
+    if (app.isPackaged || forceBundled) {
+      await this.ensureMcporterExtracted();
+      const mcporterCliPath = this.getMcporterCliPath();
+      if (!mcporterCliPath) {
+        throw new Error('mcporter CLI not found after extraction');
+      }
       await this.startDaemonBundled(mcporterCliPath);
       return;
     }
 
-    // 开发模式：使用npx
     await this.startDaemonNpx();
   }
 
@@ -426,7 +522,6 @@ class McporterService {
     mainLog('McporterService', 'Starting mcporter daemon using bundled resources...');
 
     try {
-      // 确保Node runtime已安装
       await ensureNodeInstalled();
       const nodePath = getNodeBinaryPath();
 
@@ -437,12 +532,11 @@ class McporterService {
 
       const isWindows = process.platform === 'win32';
 
-      // 完全静默启动，Windows下不弹出窗口
       const spawnOptions = {
         env,
         detached: true,
         stdio: 'ignore' as const,
-        windowsHide: isWindows, // Windows下不创建控制台窗口
+        windowsHide: isWindows,
         ...(isWindows && { windowsVerbatimArguments: true }),
       };
 
@@ -460,10 +554,8 @@ class McporterService {
         this.daemonProcess = null;
       });
 
-      // 不阻止Node进程退出
       this.daemonProcess.unref();
 
-      // 等待daemon启动
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       mainLog('McporterService', 'mcporter daemon started (bundled mode)');
@@ -485,7 +577,6 @@ class McporterService {
         MCPORTER_CONFIG: this.configPath,
       };
 
-      // 启动 daemon 进程
       this.daemonProcess = spawn('npx', ['mcporter', 'daemon', 'start', '--detach'], {
         env,
         stdio: 'ignore',
@@ -502,7 +593,6 @@ class McporterService {
         this.daemonProcess = null;
       });
 
-      // 等待 daemon 启动
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       mainLog('McporterService', 'mcporter daemon started (npx mode)');
@@ -524,14 +614,12 @@ class McporterService {
     mainLog('McporterService', 'Stopping mcporter daemon...');
 
     try {
-      // 使用runMcporterCommand停止daemon
       await this.runMcporterCommand(['daemon', 'stop'], 10000);
 
       this.daemonProcess = null;
       mainLog('McporterService', 'mcporter daemon stopped');
     } catch (error) {
       mainWarn('McporterService', 'Failed to stop daemon:', error);
-      // 强制清理
       if (this.daemonProcess) {
         this.daemonProcess.kill();
         this.daemonProcess = null;
@@ -571,24 +659,17 @@ class McporterService {
     mainLog('McporterService', 'Initializing mcporter...');
     mainLog('McporterService', `Mode: ${this.isBundledMode ? 'bundled' : 'npx'}`);
 
-    // 检查 mcporter 是否可用
     const available = await this.isAvailable();
     if (!available) {
-      // 打包模式应该总是可用（内嵌资源）
       if (app.isPackaged) {
         mainError('McporterService', 'Bundled mcporter not available - this should not happen');
-        // 不抛出错误，让应用继续启动
       } else {
-        // 开发模式：尝试安装
         mainLog('McporterService', 'mcporter not available, installing...');
         await this.install();
       }
     }
 
-    // 同步配置
     await this.syncConfig(servers);
-
-    // 启动 daemon
     await this.startDaemon();
 
     mainLog('McporterService', 'mcporter initialized');
@@ -602,5 +683,4 @@ class McporterService {
   }
 }
 
-// 单例导出
 export const mcporterService = new McporterService();

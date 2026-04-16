@@ -134,12 +134,8 @@ extraResources:
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz
-  # mcporter package (bundled at build time, unpacked for direct execution)
-  # Include all files including node_modules (override global node_modules exclusions)
-  - from: resources/mcporter
-    to: mcporter
-    filter:
-      - "**/*"
+  - from: resources/mcporter.tgz
+    to: mcporter.tgz
   # Sudoclaw/OpenClaw runtime for macOS - versioned archive + manifest
   - from: resources
     to: .
