@@ -194,6 +194,12 @@ export async function prepareOpenClawFirstMessage(content: string, config: First
     instructions.push(config.presetContext);
   }
 
+  // 1.5 添加草稿箱使用指令 / Add drafts box instructions
+  // Ensures OpenClaw agents know to write intermediate files to .drafts/ and final files to workspace root
+  if (config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
+  }
+
   // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
   // Load builtin skills index — tell agent to read SKILL.md directly, no [LOAD_SKILL:] protocol
   const skillManager = AcpSkillManager.getInstance();

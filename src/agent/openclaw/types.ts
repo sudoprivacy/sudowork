@@ -205,12 +205,16 @@ export interface SessionsListParams {
 export interface SessionsResetParams {
   key: string;
   reason?: 'new' | 'reset';
+  /** Per-session working directory override — Gateway will set the agent's cwd to this path */
+  workDir?: string;
 }
 
 export interface SessionsPatchParams {
   key: string;
   label?: string | null;
   model?: string | null;
+  /** Per-session working directory override — Gateway will set the agent's cwd to this path */
+  workDir?: string | null;
   // ... other optional fields
 }
 

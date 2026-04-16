@@ -213,7 +213,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 
     const defaultKey = this.conversation_id;
     try {
-      const resetResult = await this.connection.sessionsReset({ key: defaultKey, reason: 'new' });
+      const resetResult = await this.connection.sessionsReset({ key: defaultKey, reason: 'new', workDir: this.workspace });
       this.connection.sessionKey = resetResult.key;
     } catch (err) {
       mainWarn('OpenClawAgent', 'Failed to reset session, trying plain resolve:', err);

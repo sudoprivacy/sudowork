@@ -956,6 +956,7 @@ export function initConversationBridge(): void {
         agentContent = await prepareOpenClawFirstMessage(agentContent, {
           presetContext,
           enabledSkills: skillsToInject,
+          workspace: (task as OpenClawAgent).workspace,
         });
         const skillsDir = resolveWorkspaceSkillsDir(conversation);
         if (skillsDir) {
