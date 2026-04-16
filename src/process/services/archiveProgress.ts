@@ -34,7 +34,8 @@ function createProgressReporter(onProgress?: ArchiveProgressCallback): (processe
 async function isNativeTarAvailable(): Promise<boolean> {
   if (process.platform !== 'win32') return false;
   try {
-    await execFileAsync('tar', ['--version']);
+    const tarBin = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+    await execFileAsync(tarBin, ['--version']);
     return true;
   } catch {
     return false;
@@ -49,10 +50,12 @@ export async function extractTarGzWithProgress(archivePath: string, targetDir: s
   reportProgress(0, totalBytes);
 
   // On Windows, prefer native tar.exe for better performance (2-5x faster than Node.js tar)
+  // Must use absolute path to avoid MSYS2/Git-Bash tar which misinterprets C: as remote host
   if (await isNativeTarAvailable()) {
+    const tarBin = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
     const args = ['-xzf', archivePath, '-C', targetDir];
     if (strip > 0) args.push(`--strip-components=${strip}`);
-    await execFileAsync('tar', args);
+    await execFileAsync(tarBin, args);
     reportProgress(totalBytes, totalBytes);
     return;
   }
