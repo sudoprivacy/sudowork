@@ -60,7 +60,7 @@ class McporterService {
     // 判断是否使用内嵌模式
     // 开发模式下可通过环境变量 MCPORTER_BUNDLED=1 强制使用内嵌包测试
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
-    this.isBundledMode = (app.isPackaged || forceBundled);
+    this.isBundledMode = app.isPackaged || forceBundled;
 
     if (forceBundled && !app.isPackaged) {
       mainLog('McporterService', 'DEV mode: MCPORTER_BUNDLED=1 - forcing bundled mode for testing');
@@ -97,13 +97,9 @@ class McporterService {
   private async doExtract(): Promise<void> {
     mainLog('McporterService', 'Extracting mcporter.tgz...');
 
-    // 确保目标目录存在
-    mkdirSync(this.configDir, { recursive: true });
-
-    // 清理旧的解压目录（如果存在但结构不完整）
-    if (existsSync(MCPORTER_EXTRACT_DIR)) {
-      rmSync(MCPORTER_EXTRACT_DIR, { recursive: true, force: true });
-    }
+    // 确保目标目录存在（必须先创建，否则tar无法切换到该目录）
+    mkdirSync(MCPORTER_EXTRACT_DIR, { recursive: true });
+    mainLog('McporterService', 'Created extract directory:', MCPORTER_EXTRACT_DIR);
 
     // 获取tgz路径
     const tgzPath = this.getMcporterTgzPath();
@@ -193,10 +189,7 @@ class McporterService {
     }
 
     // 备选路径
-    const altPaths = [
-      path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'bin', 'cli.js'),
-      path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'cli.js'),
-    ];
+    const altPaths = [path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'bin', 'cli.js'), path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'cli.js')];
 
     for (const altPath of altPaths) {
       if (existsSync(altPath)) {
