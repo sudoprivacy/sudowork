@@ -9,6 +9,9 @@ import defaultSkillIcon from '@/renderer/assets/icon-catalogue.svg';
 import uploadSkillDefaultIcon from '../../../resources/upload_skill_default.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
+/** COS base URL for Hub skill icons */
+const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+
 export function buildSkillDisplayName(skillName: string): string {
   return skillName
     .split(/[-_]/)
@@ -17,13 +20,56 @@ export function buildSkillDisplayName(skillName: string): string {
     .join(' ');
 }
 
+/**
+ * Check if a URL is a relative path (not absolute URL or protocol URL)
+ */
+function isRelativePath(url: string): boolean {
+  if (!url) return false;
+  return !url.startsWith('http://') &&
+    !url.startsWith('https://') &&
+    !url.startsWith('data:') &&
+    !url.startsWith('/') &&
+    !url.startsWith('aion-asset://') &&
+    !url.startsWith('file://') &&
+    !url.startsWith('./');
+}
+
+/**
+ * Resolve Hub skill icon URL.
+ * Hub skills may have relative icon paths that need COS URL prefix.
+ */
+function resolveHubSkillIcon(icon: string | undefined): string | undefined {
+  const normalized = (icon || '').trim();
+  if (!normalized) return undefined;
+
+  // If it's a relative path, prepend COS URL
+  if (isRelativePath(normalized)) {
+    return `${HUB_SKILL_ICON_COS_BASE}${normalized}`;
+  }
+
+  return normalized;
+}
+
 export function resolveSkillIcon(icon?: string | null, fallbackToDefault = true): string {
   const normalized = (icon || '').trim();
   if (normalized === 'upload_skill_default.svg') {
     return uploadSkillDefaultIcon;
   }
-  const resolved = resolveExtensionAssetUrl(icon || undefined) || icon || '';
-  return resolved || (fallbackToDefault ? defaultSkillIcon : '');
+
+  // First try to resolve as extension asset (aion-asset://, file:// protocols)
+  const extensionResolved = resolveExtensionAssetUrl(icon || undefined);
+  if (extensionResolved) {
+    return extensionResolved;
+  }
+
+  // If the original icon is a relative path, treat it as a Hub skill icon
+  // and prepend the COS URL
+  if (normalized && isRelativePath(normalized)) {
+    return `${HUB_SKILL_ICON_COS_BASE}${normalized}`;
+  }
+
+  // Return original value or fallback
+  return normalized || (fallbackToDefault ? defaultSkillIcon : '');
 }
 
 export function normalizeSkillVersion(version?: string | null): string {
@@ -47,7 +93,19 @@ export function getInstalledSkillDisplay(skill: Pick<IInstalledSkillInfo, 'name'
   emoji?: string | null;
 } {
   const isUploadSkill = skill.meta?.source_type === 'upload';
-  const resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : isUploadSkill ? uploadSkillDefaultIcon : '';
+  const isHubSkill = skill.meta?.source_type === 'hub' || (skill.meta?.source_type === undefined && skill.meta?.icon && isRelativePath(skill.meta.icon));
+
+  let resolvedIcon: string;
+  if (isHubSkill) {
+    // Hub skills: resolve relative icon paths to COS URL
+    resolvedIcon = resolveHubSkillIcon(skill.meta?.icon) || '';
+  } else if (isUploadSkill) {
+    // Upload skills: use upload default icon if no icon specified
+    resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : uploadSkillDefaultIcon;
+  } else {
+    // Builtin skills and other types: use existing resolution logic
+    resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : '';
+  }
 
   return {
     displayName: skill.meta?.display_name || buildSkillDisplayName(skill.name),
