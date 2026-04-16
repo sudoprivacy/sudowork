@@ -665,7 +665,7 @@ const AcpSendBox: React.FC<{
         onChange={setContent}
         loading={running || aiProcessing}
         disabled={false}
-        placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
+        placeholder={t('acp.sendbox.placeholder', { backend: agentName && agentName !== 'Sudoclaw' ? agentName : '智能助手', defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         className='z-10'
         onFilesAdded={handleFilesAdded}

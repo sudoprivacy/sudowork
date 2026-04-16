@@ -102,7 +102,7 @@ class AcpDetector {
       const assistants = await assistantManager.getInstalledAssistants();
       const enabledAssistants = assistants.filter((a) => a.enabled && a.meta);
       for (const a of enabledAssistants) {
-        const customAgentId = a.isBuiltin ? `builtin-${a.meta.id || a.name}` : (a.meta.id || a.name);
+        const customAgentId = a.isBuiltin ? `builtin-${a.meta.id || a.name}` : a.meta.id || a.name;
         detected.push({
           backend: 'custom',
           name: a.meta.nameI18n?.['zh-CN'] || a.meta.nameI18n?.['en-US'] || a.meta.id || a.name,

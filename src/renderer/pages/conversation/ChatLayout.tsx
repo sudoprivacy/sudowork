@@ -132,6 +132,7 @@ const ChatLayout: React.FC<{
   const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'assistantHub.installed' : null, fetchAssistantsAsConfigs);
 
   // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
+  // backend name is used for AgentModeSelector display (e.g., "Sudoclaw", "Claude")
   const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
 
   // 获取 tabs 状态，有 tabs 时隐藏会话标题

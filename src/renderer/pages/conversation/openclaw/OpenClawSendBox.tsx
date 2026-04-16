@@ -603,7 +603,7 @@ const OpenClawSendBox: React.FC<{
           aiProcessing
             ? t('conversation.chat.processing')
             : t('acp.sendbox.placeholder', {
-                backend: agentName || 'Sudoclaw',
+                backend: agentName && agentName !== 'Sudoclaw' ? agentName : '智能助手',
                 defaultValue: `Send message to {{backend}}...`,
               })
         }
