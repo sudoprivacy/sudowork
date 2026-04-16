@@ -56,7 +56,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; conversationId?: string }> = 
 
   return (
     <>
-      <div className='flex items-center h-28px gap-4px'>
+      <div className='flex items-center h-28px gap-4px pl-48px'>
         <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
           <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
             <Copy theme='outline' size='16' fill={iconColors.secondary} />
