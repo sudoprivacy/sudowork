@@ -15,10 +15,9 @@ import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
 import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import classNames from 'classnames';
 import React, { createContext, useEffect, useMemo } from 'react';
-import sudoclawProDark from '@/renderer/assets/sudoclaw_pro_dark.gif';
-import sudoclawProWhite from '@/renderer/assets/sudoclaw_pro_white.gif';
+import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
+import sudoclawProWhite from '@/renderer/assets/sudoclaw_transparent_large.png';
 import sudoworkIconDark from '@/renderer/assets/sudowork-icon-dark.svg';
-import userAvatar from '@/renderer/assets/user-avatar.svg';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 import { uuid } from '../utils/common';
@@ -70,7 +69,6 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
   HOC((props) => {
     const { message, isStreaming } = props as { message: TMessage; isStreaming?: boolean };
     const isAiMessage = message.position === 'left';
-    const isUserMessage = message.position === 'right';
     const [darkMode, setDarkMode] = React.useState(() => isDarkMode());
 
     React.useEffect(() => {
@@ -82,6 +80,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
     }, []);
 
     const streamingAvatar = isStreaming ? (darkMode ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
+    const avatarSize = isStreaming ? 'w-40px h-40px' : 'w-24px h-24px';
     return (
       <div
         data-message-id={message.id}
@@ -92,36 +91,13 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         })}
       >
         {isAiMessage && (
-          <div
-            className='flex-shrink-0 mr-12px mt-4px w-36px h-36px rounded-full flex items-center justify-center overflow-hidden'
-            style={{
-              backgroundColor: 'var(--color-bg-2, #f2f3f5)',
-              border: '1px solid var(--color-border-2)',
-            }}
-          >
-            <img
-              src={streamingAvatar}
-              alt='AI Avatar'
-              className={isStreaming ? 'w-36px h-36px rounded-full object-cover' : 'w-24px h-24px object-contain'}
-            />
-          </div>
+          <img
+            src={streamingAvatar}
+            alt='AI Avatar'
+            className={`flex-shrink-0 mr-12px mt-4px ${avatarSize} object-contain`}
+          />
         )}
         {props.children}
-        {isUserMessage && (
-          <div
-            className='flex-shrink-0 ml-12px mt-4px w-36px h-36px rounded-full flex items-center justify-center overflow-hidden'
-            style={{
-              backgroundColor: '#ff5c5c1a',
-              border: 'none',
-            }}
-          >
-            <img
-              src={userAvatar}
-              alt='User Avatar'
-              className='w-24px h-24px object-cover'
-            />
-          </div>
-        )}
       </div>
     );
   })(({ message, isStreaming }) => {
@@ -170,17 +146,6 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   // Track expanded/collapsed state for each tool_summary by id
   // 保存每个 tool_summary 的展开/折叠状态
   const [toolSummaryStates, setToolSummaryStates] = React.useState<Record<string, boolean>>({});
-  // Track current theme for avatar selection
-  const [darkMode, setDarkMode] = React.useState(() => isDarkMode());
-
-  // Listen for theme changes
-  React.useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setDarkMode(isDarkMode());
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -457,22 +422,15 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && ['file_summary', 'tool_summary'].includes(item.type)) {
       const isLastItemSummary = _index >= processedList.length - 2;
       const isStreamingForSummary = item.type === 'tool_summary' && (item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
-      const streamingAvatarForSummary = isStreamingForSummary ? (darkMode ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
+      const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
+      const avatarSizeForSummary = isStreamingForSummary ? 'w-40px h-40px' : 'w-24px h-24px';
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <div
-            className='flex-shrink-0 mr-12px mt-4px w-36px h-36px rounded-full flex items-center justify-center overflow-hidden'
-            style={{
-              backgroundColor: 'var(--color-bg-2, #f2f3f5)',
-              border: '1px solid var(--color-border-2)',
-            }}
-          >
-            <img
-              src={streamingAvatarForSummary}
-              alt='AI Avatar'
-              className={isStreamingForSummary ? 'w-36px h-36px rounded-full object-cover' : 'w-24px h-24px object-contain'}
-            />
-          </div>
+          <img
+            src={streamingAvatarForSummary}
+            alt='AI Avatar'
+            className={`flex-shrink-0 mr-12px mt-4px ${avatarSizeForSummary} object-contain`}
+          />
           <div className='flex-1 min-w-0'>
             {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
             {item.type === 'tool_summary' &&
