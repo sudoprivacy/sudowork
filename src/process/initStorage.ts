@@ -578,6 +578,24 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
     await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
     mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
 
+    // Remove image-analysis skill from user dir — it's config-disabled (see
+    // SudoclawInstallService ensureDefaultConfig/repairOpenClawConfig) because
+    // it spawns a separate LLM subprocess that breaks the orchestrating LLM's
+    // browser-session context. But if we leave the files on disk, the LLM can
+    // (and empirically does) bypass the skill registry by invoking the bash
+    // script directly via exec. Physical removal is what actually stops it.
+    for (const legacySubpath of ['image-analysis', path.join('_builtin', 'image-analysis')]) {
+      const stalePath = path.join(userSystemSkillsDir, legacySubpath);
+      if (existsSync(stalePath)) {
+        try {
+          rmSync(stalePath, { recursive: true, force: true });
+          mainLog('Sudowork', `Removed image-analysis skill from ${stalePath} (config-disabled)`);
+        } catch (error) {
+          mainWarn('Sudowork', `Failed to remove ${stalePath}:`, error);
+        }
+      }
+    }
+
     // Link the bundled ai-dev-browser package into the browser skill so the agent
     // sees `skills/browser/ai_dev_browser/tools/` at a stable relative path.
     linkAiDevBrowserIntoSystemSkill(userSystemSkillsDir);

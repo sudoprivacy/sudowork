@@ -58,6 +58,7 @@ function guardPayload(data: string | Uint8Array | Buffer): string | Uint8Array |
   const cfg = obj as {
     browser?: { enabled?: unknown };
     tools?: { deny?: unknown };
+    skills?: { entries?: Record<string, { enabled?: unknown }> };
   };
   let mutated = false;
 
@@ -66,30 +67,38 @@ function guardPayload(data: string | Uint8Array | Buffer): string | Uint8Array |
   if (cfg.browser && typeof cfg.browser === 'object' && cfg.browser.enabled === true) {
     cfg.browser.enabled = false;
     mutated = true;
-    try {
-      console.error('[SudoclawConfigGuard] reverted browser.enabled=true → false on write');
-    } catch {
-      /* swallow */
-    }
   }
 
-  // Invariant 2: tools.deny must include 'browser'. This is what actually
-  // removes the builtin browser tool from the LLM's tool catalog via
-  // openclaw's filterToolsByPolicy. If the LLM drops 'browser' from the
-  // deny list, re-add it.
+  // Invariant 2: tools.deny must include both 'browser' and 'image'.
+  // These control what's in the LLM's tool catalog (openclaw's
+  // filterToolsByPolicy). If the LLM drops either, re-add.
   const tools = (cfg.tools ?? {}) as { deny?: unknown };
   const denyArr = Array.isArray(tools.deny) ? (tools.deny as unknown[]).slice() : [];
-  const hasBrowser = denyArr.some((v) => v === 'browser');
-  if (!hasBrowser) {
-    denyArr.push('browser');
+  for (const toolName of ['browser', 'image']) {
+    if (!denyArr.some((v) => v === toolName)) {
+      denyArr.push(toolName);
+      mutated = true;
+    }
+  }
+  if (mutated) {
     tools.deny = denyArr;
     cfg.tools = tools;
+  }
+
+  // Invariant 3: the builtin image-analysis skill stays disabled.
+  // Its analyze_image.sh spawns a separate vision LLM subprocess, which
+  // breaks the orchestrating LLM's browser-session context continuity —
+  // ai-dev-browser's page_discover (ARIA semantics) is the first-class
+  // signal for web automation.
+  const skills = (cfg.skills ?? {}) as { entries?: Record<string, { enabled?: unknown }> };
+  const entries = (skills.entries ?? {}) as Record<string, { enabled?: unknown }>;
+  const ia = (entries['image-analysis'] ?? {}) as { enabled?: unknown };
+  if (ia.enabled !== false) {
+    ia.enabled = false;
+    entries['image-analysis'] = ia;
+    skills.entries = entries;
+    cfg.skills = skills;
     mutated = true;
-    try {
-      console.error('[SudoclawConfigGuard] re-added "browser" to tools.deny on write');
-    } catch {
-      /* swallow */
-    }
   }
 
   if (!mutated) return data;
