@@ -520,20 +520,31 @@ export function repairOpenClawConfig(): void {
       mainLog('Sudoclaw', 'Disabled built-in browser (ai-dev-browser used directly)');
     }
 
-    // Deny browser tool in top-level tools.sandbox so agent never sees it
-    // Schema path: tools.sandbox.tools.deny
+    // Remove the builtin `browser` tool from the LLM's tool catalog.
+    // The policy key is `tools.deny` (top-level) — this flows through
+    // openclaw's `pickSandboxToolPolicy` + `filterToolsByPolicy`, which
+    // actually *filters* the tool out of the agent's tool list instead
+    // of just denying its execute. `tools.sandbox.tools.deny` (which this
+    // file used to write) is the docker-sandbox-scoped policy and does
+    // nothing when docker sandbox isn't in play.
     const topTools = (config.tools ?? {}) as Record<string, unknown>;
-    const topSbx = (topTools.sandbox ?? {}) as Record<string, unknown>;
-    const topSbxTools = (topSbx.tools ?? {}) as Record<string, unknown>;
-    const topDeny = (topSbxTools.deny ?? []) as string[];
+    const topDeny = Array.isArray(topTools.deny) ? (topTools.deny as string[]) : [];
     if (!topDeny.includes('browser')) {
       topDeny.push('browser');
-      topSbxTools.deny = topDeny;
-      topSbx.tools = topSbxTools;
-      topTools.sandbox = topSbx;
+      topTools.deny = topDeny;
       (config as Record<string, unknown>).tools = topTools;
       changed = true;
-      mainLog('Sudoclaw', 'Added browser to top-level tools.sandbox deny list');
+      mainLog('Sudoclaw', 'Added browser to top-level tools.deny (hides from LLM catalog)');
+    }
+    // Clean up the old misplaced entry if present.
+    const topSbx = topTools.sandbox as Record<string, unknown> | undefined;
+    const topSbxTools = topSbx?.tools as Record<string, unknown> | undefined;
+    const topSbxDeny = Array.isArray(topSbxTools?.deny) ? (topSbxTools!.deny as string[]) : null;
+    if (topSbxDeny && topSbxDeny.includes('browser')) {
+      topSbxTools!.deny = topSbxDeny.filter((name) => name !== 'browser');
+      if ((topSbxTools!.deny as string[]).length === 0) delete topSbxTools!.deny;
+      changed = true;
+      mainLog('Sudoclaw', 'Removed obsolete tools.sandbox.tools.deny=[browser] entry');
     }
 
     if (changed) {
@@ -611,9 +622,7 @@ export function ensureDefaultConfig(): void {
           provider: 'tavily' as const,
         },
       },
-      sandbox: {
-        tools: { deny: ['browser'] },
-      },
+      deny: ['browser'],
     },
   };
 

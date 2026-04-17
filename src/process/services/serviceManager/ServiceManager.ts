@@ -380,6 +380,24 @@ export class ServiceManager {
         mainWarn('ServiceManager', 'Failed to start AdbResultSidechannel (ai-dev-browser UI bypass disabled for this run)', err);
       }
 
+      // PYTHONPATH injection: point at the system skills' browser dir so
+      // `python -m ai_dev_browser.tools.<name>` works from any cwd that
+      // openclaw's exec happens to run in. Without this the LLM has to
+      // prefix every invocation with `cd skills/browser &&` (brittle and
+      // ugly) or hit the ModuleNotFoundError + retry loop we keep seeing.
+      // Stable location: ~/.nexus/skills/_system/browser (junction inside
+      // it points at vendor/ai-dev-browser/ai_dev_browser).
+      const pythonPathEnv: Record<string, string> = {};
+      try {
+        const { getSystemSkillsDir } = await import('@/process/initStorage');
+        const browserSkillDir = path.join(getSystemSkillsDir(), 'browser');
+        // Append, don't stomp, if the caller/shell already set PYTHONPATH.
+        const prev = process.env.PYTHONPATH;
+        pythonPathEnv.PYTHONPATH = prev && prev.length > 0 ? `${browserSkillDir}${path.delimiter}${prev}` : browserSkillDir;
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to resolve system skills dir for PYTHONPATH injection', err);
+      }
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -387,6 +405,7 @@ export class ServiceManager {
           OPENCLAW_STATE_DIR: SUDOCLAW_DIR,
           OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH,
           ...adbSidechannelEnv,
+          ...pythonPathEnv,
         },
         forceSubprocessGateway: true,
       });

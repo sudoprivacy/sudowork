@@ -30,7 +30,6 @@ import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHi
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import * as nodePath from 'node:path';
-import { createHash } from 'node:crypto';
 import { ProcessConfig } from '@process/initStorage';
 import { serviceManager } from '@process/services/serviceManager';
 
@@ -1226,7 +1225,22 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isAdbToolCall(data: ToolEventData): boolean {
     const meta = typeof data.meta === 'string' ? data.meta : '';
     const cmd = typeof data.args?.command === 'string' ? (data.args.command as string) : '';
-    return /ai_dev_browser\.tools\./.test(meta) || /ai_dev_browser\.tools\./.test(cmd);
+    const haystack = `${meta}\n${cmd}`;
+    // Must look like a Python invocation — this is the first filter so we
+    // don't accidentally consume FIFO entries for unrelated commands.
+    if (!/\bpython(?:3|\.exe|3\.exe)?\b/i.test(haystack)) return false;
+    // Tight match: full reference visible (either module or path form).
+    if (/ai_dev_browser[./\\]tools|ai_dev_br/i.test(haystack)) return true;
+    // Loose match: openclaw truncates `meta`'s backticked command (often
+    // around the 100-char mark). When a long prefix like `$env:PYTHONPATH
+    // = "<long path>"; python -m ai_…` eats the budget, the regex above
+    // misses. If we see `python` + the ellipsis marker that indicates
+    // truncation, treat it as an adb invocation and let the hook-side
+    // FIFO sort it out. The hook only POSTs for real ai_dev_browser
+    // spawns, so at worst we pop a null entry (no-op) when we guess
+    // wrong.
+    if (/…/.test(meta)) return true;
+    return false;
   }
 
   private extractResultText(data: ToolEventData): string | null {
@@ -1240,23 +1254,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
     const joined = parts.join('\n').trim();
     return joined.length > 0 ? joined : null;
-  }
-
-  private computeAdbCmdHash(data: ToolEventData): string {
-    // Mirror the hash produced by hook/node/src/process/AdbStdoutCapture.ts.
-    // On `phase === 'result'` events, openclaw strips `args` from the
-    // external `onAgentEvent` callback — we get only {phase,name,toolCallId,
-    // meta,isError}. `meta` has the shape:
-    //   "run python (in <cwd>), `python -m ai_dev_browser.tools.page_info ...`"
-    // Extract the command between backticks, which matches the shell script
-    // string the hook used for its hashInput.
-    const args = data.args ?? {};
-    let cmd = typeof args.command === 'string' ? (args.command as string).trim() : '';
-    if (!cmd && typeof data.meta === 'string') {
-      const m = data.meta.match(/`([^`]+)`/);
-      if (m && m[1]) cmd = m[1].trim();
-    }
-    return createHash('sha1').update(cmd).digest('hex');
   }
 
   private async handleToolCallEvent(toolData: ToolEventData): Promise<void> {
@@ -1297,19 +1294,23 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         }
       }
 
-      // Defense-in-depth: if the sidechannel captured a longer stdout than
-      // openclaw's 8 KB sanitized window, overwrite with that. Harmless when
-      // no entry is found (the `waitForCmd` times out quickly).
+      // Pull the matching stdout capture from the sidechannel and replace
+      // openclaw's truncated meta with the real text.
+      //
+      // Correlation strategy: global FIFO across all ai-dev-browser POSTs.
+      // We intentionally don't hash the command here — openclaw truncates
+      // the backticked command in `meta` (typically at ~100 chars), so any
+      // hash we compute from `meta` won't match the hook's hash over the
+      // full command string. But the hook only POSTs entries for matched
+      // ai-dev-browser invocations, and it POSTs on child exit — which is
+      // the same kernel event that triggers openclaw's result emission.
+      // So the order of POST arrivals matches the order of result events,
+      // and a simple FIFO pop lines up correctly.
       if (this.isAdbToolCall(toolData)) {
         try {
           const sink = serviceManager.getAdbSidechannel();
           if (sink) {
-            // The PowerShell / bash wrapper openclaw spawns around python
-            // takes several seconds (interpreter cold start + CDP connect
-            // attempts). Wait generously so the hook's POST has time to land
-            // — the hook only POSTs on the shell process's exit, which is
-            // strictly after the result event reaches sudowork.
-            const entry = await sink.waitForCmd(this.computeAdbCmdHash(toolData), 20_000);
+            const entry = await sink.waitForNextAdbEntry(20_000);
             if (entry && entry.stdoutRaw && entry.stdoutRaw.length > (this.extractResultText(toolData)?.length ?? 0)) {
               toolData.meta = entry.stdoutRaw;
               toolData.content = [{ type: 'content', content: { type: 'text', text: entry.stdoutRaw } }];
