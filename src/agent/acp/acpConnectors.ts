@@ -38,6 +38,18 @@ function getHookJsPath(): string {
   return path.join(app.getAppPath(), 'hook/node/dist/hook.js');
 }
 
+/**
+ * Build a --require node option with proper quoting for paths containing spaces.
+ * On Windows, backslashes are normalized to forward slashes and the path is
+ * wrapped in double quotes so that NODE_OPTIONS parsing is not broken by spaces
+ * in the installation directory (e.g. "C:\Program Files\...").
+ */
+function buildRequireNodeOption(modulePath: string): string {
+  const normalizedPath = process.platform === 'win32' ? modulePath.replace(/\\/g, '/') : modulePath;
+  const escapedPath = normalizedPath.replace(/"/g, '\\"');
+  return `--require="${escapedPath}"`;
+}
+
 function getHookPythonWhlPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'hook-0.0.1-py3-none-any.whl');
@@ -100,7 +112,7 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   cleanEnv.SUDOWORK_ACP_CHILD = '1';
   if (isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
-    const hookOption = `-r ${hookJsPath}`;
+    const hookOption = buildRequireNodeOption(hookJsPath);
     cleanEnv.NODE_OPTIONS = hookOption;
     console.log(`[ACP] Injecting safety hook via NODE_OPTIONS: ${hookOption}`);
 
