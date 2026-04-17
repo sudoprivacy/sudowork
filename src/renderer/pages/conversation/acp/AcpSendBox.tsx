@@ -408,7 +408,8 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, backend, sessionMode, agentName }) => {
+  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
+}> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
@@ -416,6 +417,14 @@ const AcpSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+
+  // Sync local aiProcessing state to parent via onAiProcessingChange
+  // 将本地 aiProcessing 状态同步到父组件，用于驱动 streamingAvatar 动图
+  useEffect(() => {
+    if (onAiProcessingChange) {
+      onAiProcessingChange(aiProcessing);
+    }
+  }, [aiProcessing, onAiProcessingChange]);
 
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
