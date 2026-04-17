@@ -40,10 +40,20 @@ exports.default = async function afterSign(context) {
   // Retry with exponential backoff for transient network errors
   const maxRetries = 5;
   const baseDelay = 30000; // 30 seconds
+  const notarizeTimeout = 300000; // 5 minutes per attempt
+
+  // Wrap notarize in a timeout promise
+  const notarizeWithTimeout = (options) =>
+    Promise.race([
+      notarize(options),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Notarization timed out after 5 minutes')), notarizeTimeout)
+      ),
+    ]);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await notarize({
+      await notarizeWithTimeout({
         tool: 'notarytool',
         appBundleId,
         appPath: appPath,
@@ -56,6 +66,7 @@ exports.default = async function afterSign(context) {
     } catch (error) {
       const isNetworkError = error.message?.includes('timed out') ||
                              error.message?.includes('NSURLErrorDomain') ||
+                             error.message?.includes('Notarization timed out') ||
                              error.code === -1001;
 
       if (isNetworkError && attempt < maxRetries) {
