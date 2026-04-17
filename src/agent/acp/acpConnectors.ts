@@ -79,8 +79,7 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     }
   }
 
-  // Default ai-dev-browser to headless and point it to SudoWork's CDP port
-  cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
+  // Point ai-dev-browser to SudoWork's CDP port
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { cdpPort } = require('@/utils/configureChromium');
