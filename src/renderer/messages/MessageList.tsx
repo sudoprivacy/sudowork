@@ -415,7 +415,12 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     }
     if ('type' in item && ['file_summary', 'tool_summary'].includes(item.type)) {
       const isLastItemSummary = _index >= processedList.length - 2;
-      const isStreamingForSummary = item.type === 'tool_summary' && (item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
+      // For tool_summary: if aiProcessing=true, always show as streaming (task may continue to next step)
+      // For file_summary: use original logic (last item check)
+      // 对于 tool_summary：如果 aiProcessing=true，总是显示为正在执行（任务可能继续下一步）
+      // 对于 file_summary：使用原始逻辑（检查是否是最后一条）
+      const toolSummaryItem = item as Extract<IMessageVO, { type: 'tool_summary' }>;
+      const isStreamingForSummary = item.type === 'tool_summary' ? aiProcessing : (toolSummaryItem.messages?.some((m: TMessage) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
       const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
       const avatarSizeForSummary = isStreamingForSummary ? 'w-40px h-40px' : 'w-24px h-24px';
       return (
@@ -425,14 +430,13 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
             {item.type === 'tool_summary' &&
               (() => {
-                // Check if this summary is part of the ongoing AI response
-                // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
-                const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
-                const isStreaming = item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
+                // For tool_summary: if aiProcessing=true, always pass isStreaming=true
+                // 因为任务可能还在继续执行下一个步骤
+                const isStreaming = aiProcessing;
 
                 return (
                   <MessageToolGroupSummary
-                    messages={item.messages}
+                    messages={toolSummaryItem.messages}
                     summaryId={item.id}
                     // While AI is processing/streaming this block, it MUST be expanded.
                     // 当 AI 正在处理或流式传输此块时，它必须展开。

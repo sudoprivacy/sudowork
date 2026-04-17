@@ -19,6 +19,7 @@ interface ThoughtDisplayProps {
   style?: 'default' | 'compact';
   running?: boolean;
   onStop?: () => void;
+  stopStatus?: 'stopped' | null;
 }
 
 // 背景渐变常量 Background gradient constants
@@ -35,7 +36,7 @@ const formatElapsedTime = (seconds: number): string => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
-const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, onStop: _onStop }) => {
+const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, onStop: _onStop, stopStatus }) => {
   const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -83,6 +84,17 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
       transform: 'translateY(36px)',
     };
   }, [theme, style]);
+
+  // 如果有停止状态且不在运行中，显示停止状态
+  if (stopStatus && !running) {
+    return (
+      <div className='px-10px py-10px rd-20px text-14px pb-40px lh-20px text-t-primary flex items-center gap-8px' style={containerStyle}>
+        <Tag color='orange' size='small'>
+          {t('conversation.chat.taskStopped')}
+        </Tag>
+      </div>
+    );
+  }
 
   // 如果没有 thought 且不在运行中，不显示
   if (!thought?.subject && !running) {

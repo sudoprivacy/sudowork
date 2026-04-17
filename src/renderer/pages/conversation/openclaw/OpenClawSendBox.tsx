@@ -11,7 +11,7 @@ import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/sendbox';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -106,6 +106,7 @@ const OpenClawSendBox: React.FC<{
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const messageList = useMessageList();
   const { setSendBoxHandler } = usePreviewContext();
 
   const [aiProcessing, setAiProcessing] = useState(false);
@@ -114,6 +115,8 @@ const OpenClawSendBox: React.FC<{
     description: '',
     subject: '',
   });
+  const [stopStatus, setStopStatus] = useState<'stopped' | null>(null);
+  const stopStatusRef = useRef<'stopped' | null>(null);
 
   // Use ref to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -131,6 +134,41 @@ const OpenClawSendBox: React.FC<{
   React.useEffect(() => {
     setAiProcessing(false);
   }, [conversation_id]);
+
+  // Restore stopStatus from message list on load
+  // 从消息列表恢复停止状态
+  React.useEffect(() => {
+    if (!messageList.length) return;
+    // Find last agent_status message
+    // 查找最后一条 agent_status 消息
+    const agentStatusMessages = messageList.filter(
+      (m) => m.type === 'agent_status' && m.conversation_id === conversation_id
+    );
+    if (!agentStatusMessages.length) return;
+
+    const lastAgentStatus = agentStatusMessages[agentStatusMessages.length - 1];
+    const status = (lastAgentStatus?.content as { status?: string })?.status;
+    if (status !== 'stopped') return;
+
+    // Check if there's any content message after the stopped message
+    // If there's content after stopped, the conversation continued and we shouldn't show stopped status
+    // 检查停止消息之后是否有任何内容消息（包括AI回复）
+    // 如果有内容，说明会话继续了，不应该显示停止状态
+    const stoppedCreatedAt = lastAgentStatus.createdAt;
+    const hasContentAfter = messageList.some(
+      (m) =>
+        m.conversation_id === conversation_id &&
+        m.type === 'text' &&
+        m.createdAt > stoppedCreatedAt
+    );
+
+    // If no content after stopped, restore stopStatus
+    // 如果停止后没有内容消息，恢复停止状态
+    if (!hasContentAfter) {
+      setStopStatus('stopped');
+      stopStatusRef.current = 'stopped';
+    }
+  }, [conversation_id, messageList]);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)
@@ -298,6 +336,10 @@ const OpenClawSendBox: React.FC<{
 
       switch (message.type) {
         case 'thought':
+          // Clear stop status when starting new task
+          // 开始新任务时清除停止状态
+          setStopStatus(null);
+          stopStatusRef.current = null;
           // Auto-recover aiProcessing state if thought arrives after finish
           // 如果 thought 在 finish 后到达，自动恢复 aiProcessing 状态
           if (!aiProcessingRef.current) {
@@ -308,12 +350,25 @@ const OpenClawSendBox: React.FC<{
           break;
         case 'finish':
           {
+            const isIntermediate = (message.data as { isIntermediate?: boolean })?.isIntermediate;
+            // 如果是中间步骤完成，不重置状态，任务可能继续执行
+            // If intermediate step finish, don't reset state, task may continue
+            if (isIntermediate) {
+              break;
+            }
+
             // Use delayed reset to detect true end of task
             // 使用延迟重置来检测任务的真正结束
             finishTimeoutRef.current = setTimeout(() => {
               setAiProcessing(false);
               aiProcessingRef.current = false;
               setThought({ subject: '', description: '' });
+              // Only clear stopStatus if no stop was received (use ref for immediate access)
+              // 只有在没有收到停止状态时才清除 stopStatus
+              if (!stopStatusRef.current) {
+                setStopStatus(null);
+                stopStatusRef.current = null;
+              }
               finishTimeoutRef.current = null;
               // Notify StarOfficeMonitorCard to re-detect and auto-open panel
               if (starOfficeInstallInFlightRef.current) {
@@ -328,6 +383,12 @@ const OpenClawSendBox: React.FC<{
         case 'acp_permission': {
           // Mark that current turn has content output
           hasContentInTurnRef.current = true;
+          // Clear stop status when new content arrives (conversation continued)
+          // 新内容到达时清除停止状态（会话继续了）
+          if (stopStatusRef.current === 'stopped') {
+            setStopStatus(null);
+            stopStatusRef.current = null;
+          }
           // Auto-recover aiProcessing state if content arrives after finish
           if (!aiProcessingRef.current) {
             setAiProcessing(true);
@@ -341,7 +402,27 @@ const OpenClawSendBox: React.FC<{
           break;
         }
         case 'agent_status': {
-          const statusData = message.data as { status: string; message: string };
+          // If already stopped, ignore any subsequent agent_status messages
+          // 如果已经停止，忽略后续的 agent_status 消息
+          if (stopStatusRef.current === 'stopped') {
+            return;
+          }
+          const statusData = message.data as { status: string; message?: string };
+          // Handle stop status
+          if (statusData.status === 'stopped') {
+            // Cancel pending finish timeout
+            if (finishTimeoutRef.current) {
+              clearTimeout(finishTimeoutRef.current);
+              finishTimeoutRef.current = null;
+            }
+            setStopStatus('stopped');
+            stopStatusRef.current = 'stopped';
+            setAiProcessing(false);
+            aiProcessingRef.current = false;
+            setThought({ subject: '', description: '' });
+            setOpenClawStatus(null);
+            return;
+          }
           setOpenClawStatus(statusData.status);
           emitter.emit('agent.connection.status', conversation_id, statusData.status);
           break;
@@ -584,6 +665,8 @@ const OpenClawSendBox: React.FC<{
       setAiProcessing(false);
       aiProcessingRef.current = false;
       setThought({ subject: '', description: '' });
+      // Don't clear stopStatus here - let it persist until user sends new message
+      // 不在这里清除 stopStatus - 让它保持显示直到用户发送新消息
       hasContentInTurnRef.current = false;
     }
   };
@@ -591,7 +674,7 @@ const OpenClawSendBox: React.FC<{
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} stopStatus={stopStatus} />
 
       <SendBox
         value={content}

@@ -7,7 +7,7 @@ import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -41,6 +41,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const messageList = useMessageList();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -50,6 +51,8 @@ const useAcpMessage = (conversation_id: string) => {
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [contextLimit, setContextLimit] = useState<number>(0);
+  const [stopStatus, setStopStatus] = useState<'stopped' | null>(null);
+  const stopStatusRef = useRef<'stopped' | null>(null);
 
   // Use refs to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -168,6 +171,10 @@ const useAcpMessage = (conversation_id: string) => {
           throttledSetThought(message.data as ThoughtData);
           break;
         case 'start':
+          // Clear stop status when starting new task
+          // 开始新任务时清除停止状态
+          setStopStatus(null);
+          stopStatusRef.current = null;
           setRunning(true);
           runningRef.current = true;
           // Don't reset aiProcessing here - let content arrival handle it
@@ -176,6 +183,21 @@ const useAcpMessage = (conversation_id: string) => {
         case 'finish':
           console.log('[AcpSendBox] Processing finish message');
           {
+            const isIntermediate = (message.data as { isIntermediate?: boolean })?.isIntermediate;
+            // 如果是中间步骤完成，不重置 running 状态，任务可能继续执行
+            // If intermediate step finish, don't reset running state, task may continue
+            if (isIntermediate) {
+              break;
+            }
+
+            // Cancel pending finish timeout if stop status was received
+            // 如果已收到停止状态，取消 pending 的 finish timeout
+            const existingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+            if (existingTimeout) {
+              clearTimeout(existingTimeout);
+              (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+            }
+
             // Use delayed reset to detect true end of task
             // 使用延迟重置来检测任务的真正结束
             const timeoutId = setTimeout(() => {
@@ -185,6 +207,12 @@ const useAcpMessage = (conversation_id: string) => {
                 setAiProcessing(false);
                 aiProcessingRef.current = false;
                 setThought({ subject: '', description: '' });
+                // Only clear stopStatus if no stop was received (use ref for immediate access)
+                // 只有在没有收到停止状态时才清除 stopStatus（使用 ref 来获取即时值）
+                if (!stopStatusRef.current) {
+                  setStopStatus(null);
+                  stopStatusRef.current = null;
+                }
               }
             }, 1000);
             (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = timeoutId;
@@ -199,6 +227,12 @@ const useAcpMessage = (conversation_id: string) => {
         case 'content':
           // Mark that current turn has content output
           hasContentInTurnRef.current = true;
+          // Clear stop status when new content arrives (conversation continued)
+          // 新内容到达时清除停止状态（会话继续了）
+          if (stopStatusRef.current === 'stopped') {
+            setStopStatus(null);
+            stopStatusRef.current = null;
+          }
           // Auto-recover running state if content arrives after finish
           if (!runningRef.current) {
             setRunning(true);
@@ -209,6 +243,11 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           break;
         case 'agent_status': {
+          // If already stopped, ignore any subsequent agent_status messages
+          // 如果已经停止，忽略后续的 agent_status 消息
+          if (stopStatusRef.current === 'stopped') {
+            return;
+          }
           // Auto-recover running state if agent_status arrives after finish
           if (!runningRef.current) {
             setRunning(true);
@@ -216,10 +255,28 @@ const useAcpMessage = (conversation_id: string) => {
           }
           // Update ACP/Agent status
           const agentData = message.data as {
-            status?: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error';
+            status?: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | 'stopped';
             backend?: string;
           };
           if (isMountedRef.current && agentData?.status) {
+            // Handle stop status
+            if (agentData.status === 'stopped') {
+              // Cancel pending finish timeout
+              const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+              if (pendingTimeout) {
+                clearTimeout(pendingTimeout);
+                (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+              }
+              setStopStatus('stopped');
+              stopStatusRef.current = 'stopped';
+              setRunning(false);
+              runningRef.current = false;
+              setAiProcessing(false);
+              aiProcessingRef.current = false;
+              setThought({ subject: '', description: '' });
+              return;
+            }
+
             setAcpStatus(agentData.status);
             emitter.emit('agent.connection.status', conversation_id, agentData.status);
             // Reset running state when authentication is complete
@@ -349,7 +406,42 @@ const useAcpMessage = (conversation_id: string) => {
     });
   }, [conversation_id]);
 
-  const resetState = useCallback(() => {
+    // Restore stopStatus from message list on load
+    // 从消息列表恢复停止状态
+    useEffect(() => {
+      if (!messageList.length) return;
+      // Find last agent_status message
+      // 查找最后一条 agent_status 消息
+      const agentStatusMessages = messageList.filter(
+        (m) => m.type === 'agent_status' && m.conversation_id === conversation_id
+      );
+      if (!agentStatusMessages.length) return;
+
+      const lastAgentStatus = agentStatusMessages[agentStatusMessages.length - 1];
+      const status = (lastAgentStatus?.content as { status?: string })?.status;
+      if (status !== 'stopped') return;
+
+      // Check if there's any content message after the stopped message
+      // If there's content after stopped, the conversation continued and we shouldn't show stopped status
+      // 检查停止消息之后是否有任何内容消息（包括AI回复）
+      // 如果有内容，说明会话继续了，不应该显示停止状态
+      const stoppedCreatedAt = lastAgentStatus.createdAt;
+      const hasContentAfter = messageList.some(
+        (m) =>
+          m.conversation_id === conversation_id &&
+          m.type === 'text' &&
+          m.createdAt > stoppedCreatedAt
+      );
+
+      // If no content after stopped, restore stopStatus
+      // 如果停止后没有内容消息，恢复停止状态
+      if (!hasContentAfter) {
+        setStopStatus('stopped');
+        stopStatusRef.current = 'stopped';
+      }
+    }, [conversation_id, messageList]);
+
+    const resetState = useCallback(() => {
     // Clear pending finish timeout
     const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
     if (pendingTimeout) {
@@ -362,10 +454,12 @@ const useAcpMessage = (conversation_id: string) => {
     setAiProcessing(false);
     aiProcessingRef.current = false;
     setThought({ subject: '', description: '' });
+    // Don't clear stopStatus here - let it persist until user sends new message
+    // 不在这里清除 stopStatus - 让它保持显示直到用户发送新消息
     hasContentInTurnRef.current = false;
   }, []);
 
-  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit };
+  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, stopStatus };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -408,14 +502,23 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, backend, sessionMode, agentName }) => {
-  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
+  onAiProcessingChange?: (processing: boolean) => void;
+}> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
+  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, stopStatus } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+
+  // Sync aiProcessing state to parent via onAiProcessingChange
+  // 同步 aiProcessing 状态到 parent
+  useEffect(() => {
+    if (onAiProcessingChange) {
+      onAiProcessingChange(aiProcessing);
+    }
+  }, [aiProcessing, onAiProcessingChange]);
 
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
@@ -658,7 +761,7 @@ const AcpSendBox: React.FC<{
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} stopStatus={stopStatus} />
 
       <SendBox
         value={content}

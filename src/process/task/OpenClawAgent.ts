@@ -88,6 +88,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isFirstMessage: boolean = true;
   private expectReconnectOnClose = false;
   private hasEmittedTerminalConnectionError = false;
+  private _userInitiatedStop = false; // Track user-initiated stop vs unexpected disconnect
 
   constructor(data: OpenClawAgentData) {
     super('openclaw-gateway', data);
@@ -475,12 +476,23 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   async stop(): Promise<void> {
+    // Mark as user-initiated stop for graceful disconnect handling
+    this._userInitiatedStop = true;
+
     if (this.connection?.isConnected && this.connection?.sessionKey) {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
+        // chatAbort succeeded — emit friendly stop message
+        this.emitStopMessage();
+        this._userInitiatedStop = false;
       } catch (err) {
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
+        // chatAbort failed — handleDisconnect will emit message based on _userInitiatedStop
       }
+    } else {
+      // No active connection — emit stop message directly
+      this.emitStopMessage();
+      this._userInitiatedStop = false;
     }
   }
 
@@ -975,6 +987,10 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       data: null,
     };
 
+    // Set status to 'finished' when finish is sent (task complete)
+    // 发送 finish 时设置 status = 'finished'（任务完成）
+    this.status = 'finished';
+
     // Clear busy guard
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
@@ -992,11 +1008,17 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   }
 
   private handleDisconnect(code: number, reason: string, retrying: boolean = false): void {
-    if (!retrying) {
+    // Check if this disconnect was caused by user-initiated stop
+    if (this._userInitiatedStop) {
+      // User actively stopped — emit friendly stop message instead of error
+      this.emitStopMessage();
+      this._userInitiatedStop = false;
+    } else if (!retrying) {
+      // Unexpected disconnect — emit status and friendly error message
       this.emitStatusMessage('disconnected');
-    }
-    if (!retrying && !this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
-      this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+      if (!this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
+        this.emitErrorMessage(`连接已断开，请尝试发送新消息重新连接。`, 'disconnect');
+      }
     }
 
     const finishMsg: IResponseMessage = {
@@ -1122,11 +1144,10 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private handleStreamMessage(message: IResponseMessage): void {
     const msg = { ...message, conversation_id: this.conversation_id };
 
-    // Mark as finished when content is output
-    const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
-    if (contentTypes.includes(msg.type)) {
-      this.status = 'finished';
-    }
+    // Don't set status=finished here - task may still be running
+    // Status should only be set to 'finished' when finish message is sent
+    // 不在这里设置 status=finished - 任务可能还在运行
+    // 只有发送 finish 消息时才应该设置 status = 'finished'
 
     // Persist messages to database
     const tMessage = transformMessage(msg);
@@ -1202,6 +1223,22 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       },
     };
 
+    this.emitTMessage(message);
+  }
+
+  private emitStopMessage(): void {
+    const message: TMessage = {
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'agent_status',
+      position: 'center',
+      createdAt: Date.now(),
+      content: {
+        status: 'stopped',
+        backend: 'openclaw-gateway',
+      },
+    };
     this.emitTMessage(message);
   }
 

@@ -179,6 +179,8 @@
     "noModelSelected": "現在のセッションでモデルが選択されていないため、メッセージを送信できません",
     "sendMessageTo": "{{model}}にメッセージを送信",
     "processing": "処理中……",
+    "taskStopped": "タスクが停止されました",
+    "taskCancelled": "タスクがキャンセルされました",
     "quotaExceededTitle": "モデルの上限に達しました",
     "quotaExceededBody": "現在のモデルの上限に達しました。{{model}}に切り替えて続行しますか？",
     "quotaExceededNoFallback": "現在のモデルの上限に達しました。別の利用可能なモデルに切り替えてください。",

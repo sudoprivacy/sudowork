@@ -114,6 +114,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingNavigationTools = new Set<string>();
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
+  private _userInitiatedStop = false; // Track user-initiated stop vs unexpected disconnect
 
   // Model tracking
   private userModelOverride: string | null = null;
@@ -863,6 +864,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   }
 
   async stop(): Promise<void> {
+    // Mark as user-initiated stop for graceful disconnect handling
+    this._userInitiatedStop = true;
+
     // 1. Flush buffered streaming text
     this.streamTextBuffer.flushAll();
 
@@ -894,7 +898,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     if (result === 'disconnected') {
       // Backend didn't respond to cancel — process was killed
-      this.emitStatusMessage('disconnected');
+      // handleDisconnect will check _userInitiatedStop and emit friendly message
       this.approvalStore.clear();
       // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
@@ -905,7 +909,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         msg_id: uuid(),
         data: null,
       });
+    } else if (result === 'cancelled') {
+      // Backend responded to cancel — session is alive
+      // Emit friendly stop status message (finish already emitted via handleEndTurn)
+      this.emitStopMessage();
     }
+    // Reset user-initiated stop flag after handling
+    this._userInitiatedStop = false;
     // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
     // The finish event was already emitted by handleEndTurn() when the backend responded
   }
@@ -1278,7 +1288,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       type: 'finish',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
-      data: null,
+      data: { isIntermediate: true }, // 中间步骤完成，任务可能继续
     };
     void this.handleSignalEvent(msg);
   }
@@ -1321,10 +1331,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   }
 
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
-    this.emitStatusMessage('disconnected');
-
-    const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg);
+    // Check if this disconnect was caused by user-initiated stop
+    if (this._userInitiatedStop) {
+      // User actively stopped — emit friendly stop message instead of error
+      this.emitStopMessage();
+      this._userInitiatedStop = false;
+    } else {
+      // Unexpected disconnect — emit status and friendly error message
+      this.emitStatusMessage('disconnected');
+      const errorMsg = `${this.extra.backend} 连接已断开，请尝试发送新消息重新连接。`;
+      this.emitErrorMessage(errorMsg);
+    }
 
     const finishMsg: IResponseMessage = {
       type: 'finish',
@@ -1354,7 +1371,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       if (status === 'disconnected') {
         this.bootstrap = undefined;
       }
-      const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
+      // Only display status for first message, errors, disconnect, or user-initiated stop
+      // 只在首次消息、错误、断开或用户主动停止时显示状态
+      const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected' || status === 'stopped';
       if (!shouldDisplayStatus) {
         return;
       }
@@ -1364,10 +1383,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       return;
     }
 
-    const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
-    if (contentTypes.includes(message.type)) {
-      this.status = 'finished';
-    }
+    // Don't set status=finished here - intermediate steps may complete but task continues
+    // Status should only be set to 'finished' when the entire task is done
+    // 不在这里设置 status=finished - 中间步骤可能完成但任务还在继续
+    // 只有整个任务完成时才应该设置 status = 'finished'
+    // This is handled in handleSignalEvent when finish message arrives (non-isIntermediate)
 
     if (message.type === 'start') {
       const modelInfo = this.getModelInfo();
@@ -1453,6 +1473,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     }
 
     if (v.type === 'finish') {
+      // Check if this is an intermediate step finish
+      // 检查是否是中间步骤完成
+      const isIntermediate = (v.data as { isIntermediate?: boolean })?.isIntermediate;
+
+      // Only set status to 'finished' when the entire task is done (non-intermediate finish)
+      // 只有整个任务完成时（非中间步骤 finish）才设置 status = 'finished'
+      if (!isIntermediate) {
+        this.status = 'finished';
+      }
+
       cronBusyGuard.setProcessing(this.conversation_id, false);
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
@@ -1592,6 +1622,22 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       },
     };
     this.emitMessage(errorMessage);
+  }
+
+  private emitStopMessage(): void {
+    const message: TMessage = {
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'agent_status',
+      position: 'center',
+      createdAt: Date.now(),
+      content: {
+        status: 'stopped',
+        backend: this.extra.backend,
+      },
+    };
+    this.emitMessage(message);
   }
 
   private emitModelInfoEvent(): void {

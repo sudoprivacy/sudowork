@@ -353,6 +353,10 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
 
   const overallStatus: ToolStatus = errorCount > 0 ? 'error' : runningCount > 0 ? 'running' : completedCount === totalCount && totalCount > 0 ? 'success' : 'default';
 
+  // 如果 isStreaming=true（aiProcessing 且是最后一条消息），即使 tools 都完成了也显示"执行中..."
+  // 因为任务可能还在继续执行下一个步骤
+  // If isStreaming=true (aiProcessing and last message), show "执行中..." even if all tools completed
+  // because the task may continue to the next step
   const isRunning = !!isStreaming || overallStatus === 'running';
 
   const headerLabel = isRunning ? '执行中...' : overallStatus === 'success' || overallStatus === 'error' ? '执行完成' : '查看步骤';
