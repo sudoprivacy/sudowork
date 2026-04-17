@@ -104,13 +104,13 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
                   onChange={(val) => handleValueChange(entry.config_key, val)}
                   placeholder={entry.config_key}
                   style={{ width: 280 }}
-                  disabled={!enabled || saving}
+                  disabled={enabled || saving}
                 />
               </PreferenceRow>
             ))}
           </div>
           <div className='flex justify-end'>
-            <Button type='primary' loading={saving} disabled={!enabled} onClick={handleSave}>
+            <Button type='primary' loading={saving} disabled={enabled} onClick={handleSave}>
               {t('settings.secrets.save', '保存')}
             </Button>
           </div>
