@@ -5,7 +5,7 @@
  */
 
 import classNames from 'classnames';
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 
@@ -46,9 +46,21 @@ interface SkillSelectorMenuProps {
   skillsTabTitle?: string;
   /** Empty text for files tab */
   filesEmptyText?: string;
+  /** Search query for filtering */
+  searchQuery?: string;
+  /** Callback when search query changes */
+  onSearchChange?: (query: string) => void;
+  /** Callback to dismiss/close the menu */
+  onDismiss?: () => void;
+  /** Placeholder text for skills search */
+  skillsSearchPlaceholder?: string;
+  /** Placeholder text for files search */
+  filesSearchPlaceholder?: string;
+  /** Text shown when search has no results */
+  noSearchResultsText?: string;
 }
 
-const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files' }) => {
+const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
@@ -57,6 +69,39 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
       current.scrollIntoView({ block: 'nearest' });
     }
   }, [activeIndex, items.length, fileItems.length, activeTab]);
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      const currentItems = activeTab === 'skills' ? items : fileItems;
+      const itemCount = currentItems?.length ?? 0;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        onHoverItem(Math.min(activeIndex + 1, itemCount - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        onHoverItem(Math.max(activeIndex - 1, 0));
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (activeTab === 'skills' && items[activeIndex]) {
+          onSelectItem(items[activeIndex]);
+        } else if (activeTab === 'files' && fileItems?.[activeIndex]) {
+          onSelectFile?.(fileItems[activeIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        if (searchQuery) {
+          onSearchChange?.('');
+        } else {
+          onDismiss?.();
+        }
+      } else if (e.key === 'Tab' && showTabs && onTabChange) {
+        e.preventDefault();
+        onTabChange(activeTab === 'skills' ? 'files' : 'skills');
+      }
+    },
+    [activeTab, items, fileItems, activeIndex, onHoverItem, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery, showTabs, onTabChange]
+  );
 
   return (
     <div
@@ -111,13 +156,54 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         {showTabs && <div className='text-11px text-t-secondary truncate'>Tab to switch</div>}
       </div>
 
+      {/* Search box */}
+      {onSearchChange && (
+        <div
+          className='px-8px py-6px border-b border-solid'
+          style={{
+            borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
+          }}
+        >
+          <div
+            className='flex items-center gap-6px px-8px py-4px rounded-8px'
+            style={{
+              background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
+            }}
+          >
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-t-tertiary'>
+              <circle cx='11' cy='11' r='8' />
+              <path d='m21 21-4.35-4.35' />
+            </svg>
+            <input
+              type='text'
+              className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-t-primary placeholder:text-t-tertiary'
+              style={{ caretColor: 'var(--color-primary)' }}
+              placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
+            {searchQuery && (
+              <button
+                type='button'
+                className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-t-tertiary hover:text-t-secondary cursor-pointer border-none outline-none text-11px bg-transparent'
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onSearchChange('')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Content area */}
       <div role='listbox' aria-busy={loading} className='overflow-y-auto p-6px' style={{ maxHeight: 'min(34vh, 260px)' }}>
         {/* Skills tab content */}
         {activeTab === 'skills' && (
           <>
             {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{loadingText}</div>}
-            {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{emptyText}</div>}
+            {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
             {!loading &&
               items.map((item, index) => {
                 const isSelected = selectedKeys.includes(item.key);
@@ -164,7 +250,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         {/* Files tab content */}
         {activeTab === 'files' && (
           <>
-            {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{filesEmptyText}</div>}
+            {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
             {fileItems.map((file, index) => (
               <button
                 key={file.fullPath}

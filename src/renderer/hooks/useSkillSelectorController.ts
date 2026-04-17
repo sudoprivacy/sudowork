@@ -80,6 +80,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
+  const [searchQuery, setSearchQuery] = useState('');
   const prevQueryRef = useRef<string | null>(null);
 
   // Determine if tabs should be shown (always show when in conversation with workspace)
@@ -91,34 +92,45 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     if (query !== prevQueryRef.current) {
       setActiveIndex(0);
       setDismissed(false);
+      setSearchQuery('');
       prevQueryRef.current = query;
     }
   }, [query]);
+
+  // Reset active index when search query changes
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [searchQuery]);
 
   const filteredSkills = useMemo(() => {
     if (query === null) {
       return [];
     }
-    const keyword = query.trim().toLowerCase();
+    // Use searchQuery if available, otherwise fall back to @ query
+    const rawKeyword = searchQuery.trim() || query.trim();
+    const keyword = rawKeyword.toLowerCase();
     if (!keyword) {
       // Show all skills when query is empty
       return skills;
     }
-    // Filter by display name or internal name
+    // Filter by display name, internal name, or description
     return skills.filter((skill) => {
       const nameMatch = skill.name.toLowerCase().includes(keyword);
       const displayNameMatch = skill.displayName.toLowerCase().includes(keyword);
+      const descriptionMatch = skill.description?.toLowerCase().includes(keyword) ?? false;
       // Also support Chinese character matching
-      const chineseMatch = query && skill.displayName.includes(query);
-      return nameMatch || displayNameMatch || chineseMatch;
+      const chineseMatch = rawKeyword ? skill.displayName.includes(rawKeyword) : false;
+      return nameMatch || displayNameMatch || descriptionMatch || chineseMatch;
     });
-  }, [skills, query]);
+  }, [skills, query, searchQuery]);
 
   const filteredFiles = useMemo(() => {
     if (query === null) {
       return [];
     }
-    const keyword = query.trim().toLowerCase();
+    // Use searchQuery if available, otherwise fall back to @ query
+    const rawKeyword = searchQuery.trim() || query.trim();
+    const keyword = rawKeyword.toLowerCase();
     if (!keyword) {
       return workspaceFiles;
     }
@@ -127,7 +139,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
       const pathMatch = file.relativePath.toLowerCase().includes(keyword);
       return nameMatch || pathMatch;
     });
-  }, [workspaceFiles, query]);
+  }, [workspaceFiles, query, searchQuery]);
 
   // Get items for current tab
   const currentTabItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
@@ -159,6 +171,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     if (!showTabs) return;
     setActiveTab((prev) => (prev === 'skills' ? 'files' : 'skills'));
     setActiveIndex(0);
+    setSearchQuery('');
   }, [showTabs]);
 
   const onKeyDown = useCallback(
@@ -220,7 +233,10 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     setActiveTab: (tab: AtMentionTab) => {
       setActiveTab(tab);
       setActiveIndex(0);
+      setSearchQuery('');
     },
+    searchQuery,
+    setSearchQuery,
     onKeyDown,
     onSelectByIndex: executeSkill,
     setDismissed,
