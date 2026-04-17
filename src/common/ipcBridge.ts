@@ -540,6 +540,7 @@ export type SudoclawConfig = {
     providers?: Record<string, SudoclawProvider>;
   };
   env?: { vars?: Record<string, string> };
+  plugins?: { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> };
 };
 
 export type SudoclawTestGatewayResult = {
