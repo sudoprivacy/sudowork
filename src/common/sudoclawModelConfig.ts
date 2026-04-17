@@ -132,12 +132,15 @@ export function mergeSudorouterProvidersIntoConfig(config: SudoclawConfig | null
   if (canonicalApiKey) {
     nextConfig.plugins = nextConfig.plugins || {};
     nextConfig.plugins.entries = nextConfig.plugins.entries || {};
+    const existingTavily = nextConfig.plugins.entries.tavily;
+    const existingTavilyConfig = existingTavily?.config || {};
     nextConfig.plugins.entries.tavily = {
+      ...existingTavily,
       enabled: true,
       config: {
-        ...(nextConfig.plugins.entries.tavily || {}),
+        ...existingTavilyConfig,
         webSearch: {
-          ...(nextConfig.plugins.entries.tavily?.config || {}),
+          ...((existingTavilyConfig.webSearch as Record<string, unknown>) || {}),
           apiKey: canonicalApiKey,
         },
       },

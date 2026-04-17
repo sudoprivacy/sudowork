@@ -430,6 +430,42 @@ export function repairOpenClawConfig(): void {
       changed = true;
     }
 
+    // Repair tavily plugin config — backfill apiKey from sudorouter provider if missing.
+    // This ensures tavily web search works for existing users who had apiKey in providers
+    // but did not have it propagated to the tavily plugin config.
+    {
+      const pluginsObj = config.plugins as { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> } | undefined;
+      const tavilyWebSearch = pluginsObj?.entries?.tavily?.config?.webSearch as { apiKey?: string } | undefined;
+      const tavilyApiKey = tavilyWebSearch?.apiKey;
+      if (!tavilyApiKey?.trim()) {
+        const providersObj = (config.models as { providers?: Record<string, { apiKey?: string }> } | undefined)?.providers;
+        const sudorouterApiKey = providersObj?.sudorouter?.apiKey?.trim() || Object.values(providersObj || {}).find((p) => p?.apiKey?.trim())?.apiKey?.trim();
+        if (sudorouterApiKey) {
+          if (!config.plugins || typeof config.plugins !== 'object') {
+            (config as Record<string, unknown>).plugins = { entries: {} };
+          }
+          const plugins = config.plugins as { entries: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> };
+          plugins.entries = plugins.entries || {};
+          const existingTavily = plugins.entries.tavily;
+          const existingTavilyConfig = existingTavily?.config || {};
+          const existingWebSearch = (existingTavilyConfig.webSearch || {}) as Record<string, unknown>;
+          plugins.entries.tavily = {
+            ...existingTavily,
+            enabled: true,
+            config: {
+              ...existingTavilyConfig,
+              webSearch: {
+                ...existingWebSearch,
+                apiKey: sudorouterApiKey,
+              },
+            },
+          };
+          changed = true;
+          mainLog('Sudoclaw', 'Repaired tavily apiKey from sudorouter provider');
+        }
+      }
+    }
+
     // Ensure gateway config exists with auth: { mode: 'none' }
     if (!config.gateway || typeof config.gateway !== 'object') {
       (config as Record<string, unknown>).gateway = {
