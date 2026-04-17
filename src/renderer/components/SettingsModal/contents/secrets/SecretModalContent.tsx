@@ -59,7 +59,7 @@ const SecretModalContent: React.FC = () => {
       <div className='px-[12px] md:px-[28px]'>
         <div className='flex items-center justify-between'>
           <h2 className='text-20px font-500 text-t-primary m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
-          <button onClick={handleRefresh} className='cursor-pointer p-4px rd-6px hover:bg-fill-2 transition-colors' title={t('settings.secrets.refresh', '刷新配置项')}>
+          <button onClick={handleRefresh} className='cursor-pointer p-4px rd-6px border-none bg-transparent hover:bg-fill-2 transition-colors mr-12px' title={t('settings.secrets.refresh', '刷新配置项')}>
             <img src={itemRefreshIcon} alt='refresh' className='w-16px h-16px' />
           </button>
         </div>
