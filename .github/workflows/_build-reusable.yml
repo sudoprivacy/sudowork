@@ -415,6 +415,36 @@ jobs:
 
       # macOS: Build with notarization - DMG failure = CI failure, notarization failure = warning only
       # macOS: 构建并公证 - DMG 失败 = CI 失败，公证失败 = 仅警告
+      - name: Diagnostic: Check network to Apple services (macOS only)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          echo "=========================================="
+          echo "NETWORK DIAGNOSTICS"
+          echo "=========================================="
+          echo ""
+          echo "## DNS Resolution"
+          echo "---"
+          dig appstoreconnect.apple.com +short || echo "dig failed"
+          echo ""
+          echo "## Route to Apple Notary"
+          echo "---"
+          traceroute -m 10 appstoreconnect.apple.com 2>&1 || echo "traceroute failed"
+          echo ""
+          echo "## Connectivity Test (3 attempts)"
+          echo "---"
+          for i in 1 2 3; do
+            echo "Attempt $i/3:"
+            curl -s --connect-timeout 10 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5
+            echo ""
+            sleep 5
+          done
+          echo ""
+          echo "## DNS over HTTPS Test"
+          echo "---"
+          curl -s --dns-ipv4-addr 8.8.8.8 --connect-timeout 10 "https://dns.google/resolve?name=appstoreconnect.apple.com&type=A" 2>&1 | head -20 || echo "DoH test failed"
+          echo ""
+          echo "=========================================="
+
       - name: Build with electron-builder (macOS)
         if: startsWith(matrix.platform, 'macos')
         id: macos-build
