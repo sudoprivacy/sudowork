@@ -304,6 +304,55 @@ describe('SudoclawInstallService', () => {
     });
   });
 
+  it('backfills tools.web.search.provider when missing', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          tools: { deny: ['browser', 'image'] },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.tools.web).toEqual({ search: { provider: 'tavily' } });
+    expect(repaired.tools.deny).toEqual(['browser', 'image']);
+  });
+
+  it('preserves existing tools.web.search.provider value', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          tools: { deny: ['browser', 'image'], web: { search: { provider: 'custom-provider' } } },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.tools.web.search.provider).toBe('custom-provider');
+  });
+
   it('does not delete legacy dir when new sudoclaw dir already exists', async () => {
     const newPkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
     fs.mkdirSync(path.join(newPkgRoot, 'dist'), { recursive: true });
