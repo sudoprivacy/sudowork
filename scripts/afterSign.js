@@ -38,8 +38,8 @@ exports.default = async function afterSign(context) {
   console.log(`Starting notarization for ${appName} (${appBundleId})...`);
 
   // Retry with exponential backoff for transient network errors
-  const maxRetries = 3;
-  const baseDelay = 5000; // 5 seconds
+  const maxRetries = 5;
+  const baseDelay = 30000; // 30 seconds
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
