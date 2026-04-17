@@ -585,6 +585,12 @@ const SendBox: React.FC<{
               skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
               filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
               filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
+              searchQuery={skillSelectorController.searchQuery}
+              onSearchChange={skillSelectorController.setSearchQuery}
+              onDismiss={() => skillSelectorController.setDismissed(true)}
+              skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
+              filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
+              noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
             />
           </div>
         )}
