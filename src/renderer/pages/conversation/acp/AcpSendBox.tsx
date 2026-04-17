@@ -159,19 +159,27 @@ const useAcpMessage = (conversation_id: string) => {
       }
       switch (message.type) {
         case 'thought':
-          // Auto-recover running state if thought arrives after finish
-          // 如果 thought 在 finish 后到达，自动恢复 running 状态
+          // Auto-recover running/aiProcessing state if thought arrives after finish
+          // 如果 thought 在 finish 后到达，自动恢复 running/aiProcessing 状态
           if (!runningRef.current) {
             setRunning(true);
             runningRef.current = true;
+          }
+          if (!aiProcessingRef.current) {
+            setAiProcessing(true);
+            aiProcessingRef.current = true;
           }
           throttledSetThought(message.data as ThoughtData);
           break;
         case 'start':
           setRunning(true);
           runningRef.current = true;
-          // Don't reset aiProcessing here - let content arrival handle it
-          // 不在这里重置 aiProcessing - 让 content 到达时处理
+          // Activate aiProcessing when AI starts responding
+          // AI 开始响应时激活 aiProcessing
+          if (!aiProcessingRef.current) {
+            setAiProcessing(true);
+            aiProcessingRef.current = true;
+          }
           break;
         case 'finish':
           console.log('[AcpSendBox] Processing finish message');
@@ -199,10 +207,14 @@ const useAcpMessage = (conversation_id: string) => {
         case 'content':
           // Mark that current turn has content output
           hasContentInTurnRef.current = true;
-          // Auto-recover running state if content arrives after finish
+          // Auto-recover running/aiProcessing state if content arrives after finish
           if (!runningRef.current) {
             setRunning(true);
             runningRef.current = true;
+          }
+          if (!aiProcessingRef.current) {
+            setAiProcessing(true);
+            aiProcessingRef.current = true;
           }
           // Clear thought when final answer arrives
           setThought({ subject: '', description: '' });
@@ -241,10 +253,14 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           break;
         case 'acp_permission':
-          // Auto-recover running state if permission request arrives after finish
+          // Auto-recover running/aiProcessing state if permission request arrives after finish
           if (!runningRef.current) {
             setRunning(true);
             runningRef.current = true;
+          }
+          if (!aiProcessingRef.current) {
+            setAiProcessing(true);
+            aiProcessingRef.current = true;
           }
           addOrUpdateMessage(transformedMessage);
           break;
@@ -408,7 +424,8 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, backend, sessionMode, agentName }) => {
+  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
+}> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
@@ -416,6 +433,14 @@ const AcpSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+
+  // Sync local aiProcessing state to parent via onAiProcessingChange
+  // 将本地 aiProcessing 状态同步到父组件
+  useEffect(() => {
+    if (onAiProcessingChange) {
+      onAiProcessingChange(aiProcessing);
+    }
+  }, [aiProcessing, onAiProcessingChange]);
 
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
@@ -561,6 +586,7 @@ const AcpSendBox: React.FC<{
     clearFiles();
 
     // Start AI processing loading state
+    setAiProcessing(true);
 
     // Send message via ACP
     try {
