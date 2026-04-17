@@ -129,5 +129,23 @@ export function mergeSudorouterProvidersIntoConfig(config: SudoclawConfig | null
     },
   };
 
+  if (canonicalApiKey) {
+    nextConfig.plugins = nextConfig.plugins || {};
+    nextConfig.plugins.entries = nextConfig.plugins.entries || {};
+    const existingTavily = nextConfig.plugins.entries.tavily;
+    const existingTavilyConfig = existingTavily?.config || {};
+    nextConfig.plugins.entries.tavily = {
+      ...existingTavily,
+      enabled: true,
+      config: {
+        ...existingTavilyConfig,
+        webSearch: {
+          ...((existingTavilyConfig.webSearch as Record<string, unknown>) || {}),
+          apiKey: canonicalApiKey,
+        },
+      },
+    };
+  }
+
   return nextConfig;
 }
