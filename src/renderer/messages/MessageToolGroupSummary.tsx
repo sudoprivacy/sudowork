@@ -1,6 +1,7 @@
 import { IconDown } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IMessageAcpToolCall, IMessageToolGroup } from '../../common/chatLib';
 import './MessageToolGroupSummary.css';
 
@@ -234,6 +235,7 @@ interface MessageToolGroupSummaryProps {
 }
 
 const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messages, summaryId, isExpanded, onToggle, isStreaming }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const prevMessagesRef = useRef(messages);
@@ -353,13 +355,11 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
 
   const overallStatus: ToolStatus = errorCount > 0 ? 'error' : runningCount > 0 ? 'running' : completedCount === totalCount && totalCount > 0 ? 'success' : 'default';
 
-  // 如果 isStreaming=true（aiProcessing 且是最后一条消息），即使 tools 都完成了也显示"执行中..."
-  // 因为任务可能还在继续执行下一个步骤
-  // If isStreaming=true (aiProcessing and last message), show "执行中..." even if all tools completed
+  // If isStreaming=true (aiProcessing and last message), show "Executing..." even if all tools completed
   // because the task may continue to the next step
   const isRunning = !!isStreaming || overallStatus === 'running';
 
-  const headerLabel = isRunning ? '执行中...' : overallStatus === 'success' || overallStatus === 'error' ? '执行完成' : '查看步骤';
+  const headerLabel = isRunning ? t('conversation.chat.toolExecuting') : overallStatus === 'success' || overallStatus === 'error' ? t('conversation.chat.toolCompleted') : t('conversation.chat.toolViewSteps');
 
   return (
     <div ref={containerRef} className='tool-steps-card' onClick={(e) => e.stopPropagation()}>

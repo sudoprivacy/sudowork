@@ -38,6 +38,8 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
         return <Badge status='success' text={t('acp.status.session_active', { agent: displayName })} />;
       case 'disconnected':
         return <Badge status='default' text={t('acp.status.disconnected', { agent: displayName })} />;
+      case 'stopped':
+        return <Badge status='warning' text={t('conversation.chat.taskStopped')} />;
       case 'error':
         return <Badge status='error' text={t('acp.status.error')} />;
       default:
@@ -46,15 +48,16 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
   };
 
   const isError = status === 'error';
+  const isStopped = status === 'stopped';
   const isSuccess = status === 'connected' || status === 'authenticated' || status === 'session_active';
 
   return (
     <div
       className='agent-status-message flex items-center gap-3 p-3 rounded-lg border'
       style={{
-        backgroundColor: isError ? 'var(--color-danger-light-1)' : isSuccess ? 'var(--color-success-light-1)' : 'var(--color-primary-light-1)',
-        borderColor: isError ? 'rgb(var(--danger-3))' : isSuccess ? 'rgb(var(--success-3))' : 'rgb(var(--primary-3))',
-        color: isError ? 'rgb(var(--danger-6))' : isSuccess ? 'rgb(var(--success-6))' : 'rgb(var(--primary-6))',
+        backgroundColor: isError ? 'var(--color-danger-light-1)' : isStopped ? 'var(--color-warning-light-1)' : isSuccess ? 'var(--color-success-light-1)' : 'var(--color-primary-light-1)',
+        borderColor: isError ? 'rgb(var(--danger-3))' : isStopped ? 'rgb(var(--warning-3))' : isSuccess ? 'rgb(var(--success-3))' : 'rgb(var(--primary-3))',
+        color: isError ? 'rgb(var(--danger-6))' : isStopped ? 'rgb(var(--warning-6))' : isSuccess ? 'rgb(var(--success-6))' : 'rgb(var(--primary-6))',
       }}
     >
       <div className='flex items-center gap-2'>

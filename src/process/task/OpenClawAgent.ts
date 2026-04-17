@@ -24,6 +24,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
+import i18n from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
@@ -1017,7 +1018,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       // Unexpected disconnect — emit status and friendly error message
       this.emitStatusMessage('disconnected');
       if (!this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
-        this.emitErrorMessage(`连接已断开，请尝试发送新消息重新连接。`, 'disconnect');
+        this.emitErrorMessage(i18n.t('conversation.chat.disconnectedRetry', { backend: this.options.backend || 'OpenClaw' }), 'disconnect');
       }
     }
 

@@ -35,6 +35,7 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import i18n from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
@@ -1339,7 +1340,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     } else {
       // Unexpected disconnect — emit status and friendly error message
       this.emitStatusMessage('disconnected');
-      const errorMsg = `${this.extra.backend} 连接已断开，请尝试发送新消息重新连接。`;
+      const errorMsg = i18n.t('conversation.chat.disconnectedRetry', { backend: this.extra.backend });
       this.emitErrorMessage(errorMsg);
     }
 
