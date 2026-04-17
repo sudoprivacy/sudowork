@@ -37,18 +37,36 @@ exports.default = async function afterSign(context) {
 
   console.log(`Starting notarization for ${appName} (${appBundleId})...`);
 
-  try {
-    await notarize({
-      tool: 'notarytool',
-      appBundleId,
-      appPath: appPath,
-      appleId: process.env.appleId,
-      appleIdPassword: process.env.appleIdPassword,
-      teamId: process.env.teamId,
-    });
-    console.log('Notarization completed successfully');
-  } catch (error) {
-    console.error('Notarization failed:', error);
-    throw error;
+  // Retry with exponential backoff for transient network errors
+  const maxRetries = 3;
+  const baseDelay = 5000; // 5 seconds
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await notarize({
+        tool: 'notarytool',
+        appBundleId,
+        appPath: appPath,
+        appleId: process.env.appleId,
+        appleIdPassword: process.env.appleIdPassword,
+        teamId: process.env.teamId,
+      });
+      console.log('Notarization completed successfully');
+      break;
+    } catch (error) {
+      const isNetworkError = error.message?.includes('timed out') ||
+                             error.message?.includes('NSURLErrorDomain') ||
+                             error.code === -1001;
+
+      if (isNetworkError && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.log(`Notarization attempt ${attempt} failed (network error): ${error.message}`);
+        console.log(`Retrying in ${delay / 1000}s... (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error('Notarization failed:', error);
+        throw error;
+      }
+    }
   }
 };
