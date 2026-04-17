@@ -59,6 +59,10 @@ export class AdbResultSidechannel {
   private readonly byCmdHash = new Map<string, string[]>();
   private readonly insertOrder: string[] = [];
   private readonly waitersByHash = new Map<string, WaiterRecord[]>();
+  // Waiters that don't care about cmdHash — they consume the next entry
+  // from the global FIFO across all hashes. Used by sudowork when the
+  // openclaw meta is truncated and we can't reconstruct the hook-side hash.
+  private readonly globalWaiters: WaiterRecord[] = [];
 
   async start(): Promise<{ port: number; secret: string }> {
     if (this.server) {
@@ -103,6 +107,11 @@ export class AdbResultSidechannel {
       }
     }
     this.waitersByHash.clear();
+    for (const waiter of this.globalWaiters) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(null);
+    }
+    this.globalWaiters.length = 0;
     this.byCallId.clear();
     this.byCmdHash.clear();
     this.insertOrder.length = 0;
@@ -132,6 +141,30 @@ export class AdbResultSidechannel {
     }
     this.deleteEntry(callId);
     return entry;
+  }
+
+  /**
+   * Wait for the next captured ai-dev-browser entry in global FIFO order
+   * (across all cmdHashes). Used when the caller can't reconstruct the
+   * hook's hashInput — e.g. openclaw truncates the `meta` field, so the
+   * sudowork side can't reproduce the hash the hook computed. Callers that
+   * DO have a reliable key should still use `waitForCmd` for precise match.
+   */
+  async waitForNextAdbEntry(windowMs = DEFAULT_WAIT_MS): Promise<AdbResultEntry | null> {
+    const existing = this.popOldest();
+    if (existing) return existing;
+    if (windowMs <= 0) return null;
+    return await new Promise<AdbResultEntry | null>((resolve) => {
+      const waiter: WaiterRecord = {
+        resolve,
+        timer: setTimeout(() => {
+          const idx = this.globalWaiters.indexOf(waiter);
+          if (idx !== -1) this.globalWaiters.splice(idx, 1);
+          resolve(null);
+        }, windowMs),
+      };
+      this.globalWaiters.push(waiter);
+    });
   }
 
   /**
@@ -242,12 +275,20 @@ export class AdbResultSidechannel {
     this.evictStale();
     this.byCallId.set(entry.callId, entry);
     this.insertOrder.push(entry.callId);
+    // Priority 1: hash-specific waiter.
     const waiters = this.waitersByHash.get(entry.cmdHash);
     if (waiters && waiters.length > 0) {
       const waiter = waiters.shift()!;
       clearTimeout(waiter.timer);
       if (waiters.length === 0) this.waitersByHash.delete(entry.cmdHash);
-      // Waiter takes ownership — evict the entry so nobody else picks it up.
+      this.deleteEntry(entry.callId);
+      waiter.resolve(entry);
+      return;
+    }
+    // Priority 2: global FIFO waiter.
+    if (this.globalWaiters.length > 0) {
+      const waiter = this.globalWaiters.shift()!;
+      clearTimeout(waiter.timer);
       this.deleteEntry(entry.callId);
       waiter.resolve(entry);
       return;
@@ -256,6 +297,18 @@ export class AdbResultSidechannel {
     queue.push(entry.callId);
     this.byCmdHash.set(entry.cmdHash, queue);
     this.evictOverflow();
+  }
+
+  private popOldest(): AdbResultEntry | null {
+    if (this.insertOrder.length === 0) return null;
+    const callId = this.insertOrder[0];
+    const entry = this.byCallId.get(callId);
+    if (!entry) {
+      this.insertOrder.shift();
+      return this.popOldest();
+    }
+    this.deleteEntry(callId);
+    return entry;
   }
 
   private popByHash(cmdHash: string): AdbResultEntry | null {

@@ -30,11 +30,15 @@ const childProcess: typeof childProcessNs = (() => {
 
 const PYTHON_COMMAND_RE = /(?:^|[\\/])(python|python3)(?:\.exe)?$/i;
 const ADB_MODULE_RE = /^ai_dev_browser\.tools\./;
-// Matches a `python(-3|.exe|3) -m ai_dev_browser.tools.<name>` fragment
-// anywhere in a shell script string. Used when openclaw wraps the call
-// through cmd.exe / bash / sh / pwsh and spawns the shell rather than
-// python directly.
-const ADB_IN_SHELL_RE = /(?:^|[;\s&|])python(?:3|\.exe|3\.exe)?\s+-m\s+ai_dev_browser\.tools\./i;
+// Path form of the same tool — any argv that looks like
+// `.../ai_dev_browser/tools/<name>.py` (Windows or POSIX separators).
+const ADB_PY_PATH_RE = /(?:^|[\\/])ai_dev_browser[\\/]tools[\\/]([\w_]+)\.py$/i;
+// Either form embedded in a shell script. Matches the larger pattern of
+// `python ... -m ai_dev_browser.tools.<name>` OR `python ... ai_dev_browser/tools/<name>.py`
+// anywhere in the script, used when openclaw wraps the call through
+// cmd.exe / bash / sh / pwsh and spawns the shell rather than python
+// directly.
+const ADB_IN_SHELL_RE = /(?:^|[;\s&|"'])python(?:3|\.exe|3\.exe)?\s+(?:[^;\s&|]*\s+)*?(?:-m\s+ai_dev_browser\.tools\.\w+|[^\s;&|]*ai_dev_browser[\\/]tools[\\/]\w+\.py)/i;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 
 interface CapturedState {
@@ -221,16 +225,22 @@ export class AdbStdoutCapture {
   }
 
   private matchAdbInvocation(command: string, args: string[]): { hashInput: string } | null {
-    // Case 1: direct python invocation — `python -m ai_dev_browser.tools.<x> ...`
+    // Case 1a: direct python invocation — `python -m ai_dev_browser.tools.<x> ...`
     if (PYTHON_COMMAND_RE.test(command)) {
       const dashMIdx = args.indexOf('-m');
       if (dashMIdx !== -1 && dashMIdx + 1 < args.length && ADB_MODULE_RE.test(args[dashMIdx + 1] ?? '')) {
         return { hashInput: `${command} ${args.join(' ')}`.trim() };
       }
+      // Case 1b: `python <path>/ai_dev_browser/tools/<name>.py ...`
+      for (const arg of args) {
+        if (typeof arg === 'string' && ADB_PY_PATH_RE.test(arg)) {
+          return { hashInput: `${command} ${args.join(' ')}`.trim() };
+        }
+      }
     }
     // Case 2: shell-wrapped invocation — openclaw's runExecProcess spawns
     // cmd.exe/bash/sh/pwsh with the user's shell script as one of the args.
-    // Scan every arg for the `python -m ai_dev_browser.tools.*` fragment.
+    // Scan every arg for the module-form OR path-form fragment.
     for (const arg of args) {
       if (typeof arg !== 'string') continue;
       if (ADB_IN_SHELL_RE.test(arg)) {
@@ -287,12 +297,34 @@ export class AdbStdoutCapture {
         state.bytes += buf.length;
       });
     }
+    // Also capture stderr — for failing invocations (e.g. Python
+    // ImportError from a wrong CLI form) nothing lands on stdout, but the
+    // traceback on stderr is exactly what the LLM needs to self-correct
+    // the next turn. We surface it as the payload when stdout is empty.
+    const stderrChunks: Buffer[] = [];
+    let stderrBytes = 0;
+    if (child.stderr && typeof (child.stderr as NodeJS.ReadableStream).on === 'function') {
+      (child.stderr as NodeJS.ReadableStream).on('data', (chunk: Buffer | string) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+        if (stderrBytes >= this.maxBytes) return;
+        const remaining = this.maxBytes - stderrBytes;
+        const slice = buf.length > remaining ? buf.subarray(0, remaining) : buf;
+        stderrChunks.push(slice);
+        stderrBytes += slice.length;
+      });
+    }
 
     const finalize = (exitCode: number | null) => {
       if (state.pid != null) this.byPid.delete(state.pid);
       const stdoutRaw = Buffer.concat(state.chunks, state.bytes).toString('utf8');
-      const trimmed = stdoutRaw.trim();
+      const stderrRaw = Buffer.concat(stderrChunks, stderrBytes).toString('utf8');
+      // When stdout is empty (failed invocation, e.g. Python ImportError),
+      // surface stderr as the "visible payload" so the LLM can read the
+      // real error message on its next turn and self-correct. When stdout
+      // has content, keep it as-is and only stash stderr separately.
+      const visible = stdoutRaw.trim() ? stdoutRaw : stderrRaw;
       let stdoutJson: unknown;
+      const trimmed = visible.trim();
       if (trimmed) {
         try {
           stdoutJson = JSON.parse(trimmed);
@@ -309,8 +341,9 @@ export class AdbStdoutCapture {
         startedAt: state.startedAt,
         finishedAt: Date.now(),
         exitCode,
-        stdoutRaw,
+        stdoutRaw: visible,
         stdoutJson,
+        stderrRaw,
         cmdHash: state.cmdHash,
         truncated: state.truncated,
       };
