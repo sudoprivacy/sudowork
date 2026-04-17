@@ -181,6 +181,28 @@ export class AcpAdapter {
   private createOrUpdateAcpToolCall(update: ToolCallUpdate): IMessageAcpToolCall | null {
     const toolCallId = update.update.toolCallId;
 
+    const existing = this.activeToolCalls.get(toolCallId);
+    if (existing) {
+      // Merge: preserve rawInput from earlier phases, content from later phases
+      const merged: ToolCallUpdate = {
+        ...existing.content,
+        update: {
+          ...existing.content.update,
+          ...update.update,
+          rawInput: update.update.rawInput || existing.content.update.rawInput,
+          content: update.update.content || existing.content.update.content,
+        },
+      };
+      const updatedMessage: IMessageAcpToolCall = {
+        ...existing,
+        msg_id: toolCallId,
+        content: merged,
+        createdAt: Date.now(),
+      };
+      this.activeToolCalls.set(toolCallId, updatedMessage);
+      return updatedMessage;
+    }
+
     // 使用 toolCallId 作为 msg_id，确保同一个工具调用的消息可以被合并
     const baseMessage = {
       id: uuid(),
