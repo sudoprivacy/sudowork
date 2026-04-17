@@ -10,6 +10,7 @@ import type BaseAgent from '@/process/task/BaseAgent';
 import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
 import { uuid } from '../../common/utils';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
+import type { IResponseMessage } from '../../common/ipcBridge';
 
 /**
  * Streaming callback for progress updates
@@ -35,6 +36,10 @@ interface IStreamState {
   finishCount: number;
   /** Timer that auto-cleans this stream if no finish event arrives */
   timeoutTimer: ReturnType<typeof setTimeout>;
+  /** Draining state: finish received, waiting for microtask to flush pending messages */
+  draining: boolean;
+  /** Pending messages buffered during draining phase */
+  pendingMessages: IResponseMessage[];
 }
 
 /**
@@ -99,6 +104,13 @@ export class ChannelMessageService {
       return;
     }
 
+    // If stream is draining, buffer the message for later processing
+    // This prevents race condition where finish deletes stream before content arrives
+    if (stream.draining) {
+      stream.pendingMessages.push(event);
+      return;
+    }
+
     // Track 'start' events to count multi-turn continuations (e.g., tool call → model response).
     // ACP agents may emit multiple 'start' events per request. We must wait for all turns to finish.
     if (event.type === 'start') {
@@ -107,17 +119,41 @@ export class ChannelMessageService {
     }
 
     // Detect stream completion: only resolve when all turns have finished.
-    // When turnCount is 0 (no 'start' received, e.g., error-only flows), resolve immediately.
+    // When turnCount is 0 (no 'start' received, e.g., error-only flows), use deferred resolution.
     if (event.type === 'finish') {
       stream.finishCount++;
       if (stream.turnCount === 0 || stream.finishCount >= stream.turnCount) {
         clearTimeout(stream.timeoutTimer);
-        this.activeStreams.delete(conversationId);
-        stream.resolve(stream.msgId);
+        // Mark stream as draining to buffer any late-arriving messages
+        stream.draining = true;
+        // Use microtask to defer stream deletion and resolution
+        // This ensures all synchronous message emissions are processed before stream is removed
+        queueMicrotask(() => {
+          const drainingStream = this.activeStreams.get(conversationId);
+          if (drainingStream && drainingStream.msgId === stream.msgId) {
+            // Flush all pending messages that arrived during draining phase
+            for (const pendingEvent of drainingStream.pendingMessages) {
+              this.processMessageEvent(pendingEvent, drainingStream);
+            }
+            drainingStream.pendingMessages = [];
+            // Delete stream and resolve
+            this.activeStreams.delete(conversationId);
+            drainingStream.resolve(drainingStream.msgId);
+          }
+        });
       }
       return;
     }
 
+    // Process regular message
+    this.processMessageEvent(event, stream);
+  }
+
+  /**
+   * Process a single message event (transform + compose + callback)
+   * Extracted from handleAgentMessage for reuse in draining phase flush
+   */
+  private processMessageEvent(event: IAgentMessageEvent, stream: IStreamState): void {
     // 转换消息
     // Transform message
     const message = transformMessage(event);
@@ -127,7 +163,7 @@ export class ChannelMessageService {
       return;
     }
 
-    let messageList = this.messageListMap.get(conversationId);
+    let messageList = this.messageListMap.get(event.conversation_id);
     if (!messageList) {
       messageList = [];
     }
@@ -139,7 +175,7 @@ export class ChannelMessageService {
       const isInsert = type === 'insert';
       stream.callback(msg, isInsert);
     });
-    this.messageListMap.set(conversationId, messageList.slice(-20));
+    this.messageListMap.set(event.conversation_id, messageList.slice(-20));
   }
 
   /**
@@ -210,7 +246,7 @@ export class ChannelMessageService {
         const staleStream = this.activeStreams.get(conversationId);
         // Stream ownership check: only clean up if this timer's stream is still the active one.
         // A newer stream may have replaced it, in which case we must not touch it.
-        if (staleStream && staleStream.msgId === msgId) {
+        if (staleStream && staleStream.msgId === msgId && !staleStream.draining) {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
           this.activeStreams.delete(conversationId);
           this.messageListMap.delete(conversationId);
@@ -230,6 +266,8 @@ export class ChannelMessageService {
         turnCount: 0,
         finishCount: 0,
         timeoutTimer,
+        draining: false,
+        pendingMessages: [],
       });
 
       // Build payload — both ACP and OpenClaw use { content }.
