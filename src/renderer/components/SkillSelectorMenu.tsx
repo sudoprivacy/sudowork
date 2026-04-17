@@ -174,22 +174,9 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               <circle cx='11' cy='11' r='8' />
               <path d='m21 21-4.35-4.35' />
             </svg>
-            <input
-              type='text'
-              className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-t-primary placeholder:text-t-tertiary'
-              style={{ caretColor: 'var(--color-primary)' }}
-              placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
+            <input type='text' className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-t-primary placeholder:text-t-tertiary' style={{ caretColor: 'var(--color-primary)' }} placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder} value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} />
             {searchQuery && (
-              <button
-                type='button'
-                className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-t-tertiary hover:text-t-secondary cursor-pointer border-none outline-none text-11px bg-transparent'
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onSearchChange('')}
-              >
+              <button type='button' className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-t-tertiary hover:text-t-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
                 ✕
               </button>
             )}

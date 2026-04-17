@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdirSync as _mkdirSync, existsSync, readdirSync, readFileSync } from 'fs';
+import { mkdirSync as _mkdirSync, existsSync, lstatSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
@@ -501,6 +501,61 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
  *     (e.g. a pure bugfix), a version-gated copy would permanently skip the
  *     refresh, leaving users stuck on whichever script shipped at first install.
  */
+/**
+ * Locate the bundled ai-dev-browser Python package directory.
+ * Returns the path to the inner `ai_dev_browser/` package (not the repo root).
+ */
+const resolveAiDevBrowserPackageDir = (): string | null => {
+  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')] : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser')];
+  return candidates.find((p) => existsSync(p)) ?? null;
+};
+
+/**
+ * Create a directory symlink at `<systemSkills>/browser/ai_dev_browser` pointing
+ * to the bundled ai-dev-browser package. The symlink lets the agent reference
+ * `./ai_dev_browser/tools/...` from inside the browser skill at a stable path
+ * regardless of installation layout.
+ */
+const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
+  const browserSkillDir = path.join(systemSkillsDir, 'browser');
+  if (!existsSync(browserSkillDir)) return;
+
+  const target = resolveAiDevBrowserPackageDir();
+  if (!target) {
+    mainWarn('Sudowork', 'ai-dev-browser package not found; browser skill cannot link tools');
+    return;
+  }
+
+  const linkPath = path.join(browserSkillDir, 'ai_dev_browser');
+  try {
+    if (existsSync(linkPath)) {
+      // Refresh the symlink in case the resolved path changed (dev vs packaged).
+      // Inspect the link itself via lstat: on Windows a junction's target is
+      // a real directory, and `rmSync(..., { recursive: true })` follows the
+      // junction and deletes the target's files (wiping the bundled
+      // ai-dev-browser source tree in dev). `unlinkSync` removes the junction
+      // without traversing into it.
+      let removed = false;
+      try {
+        const stat = lstatSync(linkPath);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+          unlinkSync(linkPath);
+          removed = true;
+        }
+      } catch {
+        // fall through to rmSync below
+      }
+      if (!removed) {
+        rmSync(linkPath, { recursive: true, force: true });
+      }
+    }
+    symlinkSync(target, linkPath, 'junction');
+    mainLog('Sudowork', `Linked ai-dev-browser into browser skill: ${linkPath} -> ${target}`);
+  } catch (error) {
+    mainWarn('Sudowork', 'Failed to link ai-dev-browser into browser skill:', error);
+  }
+};
+
 const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
   const builtinSkillsDir = resolveBuiltinResourceDir('skills');
   if (!existsSync(builtinSkillsDir)) {
@@ -522,6 +577,10 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
     // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
     await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
     mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
+
+    // Link the bundled ai-dev-browser package into the browser skill so the agent
+    // sees `skills/browser/ai_dev_browser/tools/` at a stable relative path.
+    linkAiDevBrowserIntoSystemSkill(userSystemSkillsDir);
   } catch (error) {
     mainWarn('Sudowork', 'Failed to sync builtin skills directory:', error);
   }

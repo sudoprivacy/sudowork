@@ -7,6 +7,7 @@ import NodeInterceptors from '@mswjs/interceptors/presets/node';
 import type { BlacklistConfig } from './blacklist/types';
 import { ProcessInterceptor } from './process/ProcessInterceptor';
 import type { ProcessController } from './process/ProcessController';
+import { AdbStdoutCapture } from './process/AdbStdoutCapture';
 
 export interface SafetyHookOptions {
   /** Nexus server URL, defaults to http://127.0.0.1:12012 */
@@ -28,6 +29,7 @@ export interface SafetyHookOptions {
 let networkInterceptor: BatchInterceptor | null = null;
 let fileInterceptor: FileInterceptor | null = null;
 let processInterceptor: ProcessInterceptor | null = null;
+let adbStdoutCapture: AdbStdoutCapture | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
 let configPollingTimer: NodeJS.Timeout | null = null;
@@ -99,6 +101,24 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     });
   }
 
+  // ai-dev-browser stdout capture — only enabled when sudowork provided
+  // sidechannel endpoint + secret via customEnv. No-op otherwise.
+  const adbUrl = process.env.AI_DEV_BROWSER_SIDECHANNEL_URL;
+  const adbSecret = process.env.AI_DEV_BROWSER_SIDECHANNEL_SECRET;
+  if (adbUrl && adbSecret && !adbStdoutCapture) {
+    try {
+      adbStdoutCapture = new AdbStdoutCapture({
+        sidechannelUrl: adbUrl,
+        sidechannelSecret: adbSecret,
+      });
+      adbStdoutCapture.apply();
+      console.error(`[SafetyHook] ai-dev-browser stdout capture enabled (sidechannel=${adbUrl})`);
+    } catch (err) {
+      console.error('[SafetyHook] Failed to apply ai-dev-browser stdout capture:', err);
+      adbStdoutCapture = null;
+    }
+  }
+
   isApplied = true;
   console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
@@ -135,6 +155,10 @@ export function disposeSafetyHook(): void {
   if (processInterceptor) {
     processInterceptor.dispose();
     processInterceptor = null;
+  }
+  if (adbStdoutCapture) {
+    adbStdoutCapture.dispose();
+    adbStdoutCapture = null;
   }
   nexusController = null;
   isApplied = false;

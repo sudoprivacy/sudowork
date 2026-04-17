@@ -439,7 +439,11 @@ export function repairOpenClawConfig(): void {
       const tavilyApiKey = tavilyWebSearch?.apiKey;
       if (!tavilyApiKey?.trim()) {
         const providersObj = (config.models as { providers?: Record<string, { apiKey?: string }> } | undefined)?.providers;
-        const sudorouterApiKey = providersObj?.sudorouter?.apiKey?.trim() || Object.values(providersObj || {}).find((p) => p?.apiKey?.trim())?.apiKey?.trim();
+        const sudorouterApiKey =
+          providersObj?.sudorouter?.apiKey?.trim() ||
+          Object.values(providersObj || {})
+            .find((p) => p?.apiKey?.trim())
+            ?.apiKey?.trim();
         if (sudorouterApiKey) {
           if (!config.plugins || typeof config.plugins !== 'object') {
             (config as Record<string, unknown>).plugins = { entries: {} };
@@ -508,6 +512,30 @@ export function repairOpenClawConfig(): void {
       }
     }
 
+    // Disable OpenClaw's built-in browser — ai-dev-browser is used directly via CLI
+    const browser = config.browser as { enabled?: boolean } | undefined;
+    if (!browser || typeof browser !== 'object' || browser.enabled !== false) {
+      (config as Record<string, unknown>).browser = { enabled: false };
+      changed = true;
+      mainLog('Sudoclaw', 'Disabled built-in browser (ai-dev-browser used directly)');
+    }
+
+    // Deny browser tool in top-level tools.sandbox so agent never sees it
+    // Schema path: tools.sandbox.tools.deny
+    const topTools = (config.tools ?? {}) as Record<string, unknown>;
+    const topSbx = (topTools.sandbox ?? {}) as Record<string, unknown>;
+    const topSbxTools = (topSbx.tools ?? {}) as Record<string, unknown>;
+    const topDeny = (topSbxTools.deny ?? []) as string[];
+    if (!topDeny.includes('browser')) {
+      topDeny.push('browser');
+      topSbxTools.deny = topDeny;
+      topSbx.tools = topSbxTools;
+      topTools.sandbox = topSbx;
+      (config as Record<string, unknown>).tools = topTools;
+      changed = true;
+      mainLog('Sudoclaw', 'Added browser to top-level tools.sandbox deny list');
+    }
+
     if (changed) {
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('Sudoclaw', 'Repaired sudoclaw.json schema');
@@ -562,6 +590,9 @@ export function ensureDefaultConfig(): void {
       auth: { mode: 'none' as const },
       reload: { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD },
     },
+    browser: {
+      enabled: false,
+    },
     plugins: {
       entries: {
         tavily: {
@@ -579,6 +610,9 @@ export function ensureDefaultConfig(): void {
         search: {
           provider: 'tavily' as const,
         },
+      },
+      sandbox: {
+        tools: { deny: ['browser'] },
       },
     },
   };

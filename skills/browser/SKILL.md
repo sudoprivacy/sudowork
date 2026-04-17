@@ -5,7 +5,7 @@ description: "AI-native browser. Explore websites, discover page structure, take
 
 # Browser
 
-Tools directory: `~/sudowork/vendor/ai-dev-browser/ai_dev_browser/tools/`
+Tools directory: `./ai_dev_browser/tools/` (relative to this skill).
 
 Every CLI tool has an identical Python function in `ai_dev_browser.core` — explore interactively with CLI, then script with the same functions:
 

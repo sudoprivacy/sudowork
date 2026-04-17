@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
+import { AdbResultSidechannel } from '../sudoclaw/AdbResultSidechannel';
 import { runtimeInstaller } from './RuntimeInstaller';
 
 type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
@@ -31,6 +32,7 @@ type SudoclawHealthCheckResult = {
  */
 export class ServiceManager {
   private gateway: OpenClawGateway | null = null;
+  private adbSidechannel: AdbResultSidechannel | null = null;
   private startupInProgress = false;
   private shuttingDown = false;
   private openClawStartPromise: Promise<void> | null = null;
@@ -361,10 +363,31 @@ export class ServiceManager {
       // whether config was manually modified, or whether repair was skipped.
       repairOpenClawConfig();
 
+      // Start the ai-dev-browser sidechannel before the gateway so the gateway
+      // (and any `python -m ai_dev_browser.tools.*` children it spawns) inherit
+      // the URL + secret through customEnv.
+      let adbSidechannelEnv: Record<string, string> = {};
+      try {
+        if (!this.adbSidechannel) {
+          this.adbSidechannel = new AdbResultSidechannel();
+        }
+        const { port: sidePort, secret: sideSecret } = await this.adbSidechannel.start();
+        adbSidechannelEnv = {
+          AI_DEV_BROWSER_SIDECHANNEL_URL: `http://127.0.0.1:${sidePort}/capture`,
+          AI_DEV_BROWSER_SIDECHANNEL_SECRET: sideSecret,
+        };
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to start AdbResultSidechannel (ai-dev-browser UI bypass disabled for this run)', err);
+      }
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
-        customEnv: { OPENCLAW_STATE_DIR: SUDOCLAW_DIR, OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH },
+        customEnv: {
+          OPENCLAW_STATE_DIR: SUDOCLAW_DIR,
+          OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH,
+          ...adbSidechannelEnv,
+        },
         forceSubprocessGateway: true,
       });
       await this.gateway.start();
@@ -651,13 +674,32 @@ export class ServiceManager {
   }
 
   async stopOpenClaw(): Promise<void> {
-    if (!this.gateway) return;
+    if (!this.gateway) {
+      // Sidechannel can linger if start failed partway; make sure it's cleaned up.
+      if (this.adbSidechannel) {
+        try {
+          await this.adbSidechannel.stop();
+        } catch {
+          /* ignore */
+        }
+        this.adbSidechannel = null;
+      }
+      return;
+    }
     try {
       await this.gateway.stop();
     } catch {
       /* ignore */
     }
     this.gateway = null;
+    if (this.adbSidechannel) {
+      try {
+        await this.adbSidechannel.stop();
+      } catch {
+        /* ignore */
+      }
+      this.adbSidechannel = null;
+    }
     // Force-kill any orphaned process still holding the gateway port
     try {
       const { SUDOCLAW_DEFAULT_PORT } = await import('../sudoclaw/SudoclawInstallService');
@@ -688,6 +730,15 @@ export class ServiceManager {
     // Reconnect all active agents' WebSocket connections to the new gateway.
     const WorkerManage = (await import('@process/WorkerManage')).default;
     WorkerManage.reconnectOpenClawAgents();
+  }
+
+  /**
+   * Accessor used by OpenClawAgent to look up captured ai-dev-browser
+   * stdout keyed by command hash. Returns null when the sidechannel failed
+   * to start (non-critical — the UI just falls back to the short meta).
+   */
+  getAdbSidechannel(): AdbResultSidechannel | null {
+    return this.adbSidechannel;
   }
 
   /**

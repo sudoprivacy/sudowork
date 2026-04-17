@@ -30,7 +30,9 @@ import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHi
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import * as nodePath from 'node:path';
+import { createHash } from 'node:crypto';
 import { ProcessConfig } from '@process/initStorage';
+import { serviceManager } from '@process/services/serviceManager';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -41,6 +43,30 @@ const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 const CONNECTION_TIMEOUT_MS = 30_000;
 const CONNECTION_MAX_ATTEMPTS = 30;
 const CONNECTION_RETRY_DELAY_MS = 1_000;
+
+interface ToolEventData {
+  phase?: string;
+  name?: string;
+  toolCallId?: string;
+  args?: Record<string, unknown>;
+  meta?: string;
+  isError?: boolean;
+  status?: string;
+  title?: string;
+  kind?: string;
+  content?: unknown[];
+  /**
+   * openclaw's phase==='result' event payload also carries a `result` field
+   * containing the sanitized tool return (`{content:[{type:'text',text}],
+   * details:{...}}`, truncated at 8 KB). sudowork previously ignored this,
+   * so the UI only saw the short `meta` description. Reading it gives us
+   * the real exec stdout without any hook gymnastics.
+   */
+  result?: {
+    content?: Array<{ type?: string; text?: string }>;
+    details?: Record<string, unknown>;
+  };
+}
 
 export interface OpenClawAgentData {
   conversation_id: string;
@@ -789,70 +815,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       case 'tool':
       case 'tool_call': {
         if (!event.data) break;
-        const toolData = event.data as {
-          phase?: string;
-          name?: string;
-          toolCallId?: string;
-          args?: Record<string, unknown>;
-          meta?: string;
-          isError?: boolean;
-          status?: string;
-          title?: string;
-          kind?: string;
-          content?: unknown[];
-        };
-
-        const phaseToStatus: Record<string, 'pending' | 'in_progress' | 'completed' | 'failed'> = {
-          start: 'in_progress',
-          update: 'in_progress',
-          partialResult: 'in_progress',
-        };
-        let status: 'pending' | 'in_progress' | 'completed' | 'failed';
-        if (toolData.phase === 'result') {
-          status = toolData.isError ? 'failed' : 'completed';
-          if (status === 'completed' && inferToolFailure(toolData.content, toolData.meta)) {
-            status = 'failed';
-          }
-        } else {
-          status = phaseToStatus[toolData.phase ?? ''] ?? ((toolData.status as 'pending' | 'in_progress' | 'completed' | 'failed') || 'pending');
-        }
-
-        const toolName = toolData.name ?? toolData.title ?? '';
-        const kind = this.inferToolKind(toolName) ?? (toolData.kind as 'read' | 'edit' | 'execute') ?? 'execute';
-
-        let content: ToolCallUpdate['update']['content'];
-        if (toolData.content) {
-          content = toolData.content as ToolCallUpdate['update']['content'];
-        } else if (toolData.meta) {
-          content = [{ type: 'content', content: { type: 'text', text: toolData.meta } }];
-        } else if (toolData.args) {
-          content = [{ type: 'content', content: { type: 'text', text: JSON.stringify(toolData.args, null, 2) } }];
-        }
-
-        const acpUpdate: ToolCallUpdate = {
-          sessionId: this.conversation_id,
-          update: {
-            sessionUpdate: 'tool_call',
-            toolCallId: toolData.toolCallId || uuid(),
-            status,
-            title: toolName || 'Tool Call',
-            kind,
-            content,
-          },
-        };
-
-        if (NavigationInterceptor.isNavigationTool(acpUpdate.update.title)) {
-          const url = NavigationInterceptor.extractUrl(acpUpdate.update);
-          if (url) {
-            const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
-            this.handleStreamMessage(previewMessage);
-          }
-        }
-
-        const messages = this.adapter.convertSessionUpdate(acpUpdate);
-        for (const message of messages) {
-          this.emitTMessage(message);
-        }
+        void this.handleToolCallEvent(event.data as ToolEventData);
         break;
       }
 
@@ -1262,6 +1225,145 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       }
     } catch (error) {
       mainError('OpenClawAgent', 'Failed to save session key:', error);
+    }
+  }
+
+  // ========== ai-dev-browser UI bypass helpers ==========
+
+  private isAdbToolCall(data: ToolEventData): boolean {
+    const meta = typeof data.meta === 'string' ? data.meta : '';
+    const cmd = typeof data.args?.command === 'string' ? (data.args.command as string) : '';
+    return /ai_dev_browser\.tools\./.test(meta) || /ai_dev_browser\.tools\./.test(cmd);
+  }
+
+  private extractResultText(data: ToolEventData): string | null {
+    const blocks = data.result?.content;
+    if (!Array.isArray(blocks)) return null;
+    const parts: string[] = [];
+    for (const b of blocks) {
+      if (b && typeof b === 'object' && b.type === 'text' && typeof b.text === 'string') {
+        parts.push(b.text);
+      }
+    }
+    const joined = parts.join('\n').trim();
+    return joined.length > 0 ? joined : null;
+  }
+
+  private computeAdbCmdHash(data: ToolEventData): string {
+    // Mirror the hash produced by hook/node/src/process/AdbStdoutCapture.ts.
+    // On `phase === 'result'` events, openclaw strips `args` from the
+    // external `onAgentEvent` callback — we get only {phase,name,toolCallId,
+    // meta,isError}. `meta` has the shape:
+    //   "run python (in <cwd>), `python -m ai_dev_browser.tools.page_info ...`"
+    // Extract the command between backticks, which matches the shell script
+    // string the hook used for its hashInput.
+    const args = data.args ?? {};
+    let cmd = typeof args.command === 'string' ? (args.command as string).trim() : '';
+    if (!cmd && typeof data.meta === 'string') {
+      const m = data.meta.match(/`([^`]+)`/);
+      if (m && m[1]) cmd = m[1].trim();
+    }
+    return createHash('sha1').update(cmd).digest('hex');
+  }
+
+  private async handleToolCallEvent(toolData: ToolEventData): Promise<void> {
+    const phaseToStatus: Record<string, 'pending' | 'in_progress' | 'completed' | 'failed'> = {
+      start: 'in_progress',
+      update: 'in_progress',
+      partialResult: 'in_progress',
+    };
+    let status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    if (toolData.phase === 'result') {
+      status = toolData.isError ? 'failed' : 'completed';
+      if (status === 'completed' && inferToolFailure(toolData.content, toolData.meta)) {
+        status = 'failed';
+      }
+    } else {
+      status = phaseToStatus[toolData.phase ?? ''] ?? ((toolData.status as 'pending' | 'in_progress' | 'completed' | 'failed') || 'pending');
+    }
+
+    // When the tool call completes, prefer the real stdout that openclaw
+    // already ships inside `data.result.content` over the short `meta`
+    // description. For ai-dev-browser invocations (and exec tool calls in
+    // general) this makes the UI's Output panel show the actual JSON/text
+    // that the tool printed, not "run python, ...". openclaw truncates
+    // this at 8 KB which is more than enough for ai-dev-browser's small
+    // JSON payloads.
+    if (toolData.phase === 'result') {
+      const resultText = this.extractResultText(toolData);
+      if (resultText) {
+        const shouldForceOverride = this.isAdbToolCall(toolData);
+        // Always expose the full result text for ai-dev-browser tool calls;
+        // for other tools, only fall through when sudowork didn't already
+        // receive a structured `content` block.
+        if (shouldForceOverride || !Array.isArray(toolData.content) || toolData.content.length === 0) {
+          toolData.content = [{ type: 'content', content: { type: 'text', text: resultText } }];
+          if (shouldForceOverride) {
+            toolData.meta = resultText;
+          }
+        }
+      }
+
+      // Defense-in-depth: if the sidechannel captured a longer stdout than
+      // openclaw's 8 KB sanitized window, overwrite with that. Harmless when
+      // no entry is found (the `waitForCmd` times out quickly).
+      if (this.isAdbToolCall(toolData)) {
+        try {
+          const sink = serviceManager.getAdbSidechannel();
+          if (sink) {
+            // The PowerShell / bash wrapper openclaw spawns around python
+            // takes several seconds (interpreter cold start + CDP connect
+            // attempts). Wait generously so the hook's POST has time to land
+            // — the hook only POSTs on the shell process's exit, which is
+            // strictly after the result event reaches sudowork.
+            const entry = await sink.waitForCmd(this.computeAdbCmdHash(toolData), 20_000);
+            if (entry && entry.stdoutRaw && entry.stdoutRaw.length > (this.extractResultText(toolData)?.length ?? 0)) {
+              toolData.meta = entry.stdoutRaw;
+              toolData.content = [{ type: 'content', content: { type: 'text', text: entry.stdoutRaw } }];
+            }
+          }
+        } catch (err) {
+          mainWarn('OpenClawAgent', 'ai-dev-browser sidechannel lookup failed', err);
+        }
+      }
+    }
+
+    const toolName = toolData.name ?? toolData.title ?? '';
+    const kind = this.inferToolKind(toolName) ?? (toolData.kind as 'read' | 'edit' | 'execute') ?? 'execute';
+
+    let content: ToolCallUpdate['update']['content'];
+    if (toolData.content) {
+      content = toolData.content as ToolCallUpdate['update']['content'];
+    } else if (toolData.meta) {
+      content = [{ type: 'content', content: { type: 'text', text: toolData.meta } }];
+    } else if (toolData.args) {
+      content = [{ type: 'content', content: { type: 'text', text: JSON.stringify(toolData.args, null, 2) } }];
+    }
+
+    const acpUpdate: ToolCallUpdate = {
+      sessionId: this.conversation_id,
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: toolData.toolCallId || uuid(),
+        status,
+        title: toolName || 'Tool Call',
+        kind,
+        rawInput: toolData.args as Record<string, unknown> | undefined,
+        content,
+      },
+    };
+
+    if (NavigationInterceptor.isNavigationTool(acpUpdate.update.title)) {
+      const url = NavigationInterceptor.extractUrl(acpUpdate.update);
+      if (url) {
+        const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
+        this.handleStreamMessage(previewMessage);
+      }
+    }
+
+    const messages = this.adapter.convertSessionUpdate(acpUpdate);
+    for (const message of messages) {
+      this.emitTMessage(message);
     }
   }
 
