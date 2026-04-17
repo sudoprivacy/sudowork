@@ -40,7 +40,7 @@ exports.default = async function afterSign(context) {
   // Retry with exponential backoff for transient network errors
   const maxRetries = 5;
   const baseDelay = 30000; // 30 seconds
-  const notarizeTimeout = 300000; // 5 minutes per attempt
+  const notarizeTimeout = 900000; // 15 minutes per attempt
 
   // Wrap notarize in a timeout promise
   const notarizeWithTimeout = (options) =>
