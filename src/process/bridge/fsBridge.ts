@@ -214,12 +214,20 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
   try {
     const assistantsDir = getAssistantsDir();
 
-    // For custom assistants, use new directory structure
-    if (assistantId.startsWith('custom-')) {
-      const customDir = path.join(assistantsDir, ASSISTANT_SUBDIRS.custom, assistantId);
-      await fs.mkdir(customDir, { recursive: true });
-      await fs.writeFile(path.join(customDir, 'AGENT.md'), content, 'utf-8');
-      return true;
+    // Check if the assistant directory exists in any of the new subdirs (hub, system, custom).
+    // This ensures writes go to the same location that readAssistantResource() reads from,
+    // preventing a read/write path mismatch where edits would be silently lost.
+    const subdirs = [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
+    for (const subdir of subdirs) {
+      const assistantDir = path.join(assistantsDir, subdir, assistantId);
+      try {
+        await fs.access(assistantDir);
+        // Directory exists — write AGENT.md here
+        await fs.writeFile(path.join(assistantDir, 'AGENT.md'), content, 'utf-8');
+        return true;
+      } catch {
+        // Directory doesn't exist in this subdir, try next
+      }
     }
 
     // For other assistants, use legacy flat structure
