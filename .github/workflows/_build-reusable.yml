@@ -421,28 +421,18 @@ jobs:
           echo "=========================================="
           echo "NETWORK DIAGNOSTICS"
           echo "=========================================="
-          echo ""
-          echo "## DNS Resolution"
-          echo "---"
+          echo "---DNS Resolution---"
           dig appstoreconnect.apple.com +short || echo "dig failed"
-          echo ""
-          echo "## Route to Apple Notary"
-          echo "---"
+          echo "---Route to Apple Notary---"
           traceroute -m 10 appstoreconnect.apple.com 2>&1 || echo "traceroute failed"
-          echo ""
-          echo "## Connectivity Test (3 attempts)"
-          echo "---"
-          for i in 1 2 3; do
-            echo "Attempt $i/3:"
-            curl -s --connect-timeout 10 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5
-            echo ""
-            sleep 5
-          done
-          echo ""
-          echo "## DNS over HTTPS Test"
-          echo "---"
-          curl -s --dns-ipv4-addr 8.8.8.8 --connect-timeout 10 "https://dns.google/resolve?name=appstoreconnect.apple.com&type=A" 2>&1 | head -20 || echo "DoH test failed"
-          echo ""
+          echo "---Connectivity Test Attempt 1---"
+          curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
+          sleep 5
+          echo "---Connectivity Test Attempt 2---"
+          curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
+          sleep 5
+          echo "---Connectivity Test Attempt 3---"
+          curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
           echo "=========================================="
 
       - name: Build with electron-builder (macOS)
