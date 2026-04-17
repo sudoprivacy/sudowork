@@ -415,23 +415,23 @@ jobs:
 
       # macOS: Build with notarization - DMG failure = CI failure, notarization failure = warning only
       # macOS: 构建并公证 - DMG 失败 = CI 失败，公证失败 = 仅警告
-      - name: Diagnostic: Check network to Apple services (macOS only)
+      - name: "Diagnostic: Check network to Apple (macOS)"
         if: startsWith(matrix.platform, 'macos')
         run: |
           echo "=========================================="
           echo "NETWORK DIAGNOSTICS"
           echo "=========================================="
           echo "---DNS Resolution---"
-          dig appstoreconnect.apple.com +short || echo "dig failed"
+          nslookup appstoreconnect.apple.com 2>&1 || echo "nslookup failed"
           echo "---Route to Apple Notary---"
           traceroute -m 10 appstoreconnect.apple.com 2>&1 || echo "traceroute failed"
-          echo "---Connectivity Test Attempt 1---"
+          echo "---Connectivity Test 1---"
           curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
           sleep 5
-          echo "---Connectivity Test Attempt 2---"
+          echo "---Connectivity Test 2---"
           curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
           sleep 5
-          echo "---Connectivity Test Attempt 3---"
+          echo "---Connectivity Test 3---"
           curl -s --connect-timeout 15 -I https://appstoreconnect.apple.com/notary/v2/submissions 2>&1 | head -5 || echo "curl failed"
           echo "=========================================="
 
