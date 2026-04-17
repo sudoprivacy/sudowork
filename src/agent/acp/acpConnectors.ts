@@ -197,11 +197,19 @@ export function createGenericSpawnConfig(cliPath: string, workingDir: string, ac
     spawnCommand = `chcp 65001 >nul && ${cliPath}`;
     spawnArgs = effectiveAcpArgs;
   } else {
-    // Unix: simple command or path. If cliPath contains spaces (e.g., "goose acp"),
-    // parse into command + inline args.
-    const parts = cliPath.split(/\s+/);
-    spawnCommand = parts[0];
-    spawnArgs = [...parts.slice(1), ...effectiveAcpArgs];
+    // Unix: detect if cliPath is a file path (contains /) vs a command with args.
+    // Paths with spaces (e.g., "/Applications/Visual Studio Code.app/Contents/MacOS/code")
+    // must NOT be split — spawn() with shell:false requires the command to be a single
+    // unspaced string. Simple commands (e.g., "goose acp") are still split for args.
+    const isFilePath = cliPath.includes('/');
+    if (isFilePath) {
+      spawnCommand = cliPath;
+      spawnArgs = effectiveAcpArgs;
+    } else {
+      const parts = cliPath.split(/\s+/);
+      spawnCommand = parts[0];
+      spawnArgs = [...parts.slice(1), ...effectiveAcpArgs];
+    }
   }
 
   const options: SpawnOptions = {
