@@ -419,32 +419,25 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         return await this.handleImageCommand(imageMatch[1].trim());
       }
 
-      // On the first message, prepend system instructions:
-      // 1. MCP tool discovery guidance (if MCP servers are configured)
-      // 2. Workspace directive (if workspace is set)
-      // 3. Drafts instruction for intermediate file management (if workspace is set)
+      // On the first message, prepend MCP tool discovery guidance (if MCP servers are configured)
+      // Workspace directive is injected on EVERY message to ensure agent uses the correct workspace
       let processedContent = data.agentContent || data.content;
+
+      // MCP tool discovery - only inject on first message if MCP servers are configured
       if (this.isFirstMessage) {
         this.isFirstMessage = false;
-
-        const systemInstructions: string[] = [];
-
-        // MCP tool discovery - only inject if MCP servers are configured
         if (hasMcpServersConfigured()) {
-          systemInstructions.push(buildMcporterCommandHint());
+          processedContent = `${buildMcporterCommandHint()}\n\n${processedContent}`;
         }
+      }
 
-        // Workspace directive - tell agent to use per-conversation workspace
-        if (this.workspace) {
-          const configuredWorkspace = getSudoclawWorkspaceRoot();
-          const draftsInstruction = buildDraftsInstruction(this.workspace);
-          systemInstructions.push(`[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}`);
-        }
-
-        // Combine all instructions
-        if (systemInstructions.length > 0) {
-          processedContent = `${systemInstructions.join('\n\n')}\n\n${processedContent}`;
-        }
+      // Workspace directive - tell agent to use per-conversation workspace on EVERY message
+      // This is critical because the agent may reset context between messages
+      if (this.workspace) {
+        const configuredWorkspace = getSudoclawWorkspaceRoot();
+        const draftsInstruction = buildDraftsInstruction(this.workspace);
+        const workspaceDirective = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}`;
+        processedContent = `${workspaceDirective}\n\n${processedContent}`;
       }
 
       // Process file references
