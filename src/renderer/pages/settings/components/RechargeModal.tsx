@@ -292,10 +292,10 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
 
   // Format currency
   const formatCurrency = (amount: number, currency: 'USD' | 'CNY') => {
-    if (currency === 'USD') {
-      return `$${amount}`;
+    if (currency === 'CNY') {
+      return `¥${amount}`;
     }
-    return `${amount.toFixed(1)}`;
+    return `$${amount}`;
   };
 
   // Render package selection
@@ -318,7 +318,7 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
                 ${selectedPackage?.amount === pkg.amount ? 'border-border-base bg-fill-1 ring-2 ring-[#7583b2]/30' : 'border-border-base bg-fill-0 hover:bg-fill-1'}
               `}
             >
-              <div className='text-22px font-700 text-t-primary'>{formatCurrency(pkg.amount, 'USD')}</div>
+              <div className='text-22px font-700 text-t-primary'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
               <div className='text-15px font-600 text-brand mt-12px'>{(pkg.points + pkg.bonus).toLocaleString()} PTS</div>
               {pkg.description && <div className='text-12px text-t-secondary mt-6px truncate'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
@@ -387,10 +387,7 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
 
         {/* Order Info */}
         <div className='mt-16px space-y-8px'>
-          <div className='text-16px font-600 text-t-primary'>
-            {selectedPackage && formatCurrency(selectedPackage.amount, 'USD')}
-            <span className='text-14px text-t-tertiary ml-4px'>({formatCurrency(selectedPackage?.amount_cny || 0, 'CNY')})</span>
-          </div>
+          <div className='text-16px font-600 text-t-primary'>{selectedPackage && formatCurrency(selectedPackage.amount_cny, 'CNY')}</div>
           <div className='text-14px text-t-secondary'>
             {t('settings.recharge.pointsToGet') || '获得积分'}: <span className='text-primary font-500'>{(selectedPackage?.points || 0) + (selectedPackage?.bonus || 0)} PTS</span>
           </div>
