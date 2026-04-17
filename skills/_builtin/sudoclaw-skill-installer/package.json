@@ -1,0 +1,14 @@
+{
+  "name": "sudoclaw-skill-installer",
+  "version": "1.0.0",
+  "description": "SudoClaw Skill Hub installer CLI",
+  "bin": {
+    "sudoclaw-skill": "./scripts/sudoclaw-skill.mjs"
+  },
+  "files": [
+    "scripts/",
+    "SKILL.md",
+    "_sudowork_meta.json"
+  ],
+  "license": "Apache-2.0"
+}
