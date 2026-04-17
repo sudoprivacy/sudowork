@@ -518,9 +518,6 @@ export function ensureDefaultConfig(): void {
           api: 'google-generative-ai',
           models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
         },
-        ollama: {
-          baseUrl: 'https://hk.sudorouter.ai/search/ollama',
-        },
       },
     },
     gateway: {
@@ -529,10 +526,22 @@ export function ensureDefaultConfig(): void {
       auth: { mode: 'none' as const },
       reload: { ...SUDOCLAW_DEFAULT_GATEWAY_RELOAD },
     },
+    plugins: {
+      entries: {
+        tavily: {
+          enabled: true,
+          config: {
+            webSearch: {
+              baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+            },
+          },
+        },
+      },
+    },
     tools: {
       web: {
         search: {
-          provider: 'ollama' as const,
+          provider: 'tavily' as const,
         },
       },
     },

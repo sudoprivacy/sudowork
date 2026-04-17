@@ -129,5 +129,20 @@ export function mergeSudorouterProvidersIntoConfig(config: SudoclawConfig | null
     },
   };
 
+  if (canonicalApiKey) {
+    nextConfig.plugins = nextConfig.plugins || {};
+    nextConfig.plugins.entries = nextConfig.plugins.entries || {};
+    nextConfig.plugins.entries.tavily = {
+      enabled: true,
+      config: {
+        ...(nextConfig.plugins.entries.tavily || {}),
+        webSearch: {
+          ...(nextConfig.plugins.entries.tavily?.config || {}),
+          apiKey: canonicalApiKey,
+        },
+      },
+    };
+  }
+
   return nextConfig;
 }
