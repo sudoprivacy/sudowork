@@ -12,7 +12,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
 import jianshekuLogo from '@/renderer/assets/logos/jiansheku.png';
+import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
 import JsbConfigForm from './JsbConfigForm';
+import TenantConfigSection from './TenantConfigSection';
 import { ZentaoChannelItem } from '../ZentaoConfigForm';
 
 /**
@@ -43,13 +45,24 @@ const SecretModalContent: React.FC = () => {
     }
   }, []);
 
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   const guideText = t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
   const setupSteps = [t('settings.secrets.step1', '选择服务并填写秘钥信息。'), t('settings.secrets.step2', '点击保存完成配置。')];
+
+  const handleRefresh = useCallback(() => {
+    setRefreshCounter((prev) => prev + 1);
+  }, []);
 
   return (
     <AionScrollArea className={isPageMode ? 'h-full' : ''}>
       <div className='px-[12px] md:px-[28px]'>
-        <h2 className='text-20px font-500 text-t-primary m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
+        <div className='flex items-center justify-between'>
+          <h2 className='text-20px font-500 text-t-primary m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
+          <button onClick={handleRefresh} className='cursor-pointer p-4px rd-6px hover:bg-fill-2 transition-colors' title={t('settings.secrets.refresh', '刷新配置项')}>
+            <img src={itemRefreshIcon} alt='refresh' className='w-16px h-16px' />
+          </button>
+        </div>
         <div className='space-y-8px mt-10px'>
           <div className='text-13px text-t-secondary leading-relaxed'>{guideText}</div>
           <div className='flex flex-wrap gap-x-12px gap-y-6px'>
@@ -98,6 +111,9 @@ const SecretModalContent: React.FC = () => {
 
           {/* 禅道 */}
           <ZentaoChannelItem />
+
+          {/* 租户配置项 */}
+          <TenantConfigSection refreshTrigger={refreshCounter} />
         </div>
       </div>
     </AionScrollArea>

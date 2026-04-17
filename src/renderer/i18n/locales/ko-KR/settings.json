@@ -728,5 +728,11 @@
   "secrets.appSecretRequired": "App Secret을 입력해주세요",
   "secrets.save": "저장",
   "secrets.saveSuccess": "시크릿이 저장되었습니다",
-  "secrets.saveFailed": "시크릿 저장에 실패했습니다"
+  "secrets.saveFailed": "시크릿 저장에 실패했습니다",
+  "secrets.tenantEmpty": "No tenant configuration items",
+  "secrets.refresh": "Refresh config items",
+  "secrets.refreshSuccess": "Config items refreshed",
+  "secrets.refreshFailed": "Failed to refresh config items",
+  "secrets.tenantSaveSuccess": "Configuration saved successfully",
+  "secrets.tenantSaveFailed": "Failed to save configuration"
 }

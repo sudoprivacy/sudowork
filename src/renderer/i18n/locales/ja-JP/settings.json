@@ -728,5 +728,11 @@
   "secrets.appSecretRequired": "App Secretを入力してください",
   "secrets.save": "保存",
   "secrets.saveSuccess": "シークレットが保存されました",
-  "secrets.saveFailed": "シークレットの保存に失敗しました"
+  "secrets.saveFailed": "シークレットの保存に失敗しました",
+  "secrets.tenantEmpty": "No tenant configuration items",
+  "secrets.refresh": "Refresh config items",
+  "secrets.refreshSuccess": "Config items refreshed",
+  "secrets.refreshFailed": "Failed to refresh config items",
+  "secrets.tenantSaveSuccess": "Configuration saved successfully",
+  "secrets.tenantSaveFailed": "Failed to save configuration"
 }
