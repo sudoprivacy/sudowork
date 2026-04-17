@@ -190,7 +190,7 @@ jobs:
             base_name=$(basename "$file")
             extension=".${base_name##*.}"
             file_stem="${base_name%$extension}"
-            nightly_name="${file_stem}-nightly-${{ needs.prepare.outputs.date_utc }}${extension}"
+            nightly_name="${file_stem}-nightly-${{ needs.prepare.outputs.date_utc }}-${{ needs.prepare.outputs.short_sha }}${extension}"
 
             cp -f "$file" "nightly-release-assets/$nightly_name"
           done
