@@ -398,6 +398,39 @@ export class ServiceManager {
         mainWarn('ServiceManager', 'Failed to resolve system skills dir for PYTHONPATH injection', err);
       }
 
+      // Install sudowork-owned aidb dispatcher (skips upstream uv overhead)
+      // into ~/.nexus/sudoclaw/bin/ and surface it on PATH for every exec
+      // child. LLM writes `aidb page_info --url X` instead of
+      // `$env:PYTHONPATH=...; python -m ai_dev_browser.tools.page_info --url X`.
+      const sudoworkBinEnv: Record<string, string> = {};
+      try {
+        const { ensureSudoworkBinDispatchers, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
+        ensureSudoworkBinDispatchers();
+        const prevPath = process.env.PATH ?? '';
+        sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to install sudowork bin dispatchers', err);
+      }
+
+      // SUDOROUTER creds injection so the sudowork image-analysis skill and
+      // any other tool expecting these env vars works out of the box.
+      // Source of truth: sudoclaw.json models.providers.sudorouter.
+      // (Normally harmless — the image tool and image-analysis skill are
+      // disabled in ensureDefaultConfig/repairOpenClawConfig, but we still
+      // inject to support ad-hoc scripts referencing SUDOROUTER.)
+      const sudorouterEnv: Record<string, string> = {};
+      try {
+        const raw = await fs.promises.readFile(SUDOCLAW_CONFIG_PATH, 'utf-8');
+        const cfg = JSON.parse(raw) as {
+          models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> };
+        };
+        const sr = cfg.models?.providers?.sudorouter;
+        if (sr?.baseUrl) sudorouterEnv.SUDOROUTER_BASE_URL = sr.baseUrl;
+        if (sr?.apiKey) sudorouterEnv.SUDOROUTER_API_KEY = sr.apiKey;
+      } catch (err) {
+        mainWarn('ServiceManager', 'Could not read sudorouter provider creds from sudoclaw.json', err);
+      }
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -406,6 +439,8 @@ export class ServiceManager {
           OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH,
           ...adbSidechannelEnv,
           ...pythonPathEnv,
+          ...sudoworkBinEnv,
+          ...sudorouterEnv,
         },
         forceSubprocessGateway: true,
       });

@@ -6,8 +6,8 @@ description: "AI-native browser. Explore websites, discover page structure, take
 # Browser
 
 ```bash
-ls skills/browser/ai_dev_browser/tools/
-python -m ai_dev_browser.tools.<name> [--flag ...]
+aidb --list
+aidb <tool> [--flag ...]
 ```
 
 Every CLI tool has an identical Python function in `ai_dev_browser.core` — explore interactively with CLI, then script with the same functions:

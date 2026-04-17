@@ -45,6 +45,8 @@ const SUDOCLAW_CLI_STAGING_DIR = path.join(SUDOCLAW_DIR, 'cli.new');
 const SUDOCLAW_CLI_BACKUP_DIR = path.join(SUDOCLAW_DIR, 'cli.old');
 /** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
+/** sudowork-owned dispatcher bin (aidb wrapper + future per-tool shims). */
+export const SUDOCLAW_SUDOWORK_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 
@@ -529,12 +531,36 @@ export function repairOpenClawConfig(): void {
     // nothing when docker sandbox isn't in play.
     const topTools = (config.tools ?? {}) as Record<string, unknown>;
     const topDeny = Array.isArray(topTools.deny) ? (topTools.deny as string[]) : [];
-    if (!topDeny.includes('browser')) {
-      topDeny.push('browser');
-      topTools.deny = topDeny;
-      (config as Record<string, unknown>).tools = topTools;
+    for (const toolName of ['browser', 'image']) {
+      if (!topDeny.includes(toolName)) {
+        topDeny.push(toolName);
+        changed = true;
+        mainLog('Sudoclaw', `Added ${toolName} to top-level tools.deny (hides from LLM catalog)`);
+      }
+    }
+    topTools.deny = topDeny;
+    (config as Record<string, unknown>).tools = topTools;
+
+    // Disable the builtin image-analysis skill. Rationale: image-analysis
+    // invokes a SEPARATE LLM (via SUDOROUTER) in a subprocess — it has no
+    // continuity with the orchestrating LLM's browser session context, and
+    // ai-dev-browser's page_discover returns ARIA semantics (role, name,
+    // ref, box) which is a richer signal for web automation than pixel
+    // vision anyway. The skill's analyze_image.sh also requires
+    // SUDOROUTER_{BASE_URL,API_KEY} env vars that aren't injected, so the
+    // LLM wastes 5-8 steps manually sourcing them from sudoclaw.json and
+    // re-exporting per exec call. Disabling removes both the context
+    // break and the env-setup loop.
+    const skills = (config.skills ?? {}) as Record<string, unknown>;
+    const skillEntries = (skills.entries ?? {}) as Record<string, unknown>;
+    const imageAnalysis = (skillEntries['image-analysis'] ?? {}) as Record<string, unknown>;
+    if (imageAnalysis.enabled !== false) {
+      imageAnalysis.enabled = false;
+      skillEntries['image-analysis'] = imageAnalysis;
+      skills.entries = skillEntries;
+      (config as Record<string, unknown>).skills = skills;
       changed = true;
-      mainLog('Sudoclaw', 'Added browser to top-level tools.deny (hides from LLM catalog)');
+      mainLog('Sudoclaw', 'Disabled builtin image-analysis skill (breaks browser context continuity)');
     }
     // Clean up the old misplaced entry if present.
     const topSbx = topTools.sandbox as Record<string, unknown> | undefined;
@@ -616,13 +642,18 @@ export function ensureDefaultConfig(): void {
         },
       },
     },
+    skills: {
+      entries: {
+        'image-analysis': { enabled: false },
+      },
+    },
     tools: {
       web: {
         search: {
           provider: 'tavily' as const,
         },
       },
-      deny: ['browser'],
+      deny: ['browser', 'image'],
     },
   };
 
@@ -694,6 +725,44 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
  *
  * This guarantees that fresh installs *and* upgrades always have the latest prompt.
  */
+/**
+ * Copy the sudowork-owned `aidb` dispatcher (bash + cmd) into
+ * ~/.nexus/sudoclaw/bin/ so the openclaw gateway can expose it on PATH for
+ * every exec child. Idempotent — overwrites existing copies so updates to
+ * the bundled wrapper propagate on next startup. On Unix the bash variant
+ * gets the exec bit; on Windows the .cmd works directly.
+ */
+export function ensureSudoworkBinDispatchers(): void {
+  const source = resolveSudoworkBinSource();
+  if (!source) {
+    mainWarn('Sudoclaw', 'sudoclaw-bin source dir not found; aidb dispatcher unavailable');
+    return;
+  }
+  try {
+    fs.mkdirSync(SUDOCLAW_SUDOWORK_BIN_DIR, { recursive: true });
+    for (const entry of fs.readdirSync(source)) {
+      const srcPath = path.join(source, entry);
+      const destPath = path.join(SUDOCLAW_SUDOWORK_BIN_DIR, entry);
+      try {
+        fs.copyFileSync(srcPath, destPath);
+        if (process.platform !== 'win32' && !entry.endsWith('.cmd')) {
+          fs.chmodSync(destPath, 0o755);
+        }
+      } catch (err) {
+        mainWarn('Sudoclaw', `Failed to install dispatcher ${entry}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    mainLog('Sudoclaw', `Installed aidb dispatcher into ${SUDOCLAW_SUDOWORK_BIN_DIR}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `Failed to install sudowork bin dispatchers: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function resolveSudoworkBinSource(): string | null {
+  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'resources', 'sudoclaw-bin'), path.join(process.resourcesPath, 'sudoclaw-bin')] : [path.join(app.getAppPath(), 'resources', 'sudoclaw-bin')];
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
 export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `
