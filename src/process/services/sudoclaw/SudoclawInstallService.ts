@@ -539,6 +539,19 @@ export function repairOpenClawConfig(): void {
       }
     }
     topTools.deny = topDeny;
+
+    // Backfill tools.web.search.provider — present in ensureDefaultConfig but was
+    // missing from repair, so users who upgrade won't have this field. See #404.
+    const webConfig = (topTools.web ?? {}) as Record<string, unknown>;
+    const searchConfig = (webConfig.search ?? {}) as Record<string, unknown>;
+    if (!searchConfig.provider) {
+      searchConfig.provider = 'tavily';
+      webConfig.search = searchConfig;
+      topTools.web = webConfig;
+      changed = true;
+      mainLog('Sudoclaw', 'Backfilled tools.web.search.provider = tavily');
+    }
+
     (config as Record<string, unknown>).tools = topTools;
 
     // Disable the builtin image-analysis skill. Rationale: image-analysis
