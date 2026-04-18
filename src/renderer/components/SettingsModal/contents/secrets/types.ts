@@ -11,6 +11,7 @@ export interface TenantConfigEntry {
   id: number;
   config_key: string;
   config_desc: string | null;
+  name: string;
 }
 
 /**
@@ -20,6 +21,8 @@ export interface TenantConfigItem {
   id: number;
   name: string;
   entries: TenantConfigEntry[];
+  icon: string | null;
+  icon_url: string;
 }
 
 /**

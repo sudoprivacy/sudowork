@@ -8,26 +8,9 @@ import { secret } from '@/common/ipcBridge';
 import { Button, Input, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import PreferenceRow from './PreferenceRow';
 
 const NAMESPACE = 'service:jiansheku';
-
-/**
- * 偏好设置行组件
- */
-const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; required?: boolean; children: React.ReactNode }> = ({ label, description, required, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>
-          {label}
-          {required && <span className='text-red-500 ml-2px'>*</span>}
-        </span>
-      </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
 
 const JsbConfigForm: React.FC<{ disabled?: boolean; onSaveSuccess?: () => void }> = ({ disabled, onSaveSuccess }) => {
   const { t } = useTranslation();

@@ -4,26 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react';
+import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem, TenantConfigValues } from './types';
 
-const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; children: React.ReactNode }> = ({
-  label,
-  description,
-  children,
-}) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>{label}</span>
-      </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
+const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
+  const [useDefault, setUseDefault] = useState(false);
+
+  useEffect(() => {
+    setUseDefault(false);
+  }, [iconUrl]);
+
+  const src = useDefault || !iconUrl ? configItemDefaultIcon : `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+
+  return <img src={src} alt={name} className='w-14px h-14px object-contain shrink-0' onError={() => setUseDefault(true)} />;
+};
 
 interface TenantConfigItemGroupProps {
   configItem: TenantConfigItem;
@@ -87,14 +86,18 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
     >
       <Collapse.Item
         header={
-          <div className='flex items-center justify-between gap-8px'>
-            <span className='text-14px text-t-primary'>{configItem.name}</span>
-            <Switch
-              size='small'
-              checked={enabled}
-              onChange={handleToggle}
-              onClick={(e) => e.stopPropagation()}
-            />
+          <div className='flex items-center justify-between group'>
+            <div className='flex items-center gap-8px flex-1 min-w-0'>
+              <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
+              <span className='text-14px text-t-primary'>{configItem.name}</span>
+            </div>
+            <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
+              <Switch
+                size='small'
+                checked={enabled}
+                onChange={handleToggle}
+              />
+            </div>
           </div>
         }
         name={`tenant-${configItem.id}`}
@@ -103,12 +106,12 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
         <div className='flex flex-col gap-24px'>
           <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
             {configItem.entries.map((entry) => (
-              <PreferenceRow key={entry.id} label={entry.config_desc || entry.config_key}>
+              <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required>
                 <Input
                   value={localValues[entry.config_key] || ''}
                   onChange={(val) => handleValueChange(entry.config_key, val)}
                   placeholder={entry.config_key}
-                  style={{ width: 280 }}
+                  style={{ width: 240 }}
                   disabled={enabled || saving}
                 />
               </PreferenceRow>

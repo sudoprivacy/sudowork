@@ -39,7 +39,7 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
   }
 
   if (configItems.length === 0) {
-    return <div className='text-13px text-t-tertiary text-center py-16px'>{t('settings.secrets.tenantEmpty', '暂无租户配置项')}</div>;
+    return null;
   }
 
   return (
