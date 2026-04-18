@@ -76,6 +76,26 @@ describe('AdbStdoutCapture', () => {
     expect(match('python', ['script.py'])).toBe(false);
   });
 
+  it('does NOT intercept aidb wrapper invocations (Node stream-mode deadlock avoidance)', () => {
+    // Intentional non-interception: attaching `.on('data')` on a bash/cmd.exe
+    // child's stdout flips it into flowing mode, which deadlocks openclaw's
+    // paused-mode `stream.read()` shell-exec reader (child pipe fills, the
+    // wrapper process never exits). Aidb output reaches the UI/LLM via
+    // openclaw's own `data.result.content` pass-through (~8 KB cap), which
+    // sudowork's `isAdbToolCall` force-override in OpenClawAgent applies.
+    //
+    // We lock this guarantee in: the detection regex must stay scoped to
+    // the python literal so the hook never sees an aidb-wrapper match.
+    const matchesPython = (cmd: string, args: string[]) => /(?:^|[\\/])(python|python3)(?:\.exe)?$/i.test(cmd) && args.indexOf('-m') >= 0 && /^ai_dev_browser\.tools\./.test(args[args.indexOf('-m') + 1] ?? '');
+    // Python direct still matches (and will be teed by the hook).
+    expect(matchesPython('python', ['-m', 'ai_dev_browser.tools.page_info'])).toBe(true);
+    // Aidb dispatcher forms — all must return false (hook ignores them).
+    expect(matchesPython('/home/u/.nexus/sudoclaw/bin/aidb', ['page_goto'])).toBe(false);
+    expect(matchesPython('bash', ['-c', 'aidb page_goto'])).toBe(false);
+    expect(matchesPython('cmd.exe', ['/c', 'aidb.cmd page_discover'])).toBe(false);
+    expect(matchesPython('pwsh.exe', ['-Command', 'aidb page_info'])).toBe(false);
+  });
+
   it('does not mutate the caller-supplied env object', () => {
     capture = new AdbStdoutCapture({ sidechannelUrl: sink!.url, sidechannelSecret: 'shh' });
     capture.apply();

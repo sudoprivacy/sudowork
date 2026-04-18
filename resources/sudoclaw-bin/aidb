@@ -1,57 +1,9 @@
 #!/usr/bin/env bash
-# ai-dev-browser dispatcher (sudowork-side).
-#
-# Thin wrapper: `aidb <tool> [args]` → `python -m ai_dev_browser.tools.<tool> [args]`.
-# Skips uv / venv bootstrap — sudowork already pre-configures the Python path
-# (PYTHONPATH=~/.nexus/skills/_system/browser) when it starts the openclaw
-# gateway, so `python -m ai_dev_browser.tools.*` resolves directly.
-#
-# Discovery: `aidb --list` lists tools by enumerating the `tools/` directory
-# next to this script's resolved ai_dev_browser package.
-#
-# Upstream ai-dev-browser removed its own `aidb` in v0.4.3 (per-call uv-run
-# cost ~8s). This sudowork-owned dispatcher fills the same UX slot at ~50ms.
+# ai-dev-browser dispatcher (sudowork-side) — thin shim to aidb_helper.py.
+# The helper handles --list / --help / tool dispatch, AND POSTs the tool's
+# stdout to the sudowork sidechannel so sudowork's UI + the LLM see the
+# full output (openclaw's native exec result only ships a short meta
+# description). See aidb_helper.py for the full rationale.
 
 set -euo pipefail
-
-# Resolve ai_dev_browser package path. We rely on PYTHONPATH being set by
-# sudowork's gateway; otherwise fall back to the stable system-skills dir.
-# Prefer the first entry when PYTHONPATH carries multiple `:`-separated paths.
-__pythonpath="${PYTHONPATH:-}"
-__first_pp="${__pythonpath%%:*}"
-if [ -n "$__first_pp" ] && [ -d "$__first_pp/ai_dev_browser/tools" ]; then
-    TOOLS_DIR="$__first_pp/ai_dev_browser/tools"
-else
-    TOOLS_DIR="$HOME/.nexus/skills/_system/browser/ai_dev_browser/tools"
-fi
-
-if [ $# -eq 0 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-    cat <<EOF
-Usage: aidb <tool> [args]
-       aidb --list              # list available tools
-       aidb <tool> --help       # tool-specific help
-
-Tool files: $TOOLS_DIR
-EOF
-    exit 0
-fi
-
-if [ "${1:-}" = "--list" ]; then
-    if [ -d "$TOOLS_DIR" ]; then
-        for f in "$TOOLS_DIR"/*.py; do
-            name=$(basename "$f" .py)
-            case "$name" in
-                _*) ;;
-                *) echo "$name" ;;
-            esac
-        done
-    else
-        echo "Error: tools directory not found: $TOOLS_DIR" >&2
-        exit 1
-    fi
-    exit 0
-fi
-
-tool="${1//-/_}"
-shift
-exec python -m "ai_dev_browser.tools.$tool" "$@"
+exec python "$(dirname "$0")/aidb_helper.py" "$@"

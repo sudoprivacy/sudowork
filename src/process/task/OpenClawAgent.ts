@@ -1226,6 +1226,11 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     const meta = typeof data.meta === 'string' ? data.meta : '';
     const cmd = typeof data.args?.command === 'string' ? (data.args.command as string) : '';
     const haystack = `${meta}\n${cmd}`;
+    // sudowork-owned `aidb` dispatcher — e.g. `aidb page_goto --url …`.
+    // The command has no `python` literal, so it must be matched first;
+    // the hook side captures the same invocations via shell-arg scan and
+    // POSTs them to the sidechannel, keeping FIFO alignment.
+    if (/(?:^|[;\s&|"'`])aidb(?:\.cmd|\.bat)?\s+\S/i.test(haystack)) return true;
     // Must look like a Python invocation — this is the first filter so we
     // don't accidentally consume FIFO entries for unrelated commands.
     if (!/\bpython(?:3|\.exe|3\.exe)?\b/i.test(haystack)) return false;
@@ -1298,14 +1303,21 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       // openclaw's truncated meta with the real text.
       //
       // Correlation strategy: global FIFO across all ai-dev-browser POSTs.
-      // We intentionally don't hash the command here — openclaw truncates
-      // the backticked command in `meta` (typically at ~100 chars), so any
-      // hash we compute from `meta` won't match the hook's hash over the
-      // full command string. But the hook only POSTs entries for matched
-      // ai-dev-browser invocations, and it POSTs on child exit — which is
+      // Two POST sources feed this queue, with the same exit-ordered
+      // semantics:
+      //   1. The hook (`AdbStdoutCapture`) for direct `python -m
+      //      ai_dev_browser.tools.*` spawns.
+      //   2. The `aidb_helper.py` wrapper — for invocations that go
+      //      through the `aidb` dispatcher (every shell-wrapped form).
+      //      The hook intentionally skips aidb spawns because attaching
+      //      a stdout listener on bash/cmd.exe flips the child pipe into
+      //      flowing mode and deadlocks openclaw's paused-mode reader.
+      //
+      // We don't hash the command here: openclaw truncates the
+      // backticked command in `meta` (typically at ~100 chars), so any
+      // hash we compute can't match the hook's. FIFO pop by arrival
+      // order is sufficient — both POSTers fire on tool exit, which is
       // the same kernel event that triggers openclaw's result emission.
-      // So the order of POST arrivals matches the order of result events,
-      // and a simple FIFO pop lines up correctly.
       if (this.isAdbToolCall(toolData)) {
         try {
           const sink = serviceManager.getAdbSidechannel();

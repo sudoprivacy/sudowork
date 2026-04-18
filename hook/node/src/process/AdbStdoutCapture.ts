@@ -238,7 +238,7 @@ export class AdbStdoutCapture {
         }
       }
     }
-    // Case 2: shell-wrapped invocation — openclaw's runExecProcess spawns
+    // Case 2: shell-wrapped python — openclaw's runExecProcess spawns
     // cmd.exe/bash/sh/pwsh with the user's shell script as one of the args.
     // Scan every arg for the module-form OR path-form fragment.
     for (const arg of args) {
@@ -247,6 +247,17 @@ export class AdbStdoutCapture {
         return { hashInput: arg.trim() };
       }
     }
+    // NOTE: `aidb` wrapper invocations are intentionally NOT intercepted here.
+    // Attaching `.on('data')` on bash/cmd.exe child.stdout flips the stream
+    // into flowing mode, which deadlocks openclaw's paused-mode `.read()`
+    // pipeline for shell commands specifically — the child pipe fills up,
+    // cmd.exe blocks on its write, and the process never exits. Direct
+    // python spawns (Case 1) don't show this because openclaw reads them
+    // via a different path. For `aidb <tool>` we rely on openclaw's own
+    // data.result.content pass-through (up to ~8 KB), which the sudowork-
+    // side `isAdbToolCall` force-override uses to replace the truncated
+    // `meta` description. Outputs beyond 8 KB are future work — address
+    // via python-side POST inside ai_dev_browser CLI.
     return null;
   }
 
