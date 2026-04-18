@@ -299,28 +299,54 @@ export class AdbResultSidechannel {
     this.evictOverflow();
   }
 
+  private isStale(entry: AdbResultEntry, ttlMs = DEFAULT_TTL_MS): boolean {
+    return Date.now() - entry.finishedAt > ttlMs;
+  }
+
   private popOldest(): AdbResultEntry | null {
-    if (this.insertOrder.length === 0) return null;
-    const callId = this.insertOrder[0];
-    const entry = this.byCallId.get(callId);
-    if (!entry) {
-      this.insertOrder.shift();
-      return this.popOldest();
+    // Skip stale entries — an entry left in the queue past its TTL is
+    // almost certainly from a prior, unrelated helper invocation that
+    // never had a matching tool_call event land; returning it would
+    // misattribute its stdout to whatever tool_call is currently
+    // waiting, producing the cross-conversation content swap we kept
+    // seeing in the lis8 audit (today's `browser --list` showing
+    // yesterday's v0.5.1 output).
+    while (this.insertOrder.length > 0) {
+      const callId = this.insertOrder[0];
+      const entry = this.byCallId.get(callId);
+      if (!entry) {
+        this.insertOrder.shift();
+        continue;
+      }
+      if (this.isStale(entry)) {
+        this.deleteEntry(callId);
+        continue;
+      }
+      this.deleteEntry(callId);
+      return entry;
     }
-    this.deleteEntry(callId);
-    return entry;
+    return null;
   }
 
   private popByHash(cmdHash: string): AdbResultEntry | null {
-    const queue = this.byCmdHash.get(cmdHash);
-    if (!queue || queue.length === 0) return null;
-    const callId = queue.shift()!;
-    if (queue.length === 0) this.byCmdHash.delete(cmdHash);
-    else this.byCmdHash.set(cmdHash, queue);
-    const entry = this.byCallId.get(callId);
-    if (!entry) return null;
-    this.deleteEntry(callId);
-    return entry;
+    // Same TTL guard as `popOldest` — a hash match is worthless if the
+    // entry is from a prior session with the same cmd (e.g. a previous
+    // `browser --list` before a submodule bump).
+    while (true) {
+      const queue = this.byCmdHash.get(cmdHash);
+      if (!queue || queue.length === 0) return null;
+      const callId = queue.shift()!;
+      if (queue.length === 0) this.byCmdHash.delete(cmdHash);
+      else this.byCmdHash.set(cmdHash, queue);
+      const entry = this.byCallId.get(callId);
+      if (!entry) continue;
+      if (this.isStale(entry)) {
+        this.deleteEntry(callId);
+        continue;
+      }
+      this.deleteEntry(callId);
+      return entry;
+    }
   }
 
   private deleteEntry(callId: string): void {

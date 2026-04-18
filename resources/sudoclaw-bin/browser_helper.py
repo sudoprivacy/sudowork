@@ -32,25 +32,51 @@ import time
 import urllib.request
 
 
+def _browser_skill_dir() -> pathlib.Path:
+    """The sudowork system-skills browser dir that holds the junction to
+    the upstream ai_dev_browser package.
+
+    We intentionally do NOT trust `PYTHONPATH` here: openclaw's exec tool
+    sanitizes the host env and strips `PYTHONPATH` (along with other
+    interpreter-path vars) before spawning children, so by the time this
+    helper runs we're guaranteed to see an empty/absent PYTHONPATH even
+    though sudowork sets it on the gateway process. Resolving the skill
+    path directly from `~/.nexus/skills/_system/browser` makes the
+    helper self-sufficient and decouples it from openclaw's env-security
+    policy.
+    """
+    return pathlib.Path.home() / ".nexus" / "skills" / "_system" / "browser"
+
+
+def _ensure_ai_dev_browser_on_sys_path() -> None:
+    """Prepend the sudowork skill dir to `sys.path` so `import
+    ai_dev_browser` resolves to the junction-linked upstream package
+    rather than any stale pip-installed copy that might be sitting in
+    the invoking Python's site-packages (e.g. a leftover
+    `pip install ai-dev-browser` from earlier dev work).
+
+    Without this, a developer who once ran `pip install -e` on the
+    package into their venv gets that stale copy forever, and the
+    LLM sees whatever docstrings / tool signatures were current when
+    the install happened — not what the submodule is pinned to today.
+    The breakage mode is subtle (no error, just wrong content) and was
+    the root cause of the 2026-04-18 lis8 e2e investigation, so we fix
+    it once and for all at import time.
+    """
+    skill_dir = _browser_skill_dir()
+    if not skill_dir.is_dir():
+        return
+    skill_dir_str = str(skill_dir)
+    if skill_dir_str in sys.path:
+        return
+    sys.path.insert(0, skill_dir_str)
+
+
+_ensure_ai_dev_browser_on_sys_path()
+
+
 def _tools_dir() -> pathlib.Path:
-    pp = os.environ.get("PYTHONPATH", "")
-    sep = ";" if os.name == "nt" else ":"
-    for entry in pp.split(sep):
-        entry = entry.strip()
-        if not entry:
-            continue
-        cand = pathlib.Path(entry) / "ai_dev_browser" / "tools"
-        if cand.is_dir():
-            return cand
-    return (
-        pathlib.Path.home()
-        / ".nexus"
-        / "skills"
-        / "_system"
-        / "browser"
-        / "ai_dev_browser"
-        / "tools"
-    )
+    return _browser_skill_dir() / "ai_dev_browser" / "tools"
 
 
 def _emit(buf: io.StringIO, line: str = "") -> None:
