@@ -831,6 +831,96 @@ export function patchOpenclawToolResultCap(): void {
   }
 }
 
+/**
+ * Stop openclaw's `sanitizeToolResult` from stripping image bytes out of
+ * tool results.
+ *
+ * openclaw's bundle has (in the `sanitizeToolResult` helper that runs
+ * on every tool return before the LLM sees it):
+ *
+ *     if (type === "image") {
+ *       const data3 = typeof entry.data === "string" ? entry.data : void 0;
+ *       const bytes = data3 ? data3.length : void 0;
+ *       const cleaned = { ...entry };
+ *       delete cleaned.data;
+ *       return { ...cleaned, bytes, omitted: true };
+ *     }
+ *
+ * So even when `browser page_screenshot` or any other tool returns an
+ * image content block, the pixels never reach the LLM — only
+ * `{type:"image", omitted:true, bytes:N}` metadata does. Multimodal
+ * models (gemini-3-flash, claude, gpt-4o-class) are perfectly capable
+ * of reading a captcha / verifying a UI state from a screenshot, but
+ * sudowork's pipeline silently blocks the pixel path.
+ *
+ * We rewrite the image branch to pass the entry through unchanged when
+ * the image payload is under the 1 MB `TOOL_RESULT_MAX_CHARS2` we
+ * already raised — so a typical 50–500 KB screenshot reaches the LLM
+ * intact. Oversize images still fall back to the original strip so a
+ * runaway tool can't blow the context window. Pattern is precise —
+ * fail-open on miss, idempotent when already applied.
+ *
+ * Secondary image-strip path in the history-sanitization module
+ * (around line 654226 in the bundle, inside `sanitizeHistoryMessage`)
+ * is intentionally left alone: that only affects replay of past turns,
+ * and keeping large image blobs in the rolling history would balloon
+ * context on every subsequent call.
+ */
+export function patchOpenclawKeepImageData(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepImageData: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  const patchMarker = '/*SUDOWORK_KEEP_IMAGE_DATA*/';
+  if (source.includes(patchMarker)) {
+    return;
+  }
+  // Match the exact `sanitizeToolResult` image branch. The bundle is
+  // minified-ish but the string literals + structure give us a stable
+  // anchor. We look for the specific sequence `delete cleaned.data;`
+  // followed by the `{ ...cleaned, bytes, omitted: true }` return.
+  const originalBranch = 'if (type === "image") {\n' + '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' + '      const bytes = data3 ? data3.length : void 0;\n' + '      const cleaned = { ...entry };\n' + '      delete cleaned.data;\n' + '      return {\n' + '        ...cleaned,\n' + '        bytes,\n' + '        omitted: true\n' + '      };\n' + '    }';
+  if (!source.includes(originalBranch)) {
+    mainWarn('Sudoclaw', 'patchOpenclawKeepImageData: pattern not found in openclaw bundle (upstream may have restructured sanitizeToolResult). Image pixels will continue to be stripped before the LLM sees them — multimodal tools like captcha reading from page_screenshot will not work.');
+    return;
+  }
+  const replacementBranch =
+    'if (type === "image") {\n' +
+    '      ' +
+    patchMarker +
+    '\n' +
+    '      // sudowork: pass image bytes through for multimodal LLMs when\n' +
+    '      // the payload fits the tool-result char cap. Oversize falls\n' +
+    '      // back to the original strip to keep context safe.\n' +
+    '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' +
+    '      const bytes = data3 ? data3.length : void 0;\n' +
+    '      if (bytes && bytes <= TOOL_RESULT_MAX_CHARS2) {\n' +
+    '        return { ...entry };\n' +
+    '      }\n' +
+    '      const cleaned = { ...entry };\n' +
+    '      delete cleaned.data;\n' +
+    '      return {\n' +
+    '        ...cleaned,\n' +
+    '        bytes,\n' +
+    '        omitted: true\n' +
+    '      };\n' +
+    '    }';
+  source = source.replace(originalBranch, replacementBranch);
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawKeepImageData: image pixels now pass through sanitizeToolResult (up to 1 MB) in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepImageData: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `
