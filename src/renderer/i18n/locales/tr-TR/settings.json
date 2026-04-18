@@ -730,5 +730,6 @@
   "secrets.refreshSuccess": "Config items refreshed",
   "secrets.refreshFailed": "Failed to refresh config items",
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
-  "secrets.tenantSaveFailed": "Failed to save configuration"
+  "secrets.tenantSaveFailed": "Failed to save configuration",
+  "secrets.tenantFieldRequired": "Please fill in all configuration items"
 }

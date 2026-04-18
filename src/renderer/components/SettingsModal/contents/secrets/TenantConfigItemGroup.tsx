@@ -55,6 +55,11 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
   }, []);
 
   const handleSave = useCallback(async () => {
+    const emptyEntry = configItem.entries.find((entry) => !localValues[entry.config_key]?.trim());
+    if (emptyEntry) {
+      Message.warning(t('settings.secrets.tenantFieldRequired', '请填写所有配置项'));
+      return;
+    }
     const success = await onSave(localValues);
     if (success) {
       Message.success(t('settings.secrets.tenantSaveSuccess', '配置保存成功'));
@@ -65,7 +70,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
     } else {
       Message.error(t('settings.secrets.tenantSaveFailed', '配置保存失败'));
     }
-  }, [localValues, onSave, enabled, onToggleEnabled, t]);
+  }, [localValues, onSave, enabled, onToggleEnabled, t, configItem.entries]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {

@@ -881,6 +881,7 @@
   "secrets.refreshFailed": "刷新配置项失败",
   "secrets.tenantSaveSuccess": "配置保存成功",
   "secrets.tenantSaveFailed": "配置保存失败",
+  "secrets.tenantFieldRequired": "请填写所有配置项",
   "promptTimeout": "LLM 请求超时",
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
