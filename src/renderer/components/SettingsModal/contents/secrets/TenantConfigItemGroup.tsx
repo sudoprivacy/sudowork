@@ -110,7 +110,6 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
                 <Input
                   value={localValues[entry.config_key] || ''}
                   onChange={(val) => handleValueChange(entry.config_key, val)}
-                  placeholder={entry.config_key}
                   style={{ width: 240 }}
                   disabled={enabled || saving}
                 />
