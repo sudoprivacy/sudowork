@@ -412,6 +412,15 @@ export class ServiceManager {
         patchOpenclawToolResultCap();
         const prevPath = process.env.PATH ?? '';
         sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
+        // ai-dev-browser v0.5.1 reads AI_DEV_BROWSER_OUTPUT_DIR as the
+        // `--path`-omitted default for screenshot / dump tools (falls back
+        // to `./screenshots/` under CWD if unset). openclaw's exec tool
+        // runs with CWD = the conversation workspace root, so `.` here
+        // resolves at tool-invocation time to that per-conversation
+        // workspace — keeping each conversation's screenshots isolated
+        // and landing them at a persistent, discoverable location the
+        // LLM doesn't need to `mv` out of scratch after the fact.
+        sudoworkBinEnv.AI_DEV_BROWSER_OUTPUT_DIR = '.';
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to install sudowork bin dispatchers', err);
       }
