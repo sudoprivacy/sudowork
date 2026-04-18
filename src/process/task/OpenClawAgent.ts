@@ -46,12 +46,24 @@ const CONNECTION_RETRY_DELAY_MS = 1_000;
 
 /**
  * openclaw's bundled `TOOL_RESULT_MAX_CHARS2` — the byte cap it applies via
- * `truncateToolText` before passing tool stdout back to the LLM. We can't
- * change this from sudowork (it lives inside the openclaw bundle), but we
- * CAN detect when our sidechannel capture exceeds it and surface that as
- * an explicit failure so the LLM doesn't silently act on a partial view.
+ * `truncateToolText` before passing tool stdout back to the LLM.
+ *
+ * The openclaw default is 8000. Sudowork patches the bundle on every
+ * gateway start (`SudoclawInstallService.patchOpenclawToolResultCap`) to
+ * raise this to 1_000_000 (1 MB) so browser tools that legitimately
+ * return tens of KB (`page_html` on a real page, `page_discover` on a
+ * busy DOM) reach the LLM intact. This constant must stay in sync with
+ * that patch — when the helper-captured stdout exceeds it we still
+ * surface a "this was almost certainly truncated" warning to the LLM,
+ * but at 1 MB that's only ever an edge case.
+ *
+ * If `patchOpenclawToolResultCap` fails open (upstream restructured the
+ * literal), the install service logs a warning and the original 8 KB cap
+ * stays in effect — but our threshold here is 1 MB, so the warning won't
+ * fire. The mainLog warning from the install service is the canonical
+ * signal in that case.
  */
-const OPENCLAW_TOOL_RESULT_CAP_BYTES = 8000;
+const OPENCLAW_TOOL_RESULT_CAP_BYTES = 1_000_000;
 
 interface ToolEventData {
   phase?: string;

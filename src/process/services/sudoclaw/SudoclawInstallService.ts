@@ -776,6 +776,61 @@ function resolveSudoworkBinSource(): string | null {
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
 
+/**
+ * Bypass openclaw's hard-coded 8-KB tool-result cap.
+ *
+ * openclaw's bundle contains:
+ *
+ *     TOOL_RESULT_MAX_CHARS2 = 8e3;
+ *
+ * which `truncateToolText` applies to every tool's stdout BEFORE openclaw
+ * feeds it into the LLM context. Outputs above 8 KB silently lose their
+ * tail to a literal "…(truncated)…" marker, so the LLM ends up acting on
+ * a partial view (e.g. `browser page_html` on a real-world page only
+ * shows the first 8 KB of HTML).
+ *
+ * Sudowork's sidechannel already delivers the full text to the UI; this
+ * patch closes the gap on the LLM-facing side. We rewrite the literal in
+ * place to ~1 MB. The rewrite is:
+ *   - Idempotent: if `1e6` is already there, skip.
+ *   - Fail-open: a missed match (upstream restructured the bundle) just
+ *     logs a warning — the install continues with the original cap.
+ *   - Re-applied on every startup: openclaw bundle updates blow our
+ *     change away, this re-asserts.
+ *
+ * We deliberately do NOT touch the compaction-side `TOOL_RESULT_MAX_CHARS
+ * = 2e3` (different module, used to bound earlier-turn summarization;
+ * raising it would balloon context).
+ */
+export function patchOpenclawToolResultCap(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawToolResultCap: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  if (/TOOL_RESULT_MAX_CHARS2\s*=\s*1e6/.test(source)) {
+    return;
+  }
+  const before = source;
+  source = source.replace(/TOOL_RESULT_MAX_CHARS2\s*=\s*8e3/g, 'TOOL_RESULT_MAX_CHARS2 = 1e6');
+  if (source === before) {
+    mainWarn('Sudoclaw', 'patchOpenclawToolResultCap: pattern `TOOL_RESULT_MAX_CHARS2 = 8e3` not found in openclaw bundle (upstream may have changed the literal). Tool results > 8 KB will continue to be silently truncated for the LLM. Sudowork sidechannel still delivers the full text to the UI.');
+    return;
+  }
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawToolResultCap: raised TOOL_RESULT_MAX_CHARS2 8000 → 1000000 in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawToolResultCap: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `

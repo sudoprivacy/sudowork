@@ -404,8 +404,12 @@ export class ServiceManager {
       // `$env:PYTHONPATH=...; python -m ai_dev_browser.tools.page_info --url X`.
       const sudoworkBinEnv: Record<string, string> = {};
       try {
-        const { ensureSudoworkBinDispatchers, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
+        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
         ensureSudoworkBinDispatchers();
+        // Re-assert the openclaw bundle patch on every gateway start so an
+        // upstream openclaw update doesn't silently re-cap tool results to
+        // 8 KB on the LLM side. Idempotent + fail-open.
+        patchOpenclawToolResultCap();
         const prevPath = process.env.PATH ?? '';
         sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
       } catch (err) {
