@@ -1,18 +1,22 @@
-"""ai-dev-browser dispatcher helper (sudowork-side).
+"""sudowork `browser` dispatcher helper (sudowork-side).
 
-Invoked by the thin `aidb` (bash) / `aidb.cmd` (Windows) wrappers as:
+Invoked by the thin `browser` (bash) / `browser.cmd` (Windows) wrappers as:
 
-    python aidb_helper.py <tool> [args]
-    python aidb_helper.py --list
-    python aidb_helper.py --help
+    python browser_helper.py <tool> [args]
+    python browser_helper.py --list
+    python browser_helper.py --help
+
+Underlying runtime is the upstream `ai_dev_browser` Python package; we expose
+it to the LLM as `browser` instead of `aidb` because the self-explanatory
+name cuts down on LLM "what is aidb?" probing from the tool list alone.
 
 Why a Python helper and not a pure shell dispatcher: sudowork's safety hook
-(`AdbStdoutCapture`) can't tee `aidb`'s stdout at the Node layer without
-deadlocking openclaw's paused-mode stream reader on Windows — attaching
-`.on('data')` flips the child pipe to flowing mode and cmd.exe then blocks
-on its own write. So the wrapper captures and POSTs to the sudowork
-sidechannel itself. The hook still covers direct `python -m
-ai_dev_browser.tools.*` invocations that don't go through aidb.
+(`AdbStdoutCapture`) can't tee the wrapper's stdout at the Node layer
+without deadlocking openclaw's paused-mode stream reader on Windows —
+attaching `.on('data')` flips the child pipe to flowing mode and cmd.exe
+then blocks on its own write. So the wrapper captures and POSTs to the
+sudowork sidechannel itself. The hook still covers direct `python -m
+ai_dev_browser.tools.*` invocations that don't go through our wrapper.
 """
 
 from __future__ import annotations
@@ -56,9 +60,13 @@ def _emit(buf: io.StringIO, line: str = "") -> None:
 
 def _print_help() -> str:
     buf = io.StringIO()
-    _emit(buf, "Usage: aidb <tool> [args]")
-    _emit(buf, "       aidb --list              # list available tools")
-    _emit(buf, "       aidb <tool> --help       # tool-specific help")
+    _emit(buf, "Usage: browser <tool> [args]")
+    _emit(buf, "       browser --list              # list available tools")
+    _emit(buf, "       browser <tool> --help       # tool-specific help")
+    _emit(buf)
+    _emit(buf, "Typical first-run sequence:")
+    _emit(buf, "       browser browser_start       # spin up Chrome once per session")
+    _emit(buf, "       browser page_goto --url …   # navigate the running browser")
     _emit(buf)
     _emit(buf, f"Tool files: {_tools_dir()}")
     out = buf.getvalue()
@@ -68,17 +76,43 @@ def _print_help() -> str:
 
 
 def _list_tools() -> tuple[int, str, str]:
+    """Emit each tool on its own line as `name  <first docstring line>`.
+
+    The summary is read from `ai_dev_browser.core.<name>.__doc__` — upstream
+    owns that text and updates it whenever a tool changes, so we pick up any
+    new/changed descriptions automatically on the next upstream bump (no
+    hand-maintained description table to drift against reality). Missing
+    docstring falls back to the name alone.
+
+    Cost: ~0.8s cold for ~45 tools (one `import ai_dev_browser.core` + 45
+    `getattr` + `inspect.getdoc`); near-zero on warm calls.
+    """
     td = _tools_dir()
     if not td.is_dir():
         err = f"Error: tools directory not found: {td}\n"
         sys.stderr.write(err)
         sys.stderr.flush()
         return 1, "", err
+    import inspect
+
+    try:
+        from ai_dev_browser import core  # type: ignore[import-not-found]
+    except Exception:
+        core = None  # type: ignore[assignment]
+    names = sorted(f.stem for f in td.glob("*.py") if not f.stem.startswith("_"))
+    # Left-pad names for stable column alignment; floor at 20 so short names
+    # still read cleanly against the summary column.
+    name_col = max(20, max((len(n) for n in names), default=0))
     buf = io.StringIO()
-    for f in sorted(td.glob("*.py")):
-        name = f.stem
-        if not name.startswith("_"):
-            _emit(buf, name)
+    for name in names:
+        summary = ""
+        if core is not None:
+            fn = getattr(core, name, None)
+            if fn is not None:
+                doc = (inspect.getdoc(fn) or "").strip()
+                if doc:
+                    summary = doc.split("\n", 1)[0].strip()
+        _emit(buf, f"{name:<{name_col}}  {summary}".rstrip())
     out = buf.getvalue()
     sys.stdout.write(out)
     sys.stdout.flush()
@@ -99,12 +133,26 @@ def _post_sidechannel(
     if not url or not secret:
         return
     visible = stdout if stdout.strip() else stderr
+    import hashlib
+
+    # cmd and cmdHash are the correlation keys the sudowork side uses to
+    # pop the right sidechannel entry for a given tool_call event. The
+    # normalization here (collapse internal whitespace, strip ends) must
+    # stay byte-identical to what sudowork's `OpenClawAgent` does on the
+    # tool_call event's `args.command` field — they both feed the same
+    # sha1. Any drift makes the hash miss and sudowork falls back to
+    # global FIFO, which is racy when tool_calls parallelize (lis8 e2e
+    # step 23/24 observed).
+    cmd_str = "browser " + " ".join(argv)
+    cmd_norm = " ".join(cmd_str.split())
+    cmd_hash = hashlib.sha1(cmd_norm.encode("utf-8")).hexdigest()
     body = json.dumps(
         {
             "callId": os.environ.get(
-                "AI_DEV_BROWSER_CALL_ID", f"aidb-self-{os.urandom(8).hex()}"
+                "AI_DEV_BROWSER_CALL_ID",
+                f"browser-self-{os.urandom(8).hex()}",
             ),
-            "cmd": "aidb " + " ".join(argv),
+            "cmd": cmd_norm,
             "argv": argv,
             "pid": os.getpid(),
             "ppid": os.getppid(),
@@ -113,7 +161,7 @@ def _post_sidechannel(
             "exitCode": exit_code,
             "stdoutRaw": visible,
             "stdoutJson": None,
-            "cmdHash": "aidb-self",
+            "cmdHash": cmd_hash,
             "truncated": False,
         }
     ).encode("utf-8")

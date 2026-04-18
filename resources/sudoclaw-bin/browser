@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# sudowork `browser` dispatcher — thin shim to browser_helper.py.
+# The helper handles --list / --help / tool dispatch, AND POSTs the tool's
+# stdout to the sudowork sidechannel so sudowork's UI + the LLM see the
+# full output (openclaw's native exec result only ships a short meta
+# description). See browser_helper.py for the full rationale.
+#
+# Under the hood the helper runs `ai_dev_browser.tools.<name>` (upstream
+# Python package, unchanged). Exposing it as `browser` instead of the
+# upstream `aidb` name makes the tool self-explanatory to the LLM from
+# the `aidb --list` output alone.
+
+set -euo pipefail
+exec python "$(dirname "$0")/browser_helper.py" "$@"
