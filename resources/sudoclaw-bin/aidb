@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# ai-dev-browser dispatcher (sudowork-side) — thin shim to aidb_helper.py.
-# The helper handles --list / --help / tool dispatch, AND POSTs the tool's
-# stdout to the sudowork sidechannel so sudowork's UI + the LLM see the
-# full output (openclaw's native exec result only ships a short meta
-# description). See aidb_helper.py for the full rationale.
-
-set -euo pipefail
-exec python "$(dirname "$0")/aidb_helper.py" "$@"
