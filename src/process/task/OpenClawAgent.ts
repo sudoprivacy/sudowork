@@ -65,6 +65,35 @@ const CONNECTION_RETRY_DELAY_MS = 1_000;
  */
 const OPENCLAW_TOOL_RESULT_CAP_BYTES = 1_000_000;
 
+/**
+ * Count ai-dev-browser sub-cmds inside a compound shell string. Both the
+ * `browser`/`aidb` wrapper and direct `python -m ai_dev_browser.tools.*`
+ * invocations POST to the sidechannel, so each one consumes one queue entry
+ * regardless of which path it takes. We split on the same set of separators
+ * the compound regex tests for (`\n`, `&&`, `||`, `;`) and count sub-cmds
+ * that start with a recognised browser invocation token.
+ *
+ * Floor at 1 to keep the existing single-cmd behaviour for callers that ask
+ * about a non-compound string. Mismatches between this count and what the
+ * helper actually POSTs degrade gracefully — `waitForNextAdbEntry` returns
+ * `null` after a short wait when there's nothing left, so we just stop
+ * collecting and emit whatever we got.
+ */
+function countAdbInvocations(cmdRaw: string): number {
+  const subCmds = cmdRaw.split(/\n|&&|\|\||;/);
+  let count = 0;
+  for (const sub of subCmds) {
+    const trimmed = sub.trim();
+    if (!trimmed) continue;
+    if (/^(?:browser|aidb)(?:\.cmd|\.bat)?\b/i.test(trimmed)) {
+      count++;
+    } else if (/python(?:3|\.exe|3\.exe)?\s+(?:-[a-zA-Z]\S*\s+)*-m\s+ai_dev_browser/i.test(trimmed)) {
+      count++;
+    }
+  }
+  return Math.max(count, 1);
+}
+
 interface ToolEventData {
   phase?: string;
   name?: string;
@@ -1352,41 +1381,67 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           const sink = serviceManager.getAdbSidechannel();
           if (sink) {
             const cmdRaw = typeof toolData.args?.command === 'string' ? (toolData.args.command as string) : '';
-            // Normalize identically to browser_helper.py's `cmd_norm`:
-            // strip ends + collapse internal whitespace. Then drop the
-            // `aidb` legacy prefix (helper always normalizes to `browser`).
-            const cmdNorm = cmdRaw
-              .replace(/\s+/g, ' ')
-              .trim()
-              .replace(/^aidb\b/, 'browser');
-            const isCompound = /(?:^|[^&|<>])(?:&&|\|\|)|(?:^|[^&|<>]);(?:$|[^;])/.test(cmdNorm);
-            let entry = null as Awaited<ReturnType<typeof sink.waitForCmd>>;
-            if (cmdNorm && !isCompound) {
+            const cmdRawTrim = cmdRaw.trim();
+            // Compound = the LLM packed multiple shell statements into one
+            // exec call. The helper POSTs once per child invocation, but
+            // openclaw fires only one `tool_call` event for the whole
+            // compound, so a naive single pop misattributes the wrong sub-
+            // cmd's stdout to the event (lis8 audit observed 15+ steps
+            // showing content from neighbouring sub-cmds). Newline is the
+            // most common separator in practice — the LLM tends to write
+            // multi-line scripts before `&&`/`;` — so it MUST be in this
+            // regex even though it isn't strictly a shell control char.
+            const isCompound = /\n|(?:^|[^&|<>])(?:&&|\|\|)|(?:^|[^&|<>]);(?:$|[^;])/.test(cmdRawTrim);
+            const collected: string[] = [];
+            if (cmdRawTrim && !isCompound) {
+              // Single invocation: prefer hash-correlation. Helper's
+              // `cmd_norm` is `" ".join(("browser " + " ".join(argv)).split())`
+              // — replicate byte-for-byte (collapse whitespace + strip + drop
+              // legacy `aidb` prefix in favour of canonical `browser`).
+              const cmdNorm = cmdRawTrim.replace(/\s+/g, ' ').replace(/^aidb\b/, 'browser');
               const hash = createHash('sha1').update(cmdNorm).digest('hex');
-              entry = await sink.waitForCmd(hash, 2_000);
+              const entry = (await sink.waitForCmd(hash, 2_000)) || (await sink.waitForNextAdbEntry(20_000));
+              if (entry?.stdoutRaw) collected.push(entry.stdoutRaw);
+            } else if (isCompound) {
+              // Compound: per-cmd hash can't possibly match (helper hashes
+              // each sub-cmd individually, sudowork sees only the combined
+              // text). Pop N entries in order — N = number of browser-style
+              // invocations across the sub-cmds. Use a generous wait on the
+              // first pop (queue may not have caught up to the slowest sub-
+              // cmd yet) and a tight wait on the rest so the UI doesn't
+              // stall when one sub-cmd silently failed before POSTing.
+              const n = countAdbInvocations(cmdRawTrim);
+              for (let i = 0; i < n; i++) {
+                const e = await sink.waitForNextAdbEntry(i === 0 ? 20_000 : 2_000);
+                if (!e) break;
+                collected.push(e.stdoutRaw);
+              }
+            } else {
+              const e = await sink.waitForNextAdbEntry(20_000);
+              if (e?.stdoutRaw) collected.push(e.stdoutRaw);
             }
-            if (!entry) {
-              entry = await sink.waitForNextAdbEntry(20_000);
-            }
-            if (entry && entry.stdoutRaw && entry.stdoutRaw.length > (this.extractResultText(toolData)?.length ?? 0)) {
-              toolData.meta = entry.stdoutRaw;
-              toolData.content = [{ type: 'content', content: { type: 'text', text: entry.stdoutRaw } }];
-              // openclaw feeds tool result to the LLM through a separate in-
-              // process channel that ALSO runs through `truncateToolText`
-              // (cap 8 KB, marker `…(truncated)…`). Clients can't see what
-              // openclaw ships to the LLM, but we can detect the condition
-              // from our own sidechannel capture: if the full stdout exceeds
-              // the cap, the LLM's copy is truncated even though the UI's
-              // copy is intact. Promote the tool call to failed + prepend
-              // an explicit warning so the LLM's next turn sees that its
-              // own view was cut off rather than silently acting on a
-              // partial result. The full text still rides behind the warning
-              // for the UI's benefit.
-              if (entry.stdoutRaw.length > OPENCLAW_TOOL_RESULT_CAP_BYTES) {
-                status = 'failed';
-                const warn = `[sudowork] tool output is ${entry.stdoutRaw.length} bytes (> openclaw's ${OPENCLAW_TOOL_RESULT_CAP_BYTES}-byte tool-result cap). openclaw silently truncates what it ships to the LLM; sudowork is surfacing this as a failure so the LLM doesn't act on a partial view. Re-run with tighter scope, paginate, or write full output to a file and read it back in chunks.\n\n--- full captured output below (${entry.stdoutRaw.length} bytes) ---\n${entry.stdoutRaw}`;
-                toolData.meta = warn.slice(0, 200);
-                toolData.content = [{ type: 'content', content: { type: 'text', text: warn } }];
+            if (collected.length > 0) {
+              const merged = collected.length === 1 ? collected[0] : collected.map((text, idx) => `--- sub-cmd ${idx + 1} of ${collected.length} ---\n${text}`).join('\n\n');
+              if (merged.length > (this.extractResultText(toolData)?.length ?? 0)) {
+                toolData.meta = merged;
+                toolData.content = [{ type: 'content', content: { type: 'text', text: merged } }];
+                // openclaw feeds tool result to the LLM through a separate in-
+                // process channel that ALSO runs through `truncateToolText`
+                // (cap 8 KB, marker `…(truncated)…`). Clients can't see what
+                // openclaw ships to the LLM, but we can detect the condition
+                // from our own sidechannel capture: if the full stdout exceeds
+                // the cap, the LLM's copy is truncated even though the UI's
+                // copy is intact. Promote the tool call to failed + prepend
+                // an explicit warning so the LLM's next turn sees that its
+                // own view was cut off rather than silently acting on a
+                // partial result. The full text still rides behind the warning
+                // for the UI's benefit.
+                if (merged.length > OPENCLAW_TOOL_RESULT_CAP_BYTES) {
+                  status = 'failed';
+                  const warn = `[sudowork] tool output is ${merged.length} bytes (> openclaw's ${OPENCLAW_TOOL_RESULT_CAP_BYTES}-byte tool-result cap). openclaw silently truncates what it ships to the LLM; sudowork is surfacing this as a failure so the LLM doesn't act on a partial view. Re-run with tighter scope, paginate, or write full output to a file and read it back in chunks.\n\n--- full captured output below (${merged.length} bytes) ---\n${merged}`;
+                  toolData.meta = warn.slice(0, 200);
+                  toolData.content = [{ type: 'content', content: { type: 'text', text: warn } }];
+                }
               }
             }
           }
