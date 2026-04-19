@@ -1,0 +1,37 @@
+name: "lis8 verify patches"
+description: "Verify post-patch behaviour: compound-cmd FIFO串台 fix, read tool UI visibility, canvas tool removed from catalog. Triggers a lis8 login + nav flow that exercises browser tool calls + at least one read."
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: New conversation, sudoclaw preset ──
+  - op: mouse_click
+    text: "新会话"
+  - op: pause
+    duration: 3000
+  - op: screenshot
+    path: "screenshots/lis8-verify-00-home.png"
+
+  # ── Phase 2: Send lis8 prompt (same wording the user has been testing) ──
+  - op: type_text
+    text: |
+      https://lis8.sinosoft.ltd
+      用户名: tuanxiancs
+      密码: admin001
+      机构选 861100
+      团险业务-新单管理-新单录入
+
+      你登录进去看一下，登录后用 read 看一下 package.json 的前 20 行（验证 read 工具 UI 可见性）。
+  - op: press_key
+    key: "Enter"
+    wait: 3
+
+  # ── Phase 3: Let it run ──
+  - op: wait_for_response
+    timeout: 600
+
+  # ── Phase 4: Final screenshot ──
+  - op: screenshot
+    path: "screenshots/lis8-verify-01-result.png"
