@@ -425,6 +425,20 @@ export class ServiceManager {
         // and landing them at a persistent, discoverable location the
         // LLM doesn't need to `mv` out of scratch after the fact.
         sudoworkBinEnv.AI_DEV_BROWSER_OUTPUT_DIR = '.';
+        // openclaw's exec tool backgrounds any command running longer than
+        // `defaultBackgroundMs` (default 10s, env `PI_BASH_YIELD_MS`,
+        // clamped [10ms, 120s]). When backgrounded, the LLM gets a
+        // "Command still running (session foo, pid bar)" stub and has to
+        // poll via the `process` tool — costing 2-3 extra steps per
+        // affected call. Browser tool calls take 1-3s each; a compound of
+        // 3-4 (`browser type_by_ref ...\nbrowser type_by_ref ...`) crosses
+        // the 10s threshold and gets shunted to async. lis8 e2e audit
+        // observed 4 compound steps trigger this, accounting for ~12 steps
+        // of pure overhead. Push to the 120s ceiling so realistic browser
+        // compounds finish synchronously. Genuinely long-running commands
+        // (npm install, builds) still get backgrounded — they just have a
+        // longer fuse before being moved off the main path.
+        sudoworkBinEnv.PI_BASH_YIELD_MS = '120000';
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to install sudowork bin dispatchers', err);
       }
