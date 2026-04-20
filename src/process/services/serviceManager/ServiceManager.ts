@@ -445,29 +445,23 @@ export class ServiceManager {
   }
 
   private async ensureNodeReadyForSudoclawStart(): Promise<void> {
-    const { ensureNodeInstalled, isNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+    const { isNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+
+    // Wait for RuntimeInstaller's node task to complete instead of starting
+    // a competing install.  Poll at short intervals — the installer is
+    // already running in parallel via ensureAll().
+    const deadline = Date.now() + 300_000; // 5 min max wait
+    while (!isNodeInstalled() && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
 
     if (isNodeInstalled()) {
       initStatusManager.addLog('✓ Sudoclaw 启动前 Node.js 环境检查通过');
       return;
     }
 
-    initStatusManager.addLog('⚠ Sudoclaw 启动前检测到 Node.js 环境缺失，正在修复...');
-    initStatusManager.setStepState('node', 'active', '正在修复 Node.js 运行时...');
-    initStatusManager.setStepProgress('node', 0, '正在修复 Node.js 运行时...');
-
-    const ok = await ensureNodeInstalled((percent) => {
-      initStatusManager.setStepProgress('node', percent, `正在修复 Node.js 运行时... ${percent}%`);
-    });
-
-    if (!ok || !isNodeInstalled()) {
-      initStatusManager.setStepState('node', 'error', 'Node.js 运行时修复失败');
-      throw new Error('Sudoclaw 启动前 Node.js 环境校验失败');
-    }
-
-    initStatusManager.setStepState('node', 'done', 'Node.js 运行时已就绪');
-    initStatusManager.setStepProgress('node', 100, 'Node.js 运行时已就绪');
-    initStatusManager.addLog('✓ Sudoclaw 启动前已确认 Node.js 环境正常');
+    initStatusManager.setStepState('node', 'error', 'Node.js 运行时安装超时');
+    throw new Error('Sudoclaw 启动前 Node.js 环境校验失败');
   }
 
   private async waitForSudoclawHealthy(port: number, timeoutMs?: number): Promise<void> {

@@ -235,9 +235,14 @@ class DynamicNexusService {
     };
   }
 
+  private _lastLoggedStage: string | undefined;
   private emitSetup(stage: NexusSetupStage, message: string, percent?: number): void {
     this._setupStage = stage;
-    mainLog('Nexus', message);
+    // Only log on stage transitions to avoid flooding the terminal with progress updates
+    if (stage !== this._lastLoggedStage) {
+      this._lastLoggedStage = stage;
+      mainLog('Nexus', message);
+    }
     for (const cb of this._setupCallbacks) cb({ stage, message, percent });
   }
 

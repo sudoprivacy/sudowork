@@ -6,27 +6,22 @@
 
 import React from 'react';
 import AppLoader from './components/AppLoader';
-import InitLoading from './components/InitLoading';
 import { useAuth } from './context/AuthContext';
-import { useInit } from './context/InitContext';
 import Layout from './layout';
 import Router from './router';
 import Sider from './sider';
 
+/**
+ * Main — App entry component.
+ *
+ * Runtime initialization (CLI downloads) runs silently in the background.
+ * Users see the login/register page immediately without waiting.
+ * When the user authenticates and tries to enter the main app, the router's
+ * ProtectedLayout checks init status and shows a blocking modal if runtimes
+ * are not yet ready.
+ */
 const Main = () => {
   const { ready: authReady } = useAuth();
-  const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
-
-  if (!hasResolvedInitialStatus) {
-    return <AppLoader text='正在获取初始化状态...' />;
-  }
-
-  if (!initReady && !isInitScreenSkipped) {
-    if (status.phase === 'pending' && !status.displayMode) {
-      return <AppLoader text='正在准备运行环境...' />;
-    }
-    return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
-  }
 
   if (!authReady) {
     return <AppLoader text='正在准备登录状态...' />;

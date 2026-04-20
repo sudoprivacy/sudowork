@@ -38,8 +38,6 @@ class RuntimeInstaller {
    * false if a critical install failure occurred.
    */
   async ensureAll(options?: { startSudoclaw?: (timeoutMs?: number) => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
-    const isWin32 = process.platform === 'win32';
-    const shouldAssumeBundledResources = app.isPackaged;
 
     // ── Fast synchronous pre-check (no awaits, only sync fs) ────────────────
     // Running before the first `await` means this executes synchronously in the
@@ -150,14 +148,9 @@ class RuntimeInstaller {
       return startCriticalServices();
     }
 
-    // Node still requires a local resource bundle. Sudoclaw installs are
-    // version-driven and can fall back to remote download inside
-    // ensureSudoclawInstalled(), so do not gate it on local resources here.
-    const nodeResExt = isWin32 ? 'zip' : 'tar.gz';
-    const nodeResName = `node-${process.platform}-${process.arch}.${nodeResExt}`;
-    const hasNodeResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, nodeResName));
-
-    const willInstallNode = !nodeInstalled && hasNodeResource;
+    // Node.js, Sudoclaw, and Nexus can all fall back to remote download
+    // when bundled resources are missing, so do not gate on local resources.
+    const willInstallNode = !nodeInstalled;
     const willInstallSudoclaw = !sudoclawInstalled || sudoclawVersionState.needsUpgrade;
     const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
@@ -204,11 +197,9 @@ class RuntimeInstaller {
 
     if (nodeInstalled) {
       markStepDone('node', 'Node.js 运行时已就绪');
-    } else if (willInstallNode) {
+    } else {
       initStatusManager.setStepState('node', 'pending', '等待安装 Node.js 运行时...');
       initStatusManager.setStepProgress('node', 0, '等待安装 Node.js 运行时...');
-    } else {
-      markStepError('node', '未找到 Node.js 安装资源');
     }
 
     if (claudeInstalled) {

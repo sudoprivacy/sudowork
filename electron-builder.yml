@@ -131,22 +131,9 @@ extraResources:
     to: hook-0.0.1-py3-none-any.whl
   - from: hook/python/pythonpath/sitecustomize.py
     to: pythonpath/sitecustomize.py
-  # CLI tools (bundled at build time via scripts/download-*.js)
-  - from: resources/claude-code.tgz
-    to: claude-code.tgz
-  # Sudoclaw/OpenClaw runtime for macOS - versioned archive + manifest
-  - from: resources
-    to: .
-    filter:
-      - v*-sudoclaw-macos-*.tgz
-      - v*-sudoclaw-macos-*.manifest.json
-  # Nexus binary - versioned, optional (may not be available for all platforms)
-  # Copy from the resources directory with filters; using a glob in `from`
-  # is not reliable for electron-builder file-set matching.
-  - from: resources
-    to: .
-    filter:
-      - v*-nexus-cluster-macos-*
+  # NOTE: CLI tools (claude-code, sudoclaw, nexus, node, bdpan) are no longer
+  # bundled as extraResources. They are downloaded on-demand at first app launch
+  # via RuntimeInstaller, which reduces DMG size by ~337MB.
 
 win:
   legalTrademarks: Copyright © 2026 北京数牍科技有限公司
@@ -156,24 +143,8 @@ win:
   #    - msi
   icon: resources/app.ico # Use the checked-in Windows icon resource for executable metadata/icon patching
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-  extraResources:
-    # Node.js runtime for Windows (zip format)
-    - from: resources/node-win32-${arch}.zip
-      to: node-win32-${arch}.zip
-    # bdpan installer for Windows (bundled at build time)
-    - from: resources/bdpan-installer-windows-${arch}.exe
-      to: bdpan-installer-windows-${arch}.exe
-    # Sudoclaw/OpenClaw runtime for Windows - versioned archive + manifest
-    - from: resources
-      to: .
-      filter:
-        - v*-sudoclaw-windows-*.tgz
-        - v*-sudoclaw-windows-*.manifest.json
-    # Nexus binary for Windows - versioned
-    - from: resources
-      to: .
-      filter:
-        - v*-nexus-cluster-windows-*
+  # NOTE: Windows CLI tools (node, bdpan, sudoclaw, nexus) are downloaded
+  # on-demand at first app launch via RuntimeInstaller.
 
 nsis:
   oneClick: false
@@ -202,13 +173,8 @@ mac:
   gatekeeperAssess: false
   entitlements: entitlements.plist
   entitlementsInherit: entitlements.plist
-  extraResources:
-    # Node.js runtime for macOS (tar.gz format)
-    - from: resources/node-darwin-${arch}.tar.gz
-      to: node-darwin-${arch}.tar.gz
-    # bdpan installer for macOS (arch-specific binary, bundled at build time)
-    - from: resources/bdpan-installer-darwin-${arch}
-      to: bdpan-installer-darwin-${arch}
+  # NOTE: macOS CLI tools (node, bdpan) are downloaded on-demand at first
+  # app launch via RuntimeInstaller.
 
 dmg:
   # Use UDZO format which is more reliable on CI

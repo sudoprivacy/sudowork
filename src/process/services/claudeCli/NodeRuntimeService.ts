@@ -17,16 +17,19 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { app } from 'electron';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { getDataPath } from '@process/utils';
 import type { ICliStatus } from '@/common/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress, extractZipWithProgress, type ArchiveProgressCallback } from '../archiveProgress';
+import { downloadFile } from '../download/RemoteResourceDownloader';
+import runtimeVersions from '@/shared/runtime-versions.json';
 
 const execAsync = promisify(exec);
 
-/** Node.js LTS version to bundle */
-const NODE_VERSION = '22.22.2';
+/** Node.js LTS version — centralized in runtime-versions.json */
+const NODE_VERSION = runtimeVersions.node;
 
 /** Directory to store bundled Node.js */
 const getNodeDir = (): string => path.join(getDataPath(), 'node');
@@ -85,8 +88,15 @@ async function extractZip(archivePath: string, targetDir: string, onProgress?: A
   await extractZipWithProgress(archivePath, targetDir, onProgress);
 }
 
+/** Get the remote download URL for Node.js */
+function getRemoteDownloadUrl(): string {
+  const nodePlatform = process.platform === 'win32' ? 'win' : process.platform;
+  const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
+  return `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${nodePlatform}-${process.arch}.${ext}`;
+}
+
 /**
- * Install bundled Node.js from packaged resources.
+ * Install Node.js — from bundled resource if available, otherwise download from remote.
  * Returns true if installation was successful.
  */
 export async function installNode(onProgress?: ArchiveProgressCallback): Promise<boolean> {
@@ -99,28 +109,56 @@ export async function installNode(onProgress?: ArchiveProgressCallback): Promise
     return true;
   }
 
-  // Find bundled resource
-  const resourcePath = getBundledResourcePath();
-  if (!resourcePath) {
-    mainWarn('NodeRuntime', 'Bundled Node.js resource not found');
-    return false;
-  }
-
   mainLog('NodeRuntime', 'Installing Node.js', NODE_VERSION);
-  mainLog('NodeRuntime', 'Resource:', resourcePath);
   mainLog('NodeRuntime', 'Target:', nodeDir);
   mainLog('NodeRuntime', 'Expected binary:', nodePath);
 
+  // Find bundled resource or download from remote
+  let resourcePath = getBundledResourcePath();
+
+  if (!resourcePath) {
+    mainLog('NodeRuntime', 'Bundled resource not found, downloading from remote...');
+    const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
+    const tmpPath = path.join(os.tmpdir(), `node-${NODE_VERSION}-${process.platform}-${process.arch}.${ext}`);
+
+    const downloadUrl = getRemoteDownloadUrl();
+    const downloadOk = await downloadFile(downloadUrl, tmpPath, {
+      onProgress: (percent) => {
+        // Map download progress to 0-50% of total, extraction will be 50-100%
+        onProgress?.(Math.round(percent * 0.5));
+      },
+    });
+
+    if (!downloadOk) {
+      mainError('NodeRuntime', `Failed to download Node.js from ${downloadUrl}`);
+      return false;
+    }
+
+    resourcePath = tmpPath;
+    mainLog('NodeRuntime', 'Downloaded to:', tmpPath);
+  }
+
   fs.mkdirSync(nodeDir, { recursive: true });
+
+  const isRemoteDownload = !getBundledResourcePath();
 
   try {
     // Extract
     if (process.platform === 'win32') {
       mainLog('NodeRuntime', 'Using Windows zip extraction');
-      await extractZip(resourcePath, nodeDir, onProgress);
+      await extractZip(resourcePath, nodeDir, (percent) => {
+        onProgress?.(isRemoteDownload ? 50 + Math.round(percent * 0.5) : percent);
+      });
     } else {
       mainLog('NodeRuntime', 'Using tar.gz extraction');
-      await extractTarGz(resourcePath, nodeDir, onProgress);
+      await extractTarGz(resourcePath, nodeDir, (percent) => {
+        onProgress?.(isRemoteDownload ? 50 + Math.round(percent * 0.5) : percent);
+      });
+    }
+
+    // Clean up temp file if downloaded from remote
+    if (isRemoteDownload) {
+      try { fs.unlinkSync(resourcePath); } catch { /* ignore */ }
     }
 
     // List extracted contents for debugging
@@ -128,7 +166,6 @@ export async function installNode(onProgress?: ArchiveProgressCallback): Promise
 
     // Verify
     if (!fs.existsSync(nodePath)) {
-      // Try to find what was actually extracted
       const findNode = (dir: string): string | null => {
         const items = fs.readdirSync(dir);
         for (const item of items) {

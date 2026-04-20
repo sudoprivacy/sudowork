@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { ipcBridge } from '@/common';
 import type { ICliStatus } from '@/common/ipcBridge';
-import { execFile, exec } from 'child_process';
+import { execFile, exec, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -9,8 +9,9 @@ import { promisify } from 'util';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@process/utils';
 import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
-import { mainLog, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { downloadFile } from '../download/RemoteResourceDownloader';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -152,23 +153,38 @@ export class CliInstallService {
     // Keep the electron-path file fresh so wrappers find the binary
     syncElectronPath();
 
-    // Use bundled resource only (no OSS fallback)
-    const bundledPath = this.getBundledResourcePath();
-    if (!bundledPath) {
-      throw new Error(`${this.cfg.label} bundled resource not found. Please reinstall the application.`);
+    // Try bundled resource first, then download from npm registry
+    let resourcePath = this.getBundledResourcePath();
+    let isRemoteDownload = false;
+
+    if (!resourcePath) {
+      mainLog('CLI', `Bundled ${this.cfg.label} not found, downloading from npm registry...`);
+      emitProgress?.('downloading', 0);
+
+      const tgzPath = await this.downloadFromNpm(onProgress);
+      if (!tgzPath) {
+        throw new Error(`Failed to download ${this.cfg.label}. Please check your network connection.`);
+      }
+      resourcePath = tgzPath;
+      isRemoteDownload = true;
     }
 
-    mainLog('CLI', `Using bundled ${this.cfg.label} from ${bundledPath}...`);
+    mainLog('CLI', `Using ${this.cfg.label} from ${resourcePath}...`);
 
     // Report progress: extracting
     emitProgress?.('extracting', 0);
 
     try {
-      await extractTarGzWithProgress(bundledPath, this.installDir, (percent) => {
+      await extractTarGzWithProgress(resourcePath, this.installDir, (percent) => {
         emitProgress?.('extracting', percent);
       });
     } catch (err) {
       throw new Error(`Failed to extract ${this.cfg.label}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Clean up temp file if downloaded from remote
+    if (isRemoteDownload) {
+      try { fs.unlinkSync(resourcePath); } catch { /* ignore */ }
     }
 
     // Report progress: configuring
@@ -187,6 +203,55 @@ export class CliInstallService {
 
     // Report progress: done
     emitProgress?.('configuring', 100);
+  }
+
+  /**
+   * Download the CLI package from npm registry, install deps, and create a self-contained tgz.
+   * Replicates the logic from scripts/download-claude-code.js.
+   */
+  private async downloadFromNpm(onProgress?: InstallProgressCallback): Promise<string | null> {
+    const emitProgress = onProgress ?? this.cfg.onProgress;
+
+    try {
+      // Get latest version info
+      mainLog('CLI', `Fetching ${this.cfg.npmPackage} version info from npm...`);
+      const info = JSON.parse(execSync(`npm show ${this.cfg.npmPackage} --json`).toString());
+      const version = info.version;
+      mainLog('CLI', `Latest version: ${version}`);
+
+      // Create temp directory for building the bundle
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${this.cfg.ossName}-build-`));
+      const tgzOutput = path.join(os.tmpdir(), `${this.cfg.ossName}-${version}.tgz`);
+
+      try {
+        // Initialize a dummy package.json
+        fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: `${this.cfg.ossName}-bundle` }));
+
+        // Install the package with production deps
+        emitProgress?.('downloading', 20);
+        mainLog('CLI', `Installing ${this.cfg.npmPackage}@${version}...`);
+        execSync(`npm install ${this.cfg.npmPackage}@${version} --production --no-save`, {
+          cwd: tmpDir,
+          stdio: 'pipe',
+          env: { ...process.env, NODE_ENV: 'production' },
+          timeout: 300_000,
+        });
+
+        emitProgress?.('downloading', 80);
+
+        // Create tarball
+        mainLog('CLI', 'Creating tarball...');
+        execSync(`tar -czf "${tgzOutput}" -C "${tmpDir}" .`, { stdio: 'pipe' });
+
+        emitProgress?.('downloading', 100);
+        return tgzOutput;
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } catch (err) {
+      mainError('CLI', `Failed to download ${this.cfg.label} from npm:`, err);
+      return null;
+    }
   }
 
   async uninstall(): Promise<void> {
@@ -212,9 +277,10 @@ export class CliInstallService {
     return this.cfg.name;
   }
 
-  /** Returns true if bundled resource exists or OSS is available */
+  /** Returns true if bundled resource exists or remote download is available */
   hasTgzResource(): boolean {
-    return this.getBundledResourcePath() !== null;
+    // Always return true — if bundled resource is missing, we can download from npm
+    return true;
   }
 
   // ── private helpers ──────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
+import InitGateModal from './components/InitGateModal';
 import { useAuth } from './context/AuthContext';
+import { useInit } from './context/InitContext';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -33,6 +35,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
+  const { isReady: initReady } = useInit();
 
   if (status === 'checking') {
     return <AppLoader />;
@@ -42,7 +45,12 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/login' replace />;
   }
 
-  return React.cloneElement(layout);
+  return (
+    <>
+      {!initReady && <InitGateModal />}
+      {React.cloneElement(layout)}
+    </>
+  );
 };
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {

@@ -37,28 +37,14 @@ function isVxAvailable() {
 }
 
 /**
- * Get bunx command for the current platform
- * Windows requires bunx.cmd, others use bunx
- * Note: does NOT add 'vx' prefix here — the caller's cmdPrefix (e.g. 'vx --with msvc')
- * already provides the vx entry point, so we must not nest another 'vx' call.
- *
- * Fallback to npx if bun is not available
+ * Get package runner command for the current platform.
+ * Prefers npx for electron-rebuild because `bun x` downloads a temporary
+ * electron-rebuild that often skips prebuild-install and tries to compile
+ * from source, causing C++20 / distutils errors on many setups.
+ * npx correctly uses prebuild-install to download prebuilt binaries.
  */
 function getBunxCommand() {
-  // Check if bun is available
-  const hasBun = (() => {
-    try {
-      const { spawnSync } = require('child_process');
-      const result = spawnSync('bun', ['--version'], { stdio: 'ignore' });
-      return result.status === 0;
-    } catch {
-      return false;
-    }
-  })();
-
-  // Use npx as fallback if bun is not available
-  const cmd = hasBun ? 'bun x' : 'npx';
-  return process.platform === 'win32' ? cmd : cmd;
+  return 'npx';
 }
 
 /**
@@ -117,7 +103,6 @@ function buildEnvironment(platform, targetArch, electronVersion) {
     ...process.env,
     npm_config_arch: targetArch,
     npm_config_target_arch: targetArch,
-    npm_config_build_from_source: 'true',
     npm_config_runtime: 'electron',
     npm_config_disturl: 'https://electronjs.org/headers',
     npm_config_target: electronVersion,
