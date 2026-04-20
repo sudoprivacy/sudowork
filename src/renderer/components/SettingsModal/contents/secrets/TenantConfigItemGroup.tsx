@@ -67,7 +67,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
     const success = await onSave(localValues);
     if (success) {
       Message.success(t('settings.secrets.tenantSaveSuccess', '配置保存成功'));
-      // Auto-enable after successful save (matching JsbConfigForm pattern)
+      // Auto-enable after successful save
       if (!enabled) {
         onToggleEnabled(true);
       }

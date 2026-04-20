@@ -4,16 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Collapse, Switch } from '@arco-design/web-react';
 import { CheckOne } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
-import jianshekuLogo from '@/renderer/assets/logos/jiansheku.png';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
-import JsbConfigForm from './JsbConfigForm';
 import TenantConfigSection from './TenantConfigSection';
 import { ZentaoChannelItem } from '../ZentaoConfigForm';
 
@@ -24,26 +20,6 @@ const SecretModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-
-  const [jsbCollapsed, setJsbCollapsed] = useState(true);
-  const [jsbEnabled, setJsbEnabled] = useState(false);
-
-  useEffect(() => {
-    ConfigStorage.get('settings.jsb.enabled')
-      .then((val) => {
-        if (typeof val === 'boolean') setJsbEnabled(val);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleJsbToggle = useCallback(async (checked: boolean) => {
-    setJsbEnabled(checked);
-    try {
-      await ConfigStorage.set('settings.jsb.enabled', checked);
-    } catch (error) {
-      console.error('[SecretModal] Failed to save jsb enabled state:', error);
-    }
-  }, []);
 
   const [refreshCounter, setRefreshCounter] = useState(0);
 
@@ -77,38 +53,6 @@ const SecretModalContent: React.FC = () => {
         </div>
 
         <div className='space-y-12px mt-12px'>
-          {/* 建设库 */}
-          <Collapse activeKey={jsbCollapsed ? [] : ['jsb']} onChange={() => setJsbCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1'>
-            <Collapse.Item
-              header={
-                <div className='flex items-center justify-between gap-8px'>
-                  <div className='flex items-center gap-8px'>
-                    <img src={jianshekuLogo} alt='Jiansheku' className='w-14px h-14px rd-3px shrink-0' />
-                    <span className='text-14px text-t-primary'>{t('settings.secrets.jsbTitle', '建设库')}</span>
-                  </div>
-                  <Switch
-                    size='small'
-                    checked={jsbEnabled}
-                    onChange={(checked) => {
-                      void handleJsbToggle(checked);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-              }
-              name='jsb'
-              className='[&_div.arco-collapse-item-content-box]:py-3'
-            >
-              <JsbConfigForm
-                disabled={jsbEnabled}
-                onSaveSuccess={() => {
-                  setJsbEnabled(true);
-                  void ConfigStorage.set('settings.jsb.enabled', true);
-                }}
-              />
-            </Collapse.Item>
-          </Collapse>
-
           {/* 禅道 */}
           <ZentaoChannelItem />
 
