@@ -177,6 +177,9 @@ export class CliInstallService {
     const entryFile = this.resolveEntryFile();
     if (!entryFile) throw new Error(`Cannot determine CLI entry file for ${this.cfg.name}`);
 
+    const isNative = !this.needsNodeRuntime(entryFile);
+    mainLog('CLI', `Entry file resolved: ${entryFile} (${isNative ? 'native executable' : 'Node.js script'})`);
+
     if (process.platform === 'win32') {
       this.createWindowsWrapper(entryFile);
     } else {
@@ -219,6 +222,16 @@ export class CliInstallService {
 
   // ── private helpers ──────────────────────────────────────────────────────
 
+  /**
+   * Check if the entry file needs Node.js to run (based on file extension).
+   * JS/MJS/CJS files require a Node.js runtime; native executables (e.g. .exe)
+   * can be invoked directly.
+   */
+  private needsNodeRuntime(entryFile: string): boolean {
+    const ext = path.extname(entryFile).toLowerCase();
+    return ['.js', '.mjs', '.cjs'].includes(ext);
+  }
+
   /** Read bin entry from extracted package.json to find the CLI entry file */
   private resolveEntryFile(): string | null {
     // The self-contained bundle has the target package inside node_modules
@@ -240,10 +253,27 @@ export class CliInstallService {
 
   private createUnixWrapper(entryFile: string): void {
     const wrapperPath = path.join(getBinDir(), this.cfg.name);
+    const needsNode = this.needsNodeRuntime(entryFile);
 
     // Build wrapper script
     const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${entryFile}"`];
 
+    if (!needsNode) {
+      // Native executable (e.g. compiled binary) — run directly without Node.js
+      lines.push('');
+      lines.push('# Native executable — run directly');
+      lines.push('if [ -x "$CLI" ]; then');
+      lines.push('  exec "$CLI" "$@"');
+      lines.push('fi');
+      lines.push('');
+      lines.push('echo "Error: CLI executable not found at $CLI" >&2');
+      lines.push('echo "  Please reinstall via Sudowork." >&2');
+      lines.push('exit 1');
+      fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
+      return;
+    }
+
+    // JS entry file — needs Node.js runtime
     if (this.cfg.useBundledNode) {
       const nodePath = getNodeBinaryPath();
       lines.push(`BUNDLED_NODE="${nodePath}"`);
@@ -296,9 +326,27 @@ export class CliInstallService {
 
   private createWindowsWrapper(entryFile: string): void {
     const wrapperPath = path.join(getBinDir(), `${this.cfg.name}.cmd`);
+    const needsNode = this.needsNodeRuntime(entryFile);
 
     const lines = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${entryFile}"`, 'set "ARGS=%*"'];
 
+    if (!needsNode) {
+      // Native executable (e.g., claude.exe) — run directly without Node.js
+      lines.push('');
+      lines.push(':: Native executable — run directly');
+      lines.push('if exist "%CLI%" (');
+      lines.push('  "%CLI%" !ARGS!');
+      lines.push('  exit /b !ERRORLEVEL!');
+      lines.push(')');
+      lines.push('');
+      lines.push('echo Error: CLI executable not found at %CLI%');
+      lines.push('echo   Please reinstall via Sudowork.');
+      lines.push('exit /b 1');
+      fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
+      return;
+    }
+
+    // JS entry file — needs Node.js runtime
     if (this.cfg.useBundledNode) {
       const nodePath = getNodeBinaryPath();
       lines.push('');
