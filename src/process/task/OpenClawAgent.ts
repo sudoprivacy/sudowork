@@ -27,7 +27,7 @@ import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
-import { cleanupIntermediateFiles } from './draftsCleanup';
+import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
 import * as nodePath from 'node:path';
@@ -482,11 +482,25 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       }
 
       // Workspace directive - tell agent to use per-conversation workspace on EVERY message
-      // This is critical because the agent may reset context between messages
+      // This is critical because the agent may reset context between messages or after errors
       if (this.workspace) {
         const configuredWorkspace = getSudoclawWorkspaceRoot();
         const draftsInstruction = buildDraftsInstruction(this.workspace);
-        const workspaceDirective = `[System: Very important — DO NOT use configured workspace '${configuredWorkspace}'! ` + `Your working directory for this session ONLY is '${this.workspace}'. ` + `All file operations, bash commands, and output (when calling write() tool) should use this session working directory unless the user explicitly specifies otherwise. ` + `For write(), unless user explicitly specifies an output location, double check that it's not mistakenly output to '${configuredWorkspace}', otherwise move it to the session directory.]\n\n` + `${draftsInstruction}`;
+        const workspaceDirective = `[CRITICAL: Workspace Path - MUST VERIFY ON EVERY FILE OPERATION]
+
+⚠️ PATH VERIFICATION CHECKLIST (apply to EVERY write/exec/bash operation):
+
+1. Your ONLY valid workspace is: ${this.workspace}
+2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
+3. Before any file write, VERIFY the path starts with '${this.workspace}'
+4. If you find files in ${configuredWorkspace}, MOVE them to ${this.workspace} immediately
+
+[System: This directive applies even after errors/retries. The session workspace does NOT change.]
+
+Your working directory for this session ONLY is '${this.workspace}'.
+All file operations, bash commands, and output (when calling write() tool) MUST use this path.
+
+${draftsInstruction}`;
         processedContent = `${workspaceDirective}\n\n${processedContent}`;
       }
 
@@ -518,6 +532,18 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     } catch (error) {
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+
+      // Post-cleanup on error: move intermediate files from workspace root to .drafts/
+      // Also cleanup misplaced files from parent workspace directory
+      if (this.workspace) {
+        cleanupIntermediateFiles(this.workspace).catch((err) => {
+          mainError('OpenClawAgent', 'Post-cleanup on error failed:', err);
+        });
+        const parentWorkspace = getSudoclawWorkspaceRoot();
+        cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
+          mainError('OpenClawAgent', 'Misplaced files cleanup on error failed:', err);
+        });
+      }
 
       const errorMsg = error instanceof Error ? error.message : String(error);
       if (!this.shouldSuppressTransientGatewayError(errorMsg)) {
@@ -985,9 +1011,14 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
     // Post-cleanup: move intermediate files from workspace root to .drafts/
+    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup failed:', err);
+      });
+      const parentWorkspace = getSudoclawWorkspaceRoot();
+      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
+        mainError('OpenClawAgent', 'Misplaced files cleanup failed:', err);
       });
     }
 
@@ -1003,6 +1034,18 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
     if (!retrying && !this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
       this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+    }
+
+    // Post-cleanup on disconnect: move intermediate files from workspace root to .drafts/
+    // Also cleanup misplaced files from parent workspace directory
+    if (this.workspace) {
+      cleanupIntermediateFiles(this.workspace).catch((err) => {
+        mainError('OpenClawAgent', 'Post-cleanup on disconnect failed:', err);
+      });
+      const parentWorkspace = getSudoclawWorkspaceRoot();
+      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
+        mainError('OpenClawAgent', 'Misplaced files cleanup on disconnect failed:', err);
+      });
     }
 
     const finishMsg: IResponseMessage = {
