@@ -259,6 +259,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       // Refresh agent detection
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
       await mutate('acp.agents.available');
+      await mutate('assistantHub.installed');
 
       Message.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
       onSaved();
