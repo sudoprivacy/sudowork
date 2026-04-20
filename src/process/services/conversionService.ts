@@ -1077,6 +1077,16 @@ class ConversionService {
 
   /**
    * Execute the actual LibreOffice conversion command
+   *
+   * Implements a robust conversion pipeline:
+   * 1. Direct conversion (fast path)
+   * 2. If direct conversion fails, repair-and-convert (handles corrupted documents)
+   *
+   * Some documents have minor structural issues that Word/WPS silently ignore,
+   * but LibreOffice considers "corrupted". In GUI mode LibreOffice shows a repair
+   * dialog; in headless mode the conversion silently fails (no PDF output).
+   * The repair-and-convert fallback re-saves the document first (triggering implicit
+   * repair), then converts the repaired version to PDF.
    */
   private async executeLibreOfficeConversion(sourcePath: string, tempDir: string, baseName: string, ext: string): Promise<ConversionResult<string>> {
     // soffice --headless --convert-to pdf --outdir <outputDir> <file>
@@ -1099,48 +1109,210 @@ class ConversionService {
       pdfFilter = 'impress_pdf_Export';
     }
 
+    // --- Attempt 1: Direct conversion ---
     const command = `"${libreOfficePath}" --headless --norestore --nofirststartwizard --convert-to pdf:${pdfFilter} --outdir "${tempDir}" "${sourcePath}"`;
 
     mainLog('ConversionService', 'Executing LibreOffice command:', command);
 
-    const { stdout, stderr } = await execAsync(command, {
-      timeout: 120000, // 2 minute timeout
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-    });
+    let lastStdout = '';
+    let lastStderr = '';
 
-    mainLog('ConversionService', 'LibreOffice stdout:', stdout || '(empty)');
-    if (stderr) {
-      mainLog('ConversionService', 'LibreOffice stderr:', stderr);
+    try {
+      const { stdout, stderr } = await execAsync(command, {
+        timeout: 120000, // 2 minute timeout
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+      });
+      lastStdout = stdout || '';
+      lastStderr = stderr || '';
+
+      mainLog('ConversionService', 'LibreOffice stdout:', stdout || '(empty)');
+      if (stderr) {
+        mainLog('ConversionService', 'LibreOffice stderr:', stderr);
+      }
+    } catch (cmdErr) {
+      mainWarn('ConversionService', 'LibreOffice command error (will check for PDF output):', cmdErr);
     }
 
-    // List files in output directory for debugging
-    const files = await fs.readdir(tempDir);
-    mainLog('ConversionService', 'Files in output directory:', files);
+    // Check for PDF output from direct conversion
+    const directResult = await this.findPdfInDirectory(tempDir, baseName);
+    if (directResult) return directResult;
 
-    // Find the generated PDF file
-    const pdfPath = path.join(tempDir, baseName + '.pdf');
+    // --- Attempt 2: Repair-and-convert ---
+    // Re-save the document first (triggers implicit repair), then convert to PDF
+    mainLog('ConversionService', 'Direct conversion produced no PDF. Attempting repair-and-convert...');
 
-    // Check if PDF was created
+    const repairResult = await this.repairAndConvertToPdf(
+      libreOfficePath, sourcePath, tempDir, baseName, ext, pdfFilter,
+    );
+    if (repairResult) {
+      mainLog('ConversionService', 'Repair-and-convert succeeded');
+      return repairResult;
+    }
+
+    // All attempts failed
+    const errorMsg = lastStdout || lastStderr || 'PDF file was not created by LibreOffice';
+    return { success: false, error: `Conversion failed: ${errorMsg}` };
+  }
+
+  /**
+   * Find a PDF file in the specified directory
+   * Checks for exact basename match first, then falls back to any PDF file
+   */
+  private async findPdfInDirectory(dir: string, expectedBaseName: string): Promise<ConversionResult<string> | null> {
     try {
-      await fs.access(pdfPath);
-      // Resolve to real path to handle macOS /var vs /private/var symlink
-      const resolvedPdfPath = await fs.realpath(pdfPath);
-      mainLog('ConversionService', `LibreOffice PDF created: ${pdfPath} -> ${resolvedPdfPath}`);
-      return { success: true, data: resolvedPdfPath };
-    } catch {
-      // If exact match fails, try to find any PDF in output dir
+      const files = await fs.readdir(dir);
+      mainLog('ConversionService', 'Files in output directory:', files);
+
+      // Check exact match first
+      const pdfPath = path.join(dir, expectedBaseName + '.pdf');
+      try {
+        await fs.access(pdfPath);
+        // Resolve to real path to handle macOS /var vs /private/var symlink
+        const resolvedPath = await fs.realpath(pdfPath);
+        mainLog('ConversionService', `LibreOffice PDF created: ${pdfPath} -> ${resolvedPath}`);
+        return { success: true, data: resolvedPath };
+      } catch {
+        // Exact match not found
+      }
+
+      // Fallback: find any PDF file in the directory
       const pdfFile = files.find((f) => f.toLowerCase().endsWith('.pdf'));
       if (pdfFile) {
         mainLog('ConversionService', 'Found PDF with different name:', pdfFile);
-        const foundPath = path.join(tempDir, pdfFile);
-        const resolvedPdfPath = await fs.realpath(foundPath);
-        return { success: true, data: resolvedPdfPath };
+        const foundPath = path.join(dir, pdfFile);
+        const resolvedPath = await fs.realpath(foundPath);
+        return { success: true, data: resolvedPath };
+      }
+    } catch (err) {
+      mainWarn('ConversionService', 'Error searching for PDF output:', err);
+    }
+
+    return null;
+  }
+
+  /**
+   * Repair a potentially corrupted document and convert to PDF
+   *
+   * Some documents have minor format issues that Word/WPS silently handle but
+   * LibreOffice considers "corrupted". In GUI mode a repair dialog is shown;
+   * in headless mode the conversion silently fails.
+   *
+   * Strategy:
+   * 1. Re-save the document using LibreOffice (triggers implicit repair)
+   * 2. Convert the repaired document to PDF
+   *
+   * Uses an isolated user profile (-env:UserInstallation) to ensure clean state
+   * and avoid interference from the primary user profile.
+   */
+  private async repairAndConvertToPdf(
+    libreOfficePath: string,
+    sourcePath: string,
+    pdfOutDir: string,
+    baseName: string,
+    ext: string,
+    pdfFilter: string,
+  ): Promise<ConversionResult<string> | null> {
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const repairDir = path.join(os.tmpdir(), `sudowork-lo-repair-${uniqueId}`);
+    const profileDir = path.join(os.tmpdir(), `sudowork-lo-profile-${uniqueId}`);
+    const profileUrl = process.platform === 'win32'
+      ? `file:///${profileDir.replace(/\\/g, '/')}`
+      : `file://${profileDir}`;
+
+    try {
+      await fs.mkdir(repairDir, { recursive: true });
+
+      // Step 1: Re-save the document to trigger implicit repair
+      const resaveFormat = this.getResaveFormat(ext);
+      if (!resaveFormat) {
+        mainWarn('ConversionService', `No resave format available for extension: ${ext}`);
+        return null;
       }
 
-      // If no PDF found, return error with stdout/stderr for debugging
-      const errorMsg = stdout || stderr || 'PDF file was not created by LibreOffice';
-      return { success: false, error: `Conversion failed: ${errorMsg}` };
+      const repairCommand = `"${libreOfficePath}" --headless --norestore --nofirststartwizard` +
+        ` -env:UserInstallation="${profileUrl}"` +
+        ` --convert-to ${resaveFormat} --outdir "${repairDir}" "${sourcePath}"`;
+
+      mainLog('ConversionService', 'Repair re-save command:', repairCommand);
+
+      try {
+        const { stdout, stderr } = await execAsync(repairCommand, {
+          timeout: 120000,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        mainLog('ConversionService', 'Repair stdout:', stdout || '(empty)');
+        if (stderr) mainLog('ConversionService', 'Repair stderr:', stderr);
+      } catch (err) {
+        mainWarn('ConversionService', 'Repair re-save command error (checking for output):', err);
+      }
+
+      // Find the re-saved (repaired) file
+      const repairedFiles = await fs.readdir(repairDir);
+      mainLog('ConversionService', 'Files after repair re-save:', repairedFiles);
+
+      const repairedFile = repairedFiles.find((f) => !f.startsWith('.'));
+      if (!repairedFile) {
+        mainWarn('ConversionService', 'No repaired file was produced');
+        return null;
+      }
+
+      // Step 2: Convert the repaired file to PDF
+      const repairedPath = path.join(repairDir, repairedFile);
+      const convertCommand = `"${libreOfficePath}" --headless --norestore --nofirststartwizard` +
+        ` -env:UserInstallation="${profileUrl}"` +
+        ` --convert-to pdf:${pdfFilter} --outdir "${pdfOutDir}" "${repairedPath}"`;
+
+      mainLog('ConversionService', 'Converting repaired file to PDF:', convertCommand);
+
+      try {
+        const { stdout, stderr } = await execAsync(convertCommand, {
+          timeout: 120000,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        mainLog('ConversionService', 'Repaired PDF conversion stdout:', stdout || '(empty)');
+        if (stderr) mainLog('ConversionService', 'Repaired PDF conversion stderr:', stderr);
+      } catch (err) {
+        mainWarn('ConversionService', 'Repaired file PDF conversion error (checking for PDF):', err);
+      }
+
+      // Look for PDF output - check with expected baseName
+      const pdfResult = await this.findPdfInDirectory(pdfOutDir, baseName);
+      if (pdfResult) return pdfResult;
+
+      // Also check with repaired file's basename (may differ from expected)
+      const repairedBaseName = path.basename(repairedFile, path.extname(repairedFile));
+      if (repairedBaseName !== baseName) {
+        return await this.findPdfInDirectory(pdfOutDir, repairedBaseName);
+      }
+
+      return null;
+    } catch (err) {
+      mainWarn('ConversionService', 'Repair-and-convert error:', err);
+      return null;
+    } finally {
+      // Cleanup temporary directories
+      try { await fs.rm(repairDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      try { await fs.rm(profileDir, { recursive: true, force: true }); } catch { /* ignore */ }
     }
+  }
+
+  /**
+   * Get the LibreOffice output format identifier for re-saving a document
+   * Used during the repair process to open and re-save documents in their original format
+   */
+  private getResaveFormat(ext: string): string | null {
+    const formatMap: Record<string, string> = {
+      '.doc': 'doc',
+      '.docx': 'docx',
+      '.xls': 'xls',
+      '.xlsx': 'xlsx',
+      '.ppt': 'ppt',
+      '.pptx': 'pptx',
+      '.odt': 'odt',
+      '.ods': 'ods',
+      '.odp': 'odp',
+    };
+    return formatMap[ext.toLowerCase()] ?? null;
   }
 
   /**
