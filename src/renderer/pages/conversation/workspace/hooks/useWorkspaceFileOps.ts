@@ -163,6 +163,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         emitter.emit('acp.selected.file', []);
       }
       closeDeleteModal();
+      // Emit workspace refresh event so @file selector (useWorkspaceFiles) updates immediately
+      emitter.emit(`${eventPrefix}.workspace.refresh` as 'acp.workspace.refresh' | 'openclaw-gateway.workspace.refresh');
       setTimeout(() => refreshWorkspace(), 200);
     } catch (error) {
       messageApi.error(t('conversation.workspace.contextMenu.deleteFailed'));
@@ -258,6 +260,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         selectedNodeRef.current = null;
       }
 
+      // Emit workspace refresh event so @file selector (useWorkspaceFiles) updates immediately
+      emitter.emit(`${eventPrefix}.workspace.refresh` as 'acp.workspace.refresh' | 'openclaw-gateway.workspace.refresh');
       messageApi.success(t('conversation.workspace.contextMenu.renameSuccess'));
     } catch (error) {
       if (error instanceof Error && error.message === 'timeout') {

@@ -97,5 +97,36 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
     [conversationType, loadFiles]
   );
 
+  // Listen to file system watcher events for real-time updates when files are
+  // created, modified, or deleted outside of emitter-based flows (e.g. agent
+  // tool calls, external editors, OS-level file operations).
+  // Uses debounce to avoid excessive re-fetches during burst changes.
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefreshAtRef = useRef(0);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const COOLDOWN_MS = 1000;
+
+    const unsubscribe = ipcBridge.fileWatch.dirChanged.on(() => {
+      // Debounce: skip if we refreshed recently
+      if (Date.now() - lastRefreshAtRef.current < COOLDOWN_MS) return;
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        lastRefreshAtRef.current = Date.now();
+        void loadFiles();
+      }, 300);
+    });
+
+    return () => {
+      unsubscribe();
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [workspace, loadFiles]);
+
   return files;
 }
