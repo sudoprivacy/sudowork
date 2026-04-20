@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as path from 'path';
+
 /**
  * AionUI应用程序共用常量
  */
@@ -53,6 +55,91 @@ export const DEFAULT_IMAGE_EXTENSION = '.png';
 
 /** 草稿箱物理目录名（固定，不随语言变化）/ Drafts directory name (fixed, language-independent) */
 export const DRAFTS_DIR_NAME = '.drafts';
+
+/**
+ * 文件意图标记系统
+ * File Intent Marking System
+ *
+ * 用于 Agent 显式声明文件用途，替代硬编码扩展名判断
+ */
+export const FILE_INTENT_MARKERS = {
+  final: ['@final', '@output', '@deliverable', '@result'],
+  draft: ['@draft', '@intermediate', '@temp', '@scratch'],
+};
+
+/**
+ * 不同语言的注释语法映射
+ * Comment syntax mapping for different languages
+ */
+export const COMMENT_SYNTAX_MAP: Record<string, string> = {
+  // Python family
+  '.py': '#',
+  '.pyw': '#',
+  '.sh': '#',
+  '.bash': '#',
+  '.zsh': '#',
+  '.rb': '#',
+  '.pl': '#',
+  '.pm': '#',
+  '.lua': '#',
+  '.r': '#',
+  '.rscript': '#',
+
+  // JavaScript family
+  '.js': '//',
+  '.jsx': '//',
+  '.ts': '//',
+  '.tsx': '//',
+  '.mjs': '//',
+  '.cjs': '//',
+  '.es6': '//',
+
+  // C/C++ family
+  '.c': '//',
+  '.cpp': '//',
+  '.cc': '//',
+  '.cxx': '//',
+  '.h': '//',
+  '.hpp': '//',
+  '.java': '//',
+  '.cs': '//',
+  '.go': '//',
+  '.rs': '//',
+  '.swift': '//',
+  '.kt': '//',
+  '.kts': '//',
+
+  // Data/Config files (use # as default)
+  '.yaml': '#',
+  '.yml': '#',
+  '.toml': '#',
+  '.ini': '#',
+  '.conf': '#',
+  '.cfg': '#',
+  '.json': '#', // JSON comments are non-standard but some parsers support them
+
+  // Markup files (use HTML comment style)
+  '.html': '<!--',
+  '.htm': '<!--',
+  '.xml': '<!--',
+  '.svg': '<!--',
+
+  // Markdown (often uses # for headings, so use HTML comment)
+  '.md': '<!--',
+  '.markdown': '<!--',
+
+  // Default fallback
+  default: '#',
+};
+
+/**
+ * 获取文件的注释前缀
+ * Get comment prefix for a file extension
+ */
+export function getCommentPrefix(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  return COMMENT_SYNTAX_MAP[ext] || COMMENT_SYNTAX_MAP.default;
+}
 
 // ===== AI Provider 相关常量 =====
 

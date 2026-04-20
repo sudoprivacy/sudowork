@@ -260,10 +260,13 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               >
                 <div className='flex items-center gap-8px'>
                   <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 flex items-center justify-center text-14px'>
-                    <span>📄</span>
+                    <span>{file.isDraft ? '📝' : '📄'}</span>
                   </div>
                   <div className='min-w-0 flex-1'>
-                    <div className={classNames('text-13px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{file.name}</div>
+                    <div className='flex items-center gap-6px min-w-0'>
+                      <span className={classNames('text-13px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{file.name}</span>
+                      {file.isDraft && <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'color-mix(in srgb, var(--color-warning-light-1) 60%, transparent)', color: 'var(--color-warning-6, #d4930a)' }}>草稿</span>}
+                    </div>
                     <div className='text-11px text-t-secondary truncate mt-1px'>{file.relativePath}</div>
                   </div>
                 </div>

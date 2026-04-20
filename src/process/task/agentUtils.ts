@@ -116,30 +116,96 @@ export interface FirstMessageConfig {
 }
 
 /**
- * 构建草稿箱使用指令
- * Build drafts box usage instructions for Agent
+ * 构建草稿箱使用指令（优化版）
+ * Build drafts box usage instructions for Agent (optimized)
  *
  * 通过系统提示词告诉 Agent：
- * 1. 中间产物（脚本、临时数据、草稿等）应写入 .drafts/ 目录
- * 2. 最终结果文件直接写入工作空间根目录
+ * 1. 使用 @draft/@final 标记显式声明文件意图
+ * 2. 中间产物写入 .drafts/ 目录
+ * 3. 最终结果文件写入工作空间根目录
  *
  * Via system prompt, instruct the Agent:
- * 1. Intermediate artifacts (scripts, temp data, drafts) should be written to .drafts/
- * 2. Final result files should be written directly to workspace root
+ * 1. Use @draft/@final markers to declare file intent explicitly
+ * 2. Intermediate artifacts go to .drafts/
+ * 3. Final deliverables go to workspace root
  */
 export function buildDraftsInstruction(workspace: string): string {
   const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
-  return `[Workspace File Management Rules]
+
+  return `[CRITICAL: File Intent Marking System - MANDATORY]
+
 Your workspace is: ${workspace}
 A drafts directory exists at: ${draftsPath}
 
-File output rules:
-- Intermediate/temporary files (scripts, temp data, draft versions, processing steps, helper code) → Write to ${draftsPath}/
-- Final deliverable files (reports, final outputs, completed documents) → Write to ${workspace}/
-- When executing multi-step tasks, save each step's intermediate output to the drafts directory
-- The final completed result should always be in the workspace root, not in drafts
-- Examples of intermediate files: .py scripts, .sh scripts, temp .json/.csv data files, draft .md files
-- Examples of final files: final reports, processed datasets, completed documents`;
+**CORE RULE: When creating files using write() tool, ALWAYS add intent markers**
+
+**Intent Markers** (add as FIRST LINE in file content):
+- '# @final' → Final deliverable (user-requested output)
+- '# @draft' → Intermediate/temporary file (helper scripts, temp data)
+
+**Language-specific comment syntax**:
+- Python/Shell/Ruby/Perl: '#' prefix (e.g., '# @final')
+- JavaScript/TypeScript/Go/C++: '//' prefix (e.g., '// @final')
+- HTML/XML: '<!-- ... -->' format (e.g., '<!-- @final -->')
+- Markdown/Config files: '#' prefix (default)
+
+**Decision Logic** (apply to EVERY file you create):
+
+Ask yourself: "Is this file what the user ultimately wants?"
+
+**YES → @final** (this file IS what user requested)
+- User requests "Python script for X" → script.py = @final
+- User requests "Word document about X" → report.docx = @final
+- User requests "PDF report" → report.pdf = @final
+- User requests "data analysis script" → analysis.py = @final
+
+**NO → @draft** (this file HELPS produce what user wants)
+- User requests Word document, you create JS script to generate it → script.js = @draft
+- User requests PDF, you create Python conversion script → convert.py = @draft
+- User requests analysis report, you create data processing script → process.py = @draft
+- User requests output in format X, you create script to produce X → script = @draft
+
+**Key rule**: If you create a SCRIPT that produces user's final output → SCRIPT = @draft, OUTPUT = @final
+
+**Examples for write() tool**:
+
+✅ Correct - User requests Python script:
+  write(file_path="analysis.py", content="# @final\nimport pandas...")
+
+✅ Correct - User requests Word document, you create generation script:
+  write(file_path="generate_report.js", content="// @draft - generates report.docx\n...")
+  write(file_path="report.docx", content="...") ← @final or no marker
+
+✅ Correct - User requests PDF, you create conversion script:
+  write(file_path="convert_to_pdf.py", content="# @draft - converts docx to pdf\n...")
+
+❌ Wrong - User requests Word document, script marked as @final:
+  write(file_path="generate_report.js", content="// @final\n...") ← WRONG!
+
+❌ Wrong - Missing marker:
+  write(file_path="script.py", content="import pandas...")
+
+**Post-processing behavior**:
+- Files with @draft marker → Automatically moved to ${draftsPath}/
+- Files with @final marker → Stay in ${workspace}/
+- Files WITHOUT marker → Stay in ${workspace}/ (default safe)
+
+**CRITICAL REMINDERS**:
+1. Add marker as the FIRST LINE (not second or third line)
+2. This rule applies EVERY time you call write() tool
+3. Only mark files you CREATE (not files you READ)
+4. No marker = @final (safe default, but explicit marking is better)
+5. **Script execution side effects**: When you execute a script (e.g., via bash/exec), it may produce intermediate files (package.json, node_modules, temp files). After execution, you should cleanup these by:
+   - Removing unnecessary dependency files: package.json, package-lock.json, node_modules
+   - Or moving them to ${draftsPath}/ if they might be reused
+   - Use bash commands like: \`rm -rf node_modules package.json package-lock.json\` or \`mv package.json .drafts/\`
+
+**Special cases for script execution**:
+- If script needs npm/bun install → dependencies are intermediate → cleanup after script runs
+- If script produces multiple outputs → only keep what user requested, move others to .drafts/
+- Example: \`node generate_report.js && rm -rf node_modules package.json\`
+
+[End of File Intent Marking System Rules]`;
 }
 
 /**
