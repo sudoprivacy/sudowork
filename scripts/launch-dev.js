@@ -122,7 +122,7 @@ function start() {
   try {
     vitePort = findAvailablePort(preferredVite, 30);
   } catch {
-    vitePort = findAvailablePort(5500, 20);
+    vitePort = findAvailablePort(5600, 20);
   }
   if (vitePort !== preferredVite) {
     console.log(`Port ${preferredVite} unavailable (Windows port reservation), using ${vitePort}`);

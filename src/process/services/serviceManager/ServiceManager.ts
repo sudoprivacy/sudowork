@@ -380,6 +380,88 @@ export class ServiceManager {
         mainWarn('ServiceManager', 'Failed to start AdbResultSidechannel (ai-dev-browser UI bypass disabled for this run)', err);
       }
 
+      // PYTHONPATH injection: point at the system skills' browser dir so
+      // `python -m ai_dev_browser.tools.<name>` works from any cwd that
+      // openclaw's exec happens to run in. Without this the LLM has to
+      // prefix every invocation with `cd skills/browser &&` (brittle and
+      // ugly) or hit the ModuleNotFoundError + retry loop we keep seeing.
+      // Stable location: ~/.nexus/skills/_system/browser (junction inside
+      // it points at vendor/ai-dev-browser/ai_dev_browser).
+      const pythonPathEnv: Record<string, string> = {};
+      try {
+        const { getSystemSkillsDir } = await import('@/process/initStorage');
+        const browserSkillDir = path.join(getSystemSkillsDir(), 'browser');
+        // Append, don't stomp, if the caller/shell already set PYTHONPATH.
+        const prev = process.env.PYTHONPATH;
+        pythonPathEnv.PYTHONPATH = prev && prev.length > 0 ? `${browserSkillDir}${path.delimiter}${prev}` : browserSkillDir;
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to resolve system skills dir for PYTHONPATH injection', err);
+      }
+
+      // Install sudowork-owned aidb dispatcher (skips upstream uv overhead)
+      // into ~/.nexus/sudoclaw/bin/ and surface it on PATH for every exec
+      // child. LLM writes `aidb page_info --url X` instead of
+      // `$env:PYTHONPATH=...; python -m ai_dev_browser.tools.page_info --url X`.
+      const sudoworkBinEnv: Record<string, string> = {};
+      try {
+        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, patchOpenclawKeepImageData, patchOpenclawKeepToolResult, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
+        ensureSudoworkBinDispatchers();
+        // Re-assert the openclaw bundle patches on every gateway start so
+        // an upstream openclaw update doesn't silently re-cap tool results
+        // to 8 KB, re-strip image bytes before the LLM, or re-strip
+        // `result.content` from the WS broadcast that drives the UI's
+        // Output panel. All three are idempotent + fail-open.
+        patchOpenclawToolResultCap();
+        patchOpenclawKeepImageData();
+        patchOpenclawKeepToolResult();
+        const prevPath = process.env.PATH ?? '';
+        sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
+        // ai-dev-browser v0.5.1 reads AI_DEV_BROWSER_OUTPUT_DIR as the
+        // `--path`-omitted default for screenshot / dump tools (falls back
+        // to `./screenshots/` under CWD if unset). openclaw's exec tool
+        // runs with CWD = the conversation workspace root, so `.` here
+        // resolves at tool-invocation time to that per-conversation
+        // workspace — keeping each conversation's screenshots isolated
+        // and landing them at a persistent, discoverable location the
+        // LLM doesn't need to `mv` out of scratch after the fact.
+        sudoworkBinEnv.AI_DEV_BROWSER_OUTPUT_DIR = '.';
+        // openclaw's exec tool backgrounds any command running longer than
+        // `defaultBackgroundMs` (default 10s, env `PI_BASH_YIELD_MS`,
+        // clamped [10ms, 120s]). When backgrounded, the LLM gets a
+        // "Command still running (session foo, pid bar)" stub and has to
+        // poll via the `process` tool — costing 2-3 extra steps per
+        // affected call. Browser tool calls take 1-3s each; a compound of
+        // 3-4 (`browser type_by_ref ...\nbrowser type_by_ref ...`) crosses
+        // the 10s threshold and gets shunted to async. lis8 e2e audit
+        // observed 4 compound steps trigger this, accounting for ~12 steps
+        // of pure overhead. Push to the 120s ceiling so realistic browser
+        // compounds finish synchronously. Genuinely long-running commands
+        // (npm install, builds) still get backgrounded — they just have a
+        // longer fuse before being moved off the main path.
+        sudoworkBinEnv.PI_BASH_YIELD_MS = '120000';
+      } catch (err) {
+        mainWarn('ServiceManager', 'Failed to install sudowork bin dispatchers', err);
+      }
+
+      // SUDOROUTER creds injection so the sudowork image-analysis skill and
+      // any other tool expecting these env vars works out of the box.
+      // Source of truth: sudoclaw.json models.providers.sudorouter.
+      // (Normally harmless — the image tool and image-analysis skill are
+      // disabled in ensureDefaultConfig/repairOpenClawConfig, but we still
+      // inject to support ad-hoc scripts referencing SUDOROUTER.)
+      const sudorouterEnv: Record<string, string> = {};
+      try {
+        const raw = await fs.promises.readFile(SUDOCLAW_CONFIG_PATH, 'utf-8');
+        const cfg = JSON.parse(raw) as {
+          models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> };
+        };
+        const sr = cfg.models?.providers?.sudorouter;
+        if (sr?.baseUrl) sudorouterEnv.SUDOROUTER_BASE_URL = sr.baseUrl;
+        if (sr?.apiKey) sudorouterEnv.SUDOROUTER_API_KEY = sr.apiKey;
+      } catch (err) {
+        mainWarn('ServiceManager', 'Could not read sudorouter provider creds from sudoclaw.json', err);
+      }
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -387,6 +469,9 @@ export class ServiceManager {
           OPENCLAW_STATE_DIR: SUDOCLAW_DIR,
           OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH,
           ...adbSidechannelEnv,
+          ...pythonPathEnv,
+          ...sudoworkBinEnv,
+          ...sudorouterEnv,
         },
         forceSubprocessGateway: true,
       });

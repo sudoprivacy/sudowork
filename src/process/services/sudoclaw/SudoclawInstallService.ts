@@ -45,6 +45,8 @@ const SUDOCLAW_CLI_STAGING_DIR = path.join(SUDOCLAW_DIR, 'cli.new');
 const SUDOCLAW_CLI_BACKUP_DIR = path.join(SUDOCLAW_DIR, 'cli.old');
 /** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
 export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
+/** sudowork-owned dispatcher bin (aidb wrapper + future per-tool shims). */
+export const SUDOCLAW_SUDOWORK_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
 const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 
@@ -520,20 +522,78 @@ export function repairOpenClawConfig(): void {
       mainLog('Sudoclaw', 'Disabled built-in browser (ai-dev-browser used directly)');
     }
 
-    // Deny browser tool in top-level tools.sandbox so agent never sees it
-    // Schema path: tools.sandbox.tools.deny
+    // Remove the builtin `browser` tool from the LLM's tool catalog.
+    // The policy key is `tools.deny` (top-level) — this flows through
+    // openclaw's `pickSandboxToolPolicy` + `filterToolsByPolicy`, which
+    // actually *filters* the tool out of the agent's tool list instead
+    // of just denying its execute. `tools.sandbox.tools.deny` (which this
+    // file used to write) is the docker-sandbox-scoped policy and does
+    // nothing when docker sandbox isn't in play.
     const topTools = (config.tools ?? {}) as Record<string, unknown>;
-    const topSbx = (topTools.sandbox ?? {}) as Record<string, unknown>;
-    const topSbxTools = (topSbx.tools ?? {}) as Record<string, unknown>;
-    const topDeny = (topSbxTools.deny ?? []) as string[];
-    if (!topDeny.includes('browser')) {
-      topDeny.push('browser');
-      topSbxTools.deny = topDeny;
-      topSbx.tools = topSbxTools;
-      topTools.sandbox = topSbx;
-      (config as Record<string, unknown>).tools = topTools;
+    const topDeny = Array.isArray(topTools.deny) ? (topTools.deny as string[]) : [];
+    // `canvas` is openclaw's "control a paired node UI" tool (present/hide/
+    // navigate/eval/snapshot/A2UI). Every action requires `resolveNodeId`
+    // against a canvas-paired node, which sudowork doesn't run — so each
+    // call fails with a paired-node-not-found error. Worse, the
+    // self-explanatory tool name + `present` action makes the LLM
+    // reflexively reach for it whenever it has a screenshot or rendered
+    // file to "show the user" (lis8 e2e step 10: tried
+    // `canvas present url=20260419_012541_873545.png` after taking a
+    // captcha screenshot). Hide it from the catalog so it stops leaking
+    // an action the LLM can never successfully invoke.
+    for (const toolName of ['browser', 'image', 'canvas']) {
+      if (!topDeny.includes(toolName)) {
+        topDeny.push(toolName);
+        changed = true;
+        mainLog('Sudoclaw', `Added ${toolName} to top-level tools.deny (hides from LLM catalog)`);
+      }
+    }
+    topTools.deny = topDeny;
+
+    // Backfill tools.web.search.provider — present in ensureDefaultConfig but was
+    // missing from repair, so users who upgrade won't have this field. See #404.
+    const webConfig = (topTools.web ?? {}) as Record<string, unknown>;
+    const searchConfig = (webConfig.search ?? {}) as Record<string, unknown>;
+    if (!searchConfig.provider) {
+      searchConfig.provider = 'tavily';
+      webConfig.search = searchConfig;
+      topTools.web = webConfig;
       changed = true;
-      mainLog('Sudoclaw', 'Added browser to top-level tools.sandbox deny list');
+      mainLog('Sudoclaw', 'Backfilled tools.web.search.provider = tavily');
+    }
+
+    (config as Record<string, unknown>).tools = topTools;
+
+    // Disable the builtin image-analysis skill. Rationale: image-analysis
+    // invokes a SEPARATE LLM (via SUDOROUTER) in a subprocess — it has no
+    // continuity with the orchestrating LLM's browser session context, and
+    // ai-dev-browser's page_discover returns ARIA semantics (role, name,
+    // ref, box) which is a richer signal for web automation than pixel
+    // vision anyway. The skill's analyze_image.sh also requires
+    // SUDOROUTER_{BASE_URL,API_KEY} env vars that aren't injected, so the
+    // LLM wastes 5-8 steps manually sourcing them from sudoclaw.json and
+    // re-exporting per exec call. Disabling removes both the context
+    // break and the env-setup loop.
+    const skills = (config.skills ?? {}) as Record<string, unknown>;
+    const skillEntries = (skills.entries ?? {}) as Record<string, unknown>;
+    const imageAnalysis = (skillEntries['image-analysis'] ?? {}) as Record<string, unknown>;
+    if (imageAnalysis.enabled !== false) {
+      imageAnalysis.enabled = false;
+      skillEntries['image-analysis'] = imageAnalysis;
+      skills.entries = skillEntries;
+      (config as Record<string, unknown>).skills = skills;
+      changed = true;
+      mainLog('Sudoclaw', 'Disabled builtin image-analysis skill (breaks browser context continuity)');
+    }
+    // Clean up the old misplaced entry if present.
+    const topSbx = topTools.sandbox as Record<string, unknown> | undefined;
+    const topSbxTools = topSbx?.tools as Record<string, unknown> | undefined;
+    const topSbxDeny = Array.isArray(topSbxTools?.deny) ? (topSbxTools!.deny as string[]) : null;
+    if (topSbxDeny && topSbxDeny.includes('browser')) {
+      topSbxTools!.deny = topSbxDeny.filter((name) => name !== 'browser');
+      if ((topSbxTools!.deny as string[]).length === 0) delete topSbxTools!.deny;
+      changed = true;
+      mainLog('Sudoclaw', 'Removed obsolete tools.sandbox.tools.deny=[browser] entry');
     }
 
     if (changed) {
@@ -607,15 +667,18 @@ export function ensureDefaultConfig(): void {
         },
       },
     },
+    skills: {
+      entries: {
+        'image-analysis': { enabled: false },
+      },
+    },
     tools: {
       web: {
         search: {
           provider: 'tavily' as const,
         },
       },
-      sandbox: {
-        tools: { deny: ['browser'] },
-      },
+      deny: ['browser', 'image', 'canvas'],
     },
   };
 
@@ -693,6 +756,261 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
  *
  * This guarantees that fresh installs *and* upgrades always have the latest prompt.
  */
+/**
+ * Copy the sudowork-owned `aidb` dispatcher (bash + cmd) into
+ * ~/.nexus/sudoclaw/bin/ so the openclaw gateway can expose it on PATH for
+ * every exec child. Idempotent — overwrites existing copies so updates to
+ * the bundled wrapper propagate on next startup. On Unix the bash variant
+ * gets the exec bit; on Windows the .cmd works directly.
+ */
+export function ensureSudoworkBinDispatchers(): void {
+  const source = resolveSudoworkBinSource();
+  if (!source) {
+    mainWarn('Sudoclaw', 'sudoclaw-bin source dir not found; aidb dispatcher unavailable');
+    return;
+  }
+  try {
+    fs.mkdirSync(SUDOCLAW_SUDOWORK_BIN_DIR, { recursive: true });
+    for (const entry of fs.readdirSync(source)) {
+      const srcPath = path.join(source, entry);
+      const destPath = path.join(SUDOCLAW_SUDOWORK_BIN_DIR, entry);
+      try {
+        fs.copyFileSync(srcPath, destPath);
+        if (process.platform !== 'win32' && !entry.endsWith('.cmd')) {
+          fs.chmodSync(destPath, 0o755);
+        }
+      } catch (err) {
+        mainWarn('Sudoclaw', `Failed to install dispatcher ${entry}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    mainLog('Sudoclaw', `Installed aidb dispatcher into ${SUDOCLAW_SUDOWORK_BIN_DIR}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `Failed to install sudowork bin dispatchers: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function resolveSudoworkBinSource(): string | null {
+  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'resources', 'sudoclaw-bin'), path.join(process.resourcesPath, 'sudoclaw-bin')] : [path.join(app.getAppPath(), 'resources', 'sudoclaw-bin')];
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
+/**
+ * Bypass openclaw's hard-coded 8-KB tool-result cap.
+ *
+ * openclaw's bundle contains:
+ *
+ *     TOOL_RESULT_MAX_CHARS2 = 8e3;
+ *
+ * which `truncateToolText` applies to every tool's stdout BEFORE openclaw
+ * feeds it into the LLM context. Outputs above 8 KB silently lose their
+ * tail to a literal "…(truncated)…" marker, so the LLM ends up acting on
+ * a partial view (e.g. `browser page_html` on a real-world page only
+ * shows the first 8 KB of HTML).
+ *
+ * Sudowork's sidechannel already delivers the full text to the UI; this
+ * patch closes the gap on the LLM-facing side. We rewrite the literal in
+ * place to ~1 MB. The rewrite is:
+ *   - Idempotent: if `1e6` is already there, skip.
+ *   - Fail-open: a missed match (upstream restructured the bundle) just
+ *     logs a warning — the install continues with the original cap.
+ *   - Re-applied on every startup: openclaw bundle updates blow our
+ *     change away, this re-asserts.
+ *
+ * We deliberately do NOT touch the compaction-side `TOOL_RESULT_MAX_CHARS
+ * = 2e3` (different module, used to bound earlier-turn summarization;
+ * raising it would balloon context).
+ */
+export function patchOpenclawToolResultCap(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawToolResultCap: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  if (/TOOL_RESULT_MAX_CHARS2\s*=\s*1e6/.test(source)) {
+    return;
+  }
+  const before = source;
+  source = source.replace(/TOOL_RESULT_MAX_CHARS2\s*=\s*8e3/g, 'TOOL_RESULT_MAX_CHARS2 = 1e6');
+  if (source === before) {
+    mainWarn('Sudoclaw', 'patchOpenclawToolResultCap: pattern `TOOL_RESULT_MAX_CHARS2 = 8e3` not found in openclaw bundle (upstream may have changed the literal). Tool results > 8 KB will continue to be silently truncated for the LLM. Sudowork sidechannel still delivers the full text to the UI.');
+    return;
+  }
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawToolResultCap: raised TOOL_RESULT_MAX_CHARS2 8000 → 1000000 in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawToolResultCap: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Stop openclaw's `sanitizeToolResult` from stripping image bytes out of
+ * tool results.
+ *
+ * openclaw's bundle has (in the `sanitizeToolResult` helper that runs
+ * on every tool return before the LLM sees it):
+ *
+ *     if (type === "image") {
+ *       const data3 = typeof entry.data === "string" ? entry.data : void 0;
+ *       const bytes = data3 ? data3.length : void 0;
+ *       const cleaned = { ...entry };
+ *       delete cleaned.data;
+ *       return { ...cleaned, bytes, omitted: true };
+ *     }
+ *
+ * So even when `browser page_screenshot` or any other tool returns an
+ * image content block, the pixels never reach the LLM — only
+ * `{type:"image", omitted:true, bytes:N}` metadata does. Multimodal
+ * models (gemini-3-flash, claude, gpt-4o-class) are perfectly capable
+ * of reading a captcha / verifying a UI state from a screenshot, but
+ * sudowork's pipeline silently blocks the pixel path.
+ *
+ * We rewrite the image branch to pass the entry through unchanged when
+ * the image payload is under the 1 MB `TOOL_RESULT_MAX_CHARS2` we
+ * already raised — so a typical 50–500 KB screenshot reaches the LLM
+ * intact. Oversize images still fall back to the original strip so a
+ * runaway tool can't blow the context window. Pattern is precise —
+ * fail-open on miss, idempotent when already applied.
+ *
+ * Secondary image-strip path in the history-sanitization module
+ * (around line 654226 in the bundle, inside `sanitizeHistoryMessage`)
+ * is intentionally left alone: that only affects replay of past turns,
+ * and keeping large image blobs in the rolling history would balloon
+ * context on every subsequent call.
+ */
+export function patchOpenclawKeepImageData(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepImageData: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  const patchMarker = '/*SUDOWORK_KEEP_IMAGE_DATA*/';
+  if (source.includes(patchMarker)) {
+    return;
+  }
+  // Match the exact `sanitizeToolResult` image branch. The bundle is
+  // minified-ish but the string literals + structure give us a stable
+  // anchor. We look for the specific sequence `delete cleaned.data;`
+  // followed by the `{ ...cleaned, bytes, omitted: true }` return.
+  const originalBranch = 'if (type === "image") {\n' + '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' + '      const bytes = data3 ? data3.length : void 0;\n' + '      const cleaned = { ...entry };\n' + '      delete cleaned.data;\n' + '      return {\n' + '        ...cleaned,\n' + '        bytes,\n' + '        omitted: true\n' + '      };\n' + '    }';
+  if (!source.includes(originalBranch)) {
+    mainWarn('Sudoclaw', 'patchOpenclawKeepImageData: pattern not found in openclaw bundle (upstream may have restructured sanitizeToolResult). Image pixels will continue to be stripped before the LLM sees them — multimodal tools like captcha reading from page_screenshot will not work.');
+    return;
+  }
+  const replacementBranch =
+    'if (type === "image") {\n' +
+    '      ' +
+    patchMarker +
+    '\n' +
+    '      // sudowork: pass image bytes through for multimodal LLMs when\n' +
+    '      // the payload fits the tool-result char cap. Oversize falls\n' +
+    '      // back to the original strip to keep context safe.\n' +
+    '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' +
+    '      const bytes = data3 ? data3.length : void 0;\n' +
+    '      if (bytes && bytes <= TOOL_RESULT_MAX_CHARS2) {\n' +
+    '        return { ...entry };\n' +
+    '      }\n' +
+    '      const cleaned = { ...entry };\n' +
+    '      delete cleaned.data;\n' +
+    '      return {\n' +
+    '        ...cleaned,\n' +
+    '        bytes,\n' +
+    '        omitted: true\n' +
+    '      };\n' +
+    '    }';
+  source = source.replace(originalBranch, replacementBranch);
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawKeepImageData: image pixels now pass through sanitizeToolResult (up to 1 MB) in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepImageData: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Stop openclaw's gateway from stripping `result`/`partialResult` out of
+ * the `tool`-stream events it broadcasts to WebSocket clients (sudowork's
+ * UI being one of them).
+ *
+ * In `createAgentEventHandler` the bundle has:
+ *
+ *     const toolPayload = isToolEvent && toolVerbose !== "full" ? (() => {
+ *       const data3 = evt.data ? { ...evt.data } : {};
+ *       delete data3.result;
+ *       delete data3.partialResult;
+ *       …
+ *     })() : agentPayload;
+ *
+ * `toolVerbose` resolves to `"off"` when no run/session config sets it,
+ * which is the case for every sudowork-issued run today. So every tool
+ * event the UI receives is missing `result.content` — which is the only
+ * place the actual tool stdout lives. The LLM still sees the full result
+ * because that travels through openclaw's in-process message pipeline,
+ * not the gateway broadcast — but the UI renders blank or shows just the
+ * `meta` echo (e.g. for `read`, the file path and nothing else).
+ *
+ * Browser tools work around this via sudowork's own sidechannel
+ * (`AdbResultSidechannel`); `exec` works because OpenClawAgent reads
+ * `toolData.result.content` already (see `extractResultText`), but only
+ * when `result` survives the strip — which it doesn't, and was the bug.
+ * `read`, `edit`, `write`, `glob`, `grep`, etc. have no sidechannel and
+ * are flat-out invisible in the UI's Output panel.
+ *
+ * This patch flips the strip condition to `false` so `toolPayload` is
+ * always `agentPayload` (the full event with `result` intact). The IIFE
+ * becomes dead code — small cost — but the diff stays one-line and the
+ * marker comment makes it idempotent on re-install.
+ *
+ * Tradeoff: WS payloads for tool events grow by however large the
+ * sanitized result is (capped by `TOOL_RESULT_MAX_CHARS2` we already
+ * raised to 1 MB). For sudowork's single-client local-IPC use-case this
+ * is fine; if a future deployment serves many remote WS clients off the
+ * same gateway, revisit (e.g. require `verboseLevel: "full"` on each run
+ * instead — see Option B in the investigation note).
+ */
+export function patchOpenclawKeepToolResult(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepToolResult: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  const patchMarker = '/*SUDOWORK_KEEP_TOOL_RESULT*/';
+  if (source.includes(patchMarker)) {
+    return;
+  }
+  const originalCondition = 'const toolPayload = isToolEvent && toolVerbose !== "full" ? (() => {';
+  const replacementCondition = 'const toolPayload = isToolEvent && false ' + patchMarker + ' && toolVerbose !== "full" ? (() => {';
+  if (!source.includes(originalCondition)) {
+    mainWarn('Sudoclaw', 'patchOpenclawKeepToolResult: pattern not found in openclaw bundle (upstream may have restructured createAgentEventHandler). UI Output panel for non-browser tools (read/edit/write/grep/etc.) will continue to render empty.');
+    return;
+  }
+  source = source.replace(originalCondition, replacementCondition);
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawKeepToolResult: tool result.content now reaches WS clients in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawKeepToolResult: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `

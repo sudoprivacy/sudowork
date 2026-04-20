@@ -29,8 +29,8 @@ import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageRe
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
-import * as nodePath from 'node:path';
 import { createHash } from 'node:crypto';
+import * as nodePath from 'node:path';
 import { ProcessConfig } from '@process/initStorage';
 import { serviceManager } from '@process/services/serviceManager';
 
@@ -43,6 +43,56 @@ const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 const CONNECTION_TIMEOUT_MS = 30_000;
 const CONNECTION_MAX_ATTEMPTS = 30;
 const CONNECTION_RETRY_DELAY_MS = 1_000;
+
+/**
+ * openclaw's bundled `TOOL_RESULT_MAX_CHARS2` — the byte cap it applies via
+ * `truncateToolText` before passing tool stdout back to the LLM.
+ *
+ * The openclaw default is 8000. Sudowork patches the bundle on every
+ * gateway start (`SudoclawInstallService.patchOpenclawToolResultCap`) to
+ * raise this to 1_000_000 (1 MB) so browser tools that legitimately
+ * return tens of KB (`page_html` on a real page, `page_discover` on a
+ * busy DOM) reach the LLM intact. This constant must stay in sync with
+ * that patch — when the helper-captured stdout exceeds it we still
+ * surface a "this was almost certainly truncated" warning to the LLM,
+ * but at 1 MB that's only ever an edge case.
+ *
+ * If `patchOpenclawToolResultCap` fails open (upstream restructured the
+ * literal), the install service logs a warning and the original 8 KB cap
+ * stays in effect — but our threshold here is 1 MB, so the warning won't
+ * fire. The mainLog warning from the install service is the canonical
+ * signal in that case.
+ */
+const OPENCLAW_TOOL_RESULT_CAP_BYTES = 1_000_000;
+
+/**
+ * Count ai-dev-browser sub-cmds inside a compound shell string. Both the
+ * `browser`/`aidb` wrapper and direct `python -m ai_dev_browser.tools.*`
+ * invocations POST to the sidechannel, so each one consumes one queue entry
+ * regardless of which path it takes. We split on the same set of separators
+ * the compound regex tests for (`\n`, `&&`, `||`, `;`) and count sub-cmds
+ * that start with a recognised browser invocation token.
+ *
+ * Floor at 1 to keep the existing single-cmd behaviour for callers that ask
+ * about a non-compound string. Mismatches between this count and what the
+ * helper actually POSTs degrade gracefully — `waitForNextAdbEntry` returns
+ * `null` after a short wait when there's nothing left, so we just stop
+ * collecting and emit whatever we got.
+ */
+function countAdbInvocations(cmdRaw: string): number {
+  const subCmds = cmdRaw.split(/\n|&&|\|\||;/);
+  let count = 0;
+  for (const sub of subCmds) {
+    const trimmed = sub.trim();
+    if (!trimmed) continue;
+    if (/^(?:browser|aidb)(?:\.cmd|\.bat)?\b/i.test(trimmed)) {
+      count++;
+    } else if (/python(?:3|\.exe|3\.exe)?\s+(?:-[a-zA-Z]\S*\s+)*-m\s+ai_dev_browser/i.test(trimmed)) {
+      count++;
+    }
+  }
+  return Math.max(count, 1);
+}
 
 interface ToolEventData {
   phase?: string;
@@ -1226,7 +1276,30 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isAdbToolCall(data: ToolEventData): boolean {
     const meta = typeof data.meta === 'string' ? data.meta : '';
     const cmd = typeof data.args?.command === 'string' ? (data.args.command as string) : '';
-    return /ai_dev_browser\.tools\./.test(meta) || /ai_dev_browser\.tools\./.test(cmd);
+    const haystack = `${meta}\n${cmd}`;
+    // sudowork-owned `browser` dispatcher — e.g. `browser page_goto --url …`.
+    // The command has no `python` literal, so it must be matched first;
+    // the helper POSTs directly to the sidechannel, keeping FIFO alignment.
+    // Match also the legacy `aidb` name during the rename transition, and
+    // require that the token is followed by either a flag (`--`) or a
+    // lowercase tool name (avoids false positives on prose like
+    // "open a browser first" in a command meta).
+    if (/(?:^|[;\s&|"'`])(?:browser|aidb)(?:\.cmd|\.bat)?\s+(?:--|[a-z_][a-z0-9_]*)/i.test(haystack)) return true;
+    // Must look like a Python invocation — this is the first filter so we
+    // don't accidentally consume FIFO entries for unrelated commands.
+    if (!/\bpython(?:3|\.exe|3\.exe)?\b/i.test(haystack)) return false;
+    // Tight match: full reference visible (either module or path form).
+    if (/ai_dev_browser[./\\]tools|ai_dev_br/i.test(haystack)) return true;
+    // Loose match: openclaw truncates `meta`'s backticked command (often
+    // around the 100-char mark). When a long prefix like `$env:PYTHONPATH
+    // = "<long path>"; python -m ai_…` eats the budget, the regex above
+    // misses. If we see `python` + the ellipsis marker that indicates
+    // truncation, treat it as an adb invocation and let the hook-side
+    // FIFO sort it out. The hook only POSTs for real ai_dev_browser
+    // spawns, so at worst we pop a null entry (no-op) when we guess
+    // wrong.
+    if (/…/.test(meta)) return true;
+    return false;
   }
 
   private extractResultText(data: ToolEventData): string | null {
@@ -1240,23 +1313,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     }
     const joined = parts.join('\n').trim();
     return joined.length > 0 ? joined : null;
-  }
-
-  private computeAdbCmdHash(data: ToolEventData): string {
-    // Mirror the hash produced by hook/node/src/process/AdbStdoutCapture.ts.
-    // On `phase === 'result'` events, openclaw strips `args` from the
-    // external `onAgentEvent` callback — we get only {phase,name,toolCallId,
-    // meta,isError}. `meta` has the shape:
-    //   "run python (in <cwd>), `python -m ai_dev_browser.tools.page_info ...`"
-    // Extract the command between backticks, which matches the shell script
-    // string the hook used for its hashInput.
-    const args = data.args ?? {};
-    let cmd = typeof args.command === 'string' ? (args.command as string).trim() : '';
-    if (!cmd && typeof data.meta === 'string') {
-      const m = data.meta.match(/`([^`]+)`/);
-      if (m && m[1]) cmd = m[1].trim();
-    }
-    return createHash('sha1').update(cmd).digest('hex');
   }
 
   private async handleToolCallEvent(toolData: ToolEventData): Promise<void> {
@@ -1297,22 +1353,96 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
         }
       }
 
-      // Defense-in-depth: if the sidechannel captured a longer stdout than
-      // openclaw's 8 KB sanitized window, overwrite with that. Harmless when
-      // no entry is found (the `waitForCmd` times out quickly).
+      // Pull the matching stdout capture from the sidechannel and replace
+      // openclaw's truncated meta with the real text.
+      //
+      // Two POST sources feed the sidechannel queue:
+      //   1. The hook (`AdbStdoutCapture`) for direct `python -m
+      //      ai_dev_browser.tools.*` spawns.
+      //   2. The `browser_helper.py` wrapper — for invocations that go
+      //      through the `browser` (or legacy `aidb`) dispatcher. The hook
+      //      intentionally skips wrapper spawns because attaching a stdout
+      //      listener on bash/cmd.exe flips the child pipe into flowing
+      //      mode and deadlocks openclaw's paused-mode reader.
+      //
+      // Correlation: prefer per-call hash match (`waitForCmd`) — both the
+      // helper and sudowork compute sha1 over the same normalized command
+      // string ("browser <argv>" with collapsed whitespace), so each
+      // tool_call event pops exactly its own entry even when the LLM emits
+      // parallel browser tool_calls in one turn (lis8 e2e step 23/24
+      // observed FIFO swap when payloads of very different sizes raced
+      // through the localhost POST). Compound shell commands
+      // (`browser A && browser B`) are 1 tool_call event but N helper POSTs
+      // so the hash can't possibly match — fall back to global FIFO for
+      // those, which is also the path when no entry matches the hash
+      // within a short window (e.g. unmatched legacy invocations).
       if (this.isAdbToolCall(toolData)) {
         try {
           const sink = serviceManager.getAdbSidechannel();
           if (sink) {
-            // The PowerShell / bash wrapper openclaw spawns around python
-            // takes several seconds (interpreter cold start + CDP connect
-            // attempts). Wait generously so the hook's POST has time to land
-            // — the hook only POSTs on the shell process's exit, which is
-            // strictly after the result event reaches sudowork.
-            const entry = await sink.waitForCmd(this.computeAdbCmdHash(toolData), 20_000);
-            if (entry && entry.stdoutRaw && entry.stdoutRaw.length > (this.extractResultText(toolData)?.length ?? 0)) {
-              toolData.meta = entry.stdoutRaw;
-              toolData.content = [{ type: 'content', content: { type: 'text', text: entry.stdoutRaw } }];
+            const cmdRaw = typeof toolData.args?.command === 'string' ? (toolData.args.command as string) : '';
+            const cmdRawTrim = cmdRaw.trim();
+            // Compound = the LLM packed multiple shell statements into one
+            // exec call. The helper POSTs once per child invocation, but
+            // openclaw fires only one `tool_call` event for the whole
+            // compound, so a naive single pop misattributes the wrong sub-
+            // cmd's stdout to the event (lis8 audit observed 15+ steps
+            // showing content from neighbouring sub-cmds). Newline is the
+            // most common separator in practice — the LLM tends to write
+            // multi-line scripts before `&&`/`;` — so it MUST be in this
+            // regex even though it isn't strictly a shell control char.
+            const isCompound = /\n|(?:^|[^&|<>])(?:&&|\|\|)|(?:^|[^&|<>]);(?:$|[^;])/.test(cmdRawTrim);
+            const collected: string[] = [];
+            if (cmdRawTrim && !isCompound) {
+              // Single invocation: prefer hash-correlation. Helper's
+              // `cmd_norm` is `" ".join(("browser " + " ".join(argv)).split())`
+              // — replicate byte-for-byte (collapse whitespace + strip + drop
+              // legacy `aidb` prefix in favour of canonical `browser`).
+              const cmdNorm = cmdRawTrim.replace(/\s+/g, ' ').replace(/^aidb\b/, 'browser');
+              const hash = createHash('sha1').update(cmdNorm).digest('hex');
+              const entry = (await sink.waitForCmd(hash, 2_000)) || (await sink.waitForNextAdbEntry(20_000));
+              if (entry?.stdoutRaw) collected.push(entry.stdoutRaw);
+            } else if (isCompound) {
+              // Compound: per-cmd hash can't possibly match (helper hashes
+              // each sub-cmd individually, sudowork sees only the combined
+              // text). Pop N entries in order — N = number of browser-style
+              // invocations across the sub-cmds. Use a generous wait on the
+              // first pop (queue may not have caught up to the slowest sub-
+              // cmd yet) and a tight wait on the rest so the UI doesn't
+              // stall when one sub-cmd silently failed before POSTing.
+              const n = countAdbInvocations(cmdRawTrim);
+              for (let i = 0; i < n; i++) {
+                const e = await sink.waitForNextAdbEntry(i === 0 ? 20_000 : 2_000);
+                if (!e) break;
+                collected.push(e.stdoutRaw);
+              }
+            } else {
+              const e = await sink.waitForNextAdbEntry(20_000);
+              if (e?.stdoutRaw) collected.push(e.stdoutRaw);
+            }
+            if (collected.length > 0) {
+              const merged = collected.length === 1 ? collected[0] : collected.map((text, idx) => `--- sub-cmd ${idx + 1} of ${collected.length} ---\n${text}`).join('\n\n');
+              if (merged.length > (this.extractResultText(toolData)?.length ?? 0)) {
+                toolData.meta = merged;
+                toolData.content = [{ type: 'content', content: { type: 'text', text: merged } }];
+                // openclaw feeds tool result to the LLM through a separate in-
+                // process channel that ALSO runs through `truncateToolText`
+                // (cap 8 KB, marker `…(truncated)…`). Clients can't see what
+                // openclaw ships to the LLM, but we can detect the condition
+                // from our own sidechannel capture: if the full stdout exceeds
+                // the cap, the LLM's copy is truncated even though the UI's
+                // copy is intact. Promote the tool call to failed + prepend
+                // an explicit warning so the LLM's next turn sees that its
+                // own view was cut off rather than silently acting on a
+                // partial result. The full text still rides behind the warning
+                // for the UI's benefit.
+                if (merged.length > OPENCLAW_TOOL_RESULT_CAP_BYTES) {
+                  status = 'failed';
+                  const warn = `[sudowork] tool output is ${merged.length} bytes (> openclaw's ${OPENCLAW_TOOL_RESULT_CAP_BYTES}-byte tool-result cap). openclaw silently truncates what it ships to the LLM; sudowork is surfacing this as a failure so the LLM doesn't act on a partial view. Re-run with tighter scope, paginate, or write full output to a file and read it back in chunks.\n\n--- full captured output below (${merged.length} bytes) ---\n${merged}`;
+                  toolData.meta = warn.slice(0, 200);
+                  toolData.content = [{ type: 'content', content: { type: 'text', text: warn } }];
+                }
+              }
             }
           }
         } catch (err) {

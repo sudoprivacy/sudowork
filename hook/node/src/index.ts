@@ -8,6 +8,7 @@ import type { BlacklistConfig } from './blacklist/types';
 import { ProcessInterceptor } from './process/ProcessInterceptor';
 import type { ProcessController } from './process/ProcessController';
 import { AdbStdoutCapture } from './process/AdbStdoutCapture';
+import { SudoclawConfigGuard } from './process/SudoclawConfigGuard';
 
 export interface SafetyHookOptions {
   /** Nexus server URL, defaults to http://127.0.0.1:12012 */
@@ -30,6 +31,7 @@ let networkInterceptor: BatchInterceptor | null = null;
 let fileInterceptor: FileInterceptor | null = null;
 let processInterceptor: ProcessInterceptor | null = null;
 let adbStdoutCapture: AdbStdoutCapture | null = null;
+let sudoclawConfigGuard: SudoclawConfigGuard | null = null;
 let isApplied = false;
 let nexusController: NexusController | null = null;
 let configPollingTimer: NodeJS.Timeout | null = null;
@@ -119,6 +121,19 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     }
   }
 
+  // Always-on: prevent the LLM from re-enabling openclaw's builtin browser
+  // via gateway.config.patch by pinning `browser.enabled` back to false on
+  // every write to sudoclaw.json. This is cheap and has no dependencies.
+  if (!sudoclawConfigGuard) {
+    try {
+      sudoclawConfigGuard = new SudoclawConfigGuard();
+      sudoclawConfigGuard.apply();
+    } catch (err) {
+      console.error('[SafetyHook] Failed to apply sudoclaw config guard:', err);
+      sudoclawConfigGuard = null;
+    }
+  }
+
   isApplied = true;
   console.error(`[SafetyHook] Initialized with nexusUrl=${nexusUrl}, network=${enableNetwork}, file=${enableFile}`);
 
@@ -159,6 +174,10 @@ export function disposeSafetyHook(): void {
   if (adbStdoutCapture) {
     adbStdoutCapture.dispose();
     adbStdoutCapture = null;
+  }
+  if (sudoclawConfigGuard) {
+    sudoclawConfigGuard.dispose();
+    sudoclawConfigGuard = null;
   }
   nexusController = null;
   isApplied = false;

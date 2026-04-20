@@ -59,6 +59,10 @@ export class AdbResultSidechannel {
   private readonly byCmdHash = new Map<string, string[]>();
   private readonly insertOrder: string[] = [];
   private readonly waitersByHash = new Map<string, WaiterRecord[]>();
+  // Waiters that don't care about cmdHash — they consume the next entry
+  // from the global FIFO across all hashes. Used by sudowork when the
+  // openclaw meta is truncated and we can't reconstruct the hook-side hash.
+  private readonly globalWaiters: WaiterRecord[] = [];
 
   async start(): Promise<{ port: number; secret: string }> {
     if (this.server) {
@@ -103,6 +107,11 @@ export class AdbResultSidechannel {
       }
     }
     this.waitersByHash.clear();
+    for (const waiter of this.globalWaiters) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(null);
+    }
+    this.globalWaiters.length = 0;
     this.byCallId.clear();
     this.byCmdHash.clear();
     this.insertOrder.length = 0;
@@ -132,6 +141,30 @@ export class AdbResultSidechannel {
     }
     this.deleteEntry(callId);
     return entry;
+  }
+
+  /**
+   * Wait for the next captured ai-dev-browser entry in global FIFO order
+   * (across all cmdHashes). Used when the caller can't reconstruct the
+   * hook's hashInput — e.g. openclaw truncates the `meta` field, so the
+   * sudowork side can't reproduce the hash the hook computed. Callers that
+   * DO have a reliable key should still use `waitForCmd` for precise match.
+   */
+  async waitForNextAdbEntry(windowMs = DEFAULT_WAIT_MS): Promise<AdbResultEntry | null> {
+    const existing = this.popOldest();
+    if (existing) return existing;
+    if (windowMs <= 0) return null;
+    return await new Promise<AdbResultEntry | null>((resolve) => {
+      const waiter: WaiterRecord = {
+        resolve,
+        timer: setTimeout(() => {
+          const idx = this.globalWaiters.indexOf(waiter);
+          if (idx !== -1) this.globalWaiters.splice(idx, 1);
+          resolve(null);
+        }, windowMs),
+      };
+      this.globalWaiters.push(waiter);
+    });
   }
 
   /**
@@ -242,12 +275,20 @@ export class AdbResultSidechannel {
     this.evictStale();
     this.byCallId.set(entry.callId, entry);
     this.insertOrder.push(entry.callId);
+    // Priority 1: hash-specific waiter.
     const waiters = this.waitersByHash.get(entry.cmdHash);
     if (waiters && waiters.length > 0) {
       const waiter = waiters.shift()!;
       clearTimeout(waiter.timer);
       if (waiters.length === 0) this.waitersByHash.delete(entry.cmdHash);
-      // Waiter takes ownership — evict the entry so nobody else picks it up.
+      this.deleteEntry(entry.callId);
+      waiter.resolve(entry);
+      return;
+    }
+    // Priority 2: global FIFO waiter.
+    if (this.globalWaiters.length > 0) {
+      const waiter = this.globalWaiters.shift()!;
+      clearTimeout(waiter.timer);
       this.deleteEntry(entry.callId);
       waiter.resolve(entry);
       return;
@@ -258,16 +299,54 @@ export class AdbResultSidechannel {
     this.evictOverflow();
   }
 
+  private isStale(entry: AdbResultEntry, ttlMs = DEFAULT_TTL_MS): boolean {
+    return Date.now() - entry.finishedAt > ttlMs;
+  }
+
+  private popOldest(): AdbResultEntry | null {
+    // Skip stale entries — an entry left in the queue past its TTL is
+    // almost certainly from a prior, unrelated helper invocation that
+    // never had a matching tool_call event land; returning it would
+    // misattribute its stdout to whatever tool_call is currently
+    // waiting, producing the cross-conversation content swap we kept
+    // seeing in the lis8 audit (today's `browser --list` showing
+    // yesterday's v0.5.1 output).
+    while (this.insertOrder.length > 0) {
+      const callId = this.insertOrder[0];
+      const entry = this.byCallId.get(callId);
+      if (!entry) {
+        this.insertOrder.shift();
+        continue;
+      }
+      if (this.isStale(entry)) {
+        this.deleteEntry(callId);
+        continue;
+      }
+      this.deleteEntry(callId);
+      return entry;
+    }
+    return null;
+  }
+
   private popByHash(cmdHash: string): AdbResultEntry | null {
-    const queue = this.byCmdHash.get(cmdHash);
-    if (!queue || queue.length === 0) return null;
-    const callId = queue.shift()!;
-    if (queue.length === 0) this.byCmdHash.delete(cmdHash);
-    else this.byCmdHash.set(cmdHash, queue);
-    const entry = this.byCallId.get(callId);
-    if (!entry) return null;
-    this.deleteEntry(callId);
-    return entry;
+    // Same TTL guard as `popOldest` — a hash match is worthless if the
+    // entry is from a prior session with the same cmd (e.g. a previous
+    // `browser --list` before a submodule bump).
+    while (true) {
+      const queue = this.byCmdHash.get(cmdHash);
+      if (!queue || queue.length === 0) return null;
+      const callId = queue.shift()!;
+      if (queue.length === 0) this.byCmdHash.delete(cmdHash);
+      else this.byCmdHash.set(cmdHash, queue);
+      const entry = this.byCallId.get(callId);
+      if (!entry) continue;
+      if (this.isStale(entry)) {
+        this.deleteEntry(callId);
+        continue;
+      }
+      this.deleteEntry(callId);
+      return entry;
+    }
   }
 
   private deleteEntry(callId: string): void {

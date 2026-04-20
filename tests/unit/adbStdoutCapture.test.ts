@@ -76,6 +76,29 @@ describe('AdbStdoutCapture', () => {
     expect(match('python', ['script.py'])).toBe(false);
   });
 
+  it('does NOT intercept browser wrapper invocations (Node stream-mode deadlock avoidance)', () => {
+    // Intentional non-interception: attaching `.on('data')` on a bash/cmd.exe
+    // child's stdout flips it into flowing mode, which deadlocks openclaw's
+    // paused-mode `stream.read()` shell-exec reader (child pipe fills, the
+    // wrapper process never exits). The `browser` dispatcher (bash/cmd.exe
+    // shim to browser_helper.py) self-POSTs to the sidechannel instead.
+    //
+    // We lock this guarantee in: the hook's detection regex must stay
+    // scoped to the `python -m ai_dev_browser.tools.*` literal so it never
+    // sees a shell-wrapped `browser` / legacy `aidb` match.
+    const matchesPython = (cmd: string, args: string[]) => /(?:^|[\\/])(python|python3)(?:\.exe)?$/i.test(cmd) && args.indexOf('-m') >= 0 && /^ai_dev_browser\.tools\./.test(args[args.indexOf('-m') + 1] ?? '');
+    // Python direct still matches (and will be teed by the hook).
+    expect(matchesPython('python', ['-m', 'ai_dev_browser.tools.page_info'])).toBe(true);
+    // browser / aidb dispatcher forms — all must return false (hook ignores).
+    expect(matchesPython('/home/u/.nexus/sudoclaw/bin/browser', ['page_goto'])).toBe(false);
+    expect(matchesPython('/home/u/.nexus/sudoclaw/bin/aidb', ['page_goto'])).toBe(false);
+    expect(matchesPython('bash', ['-c', 'browser page_goto'])).toBe(false);
+    expect(matchesPython('bash', ['-c', 'aidb page_goto'])).toBe(false);
+    expect(matchesPython('cmd.exe', ['/c', 'browser.cmd page_discover'])).toBe(false);
+    expect(matchesPython('cmd.exe', ['/c', 'aidb.cmd page_discover'])).toBe(false);
+    expect(matchesPython('pwsh.exe', ['-Command', 'browser page_info'])).toBe(false);
+  });
+
   it('does not mutate the caller-supplied env object', () => {
     capture = new AdbStdoutCapture({ sidechannelUrl: sink!.url, sidechannelSecret: 'shh' });
     capture.apply();
