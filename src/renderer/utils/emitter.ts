@@ -41,6 +41,8 @@ interface EventTypes {
   'agent.connection.status': [string, string]; // [conversationId, status]
   'staroffice.install.request': [{ conversationId: string; text: string; detectedUrl?: string | null }];
   'staroffice.install.finished': [{ conversationId: string }];
+  // 技能列表变更事件 / Skills list changed event (install, uninstall, update, import, toggle)
+  'skills.changed': void;
   // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
   'guid.reset': void;
 }
