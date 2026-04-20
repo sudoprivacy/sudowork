@@ -31,9 +31,10 @@ import type { TenantConfigItem } from '@/renderer/components/SettingsModal/conte
 const mockConfigItem: TenantConfigItem = {
   id: 1,
   name: 'model_config',
+  pinyin: 'model_config',
   entries: [
-    { id: 10, config_key: 'max_tokens', config_desc: '最大token数' },
-    { id: 11, config_key: 'temperature', config_desc: '温度参数' },
+    { id: 10, config_key: 'max_tokens', config_desc: '最大token数', name: '最大Token数', required: 1 },
+    { id: 11, config_key: 'temperature', config_desc: '温度参数', name: '温度参数', required: 0 },
   ],
 };
 
@@ -74,7 +75,8 @@ describe('TenantConfigItemGroup', () => {
     const itemWithNullDesc: TenantConfigItem = {
       id: 3,
       name: 'raw_config',
-      entries: [{ id: 30, config_key: 'raw_key', config_desc: null }],
+      pinyin: 'raw_config',
+      entries: [{ id: 30, config_key: 'raw_key', config_desc: null, name: 'raw_key', required: 1 }],
     };
     render(<TenantConfigItemGroup {...defaultProps} configItem={itemWithNullDesc} enabled={true} />);
     // Config item name renders in the header

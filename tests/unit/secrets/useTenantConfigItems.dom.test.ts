@@ -53,15 +53,17 @@ const defaultApiResponse = {
     {
       id: 1,
       name: 'model_config',
+      pinyin: 'model_config',
       entries: [
-        { id: 10, config_key: 'max_tokens', config_desc: '最大token数' },
-        { id: 11, config_key: 'temperature', config_desc: '温度参数' },
+        { id: 10, config_key: 'max_tokens', config_desc: '最大token数', name: '最大Token数', required: 1 },
+        { id: 11, config_key: 'temperature', config_desc: '温度参数', name: '温度参数', required: 0 },
       ],
     },
     {
       id: 2,
       name: 'prompt_config',
-      entries: [{ id: 20, config_key: 'system_prompt', config_desc: '系统提示词' }],
+      pinyin: 'prompt_config',
+      entries: [{ id: 20, config_key: 'system_prompt', config_desc: '系统提示词', name: '系统提示词', required: 1 }],
     },
   ],
 };
@@ -126,9 +128,9 @@ describe('useTenantConfigItems', () => {
 
   it('should load values from Nexus for each entry', async () => {
     mockSecretGet.mockImplementation(({ namespace, key }: { namespace: string; key: string }) => {
-      if (namespace === 'tenant:1' && key === 'max_tokens') return Promise.resolve({ success: true, data: '4096' });
-      if (namespace === 'tenant:1' && key === 'temperature') return Promise.resolve({ success: true, data: '0.7' });
-      if (namespace === 'tenant:2' && key === 'system_prompt') return Promise.resolve({ success: true, data: 'You are helpful' });
+      if (namespace === 'service:model_config' && key === 'max_tokens') return Promise.resolve({ success: true, data: '4096' });
+      if (namespace === 'service:model_config' && key === 'temperature') return Promise.resolve({ success: true, data: '0.7' });
+      if (namespace === 'service:prompt_config' && key === 'system_prompt') return Promise.resolve({ success: true, data: 'You are helpful' });
       return Promise.resolve({ success: true, data: null });
     });
 
@@ -158,6 +160,26 @@ describe('useTenantConfigItems', () => {
 
     expect(result.current.configItems).toHaveLength(0);
     expect(result.current.error).toBeNull();
+  });
+
+  it('should filter out config items with null pinyin', async () => {
+    mockApiSuccess({
+      success: true,
+      data: [
+        { id: 1, name: 'valid_item', pinyin: 'valid_item', entries: [{ id: 10, config_key: 'key1', config_desc: 'desc', name: 'Key1', required: 1 }] },
+        { id: 2, name: 'invalid_item', pinyin: null, entries: [{ id: 20, config_key: 'key2', config_desc: 'desc', name: 'Key2', required: 1 }] },
+      ],
+    });
+
+    const { result } = renderHook(() => useTenantConfigItems());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.configItems).toHaveLength(1);
+    expect(result.current.configItems[0].name).toBe('valid_item');
+    expect(result.current.valuesMap[2]).toBeUndefined();
   });
 
   it('should handle no token (not logged in)', async () => {
@@ -190,7 +212,8 @@ describe('useTenantConfigItems', () => {
               {
                 id: 1,
                 name: 'model_config',
-                entries: [{ id: 10, config_key: 'max_tokens', config_desc: '最大token数' }],
+                pinyin: 'model_config',
+                entries: [{ id: 10, config_key: 'max_tokens', config_desc: '最大token数', name: '最大Token数', required: 1 }],
               },
             ],
           }),
@@ -259,7 +282,7 @@ describe('useTenantConfigItems', () => {
     });
 
     const success = await act(async () => {
-      return result.current.saveItem(1, result.current.configItems[0].entries, {
+      return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
         max_tokens: '8192',
         temperature: '0.5',
       });
@@ -268,13 +291,13 @@ describe('useTenantConfigItems', () => {
     expect(success).toBe(true);
     expect(mockSecretPut).toHaveBeenCalledTimes(2);
     expect(mockSecretPut).toHaveBeenCalledWith({
-      namespace: 'tenant:1',
+      namespace: 'service:model_config',
       key: 'max_tokens',
       value: '8192',
-      description: '最大token数',
+      description: '最大Token数',
     });
     expect(mockSecretPut).toHaveBeenCalledWith({
-      namespace: 'tenant:1',
+      namespace: 'service:model_config',
       key: 'temperature',
       value: '0.5',
       description: '温度参数',
@@ -294,7 +317,7 @@ describe('useTenantConfigItems', () => {
     });
 
     const success = await act(async () => {
-      return result.current.saveItem(1, result.current.configItems[0].entries, {
+      return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
         max_tokens: '8192',
         temperature: '0.5',
       });
@@ -310,7 +333,8 @@ describe('useTenantConfigItems', () => {
         {
           id: 3,
           name: 'raw_config',
-          entries: [{ id: 30, config_key: 'raw_key', config_desc: null }],
+          pinyin: 'raw_config',
+          entries: [{ id: 30, config_key: 'raw_key', config_desc: null, name: 'raw_key', required: 1 }],
         },
       ],
     });
@@ -322,11 +346,11 @@ describe('useTenantConfigItems', () => {
     });
 
     await act(async () => {
-      await result.current.saveItem(3, result.current.configItems[0].entries, { raw_key: 'raw_value' });
+      await result.current.saveItem(3, 'raw_config', result.current.configItems[0].entries, { raw_key: 'raw_value' });
     });
 
     expect(mockSecretPut).toHaveBeenCalledWith({
-      namespace: 'tenant:3',
+      namespace: 'service:raw_config',
       key: 'raw_key',
       value: 'raw_value',
       description: 'raw_key',
@@ -374,7 +398,7 @@ describe('useTenantConfigItems', () => {
     expect(result.current.savingId).toBeNull();
 
     // Start save
-    const savePromise = result.current.saveItem(1, result.current.configItems[0].entries, {
+    const savePromise = result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
       max_tokens: '8192',
       temperature: '0.5',
     });

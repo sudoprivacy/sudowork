@@ -23,7 +23,7 @@ interface UseTenantConfigItemsReturn {
   error: string | null;
   refresh: () => Promise<void>;
   toggleEnabled: (configItemId: number, enabled: boolean) => Promise<void>;
-  saveItem: (configItemId: number, entries: TenantConfigEntry[], values: TenantConfigValues) => Promise<boolean>;
+  saveItem: (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues) => Promise<boolean>;
 }
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}): Promise<Response> {
@@ -36,8 +36,8 @@ async function fetchWithAuth(url: string, token: string, options: RequestInit = 
   return response;
 }
 
-function buildNamespace(configItemId: number): string {
-  return `tenant:${configItemId}`;
+function buildNamespace(pinyin: string): string {
+  return `service:${pinyin}`;
 }
 
 export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigItemsReturn {
@@ -73,7 +73,9 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
 
     const promises: Promise<void>[] = [];
     for (const item of items) {
-      const namespace = buildNamespace(item.id);
+      if (!item.pinyin) continue;
+
+      const namespace = buildNamespace(item.pinyin);
       const values: TenantConfigValues = {};
 
       for (const entry of item.entries) {
@@ -135,11 +137,12 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
 
       if (data.success && Array.isArray(data.data)) {
         const items: TenantConfigItem[] = data.data;
+        const validItems = items.filter((item) => item.pinyin !== null);
         if (mountedRef.current) {
-          setConfigItems(items);
+          setConfigItems(validItems);
         }
-        await loadValuesFromNexus(items);
-        await loadEnabledStates(items.map((i) => i.id));
+        await loadValuesFromNexus(validItems);
+        await loadEnabledStates(validItems.map((i) => i.id));
       } else {
         if (mountedRef.current) {
           setConfigItems([]);
@@ -187,9 +190,9 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
   );
 
   const saveItem = useCallback(
-    async (configItemId: number, entries: TenantConfigEntry[], values: TenantConfigValues): Promise<boolean> => {
+    async (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues): Promise<boolean> => {
       setSavingId(configItemId);
-      const namespace = buildNamespace(configItemId);
+      const namespace = buildNamespace(pinyin);
 
       try {
         const results = await Promise.all(

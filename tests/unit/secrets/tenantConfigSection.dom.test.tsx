@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 const {
@@ -76,12 +76,14 @@ const defaultApiResponse = {
     {
       id: 1,
       name: 'model_config',
-      entries: [{ id: 10, config_key: 'max_tokens', config_desc: '最大token数' }],
+      pinyin: 'model_config',
+      entries: [{ id: 10, config_key: 'max_tokens', config_desc: '最大token数', name: '最大Token数', required: 1 }],
     },
     {
       id: 2,
       name: 'prompt_config',
-      entries: [{ id: 20, config_key: 'system_prompt', config_desc: '系统提示词' }],
+      pinyin: 'prompt_config',
+      entries: [{ id: 20, config_key: 'system_prompt', config_desc: '系统提示词', name: '系统提示词', required: 1 }],
     },
   ],
 };
@@ -118,7 +120,7 @@ describe('TenantConfigSection', () => {
     expect(screen.getByText('prompt_config')).toBeInTheDocument();
   });
 
-  it('should show empty state when API returns empty array', async () => {
+  it('should not render anything when API returns empty array', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -127,16 +129,21 @@ describe('TenantConfigSection', () => {
 
     render(<TenantConfigSection />);
 
-    await screen.findByText('暂无租户配置项');
-    expect(screen.queryByTestId('config-item-1')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('config-item-1')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('spin')).not.toBeInTheDocument();
   });
 
-  it('should show empty state when not logged in', async () => {
+  it('should not render anything when not logged in', async () => {
     mockEnsureValidToken.mockResolvedValue(null);
 
     render(<TenantConfigSection />);
 
-    await screen.findByText('暂无租户配置项');
+    await waitFor(() => {
+      expect(screen.queryByTestId('config-item-1')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('spin')).not.toBeInTheDocument();
   });
 
   it('should show error state with retry button on API failure', async () => {
@@ -182,5 +189,27 @@ describe('TenantConfigSection', () => {
     await screen.findByTestId('config-item-2');
 
     expect(screen.getAllByTestId(/config-item-\d/)).toHaveLength(2);
+  });
+
+  it('should filter out config items with null pinyin', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [
+            { id: 1, name: 'valid_item', pinyin: 'valid_item', entries: [{ id: 10, config_key: 'key1', config_desc: 'desc', name: 'Key1', required: 1 }] },
+            { id: 2, name: 'invalid_item', pinyin: null, entries: [{ id: 20, config_key: 'key2', config_desc: 'desc', name: 'Key2', required: 1 }] },
+          ],
+        }),
+    });
+
+    render(<TenantConfigSection />);
+
+    await screen.findByTestId('config-item-1');
+    expect(screen.getByText('valid_item')).toBeInTheDocument();
+    expect(screen.queryByTestId('config-item-2')).not.toBeInTheDocument();
+    expect(screen.queryByText('invalid_item')).not.toBeInTheDocument();
   });
 });

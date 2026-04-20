@@ -54,9 +54,14 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
   }, []);
 
   const handleSave = useCallback(async () => {
-    const emptyEntry = configItem.entries.find((entry) => !localValues[entry.config_key]?.trim());
-    if (emptyEntry) {
-      Message.warning(t('settings.secrets.tenantFieldRequired', '请填写所有配置项'));
+    const emptyRequiredEntry = configItem.entries.find((entry) => entry.required === 1 && !localValues[entry.config_key]?.trim());
+    if (emptyRequiredEntry) {
+      Message.warning(
+        t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
+          configItemName: configItem.name,
+          entryName: emptyRequiredEntry.name,
+        }),
+      );
       return;
     }
     const success = await onSave(localValues);
@@ -69,7 +74,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
     } else {
       Message.error(t('settings.secrets.tenantSaveFailed', '配置保存失败'));
     }
-  }, [localValues, onSave, enabled, onToggleEnabled, t, configItem.entries]);
+  }, [localValues, onSave, enabled, onToggleEnabled, t, configItem.entries, configItem.name]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {
@@ -106,7 +111,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
         <div className='flex flex-col gap-24px'>
           <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
             {configItem.entries.map((entry) => (
-              <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required>
+              <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
                 <Input
                   value={localValues[entry.config_key] || ''}
                   onChange={(val) => handleValueChange(entry.config_key, val)}
