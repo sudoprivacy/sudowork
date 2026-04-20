@@ -1033,18 +1033,21 @@ class ConversionService {
       const tempDir = outputDir || path.join(os.tmpdir(), 'sudowork-libreoffice-' + Date.now());
       await fs.mkdir(tempDir, { recursive: true });
 
-      // macOS workaround: Copy file to temp with ASCII name to avoid NFD Unicode encoding issues
-      // macOS stores filenames in NFD form, which LibreOffice cannot handle for Chinese characters
+      // Unicode workaround: Copy file to temp with ASCII name to avoid encoding issues
+      // - macOS stores filenames in NFD form, which LibreOffice cannot handle for CJK characters
+      // - Windows cmd.exe may mangle non-ASCII characters depending on codepage settings
+      // - LibreOffice headless mode on any platform can struggle with non-ASCII paths
       let sourcePath = filePath;
       let tempFile: string | undefined;
       let baseName = path.basename(filePath, ext);
 
-      if (process.platform === 'darwin') {
+      const hasNonAscii = /[^\x00-\x7F]/.test(path.basename(filePath));
+      if (process.platform === 'darwin' || hasNonAscii) {
         tempFile = path.join(tempDir, 'input' + ext);
         await fs.copyFile(filePath, tempFile);
         sourcePath = tempFile;
         baseName = 'input'; // Use ASCII name for the output PDF as well
-        mainLog('ConversionService', 'Copied file to temp path for macOS Unicode compatibility:', tempFile);
+        mainLog('ConversionService', 'Copied file to temp path for Unicode compatibility:', tempFile);
       }
 
       // Queue the conversion to prevent concurrent LibreOffice processes
@@ -1147,6 +1150,33 @@ class ConversionService {
     if (repairResult) {
       mainLog('ConversionService', 'Repair-and-convert succeeded');
       return repairResult;
+    }
+
+    // --- Attempt 3: mammoth-based fallback (docx only) ---
+    // Bypass LibreOffice entirely by using mammoth to parse the docx → HTML,
+    // then render the HTML to PDF via BrowserWindow.  mammoth is much more
+    // forgiving with malformed / "corrupted" docx files.
+    if (ext.toLowerCase() === '.docx') {
+      mainLog('ConversionService', 'All LibreOffice attempts failed. Trying mammoth-based fallback...');
+      try {
+        const buffer = await fs.readFile(sourcePath);
+        const mammothResult = await mammoth.convertToHtml({ buffer });
+        const html = mammothResult.value;
+        if (html && html.trim().length > 0) {
+          const fallbackPdfPath = path.join(tempDir, baseName + '.pdf');
+          const pdfResult = await this.htmlToPdf(html, fallbackPdfPath);
+          if (pdfResult.success) {
+            const resolvedPath = await fs.realpath(fallbackPdfPath);
+            mainLog('ConversionService', 'Mammoth-based fallback succeeded:', resolvedPath);
+            return { success: true, data: resolvedPath };
+          }
+          mainWarn('ConversionService', 'Mammoth produced HTML but PDF rendering failed:', pdfResult.error);
+        } else {
+          mainWarn('ConversionService', 'Mammoth produced empty HTML');
+        }
+      } catch (mammothErr) {
+        mainWarn('ConversionService', 'Mammoth-based fallback also failed:', mammothErr);
+      }
     }
 
     // All attempts failed
@@ -1298,16 +1328,21 @@ class ConversionService {
 
   /**
    * Get the LibreOffice output format identifier for re-saving a document
-   * Used during the repair process to open and re-save documents in their original format
+   * Used during the repair process to open and re-save documents.
+   *
+   * Uses LibreOffice-native ODF formats (odt/ods/odp) as intermediate format
+   * rather than re-saving to the original OOXML format. The ODF import→export
+   * path in LibreOffice is more forgiving with minor structural issues in
+   * source documents.
    */
   private getResaveFormat(ext: string): string | null {
     const formatMap: Record<string, string> = {
-      '.doc': 'doc',
-      '.docx': 'docx',
-      '.xls': 'xls',
-      '.xlsx': 'xlsx',
-      '.ppt': 'ppt',
-      '.pptx': 'pptx',
+      '.doc': 'odt',
+      '.docx': 'odt',
+      '.xls': 'ods',
+      '.xlsx': 'ods',
+      '.ppt': 'odp',
+      '.pptx': 'odp',
       '.odt': 'odt',
       '.ods': 'ods',
       '.odp': 'odp',
