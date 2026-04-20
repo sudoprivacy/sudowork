@@ -162,6 +162,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       } else {
         emitter.emit('acp.selected.file', []);
       }
+      // Notify @file selector to refresh / 通知 @文件 选择器刷新
+      emitter.emit(`${eventPrefix}.workspace.refresh` as any);
       closeDeleteModal();
       setTimeout(() => refreshWorkspace(), 200);
     } catch (error) {
@@ -259,6 +261,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       }
 
       messageApi.success(t('conversation.workspace.contextMenu.renameSuccess'));
+      // Notify @file selector to refresh / 通知 @文件 选择器刷新
+      emitter.emit(`${eventPrefix}.workspace.refresh` as any);
     } catch (error) {
       if (error instanceof Error && error.message === 'timeout') {
         messageApi.error(t('conversation.workspace.contextMenu.renameTimeout'));

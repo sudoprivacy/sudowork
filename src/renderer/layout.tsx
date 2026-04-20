@@ -16,6 +16,7 @@ import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
+import { useTenantConfig } from './context/TenantConfigContext';
 import { useDeepLink } from './hooks/useDeepLink';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
@@ -82,6 +83,7 @@ const Layout: React.FC<{
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
   const { hasEvent, status, confirm, cancel } = useSafetyCheck();
+  const { config } = useTenantConfig(); // 获取租户配置
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window === 'undefined' ? 390 : window.innerWidth));
@@ -315,8 +317,8 @@ const Layout: React.FC<{
                 onClick={onClick}
               >
                 <img
-                  src={SudoworkIcon}
-                  alt='SudoClaw'
+                  src={config.logo || SudoworkIcon}
+                  alt={config.app_name}
                   className={classNames('absolute inset-0 m-auto', {
                     'w-5.5 h-5.5 p-1 scale-140': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
@@ -324,7 +326,7 @@ const Layout: React.FC<{
                   style={{ objectFit: 'contain' }}
                 />
               </div>
-              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>SudoClaw</div>
+              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>{config.app_name}</div>
               {isMobile && !collapsed && (
                 <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
                   {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}

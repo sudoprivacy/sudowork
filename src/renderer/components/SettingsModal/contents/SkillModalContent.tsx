@@ -13,6 +13,7 @@ import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch } fro
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
+import { emitter } from '@/renderer/utils/emitter';
 import { skillHub } from '@/common/ipcBridge';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -664,6 +665,7 @@ const SkillModalContent: React.FC = () => {
           );
           await fetchInstalledSkills();
           await fetchInstalledList();
+          emitter.emit('skills.changed');
           // Open standalone audit report modal (just the audit summary, not the full detail page)
           setAuditReportSkillName(importedSkillName);
           setAuditReportVisible(true);
@@ -962,6 +964,7 @@ const SkillModalContent: React.FC = () => {
           );
           await fetchInstalledSkills();
           await fetchInstalledList();
+          emitter.emit('skills.changed');
         } else {
           Message.error(
             t('settings.skill.installFailed', {
@@ -1041,6 +1044,7 @@ const SkillModalContent: React.FC = () => {
           Message.success(`已卸载技能：${skillName}`);
           await fetchInstalledSkills();
           await fetchInstalledList();
+          emitter.emit('skills.changed');
           // Close detail modal if showing this skill
           if (detailSkill?.name === skillName) {
             setDetailVisible(false);
@@ -1095,6 +1099,7 @@ const SkillModalContent: React.FC = () => {
           );
           await fetchInstalledSkills();
           await fetchInstalledList();
+          emitter.emit('skills.changed');
         } else {
           Message.error(
             t('settings.skill.updateFailed', {
@@ -1128,6 +1133,7 @@ const SkillModalContent: React.FC = () => {
         if (res.success) {
           Message.success(enabled ? t('settings.skill.enableSuccess', { name: skillName, defaultValue: `已启用技能：${skillName}` }) : t('settings.skill.disableSuccess', { name: skillName, defaultValue: `已禁用技能：${skillName}` }));
           await fetchInstalledList();
+          emitter.emit('skills.changed');
         } else {
           Message.error(
             t('settings.skill.toggleEnabledFailed', {
