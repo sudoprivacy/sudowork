@@ -52,7 +52,7 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
           enabled={enabledMap[item.id] ?? false}
           saving={savingId === item.id}
           onToggleEnabled={(enabled) => void toggleEnabled(item.id, enabled)}
-          onSave={(values) => saveItem(item.id, item.pinyin!, item.entries, values)}
+          onSave={(values) => saveItem(item.id, item.pinyin!, item.entries, values, valuesMap[item.id] || {})}
         />
       ))}
     </div>

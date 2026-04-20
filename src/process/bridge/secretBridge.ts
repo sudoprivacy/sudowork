@@ -42,4 +42,28 @@ export function initSecretBridge(): void {
       return { success: false, data: [] };
     }
   });
+
+  ipcBridge.secret.delete.provider(async ({ namespace, key }) => {
+    try {
+      const client = getSecretStoreClient();
+      const deleted = await client.deleteSecret(namespace, key);
+      mainLog('SecretBridge', `Secret deleted [${namespace}/${key}]`);
+      return { success: true, data: deleted };
+    } catch (err) {
+      mainError('SecretBridge', `Failed to delete secret [${namespace}/${key}]:`, err);
+      return { success: false, data: false };
+    }
+  });
+
+  ipcBridge.secret.restore.provider(async ({ namespace, key }) => {
+    try {
+      const client = getSecretStoreClient();
+      const restored = await client.restoreSecret(namespace, key);
+      mainLog('SecretBridge', `Secret restored [${namespace}/${key}]`);
+      return { success: true, data: restored };
+    } catch (err) {
+      mainError('SecretBridge', `Failed to restore secret [${namespace}/${key}]:`, err);
+      return { success: false, data: false };
+    }
+  });
 }

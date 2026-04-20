@@ -112,7 +112,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
           <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
             {configItem.entries.map((entry) => (
               <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                <Input
+                <Input.Password
                   value={localValues[entry.config_key] || ''}
                   onChange={(val) => handleValueChange(entry.config_key, val)}
                   placeholder={`请输入${entry.name}`}

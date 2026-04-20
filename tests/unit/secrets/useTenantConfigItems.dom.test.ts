@@ -8,12 +8,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // --- Mock declarations via vi.hoisted (Vitest 4 pattern) ---
-const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockConfigStorageGet, mockConfigStorageSet, mockFetch } =
+const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockSecretDelete, mockSecretRestore, mockConfigStorageGet, mockConfigStorageSet, mockFetch } =
   vi.hoisted(() => ({
     mockEnsureValidToken: vi.fn(),
     mockForceRefreshToken: vi.fn(),
     mockSecretGet: vi.fn(),
     mockSecretPut: vi.fn(),
+    mockSecretDelete: vi.fn(),
+    mockSecretRestore: vi.fn(),
     mockConfigStorageGet: vi.fn(),
     mockConfigStorageSet: vi.fn(),
     mockFetch: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock('@/common/ipcBridge', () => ({
   secret: {
     get: { invoke: (...args: unknown[]) => mockSecretGet(...args) },
     put: { invoke: (...args: unknown[]) => mockSecretPut(...args) },
+    delete: { invoke: (...args: unknown[]) => mockSecretDelete(...args) },
+    restore: { invoke: (...args: unknown[]) => mockSecretRestore(...args) },
   },
 }));
 
@@ -84,6 +88,8 @@ describe('useTenantConfigItems', () => {
     mockForceRefreshToken.mockResolvedValue('new-access-token');
     mockSecretGet.mockResolvedValue({ success: true, data: null });
     mockSecretPut.mockResolvedValue({ success: true });
+    mockSecretDelete.mockResolvedValue({ success: true, data: true });
+    mockSecretRestore.mockResolvedValue({ success: true, data: true });
     mockConfigStorageGet.mockResolvedValue(undefined);
     mockConfigStorageSet.mockResolvedValue(undefined);
 
@@ -285,7 +291,7 @@ describe('useTenantConfigItems', () => {
       return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
         max_tokens: '8192',
         temperature: '0.5',
-      });
+      }, {});
     });
 
     expect(success).toBe(true);
@@ -320,7 +326,7 @@ describe('useTenantConfigItems', () => {
       return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
         max_tokens: '8192',
         temperature: '0.5',
-      });
+      }, {});
     });
 
     expect(success).toBe(false);
@@ -346,7 +352,7 @@ describe('useTenantConfigItems', () => {
     });
 
     await act(async () => {
-      await result.current.saveItem(3, 'raw_config', result.current.configItems[0].entries, { raw_key: 'raw_value' });
+      await result.current.saveItem(3, 'raw_config', result.current.configItems[0].entries, { raw_key: 'raw_value' }, {});
     });
 
     expect(mockSecretPut).toHaveBeenCalledWith({
@@ -401,11 +407,240 @@ describe('useTenantConfigItems', () => {
     const savePromise = result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
       max_tokens: '8192',
       temperature: '0.5',
-    });
+    }, {});
 
     // After save completes, savingId should be null
     await savePromise;
 
     expect(result.current.savingId).toBeNull();
+  });
+
+  describe('saveItem with delete/restore handling', () => {
+    // Helper to get a rendered hook result
+    async function getHookResult() {
+      const { result } = renderHook(() => useTenantConfigItems());
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+      return result;
+    }
+
+    it('should skip empty values when no old value exists (no delete called)', async () => {
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).toHaveBeenCalledTimes(1);
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens' }));
+      expect(mockSecretDelete).not.toHaveBeenCalled();
+    });
+
+    it('should delete empty values when old value exists', async () => {
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '',
+        }, { temperature: '0.7' });
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).toHaveBeenCalledTimes(1);
+      expect(mockSecretDelete).toHaveBeenCalledTimes(1);
+      expect(mockSecretDelete).toHaveBeenCalledWith({ namespace: 'service:model_config', key: 'temperature' });
+    });
+
+    it('should not block when delete fails (key does not exist)', async () => {
+      mockSecretDelete.mockRejectedValue(new Error('Secret not found'));
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '',
+        }, { temperature: '0.7' });
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not block when delete fails (key already deleted)', async () => {
+      mockSecretDelete.mockResolvedValue({ success: false, data: false });
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '',
+        }, { temperature: '0.7' });
+      });
+
+      expect(success).toBe(true);
+    });
+
+    it('should put directly when get succeeds (key exists and is active)', async () => {
+      mockSecretGet.mockResolvedValue({ success: true, data: '4096' });
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretRestore).not.toHaveBeenCalled();
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens', value: '8192' }));
+    });
+
+    it('should restore then put when get fails (key deleted)', async () => {
+      mockSecretGet.mockResolvedValue({ success: false, data: null });
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretRestore).toHaveBeenCalledWith({ namespace: 'service:model_config', key: 'max_tokens' });
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens', value: '8192' }));
+    });
+
+    it('should still put when restore fails (key never existed)', async () => {
+      mockSecretGet.mockResolvedValue({ success: false, data: null });
+      mockSecretRestore.mockRejectedValue(new Error('Secret not found'));
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretRestore).toHaveBeenCalled();
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens', value: '8192' }));
+    });
+
+    it('should return false when restore fails and put also fails', async () => {
+      mockSecretGet.mockResolvedValue({ success: false, data: null });
+      mockSecretRestore.mockRejectedValue(new Error('Secret not found'));
+      mockSecretPut.mockRejectedValue(new Error('Network error'));
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+        }, {});
+      });
+
+      expect(success).toBe(false);
+    });
+
+    it('should delete all when all values are empty with old values', async () => {
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '',
+          temperature: '',
+        }, { max_tokens: '4096', temperature: '0.7' });
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).not.toHaveBeenCalled();
+      expect(mockSecretDelete).toHaveBeenCalledTimes(2);
+    });
+
+    it('should skip all when all values are empty with no old values', async () => {
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '',
+          temperature: '',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).not.toHaveBeenCalled();
+      expect(mockSecretDelete).not.toHaveBeenCalled();
+      expect(mockSecretRestore).not.toHaveBeenCalled();
+    });
+
+    it('should handle mixed scenario: some put, some delete, some skip', async () => {
+      // max_tokens: has value, get succeeds -> put directly
+      // temperature: empty, has old value -> delete
+      // system_prompt: has value, get fails -> restore + put
+      mockSecretGet.mockImplementation(({ key }: { key: string }) => {
+        if (key === 'max_tokens') return Promise.resolve({ success: true, data: '4096' });
+        return Promise.resolve({ success: false, data: null });
+      });
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '',
+        }, { temperature: '0.7' });
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).toHaveBeenCalledTimes(1);
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens', value: '8192' }));
+      expect(mockSecretDelete).toHaveBeenCalledTimes(1);
+      expect(mockSecretDelete).toHaveBeenCalledWith({ namespace: 'service:model_config', key: 'temperature' });
+    });
+
+    it('should treat whitespace-only values as empty', async () => {
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '   ',
+        }, {});
+      });
+
+      expect(success).toBe(true);
+      expect(mockSecretPut).toHaveBeenCalledTimes(1);
+      expect(mockSecretPut).toHaveBeenCalledWith(expect.objectContaining({ key: 'max_tokens' }));
+      expect(mockSecretDelete).not.toHaveBeenCalled();
+    });
+
+    it('should return false when put partially fails in mixed scenario', async () => {
+      mockSecretPut.mockImplementation(({ key }: { key: string }) => {
+        if (key === 'max_tokens') return Promise.resolve({ success: true });
+        return Promise.reject(new Error('put failed'));
+      });
+
+      const result = await getHookResult();
+
+      const success = await act(async () => {
+        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
+          max_tokens: '8192',
+          temperature: '0.5',
+        }, {});
+      });
+
+      expect(success).toBe(false);
+    });
   });
 });

@@ -23,7 +23,7 @@ interface UseTenantConfigItemsReturn {
   error: string | null;
   refresh: () => Promise<void>;
   toggleEnabled: (configItemId: number, enabled: boolean) => Promise<void>;
-  saveItem: (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues) => Promise<boolean>;
+  saveItem: (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues, oldValues: TenantConfigValues) => Promise<boolean>;
 }
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}): Promise<Response> {
@@ -190,20 +190,56 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
   );
 
   const saveItem = useCallback(
-    async (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues): Promise<boolean> => {
+    async (configItemId: number, pinyin: string, entries: TenantConfigEntry[], values: TenantConfigValues, oldValues: TenantConfigValues): Promise<boolean> => {
       setSavingId(configItemId);
       const namespace = buildNamespace(pinyin);
 
       try {
         const results = await Promise.all(
-          entries.map((entry) =>
-            secret.put.invoke({
-              namespace,
-              key: entry.config_key,
-              value: values[entry.config_key] || '',
-              description: entry.name,
-            }),
-          ),
+          entries.map(async (entry) => {
+            const currentValue = values[entry.config_key]?.trim() ?? '';
+            const hasOldValue = !!oldValues[entry.config_key]?.trim();
+
+            if (!currentValue) {
+              // Value is empty: delete old value if exists, otherwise skip
+              if (!hasOldValue) return { success: true as const };
+              try {
+                await secret.delete.invoke({ namespace, key: entry.config_key });
+                return { success: true as const };
+              } catch {
+                // Delete failure (key may not exist or already deleted) is not blocking
+                return { success: true as const };
+              }
+            }
+
+            // Value is not empty: check current state via get
+            try {
+              const getResult = await secret.get.invoke({ namespace, key: entry.config_key });
+              if (!getResult.success) {
+                // get failed — key may not exist or is deleted, try restore (ignore failure)
+                try {
+                  await secret.restore.invoke({ namespace, key: entry.config_key });
+                } catch {
+                  // Restore failure is not blocking
+                }
+              }
+            } catch {
+              // get invoke itself failed (e.g. IPC not available), try restore as fallback
+              try {
+                await secret.restore.invoke({ namespace, key: entry.config_key });
+              } catch {
+                // Restore failure is not blocking
+              }
+            }
+
+            // Put the new value
+            try {
+              const result = await secret.put.invoke({ namespace, key: entry.config_key, value: currentValue, description: entry.name });
+              return { success: !!result.success };
+            } catch {
+              return { success: false as const };
+            }
+          }),
         );
 
         const allSuccess = results.every((r) => r.success);
