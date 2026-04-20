@@ -845,7 +845,18 @@
     "waitingPayment": "等待支付...",
     "expireAt": "过期时间",
     "createOrder": "创建订单",
-    "successDesc": "积分已到账，请查收"
+    "successDesc": "积分已到账，请查收",
+    "continuePayFailed": "继续支付失败",
+    "createNewOrder": "重新下单",
+    "loading": "正在获取订单信息..."
+  },
+  "orders": {
+    "title": "订单记录",
+    "total": "共 {{count}} 条",
+    "noOrders": "暂无订单记录",
+    "loadFailed": "加载订单失败",
+    "continuePay": "继续支付",
+    "refresh": "刷新"
   },
   "secrets": "秘钥管理",
   "secrets.title": "秘钥管理",

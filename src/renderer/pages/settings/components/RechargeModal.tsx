@@ -54,7 +54,7 @@ interface OrderStatus {
   paid_at?: string;
 }
 
-type RechargeStep = 'select' | 'paying' | 'success' | 'failed';
+type RechargeStep = 'select' | 'loading' | 'paying' | 'success' | 'failed';
 type PaymentMethod = 'ALIPAY' | 'WECHAT';
 
 enum OrderStatusEnum {
@@ -70,11 +70,17 @@ interface RechargeModalProps {
   visible: boolean;
   onCancel: () => void;
   onSuccess?: () => void;
+  continuePayOrderNo?: string; // 新增：继续支付订单号
 }
 
 // ==================== Component ====================
 
-const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSuccess }) => {
+const RechargeModal: React.FC<RechargeModalProps> = ({
+  visible,
+  onCancel,
+  onSuccess,
+  continuePayOrderNo, // 新增
+}) => {
   const { t } = useTranslation();
   const { user: currentUser, refresh } = useAuth();
 
@@ -229,6 +235,78 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
     [currentUser?.token, t, refresh, onSuccess]
   );
 
+  // Continue payment for existing order
+  const handleContinuePay = useCallback(
+    async (orderNoParam: string) => {
+      if (!currentUser?.token) return;
+
+      setLoading(true);
+      setError(null);
+      try {
+        const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
+        const baseUrl = serverConfig.baseUrl;
+
+        // Step 1: Query order details to populate UI
+        const queryRes = await fetch(`${baseUrl}/api/v1/recharge/query/${orderNoParam}`, {
+          headers: { Authorization: `Bearer ${currentUser.token}` },
+        });
+        const queryData = await queryRes.json();
+
+        if (!queryData.success) {
+          setError(queryData.msg || '获取订单信息失败');
+          setStep('failed');
+          setLoading(false);
+          return;
+        }
+
+        const orderDetails = queryData.data;
+        // Create pseudo-package for UI display
+        setSelectedPackage({
+          amount: orderDetails.amount_usd,
+          amount_cny: orderDetails.amount_cny,
+          points: orderDetails.points,
+          bonus: 0,
+          description: '',
+          exchange_rate: orderDetails.exchange_rate || 7.3,
+        });
+        setExpiredAt(new Date(orderDetails.expired_at));
+
+        // Step 2: Get QR code
+        const payRes = await fetch(`${baseUrl}/api/v1/recharge/pay`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ order_no: orderNoParam }),
+        });
+        const payData = await payRes.json();
+
+        if (!payData.success) {
+          setError(payData.msg || '获取支付二维码失败');
+          setStep('failed');
+          return;
+        }
+
+        const payResult: PayOrderResponse = payData.data;
+        setOrderNo(orderNoParam);
+        setQrCodeUrl(payResult.qr_code_url);
+        setOrderInfo(payResult.order_info);
+        setStep('paying');
+
+        // 开始轮询
+        startPolling(baseUrl, orderNoParam);
+      } catch (err) {
+        console.error('Failed to continue payment:', err);
+        setError(t('settings.recharge.continuePayFailed') || '继续支付失败');
+        setStep('failed');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentUser?.token, t, startPolling]
+  );
+
   // Stop polling
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -237,7 +315,20 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
     }
   }, []);
 
-  // Cancel order
+  // Reset state - 必须在其他函数之前定义
+  const resetState = useCallback(() => {
+    setStep('select');
+    setSelectedPackage(null);
+    setOrderNo(null);
+    setQrCodeUrl(null);
+    setOrderInfo(null);
+    setExpiredAt(null);
+    setError(null);
+    setLoading(false);
+    setPaying(false);
+  }, []);
+
+  // Cancel order - 直接关闭弹窗返回用户中心
   const handleCancelOrder = useCallback(async () => {
     if (!currentUser?.token || !orderNo) return;
 
@@ -253,20 +344,8 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
 
     stopPolling();
     resetState();
-  }, [currentUser?.token, orderNo, stopPolling]);
-
-  // Reset state
-  const resetState = useCallback(() => {
-    setStep('select');
-    setSelectedPackage(null);
-    setOrderNo(null);
-    setQrCodeUrl(null);
-    setOrderInfo(null);
-    setExpiredAt(null);
-    setError(null);
-    setLoading(false);
-    setPaying(false);
-  }, []);
+    onCancel(); // 直接关闭弹窗返回用户中心
+  }, [currentUser?.token, orderNo, stopPolling, resetState, onCancel]);
 
   // Handle modal close
   const handleCancel = useCallback(() => {
@@ -278,12 +357,19 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
   // Handle modal visibility
   useEffect(() => {
     if (visible) {
-      void fetchPackages();
+      if (continuePayOrderNo) {
+        // 继续支付模式：先设置loading状态，避免闪现套餐页面
+        setStep('loading');
+        void handleContinuePay(continuePayOrderNo);
+      } else {
+        // 正常模式：加载套餐
+        void fetchPackages();
+      }
     } else {
       stopPolling();
       resetState();
     }
-  }, [visible, fetchPackages, stopPolling, resetState]);
+  }, [visible, continuePayOrderNo, fetchPackages, handleContinuePay, stopPolling, resetState]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -434,9 +520,22 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
       <div className='text-14px text-t-secondary'>{error}</div>
       <div className='flex gap-12px'>
         <Button onClick={handleCancel}>{t('common.close') || '关闭'}</Button>
-        <Button type='primary' onClick={resetState}>
-          {t('settings.recharge.retryPayment') || '重新下单'}
-        </Button>
+        {/* 如果是继续支付失败，提供重新下单选项 */}
+        {continuePayOrderNo ? (
+          <Button
+            type='primary'
+            onClick={() => {
+              resetState();
+              void fetchPackages();
+            }}
+          >
+            {t('settings.recharge.createNewOrder') || '重新下单'}
+          </Button>
+        ) : (
+          <Button type='primary' onClick={resetState}>
+            {t('settings.recharge.retryPayment') || '重新下单'}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -446,6 +545,13 @@ const RechargeModal: React.FC<RechargeModalProps> = ({ visible, onCancel, onSucc
     switch (step) {
       case 'select':
         return renderPackageSelection();
+      case 'loading':
+        return (
+          <div className='flex flex-col items-center py-60px space-y-16px'>
+            <Spin />
+            <div className='text-14px text-t-secondary'>{t('settings.recharge.loading') || '正在获取订单信息...'}</div>
+          </div>
+        );
       case 'paying':
         return renderPaying();
       case 'success':

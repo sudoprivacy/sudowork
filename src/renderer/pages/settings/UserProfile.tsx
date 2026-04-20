@@ -4,6 +4,7 @@ import { Avatar, Progress, Table, Tag, Button, Input, Modal, Message } from '@ar
 import { User, Phone, Wechat, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import RechargeModal from './components/RechargeModal';
+import OrderList from './components/OrderList';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 
@@ -17,6 +18,8 @@ const UserProfile: React.FC = () => {
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [rechargeModalVisible, setRechargeModalVisible] = useState(false);
+  const [continuePayOrderNo, setContinuePayOrderNo] = useState<string | undefined>(undefined);
+  const [orderListRefreshKey, setOrderListRefreshKey] = useState(0);
 
   // 带自动刷新的 fetch 封装
   const fetchWithAuth = useCallback(
@@ -144,6 +147,24 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const handleContinuePay = useCallback((orderNo: string) => {
+    setContinuePayOrderNo(orderNo);
+    setRechargeModalVisible(true);
+  }, []);
+
+  const handleRechargeModalClose = useCallback(() => {
+    setRechargeModalVisible(false);
+    setContinuePayOrderNo(undefined);
+    // 关闭弹窗时刷新订单列表
+    setOrderListRefreshKey((prev) => prev + 1);
+  }, []);
+
+  const handleRechargeSuccess = useCallback(() => {
+    void fetchProfile();
+    void refresh();
+    setOrderListRefreshKey((prev) => prev + 1);
+  }, [fetchProfile, refresh]);
+
   return (
     <SettingsPageWrapper contentClassName='max-w-800px'>
       <div className='flex flex-col gap-24px py-8px'>
@@ -222,6 +243,9 @@ const UserProfile: React.FC = () => {
           </div>
         </div>
 
+        {/* Order List */}
+        <OrderList onContinuePay={handleContinuePay} refreshKey={orderListRefreshKey} />
+
         {/* Ledger Table */}
         {/* <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
           <div className='px-20px py-16px border-b border-border-base font-600 text-14px text-t-primary'>使用流水</div>
@@ -258,14 +282,7 @@ const UserProfile: React.FC = () => {
       </Modal>
 
       {/* Recharge Modal */}
-      <RechargeModal
-        visible={rechargeModalVisible}
-        onCancel={() => setRechargeModalVisible(false)}
-        onSuccess={() => {
-          void fetchProfile();
-          void refresh();
-        }}
-      />
+      <RechargeModal visible={rechargeModalVisible} onCancel={handleRechargeModalClose} onSuccess={handleRechargeSuccess} continuePayOrderNo={continuePayOrderNo} />
     </SettingsPageWrapper>
   );
 };

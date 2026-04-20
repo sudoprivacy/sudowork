@@ -843,7 +843,18 @@
     "waitingPayment": "Waiting for payment...",
     "expireAt": "Expires at",
     "createOrder": "Create Order",
-    "successDesc": "Points have been credited to your account"
+    "successDesc": "Points have been credited to your account",
+    "continuePayFailed": "Continue payment failed",
+    "createNewOrder": "Create New Order",
+    "loading": "Loading order info..."
+  },
+  "orders": {
+    "title": "Order History",
+    "total": "{{count}} orders",
+    "noOrders": "No orders yet",
+    "loadFailed": "Failed to load orders",
+    "continuePay": "Continue Payment",
+    "refresh": "Refresh"
   },
   "secrets": "Secrets",
   "secrets.title": "Secrets",
