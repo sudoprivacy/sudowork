@@ -198,7 +198,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
               namespace,
               key: entry.config_key,
               value: values[entry.config_key] || '',
-              description: entry.config_desc || entry.config_key,
+              description: entry.name,
             }),
           ),
         );
