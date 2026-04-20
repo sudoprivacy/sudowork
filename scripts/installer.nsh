@@ -376,6 +376,10 @@ $\r$\n\
       ${else}
         StrCpy $1 ""
       ${endif}
+      ; Defensive fallback: if $launchLink target is missing, use the exe (#366)
+      ${IfNot} ${FileExists} "$launchLink"
+        StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      ${EndIf}
       ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
     FunctionEnd
 
@@ -424,6 +428,9 @@ $\r$\n\
     !else
       Delete "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
     !endif
+    ; electron-builder sets $launchLink to the start menu .lnk BEFORE
+    ; customInstall runs; repoint it to the exe now that the .lnk is gone (#366)
+    StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
     DetailPrint "Skipped start menu shortcut per user preference."
   ${EndIf}
 
