@@ -10,17 +10,26 @@ import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/u
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
+import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
+import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
 }
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='SudoClaw' className='app-titlebar__brand-logo w-5 h-5 object-contain' />;
+const AionLogoMark: React.FC<{ config: Required<typeof DEFAULT_TENANT_CONFIG> }> = ({ config }) => (
+  <img
+    src={config.logo || SudoworkIcon}
+    alt={config.app_name}
+    className='app-titlebar__brand-logo w-5 h-5 object-contain'
+  />
+);
 
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
-  const appTitle = useMemo(() => 'SudoClaw', []);
+  const { config } = useTenantConfig();
+  const appTitle = useMemo(() => config.top_name, [config.top_name]);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
   const [mobileCenterOffset, setMobileCenterOffset] = useState(0);
@@ -212,7 +221,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
       <div className='app-titlebar__brand' aria-label={layout?.isMobile ? mobileCenterTitle : appTitle} title={layout?.isMobile ? mobileCenterTitle : appTitle}>
         {layout?.isMobile ? (
           <span className='app-titlebar__brand-mobile'>
-            <AionLogoMark />
+            <AionLogoMark config={config} />
             <span className='app-titlebar__brand-text'>{mobileCenterTitle}</span>
           </span>
         ) : (

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User } from '@icon-park/react';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
 import './LoginPage.css';
@@ -24,11 +25,26 @@ function isValidPhone(phone: string): boolean {
   return false;
 }
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
+// 从 localStorage 读取缓存的租户配置
+function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
+  try {
+    const cached = localStorage.getItem('sudowork_tenant_config');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return { ...DEFAULT_TENANT_CONFIG, ...parsed };
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_TENANT_CONFIG;
+}
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { status, login, register } = useAuth();
+
+  // 从 localStorage 读取缓存的租户配置
+  const tenantConfig = getCachedTenantConfig();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginPhone, setLoginPhone] = useState('');
@@ -310,10 +326,14 @@ const LoginPage: React.FC = () => {
       <div className='login-page__card'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <AionLogoMark />
+            <img
+              src={tenantConfig.logo || SudoworkIcon}
+              alt={tenantConfig.app_name}
+              className='w-64px h-64px object-contain'
+            />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
-          <p className='text-13px text-t-secondary'>AgentOps | 办公专家</p>
+          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+          <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
         </div>
 
         {/* Tab switcher */}
