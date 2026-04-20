@@ -187,6 +187,14 @@ const ChatLayout: React.FC<{
         return;
       }
 
+      // 预览打开时不自动展开工作空间，防止在窄屏（高 DPI + 非全屏）下
+      // 工作空间展开/折叠反复切换导致无限闪烁
+      // Skip auto-expand when preview is open to prevent infinite collapse/expand
+      // oscillation on narrow screens (high DPI + non-fullscreen)
+      if (isPreviewOpen) {
+        return;
+      }
+
       // 检查用户是否有手动设置的偏好 / Check if user has manual preference
       let userPreference: 'expanded' | 'collapsed' | null = null;
       if (conversationId) {
@@ -221,7 +229,7 @@ const ChatLayout: React.FC<{
     return () => {
       window.removeEventListener(WORKSPACE_HAS_FILES_EVENT, handleHasFiles);
     };
-  }, [layout?.isMobile, workspaceEnabled, rightSiderCollapsed]);
+  }, [layout?.isMobile, workspaceEnabled, rightSiderCollapsed, isPreviewOpen]);
 
   useEffect(() => {
     if (!workspaceEnabled) {
@@ -234,16 +242,20 @@ const ChatLayout: React.FC<{
   useEffect(() => {
     const element = containerRef.current;
     if (!element) {
-      setContainerWidth(typeof window === 'undefined' ? 0 : window.innerWidth);
+      setContainerWidth(typeof window === 'undefined' ? 0 : Math.round(window.innerWidth));
       return;
     }
-    setContainerWidth(element.offsetWidth);
+    setContainerWidth(Math.round(element.offsetWidth));
     if (typeof ResizeObserver === 'undefined') {
       return;
     }
     const observer = new ResizeObserver((entries) => {
       if (!entries.length) return;
-      setContainerWidth(entries[0].contentRect.width);
+      // Round to integer to prevent sub-pixel oscillation on high-DPI displays (e.g. 150% scaling).
+      // Non-integer contentRect.width values at fractional DPI ratios can alternate between frames,
+      // causing infinite layout recalculation loops.
+      const newWidth = Math.round(entries[0].contentRect.width);
+      setContainerWidth((prev) => (prev === newWidth ? prev : newWidth));
     });
     observer.observe(element);
     return () => {
@@ -362,7 +374,10 @@ const ChatLayout: React.FC<{
       return;
     }
     const clampedChat = Math.max(dynamicChatMinRatio, Math.min(dynamicChatMaxRatio, chatSplitRatio));
-    if (clampedChat !== chatSplitRatio) {
+    // Use a threshold to prevent oscillation from floating-point precision issues.
+    // Without this, sub-pixel container width changes at high DPI can cause the
+    // clamped value to differ by infinitesimal amounts, triggering infinite re-renders.
+    if (Math.abs(clampedChat - chatSplitRatio) > 0.1) {
       setChatSplitRatio(clampedChat);
     }
   }, [chatSplitRatio, dynamicChatMaxRatio, dynamicChatMinRatio, isDesktop, isPreviewOpen, setChatSplitRatio, workspaceEnabled]);
