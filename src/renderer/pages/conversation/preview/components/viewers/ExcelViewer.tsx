@@ -5,13 +5,15 @@
  */
 
 import { ipcBridge } from '@/common';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 import type { ExcelWorkbookData } from '@/common/types/conversion';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
+import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
 
 interface ExcelPreviewProps {
   filePath?: string;
@@ -81,6 +83,23 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
   const [useLibreOffice, setUseLibreOffice] = useState<boolean>(false);
+  const [needsLibreOfficeInstall, setNeedsLibreOfficeInstall] = useState(false);
+  const [installingLibreOffice, setInstallingLibreOffice] = useState(false);
+  const [installPercent, setInstallPercent] = useState<number | undefined>(undefined);
+  const [installPhase, setInstallPhase] = useState<string | undefined>(undefined);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  // Refs for install handler
+  const filePathRef = useRef(filePath);
+  const messageApiRef = useRef(messageApi);
+
+  useEffect(() => {
+    filePathRef.current = filePath;
+  }, [filePath]);
+
+  useEffect(() => {
+    messageApiRef.current = messageApi;
+  }, [messageApi]);
 
   const handleOpenInSystem = useCallback(async () => {
     if (!filePath) {
@@ -130,6 +149,43 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       }
     }
   }, [filePath, useLibreOffice, messageApi, t]);
+
+  const handleInstallLibreOffice = useCallback(async () => {
+    setInstallingLibreOffice(true);
+    setInstallPercent(undefined);
+    setInstallPhase(undefined);
+    try {
+      const res = await libreOfficeIpc.install.invoke();
+      if (!res?.success) {
+        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      }
+    } catch (e) {
+      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+    }
+    // Don't reset installingLibreOffice here — the installResult event will handle it
+  }, [t]);
+
+  // Listen for LibreOffice install progress and result
+  useEffect(() => {
+    const unsubProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
+      setInstallingLibreOffice(true);
+      setInstallPhase(phase);
+      if (percent != null) setInstallPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubResult = libreOfficeIpc.installResult.on(() => {
+      setInstallingLibreOffice(false);
+      setInstallPercent(undefined);
+      setInstallPhase(undefined);
+      if (needsLibreOfficeInstall) {
+        setNeedsLibreOfficeInstall(false);
+        setReloadTrigger((n) => n + 1);
+      }
+    });
+    return () => {
+      unsubProgress();
+      unsubResult();
+    };
+  }, [needsLibreOfficeInstall]);
 
   useEffect(() => {
     const loadExcel = async () => {
@@ -209,9 +265,14 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
               setUseLibreOffice(false);
               throw new Error(pdfResponse.result.error || t('preview.excel.convertFailed'));
             }
+          } else if (isWideTable && !libreOfficeAvailable) {
+            // 宽表格且 LibreOffice 不可用：提示安装 / Wide table and no LibreOffice: prompt install
+            setNeedsLibreOfficeInstall(true);
+            setLoading(false);
+            return;
           } else {
-            // 宽表格或 LibreOffice 不可用：使用 JSON 渲染 / Wide table or LibreOffice unavailable: use JSON
-            console.log('[ExcelViewer] Using JSON rendering (wide table or no LibreOffice)');
+            // LibreOffice 不可用但非宽表格：使用 JSON 渲染 / No LibreOffice but not wide: use JSON
+            console.log('[ExcelViewer] Using JSON rendering (no LibreOffice)');
           }
         } else {
           throw new Error(jsonResponse.result.error || t('preview.excel.loadFailed'));
@@ -224,7 +285,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     };
 
     void loadExcel();
-  }, [filePath, t]);
+  }, [filePath, t, reloadTrigger]);
 
   const sheetCount = excelData?.sheets.length;
 
@@ -404,6 +465,20 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     return (
       <div className='flex items-center justify-center h-full'>
         <div className='text-14px text-t-secondary'>{t('preview.excel.loading')}</div>
+      </div>
+    );
+  }
+
+  if (needsLibreOfficeInstall) {
+    return (
+      <div className='h-full w-full'>
+        <LibreOfficeInstallPrompt
+          fileType='excel'
+          installing={installingLibreOffice}
+          percent={installPercent}
+          phase={installPhase}
+          onInstall={handleInstallLibreOffice}
+        />
       </div>
     );
   }

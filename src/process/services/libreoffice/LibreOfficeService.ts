@@ -114,7 +114,7 @@ export class LibreOfficeService {
     const cachedFilePath = this.getCachedFilePath();
 
     if (fs.existsSync(cachedFilePath) && fs.statSync(cachedFilePath).size > 0) {
-      onProgress('downloading', 100);
+      onProgress('downloading', 90);
 
       if (process.platform === 'darwin') {
         return this.installMacFromCachedFile(cachedFilePath, onProgress);
@@ -384,10 +384,10 @@ export class LibreOfficeService {
     let mountPoint: string | undefined;
 
     try {
-      onProgress('mounting');
+      onProgress('mounting', 92);
       mountPoint = await this.mountDmg(cachedFilePath);
 
-      onProgress('copying');
+      onProgress('copying', 96);
       const appEntry = fs.readdirSync(mountPoint).find((f) => f.endsWith('.app'));
       if (!appEntry) throw new Error('No .app found in mounted DMG');
       const src = path.join(mountPoint, appEntry).replace(/'/g, "'\\''");
@@ -395,24 +395,24 @@ export class LibreOfficeService {
       await execFileAsync('osascript', ['-e', script]);
     } finally {
       if (mountPoint) {
-        onProgress('unmounting');
+        onProgress('unmounting', 98);
         try {
           await execFileAsync('hdiutil', ['detach', mountPoint, '-quiet']);
         } catch {
           /* ignore */
         }
       }
-      onProgress('cleanup');
+      onProgress('cleanup', 100);
     }
   }
 
   private async installWindowsFromCachedFile(cachedFilePath: string, onProgress: ProgressCallback): Promise<void> {
     try {
-      onProgress('installing');
+      onProgress('installing', 92);
       // /passive shows a minimal progress UI and triggers UAC elevation automatically
       await execFileAsync('msiexec', ['/i', cachedFilePath, '/passive', '/norestart']);
     } finally {
-      onProgress('cleanup');
+      onProgress('cleanup', 100);
     }
   }
 
@@ -420,11 +420,11 @@ export class LibreOfficeService {
     const extractDir = path.join(path.dirname(filePath), 'libreoffice-extract-' + Date.now());
 
     try {
-      onProgress('extracting');
+      onProgress('extracting', 92);
       if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
       await execFileAsync('tar', ['-xzf', filePath, '-C', extractDir]);
 
-      onProgress('installing');
+      onProgress('installing', 96);
       const debsDir = this.findDebsDir(extractDir);
       if (!debsDir) throw new Error('No DEBS directory found in LibreOffice package');
       const debFiles = fs.readdirSync(debsDir).filter((f) => f.endsWith('.deb'));
@@ -438,7 +438,7 @@ export class LibreOfficeService {
       } catch {
         /* ignore */
       }
-      onProgress('cleanup');
+      onProgress('cleanup', 100);
     }
   }
 

@@ -67,7 +67,20 @@
     "notInstalled": "LibreOffice is not installed. Please install LibreOffice to preview this file.",
     "convertFailed": "LibreOffice conversion failed",
     "timeout": "Conversion timed out. The file may be too large or complex.",
-    "fileNotFound": "Source file not found"
+    "fileNotFound": "Source file not found",
+    "installPrompt": "LibreOffice is required to preview this file. Click below to install it.",
+    "installButton": "Install LibreOffice",
+    "installing": "Installing LibreOffice...",
+    "systemPrompt": "LibreOffice is a free and open-source office suite",
+    "phase": {
+      "downloading": "Downloading",
+      "mounting": "Mounting disk image",
+      "copying": "Copying application",
+      "unmounting": "Unmounting disk image",
+      "installing": "Installing",
+      "extracting": "Extracting files",
+      "cleanup": "Cleaning up"
+    }
   },
   "word": {
     "title": "Word Document",

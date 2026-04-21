@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
@@ -12,6 +13,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
 import MarkdownPreview from './MarkdownViewer';
+import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
 
 interface WordPreviewProps {
   filePath?: string;
@@ -41,6 +43,11 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
   const [useLibreOffice, setUseLibreOffice] = useState<boolean>(false);
+  const [needsLibreOfficeInstall, setNeedsLibreOfficeInstall] = useState(false);
+  const [installingLibreOffice, setInstallingLibreOffice] = useState(false);
+  const [installPercent, setInstallPercent] = useState<number | undefined>(undefined);
+  const [installPhase, setInstallPhase] = useState<string | undefined>(undefined);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Use refs to avoid recreating callbacks on every render
   const filePathRef = useRef(filePath);
@@ -59,6 +66,29 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     messageApiRef.current = messageApi;
   }, [messageApi]);
 
+  // Listen for LibreOffice install progress and result
+  useEffect(() => {
+    const unsubProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
+      setInstallingLibreOffice(true);
+      setInstallPhase(phase);
+      if (percent != null) setInstallPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubResult = libreOfficeIpc.installResult.on(() => {
+      setInstallingLibreOffice(false);
+      setInstallPercent(undefined);
+      setInstallPhase(undefined);
+      // Retry loading the document after install completes
+      if (needsLibreOfficeInstall) {
+        setNeedsLibreOfficeInstall(false);
+        setReloadTrigger((n) => n + 1);
+      }
+    });
+    return () => {
+      unsubProgress();
+      unsubResult();
+    };
+  }, [needsLibreOfficeInstall]);
+
   const handleOpenInSystem = useCallback(async () => {
     const currentFilePath = filePathRef.current;
     if (!currentFilePath) {
@@ -72,6 +102,21 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     } catch (err) {
       messageApiRef.current.error(t('preview.openInSystemFailed'));
     }
+  }, [t]);
+
+  const handleInstallLibreOffice = useCallback(async () => {
+    setInstallingLibreOffice(true);
+    setInstallPercent(undefined);
+    setInstallPhase(undefined);
+    try {
+      const res = await libreOfficeIpc.install.invoke();
+      if (!res?.success) {
+        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      }
+    } catch (e) {
+      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+    }
+    // Don't reset installingLibreOffice here — the installResult event will handle it
   }, [t]);
 
   const handleRefresh = useCallback(async () => {
@@ -151,9 +196,11 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
 
         console.log('[WordViewer] LibreOffice available:', available, 'filePath:', filePath, 'isLegacyDoc:', isLegacyDoc);
 
-        // If file is legacy .doc format and LibreOffice is not available, show helpful error
+        // If file is legacy .doc format and LibreOffice is not available, prompt to install
         if (isLegacyDoc && !available) {
-          throw new Error(t('preview.word.legacyDocFormat'));
+          setNeedsLibreOfficeInstall(true);
+          setLoading(false);
+          return;
         }
 
         if (available) {
@@ -213,7 +260,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     };
 
     void loadDocument();
-  }, [filePath, t]);
+  }, [filePath, t, reloadTrigger]);
 
   // 设置工具栏扩展
   useEffect(() => {
@@ -248,6 +295,20 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     return (
       <div className='flex items-center justify-center h-full'>
         <div className='text-14px text-t-secondary'>{t('preview.word.loading')}</div>
+      </div>
+    );
+  }
+
+  if (needsLibreOfficeInstall) {
+    return (
+      <div className='h-full w-full'>
+        <LibreOfficeInstallPrompt
+          fileType='word'
+          installing={installingLibreOffice}
+          percent={installPercent}
+          phase={installPhase}
+          onInstall={handleInstallLibreOffice}
+        />
       </div>
     );
   }
