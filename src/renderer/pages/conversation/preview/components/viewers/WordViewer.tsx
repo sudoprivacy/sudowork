@@ -317,7 +317,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     return (
       <div className='flex items-center justify-center h-full'>
         <div className='text-center'>
-          <div className='text-16px text-t-error mb-8px'>❌ {error}</div>
+          <div className='text-16px text-danger mb-8px'>❌ {error}</div>
           <div className='text-12px text-t-secondary'>{t('preview.word.invalid')}</div>
         </div>
       </div>

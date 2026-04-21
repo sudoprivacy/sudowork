@@ -261,7 +261,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
       <div className='flex items-center justify-center h-full'>
         {messageContextHolder}
         <div className='text-center'>
-          <div className='text-16px text-t-error mb-8px'>❌ {error}</div>
+          <div className='text-16px text-danger mb-8px'>❌ {error}</div>
           <div className='text-12px text-t-secondary'>{t('preview.ppt.invalid')}</div>
         </div>
       </div>
