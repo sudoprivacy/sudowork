@@ -315,8 +315,8 @@ const SendBox: React.FC<{
 
   // Transform installed skills to selector items (only enabled skills)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(
-    () =>
-      installedSkills
+    () => {
+      const items = installedSkills
         .filter((skill) => skill.enabled !== false)
         .map((skill) => {
           const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
@@ -328,7 +328,10 @@ const SendBox: React.FC<{
             emoji: skill.meta?.emoji,
             enabled: skill.enabled,
           };
-        }),
+        });
+      // Deduplicate items by name to prevent duplicate keys
+      return Array.from(new Map(items.map((item) => [item.name, item])).values());
+    },
     [installedSkills]
   );
 
