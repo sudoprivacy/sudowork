@@ -31,8 +31,8 @@ describe('DingTalkAdapter getDefaultExtension', () => {
     expect(getDefaultExtension('text')).toBe('');
   });
 
-  it('returns empty string for richText', () => {
-    expect(getDefaultExtension('richText')).toBe('');
+  it('returns .jpg for richText (contains picture items)', () => {
+    expect(getDefaultExtension('richText')).toBe('.jpg');
   });
 
   it('returns empty string for undefined', () => {
@@ -547,6 +547,221 @@ describe('DingTalkAdapter extractMessageContent _localPath priority', () => {
       expect(result).not.toBeNull();
       expect(result!.content.attachments![0].fileId).toBe('');
       expect(result!.content.attachments![0].fileName).toBeUndefined();
+    });
+  });
+});
+
+// ==================== richText message handling ====================
+
+describe('DingTalkAdapter richText message handling', () => {
+  const baseMessage: DingTalkStreamMessage = {
+    msgId: 'msg1',
+    senderStaffId: 'staff1',
+    senderNick: 'TestUser',
+    conversationType: '1',
+    createAt: 1000,
+  };
+
+  // --- extractMediaDownloadInfo for richText ---
+
+  describe('extractMediaDownloadInfo for richText', () => {
+    it('returns downloadCode for richText with picture item (content.richText path)', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [
+            { text: 'hello' },
+            { downloadCode: 'pic_dl_123', pictureDownloadCode: 'pic_pc_123', type: 'picture' },
+          ],
+        },
+      };
+      const result = extractMediaDownloadInfo(data);
+      expect(result).not.toBeNull();
+      expect(result!.downloadCode).toBe('pic_dl_123');
+    });
+
+    it('returns downloadCode for richText with picture item (richText.richTextList fallback)', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        richText: {
+          richTextList: [
+            { text: 'hello' },
+            { downloadCode: 'pic_dl_456', pictureDownloadCode: 'pic_pc_456', type: 'picture' },
+          ],
+        },
+      };
+      const result = extractMediaDownloadInfo(data);
+      expect(result).not.toBeNull();
+      expect(result!.downloadCode).toBe('pic_dl_456');
+    });
+
+    it('returns null for richText with text-only items', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [{ text: 'hello' }, { text: 'world' }],
+        },
+      };
+      expect(extractMediaDownloadInfo(data)).toBeNull();
+    });
+
+    it('returns null for richText with empty content', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {},
+      };
+      expect(extractMediaDownloadInfo(data)).toBeNull();
+    });
+  });
+
+  // --- setMediaLocalPath for richText ---
+
+  describe('setMediaLocalPath for richText', () => {
+    it('sets _localPath on content field for richText', () => {
+      const data: DingTalkStreamMessage = {
+        msgtype: 'richText',
+        content: { richText: [{ text: 'hello' }] },
+      };
+      setMediaLocalPath(data, '/tmp/rich_photo.jpg');
+      expect(data.content!._localPath).toBe('/tmp/rich_photo.jpg');
+    });
+
+    it('does not throw when content is undefined for richText', () => {
+      const data: DingTalkStreamMessage = { msgtype: 'richText' };
+      expect(() => setMediaLocalPath(data, '/tmp/anything.jpg')).not.toThrow();
+    });
+  });
+
+  // --- toUnifiedIncomingMessage for richText ---
+
+  describe('toUnifiedIncomingMessage for richText', () => {
+    it('returns photo type for richText with text+picture (content.richText path)', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [
+            { text: 'hello' },
+            { downloadCode: 'pic_dl_789', pictureDownloadCode: 'pic_pc_789', type: 'picture' },
+          ],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.text).toBe('hello');
+      expect(result!.content.attachments).toBeDefined();
+      expect(result!.content.attachments!.length).toBe(1);
+      expect(result!.content.attachments![0].type).toBe('photo');
+      expect(result!.content.attachments![0].fileId).toBe('pic_dl_789');
+    });
+
+    it('returns photo type for richText with text+picture (richText.richTextList fallback)', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        richText: {
+          richTextList: [
+            { text: 'hello' },
+            { downloadCode: 'pic_dl_abc', pictureDownloadCode: 'pic_pc_abc', type: 'picture' },
+          ],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.text).toBe('hello');
+      expect(result!.content.attachments![0].fileId).toBe('pic_dl_abc');
+    });
+
+    it('uses _localPath when available for richText picture', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          _localPath: '/tmp/channel-media/dingtalk/rich_photo.jpg',
+          richText: [
+            { text: 'hello' },
+            { downloadCode: 'pic_dl_xyz', type: 'picture' },
+          ],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.attachments![0].fileId).toBe('/tmp/channel-media/dingtalk/rich_photo.jpg');
+    });
+
+    it('returns text type for richText with text only', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [{ text: 'hello' }, { text: ' world' }],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('text');
+      expect(result!.content.text).toBe('hello world');
+    });
+
+    it('returns photo type for richText with picture only (no text)', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [
+            { downloadCode: 'pic_only_code', pictureDownloadCode: 'pic_only_pc', type: 'picture' },
+          ],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('photo');
+      expect(result!.content.text).toBe('');
+      expect(result!.content.attachments![0].fileId).toBe('pic_only_code');
+    });
+
+    it('returns text type with empty text for richText with empty array', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: { richText: [] },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('text');
+      expect(result!.content.text).toBe('');
+    });
+
+    it('returns text type for richText with no content field', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('text');
+      expect(result!.content.text).toBe('');
+    });
+
+    it('joins multiple text items for richText', () => {
+      const data: DingTalkStreamMessage = {
+        ...baseMessage,
+        msgtype: 'richText',
+        content: {
+          richText: [{ text: 'line1' }, { text: 'line2' }, { text: 'line3' }],
+        },
+      };
+      const result = toUnifiedIncomingMessage(data);
+      expect(result).not.toBeNull();
+      expect(result!.content.type).toBe('text');
+      expect(result!.content.text).toBe('line1line2line3');
     });
   });
 });

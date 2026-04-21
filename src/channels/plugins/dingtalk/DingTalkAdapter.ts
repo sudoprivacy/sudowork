@@ -86,6 +86,8 @@ export interface DingTalkStreamMessage {
     duration?: string;
     recognition?: string;
     _localPath?: string;
+    /** richText message items (DingTalk places richText array here for richText msgtype) */
+    richText?: DingTalkRichTextItem[];
   };
   sessionWebhook?: string;
   robotCode?: string;
@@ -113,12 +115,59 @@ export interface DingTalkCardActionData {
 const DINGTALK_MEDIA_TYPES = new Set(['picture', 'audio', 'video', 'file']);
 
 /**
+ * A single item in a DingTalk richText message.
+ * Items can be text or picture type.
+ * Per DingTalk docs, picture items include downloadCode/pictureDownloadCode.
+ */
+export interface DingTalkRichTextItem {
+  text?: string;
+  downloadCode?: string;
+  pictureDownloadCode?: string;
+  type?: string; // 'text' | 'picture'
+}
+
+/**
+ * Extract richText items from a DingTalk message, trying multiple data paths:
+ * 1. content.richText (DingTalk Stream API actual path per official docs)
+ * 2. richText.richTextList (legacy/alternative path)
+ * 3. richText as a direct array
+ */
+function getRichTextItems(data: DingTalkStreamMessage): DingTalkRichTextItem[] {
+  if (data.content?.richText && Array.isArray(data.content.richText)) {
+    return data.content.richText;
+  }
+  if (data.richText?.richTextList) {
+    return data.richText.richTextList;
+  }
+  if (Array.isArray((data as any).richText)) {
+    return (data as any).richText;
+  }
+  return [];
+}
+
+/**
  * Extract downloadCode and fileName from a DingTalk message if it contains media.
  * Returns null for non-media message types.
  */
 export function extractMediaDownloadInfo(data: DingTalkStreamMessage): { downloadCode: string; fileName?: string } | null {
   const msgtype = data.msgtype;
-  if (!msgtype || !DINGTALK_MEDIA_TYPES.has(msgtype)) {
+  if (!msgtype) {
+    return null;
+  }
+
+  // richText messages may contain picture items with downloadCode
+  if (msgtype === 'richText') {
+    const items = getRichTextItems(data);
+    const pictureItem = items.find(
+      (item) => item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode),
+    );
+    if (pictureItem?.downloadCode) {
+      return { downloadCode: pictureItem.downloadCode };
+    }
+    return null;
+  }
+
+  if (!DINGTALK_MEDIA_TYPES.has(msgtype)) {
     return null;
   }
 
@@ -153,6 +202,9 @@ export function extractMediaDownloadInfo(data: DingTalkStreamMessage): { downloa
  */
 export function setMediaLocalPath(data: DingTalkStreamMessage, localPath: string): void {
   switch (data.msgtype) {
+    case 'richText':
+      if (data.content) data.content._localPath = localPath;
+      break;
     case 'picture':
       if (data.picture) data.picture._localPath = localPath;
       if (data.content) data.content._localPath = localPath;
@@ -179,6 +231,8 @@ export function getDefaultExtension(msgtype: string | undefined): string {
   switch (msgtype) {
     case 'picture':
       return '.jpg';
+    case 'richText':
+      return '.jpg'; // richText with picture items
     case 'audio':
       return '.amr';
     case 'video':
@@ -313,11 +367,33 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
     }
 
     case 'richText': {
-      const textParts = (data.richText?.richTextList || []).filter((item) => item.type === 'text').map((item) => item.text || '');
+      const items = getRichTextItems(data);
+      const textParts: string[] = [];
+      const pictureCodes: Array<{ downloadCode: string }> = [];
+
+      for (const item of items) {
+        if (item.text) {
+          textParts.push(item.text);
+        }
+        if (item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode)) {
+          pictureCodes.push({ downloadCode: item.downloadCode });
+        }
+      }
+
       let text = textParts.join('');
       if (data.conversationType === '2') {
         text = text.replace(/@\S+\s*/g, '').trim();
       }
+
+      if (pictureCodes.length > 0) {
+        const fileId = data.content?._localPath || pictureCodes[0].downloadCode;
+        return {
+          type: 'photo',
+          text,
+          attachments: [{ type: 'photo', fileId }],
+        };
+      }
+
       return { type: 'text', text };
     }
 
