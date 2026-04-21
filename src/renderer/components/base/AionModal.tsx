@@ -112,6 +112,7 @@ const FOOTER_BASE_CLASS = 'flex-shrink-0 bg-transparent';
  * - 灵活的 header/footer 配置 / Flexible header/footer configuration
  * - 向后兼容旧 API / Backward compatible with old API
  * - 自动视口适配 / Auto viewport adaptation
+ * - 默认支持 Escape 键关闭 / Escape key to close by default
  *
  * @example
  * ```tsx
@@ -363,7 +364,17 @@ const AionModal: React.FC<AionModalProps> = ({
   };
 
   return (
-    <Modal {...props} title={null} closable={false} footer={null} onCancel={onCancel} className={`aionui-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
+    <Modal
+      {...props}
+      title={null}
+      closable={false}
+      footer={null}
+      escToClose={props.escToClose ?? true}
+      onCancel={onCancel}
+      className={`aionui-modal ${className}`}
+      style={finalStyle}
+      getPopupContainer={() => document.body}
+    >
       <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }}>
         {renderHeader()}
         <div className='aionui-modal-body-content' style={bodyInlineStyle}>

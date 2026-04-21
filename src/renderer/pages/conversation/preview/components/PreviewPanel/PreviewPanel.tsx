@@ -27,6 +27,7 @@ import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, 
 import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
 import { useTranslation } from 'react-i18next';
+import { useEffect } from 'react';
 
 /**
  * 预览面板主组件
@@ -77,6 +78,8 @@ const PreviewPanel: React.FC = () => {
   usePreviewKeyboardShortcuts({
     isDirty: activeTab?.isDirty,
     onSave: () => void saveContent(),
+    isOpen,
+    onClose: closePreview,
   });
 
   const setToolbarExtrasCallback = useCallback((extras: PreviewToolbarExtras | null) => {

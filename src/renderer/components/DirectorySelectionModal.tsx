@@ -118,6 +118,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
       onCancel={onCancel}
       onOk={handleConfirm}
       okButtonProps={{ disabled: !selectedPath }}
+      escToClose
       className='w-[90vw] md:w-[600px]'
       style={{ width: 'min(600px, 90vw)' }}
       wrapStyle={{ zIndex: 3000 }}
