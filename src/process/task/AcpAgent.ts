@@ -54,9 +54,26 @@ import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } fro
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
+import { app } from 'electron';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
+
+/**
+ * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
+ * Also detects [Identity Override] blocks that we inject
+ */
+function hasExplicitIdentity(rules: string): boolean {
+  if (!rules) return false;
+  // Check for Identity Override block (injected by our system)
+  if (rules.includes('[Identity Override')) return true;
+  // Chinese patterns: "你是 XX 助手", "你是 **XX**", "你的身份是"
+  const zhPatterns = [/你是\s+.{1,20}助手/, /你是\s+\*{0,2}.{1,20}\*{0,2}[，,。]/, /你的身份是[:：]?/];
+  // English patterns: "You are XX assistant", "I am XX", "Your identity is"
+  const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
+  return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
+}
 
 /**
  * ACP available command type - subset of SlashCommandItem for ACP protocol layer
@@ -630,6 +647,55 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.initAgent(this.options);
       }
 
+      // Dynamic reload of presetContext with latest assistant name (on every message, not just init)
+      // 每次发送消息时动态重新加载 presetContext，确保使用最新的助手名称
+      if (this.options.presetAssistantId) {
+        try {
+          const strippedId = this.options.presetAssistantId.startsWith('builtin-') ? this.options.presetAssistantId.slice('builtin-'.length) : this.options.presetAssistantId;
+
+          // Get latest meta from AssistantManager (filesystem SSOT)
+          const meta = await assistantManager.getAssistantMeta(strippedId);
+
+          // Resolve locale for rule loading
+          const appLocale = app.getLocale() || 'en-US';
+          const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
+
+          // Reload rules from filesystem
+          let loadedRules = await readAssistantResource('rules', this.options.presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
+
+          // Get latest assistant name from meta
+          const latestAgentName = meta?.nameI18n?.[localeKey] || meta?.nameI18n?.['en-US'] || meta?.id || strippedId;
+
+          // Inject identity statement if rules don't have explicit identity
+          if (latestAgentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
+            const identityBlock = localeKey.startsWith('zh')
+              ? `[Identity Override - 最高优先级]
+你的身份是：${latestAgentName}
+当用户询问"你是谁"或类似身份问题时，必须回答："我是${latestAgentName}，有什么可以帮助你的吗？"
+此身份声明优先级高于 USER.md 中的默认身份声明。
+\n\n`
+              : `[Identity Override - Highest Priority]
+Your identity is: ${latestAgentName}
+When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${latestAgentName}. How can I help you?"
+This identity statement takes priority over the default identity in USER.md.
+\n\n`;
+            loadedRules = identityBlock + (loadedRules || '');
+          }
+
+          // Update presetContext with the fresh rules (for subsequent use)
+          this.options.presetContext = loadedRules;
+
+          // Also update agentName for placeholder display
+          if (latestAgentName) {
+            this.options.agentName = latestAgentName;
+          }
+
+          mainLog('[AcpAgent]', `Reloaded presetContext for ${this.options.presetAssistantId} with latest name: ${latestAgentName}`);
+        } catch (error) {
+          mainWarn('[AcpAgent]', 'Failed to reload preset context:', error);
+        }
+      }
+
       if (data.msg_id && data.content) {
         let contentToSend = data.content;
         if (contentToSend.includes(NEXUS_FILES_MARKER)) {
@@ -654,6 +720,20 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             });
             if (skillsDir) {
               contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
+            }
+          }
+        } else if (this.options.presetAssistantId && this.options.presetContext) {
+          // For subsequent messages, inject identity override to ensure latest assistant name
+          // 后续消息时，注入身份声明以确保使用最新的助手名称
+          // Only inject if the presetContext contains Identity Override block
+          if (this.options.presetContext.includes('[Identity Override')) {
+            // Extract the Identity Override block and prepend it
+            // Match from [Identity Override to the end of that block (before next [ or end)
+            const identityStart = this.options.presetContext.indexOf('[Identity Override');
+            const identityEnd = this.options.presetContext.indexOf('\n\n', identityStart);
+            if (identityStart >= 0 && identityEnd > identityStart) {
+              const identityBlock = this.options.presetContext.slice(identityStart, identityEnd);
+              contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
             }
           }
         }
