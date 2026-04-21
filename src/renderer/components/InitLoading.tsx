@@ -6,7 +6,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { init } from '@/common/ipcBridge';
+import { init, windowControls } from '@/common/ipcBridge';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';
 
@@ -373,6 +373,23 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             <div style={{ fontSize: '12px', color: '#8ca0bb', textAlign: 'left', flex: 1 }}>{t('common.setupContinuesInBackground')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {showReinstallActions && renderReinstallButtons()}
+              <button
+                type='button'
+                onClick={() => void windowControls.close.invoke()}
+                style={{
+                  border: '1px solid rgba(248, 113, 113, 0.35)',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
+                  color: '#fee2e2',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {t('common.close') || '关闭'}
+              </button>
               {status.phase !== 'ready' && (
                 <button
                   type='button'
@@ -757,6 +774,23 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               }
             >
               {showReinstallActions && renderReinstallButtons()}
+              <button
+                type='button'
+                onClick={() => void windowControls.close.invoke()}
+                style={{
+                  border: '1px solid rgba(248, 113, 113, 0.35)',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
+                  color: '#fee2e2',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '9px 16px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {t('common.close') || '关闭'}
+              </button>
               <button
                 type='button'
                 onClick={skipInitScreen}
