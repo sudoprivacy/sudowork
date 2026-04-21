@@ -45,6 +45,8 @@ export interface WeChatMediaInfo {
   encrypt_query_param?: string;
   aes_key?: string;
   full_url?: string;
+  /** 0 = only encrypt fileid, 1 = packed thumb/mid info */
+  encrypt_type?: number;
 }
 
 /** Image content within a message item */
@@ -69,6 +71,9 @@ export interface VoiceItem {
 export interface FileItem {
   media?: WeChatMediaInfo;
   file_name?: string;
+  md5?: string;
+  /** File size as string */
+  len?: string;
   file_size?: number;
   file_type?: string;
 }
@@ -76,7 +81,13 @@ export interface FileItem {
 /** Video content within a message item */
 export interface VideoItem {
   media?: WeChatMediaInfo;
+  video_size?: number;
+  play_length?: number;
+  video_md5?: string;
   thumb_media?: WeChatMediaInfo;
+  thumb_size?: number;
+  thumb_height?: number;
+  thumb_width?: number;
   video_length?: number;
   video_width?: number;
   video_height?: number;
@@ -187,3 +198,39 @@ export const WECHAT_MESSAGE_LIMIT = 4000;
 export const WECHAT_SESSION_EXPIRED_CODE = -14;
 export const WECHAT_SESSION_PAUSE_MS = 60 * 60 * 1000;
 export const WECHAT_CHANNEL_VERSION = '1.0.0';
+
+// ==================== Upload Types ====================
+
+/** Media type for upload (getUploadUrl.media_type) */
+export const UploadMediaType = {
+  IMAGE: 1,
+  VIDEO: 2,
+  FILE: 3,
+  VOICE: 4,
+} as const;
+
+/** getUploadUrl request */
+export interface IWeChatGetUploadUrlRequest {
+  filekey?: string; // Random 16-byte hex (32 chars)
+  media_type?: number; // 1=IMAGE, 2=VIDEO, 3=FILE, 4=VOICE
+  to_user_id?: string; // Target user ID
+  rawsize?: number; // Original file size (bytes)
+  rawfilemd5?: string; // MD5 hash of original file (hex)
+  filesize?: number; // Encrypted file size (rawsize + padding)
+  no_need_thumb?: boolean; // Skip thumbnail upload URL
+  aeskey?: string; // AES key (hex, 32 chars)
+  base_info?: BaseInfo;
+}
+
+/** getUploadUrl response */
+export interface IWeChatGetUploadUrlResponse {
+  ret?: number;
+  errcode?: number;
+  errmsg?: string;
+  upload_url?: string; // CDN URL to POST encrypted content (optional)
+  upload_param?: string; // Encrypted upload parameter (base64) - used to construct CDN URL
+  download_param?: string; // Pre-generated download param (optional)
+}
+
+/** CDN base URL for media upload/download */
+export const WECHAT_CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c';

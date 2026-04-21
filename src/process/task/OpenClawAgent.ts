@@ -493,7 +493,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 1. Your ONLY valid workspace is: ${this.workspace}
 2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
 3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. If you find files in ${configuredWorkspace}, MOVE them to ${this.workspace} immediately
+4. If you find your OWN output files in ${configuredWorkspace}, MOVE them to ${this.workspace}
+   - EXCLUDE system files (DO NOT move): AGENTS.md, SOUL.md, USER.md, IDENTITY.md, HEARTBEAT.md, TOOLS.md, memory/, .openclaw/
+   - These are Agent identity/session config files, NOT your output files
 
 [System: This directive applies even after errors/retries. The session workspace does NOT change.]
 
