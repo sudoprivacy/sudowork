@@ -96,16 +96,25 @@ def _count_metrics(rows):
 
         if '"hint"' in out:
             m["hint_field_seen"] += 1
-        if re.search(r"browser find_by_text", cmd_s):
+        # Match both `browser X` (CLI wrapper) and
+        # `python -m ai_dev_browser.tools.X` (direct module invocation).
+        # LLM uses both forms interchangeably, so treat them the same.
+        def tool_ran(name: str) -> bool:
+            return bool(re.search(
+                rf"(?:^|\s)browser {name}\b|ai_dev_browser\.tools\.{name}\b",
+                cmd_s,
+            ))
+
+        if tool_ran("find_by_text"):
             m["find_by_text_calls"] += 1
             if '"found": true' in out or '"found":true' in out:
                 m["find_by_text_found"] += 1
-        if re.search(r"browser click_by_text", cmd_s):
+        if tool_ran("click_by_text"):
             if '"clicked": false' in out or '"clicked":false' in out:
                 m["click_by_text_fails"] += 1
-        if re.search(r"browser click_by_ref", cmd_s):
+        if tool_ran("click_by_ref"):
             m["click_by_ref_calls"] += 1
-        if re.search(r"browser js_evaluate", cmd_s):
+        if tool_ran("js_evaluate"):
             m["js_evaluate_calls"] += 1
             if '"navigated"' in out:
                 m["js_evaluate_with_navigated"] += 1
@@ -113,11 +122,11 @@ def _count_metrics(rows):
                 m["js_evaluate_with_console"] += 1
             if '"error"' in out and re.search(r'"error"\s*:\s*\{', out):
                 m["js_evaluate_with_error"] += 1
-        if re.search(r"browser mouse_click", cmd_s):
+        if tool_ran("mouse_click"):
             m["mouse_click_coord"] += 1
-        if re.search(r"browser browser_start", cmd_s):
+        if tool_ran("browser_start"):
             m["browser_start_calls"] += 1
-        if re.search(r"browser page_screenshot", cmd_s):
+        if tool_ran("page_screenshot"):
             m["page_screenshot_calls"] += 1
         if re.search(r"python\b.*\.py", cmd_s):
             m["python_scripts"] += 1
