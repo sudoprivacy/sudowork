@@ -724,5 +724,12 @@
   "secrets.appSecretRequired": "Lütfen App Secret girin",
   "secrets.save": "Kaydet",
   "secrets.saveSuccess": "Gizli anahtarlar başarıyla kaydedildi",
-  "secrets.saveFailed": "Gizli anahtarlar kaydedilemedi"
+  "secrets.saveFailed": "Gizli anahtarlar kaydedilemedi",
+  "secrets.tenantEmpty": "No tenant configuration items",
+  "secrets.refresh": "Refresh config items",
+  "secrets.refreshSuccess": "Config items refreshed",
+  "secrets.refreshFailed": "Failed to refresh config items",
+  "secrets.tenantSaveSuccess": "Configuration saved successfully",
+  "secrets.tenantSaveFailed": "Failed to save configuration",
+  "secrets.tenantFieldRequired": "Please fill in all configuration items"
 }
