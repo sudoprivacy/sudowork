@@ -96,6 +96,19 @@ const GuidPage: React.FC = () => {
     void fetchInstalledSkills();
   }, []);
 
+  // Re-fetch installed skills when skills are changed (install, uninstall, update, import, toggle)
+  useAddEventListener('skills.changed', async () => {
+    if (!isElectronDesktop()) return;
+    try {
+      const res = await skillHub.getInstalledSkills.invoke();
+      if (res.success && res.data) {
+        setInstalledSkills(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to re-fetch installed skills after change:', err);
+    }
+  });
+
   // Handle skill parameter - auto-add skill to selected list
   useEffect(() => {
     if (skillParam && installedSkillsLoaded) {

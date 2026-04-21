@@ -1011,6 +1011,138 @@ export function patchOpenclawKeepToolResult(): void {
   }
 }
 
+/**
+ * Rewrite openclaw's `read` tool description so multimodal LLMs
+ * understand that calling `read` on an image file makes the pixels
+ * directly visible in their context.
+ *
+ * Upstream's current phrasing is `"Images are sent as attachments."`
+ * This is accurate but doesn't map onto the decision the LLM needs
+ * to make at tool-pick time — "attachments" as a concept isn't
+ * strongly connected, in multimodal LLM training distributions, to
+ * "the model will see pixels after this call returns". The lis8 e2e
+ * trace (conv 826463af) showed a concrete failure: gemini-3-flash
+ * with a captcha screenshot on disk **never called `read`** to see
+ * the captcha, instead trying pdf/gemini CLI/tesseract OCR routes,
+ * all failed, then blind-guessing 3 times.
+ *
+ * Journey B (agent saves screenshot → `read <path>` → tool_result
+ * with image block → convertMessages2 wraps in functionResponse
+ * parts[].inlineData → Gemini API) is architecturally correct — the
+ * code path is wired end-to-end and `supportsMultimodalFunctionResponse`
+ * (line ~125109) returns true for Gemini 3+. The only bottleneck is
+ * that the LLM doesn't know the path exists. Changing the description
+ * to something concrete ("pixel data is embedded into your context")
+ * should steer the LLM to actually use it.
+ *
+ * Kept as a surgical one-phrase replacement — no behaviour change,
+ * no tool signature change, just clearer steering for the LLM. If
+ * upstream ever ships a better phrasing themselves, this patch
+ * becomes a no-op (pattern miss → warn + fail open).
+ */
+export function patchOpenclawReadDescription(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawReadDescription: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  // Uniqueness marker — the replacement phrase is distinctive enough
+  // to detect "already applied" without a separate sentinel comment.
+  // Choosing the exact string 'pixel data is embedded directly' makes
+  // the detection robust even if upstream later rewords the rest of
+  // the description.
+  const replacementMarker = 'pixel data is embedded directly into your context';
+  if (source.includes(replacementMarker)) {
+    return;
+  }
+  const originalPhrase = 'Images are sent as attachments.';
+  // NOTE: the surrounding openclaw source uses a backtick-delimited template
+  // literal (it contains `${DEFAULT_MAX_LINES}` interpolation), so the
+  // replacement MUST NOT contain unescaped backticks — they would close the
+  // template literal and break the bundle's JS parse. Keep "read" plain.
+  const replacementPhrase = 'For images (jpg/png/gif/webp), the pixel data is embedded directly into your context — use the read tool to read captchas, inspect screenshots, and verify UI state visually.';
+  if (!source.includes(originalPhrase)) {
+    mainWarn(
+      'Sudoclaw',
+      'patchOpenclawReadDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to skip `read` for images.',
+    );
+    return;
+  }
+  source = source.replace(originalPhrase, replacementPhrase);
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawReadDescription: read tool description clarified in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawReadDescription: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Rewrite openclaw's `pdf` tool description so the LLM stops reaching
+ * for it as an OCR tool for image files.
+ *
+ * Upstream's current phrasing:
+ *     "Analyze one or more PDF documents with a model. Supports
+ *      native PDF analysis for Anthropic and Google models, with
+ *      text/image extraction fallback for other providers. Use pdf
+ *      for a single path/URL..."
+ *
+ * The `"text/image extraction fallback for other providers"` clause
+ * is technically about PDFs (extracting embedded images/text out of a
+ * PDF for non-native providers), but on LLM read it parses as "this
+ * tool can fall back to extracting text and images" — i.e. a generic
+ * OCR affordance. The lis8 trace shows gemini-3-flash feeding a
+ * `.png` captcha into `pdf` and getting back
+ * `"Expected PDF but got image/png"`; the LLM then spent 10+ steps
+ * moving the PNG between directories trying to placate the tool's
+ * path-validation rather than giving up on the wrong tool.
+ *
+ * We keep the pdf tool fully functional — per product owner, real
+ * PDF analysis is an active use-case (17:32 message in 产研Lead).
+ * We only strip the misleading fallback clause and add an explicit
+ * pointer to `read` for image files, so the LLM picks the right
+ * tool on the first try.
+ */
+export function patchOpenclawPdfDescription(): void {
+  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  if (!fs.existsSync(bundlePath)) {
+    return;
+  }
+  let source: string;
+  try {
+    source = fs.readFileSync(bundlePath, 'utf8');
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawPdfDescription: failed to read bundle: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  const replacementMarker = 'For non-PDF image files';
+  if (source.includes(replacementMarker)) {
+    return;
+  }
+  const originalPhrase = 'Supports native PDF analysis for Anthropic and Google models, with text/image extraction fallback for other providers. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze.';
+  const replacementPhrase = 'Supports native PDF analysis for Anthropic and Google models. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze. For non-PDF image files (jpg/png/gif/webp), use the `read` tool instead — pdf only accepts PDF input.';
+  if (!source.includes(originalPhrase)) {
+    mainWarn(
+      'Sudoclaw',
+      'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.',
+    );
+    return;
+  }
+  source = source.replace(originalPhrase, replacementPhrase);
+  try {
+    fs.writeFileSync(bundlePath, source);
+    mainLog('Sudoclaw', `patchOpenclawPdfDescription: pdf tool description clarified in ${bundlePath}`);
+  } catch (err) {
+    mainWarn('Sudoclaw', `patchOpenclawPdfDescription: failed to write patched bundle: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function ensureUserMdSafetyRules(): void {
   const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
   const safetyRulesBlock = `
