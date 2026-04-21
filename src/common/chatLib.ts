@@ -587,8 +587,17 @@ export const handleImageGenerationWithWorkspace = (message: TMessage, workspace:
     content: {
       ...message.content,
       content: message.content.content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, imagePath) => {
-        // 如果是绝对路径、http链接或data URL，保持不变
-        if (imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('/') || imagePath.startsWith('file:') || imagePath.startsWith('\\') || /^[A-Za-z]:/.test(imagePath)) {
+        // 如果是绝对路径、http链接或data URL，保持不变（但需要处理Windows路径的反斜杠）
+        if (imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('file:')) {
+          return match;
+        }
+        // Windows 绝对路径：标准化反斜杠为正斜杠
+        if (/^[A-Za-z]:/.test(imagePath) || imagePath.startsWith('\\')) {
+          const normalizedPath = imagePath.replace(/\\/g, '/');
+          return `![${alt}](${normalizedPath})`;
+        }
+        // Unix 绝对路径，保持不变
+        if (imagePath.startsWith('/')) {
           return match;
         }
         // 如果是相对路径，与workspace拼接

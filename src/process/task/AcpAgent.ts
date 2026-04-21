@@ -50,7 +50,7 @@ import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
-import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage } from './acp/AcpMessagePipeline';
+import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
@@ -1491,7 +1491,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
     }
 
-    const filteredMessage = filterThinkTagsFromMessage(message as IResponseMessage);
+    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
 
     ipcBridge.acpConversation.responseStream.emit(filteredMessage);
 

@@ -117,3 +117,50 @@ export function filterThinkTagsFromMessage(message: IResponseMessage): IResponse
     data: cleanedContent,
   };
 }
+
+// ========== Windows Path Normalization ==========
+
+/**
+ * Normalize Windows-style backslash paths in markdown image syntax to forward slashes.
+ *
+ * When agents return markdown with Windows paths like `![alt](C:\Users\...\image.png)`,
+ * the backslashes are interpreted as escape characters by the markdown parser (remark),
+ * corrupting the path (e.g. `\.` becomes `.`). This function converts such paths to
+ * forward slashes before the content reaches the frontend markdown renderer.
+ */
+export function normalizeWindowsImagePaths(content: string): string {
+  // Match markdown image syntax where the path starts with a Windows drive letter (e.g. C:\)
+  return content.replace(
+    /!\[([^\]]*)\]\(([A-Za-z]:\\[^)]+)\)/g,
+    (_match, alt: string, imagePath: string) => {
+      const normalizedPath = imagePath.replace(/\\/g, '/');
+      return `![${alt}](${normalizedPath})`;
+    },
+  );
+}
+
+/**
+ * Apply all content message preprocessing: think tag filtering + Windows path normalization.
+ * This is the main entry point for message preprocessing before emission to the frontend.
+ */
+export function preprocessContentMessage(message: IResponseMessage): IResponseMessage {
+  if (message.type !== 'content' || typeof message.data !== 'string') {
+    return message;
+  }
+
+  let data = message.data;
+
+  // 1. Filter think tags
+  if (/<\s*\/?\s*think(?:ing)?\s*>/i.test(data)) {
+    data = stripThinkTags(data);
+  }
+
+  // 2. Normalize Windows image paths
+  data = normalizeWindowsImagePaths(data);
+
+  if (data === message.data) {
+    return message;
+  }
+
+  return { ...message, data };
+}
