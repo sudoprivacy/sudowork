@@ -171,7 +171,7 @@ const PPTHtmlRenderer: React.FC<PPTHtmlRendererProps> = ({ filePath }) => {
       <div className='h-full w-full flex items-center justify-center bg-bg-1'>
         <div className='text-center max-w-400px'>
           <div className='text-48px mb-16px'>❌</div>
-          <div className='text-16px text-t-error font-medium mb-8px'>{t('preview.ppt.loadFailed')}</div>
+          <div className='text-16px text-danger font-medium mb-8px'>{t('preview.ppt.loadFailed')}</div>
           <div className='text-12px text-t-secondary mb-24px whitespace-pre-wrap'>{error}</div>
         </div>
         {messageContextHolder}

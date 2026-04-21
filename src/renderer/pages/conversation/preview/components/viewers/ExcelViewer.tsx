@@ -487,7 +487,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     return (
       <div className='flex items-center justify-center h-full'>
         <div className='text-center'>
-          <div className='text-16px text-t-error mb-8px'>❌ {error}</div>
+          <div className='text-16px text-danger mb-8px'>❌ {error}</div>
           <div className='text-12px text-t-secondary'>{t('preview.excel.invalid')}</div>
         </div>
       </div>
