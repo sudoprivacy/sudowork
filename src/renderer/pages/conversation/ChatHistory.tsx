@@ -17,10 +17,11 @@ import { formatSessionTime } from '@/renderer/utils/messageTime';
 import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 const useTimeline = () => {
   const { t } = useTranslation();
@@ -64,6 +65,12 @@ const useScrollIntoView = (id: string) => {
 
 // Key for localStorage to persist collapsed state of scheduled job folders
 const SCHEDULED_FOLDER_KEY = 'cron_sidebar_expanded_';
+
+// Virtuoso 列表项类型
+type ChatHistoryListItem =
+  | { type: 'section-header'; id: string; title: string }
+  | { type: 'folder-header'; id: string; title: string; isExpanded: boolean }
+  | { type: 'conversation'; id: string; data: TChatConversation; isIndented: boolean };
 
 const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
@@ -204,7 +211,109 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
 
   const formatTimeline = useTimeline();
 
-  const renderConversation = (conversation: TChatConversation) => {
+  // Virtuoso ref for programmatic scrolling
+  const virtuosoRef = React.useRef<VirtuosoHandle>(null);
+
+  // Recent section: exclude cron-created run records (tagged with `extra.cronJobId`).
+  // Pre-bound user conversations stay in their original timeline slot.
+  const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
+
+  // Scheduled section: one group per cron job, sourced from the cron jobs table
+  // so a single conversation bound to multiple jobs appears in multiple groups.
+  const convById = new Map(chatHistory.map((c) => [c.id, c]));
+  const runRecordsByJob = new Map<string, TChatConversation[]>();
+  chatHistory.forEach((conv) => {
+    const jobId = (conv.extra as any)?.cronJobId as string | undefined;
+    if (!jobId) return;
+    if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
+    runRecordsByJob.get(jobId)!.push(conv);
+  });
+  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
+  cronJobs.forEach((job) => {
+    const convs: TChatConversation[] = [];
+    const seen = new Set<string>();
+    if (job.metadata.conversationId) {
+      const bound = convById.get(job.metadata.conversationId);
+      if (bound) {
+        convs.push(bound);
+        seen.add(bound.id);
+      }
+    }
+    (runRecordsByJob.get(job.id) || []).forEach((conv) => {
+      if (!seen.has(conv.id)) {
+        convs.push(conv);
+        seen.add(conv.id);
+      }
+    });
+    if (convs.length === 0) return;
+    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
+    scheduledGroups.push({ jobName: job.name, convs });
+  });
+  scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+
+  // 扁平化所有列表项用于虚拟滚动
+  const listItems = useMemo<ChatHistoryListItem[]>(() => {
+    const items: ChatHistoryListItem[] = [];
+
+    // Scheduled section
+    if (scheduledGroups.length > 0) {
+      // 添加 Scheduled 分组标题
+      items.push({
+        type: 'section-header',
+        id: 'scheduled-section',
+        title: t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' }),
+      });
+
+      // 添加每个定时任务的文件夹和会话
+      scheduledGroups.forEach(({ jobName, convs }) => {
+        const isExpanded = expandedFolders[jobName] !== false;
+        items.push({
+          type: 'folder-header',
+          id: `folder-${jobName}`,
+          title: jobName,
+          isExpanded,
+        });
+
+        if (isExpanded) {
+          convs.forEach((conv) => {
+            items.push({
+              type: 'conversation',
+              id: `conv-${conv.id}`,
+              data: conv,
+              isIndented: true,
+            });
+          });
+        }
+      });
+    }
+
+    // Recent section
+    recentConvs.forEach((item) => {
+      const timeline = formatTimeline(item);
+      if (timeline) {
+        items.push({
+          type: 'section-header',
+          id: `timeline-${timeline}-${item.id}`,
+          title: timeline,
+        });
+      }
+      items.push({
+        type: 'conversation',
+        id: `conv-${item.id}`,
+        data: item,
+        isIndented: false,
+      });
+    });
+
+    return items;
+  }, [scheduledGroups, recentConvs, expandedFolders, formatTimeline, t]);
+
+  // 处理文件夹点击
+  const handleFolderClick = useCallback((jobName: string) => {
+    toggleFolder(jobName);
+  }, [toggleFolder]);
+
+  const renderConversation = useCallback((conversation: TChatConversation, isIndented: boolean) => {
     const isSelected = id === conversation.id;
     const isEditing = editingId === conversation.id;
     const cronStatus = getJobStatus(conversation.id);
@@ -212,11 +321,12 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
 
     return (
-      <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
+      <Tooltip {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
         <div
           id={'c-' + conversation.id}
           className={classNames('chat-history__item hover:bg-hover px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
             '!bg-active ': isSelected,
+            'pl-16px': isIndented,
           })}
           onClick={handleSelect.bind(null, conversation)}
         >
@@ -279,101 +389,54 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               )}
             </div>
           )}
-          {/* legacy hover overlay removed to avoid duplicate edit icon */}
         </div>
       </Tooltip>
     );
-  };
+  }, [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleRemoveConversation]);
 
-  // Recent section: exclude cron-created run records (tagged with `extra.cronJobId`).
-  // Pre-bound user conversations stay in their original timeline slot.
-  const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
-
-  // Scheduled section: one group per cron job, sourced from the cron jobs table
-  // so a single conversation bound to multiple jobs appears in multiple groups.
-  const convById = new Map(chatHistory.map((c) => [c.id, c]));
-  const runRecordsByJob = new Map<string, TChatConversation[]>();
-  chatHistory.forEach((conv) => {
-    const jobId = (conv.extra as any)?.cronJobId as string | undefined;
-    if (!jobId) return;
-    if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
-    runRecordsByJob.get(jobId)!.push(conv);
-  });
-  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
-  cronJobs.forEach((job) => {
-    const convs: TChatConversation[] = [];
-    const seen = new Set<string>();
-    if (job.metadata.conversationId) {
-      const bound = convById.get(job.metadata.conversationId);
-      if (bound) {
-        convs.push(bound);
-        seen.add(bound.id);
-      }
+  // Virtuoso item renderer
+  const renderListItem = useCallback((index: number, item: ChatHistoryListItem) => {
+    switch (item.type) {
+      case 'section-header':
+        return (
+          <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden' key={item.id}>
+            {item.title}
+          </div>
+        );
+      case 'folder-header':
+        return (
+          <div
+            className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden'
+            onClick={() => handleFolderClick(item.title)}
+            key={item.id}
+          >
+            <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': item.isExpanded })}>▶</span>
+            <span className='text-14px text-t-primary truncate flex-1'>{item.title}</span>
+          </div>
+        );
+      case 'conversation':
+        return renderConversation(item.data, item.isIndented);
+      default:
+        return null;
     }
-    (runRecordsByJob.get(job.id) || []).forEach((conv) => {
-      if (!seen.has(conv.id)) {
-        convs.push(conv);
-        seen.add(conv.id);
-      }
-    });
-    if (convs.length === 0) return;
-    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
-    scheduledGroups.push({ jobName: job.name, convs });
-  });
-  scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+  }, [renderConversation, handleFolderClick]);
 
   return (
     <FlexFullContainer>
-      <div
-        className={classNames('size-full chat-history', {
-          'flex-center': !chatHistory.length,
-          'flex flex-col overflow-y-auto': !!chatHistory.length,
-          'chat-history--collapsed': collapsed,
-        })}
-      >
-        {!chatHistory.length ? (
+      {chatHistory.length === 0 ? (
+        <div className='size-full flex-center chat-history'>
           <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
-        ) : (
-          <>
-            {/* ── SCHEDULED SECTION ── */}
-            {scheduledGroups.length > 0 && (
-              <>
-                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>
-                {scheduledGroups.map(({ jobName, convs }) => {
-                  const isExpanded = expandedFolders[jobName] !== false; // default open
-                  return (
-                    <React.Fragment key={jobName}>
-                      {/* Folder header */}
-                      <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => toggleFolder(jobName)}>
-                        <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
-                        <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
-                      </div>
-                      {/* Conversations under this folder */}
-                      {isExpanded &&
-                        convs.map((conv) => (
-                          <div key={conv.id} className='pl-16px'>
-                            {renderConversation(conv)}
-                          </div>
-                        ))}
-                    </React.Fragment>
-                  );
-                })}
-              </>
-            )}
-
-            {/* ── RECENTS SECTION ── */}
-            {recentConvs.map((item) => {
-              const timeline = formatTimeline(item);
-              return (
-                <React.Fragment key={item.id}>
-                  {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                  {renderConversation(item)}
-                </React.Fragment>
-              );
-            })}
-          </>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Virtuoso
+          ref={virtuosoRef}
+          className={classNames('size-full chat-history', {
+            'chat-history--collapsed': collapsed,
+          })}
+          data={listItems}
+          itemContent={renderListItem}
+        />
+      )}
     </FlexFullContainer>
   );
 };
