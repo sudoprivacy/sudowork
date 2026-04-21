@@ -294,6 +294,8 @@ export function initAssistantHubBridge(): void {
           core_features: null as string | null,
           created_at: a.createdAt as string,
           updated_at: a.updatedAt as string,
+          // Default init prompt from API
+          defaultInitPrompt: (a.defaultInitPrompt as string) || null,
           // Store sourceUrl for download (not in original type but needed for install)
           _sourceUrl: a.sourceUrl as string,
         })
@@ -575,6 +577,7 @@ export function initAssistantHubBridge(): void {
         core_features: assistantMeta.core_features,
         is_builtin: assistantMeta.tag === 'system',
         enabled: true,
+        defaultInitPrompt: assistantMeta.defaultInitPrompt || null,
         installed_version: version,
         installed_at: new Date().toISOString(),
         // enabledSkills: skill IDs that will be enabled for this assistant

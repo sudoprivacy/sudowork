@@ -1124,6 +1124,7 @@ const AgentModalContent: React.FC = () => {
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateAssistant.skills || [],
+            defaultInitPrompt: duplicateAssistant.defaultInitPrompt,
           },
           ruleContent: ruleContent,
         });
@@ -1162,6 +1163,7 @@ const AgentModalContent: React.FC = () => {
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
+            defaultInitPrompt: duplicateInstalledAssistant.defaultInitPrompt,
           },
           ruleContent: ruleContent,
         });

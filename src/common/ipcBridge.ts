@@ -1171,6 +1171,8 @@ export interface IAssistantHubSkill {
   core_features: string | null;
   created_at: string;
   updated_at: string;
+  /** Default initial prompt to pre-fill input when selecting this assistant */
+  defaultInitPrompt?: string | null;
   /** Internal: download URL from API (mapped from sourceUrl) */
   _sourceUrl?: string;
 }
