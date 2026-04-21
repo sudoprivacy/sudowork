@@ -172,7 +172,13 @@ const InstalledAssistantCard: React.FC<{
             <Shield size='15' />
           </div>
         ) : (
-          <Popconfirm title='确认删除该助手？' onOk={onDelete} okText='删除' cancelText='取消' okButtonProps={{ status: 'danger' }}>
+          <Popconfirm
+            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}
+            onOk={onDelete}
+            okText={t('common.delete', { defaultValue: '删除' })}
+            cancelText={t('common.cancel', { defaultValue: '取消' })}
+            okButtonProps={{ status: 'danger' }}
+          >
             <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors opacity-0 group-hover:opacity-100'>
               <Delete size='15' />
             </div>
@@ -1829,7 +1835,7 @@ const AgentModalContent: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       <Modal title={t('settings.deleteAssistantTitle', { defaultValue: 'Delete Assistant' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: 'Delete' })} cancelText={t('common.cancel', { defaultValue: 'Cancel' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
-        <p>{t('settings.deleteAssistantConfirm', { defaultValue: 'Are you sure you want to delete this assistant? This action cannot be undone.' })}</p>
+        <p>{t('settings.deleteAssistantConfirm', { defaultValue: 'Deleting this assistant will also synchronously delete all conversations associated with it. This action cannot be undone.' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>

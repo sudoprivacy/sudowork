@@ -6,6 +6,7 @@
 
 import type { TChatConversation } from '@/common/storage';
 import { STORAGE_KEYS } from '@/common/storageKeys';
+import { ipcBridge } from '@/common';
 import { addEventListener } from '@/renderer/utils/emitter';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
@@ -238,6 +239,16 @@ export const ConversationTabsProvider: React.FC<{ children: React.ReactNode }> =
     return addEventListener('conversation.deleted', (conversationId) => {
       closeTab(conversationId);
     });
+  }, [closeTab]);
+
+  // 监听主进程的会话删除事件（如删除助手时批量删除会话）/ Listen to main process conversation deletion events (e.g., batch delete when removing assistant)
+  useEffect(() => {
+    const removeListener = ipcBridge.database.conversationChanged.on((data) => {
+      if (data.action === 'deleted') {
+        closeTab(data.conversationId);
+      }
+    });
+    return removeListener;
   }, [closeTab]);
 
   return (

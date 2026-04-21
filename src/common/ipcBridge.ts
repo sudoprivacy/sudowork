@@ -442,11 +442,11 @@ export const openclawConversation = {
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
-  /** 渠道对话创建/更新时，主进程通知渲染进程刷新对话列表 */
+  /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
     source?: string;
-    action: 'created' | 'updated';
+    action: 'created' | 'updated' | 'deleted';
   }>('database.conversation-changed'),
 };
 
