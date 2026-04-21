@@ -5,8 +5,11 @@
  */
 
 import * as lark from '@larksuiteoapi/node-sdk';
+import * as fs from 'fs';
+import * as path from 'path';
 
-import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
+import { getDataPath } from '@/process/utils';
+import type { BotInfo, IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
 import { extractCardAction, LARK_MESSAGE_LIMIT, toLarkSendParams, toUnifiedIncomingMessage } from './LarkAdapter';
 
@@ -383,6 +386,11 @@ export class LarkPlugin extends BasePlugin {
       // Convert to unified message
       const unifiedMessage = toUnifiedIncomingMessage(event);
       if (unifiedMessage && this.messageHandler) {
+        // Download media attachments (image_key/file_key → local files)
+        // before forwarding so downstream code can read them as local paths
+        if (unifiedMessage.content.attachments?.length) {
+          await this.downloadMediaAttachments(unifiedMessage, eventId || '');
+        }
         // Check for menu button commands first
         if (unifiedMessage.content.type === 'text' && unifiedMessage.content.text) {
           const buttonAction = this.getMenuButtonAction(unifiedMessage.content.text);
@@ -402,6 +410,55 @@ export class LarkPlugin extends BasePlugin {
       }
     } catch (error) {
       console.error('[LarkPlugin] Error processing message event:', error);
+    }
+  }
+
+  /**
+   * Download media attachments from Feishu to local files.
+   * Replaces Feishu keys (image_key, file_key) in attachment.fileId with local file paths
+   * so that downstream code (ActionExecutor → Agent) can read them as local files.
+   */
+  private async downloadMediaAttachments(unifiedMessage: IUnifiedIncomingMessage, messageId: string): Promise<void> {
+    if (!this.client || !unifiedMessage.content.attachments?.length) {
+      return;
+    }
+
+    const mediaDir = path.join(getDataPath(), 'channel-media', 'lark');
+    fs.mkdirSync(mediaDir, { recursive: true });
+
+    for (const attachment of unifiedMessage.content.attachments) {
+      if (!attachment.fileId) continue;
+
+      // Map attachment type to Feishu resource type for the API
+      const resourceType = attachment.type === 'photo' ? 'image'
+        : attachment.type === 'audio' ? 'audio'
+        : attachment.type === 'video' ? 'video'
+        : 'file';
+
+      try {
+        const response = await this.client.im.messageResource.get({
+          params: { type: resourceType },
+          path: { message_id: messageId, file_key: attachment.fileId },
+        });
+
+        if (!response) {
+          console.warn(`[LarkPlugin] Failed to download resource: ${attachment.fileId}, no response`);
+          continue;
+        }
+
+        // Determine file extension based on attachment type
+        const ext = attachment.type === 'photo' ? '.png'
+          : attachment.fileName ? path.extname(attachment.fileName)
+          : attachment.type === 'audio' ? '.ogg'
+          : attachment.type === 'video' ? '.mp4'
+          : '.bin';
+
+        const localPath = path.join(mediaDir, `${attachment.fileId}${ext}`);
+        await response.writeFile(localPath);
+        attachment.fileId = localPath;
+      } catch (error) {
+        console.warn(`[LarkPlugin] Failed to download media ${attachment.fileId}:`, error);
+      }
     }
   }
 
