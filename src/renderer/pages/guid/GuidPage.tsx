@@ -379,8 +379,14 @@ const GuidPage: React.FC = () => {
       mention.setMentionQuery(null);
       mention.setMentionSelectorOpen(false);
       mention.setMentionActiveIndex(0);
+
+      // Pre-fill input with defaultInitPrompt if available
+      const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
+      if (assistantConfig?.defaultInitPrompt) {
+        guidInput.setInput(assistantConfig.defaultInitPrompt);
+      }
     },
-    [agentSelection.setSelectedAgentKey, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
+    [agentSelection.setSelectedAgentKey, agentSelection.customAgents, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex, guidInput.setInput]
   );
 
   // Handle back button: deselect assistant and return to normal view

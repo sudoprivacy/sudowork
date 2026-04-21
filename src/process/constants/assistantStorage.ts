@@ -88,4 +88,6 @@ export interface IAssistantMeta {
   applicable_scenarios?: string | null;
   /** Core features (JSON string from Hub) */
   core_features?: string | null;
+  /** Default initial prompt to pre-fill input when selecting this assistant */
+  defaultInitPrompt?: string | null;
 }
