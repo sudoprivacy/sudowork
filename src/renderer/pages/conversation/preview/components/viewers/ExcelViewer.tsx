@@ -28,6 +28,41 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 // When columns exceed this threshold, use JSON rendering (horizontal scroll) instead of PDF
 const WIDE_TABLE_COLUMN_THRESHOLD = 6;
 
+// A4 横向大约可容纳的字符宽度（半角字符数）
+// Approximate character width that A4 landscape can fit
+const LANDSCAPE_CHAR_WIDTH = 120;
+
+/**
+ * 估算表格内容的总字符宽度
+ * Estimate total character width of table content
+ *
+ * 同时考虑列数和每列内容的实际宽度，比单纯看列数更精准
+ * Considers both column count and actual content width for more accurate detection
+ */
+const estimateTableContentWidth = (sheets: ExcelWorkbookData['sheets']): number => {
+  let maxEstimatedWidth = 0;
+
+  for (const sheet of sheets) {
+    // Sample first 50 rows to estimate width (avoid scanning huge datasets)
+    const sampleRows = (sheet.data || []).slice(0, 50);
+
+    for (const row of sampleRows) {
+      if (!Array.isArray(row)) continue;
+      let rowWidth = 0;
+      for (const cell of row) {
+        const cellStr = String(cell ?? '');
+        // 中文/全角字符算 2 宽度，其他字符算 1 / CJK chars count as 2, others as 1
+        const charWidth = [...cellStr].reduce((w, ch) => w + (ch.charCodeAt(0) > 0x7f ? 2 : 1), 0);
+        // 每个单元格最少 8 字符宽度（含 padding）/ Minimum 8 char width per cell (includes padding)
+        rowWidth += Math.max(charWidth, 8);
+      }
+      maxEstimatedWidth = Math.max(maxEstimatedWidth, rowWidth);
+    }
+  }
+
+  return maxEstimatedWidth;
+};
+
 /**
  * Excel 表格预览组件
  *
@@ -133,6 +168,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           }
 
           // 检测是否为宽表格 / Check if it's a wide table
+          // 综合列数和内容宽度进行判断 / Consider both column count and content width
           const maxColumns = workbookData.sheets.reduce((max, sheet) => {
             const sheetMax = (sheet.data || []).reduce((rowMax, row) => {
               return Math.max(rowMax, Array.isArray(row) ? row.length : 0);
@@ -140,8 +176,12 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
             return Math.max(max, sheetMax);
           }, 0);
 
-          const isWideTable = maxColumns > WIDE_TABLE_COLUMN_THRESHOLD;
-          console.log('[ExcelViewer] Max columns:', maxColumns, 'isWideTable:', isWideTable);
+          const estimatedWidth = estimateTableContentWidth(workbookData.sheets);
+
+          // 宽表格判定：列数超过阈值 或 内容宽度超过 A4 横向可容纳宽度
+          // Wide table: column count exceeds threshold OR content width exceeds A4 landscape capacity
+          const isWideTable = maxColumns > WIDE_TABLE_COLUMN_THRESHOLD || estimatedWidth > LANDSCAPE_CHAR_WIDTH;
+          console.log('[ExcelViewer] Max columns:', maxColumns, 'estimatedWidth:', estimatedWidth, 'isWideTable:', isWideTable);
 
           // 检查 LibreOffice 是否可用 / Check LibreOffice availability
           const libreOfficeAvailable = await ipcBridge.document.libreOffice.isAvailable.invoke();

@@ -313,20 +313,22 @@ const SendBox: React.FC<{
     [slashController.filteredCommands]
   );
 
-  // Transform installed skills to selector items
+  // Transform installed skills to selector items (only enabled skills)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(
     () =>
-      installedSkills.map((skill) => {
-        const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
-        return {
-          name: skill.name,
-          displayName,
-          description: skill.meta?.description,
-          icon: resolveSkillIcon(skill.meta?.icon),
-          emoji: skill.meta?.emoji,
-          enabled: skill.enabled,
-        };
-      }),
+      installedSkills
+        .filter((skill) => skill.enabled !== false)
+        .map((skill) => {
+          const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
+          return {
+            name: skill.name,
+            displayName,
+            description: skill.meta?.description,
+            icon: resolveSkillIcon(skill.meta?.icon),
+            emoji: skill.meta?.emoji,
+            enabled: skill.enabled,
+          };
+        }),
     [installedSkills]
   );
 

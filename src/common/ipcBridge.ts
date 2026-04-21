@@ -1381,4 +1381,8 @@ export const secret = {
   put: bridge.buildProvider<IBridgeResponse, { namespace: string; key: string; value: string; description?: string }>('secret.put'),
   /** List all secrets in a namespace */
   list: bridge.buildProvider<IBridgeResponse<ISecretMetadata[]>, { namespace: string }>('secret.list'),
+  /** Soft-delete a secret */
+  delete: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.delete'),
+  /** Restore a soft-deleted secret */
+  restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
 };

@@ -728,5 +728,12 @@
   "secrets.appSecretRequired": "請輸入 App Secret",
   "secrets.save": "儲存",
   "secrets.saveSuccess": "金鑰儲存成功",
-  "secrets.saveFailed": "金鑰儲存失敗"
+  "secrets.saveFailed": "金鑰儲存失敗",
+  "secrets.tenantEmpty": "No tenant configuration items",
+  "secrets.refresh": "Refresh config items",
+  "secrets.refreshSuccess": "Config items refreshed",
+  "secrets.refreshFailed": "Failed to refresh config items",
+  "secrets.tenantSaveSuccess": "Configuration saved successfully",
+  "secrets.tenantSaveFailed": "Failed to save configuration",
+  "secrets.tenantFieldRequired": "Please fill in all configuration items"
 }

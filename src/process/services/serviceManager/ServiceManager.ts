@@ -404,16 +404,20 @@ export class ServiceManager {
       // `$env:PYTHONPATH=...; python -m ai_dev_browser.tools.page_info --url X`.
       const sudoworkBinEnv: Record<string, string> = {};
       try {
-        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, patchOpenclawKeepImageData, patchOpenclawKeepToolResult, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
+        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, patchOpenclawKeepImageData, patchOpenclawKeepToolResult, patchOpenclawReadDescription, patchOpenclawPdfDescription, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
         ensureSudoworkBinDispatchers();
-        // Re-assert the openclaw bundle patches on every gateway start so
-        // an upstream openclaw update doesn't silently re-cap tool results
-        // to 8 KB, re-strip image bytes before the LLM, or re-strip
+        // Re-assert openclaw bundle patches on every gateway start so an
+        // upstream openclaw update doesn't silently re-cap tool results
+        // to 8 KB, re-strip image bytes before the LLM, re-strip
         // `result.content` from the WS broadcast that drives the UI's
-        // Output panel. All three are idempotent + fail-open.
+        // Output panel, or re-introduce the misleading read/pdf tool
+        // descriptions that steer multimodal LLMs away from the
+        // functioning image pipeline. All are idempotent + fail-open.
         patchOpenclawToolResultCap();
         patchOpenclawKeepImageData();
         patchOpenclawKeepToolResult();
+        patchOpenclawReadDescription();
+        patchOpenclawPdfDescription();
         const prevPath = process.env.PATH ?? '';
         sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
         // ai-dev-browser v0.5.1 reads AI_DEV_BROWSER_OUTPUT_DIR as the

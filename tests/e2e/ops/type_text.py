@@ -6,24 +6,25 @@ from ai_dev_browser.core.page import js_evaluate
 
 
 async def type_text(tab, text: str, wait: float = 1) -> dict:
-    """Type text into textarea using React-compatible setter. Does NOT press Enter.
+    """Type text into focused element using React-compatible setter.
 
-    Useful for testing autocomplete — type partial text and check dropdown.
+    Supports both input and textarea. Does NOT press Enter.
 
     Returns:
         {"typed": True} or {"error": str}
     """
-    await js_evaluate(tab, "document.querySelector('textarea')?.focus()")
+    await js_evaluate(tab, "document.querySelector('textarea, input')?.focus()")
     await asyncio.sleep(0.3)
 
     js = """(() => {
-        const ta = document.querySelector('textarea');
-        if (!ta) return 'no_textarea';
-        const setter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype, 'value'
-        ).set;
-        setter.call(ta, %s);
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        const el = document.querySelector('textarea, input:not([type="hidden"])');
+        if (!el) return 'no_input';
+        
+        const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+        setter.call(el, %s);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
         return 'ok';
     })()""" % repr(text)
 

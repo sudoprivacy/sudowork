@@ -932,6 +932,64 @@ export function initConversationBridge(): void {
       // ignore
     }
 
+    // Dynamic reload of presetContext with latest assistant name for OpenClaw Gateway
+    // 动态重新加载 presetContext，确保 OpenClaw Gateway 使用最新的助手名称
+    if (conversation?.extra?.presetAssistantId && task.type === 'openclaw-gateway') {
+      try {
+        const presetAssistantId = conversation.extra.presetAssistantId;
+        const { assistantManager } = await import('@/process/AssistantManager');
+        const { readAssistantResource, ruleFilePattern } = await import('@process/utils/assistantResources');
+        const { app } = await import('electron');
+
+        const strippedId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.slice('builtin-'.length) : presetAssistantId;
+
+        // Get latest meta from AssistantManager (filesystem SSOT)
+        const meta = await assistantManager.getAssistantMeta(strippedId);
+
+        // Resolve locale for rule loading
+        const appLocale = app.getLocale() || 'en-US';
+        const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
+
+        // Reload rules from filesystem
+        let loadedRules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
+
+        // Get latest assistant name from meta
+        const latestAgentName = meta?.nameI18n?.[localeKey] || meta?.nameI18n?.['en-US'] || meta?.id || strippedId;
+
+        // Check if rules have explicit identity
+        const hasExplicitIdentity = (rules: string): boolean => {
+          if (!rules) return false;
+          if (rules.includes('[Identity Override')) return true;
+          const zhPatterns = [/你是\s+.{1,20}助手/, /你是\s+\*{0,2}.{1,20}\*{0,2}[，,。]/, /你的身份是[:：]?/];
+          const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
+          return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
+        };
+
+        // Inject identity statement if rules don't have explicit identity
+        if (latestAgentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
+          const identityBlock = localeKey.startsWith('zh')
+            ? `[Identity Override - 最高优先级]
+你的身份是：${latestAgentName}
+当用户询问"你是谁"或类似身份问题时，必须回答："我是${latestAgentName}，有什么可以帮助你的吗？"
+此身份声明优先级高于 USER.md 中的默认身份声明。
+\n\n`
+            : `[Identity Override - Highest Priority]
+Your identity is: ${latestAgentName}
+When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${latestAgentName}. How can I help you?"
+This identity statement takes priority over the default identity in USER.md.
+\n\n`;
+          loadedRules = identityBlock + (loadedRules || '');
+        }
+
+        // Update presetContext with the fresh rules
+        presetContext = loadedRules;
+
+        mainLog('ConversationBridge', `Reloaded presetContext for ${presetAssistantId} with latest name: ${latestAgentName}`);
+      } catch (error) {
+        mainWarn('ConversationBridge', 'Failed to reload preset context for OpenClaw:', error);
+      }
+    }
+
     // Ensure workspace skills symlinks exist before dispatching to the gateway.
     // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
     await syncConversationWorkspaceSkills(conversation, other.skills);

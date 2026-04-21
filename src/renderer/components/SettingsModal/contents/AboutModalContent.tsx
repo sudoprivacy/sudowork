@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
 import OpsModal from '@/renderer/components/OpsModal';
 import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
@@ -22,6 +23,7 @@ const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const { t } = useTranslation();
+  const { config } = useTenantConfig();
   const [opsVisible, setOpsVisible] = useState<boolean>(false);
 
   return (
@@ -30,12 +32,12 @@ const AboutModalContent: React.FC = () => {
         <div className='flex flex-col max-w-540px mx-auto'>
           <div className='flex flex-col items-center py-28px'>
             <div className='w-48px h-48px flex items-center justify-center mb-12px'>
-              <img src={sudoIcon} alt='SudoClaw' className='w-42px h-42px' />
+              <img src={config.logo || sudoIcon} alt={config.about_name} className='w-42px h-42px' />
             </div>
             <Typography.Title heading={4} className='text-18px font-700 text-t-primary mb-4px mt-0'>
-              SudoClaw
+              {config.about_name}
             </Typography.Title>
-            <div className='text-12px text-t-tertiary'>北京数牍科技有限公司</div>
+            <div className='text-12px text-t-tertiary'>{config.app_company_name}</div>
             <button type='button' className='mt-6px mb-10px inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
               <span>{t('settings.officialWebsite')}</span>
               <IconLink className='text-12px' />
