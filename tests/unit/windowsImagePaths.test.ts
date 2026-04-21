@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { normalizeWindowsImagePaths, preprocessContentMessage } from '@process/task/acp/AcpMessagePipeline';
+import { defaultUrlTransform } from 'react-markdown';
 
 describe('normalizeWindowsImagePaths', () => {
   it('should normalize Windows backslash paths in markdown image syntax', () => {
@@ -73,6 +74,31 @@ describe('normalizeWindowsImagePaths', () => {
     const input = '![](c:\\users\\test\\image.png)';
     const expected = '![](c:/users/test/image.png)';
     expect(normalizeWindowsImagePaths(input)).toBe(expected);
+  });
+
+  it('should not modify paths that already use forward slashes', () => {
+    const input = '![](C:/Users/16674/.nexus/sudoclaw/workspace/shaobing.png)';
+    expect(normalizeWindowsImagePaths(input)).toBe(input);
+  });
+});
+
+describe('defaultUrlTransform sanitization (root cause of empty src)', () => {
+  it('should sanitize Windows drive letter paths as unknown protocol', () => {
+    // This demonstrates the root cause: react-markdown treats "C:" as a protocol
+    // and sanitizes it to empty string because "C" is not in the safe protocol list
+    expect(defaultUrlTransform('C:/Users/16674/.nexus/sudoclaw/workspace/shaobing.png')).toBe('');
+  });
+
+  it('should allow http/https URLs', () => {
+    expect(defaultUrlTransform('https://example.com/image.png')).toBe('https://example.com/image.png');
+  });
+
+  it('should allow relative paths', () => {
+    expect(defaultUrlTransform('./images/photo.png')).toBe('./images/photo.png');
+  });
+
+  it('should allow Unix absolute paths', () => {
+    expect(defaultUrlTransform('/home/user/image.png')).toBe('/home/user/image.png');
   });
 });
 
