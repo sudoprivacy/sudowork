@@ -27,6 +27,7 @@ import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
+import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
 import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
@@ -1169,7 +1170,11 @@ ${draftsInstruction}`;
 
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
-    const msg = { ...message, conversation_id: this.conversation_id };
+    // Normalize Windows backslash paths in content messages before emission
+    let msg: IResponseMessage = { ...message, conversation_id: this.conversation_id };
+    if (msg.type === 'content' && typeof msg.data === 'string') {
+      msg = { ...msg, data: normalizeWindowsImagePaths(msg.data) };
+    }
 
     // Mark as finished when content is output
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];

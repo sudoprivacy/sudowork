@@ -552,6 +552,13 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
   const normalizedChildren = useMemo(() => {
     if (typeof childrenProp === 'string') {
       let text = childrenProp.replace(/file:\/\//g, '');
+      // Normalize Windows backslash paths in markdown image syntax to forward slashes.
+      // Without this, the markdown parser treats backslashes as escape characters,
+      // corrupting paths like C:\Users\...\image.png (e.g. \. becomes just .)
+      text = text.replace(
+        /!\[([^\]]*)\]\(([A-Za-z]:\\[^)]+)\)/g,
+        (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`,
+      );
       text = convertLatexDelimiters(text);
       return text;
     }
