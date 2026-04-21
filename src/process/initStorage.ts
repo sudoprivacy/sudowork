@@ -824,6 +824,8 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
       promptsI18n: preset.promptsI18n,
       // API Key 配置字段 / API Key configuration fields
       apiKeyFields: preset.apiKeyFields,
+      // Default initial prompt to pre-fill input when selecting this assistant
+      defaultInitPrompt: preset.defaultInitPrompt,
     });
   }
 

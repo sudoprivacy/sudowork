@@ -47,6 +47,11 @@ export type AssistantPreset = {
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
+  /**
+   * Default initial prompt to pre-fill input when selecting this assistant.
+   * 选择此助手时预填到输入框的默认提示词。
+   */
+  defaultInitPrompt?: string;
 };
 
 export const ASSISTANT_PRESETS: AssistantPreset[] = [

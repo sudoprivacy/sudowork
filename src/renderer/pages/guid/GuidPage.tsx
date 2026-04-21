@@ -146,6 +146,34 @@ const GuidPage: React.FC = () => {
     locationState: location.state as { workspace?: string } | null,
   });
 
+  // Pre-fill input with defaultInitPrompt when assistant is pre-selected from URL parameter
+  // Use a ref to track whether we've already pre-filled for this assistant
+  const prefilledAssistantRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
+    if (agentSelection.selectedAgentKey === 'openclaw-gateway' || !agentSelection.selectedAgentKey.startsWith('custom:')) return;
+
+    const assistantId = agentSelection.selectedAgentKey.slice(7);
+
+    // Skip if we've already pre-filled for this assistant
+    if (prefilledAssistantRef.current === assistantId) return;
+
+    const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
+
+    // Only pre-fill if input is empty and assistant has defaultInitPrompt
+    if (assistantConfig?.defaultInitPrompt && !guidInput.input.trim()) {
+      guidInput.setInput(assistantConfig.defaultInitPrompt);
+      prefilledAssistantRef.current = assistantId;
+    }
+  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput.input, guidInput.setInput]);
+
+  // Reset prefilledAssistantRef when assistantParam changes or becomes empty
+  useEffect(() => {
+    if (!assistantParam) {
+      prefilledAssistantRef.current = null;
+    }
+  }, [assistantParam]);
+
   // Get enabled skills list for the selected assistant
   const agentEnabledSkills = useMemo(() => {
     return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
@@ -269,6 +297,7 @@ const GuidPage: React.FC = () => {
     mention.setMentionSelectorVisible(false);
     mention.setMentionSelectorOpen(false);
     mention.setMentionActiveIndex(0);
+    prefilledAssistantRef.current = null;
   }, [guidInput, agentSelection, mention]);
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
@@ -363,13 +392,20 @@ const GuidPage: React.FC = () => {
 
   const handleSelectAgentFromPillBar = useCallback(
     (key: string) => {
-      agentSelection.setSelectedAgentKey(key);
+      // If clicking on the currently selected agent, deselect it and clear input
+      if (agentSelection.selectedAgentKey === key) {
+        agentSelection.resetSelection();
+        guidInput.setInput('');
+        prefilledAssistantRef.current = null;
+      } else {
+        agentSelection.setSelectedAgentKey(key);
+      }
       mention.setMentionOpen(false);
       mention.setMentionQuery(null);
       mention.setMentionSelectorOpen(false);
       mention.setMentionActiveIndex(0);
     },
-    [agentSelection.setSelectedAgentKey, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
+    [agentSelection.selectedAgentKey, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
   );
 
   const handleSelectAssistant = useCallback(
@@ -381,7 +417,9 @@ const GuidPage: React.FC = () => {
       mention.setMentionActiveIndex(0);
 
       // Pre-fill input with defaultInitPrompt if available
-      const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
+      // assistantId format is "custom:xxx" or "builtin-xxx", need to strip prefix for lookup
+      const lookupId = assistantId.startsWith('custom:') ? assistantId.slice(7) : assistantId;
+      const assistantConfig = agentSelection.customAgents.find((a) => a.id === lookupId);
       if (assistantConfig?.defaultInitPrompt) {
         guidInput.setInput(assistantConfig.defaultInitPrompt);
       }
@@ -392,7 +430,9 @@ const GuidPage: React.FC = () => {
   // Handle back button: deselect assistant and return to normal view
   const handleBackFromAssistant = useCallback(() => {
     agentSelection.resetSelection();
-  }, [agentSelection.resetSelection]);
+    guidInput.setInput('');
+    prefilledAssistantRef.current = null;
+  }, [agentSelection.resetSelection, guidInput.setInput]);
 
   // Handle changing the assistant's main agent type
   const handleChangeAssistantAgent = useCallback(
@@ -454,7 +494,11 @@ const GuidPage: React.FC = () => {
       selectedAgentInfo={agentSelection.selectedAgentInfo}
       customAgents={agentSelection.customAgents}
       localeKey={localeKey}
-      onClosePresetTag={() => agentSelection.setSelectedAgentKey('gemini')}
+      onClosePresetTag={() => {
+        agentSelection.setSelectedAgentKey('gemini');
+        guidInput.setInput('');
+        prefilledAssistantRef.current = null;
+      }}
       onTriggerSkillSelector={handleTriggerSkillSelector}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
