@@ -8,6 +8,7 @@ import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail
 import { assistantManager } from '@/process/AssistantManager';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
+import { getDatabase } from '@/process/database';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -248,7 +249,45 @@ export function initAssistantHubBridge(): void {
   });
 
   ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name }) => {
+    // Delete associated conversations before uninstalling assistant
+    const deletedConversationIds: string[] = [];
+    try {
+      const db = getDatabase();
+      // The presetAssistantId stored in conversation.extra matches the assistant's name/id
+      // Try both the original name and with 'builtin-' prefix stripped
+      const presetAssistantId = name.startsWith('builtin-') ? name.slice('builtin-'.length) : name;
+      const deleteResult = db.deleteConversationsByPresetAssistantId(name);
+      if (!deleteResult.success) {
+        mainWarn('AssistantHub', `Failed to delete associated conversations: ${deleteResult.error}`);
+      } else if (deleteResult.data?.count > 0) {
+        mainLog('AssistantHub', `Deleted ${deleteResult.data.count} conversations associated with assistant ${name}`);
+        deletedConversationIds.push(...deleteResult.data.conversationIds);
+        // Also try deleting with stripped prefix if different
+        if (presetAssistantId !== name) {
+          const altResult = db.deleteConversationsByPresetAssistantId(presetAssistantId);
+          if (altResult.success && altResult.data?.count > 0) {
+            mainLog('AssistantHub', `Deleted additional ${altResult.data.count} conversations with stripped prefix ${presetAssistantId}`);
+            deletedConversationIds.push(...altResult.data.conversationIds);
+          }
+        }
+      }
+    } catch (dbError) {
+      mainWarn('AssistantHub', 'Error deleting associated conversations:', dbError);
+    }
+
     const result = await assistantManager.uninstallAssistant(name);
+
+    // Emit conversationChanged events to notify renderer to refresh conversation list
+    if (deletedConversationIds.length > 0) {
+      for (const conversationId of deletedConversationIds) {
+        ipcBridge.database.conversationChanged.emit({
+          conversationId,
+          source: 'aionui',
+          action: 'deleted',
+        });
+      }
+    }
+
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 

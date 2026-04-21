@@ -1303,6 +1303,48 @@ export class AionUIDatabase {
   }
 
   /**
+   * Delete all conversations associated with a specific preset assistant.
+   * Used when deleting a custom assistant to cleanup related conversations.
+   *
+   * @param presetAssistantId - The assistant ID (UUID or name) to match against extra.presetAssistantId
+   * @returns Query result with the count of deleted conversations
+   */
+  deleteConversationsByPresetAssistantId(presetAssistantId: string): IQueryResult<{ count: number; conversationIds: string[] }> {
+    try {
+      // Find all conversations with this presetAssistantId
+      const findStmt = this.db.prepare(`SELECT id FROM conversations WHERE json_extract(extra, '$.presetAssistantId') = ?`);
+      const rows = findStmt.all(presetAssistantId) as Array<{ id: string }>;
+
+      if (rows.length === 0) {
+        return { success: true, data: { count: 0, conversationIds: [] } };
+      }
+
+      const conversationIds = rows.map((r) => r.id);
+      const now = Date.now();
+
+      // Delete messages first (foreign key constraint)
+      const deleteMessagesStmt = this.db.prepare('DELETE FROM messages WHERE conversation_id = ?');
+      // Delete conversations
+      const deleteConvStmt = this.db.prepare('DELETE FROM conversations WHERE id = ?');
+
+      const transaction = this.db.transaction(() => {
+        for (const id of conversationIds) {
+          deleteMessagesStmt.run(id);
+          deleteConvStmt.run(id);
+        }
+      });
+      transaction();
+
+      mainLog('Database', `Deleted ${conversationIds.length} conversations for assistant ${presetAssistantId}`);
+
+      return { success: true, data: { count: conversationIds.length, conversationIds } };
+    } catch (error: any) {
+      mainError('Database', 'Failed to delete conversations by presetAssistantId:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Get raw assistant plugin records for secret migration.
    * Returns original credential data from SQLite without going through Nexus.
    * Used by SecretMigrationCoordinator during initial migration.

@@ -6,7 +6,7 @@
 
 import { createCipheriv } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { decryptAesEcb, normalizeAesKey, parseAesKey } from '@/channels/plugins/wechat/WeChatCrypto';
+import { decryptAesEcb, encryptAesEcb, generateAesKey, normalizeAesKey, parseAesKey } from '@/channels/plugins/wechat/WeChatCrypto';
 
 /**
  * Helper: encrypt plaintext with AES-128-ECB for testing decryption.
@@ -119,6 +119,70 @@ describe('WeChatCrypto', () => {
       const wrongKey = Buffer.from('fedcba9876543210');
       // Decryption with wrong key may produce garbage or throw on invalid padding
       expect(() => decryptAesEcb(ciphertext, wrongKey)).toThrow();
+    });
+  });
+
+  describe('encryptAesEcb', () => {
+    const testKey = Buffer.from('0123456789abcdef'); // 16 bytes
+
+    it('encrypts and decrypts symmetrically', () => {
+      const plaintext = Buffer.from('Hello, WeChat!');
+      const ciphertext = encryptAesEcb(plaintext, testKey);
+      expect(ciphertext).not.toEqual(plaintext);
+      expect(decryptAesEcb(ciphertext, testKey)).toEqual(plaintext);
+    });
+
+    it('produces ciphertext with PKCS7 padding (length % 16 === 0)', () => {
+      const plaintext = Buffer.from('test'); // 4 bytes
+      const ciphertext = encryptAesEcb(plaintext, testKey);
+      expect(ciphertext.length % 16).toBe(0);
+      expect(ciphertext.length).toBe(16); // 4 + 12 padding
+    });
+
+    it('handles binary data', () => {
+      const binaryData = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+      const ciphertext = encryptAesEcb(binaryData, testKey);
+      const decrypted = decryptAesEcb(ciphertext, testKey);
+      expect(decrypted).toEqual(binaryData);
+    });
+
+    it('handles empty plaintext (single padding block)', () => {
+      const plaintext = Buffer.alloc(0);
+      const ciphertext = encryptAesEcb(plaintext, testKey);
+      expect(ciphertext.length).toBe(16); // Full padding block
+      expect(decryptAesEcb(ciphertext, testKey)).toEqual(plaintext);
+    });
+  });
+
+  describe('generateAesKey', () => {
+    it('generates a 16-byte key', () => {
+      const { buffer } = generateAesKey();
+      expect(buffer.length).toBe(16);
+    });
+
+    it('generates a 32-char hex string', () => {
+      const { hex } = generateAesKey();
+      expect(hex.length).toBe(32);
+      expect(/^[0-9a-fA-F]{32}$/.test(hex)).toBe(true);
+    });
+
+    it('hex string matches buffer', () => {
+      const { hex, buffer } = generateAesKey();
+      expect(Buffer.from(hex, 'hex')).toEqual(buffer);
+    });
+
+    it('generates unique keys', () => {
+      const key1 = generateAesKey();
+      const key2 = generateAesKey();
+      expect(key1.hex).not.toBe(key2.hex);
+      expect(key1.buffer).not.toEqual(key2.buffer);
+    });
+
+    it('generated key works for encryption/decryption', () => {
+      const { buffer } = generateAesKey();
+      const plaintext = Buffer.from('Test with random key');
+      const ciphertext = encryptAesEcb(plaintext, buffer);
+      expect(decryptAesEcb(ciphertext, buffer)).toEqual(plaintext);
     });
   });
 });

@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { BaseInfo, IWeChatGetConfigResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
+import type { BaseInfo, IWeChatGetConfigResponse, IWeChatGetUploadUrlRequest, IWeChatGetUploadUrlResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
 import { WECHAT_API_BASE_URL, WECHAT_API_TIMEOUT_MS, WECHAT_CHANNEL_VERSION, WECHAT_LONG_POLL_TIMEOUT_MS } from './types';
 import { decryptAesEcb, normalizeAesKey } from './WeChatCrypto';
+import { createHash } from 'node:crypto';
 
 /**
  * WeChatApiClient - HTTP client for iLink Bot API (protobuf-over-JSON).
@@ -145,8 +146,11 @@ export class WeChatApiClient {
     }
   }
 
-  async sendMessage(payload: IWeChatSendMessagePayload): Promise<void> {
-    await this.apiFetch('ilink/bot/sendmessage', payload as unknown as Record<string, unknown>, WECHAT_API_TIMEOUT_MS);
+  async sendMessage(payload: IWeChatSendMessagePayload): Promise<Record<string, unknown>> {
+    console.log('[WeChatApiClient] sendMessage request:', JSON.stringify(payload));
+    const response = await this.apiFetch<Record<string, unknown>>('ilink/bot/sendmessage', payload as unknown as Record<string, unknown>, WECHAT_API_TIMEOUT_MS);
+    console.log('[WeChatApiClient] sendMessage response:', JSON.stringify(response));
+    return response;
   }
 
   async getConfig(userId: string, contextToken?: string): Promise<IWeChatGetConfigResponse> {
@@ -223,5 +227,63 @@ export class WeChatApiClient {
    */
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  // ==================== Media Upload ====================
+
+  /**
+   * Request upload URL from iLink Bot API.
+   *
+   * @param params - Upload parameters including filekey, media_type, aeskey, etc.
+   * @returns Upload URL and optional download_param
+   */
+  async getUploadUrl(params: IWeChatGetUploadUrlRequest): Promise<IWeChatGetUploadUrlResponse> {
+    console.log('[WeChatApiClient] getUploadUrl request:', JSON.stringify(params));
+    const response = await this.apiFetch<IWeChatGetUploadUrlResponse>('ilink/bot/getuploadurl', params as unknown as Record<string, unknown>, WECHAT_API_TIMEOUT_MS);
+    console.log('[WeChatApiClient] getUploadUrl response:', JSON.stringify(response));
+    return response;
+  }
+
+  /**
+   * Upload encrypted media to WeChat CDN.
+   *
+   * @param url - CDN URL from getUploadUrl response
+   * @param encryptedData - AES-128-ECB encrypted file content
+   * @returns downloadParam from x-encrypted-param response header
+   */
+  async uploadToCdn(url: string, encryptedData: Buffer): Promise<string> {
+    console.log('[WeChatApiClient] uploadToCdn URL:', url);
+    console.log('[WeChatApiClient] uploadToCdn data size:', encryptedData.length);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: new Uint8Array(encryptedData),
+    });
+
+    console.log('[WeChatApiClient] uploadToCdn response status:', response.status);
+    console.log('[WeChatApiClient] uploadToCdn response headers:', JSON.stringify(Object.fromEntries(response.headers)));
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[WeChatApiClient] uploadToCdn error body:', text.slice(0, 500));
+      throw new Error(`CDN upload failed: HTTP ${response.status} - ${text.slice(0, 100)}`);
+    }
+
+    const downloadParam = response.headers.get('x-encrypted-param');
+    if (!downloadParam) {
+      throw new Error('CDN upload missing x-encrypted-param header');
+    }
+    return downloadParam;
+  }
+
+  /**
+   * Compute MD5 hash of file content.
+   *
+   * @param data - File content buffer
+   * @returns MD5 hash as hex string (32 chars)
+   */
+  computeMd5(data: Buffer): string {
+    return createHash('md5').update(data).digest('hex');
   }
 }

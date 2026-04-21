@@ -46,7 +46,7 @@
   "promptPreview": "预览",
   "promptPreviewEmpty": "暂无内容可预览",
   "deleteAssistantTitle": "删除助手",
-  "deleteAssistantConfirm": "确定要删除此助手吗？此操作无法撤销。",
+  "deleteAssistantConfirm": "删除该助手将会同步删除已关联该助手的会话，是否确认删除？",
   "cannotDeleteBuiltin": "无法删除内置助手",
   "duplicateAssistant": "复制新建",
   "assistantMainAgent": "主代理",
