@@ -1008,3 +1008,178 @@ body,
 .chat-workspace .workspace-search-input .arco-input-suffix {
   color: var(--color-text-3) !important;
 }
+
+/* ========================================
+   Unified Error Styles / 统一错误样式
+   适配深浅色模式 / Support Light & Dark Mode
+   ======================================== */
+
+.error-message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  /* 浅色模式：使用较深的红色背景 */
+  background-color: rgba(245, 63, 63, 0.08);
+  border: 1px solid rgba(245, 63, 63, 0.15);
+}
+
+.error-message-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--danger, #f53f3f);
+}
+
+.error-message-text {
+  font-size: 13px;
+  color: var(--text-primary, #1d2129);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.form-field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--danger, #f53f3f);
+}
+
+.error-boundary-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  border-radius: 16px;
+  border: 1px dashed var(--danger, #f53f3f);
+  background-color: rgba(245, 63, 63, 0.04);
+}
+
+/* Success message styles / 成功消息样式 */
+.success-message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background-color: rgba(0, 180, 42, 0.08);
+  border: 1px solid rgba(0, 180, 42, 0.15);
+}
+
+.success-message-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--success, #00b42a);
+}
+
+.success-message-text {
+  font-size: 13px;
+  color: var(--text-primary, #1d2129);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* Warning message styles / 警告消息样式 */
+.warning-message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background-color: rgba(255, 125, 0, 0.08);
+  border: 1px solid rgba(255, 125, 0, 0.15);
+}
+
+.warning-message-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--warning, #ff7d00);
+}
+
+.warning-message-text {
+  font-size: 13px;
+  color: var(--text-primary, #1d2129);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* Info message styles / 信息消息样式 */
+.info-message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background-color: rgba(22, 93, 255, 0.08);
+  border: 1px solid rgba(22, 93, 255, 0.15);
+}
+
+.info-message-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--primary, #165dff);
+}
+
+.info-message-text {
+  font-size: 13px;
+  color: var(--text-primary, #1d2129);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* ========================================
+   Dark Mode Adjustments / 深色模式调整
+   使用更深的背景透明度和更亮的颜色以提升对比度
+   ======================================== */
+[data-theme='dark'] .error-message-container {
+  background-color: rgba(247, 101, 96, 0.15);
+  border-color: rgba(247, 101, 96, 0.35);
+}
+
+[data-theme='dark'] .error-message-text {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .success-message-container {
+  background-color: rgba(35, 195, 67, 0.15);
+  border-color: rgba(35, 195, 67, 0.35);
+}
+
+[data-theme='dark'] .success-message-text {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .warning-message-container {
+  background-color: rgba(255, 154, 46, 0.15);
+  border-color: rgba(255, 154, 46, 0.35);
+}
+
+[data-theme='dark'] .warning-message-text {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .info-message-container {
+  background-color: rgba(77, 159, 255, 0.15);
+  border-color: rgba(77, 159, 255, 0.35);
+}
+
+[data-theme='dark'] .info-message-text {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .form-field-error {
+  color: #f76560;
+}
+
+[data-theme='dark'] .error-boundary-fallback {
+  background-color: rgba(247, 101, 96, 0.08);
+}
