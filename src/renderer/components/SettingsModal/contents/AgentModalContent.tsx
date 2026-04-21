@@ -1660,25 +1660,18 @@ const AgentModalContent: React.FC = () => {
         headerStyle={{ background: 'var(--color-bg-1)' }}
         bodyStyle={{ background: 'var(--color-bg-1)' }}
         footer={
-          <div className='flex items-center justify-between w-full'>
-            <div className='flex items-center gap-8px'>
-              <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
-                {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
-              </Button>
-              <Button
-                onClick={() => {
-                  setEditVisible(false);
-                }}
-                className='w-[100px] rounded-[100px] bg-fill-2'
-              >
-                {t('common.cancel', { defaultValue: 'Cancel' })}
-              </Button>
-            </div>
-            {!isCreating && !activeAssistant?.isBuiltin && !isExtensionAssistant(activeAssistant) && (
-              <Button status='danger' onClick={handleDeleteClick} className='rounded-[100px]' style={{ backgroundColor: 'rgb(var(--danger-1))' }}>
-                {t('common.delete', { defaultValue: 'Delete' })}
-              </Button>
-            )}
+          <div className='flex items-center gap-8px'>
+            <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
+              {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditVisible(false);
+              }}
+              className='w-[100px] rounded-[100px] bg-fill-2'
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
           </div>
         }
       >
@@ -1834,8 +1827,8 @@ const AgentModalContent: React.FC = () => {
       </Drawer>
 
       {/* Delete Confirmation Modal */}
-      <Modal title={t('settings.deleteAssistantTitle', { defaultValue: 'Delete Assistant' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: 'Delete' })} cancelText={t('common.cancel', { defaultValue: 'Cancel' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
-        <p>{t('settings.deleteAssistantConfirm', { defaultValue: 'Deleting this assistant will also synchronously delete all conversations associated with it. This action cannot be undone.' })}</p>
+      <Modal title={t('settings.deleteAssistantTitle', { defaultValue: '删除助手' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
+        <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>
