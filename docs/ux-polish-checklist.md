@@ -238,7 +238,7 @@
 | #XXX | fix: 统一 Escape 键行为 | 可访问性 | P0 | ✅ |
 | #XXX | perf: 会话列表虚拟滚动 | 流畅度 | P1 | ✅ |
 | #XXX | perf: 消息列表虚拟滚动 | 流畅度 | P1 | ✅ (已有) |
-| #XXX | feat: Ctrl+K 全局搜索 | 快捷键 | P1 | ⏳ |
+| #XXX | feat: Ctrl+K 全局搜索 | 快捷键 | P1 | ✅ |
 | #XXX | fix: 模态框焦点陷阱 | 可访问性 | P1 | ⏳ |
 | #XXX | fix: 空状态引导操作 | Empty 态 | P1 | ⏳ |
 | #XXX | a11y: 为图标按钮添加 aria-label | 可访问性 | P2 | ⏳ |
@@ -427,3 +427,68 @@
 
 ---
 
+### 2026-04-21 - P1: Ctrl+K 全局搜索
+
+**Commit:** `feat(a11y): 实现 Ctrl+K 全局搜索功能`
+
+**新增文件：**
+- `src/renderer/hooks/useGlobalShortcut.ts` - 全局快捷键 Hook（支持 modifier keys 配置）
+- `src/renderer/hooks/useCommandPalette.ts` - CommandPalette 状态管理 Hook
+- `src/renderer/components/CommandPalette.tsx` - 全局搜索/命令面板组件
+
+**修改文件：**
+- `src/renderer/layout.tsx` - 集成 CommandPalette 组件
+- `src/renderer/utils/emitter.ts` - 添加 commandPalette.open/close 事件
+
+**功能清单：**
+1. **全局快捷键**
+   - 使用 `useGlobalShortcut` Hook 监听 Ctrl+K / Cmd+K
+   - 支持在任意页面触发（除输入框内）
+   - 自动阻止默认事件传播
+
+2. **搜索功能**
+   - 支持搜索会话历史
+   - 支持快速操作（新建会话、打开设置）
+   - 智能排序：操作命令 > 会话 > 文件 > 技能
+   - 实时过滤和评分机制
+
+3. **键盘导航**
+   - `↑/↓` - 选择上一项/下一项
+   - `Enter` - 打开选中项
+   - `Escape` - 关闭面板
+   - 自动滚动保持选中项可见
+
+4. **UI 设计**
+   - 居中模态框设计，适配深色模式
+   - 搜索输入框自动聚焦
+   - 结果高亮显示
+   - 底部快捷键提示
+
+5. **可扩展性**
+   - 支持通过 emitter 事件程序化打开/关闭
+   - 易于添加新的搜索源（文件、技能等）
+
+**验证方式：**
+1. **快捷键触发**
+   - 在任意页面按下 `Ctrl+K`（Windows/Linux）或 `Cmd+K`（Mac）
+   - 确认搜索面板弹出且输入框自动聚焦
+
+2. **搜索功能**
+   - 输入会话名称关键词，确认能过滤出匹配的会话
+   - 空查询时显示默认操作命令（新建会话、设置）
+
+3. **键盘导航**
+   - 使用 `↑/↓` 键导航搜索结果
+   - 按 `Enter` 确认选择，确认能跳转到对应页面
+   - 按 `Escape` 关闭面板
+
+4. **视觉检查**
+   - 确认深色模式下样式正常
+   - 确认选中项高亮效果明显
+   - 确认底部快捷键提示正确显示
+
+**注意事项：**
+- 文件搜索功能暂简化，后续可通过 workspace files API 增强
+- 技能搜索功能预留接口，待后续实现
+
+---
