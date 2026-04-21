@@ -66,7 +66,7 @@ async def mouse_click(tab, x: int = None, y: int = None,
 
         coords = json.loads(r.get("result", "null"))
         if not coords:
-            return {"not_found": True, "text": text, "selector": selector}
+            return {"error": f"Element not found: {text or selector}"}
         x, y = coords["x"], coords["y"]
 
     # CDP mouse click
