@@ -456,6 +456,17 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           createdAt: Date.now(),
         };
         addMessage(this.conversation_id, userMessage);
+
+        // Emit user_content event so the desktop renderer can display the message in real-time.
+        // For desktop-originated messages, the SendBox already added the message locally with
+        // the same msg_id, so addOrUpdateMessage's dedup logic will skip the duplicate.
+        const userResponseMessage: IResponseMessage = {
+          type: 'user_content',
+          conversation_id: this.conversation_id,
+          msg_id: data.msg_id,
+          data: userMessage.content.content,
+        };
+        ipcBridge.openclawConversation.responseStream.emit(userResponseMessage);
       }
 
       // Reset streaming state
