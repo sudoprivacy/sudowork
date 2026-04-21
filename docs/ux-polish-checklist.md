@@ -240,7 +240,7 @@
 | #XXX | perf: 消息列表虚拟滚动 | 流畅度 | P1 | ✅ (已有) |
 | #XXX | feat: Ctrl+K 全局搜索 | 快捷键 | P1 | ✅ |
 | #XXX | fix: 模态框焦点陷阱 | 可访问性 | P1 | ⏳ |
-| #XXX | fix: 空状态引导操作 | Empty 态 | P1 | ⏳ |
+| #XXX | feat: 空状态引导操作 | Empty 态 | P1 | ✅ |
 | #XXX | a11y: 为图标按钮添加 aria-label | 可访问性 | P2 | ⏳ |
 | #XXX | a11y: 统一模态框 ARIA 属性 | 可访问性 | P2 | ⏳ |
 | #XXX | fix: 技能选择器骨架屏动画 | Loading 态 | P2 | ⏳ |
@@ -267,7 +267,7 @@
 4. **会话/消息列表虚拟滚动** - 长列表性能
 5. **Ctrl+K 全局搜索** - 效率提升
 6. **模态框焦点陷阱** - 键盘导航
-7. **空状态引导操作** - 用户引导
+7. **空状态引导操作** - 用户引导 ✅
 
 ### 中优先级 (P2) - 近期规划
 1. ARIA 可访问性改进（图标按钮、模态框）
@@ -282,7 +282,7 @@
 
 ---
 
-*最后更新：2026-04-21*
+*最后更新：2026-04-21 - 空状态引导操作已完成*
 
 ---
 
@@ -424,6 +424,70 @@
 - Chrome DevTools Performance 检查 FPS（应稳定 60fps）
 - Chrome DevTools Elements 检查 DOM 节点数量（应稳定在 10-20 个）
 - 功能测试：文件夹展开/收起、会话点击/编辑/删除、选中状态、滚动定位
+
+---
+
+### 2026-04-21 - P1: 空状态引导操作
+
+**Commit:** `feat(empty-state): add unified EmptyState component with guide actions`
+
+**新增文件：**
+- `src/renderer/components/base/EmptyState.tsx` - 统一空状态组件（支持图标、标题、描述、操作按钮）
+- `src/renderer/components/base/EmptyState.css` - EmptyState 样式文件
+
+**修改文件：**
+- `src/renderer/pages/conversation/ChatHistory.tsx` - 使用 EmptyState 替换 Empty，添加"新会话"按钮
+- `src/renderer/pages/conversation/workspace/index.tsx` - 使用 EmptyState 替换空状态 div，添加"打开文件夹"按钮
+- `src/renderer/pages/conversation/workspace/workspace-card.css` - 添加 EmptyState CSS 类
+- `src/renderer/i18n/locales/zh-CN/conversation.json` - 添加 `actionNewConversation` 翻译
+- `src/renderer/i18n/locales/en-US/conversation.json` - 添加 `actionNewConversation` translation
+- `src/renderer/i18n/locales/ja-JP/conversation.json` - 添加 `actionNewConversation` translation
+- `src/renderer/i18n/locales/ko-KR/conversation.json` - 添加 `actionNewConversation` translation
+
+**功能清单：**
+1. **EmptyState 组件**
+   - 支持自定义图标（icon prop）
+   - 支持标题和描述文本
+   - 支持多个操作按钮（actions array）
+   - 支持 simple 模式（无边框背景）
+   - 响应式布局，居中对齐
+
+2. **ChatHistory 空状态**
+   - 删除所有会话后显示空状态
+   - 显示 MessageOne 图标（48px）
+   - 显示"暂无对话历史"标题
+   - 显示"新会话"按钮，点击导航到 `/` 路由
+
+3. **Workspace 空状态**
+   - 未选择工作文件夹时显示空状态
+   - 显示 FolderOpen 图标（48px，圆形背景）
+   - 显示"工作空间为空"标题
+   - 显示"上传文件或打开文件夹后，文件将显示在这里"描述
+   - 显示"打开文件夹"按钮，点击弹出目录选择器
+
+4. **i18n 支持**
+   - `conversation.history.actionNewConversation` - 新会话按钮文案
+   - 支持 zh-CN, en-US, ja-JP, ko-KR 四种语言
+
+**验证方式：**
+1. **ChatHistory 空状态**
+   - 删除所有会话后，侧边栏显示空状态
+   - 确认图标、标题、按钮显示正确
+   - 点击"新会话"按钮，确认导航到 `/` 路由
+
+2. **Workspace 空状态**
+   - 在未选择工作文件夹时，右侧面板显示空状态
+   - 确认图标、标题、描述、按钮显示正确
+   - 点击"打开文件夹"按钮，确认弹出目录选择模态框
+   - 选择目录后，确认文件树正确显示
+
+3. **视觉检查**
+   - 确认空状态居中对齐
+   - 确认按钮圆角 8px，primary 类型
+   - 确认深浅色模式下样式正常
+
+4. **i18n 验证**
+   - 切换不同语言，确认按钮文案正确翻译
 
 ---
 

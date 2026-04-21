@@ -1,0 +1,55 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ——— Unified EmptyState component ——— */
+.empty-state {
+  text-align: center;
+}
+
+.empty-state--with-border {
+  border-radius: 12px;
+  border: 1px dashed var(--color-border-2, #e5e6eb);
+  background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
+}
+
+.empty-state--simple {
+  background: transparent;
+}
+
+.empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-2, #4e5969);
+  line-height: 1.5;
+}
+
+.empty-state__description {
+  font-size: 13px;
+  color: var(--color-text-3, #86909c);
+  line-height: 1.5;
+}
+
+.empty-state__actions {
+  margin-top: 16px;
+}
+
+.empty-state__action-btn {
+  transition: all 0.2s ease;
+}
+
+.empty-state__action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.empty-state__action-btn:active {
+  transform: translateY(0);
+}

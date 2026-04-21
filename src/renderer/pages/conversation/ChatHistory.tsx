@@ -14,7 +14,9 @@ import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timeline';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
-import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import { Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import EmptyState from '@/renderer/components/base/EmptyState';
+import { MessageOne } from '@icon-park/react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -423,20 +425,69 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
 
   return (
     <FlexFullContainer>
-      {chatHistory.length === 0 ? (
-        <div className='size-full flex-center chat-history'>
-          <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
-        </div>
-      ) : (
-        <Virtuoso
-          ref={virtuosoRef}
-          className={classNames('size-full chat-history', {
-            'chat-history--collapsed': collapsed,
-          })}
-          data={listItems}
-          itemContent={renderListItem}
-        />
-      )}
+      <div
+        className={classNames('size-full chat-history', {
+          'flex-center': !chatHistory.length,
+          'flex flex-col overflow-y-auto': !!chatHistory.length,
+          'chat-history--collapsed': collapsed,
+        })}
+      >
+        {!chatHistory.length ? (
+          <EmptyState
+            icon={<MessageOne theme='outline' size='48' fill='var(--color-text-3)' />}
+            title={t('conversation.history.noHistory')}
+            actions={[
+              {
+                label: t('conversation.history.actionNewConversation'),
+                onClick: () => {
+                  navigate('/');
+                },
+                type: 'primary',
+              },
+            ]}
+            simple
+          />
+        ) : (
+          <>
+            {/* ── SCHEDULED SECTION ── */}
+            {scheduledGroups.length > 0 && (
+              <>
+                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>
+                {scheduledGroups.map(({ jobName, convs }) => {
+                  const isExpanded = expandedFolders[jobName] !== false; // default open
+                  return (
+                    <React.Fragment key={jobName}>
+                      {/* Folder header */}
+                      <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => toggleFolder(jobName)}>
+                        <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
+                        <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
+                      </div>
+                      {/* Conversations under this folder */}
+                      {isExpanded &&
+                        convs.map((conv) => (
+                          <div key={conv.id} className='pl-16px'>
+                            {renderConversation(conv)}
+                          </div>
+                        ))}
+                    </React.Fragment>
+                  );
+                })}
+              </>
+            )}
+
+            {/* ── RECENTS SECTION ── */}
+            {recentConvs.map((item) => {
+              const timeline = formatTimeline(item);
+              return (
+                <React.Fragment key={item.id}>
+                  {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
+                  {renderConversation(item)}
+                </React.Fragment>
+              );
+            })}
+          </>
+        )}
+      </div>
     </FlexFullContainer>
   );
 };
