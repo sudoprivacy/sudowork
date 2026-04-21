@@ -308,6 +308,13 @@ export interface AcpBackendConfig {
    * These skills will be displayed in the Custom Skills section even after being imported.
    */
   customSkillNames?: string[];
+
+  /**
+   * 选择助手时预填到输入框的默认提示词
+   *
+   * Default initial prompt to pre-fill input when selecting this assistant.
+   */
+  defaultInitPrompt?: string | null;
 }
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones

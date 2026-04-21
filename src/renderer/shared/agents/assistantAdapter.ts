@@ -35,6 +35,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
     enabledSkills: meta.enabledSkills ?? meta.defaultEnabledSkills,
     isBuiltin: info.isBuiltin,
     apiKeyFields: meta.apiKeyFields,
+    defaultInitPrompt: meta.defaultInitPrompt,
   };
 }
 
