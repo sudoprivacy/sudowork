@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import { initStatusManager } from '../services/initStatus';
 
@@ -95,5 +96,11 @@ export function initInitBridge(): void {
   // Subscribe to status changes and broadcast to renderer
   initStatusManager.subscribe((status) => {
     ipcBridge.init.onStatusChange.emit(status);
+  });
+
+  // Quit the entire application
+  ipcBridge.init.quitApp.provider(() => {
+    app.exit(0);
+    return Promise.resolve();
   });
 }

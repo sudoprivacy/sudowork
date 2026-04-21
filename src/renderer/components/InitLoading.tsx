@@ -262,6 +262,23 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
       >
         {reinstalling === 'nexus' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Nexus`}
       </button>
+      <button
+        type='button'
+        onClick={() => void init.quitApp.invoke()}
+        style={{
+          border: '1px solid rgba(248, 113, 113, 0.5)',
+          borderRadius: '10px',
+          background: 'rgba(185, 28, 28, 0.5)',
+          color: '#fee2e2',
+          fontSize: '12px',
+          fontWeight: 700,
+          padding: '9px 14px',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        退出
+      </button>
     </div>
   );
 

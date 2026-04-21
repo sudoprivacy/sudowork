@@ -643,6 +643,8 @@ export const init = {
   reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'sudoclaw' | 'nexus' }>('init.reinstall-component'),
   /** Subscribe to initialization status changes */
   onStatusChange: bridge.buildEmitter<InitStatus>('init.status-change'),
+  /** Quit the entire application */
+  quitApp: bridge.buildProvider<void, void>('init.quit-app'),
 };
 
 // Nexus Python server / 内置 Python 服务
