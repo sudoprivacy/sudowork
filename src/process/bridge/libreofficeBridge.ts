@@ -38,7 +38,10 @@ export function initLibreOfficeBridge(): void {
       ipcBridge.libreOffice.installResult.emit({ success: false, msg });
       return { success: false, msg };
     } finally {
-      installState = { installing: false };
+      // Delay reset so renderer gets final progress + result events before state clears
+      setTimeout(() => {
+        installState = { installing: false };
+      }, 0);
     }
   });
 
@@ -65,7 +68,10 @@ export function initLibreOfficeBridge(): void {
       ipcBridge.libreOffice.installResult.emit({ success: false, msg });
       return { success: false, msg };
     } finally {
-      installState = { installing: false };
+      // Delay reset so renderer gets final progress + result events before state clears
+      setTimeout(() => {
+        installState = { installing: false };
+      }, 0);
     }
   });
 }

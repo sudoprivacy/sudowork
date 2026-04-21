@@ -5,12 +5,14 @@
  */
 
 import { ipcBridge } from '@/common';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
+import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
 
 interface PPTPreviewProps {
   filePath?: string;
@@ -40,7 +42,17 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   const [refreshing, setRefreshing] = useState(false);
 
   const [useLibreOffice, setUseLibreOffice] = useState<boolean>(false);
+  const [needsLibreOfficeInstall, setNeedsLibreOfficeInstall] = useState(false);
+  const [installingLibreOffice, setInstallingLibreOffice] = useState(false);
+  const [installPercent, setInstallPercent] = useState<number | undefined>(undefined);
+  const [installPhase, setInstallPhase] = useState<string | undefined>(undefined);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
   const messageApiRef = useRef(messageApi);
+  const filePathRef = useRef(filePath);
+
+  useEffect(() => {
+    filePathRef.current = filePath;
+  }, [filePath]);
 
   useEffect(() => {
     messageApiRef.current = messageApi;
@@ -72,6 +84,43 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
       messageApiRef.current.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, t]);
+
+  const handleInstallLibreOffice = useCallback(async () => {
+    setInstallingLibreOffice(true);
+    setInstallPercent(undefined);
+    setInstallPhase(undefined);
+    try {
+      const res = await libreOfficeIpc.install.invoke();
+      if (!res?.success) {
+        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      }
+    } catch (e) {
+      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+    }
+    // Don't reset installingLibreOffice here — the installResult event will handle it
+  }, [t]);
+
+  // Listen for LibreOffice install progress and result
+  useEffect(() => {
+    const unsubProgress = libreOfficeIpc.installProgress.on(({ phase, percent }) => {
+      setInstallingLibreOffice(true);
+      setInstallPhase(phase);
+      if (percent != null) setInstallPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubResult = libreOfficeIpc.installResult.on(() => {
+      setInstallingLibreOffice(false);
+      setInstallPercent(undefined);
+      setInstallPhase(undefined);
+      if (needsLibreOfficeInstall) {
+        setNeedsLibreOfficeInstall(false);
+        setReloadTrigger((n) => n + 1);
+      }
+    });
+    return () => {
+      unsubProgress();
+      unsubResult();
+    };
+  }, [needsLibreOfficeInstall]);
 
   const handleRefresh = useCallback(async () => {
     if (filePath) {
@@ -148,6 +197,9 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
           }
         } else {
           setPdfPath(undefined);
+          setNeedsLibreOfficeInstall(true);
+          setLoading(false);
+          return;
         }
       } catch (err) {
         const defaultMessage = t('preview.ppt.loadFailed');
@@ -164,7 +216,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     };
 
     void loadDocument();
-  }, [filePath, t]);
+  }, [filePath, t, reloadTrigger]);
 
   useEffect(() => {
     if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
@@ -218,26 +270,14 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
 
   if (!useLibreOffice) {
     return (
-      <div className='h-full w-full bg-bg-1 flex items-center justify-center'>
-        {messageContextHolder}
-        <div className='text-center max-w-400px px-24px'>
-          <div className='text-48px mb-16px'>📊</div>
-          <div className='text-16px text-t-primary font-medium mb-8px'>{t('preview.pptTitle')}</div>
-          <div className='text-13px text-t-secondary mb-24px'>{t('preview.pptOpenHint')}</div>
-
-          {filePath && (
-            <div className='flex items-center justify-center gap-12px'>
-              <Button size='small' onClick={handleOpenInSystem}>
-                <span>{t('preview.pptOpenFile')}</span>
-              </Button>
-              <Button size='small' onClick={handleShowInFolder}>
-                {t('preview.pptShowLocation')}
-              </Button>
-            </div>
-          )}
-
-          <div className='text-11px text-t-tertiary mt-16px'>{t('preview.pptSystemAppHint')}</div>
-        </div>
+      <div className='h-full w-full'>
+        <LibreOfficeInstallPrompt
+          fileType='ppt'
+          installing={installingLibreOffice}
+          percent={installPercent}
+          phase={installPhase}
+          onInstall={handleInstallLibreOffice}
+        />
       </div>
     );
   }
