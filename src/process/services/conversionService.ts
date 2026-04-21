@@ -5,12 +5,13 @@
  */
 
 import type { ConversionResult, ExcelWorkbookData, PPTJsonData, PPTSlideData } from '@/common/types/conversion';
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
 import { BrowserWindow } from 'electron';
 import fs from 'fs/promises';
 import fsSync from 'fs';
+import JSZip from 'jszip';
 import mammoth from 'mammoth';
 import os from 'os';
 import path from 'path';
@@ -1047,6 +1048,17 @@ class ConversionService {
         mainLog('ConversionService', 'Copied file to temp path for macOS Unicode compatibility:', tempFile);
       }
 
+      // Pre-process Excel files to add page layout settings (fit-to-width, orientation)
+      // This prevents column overflow causing unwanted page breaks in PDF output
+      if (['.xls', '.xlsx', '.ods'].includes(ext.toLowerCase())) {
+        const preparedPath = await this.prepareExcelForPdf(sourcePath, tempDir);
+        if (preparedPath !== sourcePath) {
+          sourcePath = preparedPath;
+          baseName = path.basename(preparedPath, path.extname(preparedPath));
+          mainLog('ConversionService', 'Using prepared Excel file for conversion:', sourcePath);
+        }
+      }
+
       // Queue the conversion to prevent concurrent LibreOffice processes
       // This prevents "Unspecified Application Error" caused by multiple instances
       return await new Promise<ConversionResult<string>>((resolve) => {
@@ -1072,6 +1084,189 @@ class ConversionService {
       }
 
       return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Pre-process Excel file to add page layout settings for better PDF output
+   * 预处理 Excel 文件，设置页面布局以适配 PDF 输出
+   *
+   * Modifies the XLSX XML directly to add:
+   * - fitToPage: scales content to fit page width
+   * - pageSetup: sets orientation (landscape for wide tables) and fit-to-width
+   *
+   * @param filePath - Source Excel file path (.xlsx)
+   * @param tempDir - Temporary directory for the prepared file
+   * @returns Path to the prepared file, or original path if preparation fails/skipped
+   */
+  private async prepareExcelForPdf(filePath: string, tempDir: string): Promise<string> {
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Only process .xlsx files (ZIP-based Office Open XML)
+    // .xls (legacy binary format) and .ods cannot be processed this way
+    if (ext !== '.xlsx') {
+      return filePath;
+    }
+
+    try {
+      const buffer = await fs.readFile(filePath);
+      const zip = await JSZip.loadAsync(buffer);
+
+      // Analyze workbook to determine optimal orientation
+      // First, use XLSX to count columns for orientation decision
+      let maxColumns = 0;
+      try {
+        const workbook = XLSX.read(buffer, { type: 'buffer', sheetRows: 100 });
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          if (sheet['!ref']) {
+            const range = XLSX.utils.decode_range(sheet['!ref']);
+            const cols = range.e.c - range.s.c + 1;
+            maxColumns = Math.max(maxColumns, cols);
+          }
+        }
+      } catch {
+        // If XLSX parsing fails, default to landscape for safety
+        maxColumns = 5;
+      }
+
+      // Determine orientation: >4 columns → landscape, otherwise portrait
+      const useLandscape = maxColumns > 4;
+      const orientation = useLandscape ? 'landscape' : 'portrait';
+      mainLog('ConversionService', `prepareExcelForPdf: maxColumns=${maxColumns}, orientation=${orientation}`);
+
+      // Process each worksheet XML to add page setup
+      const sheetFiles = Object.keys(zip.files).filter((name) => name.match(/^xl\/worksheets\/sheet\d+\.xml$/i));
+
+      for (const sheetFile of sheetFiles) {
+        const xmlContent = await zip.file(sheetFile)!.async('string');
+        const modifiedXml = this.injectPageSetupIntoSheetXml(xmlContent, orientation);
+        zip.file(sheetFile, modifiedXml);
+      }
+
+      // Write modified XLSX to temp directory
+      const preparedFileName = `prepared-${Date.now()}.xlsx`;
+      const preparedPath = path.join(tempDir, preparedFileName);
+      const outputBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      await fs.writeFile(preparedPath, outputBuffer);
+
+      mainLog('ConversionService', 'prepareExcelForPdf: prepared file saved to', preparedPath);
+      return preparedPath;
+    } catch (error) {
+      // If preparation fails, fall back to original file
+      mainWarn('ConversionService', 'prepareExcelForPdf failed, using original file:', error);
+      return filePath;
+    }
+  }
+
+  /**
+   * Inject pageSetup and sheetPr/pageSetUpPr into worksheet XML
+   * 注入页面设置到工作表 XML 中
+   *
+   * Adds or modifies:
+   * - <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+   * - <pageSetup fitToWidth="1" fitToHeight="0" orientation="landscape|portrait" paperSize="9"/>
+   *
+   * paperSize="9" = A4 (ISO 216)
+   */
+  private injectPageSetupIntoSheetXml(xmlContent: string, orientation: string): string {
+    try {
+      const doc = new DOMParser().parseFromString(xmlContent, 'text/xml');
+      const worksheet = doc.documentElement;
+
+      if (!worksheet) {
+        return xmlContent;
+      }
+
+      // Get the spreadsheetml namespace
+      const ns = worksheet.namespaceURI || 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+      // 1. Handle <sheetPr> element - add or modify to include fitToPage
+      let sheetPr = worksheet.getElementsByTagNameNS(ns, 'sheetPr').item(0);
+      if (!sheetPr) {
+        // Create <sheetPr> element
+        sheetPr = doc.createElementNS(ns, 'sheetPr');
+        // Insert after <sheetViews> or as first child
+        const sheetViews = worksheet.getElementsByTagNameNS(ns, 'sheetViews').item(0);
+        const sheetData = worksheet.getElementsByTagNameNS(ns, 'sheetData').item(0);
+        if (sheetViews) {
+          worksheet.insertBefore(sheetPr, sheetViews);
+        } else if (sheetData) {
+          worksheet.insertBefore(sheetPr, sheetData);
+        } else {
+          worksheet.appendChild(sheetPr);
+        }
+      }
+
+      // Add or update <pageSetUpPr fitToPage="1"/> inside <sheetPr>
+      let pageSetUpPr = null;
+      const children = sheetPr.childNodes;
+      for (let i = 0; i < children.length; i++) {
+        const child = children.item(i);
+        if (child && child.nodeName === 'pageSetUpPr') {
+          pageSetUpPr = child;
+          break;
+        }
+      }
+      if (!pageSetUpPr) {
+        pageSetUpPr = doc.createElementNS(ns, 'pageSetUpPr');
+        sheetPr.appendChild(pageSetUpPr);
+      }
+      (pageSetUpPr as Element).setAttribute('fitToPage', '1');
+
+      // 2. Handle <pageSetup> element - add or modify
+      let pageSetup = worksheet.getElementsByTagNameNS(ns, 'pageSetup').item(0);
+      if (!pageSetup) {
+        // Create <pageSetup> element - must be placed after <sheetData> and other elements
+        pageSetup = doc.createElementNS(ns, 'pageSetup');
+        // pageSetup typically comes near the end of the worksheet
+        // Insert before closing tag or after the last known element
+        const printOptions = worksheet.getElementsByTagNameNS(ns, 'printOptions').item(0);
+        const pageMargins = worksheet.getElementsByTagNameNS(ns, 'pageMargins').item(0);
+        if (pageMargins && pageMargins.nextSibling) {
+          worksheet.insertBefore(pageSetup, pageMargins.nextSibling);
+        } else if (pageMargins) {
+          // Insert after pageMargins
+          if (pageMargins.nextSibling) {
+            worksheet.insertBefore(pageSetup, pageMargins.nextSibling);
+          } else {
+            worksheet.appendChild(pageSetup);
+          }
+        } else if (printOptions && printOptions.nextSibling) {
+          worksheet.insertBefore(pageSetup, printOptions.nextSibling);
+        } else {
+          worksheet.appendChild(pageSetup);
+        }
+      }
+
+      // Set pageSetup attributes
+      pageSetup.setAttribute('fitToWidth', '1');
+      pageSetup.setAttribute('fitToHeight', '0');
+      pageSetup.setAttribute('orientation', orientation);
+      pageSetup.setAttribute('paperSize', '9'); // A4
+
+      // 3. Add <pageMargins> if not present (LibreOffice may need this)
+      let pageMargins = worksheet.getElementsByTagNameNS(ns, 'pageMargins').item(0);
+      if (!pageMargins) {
+        pageMargins = doc.createElementNS(ns, 'pageMargins');
+        // Insert before pageSetup
+        worksheet.insertBefore(pageMargins, pageSetup);
+        // Set reasonable margins (in inches) - narrower for wide tables
+        const margin = orientation === 'landscape' ? '0.4' : '0.7';
+        pageMargins.setAttribute('left', margin);
+        pageMargins.setAttribute('right', margin);
+        pageMargins.setAttribute('top', '0.5');
+        pageMargins.setAttribute('bottom', '0.5');
+        pageMargins.setAttribute('header', '0.3');
+        pageMargins.setAttribute('footer', '0.3');
+      }
+
+      // Serialize back to string
+      const serializer = new XMLSerializer();
+      return serializer.serializeToString(doc);
+    } catch (error) {
+      mainWarn('ConversionService', 'injectPageSetupIntoSheetXml failed:', error);
+      return xmlContent;
     }
   }
 
