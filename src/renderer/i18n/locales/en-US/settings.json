@@ -46,7 +46,7 @@
   "promptPreview": "Preview",
   "promptPreviewEmpty": "No content to preview",
   "deleteAssistantTitle": "Delete Assistant",
-  "deleteAssistantConfirm": "Are you sure you want to delete this assistant? This action cannot be undone.",
+  "deleteAssistantConfirm": "Deleting this assistant will also synchronously delete all conversations associated with it. Do you want to proceed?",
   "cannotDeleteBuiltin": "Cannot delete builtin assistants",
   "duplicateAssistant": "Duplicate",
   "assistantMainAgent": "Main Agent",

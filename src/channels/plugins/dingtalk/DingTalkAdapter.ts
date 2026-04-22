@@ -57,21 +57,37 @@ export interface DingTalkStreamMessage {
   picture?: {
     downloadCode?: string;
     photoURL?: string;
+    _localPath?: string;
   };
   audio?: {
     downloadCode?: string;
     duration?: string;
     recognition?: string;
+    _localPath?: string;
   };
   video?: {
     downloadCode?: string;
     duration?: string;
     videoType?: string;
+    _localPath?: string;
   };
   file?: {
     downloadCode?: string;
     fileName?: string;
     fileSize?: string;
+    _localPath?: string;
+  };
+  /** Stream callback content field (actual location of media downloadCode in newer API) */
+  content?: {
+    downloadCode?: string;
+    pictureDownloadCode?: string;
+    fileName?: string;
+    fileSize?: string;
+    duration?: string;
+    recognition?: string;
+    _localPath?: string;
+    /** richText message items (DingTalk places richText array here for richText msgtype) */
+    richText?: DingTalkRichTextItem[];
   };
   sessionWebhook?: string;
   robotCode?: string;
@@ -92,6 +108,159 @@ export interface DingTalkCardActionData {
 }
 
 // ==================== Incoming Message Conversion ====================
+
+/**
+ * Media message types supported by DingTalk robot.
+ */
+const DINGTALK_MEDIA_TYPES = new Set(['picture', 'audio', 'video', 'file']);
+
+/**
+ * A single item in a DingTalk richText message.
+ * Items can be text or picture type.
+ * Per DingTalk docs, picture items include downloadCode/pictureDownloadCode.
+ */
+export interface DingTalkRichTextItem {
+  text?: string;
+  downloadCode?: string;
+  pictureDownloadCode?: string;
+  type?: string; // 'text' | 'picture'
+}
+
+/**
+ * Extract richText items from a DingTalk message, trying multiple data paths:
+ * 1. content.richText (DingTalk Stream API actual path per official docs)
+ * 2. richText.richTextList (legacy/alternative path)
+ * 3. richText as a direct array
+ */
+function getRichTextItems(data: DingTalkStreamMessage): DingTalkRichTextItem[] {
+  if (data.content?.richText && Array.isArray(data.content.richText)) {
+    return data.content.richText;
+  }
+  if (data.richText?.richTextList) {
+    return data.richText.richTextList;
+  }
+  if (Array.isArray((data as any).richText)) {
+    return (data as any).richText;
+  }
+  return [];
+}
+
+/**
+ * Extract downloadCode and fileName from a DingTalk message if it contains media.
+ * Returns null for non-media message types.
+ */
+export function extractMediaDownloadInfo(data: DingTalkStreamMessage): { downloadCode: string; fileName?: string } | null {
+  const msgtype = data.msgtype;
+  if (!msgtype) {
+    return null;
+  }
+
+  // richText messages may contain picture items with downloadCode
+  if (msgtype === 'richText') {
+    const items = getRichTextItems(data);
+    const pictureItem = items.find(
+      (item) => item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode),
+    );
+    if (pictureItem?.downloadCode) {
+      return { downloadCode: pictureItem.downloadCode };
+    }
+    return null;
+  }
+
+  if (!DINGTALK_MEDIA_TYPES.has(msgtype)) {
+    return null;
+  }
+
+  let downloadCode: string | undefined;
+  let fileName: string | undefined;
+
+  switch (msgtype) {
+    case 'picture':
+      downloadCode = data.picture?.downloadCode || data.content?.downloadCode || data.content?.pictureDownloadCode;
+      break;
+    case 'audio':
+      downloadCode = data.audio?.downloadCode || data.content?.downloadCode;
+      break;
+    case 'video':
+      downloadCode = data.video?.downloadCode || data.content?.downloadCode;
+      break;
+    case 'file':
+      downloadCode = data.file?.downloadCode || data.content?.downloadCode;
+      fileName = data.file?.fileName || data.content?.fileName;
+      break;
+  }
+
+  if (!downloadCode) {
+    return null;
+  }
+
+  return { downloadCode, fileName };
+}
+
+/**
+ * Set _localPath on the appropriate media field of a DingTalk message.
+ */
+export function setMediaLocalPath(data: DingTalkStreamMessage, localPath: string): void {
+  switch (data.msgtype) {
+    case 'richText':
+      if (data.content) data.content._localPath = localPath;
+      break;
+    case 'picture':
+      if (data.picture) data.picture._localPath = localPath;
+      if (data.content) data.content._localPath = localPath;
+      break;
+    case 'audio':
+      if (data.audio) data.audio._localPath = localPath;
+      if (data.content) data.content._localPath = localPath;
+      break;
+    case 'video':
+      if (data.video) data.video._localPath = localPath;
+      if (data.content) data.content._localPath = localPath;
+      break;
+    case 'file':
+      if (data.file) data.file._localPath = localPath;
+      if (data.content) data.content._localPath = localPath;
+      break;
+  }
+}
+
+/**
+ * Map a DingTalk msgtype to a default file extension.
+ */
+export function getDefaultExtension(msgtype: string | undefined): string {
+  switch (msgtype) {
+    case 'picture':
+      return '.jpg';
+    case 'richText':
+      return '.jpg'; // richText with picture items
+    case 'audio':
+      return '.amr';
+    case 'video':
+      return '.mp4';
+    case 'file':
+      return '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Map a DingTalk msgtype to a default MIME type.
+ */
+export function getDefaultMimeType(msgtype: string | undefined): string {
+  switch (msgtype) {
+    case 'picture':
+      return 'image/jpeg';
+    case 'audio':
+      return 'audio/amr';
+    case 'video':
+      return 'video/mp4';
+    case 'file':
+      return 'application/octet-stream';
+    default:
+      return 'application/octet-stream';
+  }
+}
 
 /**
  * Encode chatId based on conversation type
@@ -198,11 +367,33 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
     }
 
     case 'richText': {
-      const textParts = (data.richText?.richTextList || []).filter((item) => item.type === 'text').map((item) => item.text || '');
+      const items = getRichTextItems(data);
+      const textParts: string[] = [];
+      const pictureCodes: Array<{ downloadCode: string }> = [];
+
+      for (const item of items) {
+        if (item.text) {
+          textParts.push(item.text);
+        }
+        if (item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode)) {
+          pictureCodes.push({ downloadCode: item.downloadCode });
+        }
+      }
+
       let text = textParts.join('');
       if (data.conversationType === '2') {
         text = text.replace(/@\S+\s*/g, '').trim();
       }
+
+      if (pictureCodes.length > 0) {
+        const fileId = data.content?._localPath || pictureCodes[0].downloadCode;
+        return {
+          type: 'photo',
+          text,
+          attachments: [{ type: 'photo', fileId }],
+        };
+      }
+
       return { type: 'text', text };
     }
 
@@ -213,7 +404,7 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
         attachments: [
           {
             type: 'photo',
-            fileId: data.picture?.downloadCode || '',
+            fileId: data.picture?._localPath || data.content?._localPath || data.picture?.downloadCode || data.content?.downloadCode || '',
           },
         ],
       };
@@ -221,12 +412,12 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
     case 'audio':
       return {
         type: 'audio',
-        text: data.audio?.recognition || '',
+        text: data.audio?.recognition || data.content?.recognition || '',
         attachments: [
           {
             type: 'audio',
-            fileId: data.audio?.downloadCode || '',
-            duration: data.audio?.duration ? parseInt(data.audio.duration, 10) : undefined,
+            fileId: data.audio?._localPath || data.content?._localPath || data.audio?.downloadCode || data.content?.downloadCode || '',
+            duration: data.audio?.duration ? parseInt(data.audio.duration, 10) : data.content?.duration ? parseInt(data.content.duration, 10) : undefined,
           },
         ],
       };
@@ -238,8 +429,8 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
         attachments: [
           {
             type: 'video',
-            fileId: data.video?.downloadCode || '',
-            duration: data.video?.duration ? parseInt(data.video.duration, 10) : undefined,
+            fileId: data.video?._localPath || data.content?._localPath || data.video?.downloadCode || data.content?.downloadCode || '',
+            duration: data.video?.duration ? parseInt(data.video.duration, 10) : data.content?.duration ? parseInt(data.content.duration, 10) : undefined,
           },
         ],
       };
@@ -251,9 +442,9 @@ function extractMessageContent(data: DingTalkStreamMessage): IUnifiedMessageCont
         attachments: [
           {
             type: 'document',
-            fileId: data.file?.downloadCode || '',
-            fileName: data.file?.fileName,
-            size: data.file?.fileSize ? parseInt(data.file.fileSize, 10) : undefined,
+            fileId: data.file?._localPath || data.content?._localPath || data.file?.downloadCode || data.content?.downloadCode || '',
+            fileName: data.file?.fileName || data.content?.fileName,
+            size: data.file?.fileSize ? parseInt(data.file.fileSize, 10) : data.content?.fileSize ? parseInt(data.content.fileSize, 10) : undefined,
           },
         ],
       };

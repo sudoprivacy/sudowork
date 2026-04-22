@@ -27,6 +27,7 @@ import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
+import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
 import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
@@ -157,6 +158,8 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private currentStreamMsgId: string | null = null;
   private accumulatedAssistantText = '';
   private agentAssistantFallbackText = '';
+  /** When true, accumulated text matches a prefix of "NO_REPLY" and is buffered pending more tokens */
+  private noReplyBuffering = false;
   private statusMessageId: string | null = null;
   private connectionTipMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
@@ -455,6 +458,17 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           createdAt: Date.now(),
         };
         addMessage(this.conversation_id, userMessage);
+
+        // Emit user_content event so the desktop renderer can display the message in real-time.
+        // For desktop-originated messages, the SendBox already added the message locally with
+        // the same msg_id, so addOrUpdateMessage's dedup logic will skip the duplicate.
+        const userResponseMessage: IResponseMessage = {
+          type: 'user_content',
+          conversation_id: this.conversation_id,
+          msg_id: data.msg_id,
+          data: userMessage.content.content,
+        };
+        ipcBridge.openclawConversation.responseStream.emit(userResponseMessage);
       }
 
       // Reset streaming state
@@ -493,7 +507,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 1. Your ONLY valid workspace is: ${this.workspace}
 2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
 3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. If you find files in ${configuredWorkspace}, MOVE them to ${this.workspace} immediately
+4. If you find your OWN output files in ${configuredWorkspace}, MOVE them to ${this.workspace}
+   - EXCLUDE system files (DO NOT move): AGENTS.md, SOUL.md, USER.md, IDENTITY.md, HEARTBEAT.md, TOOLS.md, memory/, .openclaw/
+   - These are Agent identity/session config files, NOT your output files
 
 [System: This directive applies even after errors/retries. The session workspace does NOT change.]
 
@@ -766,6 +782,7 @@ ${draftsInstruction}`;
       case 'delta': {
         const cumulative = this.extractTextFromMessage(event.message);
         if (!cumulative) return;
+
         this.agentAssistantFallbackText = '';
 
         if (!this.currentStreamMsgId) {
@@ -784,6 +801,25 @@ ${draftsInstruction}`;
 
         if (!delta) return;
 
+        // Filter out NO_REPLY — internal agent protocol signal (e.g. memory flush response), not user-facing.
+        // Buffer partial prefixes ("N", "NO", "NO_", ...) to handle multi-token splitting by the LLM.
+        const trimmed = this.accumulatedAssistantText.trim();
+        if ('NO_REPLY'.startsWith(trimmed)) {
+          this.noReplyBuffering = true;
+          if (trimmed === 'NO_REPLY') {
+            this.currentStreamMsgId = null;
+            this.accumulatedAssistantText = '';
+            this.noReplyBuffering = false;
+          }
+          return;
+        }
+
+        // If we were buffering a NO_REPLY prefix but text diverged, emit full accumulated text
+        if (this.noReplyBuffering) {
+          this.noReplyBuffering = false;
+          delta = this.accumulatedAssistantText;
+        }
+
         this.handleStreamMessage({
           type: 'content',
           conversation_id: this.conversation_id,
@@ -796,6 +832,14 @@ ${draftsInstruction}`;
       case 'final': {
         if (event.message) {
           const finalText = this.extractTextFromMessage(event.message);
+          // Filter out NO_REPLY — internal agent protocol signal, not user-facing
+          if (finalText?.trim() === 'NO_REPLY') {
+            this.noReplyBuffering = false;
+            this.currentStreamMsgId = null;
+            this.accumulatedAssistantText = '';
+            this.handleEndTurn();
+            break;
+          }
           if (finalText && finalText.length > this.accumulatedAssistantText.length) {
             if (!this.currentStreamMsgId) {
               this.currentStreamMsgId = uuid();
@@ -837,6 +881,16 @@ ${draftsInstruction}`;
         break;
 
       case 'error':
+        mainError('OpenClawAgent', '[DIAG] ChatEvent error received:', JSON.stringify({
+          runId: event.runId,
+          sessionKey: event.sessionKey,
+          seq: event.seq,
+          state: event.state,
+          stopReason: event.stopReason,
+          errorMessage: event.errorMessage,
+          message: event.message,
+          usage: event.usage,
+        }, null, 2));
         this.emitErrorMessage(event.errorMessage || 'Unknown error');
         this.handleEndTurn();
         break;
@@ -894,7 +948,7 @@ ${draftsInstruction}`;
       case 'assistant': {
         if (!event.data) break;
         const text = (event.data.text as string) || '';
-        if (text) {
+        if (text && text.trim() !== 'NO_REPLY') {
           this.agentAssistantFallbackText = text;
         }
         break;
@@ -996,9 +1050,21 @@ ${draftsInstruction}`;
   }
 
   private handleEndTurn(): void {
+    // Flush any content that was buffered for NO_REPLY prefix detection
+    // (e.g. "NO" that turned out to be a real response, not NO_REPLY)
+    if (this.noReplyBuffering && this.accumulatedAssistantText && this.currentStreamMsgId) {
+      this.handleStreamMessage({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: this.currentStreamMsgId,
+        data: this.accumulatedAssistantText,
+      });
+    }
+
     this.currentStreamMsgId = null;
     this.accumulatedAssistantText = '';
     this.agentAssistantFallbackText = '';
+    this.noReplyBuffering = false;
 
     const msg: IResponseMessage = {
       type: 'finish',
@@ -1169,7 +1235,11 @@ ${draftsInstruction}`;
 
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
-    const msg = { ...message, conversation_id: this.conversation_id };
+    // Normalize Windows backslash paths in content messages before emission
+    let msg: IResponseMessage = { ...message, conversation_id: this.conversation_id };
+    if (msg.type === 'content' && typeof msg.data === 'string') {
+      msg = { ...msg, data: normalizeWindowsImagePaths(msg.data) };
+    }
 
     // Mark as finished when content is output
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];

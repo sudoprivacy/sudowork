@@ -286,6 +286,36 @@ if (cdpStartupEnabled) {
   cdpPort = port;
   registerInstance(port);
 
+  // Dev-only: disable the Chromium renderer sandbox when CDP is enabled.
+  //
+  // Motivation: with sandbox on, Electron hides the main renderer
+  // from `/json/list` as soon as any `<webview>` guest WebContents
+  // is alive in the same session (URL previews via WebviewHost /
+  // URLViewer are the common trigger). The e2e runner's `connect.py`
+  // iterates the target list looking for the Vite tab; when the
+  // main renderer isn't there, it falls back to the first visible
+  // target — which for lis8-style prompts ends up being the
+  // embedded `lis8.sinosoft.ltd` preview, and every subsequent
+  // click / type / screenshot hits that page instead of sudowork's
+  // chat UI.
+  //
+  // Sandbox-on is the right default for packaged builds (renderer
+  // isolation is a real security benefit). It's only the CDP
+  // visibility quirk that gates dev-time automated testing, so we
+  // narrow the opt-out to CDP-enabled startups in non-packaged
+  // builds. Packaged production builds default to CDP disabled and
+  // therefore never hit this branch — sandbox stays on for users.
+  //
+  // The gate here is `!app.isPackaged` rather than
+  // `NODE_ENV==='development'` because the latter isn't consistently
+  // set across our dev tooling (electron-vite vs direct node launch
+  // vs --webui). `app.isPackaged === false` is the canonical
+  // "this is a dev/source launch" signal Electron itself uses.
+  if (!app.isPackaged) {
+    app.commandLine.appendSwitch('no-sandbox');
+    console.log('[CDP] Dev mode: renderer sandbox disabled so `/json/list` exposes the main Vite tab alongside any webview guests');
+  }
+
   // Log CDP initialization
   console.log('[CDP] Chrome DevTools Protocol enabled');
   console.log(`[CDP] Remote debugging port: ${port}`);

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
@@ -552,6 +552,13 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
   const normalizedChildren = useMemo(() => {
     if (typeof childrenProp === 'string') {
       let text = childrenProp.replace(/file:\/\//g, '');
+      // Normalize Windows backslash paths in markdown image syntax to forward slashes.
+      // Without this, the markdown parser treats backslashes as escape characters,
+      // corrupting paths like C:\Users\...\image.png (e.g. \. becomes just .)
+      text = text.replace(
+        /!\[([^\]]*)\]\(([A-Za-z]:\\[^)]+)\)/g,
+        (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`,
+      );
       text = convertLatexDelimiters(text);
       return text;
     }
@@ -575,6 +582,15 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
             rehypePlugins={allowHtml ? [rehypeRaw, rehypeKatex] : [rehypeKatex]}
+            urlTransform={(url) => {
+              // Allow Windows absolute paths like C:/Users/... or D:\docs\...
+              // defaultUrlTransform treats the drive letter (e.g. "C") as an unknown
+              // protocol scheme and sanitizes the URL to empty string.
+              if (/^[A-Za-z]:[/\\]/.test(url)) {
+                return url;
+              }
+              return defaultUrlTransform(url);
+            }}
             components={{
               span: ({ node: _node, className, children, ...props }) => {
                 return (

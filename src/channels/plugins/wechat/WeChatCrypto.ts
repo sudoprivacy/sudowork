@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createDecipheriv } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 /**
  * Parse a WeChat AES key from its base64 representation.
@@ -72,4 +72,29 @@ export function normalizeAesKey(aesKey: string, isHex = false): Buffer | null {
 export function decryptAesEcb(ciphertext: Buffer, key: Buffer): Buffer {
   const decipher = createDecipheriv('aes-128-ecb', key, null);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
+
+/**
+ * Encrypt data with AES-128-ECB.
+ *
+ * WeChat CDN media upload requires AES-128-ECB encryption with PKCS7 padding.
+ * Node.js crypto's default auto-padding handles PKCS7 padding.
+ *
+ * @param plaintext - The raw file content
+ * @param key - 16-byte AES key
+ * @returns The encrypted ciphertext buffer
+ */
+export function encryptAesEcb(plaintext: Buffer, key: Buffer): Buffer {
+  const cipher = createCipheriv('aes-128-ecb', key, null);
+  return Buffer.concat([cipher.update(plaintext), cipher.final()]);
+}
+
+/**
+ * Generate a random 16-byte AES key for media encryption.
+ *
+ * @returns Object with hex string (32 chars) and raw Buffer (16 bytes)
+ */
+export function generateAesKey(): { hex: string; buffer: Buffer } {
+  const buffer = randomBytes(16);
+  return { hex: buffer.toString('hex'), buffer };
 }

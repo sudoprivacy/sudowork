@@ -67,7 +67,20 @@
     "notInstalled": "未安装 LibreOffice。请安装 LibreOffice 以预览此文件。",
     "convertFailed": "LibreOffice 转换失败",
     "timeout": "转换超时。文件可能过大或过于复杂。",
-    "fileNotFound": "源文件不存在"
+    "fileNotFound": "源文件不存在",
+    "installPrompt": "预览此文件需要 LibreOffice。点击下方按钮进行安装。",
+    "installButton": "安装 LibreOffice",
+    "installing": "正在安装 LibreOffice...",
+    "systemPrompt": "LibreOffice 是一款免费开源的办公套件",
+    "phase": {
+      "downloading": "下载中",
+      "mounting": "挂载磁盘镜像",
+      "copying": "复制应用程序",
+      "unmounting": "卸载磁盘镜像",
+      "installing": "安装中",
+      "extracting": "解压文件",
+      "cleanup": "清理中"
+    }
   },
   "word": {
     "title": "Word 文档",

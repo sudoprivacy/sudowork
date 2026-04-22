@@ -268,6 +268,34 @@ export const useAddOrUpdateMessage = () => {
       if (rafRef.current !== null) {
         clearTimeout(rafRef.current);
       }
+      // 组件卸载前，强制 flush 所有 pending 消息到数据库
+      if (pendingRef.current.length > 0) {
+        // 按 conversation_id 分组消息，确保每个会话的消息都被保存
+        const messagesByConversation = new Map<string, TMessage[]>();
+        for (const item of pendingRef.current) {
+          if (item.add) {
+            const cid = item.message.conversation_id;
+            if (!messagesByConversation.has(cid)) {
+              messagesByConversation.set(cid, []);
+            }
+            messagesByConversation.get(cid)!.push(item.message);
+          }
+        }
+        // 为每个会话保存消息
+        for (const [conversation_id, messages] of messagesByConversation) {
+          for (const message of messages) {
+            ipcBridge.conversation.addMessage
+              .invoke({
+                conversation_id,
+                message,
+              })
+              .catch((error) => {
+                console.error('[useAddOrUpdateMessage] Failed to save pending message on unmount:', error);
+              });
+          }
+        }
+        pendingRef.current = [];
+      }
     };
   }, []);
 
@@ -286,37 +314,47 @@ export const useMessageLstCache = (key: string) => {
   const update = useUpdateMessageList();
   useEffect(() => {
     if (!key) return;
-    void ipcBridge.database.getConversationMessages
-      .invoke({
-        conversation_id: key,
-        page: 0,
-        pageSize: 10000, // Load all messages (up to 10k per conversation)
-      })
-      .then((messages) => {
-        if (messages && Array.isArray(messages)) {
-          // Merge DB messages with any real-time streaming messages already in the list.
-          // This prevents a race condition where streaming messages (added via IPC before
-          // the DB load completes) could cause DB-only messages (e.g. cron user messages
-          // whose IPC event was emitted before the component mounted) to be lost.
-          // Use both msg_id and id for deduplication since DB messages and streaming
-          // messages share the same msg_id but may have different id values
-          // (streaming messages get new UUIDs from transformMessage).
-          update((currentList) => {
-            if (!currentList.length) return messages;
-            // Only keep streaming messages that belong to the current conversation
-            // to prevent messages from a previous conversation leaking into the new one
-            const sameConversation = currentList.filter((m) => m.conversation_id === key);
-            if (!sameConversation.length) return messages;
-            const dbIds = new Set(messages.map((m) => m.id));
-            const dbMsgIds = new Set(messages.map((m) => m.msg_id).filter(Boolean));
-            const streamingOnly = sameConversation.filter((m) => !dbIds.has(m.id) && !(m.msg_id && dbMsgIds.has(m.msg_id)));
-            if (!streamingOnly.length) return messages;
-            return [...messages, ...streamingOnly];
-          });
-        }
-      })
-      .catch((error) => {
-        console.error('[useMessageLstCache] Failed to load messages from database:', error);
+
+    // 1. 先通知主进程 flush 所有 pending 消息，确保切换会话时消息不丢失
+    ipcBridge.conversation.flushPendingMessages
+      .invoke({ conversation_id: key })
+      .catch(() => {})
+      .finally(() => {
+        // 2. 延迟一小段时间确保 flush 完成后再读取数据库
+        setTimeout(() => {
+          void ipcBridge.database.getConversationMessages
+            .invoke({
+              conversation_id: key,
+              page: 0,
+              pageSize: 10000, // Load all messages (up to 10k per conversation)
+            })
+            .then((messages) => {
+              if (messages && Array.isArray(messages)) {
+                // Merge DB messages with any real-time streaming messages already in the list.
+                // This prevents a race condition where streaming messages (added via IPC before
+                // the DB load completes) could cause DB-only messages (e.g. cron user messages
+                // whose IPC event was emitted before the component mounted) to be lost.
+                // Use both msg_id and id for deduplication since DB messages and streaming
+                // messages share the same msg_id but may have different id values
+                // (streaming messages get new UUIDs from transformMessage).
+                update((currentList) => {
+                  if (!currentList.length) return messages;
+                  // Only keep streaming messages that belong to the current conversation
+                  // to prevent messages from a previous conversation leaking into the new one
+                  const sameConversation = currentList.filter((m) => m.conversation_id === key);
+                  if (!sameConversation.length) return messages;
+                  const dbIds = new Set(messages.map((m) => m.id));
+                  const dbMsgIds = new Set(messages.map((m) => m.msg_id).filter(Boolean));
+                  const streamingOnly = sameConversation.filter((m) => !dbIds.has(m.id) && !(m.msg_id && dbMsgIds.has(m.msg_id)));
+                  if (!streamingOnly.length) return messages;
+                  return [...messages, ...streamingOnly];
+                });
+              }
+            })
+            .catch((error) => {
+              console.error('[useMessageLstCache] Failed to load messages from database:', error);
+            });
+        }, 100);
       });
   }, [key]);
 };

@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
-import { appendNexusFilesMarker } from '@/common/nexusFiles';
+import { appendNexusFilesMarker, parseNexusFilesMarker } from '@/common/nexusFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -176,11 +176,36 @@ function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isCo
       // 根据平台格式化文本
       // Format text based on platform
       const rawText = formatTextForPlatform(message.content.content || '', platform);
-      const text = rawText.trim() ? rawText : '...';
+
+      // Parse [[NEXUS_FILES]] marker to extract file paths for media attachments
+      // This enables WeChat/Lark/etc to upload and send files to users
+      const { cleanText, files } = parseNexusFilesMarker(rawText);
+      const text = cleanText.trim() ? cleanText : '...';
+
+      // Determine imageUrl and fileUrl from extracted files
+      // First image file -> imageUrl, first non-image file -> fileUrl
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+      let imageUrl: string | undefined;
+      let fileUrl: string | undefined;
+      let fileName: string | undefined;
+
+      for (const filePath of files) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (imageExtensions.includes(ext) && !imageUrl) {
+          imageUrl = filePath;
+        } else if (!imageExtensions.includes(ext) && !fileUrl) {
+          fileUrl = filePath;
+          fileName = path.basename(filePath);
+        }
+      }
+
       return {
         type: 'text',
         text,
         parseMode: 'HTML',
+        imageUrl,
+        fileUrl,
+        fileName,
         replyMarkup: isComplete ? getResponseActionsMarkup(platform, text) : undefined,
       };
     }
@@ -605,7 +630,20 @@ export class ActionExecutor {
     // Per-conversation mutex: wait for any previous message to finish processing.
     // This prevents concurrent AI generations that cause stream overwrites and hung promises.
     const conversationId = context.conversationId || context.chatId;
+
+    // Read previous lock BEFORE creating new one (sync — no await between read and set).
+    // This prevents TOCTOU race where multiple callers read the same previousLock.
     const previousLock = this.conversationLocks.get(conversationId);
+
+    // Create and register new lock (sync — must happen before any await).
+    // Subsequent callers will read THIS lock as their previousLock.
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.conversationLocks.set(conversationId, lockPromise);
+
+    // Now await the previous lock (if any).
     if (previousLock) {
       try {
         await previousLock;
@@ -613,13 +651,6 @@ export class ActionExecutor {
         // Ignore errors from previous message processing
       }
     }
-
-    // Create a new lock for this message
-    let releaseLock: () => void;
-    const lockPromise = new Promise<void>((resolve) => {
-      releaseLock = resolve;
-    });
-    this.conversationLocks.set(conversationId, lockPromise);
 
     // Start typing indicator
     void context.sendTyping?.(context.chatId);

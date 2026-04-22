@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
-import { appendNexusFilesMarker } from '@/common/nexusFiles';
+import { appendNexusFilesMarker, parseNexusFilesMarker } from '@/common/nexusFiles';
 
 const CHANNEL_WORKSPACE = '/Users/test/.nexus/sudowork/channel-media/wechat';
 
@@ -56,5 +56,54 @@ describe('appendNexusFilesMarker', () => {
       .filter(Boolean);
     expect(text).toBe('[photo message]');
     expect(files).toEqual([`${CHANNEL_WORKSPACE}/img.jpg`]);
+  });
+});
+
+describe('parseNexusFilesMarker', () => {
+  it('returns cleanText and empty files when no marker present', () => {
+    const result = parseNexusFilesMarker('hello world');
+    expect(result.cleanText).toBe('hello world');
+    expect(result.files).toEqual([]);
+  });
+
+  it('extracts single file path after marker', () => {
+    const input = `Here is the image\n\n${NEXUS_FILES_MARKER}\n/tmp/workspace/image.png`;
+    const result = parseNexusFilesMarker(input);
+    expect(result.cleanText).toBe('Here is the image');
+    expect(result.files).toEqual(['/tmp/workspace/image.png']);
+  });
+
+  it('extracts multiple file paths after marker', () => {
+    const input = `Files generated\n\n${NEXUS_FILES_MARKER}\n/tmp/a.jpg\n/tmp/b.pdf\n/tmp/c.png`;
+    const result = parseNexusFilesMarker(input);
+    expect(result.cleanText).toBe('Files generated');
+    expect(result.files).toEqual(['/tmp/a.jpg', '/tmp/b.pdf', '/tmp/c.png']);
+  });
+
+  it('trims whitespace from cleanText and file paths', () => {
+    const input = `Some text  \n\n${NEXUS_FILES_MARKER}\n  /tmp/file.txt  \n  /tmp/other.pdf  `;
+    const result = parseNexusFilesMarker(input);
+    expect(result.cleanText).toBe('Some text');
+    expect(result.files).toEqual(['/tmp/file.txt', '/tmp/other.pdf']);
+  });
+
+  it('handles empty text before marker', () => {
+    const input = `${NEXUS_FILES_MARKER}\n/tmp/file.txt`;
+    const result = parseNexusFilesMarker(input);
+    expect(result.cleanText).toBe('');
+    expect(result.files).toEqual(['/tmp/file.txt']);
+  });
+
+  it('handles empty file list after marker', () => {
+    const input = `Just text\n\n${NEXUS_FILES_MARKER}\n`;
+    const result = parseNexusFilesMarker(input);
+    expect(result.cleanText).toBe('Just text');
+    expect(result.files).toEqual([]);
+  });
+
+  it('filters out empty lines from file list', () => {
+    const input = `Text\n\n${NEXUS_FILES_MARKER}\n/tmp/a.jpg\n\n/tmp/b.pdf\n\n`;
+    const result = parseNexusFilesMarker(input);
+    expect(result.files).toEqual(['/tmp/a.jpg', '/tmp/b.pdf']);
   });
 });

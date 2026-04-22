@@ -6,11 +6,14 @@
 
 import { DWClient, TOPIC_ROBOT, TOPIC_CARD, EventAck } from 'dingtalk-stream';
 import type { DWClientDownStream } from 'dingtalk-stream';
+import fs from 'fs';
+import path from 'path';
 import https from 'https';
 
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, convertHtmlToDingTalkMarkdown } from './DingTalkAdapter';
+import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, convertHtmlToDingTalkMarkdown, getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath } from './DingTalkAdapter';
+import { mainLog, mainWarn, mainError } from '@/process/utils/mainLogger';
 import type { DingTalkStreamMessage } from './DingTalkAdapter';
 
 /**
@@ -83,6 +86,9 @@ export class DingTalkPlugin extends BasePlugin {
   // Store sessionWebhook per chatId for fallback sending
   private webhookCache: Map<string, string> = new Map();
 
+  // Local directory for downloaded media files (lazy-initialized)
+  private mediaDir: string | null = null;
+
   /**
    * Initialize the DingTalk client
    */
@@ -127,10 +133,10 @@ export class DingTalkPlugin extends BasePlugin {
         try {
           const data: DingTalkStreamMessage = JSON.parse(msg.data);
           void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
-            console.error('[DingTalkPlugin] Error handling robot message:', error);
+            mainError('DingTalkPlugin', 'Error handling robot message', error);
           });
         } catch (error) {
-          console.error('[DingTalkPlugin] Failed to parse robot message:', error);
+          mainError('DingTalkPlugin', 'Failed to parse robot message', error);
         }
       });
 
@@ -143,10 +149,10 @@ export class DingTalkPlugin extends BasePlugin {
         try {
           const data = JSON.parse(msg.data);
           void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
-            console.error('[DingTalkPlugin] Error handling card callback:', error);
+            mainError('DingTalkPlugin', 'Error handling card callback', error);
           });
         } catch (error) {
-          console.error('[DingTalkPlugin] Failed to parse card callback:', error);
+          mainError('DingTalkPlugin', 'Failed to parse card callback', error);
         }
       });
 
@@ -157,9 +163,9 @@ export class DingTalkPlugin extends BasePlugin {
       // Start event cache cleanup timer
       this.startEventCleanup();
 
-      console.log(`[DingTalkPlugin] Started for client ${this.clientId}`);
+      mainLog('DingTalkPlugin', `Started for client ${this.clientId}`);
     } catch (error) {
-      console.error('[DingTalkPlugin] Failed to start:', error);
+      mainError('DingTalkPlugin', 'Failed to start', error);
       throw error;
     }
   }
@@ -186,7 +192,7 @@ export class DingTalkPlugin extends BasePlugin {
     this.webhookCache.clear();
     this.isConnected = false;
 
-    console.log('[DingTalkPlugin] Stopped and cleaned up');
+    mainLog('DingTalkPlugin', 'Stopped and cleaned up');
   }
 
   /**
@@ -223,7 +229,7 @@ export class DingTalkPlugin extends BasePlugin {
         const cardMessageId = await this.createAndDeliverAICard(chatType, id, rawText);
         return cardMessageId;
       } catch (error) {
-        console.warn('[DingTalkPlugin] AI Card failed, falling back to webhook:', error);
+        mainWarn('DingTalkPlugin', 'AI Card failed, falling back to webhook', error);
       }
     }
 
@@ -234,7 +240,7 @@ export class DingTalkPlugin extends BasePlugin {
         const msgId = await this.sendViaWebhook(webhook, contentType, content, rawText);
         return msgId;
       } catch (error) {
-        console.error('[DingTalkPlugin] Webhook send failed:', error);
+        mainError('DingTalkPlugin', 'Webhook send failed', error);
         throw error;
       }
     }
@@ -244,7 +250,7 @@ export class DingTalkPlugin extends BasePlugin {
       const msgId = await this.sendViaAPI(chatType, id, contentType, content, rawText);
       return msgId;
     } catch (error) {
-      console.error('[DingTalkPlugin] API send failed:', error);
+      mainError('DingTalkPlugin', 'API send failed', error);
       throw error;
     }
   }
@@ -286,7 +292,7 @@ export class DingTalkPlugin extends BasePlugin {
       if (errorMsg.includes('not modified') || errorMsg.includes('not found')) {
         return;
       }
-      console.error('[DingTalkPlugin] Failed to update AI Card:', error);
+      mainError('DingTalkPlugin', 'Failed to update AI Card', error);
 
       // Mark card as finished to prevent further failed streaming attempts
       this.aiCardSessions.set(messageId, { ...cardSession, isFinished: true });
@@ -327,6 +333,9 @@ export class DingTalkPlugin extends BasePlugin {
         this.webhookCache.set(chatId, data.sessionWebhook);
       }
 
+      // Download media files to local workspace before converting
+      await this.downloadMediaItems(data);
+
       // Convert to unified message
       const unifiedMessage = toUnifiedIncomingMessage(data);
       if (unifiedMessage && this.messageHandler) {
@@ -346,16 +355,16 @@ export class DingTalkPlugin extends BasePlugin {
                 name: buttonAction.action,
               },
             };
-            void this.emitMessage(actionMessage).catch((error) => console.error('[DingTalkPlugin] Error handling message:', error));
+            void this.emitMessage(actionMessage).catch((error) => mainError('DingTalkPlugin', 'Error handling message', error));
             return;
           }
         }
 
         // Process in background to avoid blocking
-        void this.emitMessage(unifiedMessage).catch((error) => console.error('[DingTalkPlugin] Error handling message:', error));
+        void this.emitMessage(unifiedMessage).catch((error) => mainError('DingTalkPlugin', 'Error handling message', error));
       }
     } catch (error) {
-      console.error('[DingTalkPlugin] Error processing robot message:', error);
+      mainError('DingTalkPlugin', 'Error processing robot message', error);
     }
   }
 
@@ -386,7 +395,7 @@ export class DingTalkPlugin extends BasePlugin {
       if (actionInfo.name === 'system.confirm' && actionInfo.params?.callId && actionInfo.params?.value) {
         if (this.confirmHandler) {
           void this.confirmHandler(userId, 'dingtalk', actionInfo.params.callId, actionInfo.params.value).catch((error) => {
-            console.error('[DingTalkPlugin] Confirm handler error:', error);
+            mainError('DingTalkPlugin', 'Confirm handler error', error);
           });
         }
         return;
@@ -403,10 +412,10 @@ export class DingTalkPlugin extends BasePlugin {
 
       const unifiedMessage = toUnifiedIncomingMessage(mockData, actionInfo);
       if (unifiedMessage && this.messageHandler) {
-        void this.emitMessage(unifiedMessage).catch((error) => console.error('[DingTalkPlugin] Error handling card action:', error));
+        void this.emitMessage(unifiedMessage).catch((error) => mainError('DingTalkPlugin', 'Error handling card action', error));
       }
     } catch (error) {
-      console.error('[DingTalkPlugin] Error processing card callback:', error);
+      mainError('DingTalkPlugin', 'Error processing card callback', error);
     }
   }
 
@@ -555,7 +564,7 @@ export class DingTalkPlugin extends BasePlugin {
       // Fall back to DingTalk API
       await this.sendViaAPI(chatType, id, contentType, content, rawText);
     } catch (error) {
-      console.error('[DingTalkPlugin] Fallback plain message send failed:', error);
+      mainError('DingTalkPlugin', 'Fallback plain message send failed', error);
     }
   }
 
@@ -617,6 +626,103 @@ export class DingTalkPlugin extends BasePlugin {
     return response?.processQueryKey || `api_${Date.now()}`;
   }
 
+  // ==================== Media Download ====================
+
+  /**
+   * Ensure the media directory exists and return its path.
+   */
+  private async ensureMediaDir(): Promise<string> {
+    if (!this.mediaDir) {
+      const { getDataPath } = await import('@/process/utils');
+      this.mediaDir = path.join(getDataPath(), 'channel-media', 'dingtalk');
+    }
+    fs.mkdirSync(this.mediaDir, { recursive: true });
+    return this.mediaDir;
+  }
+
+  /**
+   * Download a file from URL using https.request (consistent with the rest of DingTalkPlugin).
+   * Returns the file content as a Buffer.
+   */
+  private downloadFile(url: string, timeoutMs = 30_000): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(url);
+      const req = https.request(
+        {
+          hostname: urlObj.hostname,
+          port: urlObj.port || 443,
+          path: urlObj.pathname + urlObj.search,
+          method: 'GET',
+          timeout: timeoutMs,
+        },
+        (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            // Follow redirects
+            this.downloadFile(res.headers.location, timeoutMs).then(resolve, reject);
+            return;
+          }
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+            return;
+          }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+        }
+      );
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy(new Error('Download timed out'));
+      });
+      req.end();
+    });
+  }
+
+  /**
+   * Download media files (picture/audio/video/file) from DingTalk to local workspace.
+   * Sets `_localPath` on the message data for each successfully downloaded item.
+   * Failures are logged but do not block message processing.
+   */
+  private async downloadMediaItems(data: DingTalkStreamMessage): Promise<void> {
+    const mediaInfo = extractMediaDownloadInfo(data);
+    if (!mediaInfo) {
+      return;
+    }
+
+    const { downloadCode, fileName } = mediaInfo;
+    const msgtype = data.msgtype!;
+
+    try {
+      const token = await this.getAccessToken();
+      const response = await this.apiRequest('POST', '/v1.0/robot/messageFiles/download', token, {
+        downloadCode,
+        robotCode: this.clientId,
+      });
+
+      const downloadUrl = response?.downloadUrl;
+      if (!downloadUrl) {
+        mainError('DingTalkPlugin', `No downloadUrl in response for downloadCode: ${downloadCode}`);
+        return;
+      }
+
+      // Download file content using https.request (same as other DingTalk HTTP calls)
+      const fileData = await this.downloadFile(downloadUrl);
+
+      // Save directly to mediaDir (no double nesting)
+      const mediaDir = await this.ensureMediaDir();
+      const ext = fileName ? path.extname(fileName) : getDefaultExtension(msgtype);
+      const baseName = fileName || `dingtalk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+      const localPath = path.join(mediaDir, baseName);
+      fs.writeFileSync(localPath, fileData);
+
+      setMediaLocalPath(data, localPath);
+
+      mainLog('DingTalkPlugin', `Downloaded media: type=${msgtype}, size=${fileData.length}, path=${localPath}`);
+    } catch (error) {
+      mainError('DingTalkPlugin', `Failed to download media for type=${msgtype}, downloadCode=${downloadCode}`, error);
+    }
+  }
+
   // ==================== Access Token Management ====================
 
   /**
@@ -657,7 +763,7 @@ export class DingTalkPlugin extends BasePlugin {
         throw new Error('No access token in response');
       }
     } catch (error) {
-      console.error('[DingTalkPlugin] Failed to refresh access token:', error);
+      mainError('DingTalkPlugin', 'Failed to refresh access token', error);
       throw error;
     }
   }

@@ -57,6 +57,10 @@ export const conversation = {
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
   syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
+  // Flush all pending messages to database immediately (used before reading from DB)
+  flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
+  // Add a single message to the database (used for saving pending messages before unmount)
+  addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -442,11 +446,11 @@ export const openclawConversation = {
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
-  /** 渠道对话创建/更新时，主进程通知渲染进程刷新对话列表 */
+  /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
     source?: string;
-    action: 'created' | 'updated';
+    action: 'created' | 'updated' | 'deleted';
   }>('database.conversation-changed'),
 };
 
