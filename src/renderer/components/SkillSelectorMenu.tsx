@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
+import { Virtuoso } from 'react-virtuoso';
 
 export interface SkillSelectorMenuItem {
   key: string;
