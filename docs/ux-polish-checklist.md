@@ -241,8 +241,8 @@
 | #XXX | feat: Ctrl+K 全局搜索 | 快捷键 | P1 | ✅ |
 | #XXX | fix: 模态框焦点陷阱 | 可访问性 | P1 | ⏳ |
 | #XXX | feat: 空状态引导操作 | Empty 态 | P1 | ✅ |
-| #XXX | a11y: 为图标按钮添加 aria-label | 可访问性 | P2 | ⏳ |
-| #XXX | a11y: 统一模态框 ARIA 属性 | 可访问性 | P2 | ⏳ |
+| #XXX | a11y: 为图标按钮添加 aria-label | 可访问性 | P2 | ✅ |
+| #XXX | a11y: 统一模态框 ARIA 属性 | 可访问性 | P2 | ✅ |
 | #XXX | fix: 技能选择器骨架屏动画 | Loading 态 | P2 | ⏳ |
 | #XXX | fix: 统一 loading 文案 i18n | Loading 态 | P2 | ⏳ |
 | #XXX | fix: 表单内联错误提示 | 错误态 | P2 | ⏳ |
@@ -270,7 +270,7 @@
 7. **空状态引导操作** - 用户引导 ✅
 
 ### 中优先级 (P2) - 近期规划
-1. ARIA 可访问性改进（图标按钮、模态框）
+1. ARIA 可访问性改进（图标按钮、模态框）✅
 2. Loading 态优化（骨架屏、i18n）
 3. 表单错误提示优化
 4. 动画性能优化
@@ -282,7 +282,7 @@
 
 ---
 
-*最后更新：2026-04-21 - 空状态引导操作已完成*
+*最后更新：2026-04-22 - ARIA 可访问性改进已完成*
 
 ---
 
@@ -554,5 +554,45 @@
 **注意事项：**
 - 文件搜索功能暂简化，后续可通过 workspace files API 增强
 - 技能搜索功能预留接口，待后续实现
+
+---
+
+### 2026-04-22 - P2: ARIA 可访问性改进
+
+**Commit:** `feat(a11y): add aria-labels to icon buttons and unify modal ARIA attributes`
+
+**修改文件：**
+- `src/renderer/components/base/AionModal.tsx` - 添加模态框 ARIA 属性
+- `src/renderer/pages/conversation/ChatHistory.tsx` - 为编辑/删除按钮添加 aria-label
+- `src/renderer/i18n/locales/zh-CN/common.json` - 添加 ariaLabel 翻译
+- `src/renderer/i18n/locales/en-US/common.json` - Add ariaLabel translations
+- `src/renderer/i18n/locales/ja-JP/common.json` - ariaLabel 翻訳を追加
+- `src/renderer/i18n/locales/ko-KR/common.json` - ariaLabel 번역 추가
+
+**功能清单：**
+1. **i18n aria-label 翻译键**
+   - 添加 27 个常用操作的 aria-label 翻译
+   - 支持 zh-CN, en-US, ja-JP, ko-KR 四种语言
+   - 包括：close, edit, delete, more, refresh, search, send, add, remove, save, cancel, confirm, back, next, previous, expand, collapse, menu, settings, copy, download, upload, file, folder, newConversation, openFolder, addSkill
+
+2. **ChatHistory 图标按钮**
+   - 编辑按钮：`aria-label={t('common.ariaLabel.edit')}`
+   - 删除按钮：`aria-label={t('common.ariaLabel.delete')}`
+   - 添加 `role='button'` 和 `tabIndex={0}`
+   - 添加键盘事件支持（Enter/Space 激活）
+
+3. **AionModal 统一 ARIA 属性**
+   - 添加 `role="dialog"`
+   - 添加 `aria-modal="true"`
+   - 添加 `aria-labelledby` 指向标题元素
+   - 标题元素添加 `id="aion-modal-title"`
+   - 关闭按钮使用 i18n 翻译的 aria-label
+
+**验证方式：**
+1. **屏幕阅读器测试** - VoiceOver/NVDA 朗读图标按钮名称
+2. **键盘导航测试** - Tab 键导航到图标按钮，Enter/Space 激活
+3. **DevTools 检查** - 检查 aria-label, role, aria-modal 属性
+4. **Lighthouse 审计** - 可访问性评分 ≥90 分
+5. **多语言验证** - 切换语言验证 aria-label 翻译正确
 
 ---
