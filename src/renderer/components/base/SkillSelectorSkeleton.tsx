@@ -36,7 +36,7 @@ const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4
             style={{
               width: 28,
               height: 28,
-              borderRadius: 6,
+              borderRadius: 'var(--radius-sm)',
               flexShrink: 0,
             }}
           />
@@ -48,7 +48,7 @@ const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4
               style={{
                 height: 14,
                 width: '60%',
-                borderRadius: 4,
+                borderRadius: 'var(--radius-sm)',
               }}
             />
             {/* Description placeholder (narrower) */}
@@ -57,7 +57,7 @@ const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4
               style={{
                 height: 11,
                 width: '40%',
-                borderRadius: 4,
+                borderRadius: 'var(--radius-sm)',
               }}
             />
           </div>

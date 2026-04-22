@@ -10,7 +10,7 @@
 }
 
 .empty-state--with-border {
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px dashed var(--color-border-2, #e5e6eb);
   background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
 }
@@ -26,20 +26,20 @@
 }
 
 .empty-state__title {
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 500;
   color: var(--color-text-2, #4e5969);
   line-height: 1.5;
 }
 
 .empty-state__description {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--color-text-3, #86909c);
   line-height: 1.5;
 }
 
 .empty-state__actions {
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
 
 .empty-state__action-btn {

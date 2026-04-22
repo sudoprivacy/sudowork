@@ -643,13 +643,13 @@ const ChatLayout: React.FC<{
               transform: 'translateY(-50%)',
               width: '20px',
               height: '64px',
-              borderTopLeftRadius: '10px',
-              borderBottomLeftRadius: '10px',
+              borderTopLeftRadius: 'var(--radius-md)',
+              borderBottomLeftRadius: 'var(--radius-md)',
               borderTopRightRadius: '0',
               borderBottomRightRadius: '0',
               borderRight: 'none',
               backgroundColor: 'var(--bg-2)',
-              boxShadow: '0 8px 20px rgba(0, 0, 0, 0.12)',
+              boxShadow: 'var(--shadow-lg)',
             }}
             onClick={() => dispatchWorkspaceToggleEvent()}
             aria-label='Collapse workspace'

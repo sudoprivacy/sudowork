@@ -102,7 +102,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
               onClick={action.onClick}
               disabled={action.disabled}
               className='empty-state__action-btn px-20px min-w-100px'
-              style={{ borderRadius: 8 }}
+              style={{ borderRadius: 'var(--radius-md)' }}
             >
               {action.label}
             </Button>
