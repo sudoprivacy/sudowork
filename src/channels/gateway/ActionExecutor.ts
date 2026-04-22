@@ -699,6 +699,10 @@ export class ActionExecutor {
       // Track last message content for adding action buttons after stream ends
       let lastMessageContent: IUnifiedOutgoingMessage | null = null;
 
+      // 跟踪最后一条文本消息内容，用于文件消息后仍能正确 finalize AI Card
+      // Track last text content to finalize AI Card even when last message is file/image
+      let lastTextContent: IUnifiedOutgoingMessage | null = null;
+
       // 执行消息编辑的函数
       // Function to perform message edit
       const doEditMessage = async (msg: IUnifiedOutgoingMessage, forceThinkingTarget = false) => {
@@ -736,6 +740,9 @@ export class ActionExecutor {
         // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
         // Save last message content (without replyMarkup, final message adds it separately)
         lastMessageContent = streamOutgoing;
+        if (streamOutgoing.type === 'text') {
+          lastTextContent = streamOutgoing;
+        }
 
         // IMPORTANT: Treat first text streaming message as update to thinking message
         // This prevents async race condition where first insert's sendMessage takes time
@@ -776,7 +783,11 @@ export class ActionExecutor {
           if (supportsEdit) {
             try {
               const newMsgId = await context.sendMessage(streamOutgoing);
-              sentMessageIds.push(newMsgId);
+              // Don't push file/image IDs — they can't be edited and would pollute
+              // the edit target, preventing AI Card finalization
+              if (streamOutgoing.type !== 'file' && streamOutgoing.type !== 'image') {
+                sentMessageIds.push(newMsgId);
+              }
             } catch {
               // Ignore send errors
             }
@@ -846,7 +857,14 @@ export class ActionExecutor {
         // Skip edit for non-text messages (file/image) — these were already sent via sendMessage
         // and cannot be edited (LarkPlugin.editMessage only supports card messages)
         if (lastMessageContent.type === 'file' || lastMessageContent.type === 'image') {
-          // No action needed; file/image messages were already sent correctly via sendMessage
+          // File/image was the last message — still need to finalize the AI Card
+          // with the last text content so it stops spinning
+          if (lastTextContent && supportsEdit && sentMessageIds.length > 0) {
+            const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastTextContent.text);
+            const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, replyMarkup: responseMarkup };
+            const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
+            await context.editMessage(lastMsgId, finalMessage);
+          }
         } else {
           const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
           const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
