@@ -5,5 +5,8 @@
   "session_active": "アクティブ",
   "disconnected": "切断",
   "error": "エラー",
-  "unknown": "不明"
+  "unknown": "不明",
+  "restartAndConnect": "再起動して接続",
+  "restartCommandSent": "再起動コマンドを送信しました",
+  "restartFailed": "再起動に失敗しました"
 }

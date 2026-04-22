@@ -1019,6 +1019,25 @@ This identity statement takes priority over the default identity in USER.md.
       .finally(doKill);
   }
 
+  /**
+   * Restart the underlying ACP connection and reconnect.
+   * Disconnects current connection, clears bootstrap, then re-initializes.
+   */
+  async restartAndConnect(): Promise<void> {
+    // Disconnect current connection (kills process, clears session state)
+    await this.connection.disconnect();
+    // Clear bootstrap so initAgent creates a fresh connection
+    this.bootstrap = undefined;
+    // Clear pending state
+    this.pendingPermissions.clear();
+    this.permissionRequestMeta.clear();
+    this.approvalStore.clear();
+    this.pendingNavigationTools.clear();
+    this.statusMessageId = null;
+    // Re-initialize agent connection
+    await this.initAgent();
+  }
+
   async ensureYoloMode(): Promise<boolean> {
     if (this.options.yoloMode) {
       return true;
