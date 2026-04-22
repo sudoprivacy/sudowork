@@ -243,8 +243,8 @@
 | #XXX | feat: 空状态引导操作 | Empty 态 | P1 | ✅ |
 | #XXX | a11y: 为图标按钮添加 aria-label | 可访问性 | P2 | ✅ |
 | #XXX | a11y: 统一模态框 ARIA 属性 | 可访问性 | P2 | ✅ |
-| #XXX | fix: 技能选择器骨架屏动画 | Loading 态 | P2 | ⏳ |
-| #XXX | fix: 统一 loading 文案 i18n | Loading 态 | P2 | ⏳ |
+| #XXX | fix: 技能选择器骨架屏动画 | Loading 态 | P2 | ✅ |
+| #XXX | fix: 统一 loading 文案 i18n | Loading 态 | P2 | ✅ |
 | #XXX | fix: 表单内联错误提示 | 错误态 | P2 | ⏳ |
 | #XXX | fix: 侧边栏收起展开动画优化 | 流畅度 | P2 | ⏳ |
 | #XXX | style: 统一圆角系统 | 视觉一致性 | P3 | ⏳ |
@@ -271,7 +271,7 @@
 
 ### 中优先级 (P2) - 近期规划
 1. ARIA 可访问性改进（图标按钮、模态框）✅
-2. Loading 态优化（骨架屏、i18n）
+2. Loading 态优化（骨架屏、i18n）✅
 3. 表单错误提示优化
 4. 动画性能优化
 
@@ -282,7 +282,7 @@
 
 ---
 
-*最后更新：2026-04-22 - ARIA 可访问性改进已完成*
+*最后更新：2026-04-22 - Loading 态优化（骨架屏、i18n、Hub 图标）已完成*
 
 ---
 
@@ -594,5 +594,72 @@
 3. **DevTools 检查** - 检查 aria-label, role, aria-modal 属性
 4. **Lighthouse 审计** - 可访问性评分 ≥90 分
 5. **多语言验证** - 切换语言验证 aria-label 翻译正确
+
+---
+
+### 2026-04-22 - P2: 技能选择器骨架屏动画 + 统一 loading 文案 i18n + Hub 图标修复
+
+**Commit:** `fix(ux): 技能选择器骨架屏动画、loading i18n 和 Hub 图标修复`
+
+**新增文件:**
+- `src/renderer/components/base/SkillSelectorSkeleton.tsx` - 技能选择器骨架屏组件
+
+**修改文件:**
+- `src/renderer/components/SkillSelectorMenu.tsx` - 使用骨架屏组件和 i18n loading 文案
+- `src/renderer/components/SlashCommandMenu.tsx` - 使用 i18n loading 文案
+- `src/renderer/components/sendbox.tsx` - 使用 getInstalledSkillDisplay 修复 Hub 技能图标加载
+- `src/renderer/pages/guid/index.module.css` - 添加 `.skeletonText` 样式类
+- `src/renderer/i18n/locales/*/common.json` - 添加 `loadingSkills` 翻译键 (4 种语言)
+- `src/renderer/components/base/AionModal.tsx` - 修复 escToExit 类型和 ARIA 属性位置
+- `src/renderer/components/base/ModalWrapper.tsx` - 修复 escToExit 类型
+- `src/renderer/components/DirectorySelectionModal.tsx` - 修复 escToExit 类型
+- `src/renderer/components/preview/PreviewConfirmModals.tsx` - 修复 escToExit 类型
+- `src/renderer/hooks/useWorkspaceFiles.ts` - 添加 catch 回调返回类型注解
+- `src/renderer/pages/conversation/ChatHistory.tsx` - 修复重复导入和虚拟滚动参数
+
+**功能清单:**
+1. **骨架屏动画**
+   - 新增 `SkillSelectorSkeleton` 组件，模拟技能项布局（图标 + 标题 + 描述）
+   - 使用 `guid-shimmer` 动画 (1.5s ease-in-out infinite)
+   - 默认显示 4 个骨架项，支持 `count` prop 配置
+   - 仅在 `loading && items.length === 0` 时显示
+
+2. **i18n 统一**
+   - 添加 `common.loadingSkills` 翻译键
+   - zh-CN: "正在加载技能..."
+   - en-US: "Loading skills..."
+   - ja-JP: "スキルを読み込んでいます..."
+   - ko-KR: "스킬 로딩 중..."
+   - `SkillSelectorMenu` 和 `SlashCommandMenu` 移除硬编码 'Loading...'
+
+3. **Hub 技能图标修复**
+   - `sendbox.tsx` 改用 `getInstalledSkillDisplay` 解析技能信息
+   - Hub 技能相对路径图标自动转换为 COS CDN URL
+   - 修复会话界面技能图标无法显示的问题
+
+4. **TypeScript 错误修复**
+   - `escToClose` → `escToExit`（Arco Design Modal 正确属性名）
+   - ARIA 属性 (`role`, `aria-modal`, `aria-labelledby`) 移到内部容器
+   - `ChatHistory.tsx` 修复 `MessageOne` 重复导入
+   - `ChatHistory.tsx` 修复 `renderConversation` 参数缺失（需要 `isIndented`）
+   - `useWorkspaceFiles.ts` 添加 `.catch((): null => null)` 类型注解
+
+**验证方式:**
+1. **骨架屏动画**
+   - Network 节流至 Slow 3G，刷新页面后立即打开技能选择器
+   - 观察 4 个骨架项 shimmer 动画，FPS 稳定 60
+   - 深色/浅色模式切换，确认动画可见
+
+2. **i18n 验证**
+   - 切换 4 种语言，确认 loading 文案正确翻译
+   - 无硬编码英文 "Loading..." 显示
+
+3. **Hub 图标验证**
+   - 会话页面打开 @技能选择器
+   - 确认 Hub 安装的技能图标正确显示（非默认图标）
+   - DevTools Network 确认图标请求指向 COS CDN
+
+4. **TypeScript 检查**
+   - `npm run type:check` 无错误
 
 ---
