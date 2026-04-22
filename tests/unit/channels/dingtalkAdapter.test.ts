@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath, toUnifiedIncomingMessage } from '@/channels/plugins/dingtalk/DingTalkAdapter';
+import { getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath, toUnifiedIncomingMessage, getUploadMediaType, getDingTalkFileType } from '@/channels/plugins/dingtalk/DingTalkAdapter';
 import type { DingTalkStreamMessage } from '@/channels/plugins/dingtalk/DingTalkAdapter';
 
 // ==================== getDefaultExtension ====================
@@ -763,5 +763,239 @@ describe('DingTalkAdapter richText message handling', () => {
       expect(result!.content.type).toBe('text');
       expect(result!.content.text).toBe('line1line2line3');
     });
+  });
+});
+
+// ==================== getUploadMediaType ====================
+
+describe('getUploadMediaType', () => {
+  // DingTalk upload API explicitly supports these as image type
+  it('returns image for jpg', () => {
+    expect(getUploadMediaType('photo.jpg')).toBe('image');
+  });
+
+  it('returns image for jpeg', () => {
+    expect(getUploadMediaType('photo.jpeg')).toBe('image');
+  });
+
+  it('returns image for png', () => {
+    expect(getUploadMediaType('icon.png')).toBe('image');
+  });
+
+  it('returns image for gif', () => {
+    expect(getUploadMediaType('anim.gif')).toBe('image');
+  });
+
+  it('returns image for bmp', () => {
+    expect(getUploadMediaType('bitmap.bmp')).toBe('image');
+  });
+
+  // NOT supported by DingTalk upload API as image type
+  it('returns file for webp (not in DingTalk image list)', () => {
+    expect(getUploadMediaType('photo.webp')).toBe('file');
+  });
+
+  it('returns file for svg (not in DingTalk image list)', () => {
+    expect(getUploadMediaType('icon.svg')).toBe('file');
+  });
+
+  it('returns file for tiff (not in DingTalk image list)', () => {
+    expect(getUploadMediaType('scan.tiff')).toBe('file');
+  });
+
+  it('returns file for avif (not in DingTalk image list)', () => {
+    expect(getUploadMediaType('photo.avif')).toBe('file');
+  });
+
+  it('returns file for ico (not in DingTalk image list)', () => {
+    expect(getUploadMediaType('favicon.ico')).toBe('file');
+  });
+
+  // Document types
+  it('returns file for pdf', () => {
+    expect(getUploadMediaType('doc.pdf')).toBe('file');
+  });
+
+  it('returns file for docx', () => {
+    expect(getUploadMediaType('report.docx')).toBe('file');
+  });
+
+  it('returns file for xlsx', () => {
+    expect(getUploadMediaType('data.xlsx')).toBe('file');
+  });
+
+  it('returns file for pptx', () => {
+    expect(getUploadMediaType('slides.pptx')).toBe('file');
+  });
+
+  it('returns file for zip', () => {
+    expect(getUploadMediaType('archive.zip')).toBe('file');
+  });
+
+  it('returns file for rar', () => {
+    expect(getUploadMediaType('archive.rar')).toBe('file');
+  });
+
+  // Other types
+  it('returns file for csv', () => {
+    expect(getUploadMediaType('data.csv')).toBe('file');
+  });
+
+  it('returns file for txt', () => {
+    expect(getUploadMediaType('note.txt')).toBe('file');
+  });
+
+  it('returns file for md', () => {
+    expect(getUploadMediaType('readme.md')).toBe('file');
+  });
+
+  it('returns file for json', () => {
+    expect(getUploadMediaType('config.json')).toBe('file');
+  });
+
+  // Edge cases
+  it('returns file for empty string', () => {
+    expect(getUploadMediaType('')).toBe('file');
+  });
+
+  it('returns file for filename without extension', () => {
+    expect(getUploadMediaType('Makefile')).toBe('file');
+  });
+
+  it('returns file for hidden file with dot prefix', () => {
+    expect(getUploadMediaType('.gitignore')).toBe('file');
+  });
+
+  it('takes last extension from multi-dot filename', () => {
+    expect(getUploadMediaType('archive.tar.gz')).toBe('file');
+  });
+
+  // Case insensitivity
+  it('returns image for uppercase PNG', () => {
+    expect(getUploadMediaType('photo.PNG')).toBe('image');
+  });
+
+  it('returns image for mixed case JpEg', () => {
+    expect(getUploadMediaType('photo.JpEg')).toBe('image');
+  });
+
+  it('returns file for uppercase PDF', () => {
+    expect(getUploadMediaType('doc.PDF')).toBe('file');
+  });
+
+  it('returns file for mixed case DocX', () => {
+    expect(getUploadMediaType('doc.DocX')).toBe('file');
+  });
+
+  it('returns image for uppercase GIF', () => {
+    expect(getUploadMediaType('anim.GIF')).toBe('image');
+  });
+
+  it('returns image for uppercase BMP', () => {
+    expect(getUploadMediaType('bitmap.BMP')).toBe('image');
+  });
+});
+
+// ==================== getDingTalkFileType ====================
+
+describe('getDingTalkFileType', () => {
+  // Exact mappings
+  it('maps pdf → pdf', () => {
+    expect(getDingTalkFileType('doc.pdf')).toBe('pdf');
+  });
+
+  it('maps doc → doc', () => {
+    expect(getDingTalkFileType('letter.doc')).toBe('doc');
+  });
+
+  it('maps docx → doc', () => {
+    expect(getDingTalkFileType('report.docx')).toBe('doc');
+  });
+
+  it('maps xls → xlsx', () => {
+    expect(getDingTalkFileType('data.xls')).toBe('xlsx');
+  });
+
+  it('maps xlsx → xlsx', () => {
+    expect(getDingTalkFileType('data.xlsx')).toBe('xlsx');
+  });
+
+  it('maps ppt → ppt', () => {
+    expect(getDingTalkFileType('slides.ppt')).toBe('ppt');
+  });
+
+  it('maps pptx → ppt', () => {
+    expect(getDingTalkFileType('slides.pptx')).toBe('ppt');
+  });
+
+  it('maps zip → zip', () => {
+    expect(getDingTalkFileType('archive.zip')).toBe('zip');
+  });
+
+  it('maps rar → rar', () => {
+    expect(getDingTalkFileType('archive.rar')).toBe('rar');
+  });
+
+  // Unknown extensions → default 'pdf'
+  it('maps csv → pdf (unknown, defaults to pdf)', () => {
+    expect(getDingTalkFileType('data.csv')).toBe('pdf');
+  });
+
+  it('maps txt → pdf (unknown, defaults to pdf)', () => {
+    expect(getDingTalkFileType('note.txt')).toBe('pdf');
+  });
+
+  it('maps md → pdf (unknown, defaults to pdf)', () => {
+    expect(getDingTalkFileType('readme.md')).toBe('pdf');
+  });
+
+  it('maps json → pdf (unknown, defaults to pdf)', () => {
+    expect(getDingTalkFileType('config.json')).toBe('pdf');
+  });
+
+  it('maps odt → pdf (unknown, defaults to pdf)', () => {
+    expect(getDingTalkFileType('doc.odt')).toBe('pdf');
+  });
+
+  it('maps png → pdf (image extension, defaults to pdf)', () => {
+    expect(getDingTalkFileType('photo.png')).toBe('pdf');
+  });
+
+  // Edge cases
+  it('returns pdf for empty string', () => {
+    expect(getDingTalkFileType('')).toBe('pdf');
+  });
+
+  it('returns pdf for filename without extension', () => {
+    expect(getDingTalkFileType('Makefile')).toBe('pdf');
+  });
+
+  it('returns pdf for hidden file', () => {
+    expect(getDingTalkFileType('.gitignore')).toBe('pdf');
+  });
+
+  it('takes last extension from multi-dot filename', () => {
+    expect(getDingTalkFileType('report.final.pdf')).toBe('pdf');
+  });
+
+  it('takes last extension for multi-dot docx', () => {
+    expect(getDingTalkFileType('draft.v2.docx')).toBe('doc');
+  });
+
+  // Case insensitivity
+  it('maps PDF → pdf', () => {
+    expect(getDingTalkFileType('doc.PDF')).toBe('pdf');
+  });
+
+  it('maps DOCX → doc', () => {
+    expect(getDingTalkFileType('doc.DOCX')).toBe('doc');
+  });
+
+  it('maps XLSX → xlsx', () => {
+    expect(getDingTalkFileType('data.XLSX')).toBe('xlsx');
+  });
+
+  it('maps PPTX → ppt', () => {
+    expect(getDingTalkFileType('slides.PPTX')).toBe('ppt');
   });
 });
