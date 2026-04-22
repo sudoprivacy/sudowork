@@ -209,9 +209,11 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     }
   }, [availableAgentsData]);
 
-  // Load last selected agent
+  // Load last selected agent (skip when URL parameter takes priority)
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
+    // Skip restoring persisted agent when a URL parameter explicitly specifies the assistant
+    if (assistantFromUrl) return;
 
     let cancelled = false;
 
@@ -238,7 +240,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     return () => {
       cancelled = true;
     };
-  }, [availableAgents]);
+  }, [availableAgents, assistantFromUrl]);
 
   // Load custom agents + extension-contributed assistants
   useEffect(() => {

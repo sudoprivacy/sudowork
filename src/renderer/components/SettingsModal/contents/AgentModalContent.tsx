@@ -1052,6 +1052,8 @@ const AgentModalContent: React.FC = () => {
           }
           await fetchInstalledAssistantNames();
           await loadAssistants();
+          // Refresh agent detection so GuidPage's useGuidAgentSelection picks up the new assistant
+          await refreshAgentDetection();
           setHubDetailVisible(false);
         } else {
           Message.error(t('settings.assistant.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `安装失败: ${res.msg || '未知错误'}` }));
@@ -1064,15 +1066,17 @@ const AgentModalContent: React.FC = () => {
         setInstallProgress(0);
       }
     },
-    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, t]
+    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
   // Go use installed assistant (navigate to guid page)
-  const handleGoUseHubAssistant = useCallback(() => {
+  const handleGoUseHubAssistant = useCallback(async () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
+    // Refresh agent detection before navigating so GuidPage's customAgents are up-to-date
+    await refreshAgentDetection();
     void navigate(`/guid?assistant=${encodeURIComponent(hubDetailAssistant.name)}`);
-  }, [hubDetailAssistant, navigate]);
+  }, [hubDetailAssistant, navigate, refreshAgentDetection]);
 
   // Open duplicate confirm modal for hub assistant
   const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
