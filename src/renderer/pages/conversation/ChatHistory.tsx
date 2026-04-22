@@ -361,6 +361,15 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                     event.stopPropagation();
                     handleEditStart(conversation);
                   }}
+                  role='button'
+                  aria-label={t('common.ariaLabel.edit')}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleEditStart(conversation);
+                    }
+                  }}
                 >
                   <EditOne theme='outline' size='20' className='flex' />
                 </span>
@@ -383,6 +392,16 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                     className='flex-center'
                     onClick={(event) => {
                       event.stopPropagation();
+                    }}
+                    role='button'
+                    aria-label={t('common.ariaLabel.delete')}
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        // Trigger popconfirm by clicking the span
+                        event.currentTarget.click();
+                      }
                     }}
                   >
                     <DeleteOne theme='outline' size='20' className='flex' />

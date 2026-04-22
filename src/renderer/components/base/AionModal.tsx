@@ -10,6 +10,7 @@ import { Close } from '@icon-park/react';
 import classNames from 'classnames';
 import type { CSSProperties } from 'react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 // ==================== 类型定义导出 ====================
@@ -175,6 +176,7 @@ const AionModal: React.FC<AionModalProps> = ({
   style,
   ...props
 }) => {
+  const { t } = useTranslation();
   const { fontScale } = useThemeContext();
   // 处理 contentStyle 配置，转换为 CSS 变量
   const contentBg = contentStyle?.background || 'var(--bg-1)';
@@ -335,9 +337,9 @@ const AionModal: React.FC<AionModalProps> = ({
 
     return (
       <div className={headerClassName} style={headerStyle}>
-        {headerConfig.title && <h3 className={TITLE_BASE_CLASS}>{headerConfig.title}</h3>}
+        {headerConfig.title && <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>{headerConfig.title}</h3>}
         {headerConfig.showClose && (
-          <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label='Close'>
+          <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label={headerConfig.closeIcon ? t('common.ariaLabel.close') : t('common.ariaLabel.close')}>
             {headerConfig.closeIcon || <Close size={20} fill='#86909c' />}
           </button>
         )}
@@ -374,6 +376,9 @@ const AionModal: React.FC<AionModalProps> = ({
       className={`aionui-modal ${className}`}
       style={finalStyle}
       getPopupContainer={() => document.body}
+      role='dialog'
+      aria-modal='true'
+      aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}
     >
       <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }}>
         {renderHeader()}
