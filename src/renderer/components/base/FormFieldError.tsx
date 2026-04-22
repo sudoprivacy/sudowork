@@ -6,7 +6,7 @@
 
 import React from 'react';
 import classNames from 'classnames';
-import { CloseCircleFill } from '@icon-park/react';
+import { Close } from '@icon-park/react';
 
 interface FormFieldErrorProps {
   /** 错误消息，为空时不显示 */
@@ -38,7 +38,7 @@ const FormFieldError: React.FC<FormFieldErrorProps> = ({ message, className, sho
       aria-live="polite"
     >
       {showIcon && (
-        <CloseCircleFill size={12} className="flex-shrink-0" />
+        <Close size={12} className="flex-shrink-0" />
       )}
       <span className="form-field-error__text">{message}</span>
     </div>
