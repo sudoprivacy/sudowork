@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getDefaultExtension, getMediaUrl, getMediaExtract, toUnifiedIncomingMessage, toWeChatSendPayload, splitMessage, stripMarkdownToPlain } from '@/channels/plugins/wechat/WeChatAdapter';
+import { extractMarkdownFileUrls, extractMarkdownImageUrls, getDefaultExtension, getMediaUrl, getMediaExtract, toUnifiedIncomingMessage, toWeChatSendPayload, splitMessage, stripMarkdownToPlain } from '@/channels/plugins/wechat/WeChatAdapter';
 import type { WeChatMessage, WeChatMessageItem } from '@/channels/plugins/wechat/types';
 import { MessageItemType, MessageType } from '@/channels/plugins/wechat/types';
 
@@ -441,6 +441,93 @@ describe('WeChatAdapter', () => {
 
     it('strips headers', () => {
       expect(stripMarkdownToPlain('## Header')).toBe('Header');
+    });
+  });
+
+  describe('extractMarkdownImageUrls', () => {
+    it('extracts single image URL', () => {
+      const text = 'Here is an image: ![alt text](https://example.com/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['https://example.com/image.png']);
+    });
+
+    it('extracts multiple image URLs', () => {
+      const text = '![img1](https://example.com/a.jpg) some text ![img2](https://example.com/b.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['https://example.com/a.jpg', 'https://example.com/b.png']);
+    });
+
+    it('returns empty array when no images', () => {
+      const text = 'No images here, just a [link](https://example.com)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual([]);
+    });
+
+    it('handles empty alt text', () => {
+      const text = '![](https://example.com/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['https://example.com/image.png']);
+    });
+
+    it('handles local file paths', () => {
+      const text = '![screenshot](/tmp/screenshots/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['/tmp/screenshots/image.png']);
+    });
+
+    it('extracts images from complex markdown', () => {
+      const text = `# Report
+Here is the chart:
+![Chart](https://cdn.example.com/chart.png)
+
+And some **bold** text with a [link](https://example.com).
+
+Another image:
+![Photo](https://cdn.example.com/photo.jpg)`;
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['https://cdn.example.com/chart.png', 'https://cdn.example.com/photo.jpg']);
+    });
+  });
+
+  describe('extractMarkdownFileUrls', () => {
+    it('extracts file links with known extensions', () => {
+      const text = 'Download the [report](https://example.com/report.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toEqual([{ url: 'https://example.com/report.pdf', fileName: 'report' }]);
+    });
+
+    it('extracts multiple file links', () => {
+      const text = '[spreadsheet](https://example.com/data.xlsx) and [archive](https://example.com/files.zip)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(2);
+      expect(files[0].url).toBe('https://example.com/data.xlsx');
+      expect(files[1].url).toBe('https://example.com/files.zip');
+    });
+
+    it('ignores image links', () => {
+      const text = '![image](https://example.com/image.jpg) and [doc](https://example.com/doc.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('https://example.com/doc.pdf');
+    });
+
+    it('ignores links without file extensions', () => {
+      const text = '[website](https://example.com) and [page](https://example.com/about)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toEqual([]);
+    });
+
+    it('handles URLs with query parameters', () => {
+      const text = '[download](https://example.com/file.pdf?token=abc123)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('https://example.com/file.pdf?token=abc123');
+    });
+
+    it('returns empty array for text without links', () => {
+      const text = 'Just some plain text without any links.';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toEqual([]);
     });
   });
 });
