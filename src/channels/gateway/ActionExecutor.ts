@@ -170,7 +170,7 @@ function getConfirmationPrompt(details: { type: string; title?: string; [key: st
  * 将 TMessage 转换为 IUnifiedOutgoingMessage
  * Convert TMessage to IUnifiedOutgoingMessage for platform
  */
-function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isComplete = false): IUnifiedOutgoingMessage {
+function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isComplete = false): IUnifiedOutgoingMessage | null {
   switch (message.type) {
     case 'text': {
       // 根据平台格式化文本
@@ -262,6 +262,14 @@ function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isCo
         parseMode: 'HTML',
       };
     }
+
+    case 'agent_status':
+    case 'acp_tool_call':
+    case 'codex_tool_call':
+    case 'plan':
+    case 'available_commands':
+      // Desktop-only UI state messages — skip for channel clients
+      return null;
 
     case 'acp_permission':
     case 'codex_permission': {
@@ -684,17 +692,22 @@ export class ActionExecutor {
       // Track sent message IDs for new inserted messages
       const sentMessageIds: string[] = thinkingMsgId ? [thinkingMsgId] : [];
 
+      // Track whether thinking message has been updated by first text message
+      let thinkingUpdated = false;
+
       // 跟踪最后一条消息内容，用于流结束后添加操作按钮
       // Track last message content for adding action buttons after stream ends
       let lastMessageContent: IUnifiedOutgoingMessage | null = null;
 
       // 执行消息编辑的函数
       // Function to perform message edit
-      const doEditMessage = async (msg: IUnifiedOutgoingMessage) => {
+      const doEditMessage = async (msg: IUnifiedOutgoingMessage, forceThinkingTarget = false) => {
         if (!supportsEdit) return; // WeChat doesn't support edit
 
         lastUpdateTime = Date.now();
-        const targetMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
+        // When updating thinking message, always target thinkingMsgId directly
+        // (not sentMessageIds[last], which may be a file/image message)
+        const targetMsgId = (forceThinkingTarget && thinkingMsgId) ? thinkingMsgId : (sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId);
         try {
           await context.editMessage(targetMsgId, msg);
         } catch {
@@ -711,6 +724,9 @@ export class ActionExecutor {
         // Convert message format (based on platform)
         const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
 
+        // Skip desktop-only message types (agent_status, plan, etc.)
+        if (!outgoingMessage) return;
+
         // Strip replyMarkup during streaming to prevent premature card finalization.
         // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
         // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
@@ -721,14 +737,18 @@ export class ActionExecutor {
         // Save last message content (without replyMarkup, final message adds it separately)
         lastMessageContent = streamOutgoing;
 
-        // IMPORTANT: Always treat first streaming message as update to thinking message
+        // IMPORTANT: Treat first text streaming message as update to thinking message
         // This prevents async race condition where first insert's sendMessage takes time
         // while subsequent messages arrive and get processed as updates
-        // 重要：始终将第一个流式消息视为更新thinking消息
-        // 这可以防止异步竞态条件：第一个insert的sendMessage耗时时，后续消息已到达并被当作update处理
-        if (isInsert && sentMessageIds.length === 1 && thinkingMsgId && supportsEdit) {
-          // First streaming message: update thinking message instead of inserting
-          // 第一个流式消息：更新thinking消息而不是插入新消息
+        // Use thinkingUpdated flag instead of sentMessageIds.length to handle cases
+        // where file/image messages are sent before text (e.g., doc generation)
+        // 重要：始终将第一个text流式消息视为更新thinking消息
+        // 使用 thinkingUpdated 标志而非 sentMessageIds.length，
+        // 以处理 file/image 在 text 之前发送的情况（如文档生成）
+        if (isInsert && !thinkingUpdated && thinkingMsgId && supportsEdit && streamOutgoing.type === 'text') {
+          // First text streaming message: update thinking message instead of inserting
+          // 第一个text流式消息：更新thinking消息而不是插入新消息
+          thinkingUpdated = true;
           pendingMessage = streamOutgoing;
 
           if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
@@ -736,7 +756,7 @@ export class ActionExecutor {
               clearTimeout(pendingUpdateTimer);
               pendingUpdateTimer = null;
             }
-            await doEditMessage(streamOutgoing);
+            await doEditMessage(streamOutgoing, true);
           } else {
             if (pendingUpdateTimer) {
               clearTimeout(pendingUpdateTimer);
@@ -744,7 +764,7 @@ export class ActionExecutor {
             const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
             pendingUpdateTimer = setTimeout(() => {
               if (pendingMessage) {
-                void doEditMessage(pendingMessage);
+                void doEditMessage(pendingMessage, true);
                 pendingMessage = null;
               }
               pendingUpdateTimer = null;
@@ -823,15 +843,21 @@ export class ActionExecutor {
       // 流结束后，更新最后一条消息添加操作按钮（保留原内容）
       // After stream ends, update last message with action buttons (keep original content)
       if (lastMessageContent) {
-        const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
-        const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
-
-        if (supportsEdit && sentMessageIds.length > 0) {
-          const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
-          await context.editMessage(lastMsgId, finalMessage);
+        // Skip edit for non-text messages (file/image) — these were already sent via sendMessage
+        // and cannot be edited (LarkPlugin.editMessage only supports card messages)
+        if (lastMessageContent.type === 'file' || lastMessageContent.type === 'image') {
+          // No action needed; file/image messages were already sent correctly via sendMessage
         } else {
-          // For WeChat or if no message was sent yet, send the final content as a new message
-          await context.sendMessage(finalMessage);
+          const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
+          const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
+
+          if (supportsEdit && sentMessageIds.length > 0) {
+            const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
+            await context.editMessage(lastMsgId, finalMessage);
+          } else {
+            // For WeChat or if no message was sent yet, send the final content as a new message
+            await context.sendMessage(finalMessage);
+          }
         }
       }
     } catch (error: any) {
