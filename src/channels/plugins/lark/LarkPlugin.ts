@@ -197,8 +197,47 @@ export class LarkPlugin extends BasePlugin {
 
     await this.ensureAccessToken();
 
-    const { contentType, content, rawText } = toLarkSendParams(message);
     const receiveIdType = this.getReceiveIdType(chatId);
+
+    // Handle image messages - upload then send
+    if (message.type === 'image' && message.imageUrl) {
+      try {
+        const imageKey = await this.uploadImage(message.imageUrl);
+        const response = await this.client.im.message.create({
+          params: { receive_id_type: receiveIdType },
+          data: {
+            receive_id: chatId,
+            msg_type: 'image',
+            content: JSON.stringify({ image_key: imageKey }),
+          },
+        });
+        return response.data?.message_id || '';
+      } catch (error) {
+        console.error('[LarkPlugin] Failed to send image:', error);
+        throw error;
+      }
+    }
+
+    // Handle file messages - upload then send
+    if (message.type === 'file' && message.fileUrl && message.fileName) {
+      try {
+        const fileKey = await this.uploadFile(message.fileUrl, message.fileName);
+        const response = await this.client.im.message.create({
+          params: { receive_id_type: receiveIdType },
+          data: {
+            receive_id: chatId,
+            msg_type: 'file',
+            content: JSON.stringify({ file_key: fileKey }),
+          },
+        });
+        return response.data?.message_id || '';
+      } catch (error) {
+        console.error('[LarkPlugin] Failed to send file:', error);
+        throw error;
+      }
+    }
+
+    const { contentType, content, rawText } = toLarkSendParams(message);
 
     // Handle text messages - send as card for streaming support
     // Lark only allows editing card messages, not text messages
@@ -463,7 +502,70 @@ export class LarkPlugin extends BasePlugin {
   }
 
   /**
-   * Map menu action strings to action info
+   * Upload an image file to Lark and return image_key.
+   * Max 10MB, supports JPEG/PNG/WEBP/GIF/TIFF/BMP/ICO.
+   */
+  private async uploadImage(filePath: string): Promise<string> {
+    if (!this.client) throw new Error('Client not initialized');
+    if (!fs.existsSync(filePath)) throw new Error(`Image file not found: ${filePath}`);
+
+    const imageBuffer = fs.readFileSync(filePath);
+    const response = await this.client.im.image.create({
+      data: {
+        image_type: 'message',
+        image: imageBuffer,
+      },
+    });
+
+    if (!response?.image_key) {
+      throw new Error('Failed to upload image: no image_key returned');
+    }
+    return response.image_key;
+  }
+
+  /**
+   * Upload a file to Lark and return file_key.
+   * Max 30MB, file_type must match the file format.
+   */
+  private async uploadFile(filePath: string, fileName: string): Promise<string> {
+    if (!this.client) throw new Error('Client not initialized');
+    if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
+
+    const fileBuffer = fs.readFileSync(filePath);
+    const file_type = this.toLarkFileType(fileName);
+
+    const response = await this.client.im.file.create({
+      data: {
+        file_type,
+        file_name: fileName,
+        file: fileBuffer,
+      },
+    });
+
+    if (!response?.file_key) {
+      throw new Error('Failed to upload file: no file_key returned');
+    }
+    return response.file_key;
+  }
+
+  /**
+   * Map file extension to Lark file_type for upload API.
+   * Returns 'stream' as catch-all for unsupported types.
+   */
+  private toLarkFileType(fileName: string): 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt' | 'stream' {
+    const ext = path.extname(fileName).toLowerCase();
+    const map: Record<string, 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt'> = {
+      '.pdf': 'pdf',
+      '.doc': 'doc', '.docx': 'doc',
+      '.xls': 'xls', '.xlsx': 'xls', '.csv': 'xls',
+      '.ppt': 'ppt', '.pptx': 'ppt',
+      '.mp3': 'opus', '.opus': 'opus', '.ogg': 'opus',
+      '.mp4': 'mp4',
+    };
+    return map[ext] || 'stream';
+  }
+
+  /**
    * These are the action strings configured in Feishu bot custom menu
    */
   private getMenuButtonAction(text: string): { type: string; action: string } | null {

@@ -274,6 +274,14 @@ function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isCo
       };
     }
 
+    case 'file_send': {
+      const { filePath, fileName, fileType } = message.content;
+      if (fileType === 'image') {
+        return { type: 'image' as const, imageUrl: filePath };
+      }
+      return { type: 'file' as const, fileUrl: filePath, fileName };
+    }
+
     default:
       // 其他类型暂不支持，显示通用消息
       // Other types not supported yet, show generic message
