@@ -138,6 +138,21 @@ export const CommonErrorKeys = {
 } as const;
 
 /**
+ * 表单字段错误消息 key（用于内联错误显示）
+ */
+export const FormFieldErrorKeys = {
+  REQUIRED: 'errors.required',
+  EMAIL_INVALID: 'errors.emailInvalid',
+  PHONE_INVALID: 'errors.phoneInvalid',
+  URL_INVALID: 'errors.urlInvalid',
+  MIN_LENGTH: 'errors.minLength',
+  MAX_LENGTH: 'errors.maxLength',
+  PATTERN_MISMATCH: 'errors.patternMismatch',
+  PASSWORD_TOO_SHORT: 'errors.passwordTooShort',
+  PASSWORDS_NOT_MATCH: 'errors.passwordsNotMatch',
+} as const;
+
+/**
  * 显示带行动按钮的错误消息（用于需要重试的场景）
  * 注意：Arco Design Message 不支持 custom footer，此函数使用普通错误消息
  * @param message 错误消息内容

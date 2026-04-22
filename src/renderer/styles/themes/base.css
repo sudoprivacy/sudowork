@@ -549,6 +549,11 @@ body,
   overflow-x: hidden;
   box-shadow: none !important;
   border-right: 1px solid var(--border-base);
+  /* 侧边栏收起展开动画优化 / Sidebar collapse/expand animation */
+  transition:
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, transform;
 }
 
 .layout-sider.collapsed .arco-layout-sider-children,
@@ -559,6 +564,14 @@ body,
 /* 拖动时禁用过渡动画，确保流畅的拖动体验 / Disable transition during drag for smooth dragging */
 .layout-sider--dragging {
   transition: none !important;
+}
+
+/* 移动端侧边栏动画优化 / Mobile sidebar animation optimization */
+@media (max-width: 767px) {
+  .layout-sider {
+    /* 移动端使用 transform 进行动画，性能更好 */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1046,6 +1059,11 @@ body,
   margin-top: 6px;
   font-size: 12px;
   color: var(--danger, #f53f3f);
+  transition: opacity 0.2s ease;
+}
+
+.form-field-error__text {
+  word-break: break-word;
 }
 
 .error-boundary-fallback {

@@ -19,9 +19,11 @@ export interface FormFieldError {
 /**
  * 表单错误管理 Hook
  * @param initialErrors 初始错误状态
+ * @param autoClearOnInput 是否在值变化时自动清除错误（默认 true）
  */
 export const useFormErrors = <T extends Record<string, string>>(
-  initialErrors: Partial<Record<keyof T, string>> = {}
+  initialErrors: Partial<Record<keyof T, string>> = {},
+  autoClearOnInput = true
 ) => {
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>(initialErrors);
 
@@ -119,6 +121,27 @@ export const useFormErrors = <T extends Record<string, string>>(
     [errors]
   );
 
+  /**
+   * 创建自动清除错误的 onChange 处理器
+   * @param field 字段名
+   * @param baseOnChange 原始的 onChange 处理器
+   */
+  const createOnChangeWithAutoClear = useCallback(
+    (field: keyof T, baseOnChange?: (value: string) => void) => {
+      if (!autoClearOnInput) {
+        return baseOnChange;
+      }
+      return (value: string) => {
+        // 当用户开始输入时，清除该字段的错误
+        if (errors[field]) {
+          clearFieldError(field);
+        }
+        baseOnChange?.(value);
+      };
+    },
+    [autoClearOnInput, errors, clearFieldError]
+  );
+
   return {
     errors,
     setFieldError,
@@ -128,6 +151,7 @@ export const useFormErrors = <T extends Record<string, string>>(
     hasAnyError,
     validate,
     getFieldError,
+    createOnChangeWithAutoClear,
   };
 };
 

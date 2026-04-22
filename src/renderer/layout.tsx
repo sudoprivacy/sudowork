@@ -302,7 +302,6 @@ const Layout: React.FC<{
                     left: 0,
                     zIndex: 100,
                     transform: collapsed ? 'translateX(-100%)' : 'translateX(0)',
-                    transition: 'none',
                     pointerEvents: collapsed ? 'none' : 'auto',
                   }
                 : undefined
