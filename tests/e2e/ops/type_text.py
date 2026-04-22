@@ -19,7 +19,11 @@ async def type_text(tab, text: str, wait: float = 1) -> dict:
     js = """(() => {
         const el = document.querySelector('textarea, input:not([type="hidden"])');
         if (!el) return 'no_input';
-        
+
+        // Reset React's _valueTracker so it detects the change
+        const tracker = el._valueTracker;
+        if (tracker) tracker.setValue('');
+
         const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
         const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
         setter.call(el, %s);

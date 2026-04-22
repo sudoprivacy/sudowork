@@ -12,10 +12,12 @@ Usage:
 import argparse
 import asyncio
 import sys
+import time
 from pathlib import Path
 
 import yaml
 
+import state
 from ops.registry import discover_ops, invoke_op
 
 OPS = discover_ops()
@@ -38,6 +40,10 @@ async def run_case(tab, case_path: Path) -> dict:
     passed = 0
     failed = 0
 
+    # Mark case start so ops like db_audit can filter messages "since this run"
+    state.CASE_START_MS = int(time.time() * 1000)
+    state.CASE_NAME = name
+
     print(f"\n{'='*60}")
     print(f"  {name}")
     print(f"{'='*60}")
@@ -55,7 +61,7 @@ async def run_case(tab, case_path: Path) -> dict:
         result = await invoke_op(tab, op_name, OPS, **kwargs)
 
         # Check result
-        if op_name == "judge":
+        if op_name in ("judge", "db_audit"):
             if result.get("pass"):
                 passed += 1
                 status = "PASS"

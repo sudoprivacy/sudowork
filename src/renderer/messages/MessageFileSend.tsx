@@ -1,0 +1,99 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { IMessageFileSend } from '@/common/chatLib';
+import type { PreviewContentType } from '@/common/types/preview';
+import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
+import { FileText, Picture } from '@icon-park/react';
+import React, { useCallback } from 'react';
+
+const FILE_TYPE_LABELS: Record<string, string> = {
+  '.pdf': 'PDF 文档',
+  '.doc': 'Word 文档',
+  '.docx': 'Word 文档',
+  '.xls': 'Excel 表格',
+  '.xlsx': 'Excel 表格',
+  '.ppt': 'PowerPoint 演示文稿',
+  '.pptx': 'PowerPoint 演示文稿',
+  '.csv': 'CSV 文件',
+  '.txt': '文本文件',
+  '.md': 'Markdown 文件',
+  '.html': 'HTML 文件',
+  '.jpg': 'JPEG 图片',
+  '.jpeg': 'JPEG 图片',
+  '.png': 'PNG 图片',
+  '.webp': 'WebP 图片',
+  '.gif': 'GIF 图片',
+  '.tiff': 'TIFF 图片',
+  '.bmp': 'BMP 图片',
+  '.svg': 'SVG 图片',
+};
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
+const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
+  ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
+  doc: 'word', docx: 'word', odt: 'word',
+  xls: 'excel', xlsx: 'excel', ods: 'excel',
+};
+
+export const getContentTypeFromExt = (ext: string): PreviewContentType => {
+  const e = ext.toLowerCase();
+  if (e === 'md' || e === 'markdown') return 'markdown';
+  if (e === 'diff' || e === 'patch') return 'diff';
+  if (e === 'pdf') return 'pdf';
+  if (OFFICE_EXTENSIONS[e]) return OFFICE_EXTENSIONS[e];
+  if (e === 'csv') return 'code';
+  if (e === 'html' || e === 'htm') return 'html';
+  if (IMAGE_EXTENSIONS.has(e)) return 'image';
+  return 'code';
+};
+
+const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) => {
+  const { filePath, fileName, fileType } = message.content;
+  const ext = fileName ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+  const typeLabel = FILE_TYPE_LABELS['.' + ext] || '文件';
+  const { launchPreview, loading } = usePreviewLauncher();
+
+  const handleClick = useCallback(() => {
+    if (!filePath || loading) return;
+    const contentType = fileType === 'image' ? 'image' : getContentTypeFromExt(ext);
+    launchPreview({
+      originalPath: filePath,
+      fileName,
+      contentType,
+      editable: false,
+    });
+  }, [filePath, fileName, fileType, ext, launchPreview, loading]);
+
+  const clickableProps = filePath
+    ? { className: 'cursor-pointer select-none', onClick: handleClick }
+    : {};
+
+  if (fileType === 'image') {
+    return (
+      <div className='w-full'>
+        <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
+          <Picture theme='filled' size='18' className='flex-shrink-0 text-t-secondary' />
+          <span className='text-t-secondary text-13px'>{fileName}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='w-full'>
+      <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
+        <FileText theme='filled' size='18' className='flex-shrink-0 text-t-secondary' />
+        <div className='flex flex-col gap-2px'>
+          <span className='text-t-primary text-14px'>{fileName}</span>
+          <span className='text-t-tertiary text-12px'>{typeLabel}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MessageFileSend;

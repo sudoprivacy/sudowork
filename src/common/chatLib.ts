@@ -54,7 +54,7 @@ export const joinPath = (basePath: string, relativePath: string): string => {
  * @description 跟对话相关的消息类型申明 及相关处理
  */
 
-type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands';
+type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
 
 interface IMessage<T extends TMessageType, Content extends Record<string, any>> {
   /**
@@ -284,8 +284,17 @@ export type IMessageAvailableCommands = IMessage<
   }
 >;
 
+/** Data for file_send messages — used by channels to send files to IM clients */
+export interface IFileSendData {
+  filePath: string;
+  fileName: string;
+  fileType: 'image' | 'file';
+}
+
+export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
+
 // eslint-disable-next-line max-len
-export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands;
+export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
 export interface IConfirmation<Option extends any = any> {
@@ -414,6 +423,16 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+      };
+    }
+    case 'file_send': {
+      return {
+        id: uuid(),
+        type: 'file_send',
+        msg_id: message.msg_id,
+        position: 'left',
+        conversation_id: message.conversation_id,
+        content: message.data as IFileSendData,
       };
     }
     // Disabled: available_commands messages are too noisy and distracting in the chat UI

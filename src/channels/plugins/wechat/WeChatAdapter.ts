@@ -252,6 +252,55 @@ export function toWeChatSendPayload(userId: string, message: IUnifiedOutgoingMes
 }
 
 /**
+ * Extract all image URLs from markdown text.
+ * Matches `![alt](url)` patterns and returns the URLs.
+ *
+ * @param text - Markdown text that may contain image references
+ * @returns Array of image URLs found in the markdown
+ */
+export function extractMarkdownImageUrls(text: string): string[] {
+  const imageRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+  const urls: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = imageRegex.exec(text)) !== null) {
+    const url = match[1].trim();
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+
+/**
+ * Extract all file URLs from markdown links that point to downloadable files.
+ * Matches `[text](url)` patterns where the URL ends with a known file extension.
+ * Excludes image links (which are handled by extractMarkdownImageUrls).
+ *
+ * @param text - Markdown text that may contain file links
+ * @returns Array of { url, fileName } for files found in the markdown
+ */
+export function extractMarkdownFileUrls(text: string): Array<{ url: string; fileName: string }> {
+  // Match [text](url) but NOT ![text](url)
+  const linkRegex = /(?<!!)\[([^\]]*)\]\(([^)]+)\)/g;
+  const fileExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.7z', '.tar', '.gz', '.csv', '.txt', '.json', '.xml', '.yaml', '.yml', '.mp3', '.wav', '.mp4', '.avi', '.mov'];
+  const files: Array<{ url: string; fileName: string }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = linkRegex.exec(text)) !== null) {
+    const linkText = match[1].trim();
+    const url = match[2].trim();
+    if (!url) continue;
+    // Check if URL ends with a known file extension
+    const urlLower = url.toLowerCase().split('?')[0]; // Remove query params for extension check
+    const hasFileExt = fileExtensions.some((ext) => urlLower.endsWith(ext));
+    if (hasFileExt) {
+      // Use link text as filename if available, otherwise extract from URL
+      // Split on both / and \ to handle Windows paths (e.g., C:\Users\docs\report.pdf)
+      const fileName = linkText || url.split(/[/\\]/).pop()?.split('?')[0] || 'file';
+      files.push({ url, fileName });
+    }
+  }
+  return files;
+}
+
+/**
  * Strip HTML/Markdown markup to plain text.
  */
 export function stripMarkdownToPlain(text: string): string {

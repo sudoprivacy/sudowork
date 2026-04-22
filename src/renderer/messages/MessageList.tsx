@@ -25,6 +25,7 @@ import HOC from '../utils/HOC';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
 import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
+import MessageFileSend from './MessageFileSend';
 import { useMessageList } from './hooks';
 import MessagePlan from './MessagePlan';
 import MessageTips from './MessageTips';
@@ -118,6 +119,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <MessageCodexToolCall message={message}></MessageCodexToolCall>;
       case 'plan':
         return <MessagePlan message={message}></MessagePlan>;
+      case 'file_send':
+        return <MessageFileSend message={message}></MessageFileSend>;
       case 'available_commands':
         return null;
       default:

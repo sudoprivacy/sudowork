@@ -9,7 +9,7 @@ import path from 'path';
 import { randomBytes } from 'node:crypto';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { getDefaultExtension, getMediaExtract, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
+import { extractMarkdownFileUrls, extractMarkdownImageUrls, getDefaultExtension, getMediaExtract, splitMessage, stripMarkdownToPlain, toUnifiedIncomingMessage, toWeChatSendPayload } from './WeChatAdapter';
 import { WeChatApiClient } from './WeChatApiClient';
 import { WeChatContextTokenStore } from './WeChatContextTokenStore';
 import { encryptAesEcb, generateAesKey } from './WeChatCrypto';
@@ -121,25 +121,34 @@ export class WeChatPlugin extends BasePlugin {
       return `wechat_no_token_${Date.now()}`;
     }
 
-    // Build message items
+    // Build message items from explicit attachments
     const items: WeChatMessageItem[] = [];
 
-    // Handle image attachment
+    // Handle explicit image attachment
     if (message.imageUrl) {
       const imageItem = await this.uploadMedia(message.imageUrl, UploadMediaType.IMAGE, userId);
       if (imageItem) items.push(imageItem);
     }
 
-    // Handle file attachment
+    // Handle explicit file attachment
     if (message.fileUrl) {
       const fileItem = await this.uploadMedia(message.fileUrl, UploadMediaType.FILE, userId);
       if (fileItem) items.push(fileItem);
     }
 
-    // Handle text content
-    const text = stripMarkdownToPlain(message.text || '');
+    // Extract images and files embedded in markdown text BEFORE stripping
+    const rawText = message.text || '';
+    const markdownImageUrls = extractMarkdownImageUrls(rawText);
+    const markdownFileUrls = extractMarkdownFileUrls(rawText);
 
-    // Send each item as its own request (text first, then media)
+    if (markdownImageUrls.length > 0 || markdownFileUrls.length > 0) {
+      console.log(`[WeChatPlugin] Found ${markdownImageUrls.length} images and ${markdownFileUrls.length} files in markdown`);
+    }
+
+    // Strip markdown to plain text (images/links are removed)
+    const text = stripMarkdownToPlain(rawText);
+
+    // Send text first, then media (text → explicit attachments → markdown images → markdown files)
     // Reference: photon-hq/wechat-ilink-client/src/media/send.ts
     if (text.trim()) {
       const chunks = splitMessage(text, WECHAT_MESSAGE_LIMIT);
@@ -149,29 +158,201 @@ export class WeChatPlugin extends BasePlugin {
       }
     }
 
-    // Send each media item separately
+    // Send explicit media items
     for (const item of items) {
-      const clientId = `sudowork-wechat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const mediaPayload = {
-        msg: {
-          from_user_id: '',
-          to_user_id: userId,
-          client_id: clientId,
-          context_token: contextToken,
-          message_type: 2, // MessageType.BOT
-          message_state: 2, // MessageState.FINISH
-          item_list: [item],
-        },
-      };
-      console.log('[WeChatPlugin] sendMessage media item:', JSON.stringify(mediaPayload, null, 2));
-      await this.apiClient.sendMessage(mediaPayload);
+      await this.sendMediaItem(item, userId, contextToken);
     }
 
-    if (items.length === 0 && !text.trim()) {
+    // Download and send images extracted from markdown
+    for (const imageUrl of markdownImageUrls) {
+      try {
+        const localPath = await this.downloadRemoteMedia(imageUrl, '.jpg');
+        if (localPath) {
+          const imageItem = await this.uploadMedia(localPath, UploadMediaType.IMAGE, userId);
+          if (imageItem) {
+            await this.sendMediaItem(imageItem, userId, contextToken);
+            console.log(`[WeChatPlugin] Sent markdown image: ${imageUrl}`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[WeChatPlugin] Failed to send markdown image ${imageUrl}:`, error);
+      }
+    }
+
+    // Download and send files extracted from markdown
+    for (const { url: fileUrl, fileName } of markdownFileUrls) {
+      try {
+        const ext = path.extname(fileName) || '';
+        const localPath = await this.downloadRemoteMedia(fileUrl, ext, fileName);
+        if (localPath) {
+          const fileItem = await this.uploadMedia(localPath, UploadMediaType.FILE, userId);
+          if (fileItem) {
+            await this.sendMediaItem(fileItem, userId, contextToken);
+            console.log(`[WeChatPlugin] Sent markdown file: ${fileUrl}`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[WeChatPlugin] Failed to send markdown file ${fileUrl}:`, error);
+      }
+    }
+
+    if (items.length === 0 && markdownImageUrls.length === 0 && markdownFileUrls.length === 0 && !text.trim()) {
       return `wechat_empty_${Date.now()}`;
     }
 
     return `wechat_${Date.now()}`;
+  }
+
+  /**
+   * Send a single media item as a separate message.
+   */
+  private async sendMediaItem(item: WeChatMessageItem, userId: string, contextToken: string): Promise<void> {
+    if (!this.apiClient) return;
+    const clientId = `sudowork-wechat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const mediaPayload = {
+      msg: {
+        from_user_id: '',
+        to_user_id: userId,
+        client_id: clientId,
+        context_token: contextToken,
+        message_type: 2, // MessageType.BOT
+        message_state: 2, // MessageState.FINISH
+        item_list: [item],
+      },
+    };
+    console.log('[WeChatPlugin] sendMessage media item:', JSON.stringify(mediaPayload, null, 2));
+    await this.apiClient.sendMessage(mediaPayload);
+  }
+
+  /**
+   * Resolve a local file path from a markdown-extracted URL/path.
+   * Handles file:// protocol, Windows paths (backslashes, drive letters),
+   * and relative paths (resolved against workspace directory).
+   *
+   * @param rawPath - Raw path string from markdown (may be file:// URL, Windows path, or relative path)
+   * @returns Resolved absolute path, or null if the file doesn't exist
+   */
+  private resolveLocalFilePath(rawPath: string): string | null {
+    let filePath = rawPath;
+
+    // Handle file:// protocol (e.g., file:///C:/Users/image.jpg or file:///home/user/image.jpg)
+    if (filePath.startsWith('file://')) {
+      try {
+        // Use URL API to properly parse file:// URLs
+        const fileUrl = new URL(filePath);
+        filePath = fileUrl.pathname;
+        // On Windows, file:///C:/path becomes /C:/path — strip the leading slash
+        if (/^\/[A-Za-z]:/.test(filePath)) {
+          filePath = filePath.slice(1);
+        }
+      } catch {
+        // Fallback: simple strip of file:// prefix
+        filePath = filePath.replace(/^file:\/\/\/?/, '');
+      }
+    }
+
+    // Normalize path separators: replace backslashes with forward slashes, then use path.normalize
+    // This handles Windows paths like C:\Users\file.jpg, C:\\Users\\file.jpg, mixed slashes
+    filePath = path.normalize(filePath.replace(/\\/g, path.sep));
+
+    // Check if it's an absolute path (Unix: /path, Windows: C:\path, C:/path)
+    if (path.isAbsolute(filePath)) {
+      if (fs.existsSync(filePath)) {
+        return filePath;
+      }
+      console.warn(`[WeChatPlugin] Local file not found (absolute): ${filePath}`);
+      return null;
+    }
+
+    // Relative path: try resolving against workspace directory, then cwd
+    const candidates = [
+      this.mediaDir ? path.resolve(this.mediaDir, filePath) : null,
+      path.resolve(process.cwd(), filePath),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        console.log(`[WeChatPlugin] Resolved relative path: ${rawPath} -> ${candidate}`);
+        return candidate;
+      }
+    }
+
+    console.warn(`[WeChatPlugin] Local file not found (relative): ${rawPath}, tried: ${candidates.join(', ')}`);
+    return null;
+  }
+
+  /**
+   * Download a remote media file to local workspace for uploading.
+   * Supports HTTP(S) URLs, file:// URLs, local file paths (absolute and relative),
+   * and Windows-style paths (backslashes, drive letters).
+   *
+   * @param url - Remote URL, file:// URL, or local file path
+   * @param defaultExt - Default file extension if not determinable from URL
+   * @param fileName - Optional desired file name
+   * @returns Local file path, or null on failure
+   */
+  private async downloadRemoteMedia(url: string, defaultExt: string, fileName?: string): Promise<string | null> {
+    try {
+      // Ensure media directory exists
+      if (!this.mediaDir) {
+        const { getDataPath } = await import('@/process/utils');
+        this.mediaDir = path.join(getDataPath(), 'channel-media', 'wechat');
+        fs.mkdirSync(this.mediaDir, { recursive: true });
+      }
+
+      // Determine if this is a remote URL (HTTP/HTTPS) or a local path
+      // Local paths include: absolute paths, relative paths, file:// URLs, Windows drive paths (C:\...)
+      const isRemoteUrl = url.startsWith('http://') || url.startsWith('https://');
+
+      if (!isRemoteUrl) {
+        // Handle local file path (absolute, relative, file://, Windows paths)
+        const localPath = this.resolveLocalFilePath(url);
+        if (localPath) {
+          return localPath;
+        }
+        return null;
+      }
+
+      // Download remote file
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (!response.ok) {
+          console.warn(`[WeChatPlugin] Remote media download failed: HTTP ${response.status} for ${url}`);
+          return null;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const data = Buffer.from(arrayBuffer);
+
+        // Determine file name and extension
+        const urlPath = new URL(url).pathname;
+        const urlExt = path.extname(urlPath);
+        const ext = urlExt || defaultExt;
+        const baseName = fileName || `wechat_dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const filePath = path.join(this.mediaDir, baseName);
+
+        fs.writeFileSync(filePath, data);
+        console.log(`[WeChatPlugin] Downloaded remote media: ${url} -> ${filePath} (${data.length} bytes)`);
+        return filePath;
+      } catch (error) {
+        clearTimeout(timer);
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn(`[WeChatPlugin] Remote media download timed out: ${url}`);
+          return null;
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error(`[WeChatPlugin] downloadRemoteMedia failed for ${url}:`, error);
+      return null;
+    }
   }
 
   async editMessage(_chatId: string, _messageId: string, _message: IUnifiedOutgoingMessage): Promise<void> {
