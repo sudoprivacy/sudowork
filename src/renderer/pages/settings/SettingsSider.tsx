@@ -2,7 +2,7 @@ import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { Cloudy, Communication, Computer, Config, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { Cloudy, Communication, Computer, Config, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
 import OpenClawLogo from '@/renderer/assets/logos/openclaw.svg';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,7 +13,7 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
 
 type SiderItem = {
   id: string;
@@ -94,6 +94,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
       profile: { id: 'profile', label: t('settings.profile'), icon: <User />, path: 'profile' },
+      recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <Dollar />, path: 'recharge' },
       members: {
         id: 'members',
         label: t('settings.memberManagement'),

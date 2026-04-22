@@ -820,8 +820,18 @@
   "sudorouter": "Sudorouter",
   "copilot": "Copilot",
   "security": "Security",
+  "rechargeCenter": "Recharge Center",
+  "modelUsage": {
+    "title": "Model Usage",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "loadFailed": "Failed to load model usage data",
+    "maxRangeWarning": "Date range cannot exceed 30 days",
+    "noData": "No model usage data"
+  },
   "recharge": {
     "title": "Recharge Points",
+    "selectPackageRecharge": "Select Package to Recharge",
     "selectPackage": "Select Package",
     "selectPayment": "Payment Method",
     "alipay": "Alipay",
@@ -846,7 +856,13 @@
     "successDesc": "Points have been credited to your account",
     "continuePayFailed": "Continue payment failed",
     "createNewOrder": "Create New Order",
-    "loading": "Loading order info..."
+    "loading": "Loading order info...",
+    "pointsInfo": "Points Info",
+    "remainingPoints": "Remaining Points",
+    "usedPoints": "Used Points",
+    "bonusPoints": "Bonus Points",
+    "recharge": "Recharge",
+    "continueRecharge": "Continue Recharge"
   },
   "orders": {
     "title": "Order History",
