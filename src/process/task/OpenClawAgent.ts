@@ -14,6 +14,7 @@ import { ipcBridge } from '@/common';
 import type { IConfirmation, TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 import { NavigationInterceptor } from '@/common/navigation';
+import * as fs from 'node:fs';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import type { AcpBackendAll, AcpResult, ToolCallUpdate } from '@/types/acpTypes';
@@ -167,6 +168,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isFirstMessage: boolean = true;
   private expectReconnectOnClose = false;
   private hasEmittedTerminalConnectionError = false;
+
+  /** Snapshot of known deliverable files and their mtime, used to detect new files created by Bash/execute tools */
+  private workspaceFileSnapshot: Map<string, number> = new Map();
 
   constructor(data: OpenClawAgentData) {
     super('openclaw-gateway', data);
@@ -458,10 +462,6 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
           createdAt: Date.now(),
         };
         addMessage(this.conversation_id, userMessage);
-
-        // Emit user_content event so the desktop renderer can display the message in real-time.
-        // For desktop-originated messages, the SendBox already added the message locally with
-        // the same msg_id, so addOrUpdateMessage's dedup logic will skip the duplicate.
         const userResponseMessage: IResponseMessage = {
           type: 'user_content',
           conversation_id: this.conversation_id,
@@ -518,6 +518,10 @@ All file operations, bash commands, and output (when calling write() tool) MUST 
 
 ${draftsInstruction}`;
         processedContent = `${workspaceDirective}\n\n${processedContent}`;
+
+        // Initialize workspace file snapshot before sending message,
+        // so we can detect new files created during this turn
+        this.refreshWorkspaceFileSnapshot();
       }
 
       // Process file references
@@ -678,6 +682,21 @@ ${draftsInstruction}`;
           ipcBridge.conversation.responseStream.emit(contentMsg);
           const tMessage = transformMessage(contentMsg);
           if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+
+          // Send generated images to channel clients (e.g., Lark) as actual image files
+          for (const { imgUrl, relativePath } of savedImages) {
+            const fileMessage: IResponseMessage = {
+              type: 'file_send',
+              conversation_id: this.conversation_id,
+              msg_id: uuid(),
+              data: {
+                filePath: imgUrl,
+                fileName: relativePath,
+                fileType: 'image' as const,
+              },
+            };
+            this.handleStreamMessage(fileMessage);
+          }
         }
       }
     } catch (error) {
@@ -1597,6 +1616,48 @@ ${draftsInstruction}`;
       }
     }
 
+    // Intercept file-creation tool calls: send generated files to channel clients (e.g., Lark)
+    if (status === 'completed') {
+      // Strategy 1: Direct file-creation tools (Write/Edit/Create) — extract path from tool args
+      const filePath = this.extractFilePathFromToolCall(toolName, acpUpdate.update.rawInput);
+      if (filePath) {
+        const fileMessage: IResponseMessage = {
+          type: 'file_send',
+          conversation_id: this.conversation_id,
+          msg_id: uuid(),
+          data: {
+            filePath,
+            fileName: nodePath.basename(filePath),
+            fileType: this.classifyFileType(filePath),
+          },
+        };
+        this.handleStreamMessage(fileMessage);
+        // Refresh snapshot so Strategy 2 won't re-detect this file
+        this.refreshWorkspaceFileSnapshot();
+      }
+
+      // Strategy 2: Execute-class tools (Bash/Shell) — scan workspace for new/modified files
+      // Covers cases like: Write tool creates .js script -> Bash runs "node xxx.js" -> script writes .docx
+      if (kind === 'execute') {
+        const newFiles = this.detectNewFilesFromWorkspace();
+        for (const newFile of newFiles) {
+          const fileMessage: IResponseMessage = {
+            type: 'file_send',
+            conversation_id: this.conversation_id,
+            msg_id: uuid(),
+            data: {
+              filePath: newFile,
+              fileName: nodePath.basename(newFile),
+              fileType: this.classifyFileType(newFile),
+            },
+          };
+          this.handleStreamMessage(fileMessage);
+        }
+        // Refresh snapshot immediately to avoid re-sending same files on next execute tool
+        this.refreshWorkspaceFileSnapshot();
+      }
+    }
+
     const messages = this.adapter.convertSessionUpdate(acpUpdate);
     for (const message of messages) {
       this.emitTMessage(message);
@@ -1611,6 +1672,115 @@ ${draftsInstruction}`;
     if (/write|edit|create|delete|patch|update|insert|remove/.test(n)) return 'edit';
     if (/exec|run|bash|shell|terminal/.test(n)) return 'execute';
     return null;
+  }
+
+  /**
+   * Build or refresh the workspace file snapshot.
+   * Scans the workspace root (non-recursive, depth=1) and records each deliverable file's mtime.
+   * Files inside .drafts/ directory are excluded.
+   */
+  private refreshWorkspaceFileSnapshot(): void {
+    this.workspaceFileSnapshot.clear();
+    if (!this.workspace) return;
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!OpenClawAgent.DOCUMENT_EXTENSIONS.has(ext) && !OpenClawAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          this.workspaceFileSnapshot.set(entry.name, stat.mtimeMs);
+        } catch {
+          // stat failed (file deleted between readdir and stat), skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip silently
+    }
+  }
+
+  /**
+   * After an execute-class tool completes, scan workspace for newly created or modified deliverable files.
+   * Returns absolute paths of files that are new or have a newer mtime than the snapshot.
+   */
+  private detectNewFilesFromWorkspace(): string[] {
+    if (!this.workspace) return [];
+    const newFiles: string[] = [];
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!OpenClawAgent.DOCUMENT_EXTENSIONS.has(ext) && !OpenClawAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          const prevMtime = this.workspaceFileSnapshot.get(entry.name);
+
+          // New file (not in snapshot) or modified file (mtime changed)
+          if (prevMtime === undefined || stat.mtimeMs > prevMtime) {
+            newFiles.push(fullPath);
+          }
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip
+    }
+
+    return newFiles;
+  }
+
+  /** Document extensions that should trigger file sending to channel clients */
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html',
+  ]);
+
+  /** Image extensions */
+  private static readonly IMAGE_EXTENSIONS = new Set([
+    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg',
+  ]);
+
+  /**
+   * Extract file path from a tool call if it represents a file-creation operation.
+   * Returns null if the tool call is not a file-creation operation or the file doesn't exist.
+   */
+  private extractFilePathFromToolCall(toolName: string, rawInput?: Record<string, unknown>): string | null {
+    if (!rawInput) return null;
+    const n = toolName.toLowerCase();
+    if (!/write|edit|create/.test(n)) return null;
+
+    const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
+    if (!filePath || typeof filePath !== 'string') return null;
+
+    const ext = nodePath.extname(filePath).toLowerCase();
+    if (!OpenClawAgent.DOCUMENT_EXTENSIONS.has(ext) && !OpenClawAgent.IMAGE_EXTENSIONS.has(ext)) return null;
+
+    // Verify the file actually exists on disk
+    try {
+      if (!fs.existsSync(filePath)) return null;
+    } catch {
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /** Classify a file path as 'image' or 'file' based on its extension */
+  private classifyFileType(filePath: string): 'image' | 'file' {
+    const ext = nodePath.extname(filePath).toLowerCase();
+    return OpenClawAgent.IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file';
   }
 }
 

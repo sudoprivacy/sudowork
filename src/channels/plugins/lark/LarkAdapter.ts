@@ -342,6 +342,22 @@ export function toLarkSendParams(message: IUnifiedOutgoingMessage): {
     };
   }
 
+  // Handle image messages
+  if (message.type === 'image' && message.imageUrl) {
+    return {
+      contentType: 'image',
+      content: { image: message.imageUrl },
+    };
+  }
+
+  // Handle file messages
+  if (message.type === 'file' && message.fileUrl && message.fileName) {
+    return {
+      contentType: 'file',
+      content: { file: message.fileUrl, file_name: message.fileName },
+    };
+  }
+
   // Default to text message - return raw text, caller will format
   const text = message.text || '';
   return {
