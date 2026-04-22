@@ -16,7 +16,7 @@ const Cache = new Map<string, ConversationManageWithDB>();
 // Place all messages in a unified update queue based on the conversation
 // Ensure that the update mechanism for each message is consistent with the front end, meaning that the database and UI data are in sync
 // Aggregate multiple messages for synchronous updates, reducing database operations
-class ConversationManageWithDB {
+export class ConversationManageWithDB {
   private stack: Array<['insert' | 'accumulate', TMessage]> = [];
   private db = getDatabase();
   private timer: NodeJS.Timeout;
@@ -52,8 +52,14 @@ class ConversationManageWithDB {
         let updateMessage = stack.shift();
         while (updateMessage) {
           if (updateMessage[0] === 'insert') {
-            this.db.insertMessage(updateMessage[1]);
-            messageList.push(updateMessage[1]);
+            const result = this.db.insertMessage(updateMessage[1]);
+            if (result.success) {
+              messageList.push(updateMessage[1]);
+            } else {
+              mainError('Message', `Failed to insert message ${updateMessage[1].id}:`, result.error);
+              // 重新入栈，等待下一次重试
+              this.stack.push(updateMessage);
+            }
           } else {
             messageList = composeMessage(updateMessage[1], messageList, (type, message) => {
               if (type === 'insert') this.db.insertMessage(message);
@@ -74,6 +80,17 @@ class ConversationManageWithDB {
           }, 10);
         });
       });
+  }
+
+  /**
+   * Flush all pending messages to database immediately (no delay)
+   * Returns a promise that resolves when all messages are saved
+   * Used when switching conversations to ensure all messages are persisted
+   */
+  public flushNow(): Promise<void> {
+    clearTimeout(this.timer);
+    this.save2DataBase();
+    return this.savePromise;
   }
 }
 

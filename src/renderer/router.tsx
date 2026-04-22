@@ -22,6 +22,7 @@ const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/Extensio
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
+const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
@@ -72,6 +73,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/security' element={withRouteFallback(SecuritySettings)} />
           <Route path='/settings/cron' element={withRouteFallback(CronSettings)} />
           <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
+          <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<Navigate to='/settings/agent' replace />} />

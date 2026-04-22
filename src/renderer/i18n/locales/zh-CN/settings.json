@@ -822,8 +822,18 @@
   "sudorouter": "Sudorouter",
   "copilot": "Copilot",
   "security": "安全防护",
+  "rechargeCenter": "充值中心",
+  "modelUsage": {
+    "title": "模型用量",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "loadFailed": "加载模型用量数据失败",
+    "maxRangeWarning": "时间范围不能超过30天",
+    "noData": "暂无模型用量数据"
+  },
   "recharge": {
     "title": "充值积分",
+    "selectPackageRecharge": "选择套餐充值",
     "selectPackage": "选择套餐",
     "selectPayment": "支付方式",
     "alipay": "支付宝",
@@ -848,7 +858,13 @@
     "successDesc": "积分已到账，请查收",
     "continuePayFailed": "继续支付失败",
     "createNewOrder": "重新下单",
-    "loading": "正在获取订单信息..."
+    "loading": "正在获取订单信息...",
+    "pointsInfo": "积分信息",
+    "remainingPoints": "剩余积分",
+    "usedPoints": "累计已用",
+    "bonusPoints": "赠送积分",
+    "recharge": "充值",
+    "continueRecharge": "继续充值"
   },
   "orders": {
     "title": "订单记录",

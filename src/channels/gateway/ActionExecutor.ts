@@ -630,7 +630,20 @@ export class ActionExecutor {
     // Per-conversation mutex: wait for any previous message to finish processing.
     // This prevents concurrent AI generations that cause stream overwrites and hung promises.
     const conversationId = context.conversationId || context.chatId;
+
+    // Read previous lock BEFORE creating new one (sync — no await between read and set).
+    // This prevents TOCTOU race where multiple callers read the same previousLock.
     const previousLock = this.conversationLocks.get(conversationId);
+
+    // Create and register new lock (sync — must happen before any await).
+    // Subsequent callers will read THIS lock as their previousLock.
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.conversationLocks.set(conversationId, lockPromise);
+
+    // Now await the previous lock (if any).
     if (previousLock) {
       try {
         await previousLock;
@@ -638,13 +651,6 @@ export class ActionExecutor {
         // Ignore errors from previous message processing
       }
     }
-
-    // Create a new lock for this message
-    let releaseLock: () => void;
-    const lockPromise = new Promise<void>((resolve) => {
-      releaseLock = resolve;
-    });
-    this.conversationLocks.set(conversationId, lockPromise);
 
     // Start typing indicator
     void context.sendTyping?.(context.chatId);
