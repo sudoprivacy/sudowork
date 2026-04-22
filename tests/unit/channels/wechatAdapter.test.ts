@@ -475,6 +475,48 @@ describe('WeChatAdapter', () => {
       expect(urls).toEqual(['/tmp/screenshots/image.png']);
     });
 
+    it('handles relative file paths', () => {
+      const text = '![screenshot](./images/screenshot.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['./images/screenshot.png']);
+    });
+
+    it('handles relative paths without dot prefix', () => {
+      const text = '![chart](output/charts/chart.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['output/charts/chart.png']);
+    });
+
+    it('handles Windows absolute paths with backslashes', () => {
+      const text = '![img](C:\\Users\\user\\Documents\\image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['C:\\Users\\user\\Documents\\image.png']);
+    });
+
+    it('handles Windows paths with forward slashes', () => {
+      const text = '![img](C:/Users/user/Documents/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['C:/Users/user/Documents/image.png']);
+    });
+
+    it('handles Windows paths with double backslashes', () => {
+      const text = '![img](C:\\\\Users\\\\user\\\\image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['C:\\\\Users\\\\user\\\\image.png']);
+    });
+
+    it('handles file:// protocol URLs', () => {
+      const text = '![local](file:///home/user/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['file:///home/user/image.png']);
+    });
+
+    it('handles file:// protocol with Windows path', () => {
+      const text = '![local](file:///C:/Users/user/image.png)';
+      const urls = extractMarkdownImageUrls(text);
+      expect(urls).toEqual(['file:///C:/Users/user/image.png']);
+    });
+
     it('extracts images from complex markdown', () => {
       const text = `# Report
 Here is the chart:
@@ -528,6 +570,51 @@ Another image:
       const text = 'Just some plain text without any links.';
       const files = extractMarkdownFileUrls(text);
       expect(files).toEqual([]);
+    });
+
+    it('handles local Unix file paths', () => {
+      const text = '[report](/home/user/documents/report.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('/home/user/documents/report.pdf');
+      expect(files[0].fileName).toBe('report');
+    });
+
+    it('handles relative file paths', () => {
+      const text = '[data](./output/data.csv)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('./output/data.csv');
+      expect(files[0].fileName).toBe('data');
+    });
+
+    it('handles Windows paths with backslashes and extracts filename', () => {
+      const text = '[report](C:\\Users\\user\\Documents\\report.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('C:\\Users\\user\\Documents\\report.pdf');
+      expect(files[0].fileName).toBe('report');
+    });
+
+    it('extracts filename from Windows path with backslashes when no link text', () => {
+      const text = '[](C:\\Users\\user\\Documents\\report.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].fileName).toBe('report.pdf');
+    });
+
+    it('handles Windows paths with forward slashes', () => {
+      const text = '[data](C:/Users/user/data.xlsx)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('C:/Users/user/data.xlsx');
+    });
+
+    it('handles file:// protocol URLs', () => {
+      const text = '[report](file:///home/user/report.pdf)';
+      const files = extractMarkdownFileUrls(text);
+      expect(files).toHaveLength(1);
+      expect(files[0].url).toBe('file:///home/user/report.pdf');
     });
   });
 });

@@ -225,10 +225,68 @@ export class WeChatPlugin extends BasePlugin {
   }
 
   /**
-   * Download a remote media file to local workspace for uploading.
-   * Supports both HTTP(S) URLs and local file paths.
+   * Resolve a local file path from a markdown-extracted URL/path.
+   * Handles file:// protocol, Windows paths (backslashes, drive letters),
+   * and relative paths (resolved against workspace directory).
    *
-   * @param url - Remote URL or local file path
+   * @param rawPath - Raw path string from markdown (may be file:// URL, Windows path, or relative path)
+   * @returns Resolved absolute path, or null if the file doesn't exist
+   */
+  private resolveLocalFilePath(rawPath: string): string | null {
+    let filePath = rawPath;
+
+    // Handle file:// protocol (e.g., file:///C:/Users/image.jpg or file:///home/user/image.jpg)
+    if (filePath.startsWith('file://')) {
+      try {
+        // Use URL API to properly parse file:// URLs
+        const fileUrl = new URL(filePath);
+        filePath = fileUrl.pathname;
+        // On Windows, file:///C:/path becomes /C:/path — strip the leading slash
+        if (/^\/[A-Za-z]:/.test(filePath)) {
+          filePath = filePath.slice(1);
+        }
+      } catch {
+        // Fallback: simple strip of file:// prefix
+        filePath = filePath.replace(/^file:\/\/\/?/, '');
+      }
+    }
+
+    // Normalize path separators: replace backslashes with forward slashes, then use path.normalize
+    // This handles Windows paths like C:\Users\file.jpg, C:\\Users\\file.jpg, mixed slashes
+    filePath = path.normalize(filePath.replace(/\\/g, path.sep));
+
+    // Check if it's an absolute path (Unix: /path, Windows: C:\path, C:/path)
+    if (path.isAbsolute(filePath)) {
+      if (fs.existsSync(filePath)) {
+        return filePath;
+      }
+      console.warn(`[WeChatPlugin] Local file not found (absolute): ${filePath}`);
+      return null;
+    }
+
+    // Relative path: try resolving against workspace directory, then cwd
+    const candidates = [
+      this.mediaDir ? path.resolve(this.mediaDir, filePath) : null,
+      path.resolve(process.cwd(), filePath),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        console.log(`[WeChatPlugin] Resolved relative path: ${rawPath} -> ${candidate}`);
+        return candidate;
+      }
+    }
+
+    console.warn(`[WeChatPlugin] Local file not found (relative): ${rawPath}, tried: ${candidates.join(', ')}`);
+    return null;
+  }
+
+  /**
+   * Download a remote media file to local workspace for uploading.
+   * Supports HTTP(S) URLs, file:// URLs, local file paths (absolute and relative),
+   * and Windows-style paths (backslashes, drive letters).
+   *
+   * @param url - Remote URL, file:// URL, or local file path
    * @param defaultExt - Default file extension if not determinable from URL
    * @param fileName - Optional desired file name
    * @returns Local file path, or null on failure
@@ -242,12 +300,16 @@ export class WeChatPlugin extends BasePlugin {
         fs.mkdirSync(this.mediaDir, { recursive: true });
       }
 
-      // If it's already a local file path, return directly if it exists
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        if (fs.existsSync(url)) {
-          return url;
+      // Determine if this is a remote URL (HTTP/HTTPS) or a local path
+      // Local paths include: absolute paths, relative paths, file:// URLs, Windows drive paths (C:\...)
+      const isRemoteUrl = url.startsWith('http://') || url.startsWith('https://');
+
+      if (!isRemoteUrl) {
+        // Handle local file path (absolute, relative, file://, Windows paths)
+        const localPath = this.resolveLocalFilePath(url);
+        if (localPath) {
+          return localPath;
         }
-        console.warn(`[WeChatPlugin] Local file not found: ${url}`);
         return null;
       }
 

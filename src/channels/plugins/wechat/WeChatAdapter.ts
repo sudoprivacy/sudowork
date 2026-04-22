@@ -292,7 +292,8 @@ export function extractMarkdownFileUrls(text: string): Array<{ url: string; file
     const hasFileExt = fileExtensions.some((ext) => urlLower.endsWith(ext));
     if (hasFileExt) {
       // Use link text as filename if available, otherwise extract from URL
-      const fileName = linkText || url.split('/').pop()?.split('?')[0] || 'file';
+      // Split on both / and \ to handle Windows paths (e.g., C:\Users\docs\report.pdf)
+      const fileName = linkText || url.split(/[/\\]/).pop()?.split('?')[0] || 'file';
       files.push({ url, fileName });
     }
   }
