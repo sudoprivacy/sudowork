@@ -739,6 +739,32 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Restart the underlying agent/ACP connection and reconnect
+  // Disconnects current connection, clears bootstrap, then re-initializes
+  ipcBridge.conversation.restartAndConnect.provider(async ({ conversation_id }) => {
+    try {
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | OpenClawAgent | undefined;
+      if (!task) return { success: false, msg: 'conversation not found' };
+
+      if (task.type === 'acp') {
+        const acpTask = task as AcpAgent;
+        await acpTask.restartAndConnect();
+        return { success: true };
+      }
+
+      if (task.type === 'openclaw-gateway') {
+        const openclawTask = task as OpenClawAgent;
+        await openclawTask.restartGateway();
+        return { success: true };
+      }
+
+      return { success: false, msg: 'unsupported conversation type' };
+    } catch (error) {
+      mainWarn('[conversationBridge]', 'restartAndConnect failed:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Abort controller for workspace reads: each new request aborts the previous one
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;

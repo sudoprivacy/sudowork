@@ -5,5 +5,8 @@
   "session_active": "會話活躍",
   "disconnected": "已斷開",
   "error": "連線錯誤",
-  "unknown": "未知狀態"
+  "unknown": "未知狀態",
+  "restartAndConnect": "重啟並連線",
+  "restartCommandSent": "重啟並連線命令已下發",
+  "restartFailed": "重啟失敗"
 }

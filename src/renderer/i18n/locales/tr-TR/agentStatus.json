@@ -5,5 +5,8 @@
   "session_active": "Aktif",
   "disconnected": "Bağlantı kesildi",
   "error": "Hata",
-  "unknown": "Bilinmiyor"
+  "unknown": "Bilinmiyor",
+  "restartAndConnect": "Yeniden başlat ve bağlan",
+  "restartCommandSent": "Yeniden başlatma komutu gönderildi",
+  "restartFailed": "Yeniden başlatma başarısız"
 }
