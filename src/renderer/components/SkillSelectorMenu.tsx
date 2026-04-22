@@ -6,8 +6,11 @@
 
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
+import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
+import { Virtuoso } from 'react-virtuoso';
 
 export interface SkillSelectorMenuItem {
   key: string;
@@ -60,8 +63,12 @@ interface SkillSelectorMenuProps {
   noSearchResultsText?: string;
 }
 
-const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
+const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
+  const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Use i18n loading text if not provided
+  const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
   useEffect(() => {
     const current = itemRefs.current[activeIndex];
@@ -189,7 +196,8 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         {/* Skills tab content */}
         {activeTab === 'skills' && (
           <>
-            {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{loadingText}</div>}
+            {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
+            {loading && items.length > 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{resolvedLoadingText}</div>}
             {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
             {!loading &&
               items.map((item, index) => {

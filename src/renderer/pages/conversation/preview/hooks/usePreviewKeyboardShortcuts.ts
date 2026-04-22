@@ -22,18 +22,39 @@ interface UsePreviewKeyboardShortcutsOptions {
    * Save callback function
    */
   onSave: () => void;
+
+  /**
+   * 预览面板是否打开
+   * Whether preview panel is open
+   */
+  isOpen?: boolean;
+
+  /**
+   * 关闭预览回调函数
+   * Close preview callback function
+   */
+  onClose?: () => void;
 }
 
 /**
- * 处理预览面板快捷键（Cmd/Ctrl + S 保存）
- * Handle preview panel keyboard shortcuts (Cmd/Ctrl + S to save)
+ * 处理预览面板快捷键
+ * Handle preview panel keyboard shortcuts
+ * - Cmd/Ctrl + S: 保存
+ * - Escape: 关闭预览面板
  *
  * @param options - 快捷键配置 / Keyboard shortcuts configuration
  */
-export const usePreviewKeyboardShortcuts = ({ isDirty, onSave }: UsePreviewKeyboardShortcutsOptions): void => {
+export const usePreviewKeyboardShortcuts = ({ isDirty, onSave, isOpen, onClose }: UsePreviewKeyboardShortcutsOptions): void => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + S
+      // Escape - 关闭预览面板
+      if (e.key === 'Escape' && isOpen) {
+        e.preventDefault();
+        onClose?.();
+        return;
+      }
+
+      // Cmd/Ctrl + S - 保存
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault(); // 阻止浏览器默认保存行为 / Prevent default browser save
         if (isDirty) {
@@ -44,5 +65,5 @@ export const usePreviewKeyboardShortcuts = ({ isDirty, onSave }: UsePreviewKeybo
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDirty, onSave]);
+  }, [isDirty, onSave, isOpen, onClose]);
 };

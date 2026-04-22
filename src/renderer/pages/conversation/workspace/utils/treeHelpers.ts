@@ -68,6 +68,35 @@ export function getFirstLevelKeys(nodes: IDirOrFile[]): string[] {
 }
 
 /**
+ * 获取有限深度的文件夹 keys（用于大目录优化）
+ * Get folder keys up to a limited depth (for large directory optimization)
+ * @param nodes - Tree nodes
+ * @param maxDepth - Maximum depth to expand (default: 2)
+ */
+export function getLimitedDepthKeys(nodes: IDirOrFile[], maxDepth: number = 2): string[] {
+  const keys: string[] = [];
+
+  function collectKeys(node: IDirOrFile, currentDepth: number) {
+    if (currentDepth > maxDepth) return;
+
+    if (node.isDir) {
+      keys.push(node.relativePath);
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          collectKeys(child, currentDepth + 1);
+        }
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    collectKeys(node, 0);
+  }
+
+  return keys;
+}
+
+/**
  * 递归收集树中所有文件夹节点的 key（用于搜索时全部展开）
  * Recursively collect all directory node keys in the tree (for expanding all on search)
  */

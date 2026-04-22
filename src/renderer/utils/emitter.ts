@@ -45,6 +45,9 @@ interface EventTypes {
   'skills.changed': void;
   // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
   'guid.reset': void;
+  // Command palette events
+  'commandPalette.open': void;
+  'commandPalette.close': void;
 }
 
 export const emitter = new EventEmitter<EventTypes>();

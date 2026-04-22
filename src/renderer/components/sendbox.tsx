@@ -29,7 +29,7 @@ import { allSupportedExts } from '../services/FileService';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
-import { resolveSkillIcon, buildSkillDisplayName } from '@/renderer/utils/skillDisplay';
+import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import { iconColors } from '@/renderer/theme/colors';
 
 const constVoid = (): void => undefined;
@@ -315,20 +315,23 @@ const SendBox: React.FC<{
 
   // Transform installed skills to selector items (only enabled skills)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(
-    () =>
-      installedSkills
+    () => {
+      const items = installedSkills
         .filter((skill) => skill.enabled !== false)
         .map((skill) => {
-          const displayName = skill.meta?.display_name || buildSkillDisplayName(skill.name);
+          const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
           return {
             name: skill.name,
             displayName,
-            description: skill.meta?.description,
-            icon: resolveSkillIcon(skill.meta?.icon),
-            emoji: skill.meta?.emoji,
+            description,
+            icon: icon || resolveSkillIcon(skill.meta?.icon),
+            emoji,
             enabled: skill.enabled,
           };
-        }),
+        });
+      // Deduplicate items by name to prevent duplicate keys
+      return Array.from(new Map(items.map((item) => [item.name, item])).values());
+    },
     [installedSkills]
   );
 

@@ -10,7 +10,7 @@ import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SelectedNodeRef } from '../types';
-import { filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys } from '../utils/treeHelpers';
+import { filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
@@ -158,14 +158,23 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
 
           // 搜索时展开所有包含匹配结果的文件夹
           // 首次加载只展开第一层
+          // 大目录（>100 个子项）只展开前两层，避免性能问题
           // 后续刷新保留用户展开状态，仅移除已删除目录的 key
           // When searching: expand all folders containing matches
           // First load: only expand first level
+          // Large directory (>100 children): only expand first 2 levels to avoid performance issues
           // Subsequent refreshes: preserve user's expanded keys, only remove deleted dirs
           if (search) {
             setExpandedKeys(getAllDirKeys(filteredRes));
           } else if (isFirstLoadRef.current) {
-            setExpandedKeys(getFirstLevelKeys(filteredRes));
+            // 大目录优化：如果子项超过 100 个，只展开前两层
+            // Large directory optimization: if children > 100, only expand first 2 levels
+            const childCount = filteredRes?.[0]?.children?.length ?? 0;
+            if (childCount > 100) {
+              setExpandedKeys(getLimitedDepthKeys(filteredRes, 2));
+            } else {
+              setExpandedKeys(getFirstLevelKeys(filteredRes));
+            }
           } else {
             // 保留用户展开状态，过滤掉已不存在的目录
             // Preserve user's expanded keys, filter out deleted directories

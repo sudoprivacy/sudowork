@@ -26,7 +26,7 @@ const DragOverlayContent: React.FC<DragOverlayContentProps> = ({ conversation })
       className='flex items-center gap-10px px-12px py-8px rd-8px min-w-200px max-w-300px'
       style={{
         backgroundColor: 'var(--color-bg-1)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        boxShadow: 'var(--shadow-md)',
         border: '1px solid var(--color-border-2)',
         transform: 'scale(1.02)',
       }}

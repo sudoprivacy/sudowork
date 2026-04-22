@@ -14,13 +14,15 @@ import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timeline';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
-import { Empty, Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import { Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import EmptyState from '@/renderer/components/base/EmptyState';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 const useTimeline = () => {
   const { t } = useTranslation();
@@ -64,6 +66,12 @@ const useScrollIntoView = (id: string) => {
 
 // Key for localStorage to persist collapsed state of scheduled job folders
 const SCHEDULED_FOLDER_KEY = 'cron_sidebar_expanded_';
+
+// Virtuoso 列表项类型
+type ChatHistoryListItem =
+  | { type: 'section-header'; id: string; title: string }
+  | { type: 'folder-header'; id: string; title: string; isExpanded: boolean }
+  | { type: 'conversation'; id: string; data: TChatConversation; isIndented: boolean };
 
 const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
@@ -204,86 +212,8 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
 
   const formatTimeline = useTimeline();
 
-  const renderConversation = (conversation: TChatConversation) => {
-    const isSelected = id === conversation.id;
-    const isEditing = editingId === conversation.id;
-    const cronStatus = getJobStatus(conversation.id);
-    const activityTime = getActivityTime(conversation);
-    const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
-
-    return (
-      <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
-        <div
-          id={'c-' + conversation.id}
-          className={classNames('chat-history__item hover:bg-hover px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
-            '!bg-active ': isSelected,
-          })}
-          onClick={handleSelect.bind(null, conversation)}
-        >
-          <MessageOne theme='outline' size='20' className='mt-2px flex' />
-          <FlexFullContainer className='h-24px collapsed-hidden ml-10px min-w-0'>
-            {isEditing ? (
-              <Input className='chat-history__item-editor text-14px lh-24px h-24px w-full' value={editingName} onChange={setEditingName} onKeyDown={handleEditKeyDown} onBlur={handleEditSave} autoFocus size='small' />
-            ) : (
-              <div className='flex items-center gap-4px w-full'>
-                <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
-                <CronJobIndicator status={cronStatus} size={14} />
-                {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
-              </div>
-            )}
-          </FlexFullContainer>
-          {!isEditing && (
-            <div
-              className={classNames('absolute right-0px top-0px h-full w-70px items-center justify-end hidden group-hover:flex !collapsed-hidden pr-12px')}
-              style={{
-                backgroundImage: isSelected ? `linear-gradient(to right, transparent, var(--aou-2) 50%)` : `linear-gradient(to right, transparent, var(--aou-1) 50%)`,
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              {!isEditing && (
-                <span
-                  className='flex-center mr-8px'
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleEditStart(conversation);
-                  }}
-                >
-                  <EditOne theme='outline' size='20' className='flex' />
-                </span>
-              )}
-              {!isEditing && (
-                <Popconfirm
-                  title={t('conversation.history.deleteTitle')}
-                  content={t('conversation.history.deleteConfirm')}
-                  okText={t('conversation.history.confirmDelete')}
-                  cancelText={t('conversation.history.cancelDelete')}
-                  onOk={(event) => {
-                    event.stopPropagation();
-                    handleRemoveConversation(conversation.id);
-                  }}
-                  onCancel={(event) => {
-                    event.stopPropagation();
-                  }}
-                >
-                  <span
-                    className='flex-center'
-                    onClick={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
-                    <DeleteOne theme='outline' size='20' className='flex' />
-                  </span>
-                </Popconfirm>
-              )}
-            </div>
-          )}
-          {/* legacy hover overlay removed to avoid duplicate edit icon */}
-        </div>
-      </Tooltip>
-    );
-  };
+  // Virtuoso ref for programmatic scrolling
+  const virtuosoRef = React.useRef<VirtuosoHandle>(null);
 
   // Recent section: exclude cron-created run records (tagged with `extra.cronJobId`).
   // Pre-bound user conversations stay in their original timeline slot.
@@ -322,6 +252,195 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   });
   scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
 
+  // 扁平化所有列表项用于虚拟滚动
+  const listItems = useMemo<ChatHistoryListItem[]>(() => {
+    const items: ChatHistoryListItem[] = [];
+
+    // Scheduled section
+    if (scheduledGroups.length > 0) {
+      // 添加 Scheduled 分组标题
+      items.push({
+        type: 'section-header',
+        id: 'scheduled-section',
+        title: t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' }),
+      });
+
+      // 添加每个定时任务的文件夹和会话
+      scheduledGroups.forEach(({ jobName, convs }) => {
+        const isExpanded = expandedFolders[jobName] !== false;
+        items.push({
+          type: 'folder-header',
+          id: `folder-${jobName}`,
+          title: jobName,
+          isExpanded,
+        });
+
+        if (isExpanded) {
+          convs.forEach((conv) => {
+            items.push({
+              type: 'conversation',
+              id: `conv-${conv.id}`,
+              data: conv,
+              isIndented: true,
+            });
+          });
+        }
+      });
+    }
+
+    // Recent section
+    recentConvs.forEach((item) => {
+      const timeline = formatTimeline(item);
+      if (timeline) {
+        items.push({
+          type: 'section-header',
+          id: `timeline-${timeline}-${item.id}`,
+          title: timeline,
+        });
+      }
+      items.push({
+        type: 'conversation',
+        id: `conv-${item.id}`,
+        data: item,
+        isIndented: false,
+      });
+    });
+
+    return items;
+  }, [scheduledGroups, recentConvs, expandedFolders, formatTimeline, t]);
+
+  // 处理文件夹点击
+  const handleFolderClick = useCallback((jobName: string) => {
+    toggleFolder(jobName);
+  }, [toggleFolder]);
+
+  const renderConversation = useCallback((conversation: TChatConversation, isIndented: boolean) => {
+    const isSelected = id === conversation.id;
+    const isEditing = editingId === conversation.id;
+    const cronStatus = getJobStatus(conversation.id);
+    const activityTime = getActivityTime(conversation);
+    const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
+
+    return (
+      <Tooltip {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
+        <div
+          id={'c-' + conversation.id}
+          className={classNames('chat-history__item hover:bg-hover px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
+            '!bg-active ': isSelected,
+            'pl-16px': isIndented,
+          })}
+          onClick={handleSelect.bind(null, conversation)}
+        >
+          <MessageOne theme='outline' size='20' className='mt-2px flex' />
+          <FlexFullContainer className='h-24px collapsed-hidden ml-10px min-w-0'>
+            {isEditing ? (
+              <Input className='chat-history__item-editor text-14px lh-24px h-24px w-full' value={editingName} onChange={setEditingName} onKeyDown={handleEditKeyDown} onBlur={handleEditSave} autoFocus size='small' />
+            ) : (
+              <div className='flex items-center gap-4px w-full'>
+                <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
+                <CronJobIndicator status={cronStatus} size={14} />
+                {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
+              </div>
+            )}
+          </FlexFullContainer>
+          {!isEditing && (
+            <div
+              className={classNames('absolute right-0px top-0px h-full w-70px items-center justify-end hidden group-hover:flex !collapsed-hidden pr-12px')}
+              style={{
+                backgroundImage: isSelected ? `linear-gradient(to right, transparent, var(--aou-2) 50%)` : `linear-gradient(to right, transparent, var(--aou-1) 50%)`,
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {!isEditing && (
+                <span
+                  className='flex-center mr-8px'
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleEditStart(conversation);
+                  }}
+                  role='button'
+                  aria-label={t('common.ariaLabel.edit')}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleEditStart(conversation);
+                    }
+                  }}
+                >
+                  <EditOne theme='outline' size='20' className='flex' />
+                </span>
+              )}
+              {!isEditing && (
+                <Popconfirm
+                  title={t('conversation.history.deleteTitle')}
+                  content={t('conversation.history.deleteConfirm')}
+                  okText={t('conversation.history.confirmDelete')}
+                  cancelText={t('conversation.history.cancelDelete')}
+                  onOk={(event) => {
+                    event.stopPropagation();
+                    handleRemoveConversation(conversation.id);
+                  }}
+                  onCancel={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  <span
+                    className='flex-center'
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                    role='button'
+                    aria-label={t('common.ariaLabel.delete')}
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        // Trigger popconfirm by clicking the span
+                        event.currentTarget.click();
+                      }
+                    }}
+                  >
+                    <DeleteOne theme='outline' size='20' className='flex' />
+                  </span>
+                </Popconfirm>
+              )}
+            </div>
+          )}
+        </div>
+      </Tooltip>
+    );
+  }, [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleRemoveConversation]);
+
+  // Virtuoso item renderer
+  const renderListItem = useCallback((index: number, item: ChatHistoryListItem) => {
+    switch (item.type) {
+      case 'section-header':
+        return (
+          <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden' key={item.id}>
+            {item.title}
+          </div>
+        );
+      case 'folder-header':
+        return (
+          <div
+            className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden'
+            onClick={() => handleFolderClick(item.title)}
+            key={item.id}
+          >
+            <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': item.isExpanded })}>▶</span>
+            <span className='text-14px text-t-primary truncate flex-1'>{item.title}</span>
+          </div>
+        );
+      case 'conversation':
+        return renderConversation(item.data, item.isIndented);
+      default:
+        return null;
+    }
+  }, [renderConversation, handleFolderClick]);
+
   return (
     <FlexFullContainer>
       <div
@@ -332,7 +451,20 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
         })}
       >
         {!chatHistory.length ? (
-          <Empty className='chat-history__placeholder' description={t('conversation.history.noHistory')} />
+          <EmptyState
+            icon={<MessageOne theme='outline' size='48' fill='var(--color-text-3)' />}
+            title={t('conversation.history.noHistory')}
+            actions={[
+              {
+                label: t('conversation.history.actionNewConversation'),
+                onClick: () => {
+                  navigate('/');
+                },
+                type: 'primary',
+              },
+            ]}
+            simple
+          />
         ) : (
           <>
             {/* ── SCHEDULED SECTION ── */}
@@ -352,7 +484,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                       {isExpanded &&
                         convs.map((conv) => (
                           <div key={conv.id} className='pl-16px'>
-                            {renderConversation(conv)}
+                            {renderConversation(conv, true)}
                           </div>
                         ))}
                     </React.Fragment>
@@ -367,7 +499,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               return (
                 <React.Fragment key={item.id}>
                   {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                  {renderConversation(item)}
+                  {renderConversation(item, false)}
                 </React.Fragment>
               );
             })}

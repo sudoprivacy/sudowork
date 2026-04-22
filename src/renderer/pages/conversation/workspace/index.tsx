@@ -9,6 +9,7 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import useDebounce from '@/renderer/hooks/useDebounce';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -1316,13 +1317,21 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
-              <div className='workspace-card__empty flex-1 size-full'>
-                <div className='workspace-card__empty-icon'>
-                  <FolderOpen theme='outline' size='20' fill='currentColor' />
-                </div>
-                <div className='workspace-card__empty-title'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</div>
-                {!searchText && <div className='workspace-card__empty-desc'>{t('conversation.workspace.emptyDescription')}</div>}
-              </div>
+              <EmptyState
+                icon={<FolderOpen theme='outline' size='48' fill='var(--color-text-3)' />}
+                title={searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}
+                description={!searchText ? t('conversation.workspace.emptyDescription') : undefined}
+                actions={!searchText ? [
+                  {
+                    label: t('conversation.welcome.linkFolder'),
+                    onClick: () => {
+                      setShowDirectorySelector(true);
+                    },
+                    type: 'primary',
+                  },
+                ] : undefined}
+                simple
+              />
             ) : (
               <Tree
                 className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}

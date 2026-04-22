@@ -72,10 +72,15 @@ interface UseSkillSelectorControllerOptions {
   workspaceFiles?: WorkspaceFileItem[];
   /** Callback when a file is selected */
   onSelectFile?: (file: WorkspaceFileItem) => void;
+  /** Whether to filter out disabled skills (for guide page) */
+  filterDisabled?: boolean;
 }
 
+// 防抖延迟时间（毫秒）
+const DEBOUNCE_DELAY = 150;
+
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile } = options;
+  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile, filterDisabled = false } = options;
   const query = useMemo(() => matchSkillQuery(input), [input]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -83,19 +88,48 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
   const [searchQuery, setSearchQuery] = useState('');
   const prevQueryRef = useRef<string | null>(null);
 
+  // 防抖状态：用于延迟过滤技能/文件列表
+  const [debouncedQuery, setDebouncedQuery] = useState<string | null>(query);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // 防抖定时器 ref
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 清理定时器
+  const clearDebounceTimer = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return clearDebounceTimer;
+  }, [clearDebounceTimer]);
+
+  // 防抖处理：延迟更新过滤条件，减少频繁计算
+  useEffect(() => {
+    clearDebounceTimer();
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
+      setDebouncedSearchQuery(searchQuery);
+    }, DEBOUNCE_DELAY);
+  }, [query, searchQuery, clearDebounceTimer]);
+
   // Determine if tabs should be shown (always show when in conversation with workspace)
   // Per user request: remove workspaceFiles.length > 0 condition
   const showTabs = workspaceFiles !== undefined && workspaceFiles !== null;
 
-  // Reset state when query changes
+  // Reset state when debounced query changes
   useEffect(() => {
-    if (query !== prevQueryRef.current) {
+    if (debouncedQuery !== prevQueryRef.current) {
       setActiveIndex(0);
       setDismissed(false);
       setSearchQuery('');
-      prevQueryRef.current = query;
+      prevQueryRef.current = debouncedQuery;
     }
-  }, [query]);
+  }, [debouncedQuery]);
 
   // Reset active index when search query changes
   useEffect(() => {
@@ -103,18 +137,26 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
   }, [searchQuery]);
 
   const filteredSkills = useMemo(() => {
-    if (query === null) {
+    if (debouncedQuery === null) {
       return [];
     }
     // Use searchQuery if available, otherwise fall back to @ query
-    const rawKeyword = searchQuery.trim() || query.trim();
+    const rawKeyword = debouncedSearchQuery.trim() || debouncedQuery.trim();
     const keyword = rawKeyword.toLowerCase();
-    if (!keyword) {
-      // Show all skills when query is empty
-      return skills;
+
+    // Start with all skills, or filter by enabled status if filterDisabled is true
+    let result = skills;
+    if (filterDisabled) {
+      result = skills.filter((skill) => skill.enabled !== false);
     }
+
+    if (!keyword) {
+      // Show all (enabled) skills when query is empty
+      return result;
+    }
+
     // Filter by display name, internal name, or description
-    return skills.filter((skill) => {
+    return result.filter((skill) => {
       const nameMatch = skill.name.toLowerCase().includes(keyword);
       const displayNameMatch = skill.displayName.toLowerCase().includes(keyword);
       const descriptionMatch = skill.description?.toLowerCase().includes(keyword) ?? false;
@@ -122,14 +164,14 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
       const chineseMatch = rawKeyword ? skill.displayName.includes(rawKeyword) : false;
       return nameMatch || displayNameMatch || descriptionMatch || chineseMatch;
     });
-  }, [skills, query, searchQuery]);
+  }, [skills, debouncedQuery, debouncedSearchQuery, filterDisabled]);
 
   const filteredFiles = useMemo(() => {
-    if (query === null) {
+    if (debouncedQuery === null) {
       return [];
     }
     // Use searchQuery if available, otherwise fall back to @ query
-    const rawKeyword = searchQuery.trim() || query.trim();
+    const rawKeyword = debouncedSearchQuery.trim() || debouncedQuery.trim();
     const keyword = rawKeyword.toLowerCase();
     if (!keyword) {
       return workspaceFiles;
@@ -139,7 +181,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
       const pathMatch = file.relativePath.toLowerCase().includes(keyword);
       return nameMatch || pathMatch;
     });
-  }, [workspaceFiles, query, searchQuery]);
+  }, [workspaceFiles, debouncedQuery, debouncedSearchQuery]);
 
   // Get items for current tab
   const currentTabItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
@@ -210,7 +252,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
         return executeSkill(activeIndex);
       }
 
-      if (event.key === 'Backspace' && query === '') {
+      if (event.key === 'Backspace' && debouncedQuery === '') {
         // Remove last selected skill when pressing backspace with empty query
         if (selectedSkills.length > 0) {
           onRemoveSkill?.(selectedSkills[selectedSkills.length - 1]);
@@ -220,7 +262,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
       return false;
     },
-    [activeIndex, executeSkill, currentTabItems.length, isOpen, query, selectedSkills, onRemoveSkill, showTabs, switchTab]
+    [activeIndex, executeSkill, currentTabItems.length, isOpen, debouncedQuery, selectedSkills, onRemoveSkill, showTabs, switchTab]
   );
 
   return {

@@ -193,9 +193,13 @@ const GuidPage: React.FC = () => {
       };
     });
     if (agentEnabledSkills && agentEnabledSkills.length > 0) {
-      return items.filter((item) => agentEnabledSkills.includes(item.name));
+      // Use Set for O(1) lookup and deduplicate agentEnabledSkills
+      const enabledSkillSet = new Set(agentEnabledSkills);
+      return items.filter((item) => enabledSkillSet.has(item.name));
     }
-    return items;
+    // Deduplicate items by name to prevent duplicate keys
+    const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
+    return uniqueItems;
   }, [installedSkills, agentEnabledSkills]);
 
   // Skill selector controller
@@ -212,6 +216,7 @@ const GuidPage: React.FC = () => {
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
+    filterDisabled: true, // Guide page should not show disabled skills
   });
 
   // Convert to menu items for rendering
