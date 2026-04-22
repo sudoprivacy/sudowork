@@ -245,8 +245,8 @@
 | #XXX | a11y: 统一模态框 ARIA 属性 | 可访问性 | P2 | ✅ |
 | #XXX | fix: 技能选择器骨架屏动画 | Loading 态 | P2 | ✅ |
 | #XXX | fix: 统一 loading 文案 i18n | Loading 态 | P2 | ✅ |
-| #XXX | fix: 表单内联错误提示 | 错误态 | P2 | ⏳ |
-| #XXX | fix: 侧边栏收起展开动画优化 | 流畅度 | P2 | ⏳ |
+| #XXX | fix: 表单内联错误提示 | 错误态 | P2 | ✅ |
+| #XXX | fix: 侧边栏收起展开动画优化 | 流畅度 | P2 | ✅ |
 | #XXX | style: 统一圆角系统 | 视觉一致性 | P3 | ⏳ |
 | #XXX | style: 统一间距系统 | 视觉一致性 | P3 | ⏳ |
 | #XXX | style: 统一字号系统 | 视觉一致性 | P3 | ⏳ |
@@ -272,8 +272,8 @@
 ### 中优先级 (P2) - 近期规划
 1. ARIA 可访问性改进（图标按钮、模态框）✅
 2. Loading 态优化（骨架屏、i18n）✅
-3. 表单错误提示优化
-4. 动画性能优化
+3. 表单错误提示优化 ✅
+4. 动画性能优化 ✅
 
 ### 低优先级 (P3) - 长期优化
 1. 视觉系统统一（圆角、间距、字号、颜色、阴影）
@@ -282,7 +282,7 @@
 
 ---
 
-*最后更新：2026-04-22 - Loading 态优化（骨架屏、i18n、Hub 图标）已完成*
+*最后更新：2026-04-22 - 表单内联错误提示、侧边栏动画优化已完成*
 
 ---
 
@@ -661,5 +661,73 @@
 
 4. **TypeScript 检查**
    - `npm run type:check` 无错误
+
+---
+
+### 2026-04-22 - P2: 表单内联错误提示 + 侧边栏动画优化
+
+**Commit:** `feat(ux): 表单内联错误提示和侧边栏动画优化`
+
+**新增文件:**
+- `src/renderer/components/base/FormFieldError.tsx` - 表单内联错误显示组件
+- `src/renderer/i18n/locales/zh-CN/errors.json` - 中文错误文案
+- `src/renderer/i18n/locales/en-US/errors.json` - 英文错误文案
+- `src/renderer/i18n/locales/ja-JP/errors.json` - 日文错误文案
+- `src/renderer/i18n/locales/ko-KR/errors.json` - 韩文错误文案
+
+**修改文件:**
+- `src/renderer/hooks/useFormErrors.ts` - 添加 autoClearOnInput 和 createOnChangeWithAutoClear
+- `src/renderer/styles/themes/base.css` - 侧边栏动画和 form-field-error 样式优化
+- `src/renderer/layout.tsx` - 移除移动端 transition: none，启用 CSS 动画
+- `src/renderer/utils/errorToast.tsx` - 添加 FormFieldErrorKeys 常量
+
+**功能清单:**
+1. **FormFieldError 组件**
+   - 红色错误图标 (CloseCircleFill, 12px) + 文字
+   - 支持 `showIcon` prop 控制图标显示
+   - ARIA 属性：`role="alert"`, `aria-live="polite"`
+   - transition: opacity 0.2s ease
+   - 深色模式自动适配颜色 (#f76560)
+
+2. **useFormErrors Hook 增强**
+   - 新增 `autoClearOnInput` 参数（默认 true）
+   - 新增 `createOnChangeWithAutoClear` 方法
+   - 用户开始输入时自动清除该字段错误
+   - 可通过 `autoClearOnInput: false` 禁用
+
+3. **侧边栏动画优化**
+   - 桌面端：transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+   - 移动端：transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+   - 拖动场景：.layout-sider--dragging 禁用过渡
+   - 减少动画偏好：@media (prefers-reduced-motion) 支持
+   - will-change 优化性能
+
+4. **i18n 支持**
+   - errors.required - "此项为必填项"
+   - errors.emailInvalid - "请输入有效的邮箱地址"
+   - errors.phoneInvalid - "请输入有效的手机号"
+   - errors.urlInvalid - "请输入有效的 URL 地址"
+   - errors.minLength - "至少需要 {{min}} 个字符"
+   - errors.maxLength - "最多 {{max}} 个字符"
+   - errors.patternMismatch - "格式不正确"
+   - errors.passwordTooShort - "密码长度至少为 {{min}} 位"
+   - errors.passwordsNotMatch - "两次输入的密码不一致"
+
+**验证方式:**
+1. **FormFieldError 组件**
+   - 创建表单，使用 useFormErrors + FormFieldError
+   - 触发验证错误，确认红色错误消息和图标显示
+   - 开始输入，确认错误自动消失（autoClearOnInput）
+   - 切换深色模式，确认颜色适配
+
+2. **侧边栏动画**
+   - 桌面端：点击折叠按钮，观察 300ms 平滑过渡
+   - 移动端：打开侧边栏，确认 translateX 滑出动画
+   - DevTools Performance：检查 width/transform animate，FPS 稳定 60
+   - 系统设置"减少动画"：确认动画禁用
+
+3. **i18n 验证**
+   - 切换 4 种语言，确认错误文案正确翻译
+   - 验证模板参数 {{min}}/{{max}} 正确替换
 
 ---
