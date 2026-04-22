@@ -6,6 +6,7 @@
 
 import classNames from 'classnames';
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface SlashCommandMenuItem {
   key: string;
@@ -26,8 +27,12 @@ interface SlashCommandMenuProps {
   emptyText: string;
 }
 
-const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items, activeIndex, loading = false, loadingText = 'Loading...', onHoverItem, onSelectItem, emptyText }) => {
+const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText }) => {
+  const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Use i18n loading text if not provided
+  const resolvedLoadingText = loadingText || t('common.loading');
 
   useEffect(() => {
     const current = itemRefs.current[activeIndex];
@@ -57,7 +62,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
         {hint && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
       </div>
       <div role='listbox' aria-busy={loading} className='overflow-y-auto p-6px' style={{ maxHeight: 'min(34vh, 260px)' }}>
-        {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{loadingText}</div>}
+        {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{resolvedLoadingText}</div>}
         {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{emptyText}</div>}
         {!loading &&
           items.map((item, index) => (

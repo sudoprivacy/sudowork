@@ -16,7 +16,6 @@ import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timelin
 import { formatSessionTime } from '@/renderer/utils/messageTime';
 import { Popconfirm, Input, Tooltip } from '@arco-design/web-react';
 import EmptyState from '@/renderer/components/base/EmptyState';
-import { MessageOne } from '@icon-park/react';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -485,7 +484,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                       {isExpanded &&
                         convs.map((conv) => (
                           <div key={conv.id} className='pl-16px'>
-                            {renderConversation(conv)}
+                            {renderConversation(conv, true)}
                           </div>
                         ))}
                     </React.Fragment>
@@ -500,7 +499,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               return (
                 <React.Fragment key={item.id}>
                   {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                  {renderConversation(item)}
+                  {renderConversation(item, false)}
                 </React.Fragment>
               );
             })}

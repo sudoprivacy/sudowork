@@ -371,16 +371,13 @@ const AionModal: React.FC<AionModalProps> = ({
       title={null}
       closable={false}
       footer={null}
-      escToClose={props.escToClose ?? true}
+      escToExit
       onCancel={onCancel}
       className={`aionui-modal ${className}`}
       style={finalStyle}
       getPopupContainer={() => document.body}
-      role='dialog'
-      aria-modal='true'
-      aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}
     >
-      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }}>
+      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}>
         {renderHeader()}
         <div className='aionui-modal-body-content' style={bodyInlineStyle}>
           {children}

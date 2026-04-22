@@ -15,7 +15,7 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({ children, title, showCustom
       {...props}
       title={null}
       closable={false}
-      escToClose={props.escToClose ?? true}
+      escToExit
       onCancel={onCancel}
       className={`aionui-modal ${className}`}
     >
