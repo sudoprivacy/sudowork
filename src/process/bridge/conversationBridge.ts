@@ -32,6 +32,7 @@ import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
+import { ConversationManageWithDB } from '../message';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -1065,5 +1066,27 @@ This identity statement takes priority over the default identity in USER.md.
   ipcBridge.conversation.approval.check.provider(async ({ conversation_id, action, commandType }) => {
     // Approval checking is handled by ACP agents internally now
     return false;
+  });
+
+  // Flush all pending messages to database immediately
+  ipcBridge.conversation.flushPendingMessages.provider(async ({ conversation_id }) => {
+    try {
+      await ConversationManageWithDB.get(conversation_id).flushNow();
+      return Promise.resolve();
+    } catch (error) {
+      mainError('conversationBridge', 'Error flushing pending messages:', error);
+      return Promise.resolve();
+    }
+  });
+
+  // Add a single message to the database (used for saving pending messages before unmount)
+  ipcBridge.conversation.addMessage.provider(async ({ conversation_id, message }) => {
+    try {
+      ConversationManageWithDB.get(conversation_id).sync('insert', message);
+      return Promise.resolve();
+    } catch (error) {
+      mainError('conversationBridge', 'Error adding message:', error);
+      return Promise.resolve();
+    }
   });
 }
