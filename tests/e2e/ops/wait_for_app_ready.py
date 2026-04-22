@@ -21,7 +21,8 @@ async def wait_for_app_ready(tab, timeout: float = 300) -> dict:
             (function() {
                 var text = document.body.innerText || '';
                 if (text.includes('正在准备运行环境')) return 'pending';
-                if (text.includes('新会话') || text.includes('Hi')) return 'ready';
+                var hasInput = !!document.querySelector('textarea');
+                if (hasInput && (text.includes('新会话') || text.includes('Hi'))) return 'ready';
                 return 'unknown';
             })()
         """)
