@@ -247,11 +247,11 @@
 | #XXX | fix: 统一 loading 文案 i18n | Loading 态 | P2 | ✅ |
 | #XXX | fix: 表单内联错误提示 | 错误态 | P2 | ✅ |
 | #XXX | fix: 侧边栏收起展开动画优化 | 流畅度 | P2 | ✅ |
-| #XXX | style: 统一圆角系统 | 视觉一致性 | P3 | ⏳ |
-| #XXX | style: 统一间距系统 | 视觉一致性 | P3 | ⏳ |
-| #XXX | style: 统一字号系统 | 视觉一致性 | P3 | ⏳ |
-| #XXX | style: 硬编码颜色转 CSS 变量 | 视觉一致性 | P3 | ⏳ |
-| #XXX | style: 统一阴影系统 | 视觉一致性 | P3 | ⏳ |
+| #XXX | style: 统一圆角系统 | 视觉一致性 | P3 | ✅ |
+| #XXX | style: 统一间距系统 | 视觉一致性 | P3 | ✅ |
+| #XXX | style: 统一字号系统 | 视觉一致性 | P3 | ✅ |
+| #XXX | style: 硬编码颜色转 CSS 变量 | 视觉一致性 | P3 | ✅ |
+| #XXX | style: 统一阴影系统 | 视觉一致性 | P3 | ✅ |
 | #XXX | feat: 空状态插图/图标 | Empty 态 | P3 | ⏳ |
 | #XXX | perf: 技能选择器虚拟滚动 | 流畅度 | P3 | ⏳ |
 | #XXX | perf: 文件树大目录优化 | 卡顿点 | P3 | ⏳ |
@@ -276,13 +276,13 @@
 4. 动画性能优化 ✅
 
 ### 低优先级 (P3) - 长期优化
-1. 视觉系统统一（圆角、间距、字号、颜色、阴影）
+1. 视觉系统统一（圆角、间距、字号、颜色、阴影）✅
 2. 空状态视觉优化
 3. 其他性能优化（技能选择器、文件树）
 
 ---
 
-*最后更新：2026-04-22 - 表单内联错误提示、侧边栏动画优化、Icon 修复已完成*
+*最后更新：2026-04-22 - 视觉系统统一完成（圆角、间距、字号、阴影、CSS 变量）*
 
 ---
 
@@ -750,68 +750,57 @@
 
 ---
 
-**Commit:** `feat(ux): 表单内联错误提示和侧边栏动画优化`
+### 2026-04-22 - P3: 视觉系统统一
 
-**新增文件:**
-- `src/renderer/components/base/FormFieldError.tsx` - 表单内联错误显示组件
-- `src/renderer/i18n/locales/zh-CN/errors.json` - 中文错误文案
-- `src/renderer/i18n/locales/en-US/errors.json` - 英文错误文案
-- `src/renderer/i18n/locales/ja-JP/errors.json` - 日文错误文案
-- `src/renderer/i18n/locales/ko-KR/errors.json` - 韩文错误文案
+**Commit:** `style(ux): unify visual system - border radius, spacing, font size, shadows`
 
-**修改文件:**
-- `src/renderer/hooks/useFormErrors.ts` - 添加 autoClearOnInput 和 createOnChangeWithAutoClear
-- `src/renderer/styles/themes/base.css` - 侧边栏动画和 form-field-error 样式优化
-- `src/renderer/layout.tsx` - 移除移动端 transition: none，启用 CSS 动画
-- `src/renderer/utils/errorToast.tsx` - 添加 FormFieldErrorKeys 常量
+**新增 CSS 变量 (base.css):**
 
-**功能清单:**
-1. **FormFieldError 组件**
-   - 红色错误图标 (CloseCircleFill, 12px) + 文字
-   - 支持 `showIcon` prop 控制图标显示
-   - ARIA 属性：`role="alert"`, `aria-live="polite"`
-   - transition: opacity 0.2s ease
-   - 深色模式自动适配颜色 (#f76560)
+1. **圆角系统**
+   - `--radius-sm: 6px` - 小圆角
+   - `--radius-md: 8px` - 中圆角
+   - `--radius-lg: 12px` - 大圆角
+   - `--radius-xl: 16px` - 超大圆角
+   - `--radius-full: 999px` - 胶囊/圆形
 
-2. **useFormErrors Hook 增强**
-   - 新增 `autoClearOnInput` 参数（默认 true）
-   - 新增 `createOnChangeWithAutoClear` 方法
-   - 用户开始输入时自动清除该字段错误
-   - 可通过 `autoClearOnInput: false` 禁用
+2. **间距系统 (4px 倍数)**
+   - `--space-1: 4px` 到 `--space-8: 32px`
 
-3. **侧边栏动画优化**
-   - 桌面端：transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-   - 移动端：transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-   - 拖动场景：.layout-sider--dragging 禁用过渡
-   - 减少动画偏好：@media (prefers-reduced-motion) 支持
-   - will-change 优化性能
+3. **字号系统**
+   - `--text-xs: 10px` 到 `--text-2xl: 24px`
 
-4. **i18n 支持**
-   - errors.required - "此项为必填项"
-   - errors.emailInvalid - "请输入有效的邮箱地址"
-   - errors.phoneInvalid - "请输入有效的手机号"
-   - errors.urlInvalid - "请输入有效的 URL 地址"
-   - errors.minLength - "至少需要 {{min}} 个字符"
-   - errors.maxLength - "最多 {{max}} 个字符"
-   - errors.patternMismatch - "格式不正确"
-   - errors.passwordTooShort - "密码长度至少为 {{min}} 位"
-   - errors.passwordsNotMatch - "两次输入的密码不一致"
+4. **阴影系统**
+   - `--shadow-sm` - 小阴影
+   - `--shadow-md` - 中阴影
+   - `--shadow-lg` - 大阴影
+   - `--shadow-xl` - 超大阴影
+   - `--shadow-focus` - 焦点阴影
+
+**修改文件 (14 个):**
+- `src/renderer/styles/themes/base.css` - 统一错误消息样式
+- `src/renderer/components/base/EmptyState.tsx` - 按钮圆角
+- `src/renderer/components/base/EmptyState.css` - 圆角、字号、间距
+- `src/renderer/components/base/AionModal.tsx` - 按钮圆角
+- `src/renderer/components/base/SkillSelectorSkeleton.tsx` - 骨架屏圆角
+- `src/renderer/components/SafetyWarningModal.tsx` - pre 标签圆角和字号
+- `src/renderer/components/FilePreview.tsx` - 阴影
+- `src/renderer/components/HorizontalFileList.tsx` - 滚动按钮阴影
+- `src/renderer/messages/MessagetText.tsx` - Alert 阴影
+- `src/renderer/messages/TurnActions.tsx` - Alert 阴影
+- `src/renderer/pages/conversation/ChatLayout.tsx` - 切换按钮圆角和阴影
+- `src/renderer/components/ThemeSwitcher.tsx` - 选中状态阴影
+- `src/renderer/pages/conversation/grouped-history/DragOverlayContent.tsx` - 拖拽覆盖层阴影
+- `src/renderer/pages/conversation/components/ConversationChatConfirm.tsx` - 确认对话框阴影
+
+**效果:**
+- 移除硬编码值，统一使用 CSS 变量
+- 深浅色模式自动适配
+- 便于后续主题扩展和维护
 
 **验证方式:**
-1. **FormFieldError 组件**
-   - 创建表单，使用 useFormErrors + FormFieldError
-   - 触发验证错误，确认红色错误消息和图标显示
-   - 开始输入，确认错误自动消失（autoClearOnInput）
-   - 切换深色模式，确认颜色适配
-
-2. **侧边栏动画**
-   - 桌面端：点击折叠按钮，观察 300ms 平滑过渡
-   - 移动端：打开侧边栏，确认 translateX 滑出动画
-   - DevTools Performance：检查 width/transform animate，FPS 稳定 60
-   - 系统设置"减少动画"：确认动画禁用
-
-3. **i18n 验证**
-   - 切换 4 种语言，确认错误文案正确翻译
-   - 验证模板参数 {{min}}/{{max}} 正确替换
+1. 视觉检查 - 组件圆角、阴影一致性
+2. DevTools - 检查 CSS 变量引用
+3. 切换深浅色模式 - 验证自动适配
+4. `npm run type:check` - 无 TypeScript 错误
 
 ---
