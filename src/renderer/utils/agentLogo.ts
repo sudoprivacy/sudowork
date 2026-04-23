@@ -27,7 +27,8 @@ import OpenCodeLogoDark from '@/renderer/assets/logos/opencode-dark.svg';
 import OpenCodeLogoLight from '@/renderer/assets/logos/opencode-light.svg';
 import QoderLogo from '@/renderer/assets/logos/qoder.png';
 import QwenLogo from '@/renderer/assets/logos/qwen.svg';
-import ScodeLogo from '@/renderer/assets/logos/scode.jpeg';
+// TODO: replace with official scode logo once available as SVG/PNG
+const ScodeLogo = OpenClawLogo;
 
 /**
  * Agent Logo 映射表

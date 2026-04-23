@@ -108,11 +108,20 @@ export async function writeTextFile(filePath: string, content: string): Promise<
 
 // ── JSON-RPC I/O ────────────────────────────────────────────────────
 
-/** Write a JSON-RPC message to a child process stdin. */
+/** Write a JSON-RPC message to a child process stdin (newline-delimited). */
 export function writeJsonRpcMessage(child: ChildProcess, message: object): void {
   if (child.stdin) {
     const lineEnding = process.platform === 'win32' ? '\r\n' : '\n';
     child.stdin.write(JSON.stringify(message) + lineEnding);
+  }
+}
+
+/** Write a JSON-RPC message using LSP Content-Length framing. */
+export function writeJsonRpcMessageLsp(child: ChildProcess, message: object): void {
+  if (child.stdin) {
+    const body = JSON.stringify(message);
+    const header = `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n`;
+    child.stdin.write(header + body);
   }
 }
 
