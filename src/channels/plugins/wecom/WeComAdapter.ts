@@ -99,7 +99,26 @@ export type WeComEventCallback = {
 /**
  * WeCom outgoing message types supported by aibot_respond_msg / aibot_send_msg
  */
-export type WeComOutgoingMsgType = 'text' | 'markdown' | 'stream' | 'template_card';
+export type WeComOutgoingMsgType = 'text' | 'markdown' | 'stream' | 'template_card' | 'image' | 'file' | 'voice' | 'video';
+
+/**
+ * WeCom media upload types for aibot_upload_media_init
+ */
+export type WeComUploadType = 'image' | 'file' | 'voice' | 'video';
+
+/**
+ * WeCom upload init response
+ */
+export interface WeComUploadInitResponse {
+  upload_id: string;
+}
+
+/**
+ * WeCom upload finish response
+ */
+export interface WeComUploadFinishResponse {
+  media_id: string;
+}
 
 // ==================== Incoming Message Conversion ====================
 

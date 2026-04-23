@@ -7,3 +7,4 @@
 export { WeComPlugin } from './WeComPlugin';
 export * from './WeComAdapter';
 export * from './WeComCrypto';
+export { WeComUploader } from './WeComUploader';
