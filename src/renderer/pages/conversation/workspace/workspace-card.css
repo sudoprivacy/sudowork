@@ -264,9 +264,6 @@
   transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 2px 4px 2px 0;
   margin: 1px 0;
-  /* Performance optimization for large trees / 大树木性能优化 */
-  will-change: background-color;
-  contain: layout style;
 }
 
 .chat-workspace.workspace-card .workspace-tree .arco-tree-node:hover {
@@ -285,9 +282,6 @@
   align-items: center;
   width: 100%;
   min-width: 0;
-  /* Performance optimization / 性能优化 */
-  will-change: background-color;
-  contain: layout style;
 }
 
 .chat-workspace.workspace-card .workspace-tree .arco-tree-node-title-text {
