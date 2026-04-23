@@ -613,6 +613,7 @@ export function repairOpenClawConfig(): void {
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
+    ensureUserMdFileSendInstruction();
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -705,6 +706,9 @@ const USER_MD_NO_GENERATED_BY_MARKER = '<!-- SUDOCLAW_NO_GENERATED_BY -->';
 /** Marker used to identify the no-expose-usermd section inside USER.md */
 const USER_MD_NO_EXPOSE_USERMD_MARKER = '<!-- SUDOCLAW_NO_EXPOSE_USERMD -->';
 
+/** Marker used to identify the file-send-instruction section inside USER.md */
+const USER_MD_FILE_SEND_MARKER = '<!-- SUDOCLAW_FILE_SEND_INSTRUCTION -->';
+
 /**
  * Update or insert a marker-based block in USER.md
  * If marker exists, replace the entire block; if not, append it
@@ -716,7 +720,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER];
+  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER];
   const markerPositions: { marker: string; pos: number }[] = [];
 
   for (const m of markers) {
@@ -1068,10 +1072,7 @@ export function patchOpenclawReadDescription(): void {
   // template literal and break the bundle's JS parse. Keep "read" plain.
   const replacementPhrase = 'For images (jpg/png/gif/webp), the pixel data is embedded directly into your context — use the read tool to read captchas, inspect screenshots, and verify UI state visually.';
   if (!source.includes(originalPhrase)) {
-    mainWarn(
-      'Sudoclaw',
-      'patchOpenclawReadDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to skip `read` for images.',
-    );
+    mainWarn('Sudoclaw', 'patchOpenclawReadDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to skip `read` for images.');
     return;
   }
   source = source.replace(originalPhrase, replacementPhrase);
@@ -1128,10 +1129,7 @@ export function patchOpenclawPdfDescription(): void {
   const originalPhrase = 'Supports native PDF analysis for Anthropic and Google models, with text/image extraction fallback for other providers. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze.';
   const replacementPhrase = 'Supports native PDF analysis for Anthropic and Google models. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze. For non-PDF image files (jpg/png/gif/webp), use the `read` tool instead — pdf only accepts PDF input.';
   if (!source.includes(originalPhrase)) {
-    mainWarn(
-      'Sudoclaw',
-      'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.',
-    );
+    mainWarn('Sudoclaw', 'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.');
     return;
   }
   source = source.replace(originalPhrase, replacementPhrase);
@@ -1380,6 +1378,86 @@ This applies to all conversation scenarios. Simply execute the required behavior
   }
 }
 
+/**
+ * 文件发送指令 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "file send instruction"
+ * section. If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdFileSendInstruction(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const fileSendBlock = `
+${USER_MD_FILE_SEND_MARKER}
+## 文件发送指令 / File Send Instruction
+
+**中文：**
+
+当用户请求发送文件时，你必须在回复末尾添加 \`[[NEXUS_FILES]]\` 标记来触发文件上传功能。
+
+格式：
+\`\`\`
+回复内容...
+
+[[NEXUS_FILES]]
+文件路径1
+文件路径2
+\`\`\`
+
+示例：
+- 用户请求发送 PDF 文件 → 回复内容 + \`[[NEXUS_FILES]]\` + PDF 文件绝对路径
+- 用户请求发送图片 → 回复内容 + \`[[NEXUS_FILES]]\` + 图片文件绝对路径
+
+**注意：**
+1. 文件路径必须是绝对路径
+2. 每行一个文件路径
+3. 不要说"无法发送文件"，直接使用标记即可
+
+**English:**
+
+When user requests to send a file, you MUST add \`[[NEXUS_FILES]]\` marker at the end of your response to trigger file upload.
+
+Format:
+\`\`\`
+Response content...
+
+[[NEXUS_FILES]]
+file_path_1
+file_path_2
+\`\`\`
+
+Example:
+- User requests PDF file → Response content + \`[[NEXUS_FILES]]\` + PDF file absolute path
+- User requests image → Response content + \`[[NEXUS_FILES]]\` + image file absolute path
+
+**Note:**
+1. File paths must be absolute paths
+2. One file path per line
+3. Do NOT say "cannot send file", just use the marker
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User${fileSendBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with file-send instruction');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_FILE_SEND_MARKER, fileSendBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_FILE_SEND_MARKER)) {
+          mainLog('Sudoclaw', 'Updated file-send instruction in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended file-send instruction to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md file-send instruction', err);
+  }
+}
+
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
   // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
@@ -1564,6 +1642,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureUserMdIdentityStatement();
   ensureUserMdNoGeneratedByStatement();
   ensureUserMdNoExposeUserMdStatement();
+  ensureUserMdFileSendInstruction();
 
   const pkgRoot = resolvePackageRoot();
   const versionState = getSudoclawVersionState();
@@ -1639,6 +1718,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
+    ensureUserMdFileSendInstruction();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
