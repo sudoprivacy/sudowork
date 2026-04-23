@@ -1455,6 +1455,10 @@ This identity statement takes priority over the default identity in USER.md.
       }
       const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
       if (!shouldDisplayStatus) {
+        // Still emit agent_status to renderer so the connection status indicator
+        // (AgentStatusDot) updates in real time after restart/reconnect.
+        // Only skip adding to chat history to avoid visual clutter.
+        ipcBridge.acpConversation.responseStream.emit(message);
         return;
       }
     }
