@@ -198,6 +198,7 @@ export class AcpConnection {
       case 'auggie':
       case 'kimi':
       case 'opencode':
+      case 'scode':
       case 'copilot':
       case 'qoder':
       case 'vibe':
