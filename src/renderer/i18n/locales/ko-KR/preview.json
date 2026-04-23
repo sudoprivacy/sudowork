@@ -87,7 +87,8 @@
     "title": "PDF 문서",
     "pathMissing": "PDF 파일 경로가 누락되었습니다",
     "loadFailed": "PDF 문서를 불러오지 못했습니다",
-    "unableDisplay": "PDF 파일을 표시할 수 없습니다"
+    "unableDisplay": "PDF 파일을 표시할 수 없습니다",
+    "downloadPdf": "PDF 형식으로 다운로드"
   },
   "html": {
     "elementSelected": "선택된 요소: {{path}}",

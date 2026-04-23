@@ -87,7 +87,8 @@
     "title": "PDF 文件",
     "pathMissing": "PDF 檔案路徑為空",
     "loadFailed": "載入 PDF 失敗",
-    "unableDisplay": "無法載入 PDF 文件"
+    "unableDisplay": "無法載入 PDF 文件",
+    "downloadPdf": "PDF 格式下載"
   },
   "html": {
     "elementSelected": "已選取元素: {{path}}",

@@ -124,7 +124,8 @@
     "title": "PDF 文档",
     "pathMissing": "PDF 文件路径为空",
     "loadFailed": "加载 PDF 失败",
-    "unableDisplay": "无法加载 PDF 文件"
+    "unableDisplay": "无法加载 PDF 文件",
+    "downloadPdf": "PDF 格式下载"
   },
   "html": {
     "elementSelected": "已选中元素: {{path}}",

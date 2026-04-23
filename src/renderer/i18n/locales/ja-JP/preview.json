@@ -87,7 +87,8 @@
     "title": "PDF ドキュメント",
     "pathMissing": "PDF ファイルパスが空です",
     "loadFailed": "PDF の読み込みに失敗しました",
-    "unableDisplay": "PDF ファイルを表示できません"
+    "unableDisplay": "PDF ファイルを表示できません",
+    "downloadPdf": "PDF 形式でダウンロード"
   },
   "html": {
     "elementSelected": "選択中の要素: {{path}}",

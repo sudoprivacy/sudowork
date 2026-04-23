@@ -124,7 +124,8 @@
     "title": "PDF Document",
     "pathMissing": "PDF file path is missing",
     "loadFailed": "Failed to load PDF document",
-    "unableDisplay": "Unable to display PDF file"
+    "unableDisplay": "Unable to display PDF file",
+    "downloadPdf": "Download as PDF"
   },
   "html": {
     "elementSelected": "Selected element: {{path}}",

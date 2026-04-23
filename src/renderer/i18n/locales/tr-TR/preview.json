@@ -87,7 +87,8 @@
     "title": "PDF Belgesi",
     "pathMissing": "PDF dosya yolu eksik",
     "loadFailed": "PDF belgesi yüklenemedi",
-    "unableDisplay": "PDF dosyası görüntülenemiyor"
+    "unableDisplay": "PDF dosyası görüntülenemiyor",
+    "downloadPdf": "PDF olarak indir"
   },
   "html": {
     "elementSelected": "Seçilen öğe: {{path}}",

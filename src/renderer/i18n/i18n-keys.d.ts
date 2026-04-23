@@ -637,6 +637,7 @@ export type I18nKey =
   | 'preview.openSplitScreen'
   | 'preview.openWithApp'
   | 'preview.pathLabel'
+  | 'preview.pdf.downloadPdf'
   | 'preview.pdf.loadFailed'
   | 'preview.pdf.pathMissing'
   | 'preview.pdf.title'
