@@ -132,6 +132,9 @@ export function initWorkspaceBridge(): void {
           })
       );
 
+      // 按文件名正序排列 / Sort by filename in ascending order
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
       return { success: true, data: files };
     } catch (error) {
       mainError('workspaceBridge', 'Failed to list drafts:', error);
