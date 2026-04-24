@@ -121,6 +121,10 @@ const UserProfile: React.FC = () => {
           authData.user.nickname = editingNickname.trim();
           localStorage.setItem('sudowork_auth_v2', JSON.stringify(authData));
         }
+        // 同步昵称到主进程，触发 USER.md 更新，让 AI 能正确称呼用户
+        ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: editingNickname.trim() }).catch((error) => {
+          console.error('[UserProfile] Failed to sync nickname to main process:', error);
+        });
         // 刷新页面数据
         await fetchProfile();
         await refresh();
