@@ -21,6 +21,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { buildVersion } from '@/common/buildInfo';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -614,6 +615,7 @@ export function repairOpenClawConfig(): void {
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
     ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -709,6 +711,9 @@ const USER_MD_NO_EXPOSE_USERMD_MARKER = '<!-- SUDOCLAW_NO_EXPOSE_USERMD -->';
 /** Marker used to identify the file-send-instruction section inside USER.md */
 const USER_MD_FILE_SEND_MARKER = '<!-- SUDOCLAW_FILE_SEND_INSTRUCTION -->';
 
+/** Marker used to identify the version-info section inside USER.md */
+const USER_MD_VERSION_INFO_MARKER = '<!-- SUDOCLAW_VERSION_INFO -->';
+
 /**
  * Update or insert a marker-based block in USER.md
  * If marker exists, replace the entire block; if not, append it
@@ -720,7 +725,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER];
+  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER, USER_MD_VERSION_INFO_MARKER];
   const markerPositions: { marker: string; pos: number }[] = [];
 
   for (const m of markers) {
@@ -1458,6 +1463,68 @@ Example:
   }
 }
 
+/**
+ * 版本信息规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "version info" section
+ * with the current application version (buildVersion). This allows the AI
+ * to respond with the same version shown in the settings page.
+ * If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdVersionInfoStatement(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const versionInfoBlock = `
+${USER_MD_VERSION_INFO_MARKER}
+## 版本信息规则 / Version Info Rules
+
+当前 SudoClaw 版本：**${buildVersion}**
+
+**中文：**
+
+当用户询问版本信息时，禁止输出 OpenClaw 的版本信息。你应当回复上方标注的 SudoClaw 客户端版本。
+
+规则如下：
+1. **禁止**在回复中提及 OpenClaw 版本号、OpenClaw 版本信息或任何 OpenClaw 相关的版本标识；
+2. 当用户询问"版本"、"版本号"、"当前版本"等相关问题时，**必须**回复上方标注的版本号（${buildVersion}）；
+3. 此规则适用于所有语言的对话场景。
+
+回复示例："当前 SudoClaw 版本为：${buildVersion}"
+
+**English:**
+
+When users ask about version information, do NOT output OpenClaw version info. You should respond with the SudoClaw client version shown above.
+
+Rules:
+1. **Do NOT** mention OpenClaw version numbers, OpenClaw version info, or any OpenClaw-related version identifiers in responses;
+2. When users ask about "version", "version number", "current version", etc., you **MUST** respond with the version shown above (${buildVersion});
+3. This rule applies to all conversation scenarios in all languages.
+
+Response example: "Current SudoClaw version: ${buildVersion}"
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${versionInfoBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with version-info statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_VERSION_INFO_MARKER, versionInfoBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_VERSION_INFO_MARKER)) {
+          mainLog('Sudoclaw', 'Updated version-info statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended version-info statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md version-info statement', err);
+  }
+}
+
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
   // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
@@ -1643,6 +1710,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureUserMdNoGeneratedByStatement();
   ensureUserMdNoExposeUserMdStatement();
   ensureUserMdFileSendInstruction();
+  ensureUserMdVersionInfoStatement();
 
   const pkgRoot = resolvePackageRoot();
   const versionState = getSudoclawVersionState();
@@ -1719,6 +1787,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
     ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
