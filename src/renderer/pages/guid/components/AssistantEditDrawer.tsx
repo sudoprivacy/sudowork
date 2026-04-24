@@ -235,14 +235,14 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
       const lookupName = resolveAssistantName(assistant.id);
 
-      // For custom assistants, save all fields
+      // For custom assistants, save all fields (presetAgentType always locked to sudoclaw)
       await ipcBridge.assistantHub.updateAssistantMeta.invoke({
         name: lookupName,
         updates: {
           nameI18n: { 'zh-CN': editName },
           descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
           avatar: editAvatar,
-          presetAgentType: editAgent,
+          presetAgentType: 'sudoclaw',
           enabledSkills: selectedSkills,
         },
       });
@@ -369,22 +369,20 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             />
           </div>
 
-          {/* Main Agent */}
+          {/* Main Agent - locked to SudoClaw */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
               {t('settings.assistantMainAgent', {
                 defaultValue: 'Main Agent',
               })}
             </Typography.Text>
-            <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonly}>
-              {AGENT_OPTIONS.filter((opt) => availableBackends.has(opt.backendId || opt.value)).map((opt) => (
-                <Select.Option key={opt.value} value={opt.value}>
-                  <span className='flex items-center gap-6px'>
-                    {getAgentLogo(opt.backendId || opt.value) && <img src={getAgentLogo(opt.backendId || opt.value) || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
-                    {opt.label}
-                  </span>
-                </Select.Option>
-              ))}
+            <Select className='mt-10px w-full rounded-4px' value='sudoclaw' disabled>
+              <Select.Option key='sudoclaw' value='sudoclaw'>
+                <span className='flex items-center gap-6px'>
+                  {getAgentLogo('openclaw-gateway') && <img src={getAgentLogo('openclaw-gateway') || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
+                  SudoClaw
+                </span>
+              </Select.Option>
             </Select>
           </div>
 
