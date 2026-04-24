@@ -26,6 +26,7 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
@@ -900,17 +901,26 @@ ${draftsInstruction}`;
         break;
 
       case 'error':
-        mainError('OpenClawAgent', '[DIAG] ChatEvent error received:', JSON.stringify({
-          runId: event.runId,
-          sessionKey: event.sessionKey,
-          seq: event.seq,
-          state: event.state,
-          stopReason: event.stopReason,
-          errorMessage: event.errorMessage,
-          message: event.message,
-          usage: event.usage,
-        }, null, 2));
-        this.emitErrorMessage(event.errorMessage || 'Unknown error');
+        mainError(
+          'OpenClawAgent',
+          '[DIAG] ChatEvent error received:',
+          JSON.stringify(
+            {
+              runId: event.runId,
+              sessionKey: event.sessionKey,
+              seq: event.seq,
+              state: event.state,
+              stopReason: event.stopReason,
+              errorMessage: event.errorMessage,
+              message: event.message,
+              usage: event.usage,
+            },
+            null,
+            2
+          )
+        );
+        const translatedError = translateLLMError(event.errorMessage || 'Unknown error');
+        this.emitErrorMessage(translatedError);
         this.handleEndTurn();
         break;
 
@@ -1743,14 +1753,10 @@ ${draftsInstruction}`;
   }
 
   /** Document extensions that should trigger file sending to channel clients */
-  private static readonly DOCUMENT_EXTENSIONS = new Set([
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html',
-  ]);
+  private static readonly DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html']);
 
   /** Image extensions */
-  private static readonly IMAGE_EXTENSIONS = new Set([
-    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg',
-  ]);
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg']);
 
   /**
    * Extract file path from a tool call if it represents a file-creation operation.

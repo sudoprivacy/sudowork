@@ -36,6 +36,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
@@ -910,7 +911,7 @@ This identity statement takes priority over the default identity in USER.md.
         retryable = true;
       }
 
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(translateLLMError(errorMsg));
       return {
         success: false,
         error: createAcpError(errorType, errorMsg, retryable),
