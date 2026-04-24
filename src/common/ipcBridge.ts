@@ -1395,3 +1395,45 @@ export const secret = {
   /** Restore a soft-deleted secret */
   restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
 };
+
+/**
+ * pwd_login: agent-level auto-login using credentials stored in nexus
+ * PasswordVaultService. Plaintext never enters the renderer or the agent
+ * LLM context — fetch happens in main process, bytes flow to the browser
+ * subprocess as base64 over sidechannel, then Buffer is zeroed.
+ *
+ * Phase 1: user-initiated via /login <title> slash command.
+ * Phase 2: agent-initiated (tool registration TBD).
+ */
+export interface IPwdLoginParams {
+  /** Vault entry title (matches nexus PasswordVaultService primary key) */
+  title: string;
+  /**
+   * Approval decision chosen by the user in the dialog. If missing, the
+   * backend checks ApprovalStore for a cached allow_always; otherwise
+   * returns {ok: false, error: approval_rejected} and expects the renderer
+   * to open the approval modal first.
+   */
+  optionId?: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+  /** Conversation context for logging / audit only; no permission scoping */
+  conversation_id?: string;
+  /**
+   * Optional URL override. If absent, the adapter's canonical loginUrl is used.
+   */
+  url?: string;
+}
+
+export interface IPwdLoginResult {
+  ok: boolean;
+  /** CDP target id returned by ai-dev-browser after successful fill (Phase 1: absent — sidechannel dispatch blocked on browser-ai) */
+  tab_id?: string;
+  /** Structured error code (string from PwdLoginErrorCode enum) when ok=false */
+  error?: string;
+  /** Non-sensitive diagnostic detail — MUST NOT contain password bytes or derivatives */
+  detail?: string;
+}
+
+export const pwdLogin = {
+  /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
+  start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
+};
