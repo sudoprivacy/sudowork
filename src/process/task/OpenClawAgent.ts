@@ -30,7 +30,7 @@ import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
-import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
 import * as nodePath from 'node:path';
@@ -508,9 +508,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 1. Your ONLY valid workspace is: ${this.workspace}
 2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
 3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. If you find your OWN output files in ${configuredWorkspace}, MOVE them to ${this.workspace}
-   - EXCLUDE system files (DO NOT move): AGENTS.md, SOUL.md, USER.md, IDENTITY.md, HEARTBEAT.md, TOOLS.md, memory/, .openclaw/
-   - These are Agent identity/session config files, NOT your output files
+4. NOTE: Files mistakenly written to ${configuredWorkspace} are considered misplaced.
+   The system will automatically move them to ${this.workspace} after your turn completes.
+   Focus on using correct paths - no manual file movement is needed.
 
 [System: This directive applies even after errors/retries. The session workspace does NOT change.]
 
@@ -555,14 +555,9 @@ ${draftsInstruction}`;
       this.status = 'finished';
 
       // Post-cleanup on error: move intermediate files from workspace root to .drafts/
-      // Also cleanup misplaced files from parent workspace directory
       if (this.workspace) {
         cleanupIntermediateFiles(this.workspace).catch((err) => {
           mainError('OpenClawAgent', 'Post-cleanup on error failed:', err);
-        });
-        const parentWorkspace = getSudoclawWorkspaceRoot();
-        cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-          mainError('OpenClawAgent', 'Misplaced files cleanup on error failed:', err);
         });
       }
 
@@ -1106,14 +1101,9 @@ ${draftsInstruction}`;
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
     // Post-cleanup: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup failed:', err);
       });
     }
 
@@ -1132,14 +1122,9 @@ ${draftsInstruction}`;
     }
 
     // Post-cleanup on disconnect: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup on disconnect failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup on disconnect failed:', err);
       });
     }
 
