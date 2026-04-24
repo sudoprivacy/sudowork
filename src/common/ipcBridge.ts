@@ -1326,6 +1326,14 @@ export const safety = {
   setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
 };
 
+// ==================== Feature Flags API ====================
+export const featureFlags = {
+  getSnapshot: bridge.buildProvider<Record<string, boolean>, void>('feature-flags.get-snapshot'),
+  getOverrides: bridge.buildProvider<Partial<Record<string, boolean>>, void>('feature-flags.get-overrides'),
+  setOverride: bridge.buildProvider<void, { key: string; value: boolean | null }>('feature-flags.set-override'),
+  changed: bridge.buildEmitter<Record<string, boolean>>('feature-flags.changed'),
+};
+
 // ==================== Health Monitor API ====================
 
 export const healthMonitor = {

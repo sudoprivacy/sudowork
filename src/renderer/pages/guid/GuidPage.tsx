@@ -27,6 +27,7 @@ import AgentSettings from '../settings/AgentSettings';
 import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
 import CronSettings from '../settings/CronSettings';
+import { useFeatureFlag } from '@/renderer/hooks/useFeatureFlag';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
@@ -50,6 +51,7 @@ import { mutate } from 'swr';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
+  const cronEnabled = useFeatureFlag('cronJobs');
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -577,7 +579,7 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'agent' && <AgentSettings />}
             {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
-            {selectedMenu === 'cron' && <CronSettings />}
+            {cronEnabled && selectedMenu === 'cron' && <CronSettings />}
           </div>
         ) : (
           /* Normal/Assistant conversation area */

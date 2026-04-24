@@ -13,6 +13,7 @@ import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
 import { emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
+import { useFeatureFlag } from './hooks/useFeatureFlag';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -30,6 +31,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout, user: currentUser } = useAuth();
+  const cronEnabled = useFeatureFlag('cronJobs');
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const isSettings = pathname.startsWith('/settings');
@@ -43,13 +45,18 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   };
 
   // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [
+  const allFunctionMenus = [
     { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
     { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
     { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
     { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
     { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
   ];
+
+  const functionMenus = React.useMemo(
+    () => allFunctionMenus.filter((menu) => menu.id !== 'cron' || cronEnabled),
+    [cronEnabled]
+  );
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {

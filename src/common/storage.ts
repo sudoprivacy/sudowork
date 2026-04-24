@@ -160,6 +160,8 @@ export interface IConfigStorageRefer {
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
   'agent.idleTimeout'?: number;
+  // Feature flag overrides / 功能开关覆盖
+  'featureFlags.overrides'?: Partial<Record<string, boolean>>;
 }
 
 export interface IEnvStorageRefer {
