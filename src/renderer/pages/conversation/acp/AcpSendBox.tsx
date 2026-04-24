@@ -23,6 +23,7 @@ import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
+import PwdLoginApprovalModal, { type PwdLoginApprovalDecision } from '@/renderer/components/PwdLoginApprovalModal';
 import type { TokenUsageData } from '@/common/storage';
 import ContextUsageIndicator from '@/renderer/components/ContextUsageIndicator';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
@@ -570,6 +571,18 @@ const AcpSendBox: React.FC<{
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
 
   const onSendHandler = async (message: string, skills?: string[]) => {
+    // /login <title> — intercept BEFORE agent send. Text never leaves the renderer.
+    const loginMatch = /^\/login\s+(.+)$/.exec(message.trim());
+    if (loginMatch) {
+      const title = loginMatch[1].trim();
+      if (!title) {
+        messageApiRef.current.warning(t('pwdLogin.slash.missingTitle', { defaultValue: 'Usage: /login <title>' }));
+        return;
+      }
+      setPwdLoginModal({ visible: true, title });
+      return;
+    }
+
     const msg_id = uuid();
 
     // ACP: 不使用 buildDisplayMessage，直接传原始 message
@@ -649,9 +662,43 @@ const AcpSendBox: React.FC<{
   });
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
   const [messageApi, messageContextHolder] = Message.useMessage();
   const messageApiRef = useRef(messageApi);
   messageApiRef.current = messageApi;
+
+  // /login <title> — user-triggered auto-login via saved credentials.
+  // Intercepted in onSendHandler before the text hits the agent, so the
+  // title + pwd_login machinery never crosses the LLM boundary.
+  const handlePwdLoginDecision = useCallback(
+    async (decision: PwdLoginApprovalDecision) => {
+      const title = pwdLoginModal.title;
+      setPwdLoginModal({ visible: false, title: '' });
+      if (!title) return;
+      try {
+        const result = await ipcBridge.pwdLogin.start.invoke({
+          title,
+          optionId: decision,
+          conversation_id,
+        });
+        if (result.ok) {
+          messageApiRef.current.success(t('pwdLogin.result.success', { title, defaultValue: 'Logged into {{title}}' }));
+        } else {
+          messageApiRef.current.error(
+            t('pwdLogin.result.failure', {
+              title,
+              error: result.error ?? 'unknown',
+              defaultValue: 'Auto-login failed ({{error}})',
+            })
+          );
+        }
+      } catch (err) {
+        messageApiRef.current.error(t('pwdLogin.result.exception', { defaultValue: 'Auto-login error' }));
+        console.error('[pwdLogin] invoke failed:', err);
+      }
+    },
+    [pwdLoginModal.title, conversation_id, t]
+  );
 
   useEffect(() => {
     return ipcBridge.bdpan.downloadResult.on((result) => {
@@ -818,6 +865,14 @@ const AcpSendBox: React.FC<{
           setBdpanSelectorVisible(false);
           appendSelectedFiles(paths);
         }}
+      />
+      <PwdLoginApprovalModal
+        visible={pwdLoginModal.visible}
+        title={pwdLoginModal.title}
+        onDecide={(decision) => {
+          void handlePwdLoginDecision(decision);
+        }}
+        onCancel={() => setPwdLoginModal({ visible: false, title: '' })}
       />
     </div>
   );
