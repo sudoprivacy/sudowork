@@ -122,6 +122,15 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
 
+  // PYTHONPATH for ai_dev_browser module resolution (browser tool).
+  // The browser skill dir contains ai_dev_browser (symlinked from vendor).
+  // Python silently ignores non-existent entries, so no existence check needed.
+  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser');
+  const prevPythonPath = cleanEnv.PYTHONPATH || '';
+  cleanEnv.PYTHONPATH = prevPythonPath
+    ? `${browserSkillDir}${path.delimiter}${prevPythonPath}`
+    : browserSkillDir;
+
   return cleanEnv;
 }
 
