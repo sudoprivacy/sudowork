@@ -97,8 +97,9 @@ export function getInstalledSkillDisplay(skill: Pick<IInstalledSkillInfo, 'name'
     // Upload skills: use upload default icon if no icon specified
     resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : uploadSkillDefaultIcon;
   } else {
-    // Builtin skills and other types: use existing resolution logic
-    resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : '';
+    // Preserve emoji-only skills while still giving icon-less skills a
+    // consistent default image fallback.
+    resolvedIcon = skill.meta?.icon ? resolveSkillIcon(skill.meta.icon, false) : skill.meta?.emoji ? '' : resolveSkillIcon(undefined);
   }
 
   return {

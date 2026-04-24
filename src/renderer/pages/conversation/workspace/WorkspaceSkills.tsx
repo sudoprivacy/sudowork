@@ -263,23 +263,27 @@ const pickIconByHeuristic = (name: string): IconComponent => {
 
 const remoteIconCache = new Map<string, string>();
 
+const resolveWorkspaceSkillImage = (iconUrl: string | undefined, fallbackToDefault: boolean): string => {
+  return resolveSkillIcon(iconUrl, fallbackToDefault);
+};
+
 const SkillIconGraphic: React.FC<{
   iconUrl?: string;
-  icon?: string;
   displayName: string;
   emoji?: string | null;
   Icon: IconComponent;
   fillColor: string;
-}> = ({ iconUrl, icon, displayName, emoji, Icon, fillColor }) => {
+  fallbackToDefaultImage?: boolean;
+}> = ({ iconUrl, displayName, emoji, Icon, fillColor, fallbackToDefaultImage = false }) => {
   const [resolvedIconUrl, setResolvedIconUrl] = useState<string | undefined>(() => {
-    const initial = resolveSkillIcon(iconUrl || icon, false);
+    const initial = resolveWorkspaceSkillImage(iconUrl, fallbackToDefaultImage);
     if (!initial) return undefined;
     return remoteIconCache.get(initial) || initial;
   });
 
   useEffect(() => {
     let cancelled = false;
-    const iconSource = resolveSkillIcon(iconUrl || icon, false);
+    const iconSource = resolveWorkspaceSkillImage(iconUrl, fallbackToDefaultImage);
 
     if (!iconSource) {
       setResolvedIconUrl(undefined);
@@ -321,7 +325,7 @@ const SkillIconGraphic: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [iconUrl, icon]);
+  }, [fallbackToDefaultImage, iconUrl]);
 
   if (resolvedIconUrl) {
     return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' />;
@@ -460,7 +464,9 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
           const resolved = resolveColor(skill.color);
           const fg = resolved ?? pickFallbackAccent(skill.name);
           const borderTint = withAlpha(fg, 0.14);
-          const iconBackground = skill.iconUrl ? 'var(--color-fill-2, #f2f3f5)' : withAlpha(fg, 0.1);
+          const hasImageIcon = Boolean(skill.iconUrl) || (!skill.icon && !skill.emoji);
+          const iconBackground = hasImageIcon ? 'var(--color-fill-2, #f2f3f5)' : withAlpha(fg, 0.1);
+          const fallbackToDefaultImage = !skill.iconUrl && !skill.icon && !skill.emoji;
           const displayName = skill.displayName || skill.name;
 
           return (
@@ -474,7 +480,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
                     borderColor: borderTint,
                   }}
                 >
-                  <SkillIconGraphic iconUrl={skill.iconUrl} icon={skill.icon} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} />
+                  <SkillIconGraphic iconUrl={skill.iconUrl} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} fallbackToDefaultImage={fallbackToDefaultImage} />
                 </div>
                 <div className='workspace-skill-card__meta'>
                   <div className='workspace-skill-card__name'>{displayName}</div>

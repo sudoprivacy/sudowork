@@ -1100,7 +1100,7 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
-  source_type?: 'hub' | 'upload';
+  source_type?: 'hub' | 'upload' | 'custom';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
