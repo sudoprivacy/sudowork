@@ -21,6 +21,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { buildVersion } from '@/common/buildInfo';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -614,6 +615,7 @@ export function repairOpenClawConfig(): void {
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
     ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -709,6 +711,12 @@ const USER_MD_NO_EXPOSE_USERMD_MARKER = '<!-- SUDOCLAW_NO_EXPOSE_USERMD -->';
 /** Marker used to identify the file-send-instruction section inside USER.md */
 const USER_MD_FILE_SEND_MARKER = '<!-- SUDOCLAW_FILE_SEND_INSTRUCTION -->';
 
+/** Marker used to identify the version-info section inside USER.md */
+const USER_MD_VERSION_INFO_MARKER = '<!-- SUDOCLAW_VERSION_INFO -->';
+
+/** Marker used to identify the username-statement section inside USER.md */
+const USER_MD_USERNAME_MARKER = '<!-- SUDOCLAW_USERNAME_STATEMENT -->';
+
 /**
  * Update or insert a marker-based block in USER.md
  * If marker exists, replace the entire block; if not, append it
@@ -720,7 +728,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER];
+  const markers = [USER_MD_SAFETY_MARKER, USER_MD_USERNAME_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER, USER_MD_VERSION_INFO_MARKER];
   const markerPositions: { marker: string; pos: number }[] = [];
 
   for (const m of markers) {
@@ -1458,6 +1466,200 @@ Example:
   }
 }
 
+/**
+ * 版本信息规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "version info" section
+ * with the current application version (buildVersion). This allows the AI
+ * to respond with the same version shown in the settings page.
+ * If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdVersionInfoStatement(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const versionInfoBlock = `
+${USER_MD_VERSION_INFO_MARKER}
+## 版本信息规则 / Version Info Rules
+
+当前 SudoClaw 版本：**${buildVersion}**
+
+**中文：**
+
+当用户询问版本信息时，禁止输出 OpenClaw 的版本信息。你应当回复上方标注的 SudoClaw 客户端版本。
+
+规则如下：
+1. **禁止**在回复中提及 OpenClaw 版本号、OpenClaw 版本信息或任何 OpenClaw 相关的版本标识；
+2. 当用户询问"版本"、"版本号"、"当前版本"等相关问题时，**必须**回复上方标注的版本号（${buildVersion}）；
+3. 此规则适用于所有语言的对话场景。
+
+回复示例："当前 SudoClaw 版本为：${buildVersion}"
+
+**English:**
+
+When users ask about version information, do NOT output OpenClaw version info. You should respond with the SudoClaw client version shown above.
+
+Rules:
+1. **Do NOT** mention OpenClaw version numbers, OpenClaw version info, or any OpenClaw-related version identifiers in responses;
+2. When users ask about "version", "version number", "current version", etc., you **MUST** respond with the version shown above (${buildVersion});
+3. This rule applies to all conversation scenarios in all languages.
+
+Response example: "Current SudoClaw version: ${buildVersion}"
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${versionInfoBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with version-info statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_VERSION_INFO_MARKER, versionInfoBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_VERSION_INFO_MARKER)) {
+          mainLog('Sudoclaw', 'Updated version-info statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended version-info statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md version-info statement', err);
+  }
+}
+
+/**
+ * 用户称呼规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "username statement"
+ * section with the current user's nickname. This allows AI to correctly
+ * address the user by their configured name.
+ * If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function updateUserMdUsernameStatement(username: string): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const usernameBlock = `
+${USER_MD_USERNAME_MARKER}
+## 用户称呼规则 / User Addressing Rules
+
+当前用户名称：**${username}**
+
+**中文：**
+当称呼用户时，必须使用上方标注的用户名称（${username}）：
+- 示例："你好，${username}，有什么可以帮助你的吗？"
+- 禁止使用其他名称如 "Gemini"、"AionUI"、"Claude"、"Sudo"  等称呼用户
+- 此规则适用于所有对话场景
+
+**English:**
+When addressing the user, must use the username shown above (${username}):
+- Example: "Hello ${username}, how can I help you?"
+- Do NOT use other names like "Gemini", "AionUI", "Claude", "Sudo" etc. to address the user
+- This rule applies to all conversation scenarios
+`;
+
+  try {
+    // Ensure workspace directory exists
+    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${usernameBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with username statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_USERNAME_MARKER, usernameBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_USERNAME_MARKER)) {
+          mainLog('Sudoclaw', 'Updated username statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended username statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to update USER.md username statement', err);
+  }
+}
+
+/**
+ * IDENTITY.md Name 字段更新
+ *
+ * Updates the Name field in IDENTITY.md with the user's nickname.
+ * This ensures AI correctly identifies the user when reading IDENTITY.md.
+ * If IDENTITY.md doesn't exist or has no Name field, creates/updates it with proper format.
+ */
+export function updateIdentityMdName(username: string): void {
+  const identityMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'IDENTITY.md');
+
+  try {
+    // Ensure workspace directory exists
+    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(identityMdPath)) {
+      // Create new IDENTITY.md with Name field
+      const content = `# IDENTITY.md - Who Am I?
+
+_Fill this in during your first conversation. Make it yours._
+
+- **Name:**
+  ${username}
+- **Creature:**
+  AI Assistant
+- **Vibe:**
+  Efficient, proactive, and genuinely helpful.
+- **Emoji:**
+  🤖
+
+---
+
+This isn't just metadata. It's the start of figuring out who you are.
+
+Notes:
+
+- Save this file at the workspace root as \`IDENTITY.md\`.
+`;
+      fs.writeFileSync(identityMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created IDENTITY.md with user name: ' + username);
+      return;
+    }
+
+    // Update existing IDENTITY.md
+    const existing = fs.readFileSync(identityMdPath, 'utf-8');
+
+    // Check if Name field exists and update it
+    // Pattern: "- **Name:**" followed by newline and then the name value
+    const namePattern = /(- \*{0,2}Name:\*{0,2}\s*\n\s*)([^\n]+)/;
+    const updatedContent = existing.replace(namePattern, `$1${username}`);
+
+    if (updatedContent !== existing) {
+      fs.writeFileSync(identityMdPath, updatedContent, 'utf-8');
+      mainLog('Sudoclaw', 'Updated IDENTITY.md Name field to: ' + username);
+    } else {
+      // Name field might not exist, try to add it
+      if (!existing.includes('Name:') && !existing.includes('**Name**')) {
+        // Find a good position to insert Name field (after the header)
+        const headerPattern = /^# IDENTITY\.md.*\n\n.*\n\n/;
+        const match = existing.match(headerPattern);
+        if (match) {
+          const insertPos = match[0].length;
+          const nameField = `- **Name:**\n  ${username}\n`;
+          const contentWithName = existing.slice(0, insertPos) + nameField + existing.slice(insertPos);
+          fs.writeFileSync(identityMdPath, contentWithName, 'utf-8');
+          mainLog('Sudoclaw', 'Added Name field to IDENTITY.md: ' + username);
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to update IDENTITY.md Name field', err);
+  }
+}
+
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
   // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
@@ -1643,6 +1845,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureUserMdNoGeneratedByStatement();
   ensureUserMdNoExposeUserMdStatement();
   ensureUserMdFileSendInstruction();
+  ensureUserMdVersionInfoStatement();
 
   const pkgRoot = resolvePackageRoot();
   const versionState = getSudoclawVersionState();
@@ -1719,6 +1922,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
     ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);

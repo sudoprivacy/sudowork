@@ -8,7 +8,7 @@ import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chatLib';
 import type { CodexEventMsg } from '@/common/codex/types';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
-import { ERROR_CODES, globalErrorService } from '@/agent/codex/core/ErrorService';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { hasCronCommands } from '@process/task/CronCommandDetector';
 import { processCronInMessage } from '@process/task/MessageMiddleware';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
@@ -137,17 +137,8 @@ export class CodexMessageProcessor {
   }
 
   processStreamError(message: string) {
-    // Use error service to create standardized error
-    const codexError = globalErrorService.createError(ERROR_CODES.NETWORK_UNKNOWN, message, {
-      context: 'CodexMessageProcessor.processStreamError',
-      technicalDetails: {
-        originalMessage: message,
-        eventType: 'STREAM_ERROR',
-      },
-    });
-
-    // Process through error service for user-friendly message
-    const processedError = globalErrorService.handleError(codexError);
+    // Translate LLM error message to user-friendly Chinese
+    const translatedMessage = translateLLMError(message);
 
     const errorHash = this.generateErrorHash(message);
 
@@ -167,21 +158,18 @@ export class CodexMessageProcessor {
       msgId = `stream_error_${errorHash}`;
     }
 
-    // Use error code for structured error handling
-    // The data will contain error code info that can be translated on frontend
-    const errorData = processedError.code ? `ERROR_${processedError.code}: ${message}` : processedError.userMessage || message;
-
     const errMsg = {
       type: 'error' as const,
       conversation_id: this.conversation_id,
       msg_id: msgId,
-      data: errorData,
+      data: translatedMessage,
     };
     this.messageEmitter.emitAndPersistMessage(errMsg);
   }
 
   processGenericError(evt: { type: 'error'; data: { message?: string } | string }) {
     const message = typeof evt.data === 'string' ? evt.data : evt.data.message || 'Unknown error';
+    const translatedMessage = translateLLMError(message);
 
     // 为相同的错误消息生成一致的msg_id以避免重复显示
     const errorHash = this.generateErrorHash(message);
@@ -190,7 +178,7 @@ export class CodexMessageProcessor {
       type: 'error' as const,
       conversation_id: this.conversation_id,
       msg_id: `error_${errorHash}`,
-      data: message,
+      data: translatedMessage,
     };
 
     this.messageEmitter.emitAndPersistMessage(errMsg);

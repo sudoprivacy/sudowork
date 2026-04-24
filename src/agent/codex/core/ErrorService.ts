@@ -56,7 +56,13 @@ export function fromNetworkError(originalError: string | Error, options: { sourc
   let code: string;
   let userMessageKey: string;
 
-  if (lowerMsg.includes('403') && lowerMsg.includes('cloudflare')) {
+  if (lowerMsg.includes('quota') || lowerMsg.includes('insufficient_user_quota') || errorMsg.includes('user quota is not enough')) {
+    code = ERROR_CODES.QUOTA_INSUFFICIENT;
+    userMessageKey = 'codex.error.quota_insufficient';
+  } else if (lowerMsg.includes('403') && (lowerMsg.includes('cloudflare') || lowerMsg.includes('authenticate'))) {
+    code = ERROR_CODES.AUTHENTICATION_FAILED;
+    userMessageKey = 'codex.error.authentication_failed';
+  } else if (lowerMsg.includes('403') && lowerMsg.includes('cloudflare')) {
     code = ERROR_CODES.CLOUDFLARE_BLOCKED;
     userMessageKey = 'codex.network.cloudflare_blocked';
   } else if (lowerMsg.includes('timeout') || lowerMsg.includes('etimedout')) {

@@ -821,6 +821,8 @@ export class ActionExecutor {
             // Lark/DingTalk/Telegram: send immediately (keep original behavior)
             if (streamOutgoing.type === 'image' || streamOutgoing.type === 'file') {
               const isWeCom = context.platform === 'wecom';
+              const isDingTalk = context.platform === 'dingtalk';
+              const isLark = context.platform === 'lark';
 
               // 检查是否是用户输入的文件，避免发回给用户
               // Check if this is a user input file to avoid sending back to user
@@ -847,14 +849,14 @@ export class ActionExecutor {
               if (streamOutgoing.fileUrl && isValidFilePath(streamOutgoing.fileUrl)) sentFiles.add(streamOutgoing.fileUrl);
               if (streamOutgoing.imageUrl && isValidFilePath(streamOutgoing.imageUrl)) sentFiles.add(streamOutgoing.imageUrl);
 
-              if (isWeCom) {
-                // WeCom: 缓存文件，等流结束后发送
-                // WeCom: buffer file to send after stream ends
-                console.log(`[ActionExecutor] 📎 file_send buffered (WeCom): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
+              if (isWeCom || isDingTalk || isLark) {
+                // WeCom/DingTalk/Lark: 缓存文件，等流结束后发送
+                // WeCom/DingTalk/Lark: buffer file to send after stream ends
+                console.log(`[ActionExecutor] 📎 file_send buffered (WeCom/DingTalk/Lark): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
                 pendingFilesToSend.push(streamOutgoing);
-                // 标记 thinking 已更新，让后续文本 INSERT 转为 UPDATE 路径
-                // Mark thinking as updated so subsequent text INSERTs go to UPDATE path
-                if (!thinkingUpdated && thinkingMsgId) {
+                // WeCom 不支持 edit，需要标记 thinkingUpdated 让后续文本走新消息路径
+                // DingTalk/Lark 支持 edit，不设置 thinkingUpdated，让第一条 text 继续编辑 thinking 卡片
+                if (isWeCom && !thinkingUpdated && thinkingMsgId) {
                   thinkingUpdated = true;
                 }
                 return;
@@ -1049,6 +1051,9 @@ export class ActionExecutor {
           if (supportsEdit && sentMessageIds.length > 0) {
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
+          } else if (context.platform === 'lark' && supportsEdit && thinkingMsgId) {
+            // 飞书：文件缓冲后 sentMessageIds 为空，回退到 thinkingMsgId 编辑原卡片，避免重复发送文字
+            await context.editMessage(thinkingMsgId, finalMessage);
           } else {
             // For WeChat or if no message was sent yet, send the final content as a new message
             await context.sendMessage(finalMessage);

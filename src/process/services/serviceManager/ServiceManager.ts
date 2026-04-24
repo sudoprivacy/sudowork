@@ -342,7 +342,7 @@ export class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -499,6 +499,7 @@ export class ServiceManager {
         ensureUserMdNoGeneratedByStatement();
         ensureUserMdNoExposeUserMdStatement();
         ensureUserMdFileSendInstruction();
+        ensureUserMdVersionInfoStatement();
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
       }
