@@ -1130,7 +1130,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
             avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
-            presetAgentType: duplicateAssistant.preset_agent_type || 'sudoclaw',
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateAssistant.skills || [],
@@ -1169,7 +1169,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
             avatar: duplicateInstalledAssistant.avatar,
-            presetAgentType: duplicateInstalledAssistant.presetAgentType || 'sudoclaw',
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
@@ -1347,7 +1347,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: editAgent,
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
@@ -1361,14 +1361,14 @@ const AgentModalContent: React.FC = () => {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
 
-        // For custom assistants, save all fields
+        // For custom assistants, save all fields (presetAgentType always locked to sudoclaw)
         await ipcBridge.assistantHub.updateAssistantMeta.invoke({
           name: lookupName,
           updates: {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: editAgent,
+            presetAgentType: 'sudoclaw',
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
           },
         });
@@ -1710,39 +1710,13 @@ const AgentModalContent: React.FC = () => {
               <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: 'What can this assistant help with?' })} />
             </div>
 
-            {/* Main Agent */}
+            {/* Main Agent - locked to SudoClaw */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonlyAssistant}>
-                {[
-                  { value: 'gemini', label: 'Gemini CLI' },
-                  { value: 'claude', label: 'Claude Code' },
-                  { value: 'qwen', label: 'Qwen Code' },
-                  { value: 'codex', label: 'Codex' },
-                  { value: 'codebuddy', label: 'CodeBuddy' },
-                  { value: 'opencode', label: 'OpenCode' },
-                  { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
-                ]
-                  .filter((opt) => availableBackends.has(opt.backendId || opt.value))
-                  .map((opt) => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))}
-                {extensionAcpAdapters?.map((adapter) => {
-                  const id = adapter.id as string;
-                  const name = (adapter.name as string) || id;
-                  return (
-                    <Select.Option key={id} value={id}>
-                      <span className='flex items-center gap-6px'>
-                        {name}
-                        <Tag size='small' color='arcoblue'>
-                          ext
-                        </Tag>
-                      </span>
-                    </Select.Option>
-                  );
-                })}
+              <Select className='mt-10px w-full rounded-4px' value='sudoclaw' disabled>
+                <Select.Option key='sudoclaw' value='sudoclaw'>
+                  SudoClaw
+                </Select.Option>
               </Select>
             </div>
 
