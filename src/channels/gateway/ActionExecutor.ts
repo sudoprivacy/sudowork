@@ -1051,6 +1051,9 @@ export class ActionExecutor {
           if (supportsEdit && sentMessageIds.length > 0) {
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
+          } else if (context.platform === 'lark' && supportsEdit && thinkingMsgId) {
+            // 飞书：文件缓冲后 sentMessageIds 为空，回退到 thinkingMsgId 编辑原卡片，避免重复发送文字
+            await context.editMessage(thinkingMsgId, finalMessage);
           } else {
             // For WeChat or if no message was sent yet, send the final content as a new message
             await context.sendMessage(finalMessage);
