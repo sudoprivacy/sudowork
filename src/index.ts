@@ -30,6 +30,7 @@ import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
 import { mainLog, mainWarn, mainError } from './process/utils/mainLogger';
+import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
@@ -563,8 +564,8 @@ const createWindow = (): void => {
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
 
-  // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI)
-  // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景）
+  // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI, or nightly builds)
+  // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景；nightly 版本也跳过自动更新提醒）
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
   const disableAutoUpdater = process.env.NEXUS_DISABLE_AUTO_UPDATE === '1' || process.env.NEXUS_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
@@ -573,11 +574,19 @@ const createWindow = (): void => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
-        // Check for updates after 3 seconds delay
-        // 3秒后检查更新
-        setTimeout(() => {
-          void autoUpdaterService.checkForUpdatesAndNotify();
-        }, 3000);
+        // Skip auto-update check for nightly builds – nightly versions should only be
+        // updated manually via the in-app update modal which already handles nightly isolation.
+        // nightly 版本跳过自动更新检查，避免弹出指向正式 release 版本的更新提醒。
+        // nightly 版本的更新应通过应用内手动检查完成（UpdateModal 已实现 nightly 隔离逻辑）。
+        if (isNightlyBuild) {
+          mainLog('App', 'Nightly build detected, skipping auto-update check');
+        } else {
+          // Check for updates after 3 seconds delay
+          // 3秒后检查更新
+          setTimeout(() => {
+            void autoUpdaterService.checkForUpdatesAndNotify();
+          }, 3000);
+        }
       })
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);
