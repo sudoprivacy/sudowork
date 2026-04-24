@@ -21,6 +21,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { buildVersion } from '@/common/buildInfo';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -1466,7 +1467,8 @@ Example:
  * 版本信息规则 — 写入 USER.md
  *
  * Ensures that the workspace USER.md contains a "version info" section
- * instructing AI to report SudoClaw version info instead of OpenClaw.
+ * with the current application version (buildVersion). This allows the AI
+ * to respond with the same version shown in the settings page.
  * If USER.md does not exist it is created; if the marker exists the
  * block is updated; otherwise it is appended.
  */
@@ -1476,25 +1478,29 @@ export function ensureUserMdVersionInfoStatement(): void {
 ${USER_MD_VERSION_INFO_MARKER}
 ## 版本信息规则 / Version Info Rules
 
+当前 SudoClaw 版本：**${buildVersion}**
+
 **中文：**
 
-当用户询问版本信息时，禁止输出 OpenClaw 的版本信息。你应当回复 SudoClaw 客户端的版本信息。
+当用户询问版本信息时，禁止输出 OpenClaw 的版本信息。你应当回复上方标注的 SudoClaw 客户端版本。
 
 规则如下：
 1. **禁止**在回复中提及 OpenClaw 版本号、OpenClaw 版本信息或任何 OpenClaw 相关的版本标识；
-2. 当用户询问"版本"、"版本号"、"当前版本"等相关问题时，**必须**回复 SudoClaw 客户端版本信息；
-3. 如果无法确定 SudoClaw 的具体版本号，回复"请在设置页面查看 SudoClaw 版本信息"；
-4. 此规则适用于所有语言的对话场景。
+2. 当用户询问"版本"、"版本号"、"当前版本"等相关问题时，**必须**回复上方标注的版本号（${buildVersion}）；
+3. 此规则适用于所有语言的对话场景。
+
+回复示例："当前 SudoClaw 版本为：${buildVersion}"
 
 **English:**
 
-When users ask about version information, do NOT output OpenClaw version info. You should respond with SudoClaw client version information instead.
+When users ask about version information, do NOT output OpenClaw version info. You should respond with the SudoClaw client version shown above.
 
 Rules:
 1. **Do NOT** mention OpenClaw version numbers, OpenClaw version info, or any OpenClaw-related version identifiers in responses;
-2. When users ask about "version", "version number", "current version", etc., you **MUST** respond with SudoClaw client version information;
-3. If you cannot determine the specific SudoClaw version number, respond with "Please check the SudoClaw version in the settings page";
-4. This rule applies to all conversation scenarios in all languages.
+2. When users ask about "version", "version number", "current version", etc., you **MUST** respond with the version shown above (${buildVersion});
+3. This rule applies to all conversation scenarios in all languages.
+
+Response example: "Current SudoClaw version: ${buildVersion}"
 `;
 
   try {
