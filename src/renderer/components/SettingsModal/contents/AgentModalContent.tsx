@@ -173,7 +173,7 @@ const InstalledAssistantCard: React.FC<{
           </div>
         ) : (
           <Popconfirm
-            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}
+            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
             onOk={onDelete}
             okText={t('common.delete', { defaultValue: '删除' })}
             cancelText={t('common.cancel', { defaultValue: '取消' })}
@@ -1806,7 +1806,7 @@ const AgentModalContent: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       <Modal title={t('settings.deleteAssistantTitle', { defaultValue: '删除助手' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
-        <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}</p>
+        <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>
