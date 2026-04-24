@@ -481,6 +481,8 @@ export const document = {
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
+  /** 获取文件最后修改时间 (mtime) / Get file last modification time */
+  getFileMtime: bridge.buildProvider<number, { filePath: string }>('document.get-file-mtime'),
 };
 
 export interface ICliStatus {
