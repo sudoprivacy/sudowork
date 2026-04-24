@@ -1366,6 +1366,10 @@ export const sudoworkAuth = {
   clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
   /** Get public key for encryption */
   getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
+  /** Save user nickname - triggers USER.md update for AI addressing */
+  saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>('sudowork-auth.save-user-nickname'),
+  /** Get stored user nickname */
+  getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-nickname'),
 };
 
 // ==================== Secret Management API ====================
