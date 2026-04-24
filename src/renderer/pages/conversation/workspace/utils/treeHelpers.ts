@@ -8,6 +8,25 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 
 /**
+ * 递归排序树节点：文件夹优先，然后按文件名正序排列
+ * Recursively sort tree nodes: directories first, then by filename in ascending order
+ */
+export function sortTreeNodes(nodes: IDirOrFile[]): IDirOrFile[] {
+  return [...nodes]
+    .sort((a, b) => {
+      // 文件夹优先 / Directories first
+      if (a.isDir && !b.isDir) return -1;
+      if (!a.isDir && b.isDir) return 1;
+      // 按文件名正序排列（支持数字自然排序）/ Sort by name ascending (natural numeric sort)
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    })
+    .map((node) => ({
+      ...node,
+      children: node.children ? sortTreeNodes(node.children) : node.children,
+    }));
+}
+
+/**
  * 从 Tree 节点中提取数据引用
  * Extract data reference from Tree node
  */

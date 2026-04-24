@@ -38,7 +38,7 @@ import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
-import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
+import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes } from './utils/treeHelpers';
 import './workspace-card.css';
 
 const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
@@ -496,19 +496,22 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Hide root directory when there's a single root with children, as Toolbar serves as the first-level directory
   const rawTreeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
   const visibleTreeData = useMemo(() => {
-    if (!isTemporaryWorkspace) {
-      return rawTreeData;
+    let data = rawTreeData;
+
+    if (isTemporaryWorkspace) {
+      const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+        nodes
+          .filter((node) => !isHiddenWorkspaceEntry(node.name))
+          .map((node) => ({
+            ...node,
+            children: node.children ? filterNodes(node.children) : node.children,
+          }));
+
+      data = filterNodes(data);
     }
 
-    const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
-      nodes
-        .filter((node) => !isHiddenWorkspaceEntry(node.name))
-        .map((node) => ({
-          ...node,
-          children: node.children ? filterNodes(node.children) : node.children,
-        }));
-
-    return filterNodes(rawTreeData);
+    // 按文件名正序排列（文件夹优先）/ Sort by filename ascending (directories first)
+    return sortTreeNodes(data);
   }, [isTemporaryWorkspace, rawTreeData]);
 
   const treeData = useMemo(() => {
