@@ -36,8 +36,7 @@ export const PwdLoginApprovalModal: React.FC<PwdLoginApprovalModalProps> = ({ vi
 
   const description = t('pwdLogin.approval.description', {
     title,
-    defaultValue:
-      'Agent wants to log you into {{title}} using your saved credentials. The password will be filled into the login form directly — it won\'t be shown to the agent.',
+    defaultValue: "Agent wants to log you into {{title}} using your saved credentials. The password will be filled into the login form directly — it won't be shown to the agent.",
   });
 
   const allowOnce = t('pwdLogin.approval.allowOnce', { defaultValue: 'Allow once' });
