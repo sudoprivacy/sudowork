@@ -86,6 +86,8 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
   'avatar.enabled'?: boolean;
+  // Avatar 浮窗最近一次的位置（屏幕坐标）/ Last-known avatar window bounds (screen coords)
+  'avatar.bounds'?: { x: number; y: number; width: number; height: number };
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**

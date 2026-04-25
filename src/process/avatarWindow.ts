@@ -7,10 +7,44 @@
 import { BrowserWindow, app, screen } from 'electron';
 import * as path from 'path';
 import { registerAvatarWindow } from './avatarBroadcast';
+import { ProcessConfig } from './initStorage';
+import { mainError } from './utils/mainLogger';
 
 const AVATAR_WIDTH = 220;
 const AVATAR_HEIGHT = 220;
 const SCREEN_MARGIN = 16;
+
+type AvatarBounds = { x: number; y: number; width: number; height: number };
+
+/**
+ * Validate that a saved bounds rectangle is still on a connected display.
+ * Returns the bounds when usable, or null when the user changed monitors
+ * and the saved position is now off-screen.
+ */
+function pickRestoreBounds(saved: AvatarBounds | undefined): AvatarBounds | null {
+  if (!saved) return null;
+  if (typeof saved.x !== 'number' || typeof saved.y !== 'number' || typeof saved.width !== 'number' || typeof saved.height !== 'number') return null;
+  // Confirm the rect intersects at least one display so the avatar isn't
+  // restored into an invisible region (e.g. after a monitor unplug).
+  const display = screen.getDisplayMatching({
+    x: saved.x,
+    y: saved.y,
+    width: saved.width,
+    height: saved.height,
+  });
+  if (!display) return null;
+  return saved;
+}
+
+function defaultBottomRightBounds(): AvatarBounds {
+  const workArea = screen.getPrimaryDisplay().workArea;
+  return {
+    x: workArea.x + workArea.width - AVATAR_WIDTH - SCREEN_MARGIN,
+    y: workArea.y + workArea.height - AVATAR_HEIGHT - SCREEN_MARGIN,
+    width: AVATAR_WIDTH,
+    height: AVATAR_HEIGHT,
+  };
+}
 
 /**
  * Create the floating avatar BrowserWindow.
@@ -37,16 +71,23 @@ const SCREEN_MARGIN = 16;
  * avatarBroadcast.ts for the rationale.
  */
 export function createAvatarWindow(): BrowserWindow {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const workArea = primaryDisplay.workArea;
-  const initialX = workArea.x + workArea.width - AVATAR_WIDTH - SCREEN_MARGIN;
-  const initialY = workArea.y + workArea.height - AVATAR_HEIGHT - SCREEN_MARGIN;
+  // Resolve initial bounds: prefer the saved last-known position when
+  // it still maps to a connected display; otherwise place at the
+  // bottom-right above the taskbar.
+  // ProcessConfig.get is async — we instantiate the window synchronously
+  // with the default position and snap to persisted bounds once they
+  // resolve (typically before paint, so the user does not see a jump).
+  const initialBounds = defaultBottomRightBounds();
+  const persistedBoundsPromise = ProcessConfig.get('avatar.bounds').catch((error: unknown): undefined => {
+    mainError('Avatar', 'Failed to read avatar.bounds:', error);
+    return undefined;
+  });
 
   const win = new BrowserWindow({
-    width: AVATAR_WIDTH,
-    height: AVATAR_HEIGHT,
-    x: initialX,
-    y: initialY,
+    width: initialBounds.width,
+    height: initialBounds.height,
+    x: initialBounds.x,
+    y: initialBounds.y,
     frame: false,
     transparent: true,
     hasShadow: false,
@@ -63,6 +104,25 @@ export function createAvatarWindow(): BrowserWindow {
   });
 
   registerAvatarWindow(win);
+
+  // If persisted bounds resolve before the window paints, snap to them.
+  void persistedBoundsPromise.then((saved): void => {
+    const restored = pickRestoreBounds(saved as AvatarBounds | undefined);
+    if (restored && !win.isDestroyed()) {
+      win.setBounds(restored);
+    }
+  });
+
+  // Persist the last-known bounds on close so the next launch restores
+  // the user's preferred position. 'close' fires before the window is
+  // destroyed and getBounds() is still valid.
+  win.on('close', () => {
+    if (win.isDestroyed()) return;
+    const current = win.getBounds();
+    void ProcessConfig.set('avatar.bounds', current).catch((error) => {
+      mainError('Avatar', 'Failed to persist avatar.bounds:', error);
+    });
+  });
 
   win.once('ready-to-show', () => {
     if (!win.isDestroyed()) win.show();
