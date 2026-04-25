@@ -107,6 +107,8 @@
   "cacheClearFailed": "缓存清理失败",
   "language": "语言",
   "closeToTray": "关闭到托盘",
+  "avatarEnabled": "桌面 Avatar 浮窗",
+  "avatarEnabledDesc": "在桌面显示一个跟随当前对话状态的浮动伙伴",
   "gemini": "Gemini",
   "model": "模型",
   "runtime": "运行环境",

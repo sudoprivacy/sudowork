@@ -700,6 +700,10 @@ export const windowControls = {
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
   setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-close-to-tray'),
+  // Floating desktop avatar window — independent transparent BrowserWindow
+  // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
+  getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),
+  setAvatarEnabled: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-avatar-enabled'),
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
