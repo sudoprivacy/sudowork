@@ -20,7 +20,12 @@ import { AVATAR_BRIDGE_CHANNEL } from '../common/avatarBridge';
  * Empty in the scaffold commit; populated as MVP-0 / MVP-1 wires up
  * specific events (e.g. 'chat.response.stream').
  */
-const AVATAR_ALLOWED_BROADCAST_NAMES: ReadonlySet<string> = new Set<string>();
+const AVATAR_ALLOWED_BROADCAST_NAMES: ReadonlySet<string> = new Set<string>([
+  // ACP per-message stream — drives the avatar's visual FSM (idle / thinking
+  // / error in MVP-0; expanded to 7 states in MVP-1). Channel is named via
+  // ipcBridge.acpConversation.responseStream definition in src/common/ipcBridge.ts.
+  'chat.response.stream',
+]);
 
 const avatarWindows: BrowserWindow[] = [];
 
