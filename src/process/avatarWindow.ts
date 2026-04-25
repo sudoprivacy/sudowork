@@ -128,14 +128,15 @@ export function createAvatarWindow(): BrowserWindow {
     if (!win.isDestroyed()) win.show();
   });
 
-  // Load the avatar renderer. In dev, electron-vite serves multi-HTML
-  // entries under ELECTRON_RENDERER_URL with the input key as the path.
-  // In production, the build emits a directory matching the input key.
+  // Load the avatar renderer. electron-vite sets the renderer's vite root
+  // to `src/renderer/`, so URLs are relative to that root: the dev server
+  // serves `src/renderer/avatar/index.html` at /avatar/index.html, and the
+  // production build emits to out/renderer/avatar/index.html.
   const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
   if (!app.isPackaged && rendererUrl) {
-    void win.loadURL(`${rendererUrl}/src/renderer/avatar/index.html`);
+    void win.loadURL(`${rendererUrl}/avatar/index.html`);
   } else {
-    void win.loadFile(path.join(__dirname, '../renderer/src/renderer/avatar/index.html'));
+    void win.loadFile(path.join(__dirname, '../renderer/avatar/index.html'));
   }
 
   return win;
