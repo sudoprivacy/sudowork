@@ -107,6 +107,8 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "Language",
   "closeToTray": "Close to Tray",
+  "avatarEnabled": "Floating avatar",
+  "avatarEnabledDesc": "Show a floating desktop companion that reflects your active conversation",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Runtime",

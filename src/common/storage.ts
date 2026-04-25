@@ -84,6 +84,8 @@ export interface IConfigStorageRefer {
   'migration.skillSubdirectoriesMigrated'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
+  // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
+  'avatar.enabled'?: boolean;
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**
