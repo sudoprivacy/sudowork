@@ -63,7 +63,6 @@ export type AcpBackendAll =
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
-  | 'nexus' // Nexus AI filesystem agent (via `nexus chat --acp`)
   | 'custom'; // User-configured custom ACP agent
 
 /**
@@ -462,15 +461,6 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: false,
     supportsStreaming: false,
-  },
-  nexus: {
-    id: 'nexus',
-    name: 'Nexus',
-    cliCommand: 'nexus',
-    acpArgs: ['chat', '--acp'],
-    authRequired: false,
-    enabled: true,
-    supportsStreaming: true,
   },
   custom: {
     id: 'custom',

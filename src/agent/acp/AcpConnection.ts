@@ -201,7 +201,6 @@ export class AcpConnection {
       case 'copilot':
       case 'qoder':
       case 'vibe':
-      case 'nexus':
       case 'nanobot':
         if (!cliPath) {
           throw new Error(`CLI path is required for ${backend} backend`);
