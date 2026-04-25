@@ -98,12 +98,10 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     const { cdpPort } = require('@/utils/configureChromium');
     if (cdpPort) {
       cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
-      cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
     }
   } catch {
     // Fallback: use default CDP port
     cleanEnv.AI_DEV_BROWSER_PORT = '9230';
-    cleanEnv.NEXUS_CDP_PORT = '9230';
   }
 
   // Inject safety hook via NODE_OPTIONS if enabled
