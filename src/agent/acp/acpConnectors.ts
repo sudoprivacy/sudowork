@@ -418,6 +418,22 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     }
   }
 
+  // Inject Claude Code OAuth token for scode subscription auth if available
+  if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
+    try {
+      const keychain = require('child_process').execFileSync('security', [
+        'find-generic-password', '-s', 'Claude Code-credentials', '-a', require('os').userInfo().username, '-w',
+      ], { encoding: 'utf-8', timeout: 3000 }).trim();
+      const payload = JSON.parse(keychain);
+      if (payload?.claudeAiOauth?.accessToken) {
+        cleanEnv.CLAUDE_CODE_OAUTH_TOKEN = payload.claudeAiOauth.accessToken;
+        mainLog('[ACP scode]', 'Injected Claude Code OAuth token from keychain');
+      }
+    } catch {
+      // Claude Code credentials not available — scode will use other auth methods
+    }
+  }
+
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
   const spawnStart = Date.now();
