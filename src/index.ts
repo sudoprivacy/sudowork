@@ -9,7 +9,7 @@
 import 'v8-compile-cache';
 
 import './utils/configureChromium';
-import { app, BrowserWindow, globalShortcut, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
+import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -357,22 +357,6 @@ function closeAvatarWindow(): void {
   avatarWindow = null;
 }
 
-/**
- * Toggle avatar visibility from a global hotkey. Mirrors what the user
- * would get by flipping the Settings switch: opens or closes the window
- * AND persists `avatar.enabled` so the choice survives a restart.
- */
-function toggleAvatarFromHotkey(): void {
-  const isOpen = avatarWindow !== null && !avatarWindow.isDestroyed();
-  const target = !isOpen;
-  if (target) openAvatarWindow();
-  else closeAvatarWindow();
-  void ProcessConfig.set('avatar.enabled', target).catch((error: unknown) => {
-    mainError('App', 'Failed to persist avatar.enabled from hotkey:', error);
-  });
-}
-
-const AVATAR_HOTKEY = 'CommandOrControl+Shift+A';
 let isQuitting = false;
 let closeToTrayEnabled = false;
 let quitCleanupInProgress = false;
@@ -922,16 +906,6 @@ const handleAppReady = async (): Promise<void> => {
       else closeAvatarWindow();
     });
 
-    // 注册全局快捷键 / Register global hotkey for avatar toggle
-    try {
-      const registered = globalShortcut.register(AVATAR_HOTKEY, toggleAvatarFromHotkey);
-      if (!registered) {
-        mainError('App', `Failed to register avatar hotkey ${AVATAR_HOTKEY} (likely conflict with another app)`);
-      }
-    } catch (error) {
-      mainError('App', 'Avatar hotkey registration threw:', error);
-    }
-
     // Flush pending deep-link URL (received before window was ready)
     if (pendingDeepLinkUrl) {
       const url = pendingDeepLinkUrl;
@@ -1089,15 +1063,7 @@ app.on('before-quit', (event) => {
   })();
 });
 
-app.on('will-quit', () => {
-  // Release global hotkeys so a relaunch can re-register them and so we
-  // don't leave the system shortcut bound when the app exits.
-  try {
-    globalShortcut.unregisterAll();
-  } catch (error) {
-    mainError('App', 'globalShortcut.unregisterAll failed:', error);
-  }
-});
+app.on('will-quit', () => {});
 
 app.on('quit', (_event, exitCode) => {});
 
