@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { initMainAdapterWithWindow } from './adapter/main';
+import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
@@ -323,6 +324,7 @@ const isVersionMode = hasCommand('--version') || hasCommand('-v');
 let isExplicitQuit = false;
 
 let mainWindow: BrowserWindow;
+let avatarWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let closeToTrayEnabled = false;
@@ -563,6 +565,26 @@ const createWindow = (): void => {
   setupApplicationMenu();
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
+
+  // Avatar window (development preview, gated by env var until the user-facing
+  // Settings toggle and persistence land in a follow-up commit). When the
+  // main window closes, the avatar follows.
+  // 桌面悬浮 avatar 窗口（开发期预览）：用环境变量开关，等后续 commit 落
+  // 设置 UI / 持久化后切到用户开关。主窗关闭时 avatar 随之关闭。
+  const avatarDevEnabled = process.env['SUDOWORK_AVATAR_DEV'] === '1' || process.env['SUDOWORK_AVATAR_DEV'] === 'true';
+  if (avatarDevEnabled) {
+    try {
+      avatarWindow = createAvatarWindow();
+      mainWindow.on('closed', () => {
+        if (avatarWindow && !avatarWindow.isDestroyed()) {
+          avatarWindow.close();
+        }
+        avatarWindow = null;
+      });
+    } catch (error) {
+      mainError('App', 'Failed to create avatar window:', error);
+    }
+  }
 
   // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI, or nightly builds)
   // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景；nightly 版本也跳过自动更新提醒）
