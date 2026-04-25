@@ -69,6 +69,7 @@ export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const SUDOCLAW_DEFAULT_GATEWAY_RELOAD = {
   mode: 'hot' as const,
 };
+const SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL = 'https://hk.sudorouter.ai/search/tavily';
 
 /** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
 export function removeSudoclawCli(): void {
@@ -433,21 +434,23 @@ export function repairOpenClawConfig(): void {
       changed = true;
     }
 
-    // Repair tavily plugin config — backfill apiKey from sudorouter provider if missing.
-    // This ensures tavily web search works for existing users who had apiKey in providers
-    // but did not have it propagated to the tavily plugin config.
+    // Repair tavily plugin config — backfill apiKey from sudorouter provider and
+    // restore the managed webSearch baseUrl when either field is missing.
     {
       const pluginsObj = config.plugins as { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> } | undefined;
-      const tavilyWebSearch = pluginsObj?.entries?.tavily?.config?.webSearch as { apiKey?: string } | undefined;
-      const tavilyApiKey = tavilyWebSearch?.apiKey;
-      if (!tavilyApiKey?.trim()) {
+      const tavilyWebSearch = pluginsObj?.entries?.tavily?.config?.webSearch as { apiKey?: string; baseUrl?: string } | undefined;
+      const tavilyApiKey = tavilyWebSearch?.apiKey?.trim();
+      const tavilyBaseUrl = tavilyWebSearch?.baseUrl?.trim();
+      if (!tavilyApiKey || !tavilyBaseUrl) {
         const providersObj = (config.models as { providers?: Record<string, { apiKey?: string }> } | undefined)?.providers;
         const sudorouterApiKey =
           providersObj?.sudorouter?.apiKey?.trim() ||
           Object.values(providersObj || {})
             .find((p) => p?.apiKey?.trim())
             ?.apiKey?.trim();
-        if (sudorouterApiKey) {
+        const shouldBackfillBaseUrl = !tavilyBaseUrl;
+        const shouldBackfillApiKey = !tavilyApiKey && !!sudorouterApiKey;
+        if (shouldBackfillApiKey || shouldBackfillBaseUrl) {
           if (!config.plugins || typeof config.plugins !== 'object') {
             (config as Record<string, unknown>).plugins = { entries: {} };
           }
@@ -463,12 +466,14 @@ export function repairOpenClawConfig(): void {
               ...existingTavilyConfig,
               webSearch: {
                 ...existingWebSearch,
-                apiKey: sudorouterApiKey,
+                ...(shouldBackfillApiKey ? { apiKey: sudorouterApiKey } : {}),
+                ...(shouldBackfillBaseUrl ? { baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL } : {}),
               },
             },
           };
           changed = true;
-          mainLog('Sudoclaw', 'Repaired tavily apiKey from sudorouter provider');
+          const repairedFields = [shouldBackfillApiKey ? 'apiKey' : null, shouldBackfillBaseUrl ? 'baseUrl' : null].filter(Boolean).join(' + ');
+          mainLog('Sudoclaw', `Repaired tavily ${repairedFields}`);
         }
       }
     }
@@ -664,7 +669,7 @@ export function ensureDefaultConfig(): void {
           enabled: true,
           config: {
             webSearch: {
-              baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+              baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL,
             },
           },
         },
