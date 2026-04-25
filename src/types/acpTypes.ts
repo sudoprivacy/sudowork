@@ -58,6 +58,7 @@ export type AcpBackendAll =
   | 'auggie' // Augment Code CLI
   | 'kimi' // Kimi CLI (Moonshot)
   | 'opencode' // OpenCode CLI
+  | 'scode' // Sudo Code CLI
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
@@ -407,6 +408,15 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: false, // ✅ OpenCode CLI，使用 `opencode acp` 启动
     supportsStreaming: false,
     acpArgs: ['acp'], // opencode 使用 acp 子命令
+  },
+  scode: {
+    id: 'scode',
+    name: 'Sudo Code',
+    cliCommand: 'scode',
+    authRequired: false,
+    enabled: true, // ✅ Sudo Code CLI，使用 `scode acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['acp'], // scode 使用 acp 子命令
   },
   droid: {
     id: 'droid',

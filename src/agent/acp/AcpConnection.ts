@@ -17,7 +17,7 @@ import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
-import { killChild, readTextFile, writeJsonRpcMessage, writeTextFile } from './utils';
+import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
 
 const execFile = promisify(execFileCb);
 
@@ -70,6 +70,9 @@ export class AcpConnection {
 
   // Track if child process was spawned with detached: true (needs process group kill)
   private isDetached = false;
+
+  // Use LSP Content-Length framing instead of newline-delimited JSON (e.g. scode)
+  private useLspFraming = false;
 
   /**
    * Kill the current child process (if any) and clear process-related state.
@@ -162,6 +165,7 @@ export class AcpConnection {
     }
 
     this.backend = backend;
+    this.useLspFraming = backend === 'scode';
     if (workingDir) {
       this.workingDir = workingDir;
     }
@@ -198,6 +202,7 @@ export class AcpConnection {
       case 'auggie':
       case 'kimi':
       case 'opencode':
+      case 'scode':
       case 'copilot':
       case 'qoder':
       case 'vibe':
@@ -316,18 +321,40 @@ export class AcpConnection {
     }
 
     // Handle messages from ACP server
-    let buffer = '';
-    child.stdout?.on('data', (data: Buffer) => {
-      const dataStr = data.toString();
-      buffer += dataStr;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
+    if (this.useLspFraming) {
+      // LSP Content-Length framed reader (used by scode)
+      let lspBuffer = Buffer.alloc(0);
+      let expectedLength = -1;
+      child.stdout?.on('data', (data: Buffer) => {
+        lspBuffer = Buffer.concat([lspBuffer, data]);
+        while (lspBuffer.length > 0) {
+          if (expectedLength === -1) {
+            // Look for header separator \r\n\r\n or \n\n
+            const bufStr = lspBuffer.toString('utf-8');
+            let sepIdx = bufStr.indexOf('\r\n\r\n');
+            let sepLen = 4;
+            if (sepIdx === -1) {
+              sepIdx = bufStr.indexOf('\n\n');
+              sepLen = 2;
+            }
+            if (sepIdx === -1) break; // Need more data for complete header
+            const header = bufStr.slice(0, sepIdx);
+            const match = header.match(/Content-Length:\s*(\d+)/i);
+            if (!match) {
+              // Not a valid header, skip past separator
+              lspBuffer = Buffer.from(bufStr.slice(sepIdx + sepLen), 'utf-8');
+              continue;
+            }
+            expectedLength = parseInt(match[1], 10);
+            lspBuffer = Buffer.from(bufStr.slice(sepIdx + sepLen), 'utf-8');
+          }
+          if (lspBuffer.length < expectedLength) break; // Need more data for body
+          const body = lspBuffer.slice(0, expectedLength).toString('utf-8');
+          lspBuffer = lspBuffer.slice(expectedLength);
+          expectedLength = -1;
           try {
             const handleStart = ACP_PERF_LOG ? Date.now() : 0;
-            const message = JSON.parse(line) as AcpMessage;
+            const message = JSON.parse(body) as AcpMessage;
             this.handleMessage(message);
             if (ACP_PERF_LOG) {
               const handleDuration = Date.now() - handleStart;
@@ -335,12 +362,39 @@ export class AcpConnection {
                 console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
               }
             }
-          } catch (error) {
-            // Ignore parsing errors for non-JSON messages
+          } catch {
+            // Ignore parsing errors
           }
         }
-      }
-    });
+      });
+    } else {
+      // Newline-delimited JSON reader (default for most ACP backends)
+      let buffer = '';
+      child.stdout?.on('data', (data: Buffer) => {
+        const dataStr = data.toString();
+        buffer += dataStr;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const handleStart = ACP_PERF_LOG ? Date.now() : 0;
+              const message = JSON.parse(line) as AcpMessage;
+              this.handleMessage(message);
+              if (ACP_PERF_LOG) {
+                const handleDuration = Date.now() - handleStart;
+                if (handleDuration > 5) {
+                  console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
+                }
+              }
+            } catch (error) {
+              // Ignore parsing errors for non-JSON messages
+            }
+          }
+        }
+      });
+    }
 
     // Initialize protocol with timeout, also racing against early process exit
     const initStart = Date.now();
@@ -386,6 +440,7 @@ export class AcpConnection {
     this.isInitialized = false;
     this.isSetupComplete = false;
     this.isDetached = false;
+    this.useLspFraming = false;
     this.backend = null;
     this.initializeResponse = null;
     this.configOptions = null;
@@ -526,13 +581,21 @@ export class AcpConnection {
 
   private sendMessage(message: AcpRequest | AcpNotification): void {
     if (this.child) {
-      writeJsonRpcMessage(this.child, message);
+      if (this.useLspFraming) {
+        writeJsonRpcMessageLsp(this.child, message);
+      } else {
+        writeJsonRpcMessage(this.child, message);
+      }
     }
   }
 
   private sendResponseMessage(response: AcpResponse): void {
     if (this.child) {
-      writeJsonRpcMessage(this.child, response);
+      if (this.useLspFraming) {
+        writeJsonRpcMessageLsp(this.child, response);
+      } else {
+        writeJsonRpcMessage(this.child, response);
+      }
     }
   }
 
@@ -814,7 +877,8 @@ export class AcpConnection {
     // Some CLIs require absolute paths for cwd
     // - Copilot: "Directory path must be absolute: ."
     // - Codex (via codex-acp): "cwd is not absolute: ."
-    if (this.backend === 'copilot' || this.backend === 'codex') {
+    // - Scode: "params.cwd must be an absolute path"
+    if (this.backend === 'copilot' || this.backend === 'codex' || this.backend === 'scode') {
       return path.resolve(cwd);
     }
 
@@ -1022,6 +1086,7 @@ export class AcpConnection {
     this.sessionId = null;
     this.isInitialized = false;
     this.isSetupComplete = false;
+    this.useLspFraming = false;
     this.backend = null;
     this.initializeResponse = null;
     this.configOptions = null;
