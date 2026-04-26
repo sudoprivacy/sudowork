@@ -65,7 +65,7 @@ Features are grouped by category. Coverage status:
 
 | Feature | Status | Test Case | Notes |
 |---------|--------|-----------|-------|
-| EnterPlanMode / ExitPlanMode | Covered | scode-planning-mode | Plan calculator → implement → test |
+| EnterPlanMode / ExitPlanMode | Covered | scode-planning-mode, scode-planning-and-iteration | Plan → implement → test → iterate |
 | TodoWrite | Gap | — | Task list management |
 | AskUserQuestion | Gap | — | Scode prompts user for clarification |
 | StructuredOutput | Gap | — | Return structured data |
@@ -95,7 +95,7 @@ Features are grouped by category. Coverage status:
 
 | Feature | Status | Test Case | Notes |
 |---------|--------|-----------|-------|
-| Session auto-save | Gap | — | Verify .scode/sessions/ created |
+| Session auto-save | Covered | scode-session-management | Implicit — session persists across turns |
 | /resume (load saved session) | Gap | — | |
 | /session list / switch / fork | Gap | — | |
 | /export (session to markdown) | Gap | — | |
@@ -147,13 +147,13 @@ Features are grouped by category. Coverage status:
 | Planning & Structured | 1 | 4 | 0 | 5 |
 | Background & Parallel | 0 | 5 | 0 | 5 |
 | Git Workflow | 1 | 4 | 0 | 5 |
-| Session Management | 0 | 5 | 0 | 5 |
+| Session Management | 1 | 4 | 0 | 5 |
 | Config & Discovery | 1 | 5 | 1 | 7 |
 | Diagnostics | 3 | 1 | 0 | 4 |
 | Auth | 2 | 2 | 0 | 4 |
-| **Total** | **21** | **33** | **2** | **56** |
+| **Total** | **22** | **32** | **2** | **56** |
 
-**Current coverage: 21/54 testable features = ~39%**
+**Current coverage: 22/54 testable features = ~41%**
 
 Additionally, `scode-multi-tool-chain` covers the read → analyze → write → verify
 cross-tool integration pattern that exercises multiple features in a single flow.
