@@ -64,6 +64,7 @@ export type AcpBackendAll =
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
+  | 'sudo-code' // sudo-code Rust agent (nexus-integrated)
   | 'custom'; // User-configured custom ACP agent
 
 /**
@@ -471,6 +472,15 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: false,
     supportsStreaming: false,
+  },
+  'sudo-code': {
+    id: 'sudo-code',
+    name: 'Sudo Code',
+    cliCommand: 'sudo-code',
+    authRequired: false,
+    enabled: false, // spawned by nexusd integration, not via the CLI auto-detection
+    supportsStreaming: false,
+    acpArgs: [],
   },
   custom: {
     id: 'custom',
