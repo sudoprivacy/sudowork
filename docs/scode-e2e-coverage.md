@@ -105,7 +105,7 @@ Features are grouped by category. Coverage status:
 
 | Feature | Status | Test Case | Notes |
 |---------|--------|-----------|-------|
-| /model (switch model) | N/A | — | Not available in ACP mode — feature gap |
+| /model (switch model) | Covered | scode-slash-commands | Show current + switch verified |
 | /permissions (switch mode) | Gap | — | read-only vs workspace-write vs danger |
 | /auth (switch auth mode) | N/A | — | Managed by sudowork credential injection |
 | /skills (list/invoke) | Gap | — | |
@@ -118,10 +118,10 @@ Features are grouped by category. Coverage status:
 
 | Feature | Status | Test Case | Notes |
 |---------|--------|-----------|-------|
-| /doctor | Gap | — | Auth, config, workspace health |
-| /status | Gap | — | Model, permissions, git state |
+| /doctor | Covered | scode-slash-commands | Via slash command in ACP |
+| /status | Covered | scode-slash-commands | Model, permissions, usage |
 | /sandbox | Gap | — | Isolation status |
-| /cost (token usage) | Gap | — | |
+| /cost (token usage) | Covered | scode-slash-commands | Token counts |
 
 ### 12. Auth
 
@@ -148,12 +148,12 @@ Features are grouped by category. Coverage status:
 | Background & Parallel | 0 | 5 | 0 | 5 |
 | Git Workflow | 1 | 4 | 0 | 5 |
 | Session Management | 0 | 5 | 0 | 5 |
-| Config & Discovery | 0 | 6 | 2 | 8 |
-| Diagnostics | 0 | 4 | 0 | 4 |
+| Config & Discovery | 1 | 5 | 1 | 7 |
+| Diagnostics | 3 | 1 | 0 | 4 |
 | Auth | 2 | 2 | 0 | 4 |
-| **Total** | **17** | **37** | **3** | **57** |
+| **Total** | **21** | **33** | **2** | **56** |
 
-**Current coverage: 17/54 testable features = ~31%**
+**Current coverage: 21/54 testable features = ~39%**
 
 Additionally, `scode-multi-tool-chain` covers the read → analyze → write → verify
 cross-tool integration pattern that exercises multiple features in a single flow.
