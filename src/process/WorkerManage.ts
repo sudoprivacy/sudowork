@@ -7,6 +7,7 @@
 import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
 import OpenClawAgent from './task/OpenClawAgent';
+import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
@@ -66,6 +67,17 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         // Extract model: prefer openclawModelId (per-conversation), then runtimeValidation, then model
         model: modelFromOpenClawModelId || modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
+        yoloMode: options?.yoloMode,
+      });
+      if (!options?.skipCache) {
+        taskList.push({ id: conversation.id, task });
+      }
+      return task;
+    }
+    case 'remote-agent': {
+      const task = new RemoteAgent({
+        ...conversation.extra,
+        conversation_id: conversation.id,
         yoloMode: options?.yoloMode,
       });
       if (!options?.skipCache) {

@@ -158,8 +158,18 @@ export interface IConfigStorageRefer {
   'settings.tenant.enabled'?: Record<number, boolean>;
   // LLM request timeout in seconds / LLM 请求超时（秒）
   'agent.promptTimeout'?: number;
-  // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
+  /** Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收 */
   'agent.idleTimeout'?: number;
+  // App mode: consumer ('c') or enterprise ('e') / 应用模式：C 端或 B 端企业版
+  'system.appMode'?: 'c' | 'e';
+  // Enterprise (eeclaw) server URL / 企业版服务器地址
+  'eeclaw.serverUrl'?: string;
+  // Enterprise user info / 企业用户信息
+  'eeclaw.userInfo'?: import('./types/eeclawTypes').EeclawUserInfo | null;
+  // Enterprise agent config from server / 企业版 agent 配置
+  'eeclaw.agentConfig'?: import('./types/eeclawTypes').EeclawAgentConfig | null;
+  // Enterprise last sync timestamps / 企业版上次同步时间
+  'eeclaw.lastSync'?: import('./types/eeclawTypes').EeclawLastSync;
 }
 
 export interface IEnvStorageRefer {
@@ -303,6 +313,35 @@ export type TChatConversation =
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
           cronJobBoundName?: string;
+        }
+      >,
+      'model'
+    >
+  | Omit<
+      IChatConversation<
+        'remote-agent',
+        {
+          workspace?: string;
+          agentName?: string;
+          presetContext?: string;
+          /** Enterprise server URL / 企业服务器地址 */
+          serverUrl?: string;
+          /** Enterprise auth token / 企业认证 token */
+          token?: string;
+          /** Session ID for resume / 会话恢复的 session ID */
+          sessionId?: string;
+          /** 启用的 skills 列表 / Enabled skills list */
+          enabledSkills?: string[];
+          /** 预设助手 ID / Preset assistant ID */
+          presetAssistantId?: string;
+          /** 是否置顶会话 / Whether this conversation is pinned */
+          pinned?: boolean;
+          /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
+          pinnedAt?: number;
+          /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
+          currentModelId?: string;
+          /** Explicit marker for temporary health-check conversations */
+          isHealthCheck?: boolean;
         }
       >,
       'model'

@@ -47,6 +47,7 @@ import { initImageGenerationBridge } from './imageGenerationBridge';
 import { initSecretBridge } from './secretBridge';
 import { initPwdLoginBridge } from './pwdLoginBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
+import { initEeclawBridge } from './eeclawBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -95,6 +96,7 @@ export function initAllBridges(): void {
   initSecretBridge();
   initPwdLoginBridge();
   initWorkspaceBridge();
+  initEeclawBridge();
 }
 
 /**

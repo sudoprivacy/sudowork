@@ -43,6 +43,28 @@ export const initializeProcess = async () => {
   }
   perfLog('initBridge', Date.now() - bridgeStart);
 
+  // 2.5. Enterprise mode (eeclaw) startup
+  // If app is in enterprise mode, sync skills/assistants from server
+  const { isEnterpriseMode } = await import('@/common/eeclawMode');
+  const isEnterprise = await isEnterpriseMode();
+  if (isEnterprise) {
+    mainLog('Process', 'Enterprise mode detected, running startup sync...');
+    try {
+      const { ConfigStorage } = await import('@/common/storage');
+      const serverUrl = await ConfigStorage.get<string>('eeclaw.serverUrl');
+      if (serverUrl) {
+        mainLog('Process', `Enterprise server: ${serverUrl}`);
+        // Background sync - don't block startup
+        const { ipcBridge } = await import('@/common');
+      void ipcBridge.eeclaw.syncAll.invoke().catch((error) => {
+          mainError('Process', 'Enterprise sync failed (non-fatal)', error);
+        });
+      }
+    } catch (error) {
+      mainError('Process', 'Enterprise mode startup failed (non-fatal)', error);
+    }
+  }
+
   // 3. Start ServiceManager — installs missing runtimes & starts services (non-blocking)
   //    Handles: Node.js, Sudoclaw, Nexus install + OpenClaw gateway + Nexus + SafetyPollingService
   const { serviceManager } = await import('./services/serviceManager');

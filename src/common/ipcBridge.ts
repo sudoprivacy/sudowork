@@ -1443,3 +1443,28 @@ export const pwdLogin = {
   /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
   start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
 };
+
+// ==================== Enterprise (eeclaw) API ====================
+
+import type { AppMode, EeclawAgentConfig, EeclawUserInfo, EeclawConversation, EeclawSkill, EeclawAssistant } from './types/eeclawTypes';
+
+export const eeclaw = {
+  /** Get current app mode */
+  getMode: bridge.buildProvider<IBridgeResponse<{ mode: AppMode }>, void>('eeclaw.get-mode'),
+  /** Set app mode */
+  setMode: bridge.buildProvider<IBridgeResponse, { mode: AppMode }>('eeclaw.set-mode'),
+  /** Login to enterprise server */
+  login: bridge.buildProvider<IBridgeResponse<EeclawUserInfo>, { serverUrl: string; username: string; password: string }>('eeclaw.login'),
+  /** Get server config */
+  getServerConfig: bridge.buildProvider<IBridgeResponse<EeclawAgentConfig>, void>('eeclaw.get-server-config'),
+  /** Sync all resources (conversations, skills, assistants) */
+  syncAll: bridge.buildProvider<IBridgeResponse, void>('eeclaw.sync-all'),
+  /** Get cloud conversations */
+  getCloudConversations: bridge.buildProvider<IBridgeResponse<EeclawConversation[]>, void>('eeclaw.get-cloud-conversations'),
+  /** Get cloud skills */
+  getCloudSkills: bridge.buildProvider<IBridgeResponse<EeclawSkill[]>, void>('eeclaw.get-cloud-skills'),
+  /** Get cloud assistants */
+  getCloudAssistants: bridge.buildProvider<IBridgeResponse<EeclawAssistant[]>, void>('eeclaw.get-cloud-assistants'),
+  /** Agent status change event (Main -> Renderer) */
+  agentStatus: bridge.buildEmitter<{ conversationId: string; status: string }>('eeclaw.agent-status'),
+};

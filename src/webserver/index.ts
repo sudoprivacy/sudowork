@@ -17,6 +17,7 @@ import { setupBasicMiddleware, setupCors, setupErrorHandler } from './setup';
 import { registerAuthRoutes } from './routes/authRoutes';
 import { registerApiRoutes } from './routes/apiRoutes';
 import { registerStaticRoutes } from './routes/staticRoutes';
+import { registerEeclawMockRoutes } from './routes/eeclawMockRoutes';
 import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
 
 // Express Request 类型扩展定义在 src/webserver/types/express.d.ts
@@ -262,6 +263,11 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
   registerAuthRoutes(app);
   registerApiRoutes(app);
   registerStaticRoutes(app);
+
+  // eeclaw mock routes (only when EECLAW_MOCK=1)
+  if (process.env.EECLAW_MOCK === '1') {
+    registerEeclawMockRoutes(app);
+  }
 
   // 配置错误处理（必须最后）/ Setup error handler (must be last)
   setupErrorHandler(app);
