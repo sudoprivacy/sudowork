@@ -1,0 +1,56 @@
+name: "scode edit file"
+description: >
+  Test the edit_file tool explicitly: ask scode to write a file, then
+  make a targeted text replacement, then read it back to confirm.
+  Verifies write_file → edit_file → read_file chain.
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: New conversation with Sudo Code ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+
+  # ── Phase 2: Write a file with known content ──
+  - op: type_text
+    text: "Write a file at /tmp/scode-edit-test.txt with this exact content:\nHello World\nThis is line two\nGoodbye World"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-edit-01-written.png"
+  - op: judge
+    expect: "write file"
+
+  # ── Phase 3: Edit — replace "Goodbye" with "See you" ──
+  - op: type_text
+    text: "Now use the edit tool to replace \"Goodbye World\" with \"See you later\" in that file. Then read it back and show me the full content."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-edit-02-edited.png"
+  - op: judge
+    expect: "See you later"
+
+  # ── Phase 4: Cleanup ──
+  - op: type_text
+    text: "Delete /tmp/scode-edit-test.txt"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 30
