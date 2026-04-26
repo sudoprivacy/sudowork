@@ -409,6 +409,7 @@
   "channels.zentaoDesc": "Connect Zentao project management, AI can read and create bugs",
   "channels.wechat.install": "Connect WeChat",
   "channels.wechat.installDesc": "Scan the QR code with WeChat to connect your personal WeChat account.",
+  "channels.wechat.privacyWarning": "Note: All messages sent via WeChat will pass through WeChat servers first.",
   "channels.wechat.installing": "Generating QR code...",
   "channels.wechat.installSuccess": "WeChat connected successfully",
   "channels.wechat.installFailed": "Login failed",

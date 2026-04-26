@@ -409,6 +409,7 @@
   "channels.zentaoDesc": "连接禅道项目管理系统，AI 可读取和创建 Bug",
   "channels.wechat.install": "连接微信",
   "channels.wechat.installDesc": "扫描二维码，将你的个人微信连接到 Sudowork。",
+  "channels.wechat.privacyWarning": "注意：所有通过微信发送的消息都会先经过微信服务器。",
   "channels.wechat.installing": "正在生成二维码...",
   "channels.wechat.installSuccess": "微信连接成功",
   "channels.wechat.installFailed": "登录失败",
