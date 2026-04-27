@@ -60,6 +60,13 @@
   "refresh": "새로고침",
   "tray.showWindow": "Sudowork 표시",
   "tray.quit": "종료",
+  "siderMenu": {
+    "agent": "디지털 어시스턴트",
+    "skillStore": "스킬 스토어",
+    "security": "보안",
+    "webui": "원격 접속",
+    "cron": "예약 작업"
+  },
   "ariaLabel": {
     "close": "닫기",
     "edit": "편집",

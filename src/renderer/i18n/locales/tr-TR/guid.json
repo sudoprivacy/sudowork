@@ -52,6 +52,10 @@
       "compareContent": "Lütfen ... ve ... arasındaki farkları ilkeler, artılar/eksiler ve kullanım alanları açısından analiz edin"
     }
   },
+  "skillSelectorTitle": "Beceriler",
+  "noSkills": "Mevcut beceri yok",
+  "skillAdded": "Beceri eklendi: {{name}}",
+  "skillNotInstalled": "Beceri yüklü değil: {{name}}",
   "trySuggestionPrompts": "Tıklanabilir örnek bilgi istemleri:",
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "Kullanılabilir bir Ana Ajan yok. Lütfen Google'a giriş yapın veya Claude/Codex CLI kurun. Ayarlara gitmek ister misiniz?",

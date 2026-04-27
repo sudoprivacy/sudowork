@@ -63,6 +63,13 @@
   "refresh": "刷新",
   "tray.showWindow": "显示 Sudowork",
   "tray.quit": "退出",
+  "siderMenu": {
+    "agent": "数字助手",
+    "skillStore": "技能商店",
+    "security": "安全防护",
+    "webui": "远程连接",
+    "cron": "定时任务"
+  },
   "ariaLabel": {
     "close": "关闭",
     "edit": "编辑",
