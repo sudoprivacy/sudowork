@@ -93,3 +93,17 @@ When that assumption no longer holds, the client must try unauthenticated first
 and fall back to a bearer token from a sudowork-side credential store.
 
 Owner: this repo. Blocks: hardening sudowork against multi-tenant deployment.
+
+## password-not-in-cluster-profile
+
+`pwd_login` / password-related bricks must stay OUT of nexus's `CLUSTER` profile
+(`src/nexus/contracts/deployment_profile.py: _CLUSTER_BRICKS`). The cluster
+profile is what sudowork ships, and the password integration phasing is being
+decided separately on the password-agent track (see memory:
+`feedback_browser_ai_vs_zhoujinjing.md` and `project_password_agent_integration.md`).
+Future commits adding nexus-side gRPC service impl or audit-node setup must
+not pull this in.
+
+Owner: nexus repo (deployment_profile.py). Blocks: nothing today; this is a
+guardrail entry, not a TODO. Remove only when password integration is ready
+to ship inside cluster profile.
