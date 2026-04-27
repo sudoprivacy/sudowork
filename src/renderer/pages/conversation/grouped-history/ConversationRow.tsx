@@ -174,7 +174,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   onOpenMenu(conversation);
                 }}
               >
-                <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '16px', height: '16px' }}>
+                <div className='flex flex-row gap-1 items-center justify-center' style={{ width: '20px', height: '16px' }}>
                   <div className='w-2px h-2px rounded-full bg-current'></div>
                   <div className='w-2px h-2px rounded-full bg-current'></div>
                   <div className='w-2px h-2px rounded-full bg-current'></div>
