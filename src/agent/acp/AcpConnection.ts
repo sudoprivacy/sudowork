@@ -8,7 +8,6 @@ import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPe
 import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { ChildProcess } from 'child_process';
 import { execFile as execFileCb } from 'child_process';
-import { randomUUID } from 'crypto';
 import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -20,7 +19,6 @@ import { recordFirstToken } from '@process/telemetry';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
-import { registerNexusAgent } from '@common/nexus/agentRegistry';
 
 const execFile = promisify(execFileCb);
 
@@ -79,9 +77,6 @@ export class AcpConnection {
   // so scode must NOT be routed through this path.
   private useLspFraming = false;
 
-  // Nexus AgentRegistry: agent_id of the registered sudo-code agent (null for other backends)
-  private nexusAgentId: string | null = null;
-
   /**
    * Kill the current child process (if any) and clear process-related state.
    * Used by both disconnect() and retry paths. Does NOT reset session-level
@@ -112,25 +107,6 @@ export class AcpConnection {
   private async connectGenericBackend(backend: Exclude<AcpBackend, 'claude' | 'codebuddy' | 'codex'>, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
     const result = await spawnGenericBackend(backend, cliPath, workingDir, acpArgs, customEnv);
     await this.spawnAndSetup(result, backend);
-  }
-
-  // sudo-code 后端：注册 nexus AgentRegistry 后再启动进程
-  private async connectSudoCodeBackend(cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
-    const agentId = `sudo-code-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
-    const reg = await registerNexusAgent(agentId, 'sudo-code');
-
-    const nexusEnv: Record<string, string> = {};
-    if (reg) {
-      nexusEnv['NEXUS_AGENT_ID'] = reg.agent_id;
-      nexusEnv['NEXUS_WORKSPACE'] = reg.workspace;
-      nexusEnv['NEXUS_API_KEY'] = reg.api_key;
-      this.nexusAgentId = reg.agent_id;
-      mainLog('NexusAgentRegistry', `Registered sudo-code agent: ${reg.agent_id}, workspace: ${reg.workspace}`);
-    }
-
-    const mergedEnv: Record<string, string> = { ...nexusEnv, ...(customEnv ?? {}) };
-    const result = await spawnGenericBackend('sudo-code', cliPath, workingDir, acpArgs, mergedEnv);
-    await this.spawnAndSetup(result, 'sudo-code');
   }
 
   /** Npx-based backends that may need npm cache recovery on version mismatch */
@@ -238,13 +214,6 @@ export class AcpConnection {
           throw new Error(`CLI path is required for ${backend} backend`);
         }
         await this.connectGenericBackend(backend, cliPath, workingDir, acpArgs, customEnv);
-        break;
-
-      case 'sudo-code':
-        if (!cliPath) {
-          throw new Error('CLI path is required for sudo-code backend');
-        }
-        await this.connectSudoCodeBackend(cliPath, workingDir, acpArgs, customEnv);
         break;
 
       case 'custom':
@@ -480,7 +449,6 @@ export class AcpConnection {
     this.configOptions = null;
     this.models = null;
     this.child = null;
-    this.nexusAgentId = null;
 
     // 3. Notify AcpAgent about disconnect
     this.onDisconnect({ code, signal });
