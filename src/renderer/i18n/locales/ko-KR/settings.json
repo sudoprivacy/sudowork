@@ -107,6 +107,8 @@
   "cacheClearFailed": "캐시 정리 실패",
   "language": "언어",
   "closeToTray": "트레이로 닫기",
+  "avatarEnabled": "플로팅 아바타",
+  "avatarEnabledDesc": "현재 대화 상태를 반영하는 플로팅 데스크톱 컴패니언 표시",
   "gemini": "Gemini",
   "model": "모델",
   "runtime": "런타임",

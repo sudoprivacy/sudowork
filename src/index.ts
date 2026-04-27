@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { initMainAdapterWithWindow } from './adapter/main';
+import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
@@ -22,7 +23,7 @@ import { ProcessConfig } from './process/initStorage';
 import { loadShellEnvironmentAsync, mergePaths } from './process/utils/shellEnv';
 import { initializeAcpDetector } from './process/bridge';
 import { registerWindowMaximizeListeners } from './process/bridge/windowControlsBridge';
-import { onCloseToTrayChanged, onLanguageChanged } from './process/bridge/systemSettingsBridge';
+import { onAvatarEnabledChanged, onCloseToTrayChanged, onLanguageChanged } from './process/bridge/systemSettingsBridge';
 import WorkerManage from './process/WorkerManage';
 import { setupApplicationMenu } from './utils/appMenu';
 import { startWebServer } from './webserver';
@@ -323,7 +324,39 @@ const isVersionMode = hasCommand('--version') || hasCommand('-v');
 let isExplicitQuit = false;
 
 let mainWindow: BrowserWindow;
+let avatarWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+/**
+ * SUDOWORK_AVATAR_DEV=1 fast-path for dev iteration: opens the avatar
+ * window immediately without waiting for the persisted user setting
+ * read. Persisted setting still drives behavior at init time and via
+ * the runtime listener below.
+ */
+function isAvatarDevEnvSet(): boolean {
+  const v = process.env['SUDOWORK_AVATAR_DEV'];
+  return v === '1' || v === 'true';
+}
+
+function openAvatarWindow(): void {
+  if (avatarWindow && !avatarWindow.isDestroyed()) return;
+  try {
+    avatarWindow = createAvatarWindow();
+    avatarWindow.on('closed', () => {
+      avatarWindow = null;
+    });
+  } catch (error) {
+    mainError('App', 'Failed to create avatar window:', error);
+  }
+}
+
+function closeAvatarWindow(): void {
+  if (avatarWindow && !avatarWindow.isDestroyed()) {
+    avatarWindow.close();
+  }
+  avatarWindow = null;
+}
+
 let isQuitting = false;
 let closeToTrayEnabled = false;
 let quitCleanupInProgress = false;
@@ -563,6 +596,19 @@ const createWindow = (): void => {
   setupApplicationMenu();
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
+
+  // Avatar fast-path: SUDOWORK_AVATAR_DEV=1 opens the floating window
+  // immediately (before backend init), useful for dev iteration. The
+  // persisted user setting is honored separately after initializeProcess()
+  // completes — see the post-init block below.
+  // SUDOWORK_AVATAR_DEV=1 在 init 完成前就打开 avatar，方便开发迭代；
+  // 持久化的用户设置由 init 完成后的逻辑读取。
+  if (isAvatarDevEnvSet()) {
+    openAvatarWindow();
+  }
+  mainWindow.on('closed', () => {
+    closeAvatarWindow();
+  });
 
   // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI, or nightly builds)
   // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景；nightly 版本也跳过自动更新提醒）
@@ -840,6 +886,24 @@ const handleAppReady = async (): Promise<void> => {
     // 监听语言变更，刷新托盘菜单文案 / Listen for language changes to refresh tray menu labels
     onLanguageChanged(() => {
       refreshTrayMenu();
+    });
+
+    // 初始化 avatar 浮窗：读持久化设置；SUDOWORK_AVATAR_DEV 开发覆盖在窗口创建时已生效
+    // Initialize floating avatar from persisted setting (SUDOWORK_AVATAR_DEV
+    // override is already applied at window creation time)
+    try {
+      const savedAvatarEnabled = await ProcessConfig.get('avatar.enabled');
+      if (savedAvatarEnabled === true) {
+        openAvatarWindow();
+      }
+    } catch (error) {
+      mainError('App', 'Failed to read avatar.enabled setting:', error);
+    }
+    // 监听 avatar 开关变更（用户在设置 UI 切换时立即生效）
+    // Listen for avatar toggle changes (apply immediately when user toggles in Settings)
+    onAvatarEnabledChanged((enabled) => {
+      if (enabled) openAvatarWindow();
+      else closeAvatarWindow();
     });
 
     // Flush pending deep-link URL (received before window was ready)

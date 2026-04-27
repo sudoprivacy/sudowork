@@ -144,6 +144,23 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
+  // 桌面 avatar 浮窗开关 / Floating desktop avatar toggle
+  const [avatarEnabled, setAvatarEnabled] = useState(false);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getAvatarEnabled
+      .invoke()
+      .then((enabled) => setAvatarEnabled(enabled))
+      .catch(() => {});
+  }, []);
+
+  const handleAvatarEnabledChange = useCallback((checked: boolean) => {
+    setAvatarEnabled(checked);
+    ipcBridge.systemSettings.setAvatarEnabled.invoke({ enabled: checked }).catch(() => {
+      setAvatarEnabled(!checked);
+    });
+  }, []);
+
   // 超时设置状态 / Timeout settings state
   const [promptTimeout, setPromptTimeout] = useState(DEFAULT_PROMPT_TIMEOUT);
   const [idleTimeout, setIdleTimeout] = useState(DEFAULT_IDLE_TIMEOUT);
@@ -201,6 +218,12 @@ const SystemModalContent: React.FC = () => {
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
     { key: 'closeToTray', label: t('settings.closeToTray'), component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} /> },
+    {
+      key: 'avatarEnabled',
+      label: t('settings.avatarEnabled'),
+      hint: t('settings.avatarEnabledDesc'),
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
+    },
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),

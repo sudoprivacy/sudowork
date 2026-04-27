@@ -58,12 +58,12 @@ export type AcpBackendAll =
   | 'auggie' // Augment Code CLI
   | 'kimi' // Kimi CLI (Moonshot)
   | 'opencode' // OpenCode CLI
+  | 'scode' // Sudo Code CLI
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
-  | 'nexus' // Nexus AI filesystem agent (via `nexus chat --acp`)
   | 'custom'; // User-configured custom ACP agent
 
 /**
@@ -409,6 +409,15 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     supportsStreaming: false,
     acpArgs: ['acp'], // opencode 使用 acp 子命令
   },
+  scode: {
+    id: 'scode',
+    name: 'Sudo Code',
+    cliCommand: 'scode',
+    authRequired: false,
+    enabled: true, // ✅ Sudo Code CLI，使用 `scode acp` 启动
+    supportsStreaming: false,
+    acpArgs: ['acp'], // scode 使用 acp 子命令
+  },
   droid: {
     id: 'droid',
     name: 'Factory Droid',
@@ -462,15 +471,6 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: false,
     supportsStreaming: false,
-  },
-  nexus: {
-    id: 'nexus',
-    name: 'Nexus',
-    cliCommand: 'nexus',
-    acpArgs: ['chat', '--acp'],
-    authRequired: false,
-    enabled: true,
-    supportsStreaming: true,
   },
   custom: {
     id: 'custom',

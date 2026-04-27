@@ -98,12 +98,10 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     const { cdpPort } = require('@/utils/configureChromium');
     if (cdpPort) {
       cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
-      cleanEnv.NEXUS_CDP_PORT = String(cdpPort);
     }
   } catch {
     // Fallback: use default CDP port
     cleanEnv.AI_DEV_BROWSER_PORT = '9230';
-    cleanEnv.NEXUS_CDP_PORT = '9230';
   }
 
   // Inject safety hook via NODE_OPTIONS if enabled
@@ -121,6 +119,15 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     cleanEnv.PYTHONPATH = pythonpath;
     console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
+
+  // PYTHONPATH for ai_dev_browser module resolution (browser tool).
+  // The browser skill dir contains ai_dev_browser (symlinked from vendor).
+  // Python silently ignores non-existent entries, so no existence check needed.
+  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser');
+  const prevPythonPath = cleanEnv.PYTHONPATH || '';
+  cleanEnv.PYTHONPATH = prevPythonPath
+    ? `${browserSkillDir}${path.delimiter}${prevPythonPath}`
+    : browserSkillDir;
 
   return cleanEnv;
 }
@@ -359,6 +366,31 @@ async function prepareCodebuddy(): Promise<NpxPrepareResult> {
 }
 
 /**
+ * Read Anthropic-compatible credentials from sudoclaw.json providers.
+ * Looks for the first provider with api=anthropic-messages and returns
+ * its apiKey and baseUrl (with /v1 suffix stripped since scode appends it).
+ */
+function readAnthropicCredsFromSudoclaw(): { apiKey: string; baseUrl: string } | null {
+  try {
+    const configPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
+    const content = require('fs').readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(content);
+    const providers = config?.models?.providers;
+    if (!providers || typeof providers !== 'object') return null;
+    for (const provider of Object.values(providers) as Array<Record<string, unknown>>) {
+      if (provider.api === 'anthropic-messages' && typeof provider.apiKey === 'string' && typeof provider.baseUrl === 'string') {
+        // Strip trailing /v1 since scode appends it internally
+        const baseUrl = (provider.baseUrl as string).replace(/\/v1\/?$/, '');
+        return { apiKey: provider.apiKey as string, baseUrl };
+      }
+    }
+  } catch {
+    // sudoclaw.json not found or unreadable — fall through
+  }
+  return null;
+}
+
+/**
  * Spawn a generic ACP backend with clean env and Node version check.
  * Many generic backends are Node.js CLIs (#!/usr/bin/env node) that break
  * when Electron's inherited env resolves to an old Node version.
@@ -375,6 +407,33 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   if (customEnv) {
     Object.assign(cleanEnv, customEnv);
   }
+
+  // Inject Anthropic credentials for scode if not already present in env
+  if (backend === 'scode' && !cleanEnv.ANTHROPIC_API_KEY) {
+    const creds = readAnthropicCredsFromSudoclaw();
+    if (creds) {
+      cleanEnv.ANTHROPIC_API_KEY = creds.apiKey;
+      cleanEnv.ANTHROPIC_BASE_URL = creds.baseUrl;
+      mainLog('[ACP scode]', 'Injected Anthropic credentials from sudoclaw.json');
+    }
+  }
+
+  // Inject Claude Code OAuth token for scode subscription auth if available
+  if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
+    try {
+      const keychain = require('child_process').execFileSync('security', [
+        'find-generic-password', '-s', 'Claude Code-credentials', '-a', require('os').userInfo().username, '-w',
+      ], { encoding: 'utf-8', timeout: 3000 }).trim();
+      const payload = JSON.parse(keychain);
+      if (payload?.claudeAiOauth?.accessToken) {
+        cleanEnv.CLAUDE_CODE_OAUTH_TOKEN = payload.claudeAiOauth.accessToken;
+        mainLog('[ACP scode]', 'Injected Claude Code OAuth token from keychain');
+      }
+    } catch {
+      // Claude Code credentials not available — scode will use other auth methods
+    }
+  }
+
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
   const spawnStart = Date.now();

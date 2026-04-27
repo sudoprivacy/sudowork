@@ -1,0 +1,75 @@
+name: "scode agent switch"
+description: >
+  Test switching between Sudoclaw and Sudo Code agents within the same
+  session. Verify each agent responds independently and correctly.
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Start with Sudoclaw ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudoclaw"
+  - op: pause
+    duration: 3000
+  - op: type_text
+    text: "Reply with exactly: I am Sudoclaw."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-switch-01-sudoclaw.png"
+  - op: judge
+    expect: "Sudoclaw"
+
+  # ── Phase 2: Switch to Sudo Code in a new conversation ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+  - op: type_text
+    text: "Reply with exactly: I am Sudo Code."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-switch-02-sudocode.png"
+  - op: judge
+    expect: "Sudo Code"
+
+  # ── Phase 3: Switch back to Sudoclaw, verify independent ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudoclaw"
+  - op: pause
+    duration: 3000
+  - op: type_text
+    text: "What is 2+2? Reply with the word for the number, not the digit."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-switch-03-back.png"
+  - op: judge
+    expect: "four"

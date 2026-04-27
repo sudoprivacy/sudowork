@@ -127,7 +127,12 @@ export default defineConfig(({ mode }) => {
       build: {
         sourcemap: false,
         reportCompressedSize: false,
-        rollupOptions: { input: { index: resolve('src/preload.ts') } },
+        rollupOptions: {
+          input: {
+            index: resolve('src/preload.ts'),
+            avatar: resolve('src/preload-avatar.ts'),
+          },
+        },
       },
     },
 
@@ -167,7 +172,10 @@ export default defineConfig(({ mode }) => {
         chunkSizeWarningLimit: 1500,
         cssCodeSplit: true,
         rollupOptions: {
-          input: { index: resolve('src/renderer/index.html') },
+          input: {
+            index: resolve('src/renderer/index.html'),
+            avatar: resolve('src/renderer/avatar/index.html'),
+          },
           external: ['node:crypto', 'crypto'],
           output: {
             manualChunks(id: string) {
