@@ -56,8 +56,18 @@ Owner: nexus repo. Blocks: cross-agent boundary teaching at runtime.
 to recipient npub, signed with sender's nexus identity key. Inbound: relay subscription
 filter, decrypt, append to local mirror, emit FileEvent for sys_watch.
 
-Owner: nexus repo (likely `rust/kernel/src/nostr_backend.rs`). Blocks: cross-instance
-A2A and human-on-Damus reach.
+Stub landed in `nexi-lab/nexus#3922` (`rust/kernel/src/nostr_backend.rs`):
+the ObjectStore impl is in place and surfaces `StorageError::NotSupported`
+on every method until the relay client wires up. Mount registration is
+deliberately not added yet — keeps misconfigured nostr mounts from
+dispatching into the stub at runtime.
+
+Remaining: tokio-tungstenite relay client, NIP-04 encrypt/decrypt
+(reuse `k256` already pulled in for the `nostr` feature), local-mirror
+write + FileEvent emission so `sys_watch` callers see relay deliveries
+through the same surface as any other VFS write, mount-side wiring.
+
+Owner: nexus repo. Blocks: cross-instance A2A and human-on-Damus reach.
 
 ## sudo-code-grpc-service
 
