@@ -68,18 +68,23 @@ Replaces the prior ACP-child-process integration path.
 Owner: split — nexus repo for proto + impl, this repo for TS client.
 Blocks: sudowork ↔ sudo-code integration.
 
-## agent-chat-multi-instance
+## agent-chat-multi-instance-read
 
-Multi-pid fan-out and merge for `/agents/{name}/chat-with-me` when more than
-one pid is active for the agent. Single-instance routing already landed
-in `nexi-lab/nexus#3922` (`services::agents::agent_chat::resolve_agent_chat`);
-the ambiguous (>1 active) case currently surfaces a structured error with
-the candidate pid list. The follow-up replaces that error with broadcast
-write semantics (write to every active pid's chat-with-me) and merged
-read semantics (interleaved tail of every active pid's stream). Skipped
-when the path is mounted with `NostrBackend` (remote identity case).
+Multi-pid merge for **reads** of `/agents/{name}/chat-with-me` when
+more than one pid is active for the agent. Write-side broadcast already
+landed in `nexi-lab/nexus#3922`
+(`services::agents::agent_chat::list_active_pid_chat_paths` + kernel
+`sys_write` fan-out): a write addressed at the agent name reaches every
+active `/proc/{pid}/chat-with-me`. Reads still surface the structured
+Ambiguous error pointing at the candidate pids.
 
-Owner: nexus repo. Blocks: addressing a multi-instance agent by name
+The remaining follow-up implements interleaved tail merge — pulling
+the most-recent N entries off each active pid's stream and emitting
+them in timestamp order so a reader using the agent name sees one
+unified conversation surface across instances. Skipped when the path
+is mounted with `NostrBackend` (remote identity case).
+
+Owner: nexus repo. Blocks: reading a multi-instance agent by name
 without picking a pid.
 
 ## sudocode-config-migration
