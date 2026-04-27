@@ -33,11 +33,7 @@ import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
-import { channelEventBus } from '@/channels/agent/ChannelEventBus';
-import { getChannelManager } from '@/channels/core/ChannelManager';
-
-/** Channel source types that need response routing */
-const CHANNEL_SOURCE_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -1074,124 +1070,8 @@ This identity statement takes priority over the default identity in USER.md.
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
 
       // Set up channel response routing if conversation source is a channel type
-      // 当会话来源是渠道类型时，设置响应路由，将 Agent 响应发送回渠道
-      let channelCleanup: (() => void) | null = null;
-      if (conversation?.source && CHANNEL_SOURCE_TYPES.has(conversation.source)) {
-        const channelSource = conversation.source;
-        const channelChatId = conversation.channelChatId;
-        mainLog('conversationBridge', `sendMessage: setting up channel response routing for ${channelSource}, chatId=${channelChatId}`);
-
-        if (channelChatId) {
-          // For WeChat: accumulate text and send once at finish (no edit support)
-          // 微信不支持消息编辑，需要累积文本后一次性发送
-          const isWeChat = channelSource === 'wechat';
-          let accumulatedText = '';
-          const pendingFiles: Array<{ type: 'image' | 'file'; url: string; fileName?: string }> = [];
-
-          // Subscribe to agent messages for this conversation
-          channelCleanup = channelEventBus.onAgentMessage((event) => {
-            if (event.conversation_id !== conversation_id) return;
-
-            // Route content messages back to channel
-            if (event.type === 'content' || event.type === 'file_send') {
-              mainLog('conversationBridge', `Channel route: received ${event.type} for ${channelSource}`);
-
-              // For WeChat: accumulate content, send at finish
-              if (isWeChat) {
-                if (event.type === 'content' && typeof event.data === 'string') {
-                  accumulatedText += event.data;
-                } else if (event.type === 'file_send') {
-                  const { filePath, fileName, fileType } = event.data as { filePath?: string; fileName?: string; fileType?: string };
-                  if (fileType === 'image' && filePath) {
-                    pendingFiles.push({ type: 'image', url: filePath });
-                  } else if (filePath && fileName) {
-                    pendingFiles.push({ type: 'file', url: filePath, fileName });
-                  }
-                }
-              } else {
-                // For other channels (lark, dingtalk, telegram, wecom): send immediately
-                // 其他渠道支持编辑，可以立即发送增量
-                void (async () => {
-                  try {
-                    const channelManager = getChannelManager();
-                    const pluginManager = channelManager.getPluginManager();
-                    if (!pluginManager) {
-                      mainWarn('conversationBridge', 'PluginManager not available for channel routing');
-                      return;
-                    }
-                    const plugins = pluginManager.getAllPlugins();
-                    const plugin = plugins.find((p) => p.type === channelSource);
-                    if (!plugin) {
-                      mainWarn('conversationBridge', `Plugin not found for ${channelSource}`);
-                      return;
-                    }
-
-                    if (event.type === 'file_send') {
-                      const { filePath, fileName, fileType } = event.data as { filePath?: string; fileName?: string; fileType?: string };
-                      if (fileType === 'image' && filePath) {
-                        await plugin.sendMessage(channelChatId, { type: 'image', imageUrl: filePath });
-                      } else if (filePath && fileName) {
-                        await plugin.sendMessage(channelChatId, { type: 'file', fileUrl: filePath, fileName });
-                      }
-                    } else if (event.type === 'content' && typeof event.data === 'string') {
-                      await plugin.sendMessage(channelChatId, { type: 'text', text: event.data, parseMode: 'HTML' });
-                    }
-                  } catch (err) {
-                    mainWarn('conversationBridge', 'Failed to route message to channel:', err);
-                  }
-                })();
-              }
-            }
-
-            // For WeChat: send accumulated content on finish
-            // 微信在 finish 时一次性发送累积的文本和文件
-            if (event.type === 'finish' && isWeChat) {
-              mainLog('conversationBridge', `Channel route (WeChat): finish event, sending accumulated content`);
-              void (async () => {
-                try {
-                  const channelManager = getChannelManager();
-                  const pluginManager = channelManager.getPluginManager();
-                  if (!pluginManager) {
-                    mainWarn('conversationBridge', 'PluginManager not available for channel routing');
-                    return;
-                  }
-                  const plugins = pluginManager.getAllPlugins();
-                  const plugin = plugins.find((p) => p.type === channelSource);
-                  if (!plugin) {
-                    mainWarn('conversationBridge', `Plugin not found for ${channelSource}`);
-                    return;
-                  }
-
-                  // Send accumulated text first
-                  if (accumulatedText.trim()) {
-                    mainLog('conversationBridge', `Channel route (WeChat): sending text (${accumulatedText.length} chars)`);
-                    await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
-                  }
-
-                  // Send pending files after text
-                  for (const file of pendingFiles) {
-                    if (file.type === 'image') {
-                      await plugin.sendMessage(channelChatId, { type: 'image', imageUrl: file.url });
-                    } else {
-                      await plugin.sendMessage(channelChatId, { type: 'file', fileUrl: file.url, fileName: file.fileName });
-                    }
-                  }
-                } catch (err) {
-                  mainWarn('conversationBridge', 'Failed to route accumulated content to WeChat:', err);
-                }
-              })();
-            }
-
-            // Clean up listener on finish
-            if (event.type === 'finish') {
-              mainLog('conversationBridge', `Channel route: finish event, cleaning up listener`);
-              if (channelCleanup) {
-                channelCleanup();
-                channelCleanup = null;
-              }
-            }
-          });
-        }
+      if (conversation) {
+        setupChannelResponseRouting(conversation);
       }
 
       try {
