@@ -53,7 +53,7 @@ Cross-references:
 
 - **One nexusd per sudowork instance.** sudowork starts nexusd at launch and tears it down on quit.
 - **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
-- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup) lives in `services::agent_table::AgentTable`; the Python `AgentRegistry` is a shim that dual-writes through the kernel `agent_*` syscalls. Image config lives on disk under `/agents/{name}/`.
+- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup) lives in `services::agents::agent_table::AgentTable`; the Python `AgentRegistry` is a shim that dual-writes through the kernel `agent_*` syscalls. Profile config lives on disk under `/agents/{name}/`.
 - **gRPC is the integration surface.** sudowork (Node/TS) reaches nexusd through tonic-served gRPC at port 2028; HTTP is reserved for human-facing dashboards.
 - **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: IPC, FEDERATION.
 - **Zone = VFS path mount point.** A zone's visibility boundary is its mount path. ReBAC governs sub-path access within a zone.
@@ -62,28 +62,28 @@ Cross-references:
 
 ## 2. Agent Identity & Runtime
 
-Two namespaces, the same Linux distinction between image and process:
+Two namespaces, the same Linux distinction between an executable on disk and a running process:
 
 | Namespace | Lifetime | Content | Backing store |
 |-----------|----------|---------|---------------|
 | `/agents/{name}/` | Persistent | Profile config: `config.toml`, `prompts/`, `skills/`, `chat-with-me` | Metastore (DT_FILE / DT_DIR) |
 | `/proc/{pid}/` | Ephemeral | Runtime: `status`, `agent` link, `chat-with-me`, `sessions/`, `tasks/`, `workspace/` | In-memory + WAL while pid alive |
 
-`/agents/{name}/` is the stable identity an outsider addresses (other agents, humans on Damus). One image can spawn many `pid`s — different worktrees, parallel work — and all of them share the same image config.
+`/agents/{name}/` is the stable identity an outsider addresses (other agents, humans on Damus). One agent name can spawn many `pid`s — different worktrees, parallel work — and all of them share the same profile.
 
-### 2.1 Image namespace
+### 2.1 Agent-name namespace
 
 ```
-/agents/scode-standard/          ← image config (DT_DIR)
+/agents/scode-standard/          ← profile (DT_DIR)
    config.toml                   ← model selection, MCP endpoints, default workspace recipe
    prompts/                      ← system-prompt overrides, per-skill prompts
    skills/                       ← which tool sets are loadable
-   chat-with-me                  ← image-level conversation endpoint
+   chat-with-me                  ← agent-name conversation endpoint
 ```
 
-`chat-with-me` resolution at the image level depends on the agent kind:
+`chat-with-me` resolution at the agent-name level depends on the kind of agent:
 
-- **Local image with one-or-more running pids** (e.g. `scode-standard`): kernel-internal aggregator that fans writes to every running pid's `chat-with-me` and merges their reads. The aggregator is a `PathResolver` over `/agents/{name}/chat-with-me`, no on-disk content.
+- **Local agent with one-or-more running pids** (e.g. `scode-standard`): kernel-internal aggregator (`services::agents::agent_chat`) routes writes to the matching `/proc/{pid}/chat-with-me` when exactly one instance is active; ambiguous (>1 active pid) and missing (0 active pid) cases surface a structured error pointing at `/proc/{pid}/chat-with-me`.
 - **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`): the path is mounted with `NostrBackend` (§5). Writes become NIP-04 DMs to the configured npub; incoming DMs surface as `sys_watch` wake-ups.
 - **Local persistent identity** (e.g. `human-ethan` running in this nexusd): real DT_STREAM. The sudowork UI reads it for inbox display, writes for outgoing messages.
 
@@ -102,13 +102,13 @@ Two namespaces, the same Linux distinction between image and process:
       project-y/                 ← OS symlink → another host repo checkout
 ```
 
-`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentTable`. The pid descriptor — state, exit code, image name, parent pid, timestamps — stays in `AgentTable`; the resolver renders it as JSON at read time.
+`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentTable`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentTable`; the resolver renders it as JSON at read time.
 
-`/proc/{pid}/agent` is a kernel-resolved DT_LINK to the image directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its image — no metadata duplication.
+`/proc/{pid}/agent` is a kernel-resolved DT_LINK to the agent-name directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its profile — no metadata duplication.
 
 ### 2.3 Spawn lifecycle
 
-1. sudowork sends gRPC `SudoCodeService.StartSession(image="scode-standard", repos=[…])`.
+1. sudowork sends gRPC `SudoCodeService.StartSession(agent="scode-standard", repos=[…])`.
 2. nexus internals:
    1. `AgentRegistry.spawn(name="scode-standard", kind=MANAGED)` → allocates `pid`, writes through to the Rust `AgentTable` SSOT.
    2. Provisioner builds `/proc/{pid}/workspace/` as a real directory, plants OS-level symlinks for each requested repo, plants the `chat-with-me` DT_LINK.
@@ -126,7 +126,7 @@ sudo-code keeps its existing JSONL session format and on-disk task layout. The i
 |-------|------|---------|
 | Conversation jsonl | `/proc/{pid}/workspace/.scode/sessions/<workspace_hash>/{session_id}.jsonl` | DT_FILE |
 | Active task list | `/proc/{pid}/tasks/{task_list_name}.json` | DT_FILE |
-| Image config | `/agents/{name}/config.toml` | DT_FILE |
+| Agent profile config | `/agents/{name}/config.toml` | DT_FILE |
 
 User-global settings currently held by sudo-code in `~/.nexus/sudocode/settings.toml` remain on the host filesystem until the migration to `/agents/{name}/config.toml` lands (tracked in OPEN-ITEMS).
 
@@ -325,7 +325,7 @@ Three replication paths exist in the kernel; the integration uses each for a dif
 
 | Mechanism | Where in this doc | Semantics |
 |-----------|-------------------|-----------|
-| **DT_FILE** (regular file) | sudo-code sessions, image configs, task lists | Metadata + content via CAS; random read; intra-zone |
+| **DT_FILE** (regular file) | sudo-code sessions, profile configs, task lists | Metadata + content via CAS; random read; intra-zone |
 | **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, Raft-replicated |
 | **NostrBackend** (mount) | Remote `chat-with-me` paths | Cross-instance encrypted DM; bidirectional driver |
 
@@ -362,7 +362,7 @@ The following items are necessary for the end-state architecture and are tracked
 - `WorkspaceBoundaryHook`: INTERCEPT pre-write hook scoped to `/proc/{pid}/workspace/`, returning the structured EPERM teaching payload
 - `NostrBackend` driver: bidirectional, NIP-04 DM, mount-based, signed with sender's nexus identity key
 - gRPC `SudoCodeService`: `StartSession`, `SendPrompt`, `SubscribeEvents`, `Cancel` (proto + nexus impl + sudowork client)
-- `/agents/{name}/chat-with-me` aggregator PathResolver for local multi-instance images
+- `/agents/{name}/chat-with-me` aggregator for local multi-instance agents (multi-pid fan-out / merge — single-instance routing landed in nexus PR #3922)
 - Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to `/agents/{name}/config.toml`
 - Auth fallback: `agentRegistry.ts` (and any future gRPC client) must try unauthenticated first, then bearer, when the `--auth-type none` assumption no longer holds
 

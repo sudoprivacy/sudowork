@@ -26,7 +26,7 @@ DT_LINK kernel primitive — VFS-internal symlink. Two phases:
   for callers that want raw link metadata (Linux `lstat` analogue).
 
 Owner: nexus repo. Blocks: chat-with-me workspace shortcut, `/proc/{pid}/agent`
-back-reference to image.
+back-reference to the agent profile.
 
 ## mailbox-stamping-hook
 
@@ -68,14 +68,19 @@ Replaces the prior ACP-child-process integration path.
 Owner: split — nexus repo for proto + impl, this repo for TS client.
 Blocks: sudowork ↔ sudo-code integration.
 
-## image-chat-aggregator
+## agent-chat-multi-instance
 
-PathResolver for `/agents/{name}/chat-with-me` when the image has one or more
-running pids — fans writes to every running pid's chat-with-me, merges reads.
-Skipped when the path is mounted with `NostrBackend` (remote identity case).
+Multi-pid fan-out and merge for `/agents/{name}/chat-with-me` when more than
+one pid is active for the agent. Single-instance routing already landed
+in `nexi-lab/nexus#3922` (`services::agents::agent_chat::resolve_agent_chat`);
+the ambiguous (>1 active) case currently surfaces a structured error with
+the candidate pid list. The follow-up replaces that error with broadcast
+write semantics (write to every active pid's chat-with-me) and merged
+read semantics (interleaved tail of every active pid's stream). Skipped
+when the path is mounted with `NostrBackend` (remote identity case).
 
-Owner: nexus repo (kernel resolver). Blocks: addressing local images by name without
-having to know a specific pid.
+Owner: nexus repo. Blocks: addressing a multi-instance agent by name
+without picking a pid.
 
 ## sudocode-config-migration
 
