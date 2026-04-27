@@ -471,7 +471,7 @@ const createOrUpdateTray = (): void => {
     const icon = getTrayIcon();
     if (!tray) {
       tray = new Tray(icon);
-      tray.on('double-click', () => {
+      tray.on('click', () => {
         if (mainWindow) {
           mainWindow.show();
           mainWindow.focus();
