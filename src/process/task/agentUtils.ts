@@ -208,6 +208,92 @@ Ask yourself: "Is this file what the user ultimately wants?"
 [End of File Intent Marking System Rules]`;
 }
 
+// ---------------------------------------------------------------------------
+// Shared helpers
+//
+// All four "prepare first message" functions follow the same shape:
+//   1. collect instruction blocks (presetContext, drafts, skills, ...)
+//   2. if any → wrap with [Assistant Rules]/[User Request]
+//   3. else → return content untouched
+//
+// Variants differ only in which skill block they emit (full content / index
+// pointer / concrete list / workspace hint).  Extract the common pieces here
+// so each variant is a thin composition.
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap collected instruction blocks with the [Assistant Rules]/[User Request]
+ * envelope.  All preset-driven agents (Gemini / ACP / OpenClaw) use the same
+ * prefix-based format to remain compatible with external CLIs (Claude Code,
+ * Codex CLI, etc.) that don't grok XML tags.
+ */
+function wrapWithUserRequest(content: string, instructions: string[]): string {
+  if (instructions.length === 0) return content;
+  return `[Assistant Rules - You MUST follow these instructions]\n${instructions.join('\n\n')}\n\n[User Request]\n${content}`;
+}
+
+/**
+ * Push presetContext and (optionally) drafts instruction onto the block list.
+ * Both are config-driven and shared by all preset agents.
+ */
+function pushPresetPreamble(instructions: string[], config: FirstMessageConfig, includeDrafts: boolean): void {
+  if (config.presetContext) {
+    instructions.push(config.presetContext);
+  }
+  if (includeDrafts && config.workspace) {
+    instructions.push(buildDraftsInstruction(config.workspace));
+  }
+}
+
+/**
+ * Discover and return the builtin skills index.  Builtin skills auto-inject
+ * for every preset agent; the only difference between agents is the *format*
+ * of the surrounding instruction block (see {@link buildBuiltinSkillsBlock}).
+ */
+async function loadBuiltinSkillsIndex(): Promise<SkillIndex[]> {
+  const skillManager = AcpSkillManager.getInstance();
+  await skillManager.discoverBuiltinSkills();
+  return skillManager.getBuiltinSkillsIndex();
+}
+
+/**
+ * Format the builtin-skills index into an instruction block.
+ *
+ * - 'load-tag' (Gemini-style ACP / Codex / Claude): emit [Available Skills]
+ *   list plus [Skills Location] directing the agent to read SKILL.md on demand.
+ *   Built-in skills only — non-builtin (hub/custom) skills are *not* injected.
+ *
+ * - 'concrete-list' (OpenClaw): emit [Builtin Skills] with each skill's full
+ *   path inline, since OpenClaw uses its file-read tool directly without the
+ *   [LOAD_SKILL:] protocol.
+ */
+function buildBuiltinSkillsBlock(skillsIndex: SkillIndex[], format: 'load-tag' | 'concrete-list'): string | null {
+  if (skillsIndex.length === 0) return null;
+
+  const systemSkillsDir = getBuiltinSkillsDir();
+
+  if (format === 'load-tag') {
+    return `${buildSkillsIndexText(skillsIndex)}
+
+[Skills Location]
+Builtin skills are stored at:
+- ${systemSkillsDir}/{skill-name}/SKILL.md
+
+Each skill has a SKILL.md file containing detailed instructions.
+To use a skill, read its SKILL.md file when needed.
+
+For example:
+- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
+  }
+
+  // 'concrete-list'
+  const lines = skillsIndex.map((s) => `- ${s.name} (${s.description}): ${systemSkillsDir}/${s.name}/SKILL.md`);
+  return `[Builtin Skills]
+The following builtin skills are available. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
+
+${lines.join('\n')}`;
+}
+
 /**
  * 构建系统指令内容（完整 skills 内容注入 - 用于 Gemini）
  * Build system instructions content (full skills content injection - for Gemini)
@@ -217,16 +303,7 @@ Ask yourself: "Is this file what the user ultimately wants?"
  */
 export async function buildSystemInstructions(config: FirstMessageConfig): Promise<string | undefined> {
   const instructions: string[] = [];
-
-  // 添加预设上下文 / Add preset context
-  if (config.presetContext) {
-    instructions.push(config.presetContext);
-  }
-
-  // 添加草稿箱使用指令 / Add drafts box instructions
-  if (config.workspace) {
-    instructions.push(buildDraftsInstruction(config.workspace));
-  }
+  pushPresetPreamble(instructions, config, true);
 
   // 加载并添加 skills 内容 / Load and add skills content
   if (config.enabledSkills && config.enabledSkills.length > 0) {
@@ -236,11 +313,7 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
     }
   }
 
-  if (instructions.length === 0) {
-    return undefined;
-  }
-
-  return instructions.join('\n\n');
+  return instructions.length === 0 ? undefined : instructions.join('\n\n');
 }
 
 /**
@@ -256,14 +329,7 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
  */
 export async function prepareFirstMessage(content: string, config: FirstMessageConfig): Promise<string> {
   const systemInstructions = await buildSystemInstructions(config);
-
-  if (!systemInstructions) {
-    return content;
-  }
-
-  // 使用与 Gemini Agent 类似的直接前缀格式，确保 Claude/Codex 等外部 agent 能正确识别
-  // Use direct prefix format similar to Gemini Agent to ensure Claude/Codex can recognize it
-  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+  return systemInstructions ? wrapWithUserRequest(content, [systemInstructions]) : content;
 }
 
 /**
@@ -277,57 +343,15 @@ export async function prepareFirstMessage(content: string, config: FirstMessageC
  * Hub/custom/system 下的非 builtin skills 不会通过首条消息注入给 agent。
  * Note: For ACP/OpenClaw assistants, only builtin skills under _system/_builtin are exposed here.
  * Non-builtin skills from hub/custom/system are not injected via the first message.
- *
- * @param content - 原始消息内容 / Original message content
- * @param config - 首次消息配置 / First message configuration
- * @returns 注入系统指令后的消息内容 / Message content with system instructions injected
  */
 export async function prepareFirstMessageWithSkillsIndex(content: string, config: FirstMessageConfig): Promise<string> {
   const instructions: string[] = [];
+  pushPresetPreamble(instructions, config, true);
 
-  // 1. 添加预设规则 / Add preset rules
-  if (config.presetContext) {
-    instructions.push(config.presetContext);
-  }
+  const skillsBlock = buildBuiltinSkillsBlock(await loadBuiltinSkillsIndex(), 'load-tag');
+  if (skillsBlock) instructions.push(skillsBlock);
 
-  // 1.5 添加草稿箱使用指令 / Add drafts box instructions
-  if (config.workspace) {
-    instructions.push(buildDraftsInstruction(config.workspace));
-  }
-
-  // 2. 仅加载内置 skills 索引
-  // Load builtin skills index only
-  const skillManager = AcpSkillManager.getInstance();
-  await skillManager.discoverBuiltinSkills();
-
-  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
-  if (builtinSkillsIndex.length > 0) {
-    const systemSkillsDir = getBuiltinSkillsDir();
-    const indexText = buildSkillsIndexText(builtinSkillsIndex);
-
-    // 告诉 Agent 只从 builtin skills 目录按需读取
-    // Tell Agent to read only from the builtin skills directory on demand
-    const skillsInstruction = `${indexText}
-
-[Skills Location]
-Builtin skills are stored at:
-- ${systemSkillsDir}/{skill-name}/SKILL.md
-
-Each skill has a SKILL.md file containing detailed instructions.
-To use a skill, read its SKILL.md file when needed.
-
-For example:
-- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
-
-    instructions.push(skillsInstruction);
-  }
-
-  if (instructions.length === 0) {
-    return content;
-  }
-
-  const systemInstructions = instructions.join('\n\n');
-  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+  return wrapWithUserRequest(content, instructions);
 }
 
 /**
@@ -338,41 +362,15 @@ For example:
  * Do NOT inject [LOAD_SKILL:] instructions — those are for Gemini ACP agents only.
  * Only inject presetContext + builtin skills location hint (read-based, not tag-based).
  * Workspace skills are handled separately by injectSkillsDirectoryHint.
- *
- * @param content - 原始消息内容 / Original message content
- * @param config - 首次消息配置 / First message configuration
- * @returns 注入系统指令后的消息内容 / Message content with system instructions injected
  */
 export async function prepareOpenClawFirstMessage(content: string, config: FirstMessageConfig): Promise<string> {
   const instructions: string[] = [];
+  pushPresetPreamble(instructions, config, false);
 
-  // 1. 添加预设规则 / Add preset rules
-  if (config.presetContext) {
-    instructions.push(config.presetContext);
-  }
+  const skillsBlock = buildBuiltinSkillsBlock(await loadBuiltinSkillsIndex(), 'concrete-list');
+  if (skillsBlock) instructions.push(skillsBlock);
 
-  // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
-  // Load builtin skills index — tell agent to read SKILL.md directly, no [LOAD_SKILL:] protocol
-  const skillManager = AcpSkillManager.getInstance();
-  await skillManager.discoverBuiltinSkills();
-
-  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
-  if (builtinSkillsIndex.length > 0) {
-    const systemSkillsDir = getBuiltinSkillsDir();
-    const lines = builtinSkillsIndex.map((s) => `- ${s.name} (${s.description}): ${systemSkillsDir}/${s.name}/SKILL.md`);
-    const skillsInstruction = `[Builtin Skills]
-The following builtin skills are available. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
-
-${lines.join('\n')}`;
-    instructions.push(skillsInstruction);
-  }
-
-  if (instructions.length === 0) {
-    return content;
-  }
-
-  const systemInstructions = instructions.join('\n\n');
-  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
+  return wrapWithUserRequest(content, instructions);
 }
 
 /**
