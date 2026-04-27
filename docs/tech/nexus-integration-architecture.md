@@ -24,7 +24,7 @@ Cross-references:
                                         │ gRPC (localhost:2028)
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                            nexusd                                    │
+│              nexusd + sudo-code  (single process, always-on)         │
 │                                                                      │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │  Rust Kernel cdylib  (nexus_kernel)                         │    │
@@ -32,28 +32,28 @@ Cross-references:
 │  │  PipeManager(DT_PIPE) · StreamManager(DT_STREAM)            │    │
 │  │  FileWatchRegistry(sys_watch) · KernelDispatch(hooks)       │    │
 │  │  AuditHook · AgentStatusResolver · DT_LINK resolver         │    │
-│  └────────────┬────────────────────────────────────────────────┘    │
-│               │                                                      │
-│  ┌────────────▼─────────┐                                           │
-│  │  services rlib       │                                           │
-│  │  AgentTable (state)  │                                           │
-│  │  agent_chat resolver │                                           │
-│  │  mailbox stamping    │                                           │
-│  └────────┬─────────────┘                                           │
-│           │                                                          │
-│  ┌────────▼─────────────────────────────────────────────────────┐   │
-│  │  Python service tier                                         │   │
-│  │  AgentRegistry shim · AcpService (claude / codex / scode)    │   │
-│  │  SudoCodeService gRPC handler  →  AcpService.call_agent()    │   │
-│  │  FastAPI bricks (mount, rebac, …)                            │   │
-│  └────────────────────────┬────────────────────────────────────┘    │
-│                           │ spawn subprocess + StdioPipeBackend     │
-│  gRPC :2028               ▼                                         │
-│  NexusVFSService    ┌──────────────────────────────────────────┐    │
-│  SudoCodeService    │  scode serve (subprocess, ACP JSON-RPC)  │    │
-│                     │  cwd = /proc/{pid}/workspace             │    │
-│                     │  stdin/stdout/stderr → /proc/{pid}/fd/*  │    │
-│                     └──────────────────────────────────────────┘    │
+│  └────────────┬────────────────────────┬────────────────────────┘   │
+│               │                        │                             │
+│  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
+│  │  services rlib       │   │  sudo-code runtime          │         │
+│  │  AgentTable (state)  │   │  (linked Rust crate,        │         │
+│  │  agent_chat resolver │   │   trait DI registered into  │         │
+│  │  mailbox stamping    │   │   AgentRuntimeRegistry)     │         │
+│  └────────┬─────────────┘   │  one tokio task per pid     │         │
+│           │                 │  cwd = /proc/{pid}/workspace│         │
+│  ┌────────▼─────────────┐   │  direct kernel syscalls,    │         │
+│  │  Python service tier │   │  no stdio, no JSON-RPC      │         │
+│  │  AgentRegistry shim  │   └─────────────────────────────┘         │
+│  │  SudoCodeService     │                                           │
+│  │  AcpService          │   FastAPI bricks (mount, rebac, …)        │
+│  │   (claude/codex/…)   │                                           │
+│  └──────────────────────┘                                           │
+│                                                                      │
+│  AcpService spawns external ACP backends as subprocesses with        │
+│  StdioPipeBackend → /proc/{pid}/fd/{0,1,2}; sudo-code does NOT use   │
+│  that path because it shares the process with nexusd.                │
+│                                                                      │
+│  gRPC port 2028: NexusVFSService + SudoCodeService                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,7 +116,15 @@ Two namespaces, the same Linux distinction between an executable on disk and a r
 
 ### 2.3 Spawn lifecycle
 
-sudo-code is just another ACP backend — same shape claude / codex / codebuddy already use. `AcpService` (`nexus.services.acp.service`) handles the subprocess + stdio plumbing, so the sudo-code integration adds zero new spawn machinery.
+sudo-code is in-process: a Rust crate linked into nexusd, driven as a tokio
+task per pid. There is no subprocess and no stdio plumbing — that machinery
+exists in `AcpService` only because external ACP agents (claude / codex /
+codebuddy / nanobot) run in separate OS processes and the only protocol
+those binaries support is JSON-RPC over stdio. sudo-code is our own code in
+our own process, so it talks to the kernel through direct Rust syscalls
+(`kernel.sys_read`, `kernel.sys_write`, `kernel.sys_watch`, …) and to the
+dispatch hooks through the same in-process channel every kernel observer
+uses.
 
 ```
 sudowork (Electron, TS)
@@ -124,36 +132,62 @@ sudowork (Electron, TS)
    ▼
 nexusd:
    SudoCodeService gRPC handler
-      │ AcpService.call_agent("scode-standard", …)   (existing path)
-      │   spawns `scode serve` as a subprocess
-      │   stdin/stdout/stderr → StdioPipeBackend
-      │   registers DT_PIPE at /proc/{pid}/fd/{0,1,2}
-      │   AcpConnection drives ACP JSON-RPC over stdio
-      │   AgentRegistry.spawn(name="scode-standard", kind=MANAGED)
-      │     → allocates pid, Provisioner builds /proc/{pid}/workspace/
-      │     → plants the DT_LINK /proc/{pid}/workspace/chat-with-me
+      │ AgentRegistry.spawn(name="scode-standard", kind=MANAGED)
+      │   → allocates pid, dual-writes through to the Rust AgentTable
+      │ Provisioner builds /proc/{pid}/workspace/ with OS-level symlinks
+      │   for each requested repo, plants the DT_LINK /proc/{pid}/workspace/
+      │   chat-with-me → /proc/{pid}/chat-with-me
+      │ AgentRuntimeRegistry.spawn(agent_name, pid, workspace_path)
+      │   → tokio::spawn of the sudo-code agent loop, cwd =
+      │     /proc/{pid}/workspace/. The runtime calls kernel syscalls
+      │     directly — no IPC, no serialisation, no auth header.
       ▼
    {session_id, agent_id, workspace_path} → sudowork
 ```
 
-After spawn, prompts and responses flow through the existing chat-with-me VFS surface — same A2A primitive every other agent uses (§3). sudowork is just another participant: it writes prompts to `/agents/scode-standard/chat-with-me` (the agent_chat aggregator routes to the active pid), reads sudo-code's responses from its own `/agents/human-ethan/chat-with-me`, and `sys_watch`es for incremental updates.
-
-**Why subprocess (not in-process):**
-
-- Reuses `AcpService` end-to-end (claude / codex / codebuddy / nanobot all share the same shape today).
-- No Cargo cross-repo dependency between nexus and sudo-code crates — sudo-code stays an autonomous binary discoverable by config.
-- Process isolation — a sudo-code crash does not take nexusd down with it.
-- sudo-code already supports `scode serve` ACP mode, so no sudo-code-side changes are needed beyond the cwd-driven session storage already in place.
+After spawn, prompts and responses flow through the chat-with-me VFS surface
+— same A2A primitive every other agent uses (§3). sudowork writes prompts to
+`/agents/scode-standard/chat-with-me` (the agent_chat resolver routes to the
+active pid; `MailboxStampingHook` stamps the `from` field with sudowork's
+`agent_id`). The sudo-code task in nexusd `sys_watch`es its own
+`/proc/{pid}/chat-with-me` for incoming prompts and writes responses to
+`/agents/{user}/chat-with-me`. sudowork's UI `sys_watch`es Ethan's
+chat-with-me for those responses.
 
 **`SudoCodeService` gRPC surface stays narrow** — only spawn / cancel / liveness:
 
 - `StartSession(agent, repos)` → `{session_id, agent_id, workspace_path}`
 - `Cancel(session_id, mode)` → `{cancelled}`
-- `GetSession(session_id)` → `{state, agent, workspace_path, turn_count}`
+- `GetSession(session_id)` → `{state, agent, workspace_path}`
 
-Prompt / event flow uses the existing `NexusVFSService` gRPC (`sys_write`, `sys_watch`, `sys_read`) over the chat-with-me paths. There is no `SendPrompt` or `SubscribeEvents` gRPC — those would duplicate the A2A surface the rest of the system uses.
+Prompt / event flow uses the existing `NexusVFSService` gRPC (`sys_write`,
+`sys_watch`, `sys_read`) over the chat-with-me paths. There is no
+`SendPrompt` or `SubscribeEvents` gRPC — those would duplicate the A2A
+surface the rest of the system uses.
 
-`AgentState` lifecycle: `REGISTERED → WARMING_UP → READY ↔ BUSY → SUSPENDED → TERMINATED`. `kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL and parks on the per-pid condvar — Python supervisors get a blocking wait without pinning the interpreter.
+**`AgentRuntimeRegistry`** is the kernel-side trait + slot pair the
+`SudoCodeService` handler dispatches through. The trait shape mirrors
+the kernel-knows pattern PR #3921 already establishes for hooks and
+backends:
+
+```rust
+pub trait AgentRuntime: Send + Sync {
+    fn spawn(&self, pid: &str, workspace: &str, params: SpawnParams) -> Result<()>;
+    fn cancel(&self, pid: &str, mode: CancelMode) -> Result<()>;
+}
+```
+
+The trait is declared in nexus; the sudo-code runtime crate (separate
+git repo, but linked into nexusd at build time) implements it and
+registers its instance into the slot at module init. nexus has no
+Cargo dependency on sudo-code — the dependency direction is
+`sudo-code → nexus` only — and sudo-code's crash blast radius
+matches every other in-process panic boundary in nexusd.
+
+`AgentState` lifecycle: `REGISTERED → WARMING_UP → READY ↔ BUSY → SUSPENDED → TERMINATED`.
+`kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL and
+parks on the per-pid condvar — Python supervisors get a blocking wait
+without pinning the interpreter.
 
 ### 2.4 sudo-code state placement
 

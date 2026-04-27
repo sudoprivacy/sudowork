@@ -61,12 +61,31 @@ A2A and human-on-Damus reach.
 
 ## sudo-code-grpc-service
 
-gRPC `SudoCodeService` — `StartSession`, `SendPrompt`, `SubscribeEvents`, `Cancel`.
-Proto in nexus repo, server impl in nexus, TypeScript client in this repo.
-Replaces the prior ACP-child-process integration path.
+gRPC `SudoCodeService` — narrow surface (`StartSession`, `Cancel`,
+`GetSession`). Prompt + event flow uses the existing chat-with-me VFS
+surface, not duplicate RPCs. Replaces the prior ACP-child-process
+integration path.
 
-Owner: split — nexus repo for proto + impl, this repo for TS client.
-Blocks: sudowork ↔ sudo-code integration.
+Landed in `nexi-lab/nexus#3922`:
+- proto contract (`proto/nexus/grpc/sudo_code/sudo_code.proto`)
+- `SudoCodeRPCService` Python impl wired into AgentRegistry — spawn /
+  cancel / liveness with session_id ↔ pid map. Best-effort
+  `AgentRuntimeRegistry` dispatch for the in-process sudo-code crate;
+  when no runtime is registered the agent record is created and a
+  warning is logged so a follow-up runtime install can pick it up.
+
+Remaining:
+- `AgentRuntimeRegistry` trait + slot in nexus services rlib (the
+  kernel-side anchor of the trait DI hook).
+- sudo-code Rust crate that implements the trait and registers itself
+  at module init (in-process — same process as nexusd, no stdio bind).
+- Workspace materialization at start_session: OS symlinks for each
+  `WorkspaceRepo` under `/proc/{pid}/workspace/{alias}` plus the
+  DT_LINK shortcut at `/proc/{pid}/workspace/chat-with-me`.
+- TypeScript gRPC client in this repo + wire-up from the renderer.
+
+Owner: split — nexus repo for runtime trait + workspace setup, this
+repo for TS client. Blocks: sudowork ↔ sudo-code integration.
 
 ## agent-chat-multi-instance-read
 
