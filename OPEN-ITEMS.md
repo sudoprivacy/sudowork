@@ -92,12 +92,20 @@ Owner: sudo-code repo. Blocks: full SSOT for agent identity surface.
 
 ## auth-fallback
 
-This repo's nexus client (currently `src/common/nexus/agentRegistry.ts`, eventually
-the gRPC client) assumes the sudowork profile boots nexus with `--auth-type none`.
-When that assumption no longer holds, the client must try unauthenticated first
-and fall back to a bearer token from a sudowork-side credential store.
+When the `SudoCodeService` gRPC client lands in this repo (see
+`sudo-code-grpc-service`), the assumption that nexus runs with
+`--auth-type none` (sudowork profile default) needs to be guarded. The
+client should try unauthenticated first and fall back to a bearer token
+from a sudowork-side credential store on `Unauthenticated`.
 
-Owner: this repo. Blocks: hardening sudowork against multi-tenant deployment.
+Pre-revert this file used to point at `src/common/nexus/agentRegistry.ts`,
+which was the HTTP client for the wrong-direction ACP integration. That
+file was removed in the revert; the auth fallback is a guardrail for
+the future gRPC client.
+
+Owner: this repo. Blocks: hardening sudowork against multi-tenant
+deployment. Cannot start until `sudo-code-grpc-service` lands the
+client surface to attach the fallback to.
 
 ## password-not-in-cluster-profile
 
