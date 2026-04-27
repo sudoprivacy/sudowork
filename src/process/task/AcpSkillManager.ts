@@ -5,11 +5,9 @@
  */
 
 /**
- * ACP Skill Manager - 为 ACP agents (Claude/OpenCode/Codex) 提供 skills 按需加载能力
- * 借鉴 aioncli-core 的 SkillManager 设计
- *
- * ACP Skill Manager - Provides on-demand skill loading for ACP agents (Claude/OpenCode/Codex)
- * Inspired by aioncli-core's SkillManager design
+ * ACP Skill Manager — provides on-demand skill loading for ACP agents
+ * (Claude / OpenCode / Codex / sudo-code).  Inspired by aioncli-core's
+ * SkillManager design.
  */
 
 import fs from 'fs/promises';
@@ -19,34 +17,25 @@ import { existsSync } from 'fs';
 import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 
-/**
- * Skill 定义（与 aioncli-core 兼容）
- * Skill definition (compatible with aioncli-core)
- */
+/** Skill definition (shape compatible with aioncli-core). */
 export interface SkillDefinition {
-  /** 技能唯一名称 / Unique skill name */
+  /** Unique skill name. */
   name: string;
-  /** 技能描述（用于索引）/ Skill description (for indexing) */
+  /** Description used for the index injected into the agent prompt. */
   description: string;
-  /** 文件路径 / File path */
+  /** Filesystem location of the SKILL.md file. */
   location: string;
-  /** 完整内容（延迟加载）/ Full content (lazy loaded) */
+  /** Full skill body (lazily loaded — undefined until first read). */
   body?: string;
 }
 
-/**
- * Skill 索引（轻量级，用于首条消息注入）
- * Skill index (lightweight, for first message injection)
- */
+/** Lightweight index entry used when injecting skills into the first message. */
 export interface SkillIndex {
   name: string;
   description: string;
 }
 
-/**
- * 解析 SKILL.md 的 frontmatter
- * Parse frontmatter from SKILL.md
- */
+/** Parse the YAML frontmatter from a SKILL.md (supports name + description). */
 function parseFrontmatter(content: string): { name?: string; description?: string } {
   const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
   if (!frontmatterMatch) {
@@ -56,13 +45,12 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   const frontmatter = frontmatterMatch[1];
   const result: { name?: string; description?: string } = {};
 
-  // 解析 name
   const nameMatch = frontmatter.match(/^name:\s*['"]?([^'"\n]+)['"]?\s*$/m);
   if (nameMatch) {
     result.name = nameMatch[1].trim();
   }
 
-  // 解析 description（支持单引号、双引号、无引号）
+  // Description supports single-quoted, double-quoted, or unquoted values.
   const descMatch = frontmatter.match(/^description:\s*['"]?(.+?)['"]?\s*$/m);
   if (descMatch) {
     result.description = descMatch[1].trim();
@@ -71,24 +59,24 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   return result;
 }
 
-/**
- * 移除 frontmatter，只保留 body 内容
- * Remove frontmatter, keep only body content
- */
+/** Strip the frontmatter and return only the SKILL.md body. */
 function extractBody(content: string): string {
   return content.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '').trim();
 }
 
 /**
- * ACP Skill Manager
- * 为 ACP agents 提供 skills 的索引加载和按需获取能力
+ * Loads and caches skill indexes/bodies for ACP agents.
  *
- * 使用单例模式避免重复文件系统扫描
- * Uses singleton pattern to avoid repeated filesystem scans
+ * Skill sources, in priority order:
+ *   - builtin   (_system/_builtin/): auto-injected for every conversation
+ *   - custom    (_custom/): user-uploaded; enabledSkills-gated
+ *   - hub       (_hub/): hub-installed; enabledSkills-gated
+ *   - extension (registered via aion-extension.json): enabledSkills-gated
+ *   - legacy    (flat top-level layout, deprecated): enabledSkills-gated
  *
- * 支持两类 skills:
- * - 内置 skills (_builtin/): 所有场景自动注入
- * - 可选 skills: 通过 enabledSkills 参数控制
+ * Filesystem scans are cached per enabledSkills key so that concurrent
+ * conversations with different skill lists don't trigger repeated scans
+ * (see the `cache` field doc for the concurrency rationale).
  */
 export class AcpSkillManager {
   /**
@@ -127,11 +115,13 @@ export class AcpSkillManager {
   }
 
   /**
-   * 获取单例实例（带 enabledSkills 缓存键）
-   * Get singleton instance (with enabledSkills cache key)
+   * Get the manager instance for a given enabledSkills list.
    *
-   * @param enabledSkills - 启用的 skills 列表，用作缓存键 / Enabled skills list, used as cache key
-   * @returns AcpSkillManager 实例 / AcpSkillManager instance
+   * The list (or undefined) is canonicalised to a cache key; concurrent
+   * conversations with different enabledSkills get independent managers
+   * (see the `cache` field doc for why).
+   *
+   * @param enabledSkills - the conversation's enabledSkills (cache key)
    */
   static getInstance(enabledSkills?: string[]): AcpSkillManager {
     // Distinguish between undefined (non-preset → load all) and [] (preset with
@@ -147,16 +137,16 @@ export class AcpSkillManager {
   }
 
   /**
-   * 清空所有缓存的实例（用于测试或 skills 目录变更后强制重新发现）
-   * Clear all cached instances (for tests or to force rediscovery after skills directory changes)
+   * Clear all cached instances. Used by tests and by skillHubBridge after
+   * skills directory mutations (install / uninstall) to force rediscovery.
    */
   static resetInstance(): void {
     AcpSkillManager.cache.clear();
   }
 
   /**
-   * 初始化：发现并加载内置 skills 的索引（所有场景自动注入）
-   * Initialize: discover and load index of builtin skills (auto-injected for all scenarios)
+   * Discover and load the index of builtin skills (auto-injected for every
+   * conversation, regardless of enabledSkills).
    */
   async discoverBuiltinSkills(): Promise<void> {
     if (this.builtinInitialized) return;
@@ -186,7 +176,7 @@ export class AcpSkillManager {
             name: name || skillName,
             description: description || `Builtin Skill: ${skillName}`,
             location: skillFile,
-            // body 不在这里加载，按需获取
+            // body is loaded on demand via getSkill() — see lazy-load below.
           };
 
           this.builtinSkills.set(skillName, skillDef);
@@ -204,12 +194,11 @@ export class AcpSkillManager {
   }
 
   /**
-   * 从 ExtensionRegistry 加载扩展贡献的 skills
-   * Load extension-contributed skills from ExtensionRegistry
+   * Load extension-contributed skills from ExtensionRegistry.
    *
-   * 扩展 skills 通过 aion-extension.json 的 contributes.skills 声明，
-   * 由 SkillResolver 解析后缓存在 ExtensionRegistry 中。
-   * 这里将它们合并到 AcpSkillManager 中，使 agent 能够按需加载。
+   * Extensions declare skills via aion-extension.json's `contributes.skills`;
+   * SkillResolver parses and caches them in ExtensionRegistry.  This pass
+   * merges them into the manager so agents can load them on demand.
    */
   private async discoverExtensionSkills(enabledSkills?: string[]): Promise<void> {
     if (this.extensionInitialized) return;
@@ -224,14 +213,14 @@ export class AcpSkillManager {
       }
 
       for (const extSkill of extSkills) {
-        // 如果指定了 enabledSkills，只加载被启用的扩展 skills
-        // If enabledSkills is specified, only load enabled extension skills.
-        // An empty array means "no skills" (preset assistant with none selected).
+        // If enabledSkills is provided, only load extension skills in that
+        // list.  An empty array means "no skills" (preset assistant with
+        // none selected) — distinct from undefined (no preset, load all).
         if (enabledSkills && !enabledSkills.includes(extSkill.name)) {
           continue;
         }
 
-        // 避免与内置/可选 skills 冲突 / Avoid conflicts with builtin/optional skills
+        // Avoid conflicts with builtin/optional skills.
         if (this.builtinSkills.has(extSkill.name) || this.skills.has(extSkill.name)) {
           mainWarn('AcpSkillManager', `Extension skill "${extSkill.name}" conflicts with existing skill, skipping`);
           continue;
@@ -257,13 +246,31 @@ export class AcpSkillManager {
   }
 
   /**
-   * 初始化：发现并加载所有 skills 的索引（不加载 body）
-   * Initialize: discover and load index of all skills (without body)
+   * Helper: scan a single skills directory and populate a target map.
+   *
+   * Filters (all opt-in):
+   *  - enabledSkills:    if provided, only include skill names in this list
+   *                      (an empty array means "no skills enabled")
+   *  - skipDisabledCheck: bypass isUserSkillEnabled() — used for sources where
+   *                      every directory entry is implicitly enabled (e.g.
+   *                      hub/custom managed by the skills UI)
+   *  - skipUnderscorePrefix: skip directory names starting with "_" — used by
+   *                      the legacy-flat scan to avoid descending into the
+   *                      structured _builtin/_hub/_custom subdirs
+   *  - skipIfPresentIn:  skip skill names already loaded into this map — used
+   *                      by the legacy-flat scan so it doesn't shadow newer
+   *                      structured locations
    */
-  /**
-   * Helper to discover skills from a specific directory
-   */
-  private async discoverSkillsFromDir(dir: string, targetMap: Map<string, SkillDefinition>, enabledSkills?: string[], skipDisabledCheck = false): Promise<void> {
+  private async discoverSkillsFromDir(
+    dir: string,
+    targetMap: Map<string, SkillDefinition>,
+    enabledSkills?: string[],
+    options: {
+      skipDisabledCheck?: boolean;
+      skipUnderscorePrefix?: boolean;
+      skipIfPresentIn?: Map<string, SkillDefinition>;
+    } = {}
+  ): Promise<void> {
     if (!existsSync(dir)) return;
 
     try {
@@ -273,14 +280,13 @@ export class AcpSkillManager {
         if (!entry.isDirectory()) continue;
         const skillName = entry.name;
 
-        // An empty array means "no skills" (preset assistant with none selected).
-        if (enabledSkills && !enabledSkills.includes(skillName)) {
-          continue;
-        }
+        if (options.skipUnderscorePrefix && skillName.startsWith('_')) continue;
+        if (options.skipIfPresentIn && options.skipIfPresentIn.has(skillName)) continue;
 
-        if (!skipDisabledCheck && !(await isUserSkillEnabled(skillName))) {
-          continue;
-        }
+        // An empty array means "no skills" (preset assistant with none selected).
+        if (enabledSkills && !enabledSkills.includes(skillName)) continue;
+
+        if (!options.skipDisabledCheck && !(await isUserSkillEnabled(skillName))) continue;
 
         const skillFile = path.join(dir, skillName, 'SKILL.md');
         if (!existsSync(skillFile)) continue;
@@ -289,13 +295,11 @@ export class AcpSkillManager {
           const content = await fs.readFile(skillFile, 'utf-8');
           const { name, description } = parseFrontmatter(content);
 
-          const skillDef: SkillDefinition = {
+          targetMap.set(skillName, {
             name: name || skillName,
             description: description || `Skill: ${skillName}`,
             location: skillFile,
-          };
-
-          targetMap.set(skillName, skillDef);
+          });
         } catch (error) {
           mainWarn('AcpSkillManager', `Failed to load skill ${skillName} from ${dir}:`, error);
         }
@@ -305,11 +309,22 @@ export class AcpSkillManager {
     }
   }
 
+  /**
+   * Discover and load the index of all optional skills (without body).
+   *
+   * Sources scanned, in priority order (first writer wins for `this.skills`):
+   *   1. custom  (skillsDir/_custom/)
+   *   2. hub     (skillsDir/_hub/)
+   *   3. legacy  (skillsDir/<name>/, flat layout kept for backward compat)
+   *
+   * Builtin skills (skillsDir/_system/_builtin/) and extension skills live in
+   * their own maps and are merged into the index by getSkillsIndex().
+   */
   async discoverSkills(enabledSkills?: string[]): Promise<void> {
-    // 始终先加载内置 skills / Always load builtin skills first
+    // Always load builtin skills first.
     await this.discoverBuiltinSkills();
 
-    // 加载扩展贡献的 skills / Load extension-contributed skills
+    // Load extension-contributed skills.
     await this.discoverExtensionSkills(enabledSkills);
 
     if (this.initialized) return;
@@ -318,7 +333,6 @@ export class AcpSkillManager {
     // user-enabled workspace skills so that standalone agents like Claude Code
     // can also use skills such as "browser".
     // When enabledSkills is an explicit list (preset agent), only load those.
-
     const skillsDir = this.skillsDir;
     if (!existsSync(skillsDir)) {
       mainWarn('AcpSkillManager', `Skills directory not found: ${skillsDir}`);
@@ -326,68 +340,23 @@ export class AcpSkillManager {
       return;
     }
 
-    // Discover skills from all three subdirectories
-    // Priority: custom > hub > builtin (builtin already loaded above)
+    // Priority order: custom > hub > legacy-flat.  Each scan populates its
+    // dedicated map AND mirrors into this.skills using first-writer-wins so
+    // the union map preserves priority for getSkillsIndex / hasSkill lookups.
     await this.discoverSkillsFromDir(this.customSkillsDir, this.customSkills, enabledSkills);
+    for (const [key, skill] of this.customSkills) if (!this.skills.has(key)) this.skills.set(key, skill);
+
     await this.discoverSkillsFromDir(this.hubSkillsDir, this.hubSkills, enabledSkills);
+    for (const [key, skill] of this.hubSkills) if (!this.skills.has(key)) this.skills.set(key, skill);
 
-    // Merge custom and hub skills into the main skills map (custom takes priority)
-    for (const [key, skill] of this.customSkills) {
-      if (!this.skills.has(key)) {
-        this.skills.set(key, skill);
-      }
-    }
-    for (const [key, skill] of this.hubSkills) {
-      if (!this.skills.has(key)) {
-        this.skills.set(key, skill);
-      }
-    }
-
-    // Legacy: also scan flat directories for backward compatibility
-    try {
-      const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-
-        const skillName = entry.name;
-
-        // Skip all `_` prefixed directories (new structure dirs)
-        if (skillName.startsWith('_')) continue;
-
-        // Skip if already found in subdirectories
-        if (this.skills.has(skillName)) continue;
-
-        // An empty array means "no skills" (preset assistant with none selected).
-        if (enabledSkills && !enabledSkills.includes(skillName)) {
-          continue;
-        }
-
-        if (!(await isUserSkillEnabled(skillName))) {
-          continue;
-        }
-
-        const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
-        if (!existsSync(skillFile)) continue;
-
-        try {
-          const content = await fs.readFile(skillFile, 'utf-8');
-          const { name, description } = parseFrontmatter(content);
-
-          const skillDef: SkillDefinition = {
-            name: name || skillName,
-            description: description || `Skill: ${skillName}`,
-            location: skillFile,
-          };
-
-          this.skills.set(skillName, skillDef);
-        } catch (error) {
-          mainWarn('AcpSkillManager', `Failed to load skill ${skillName}:`, error);
-        }
-      }
-    } catch (error) {
-      mainError('AcpSkillManager', `Failed to discover legacy skills:`, error);
-    }
+    // Legacy flat layout (deprecated): scan skillsDir directly for any
+    // remaining top-level skill folders not in _custom/_hub/_builtin.  Pass
+    // skipUnderscorePrefix to avoid re-entering the structured dirs and
+    // skipIfPresentIn=this.skills so legacy entries don't shadow newer ones.
+    await this.discoverSkillsFromDir(skillsDir, this.skills, enabledSkills, {
+      skipUnderscorePrefix: true,
+      skipIfPresentIn: this.skills,
+    });
 
     mainLog('AcpSkillManager', `Discovered ${this.skills.size} optional skills (custom: ${this.customSkills.size}, hub: ${this.hubSkills.size})`);
 
@@ -395,47 +364,28 @@ export class AcpSkillManager {
   }
 
   /**
-   * 获取所有 skills 的索引（轻量级）
-   * 包含内置 skills + 可选 skills
-   * Get index of all skills (lightweight)
-   * Includes builtin skills + optional skills
+   * Get a lightweight index of every loaded skill (builtin + optional +
+   * extension).  Used to inject the [Available Skills] block into the first
+   * message.
    */
   getSkillsIndex(): SkillIndex[] {
-    // 合并内置 skills、可选 skills 和扩展 skills
-    // Merge builtin, optional, and extension skills
     const allSkills: SkillIndex[] = [];
 
-    // 内置 skills 优先 / Builtin skills first
+    // Builtin first, then optional (custom/hub/legacy union), then extension.
     for (const skill of this.builtinSkills.values()) {
-      allSkills.push({
-        name: skill.name,
-        description: skill.description,
-      });
+      allSkills.push({ name: skill.name, description: skill.description });
     }
-
-    // 然后是可选 skills / Then optional skills
     for (const skill of this.skills.values()) {
-      allSkills.push({
-        name: skill.name,
-        description: skill.description,
-      });
+      allSkills.push({ name: skill.name, description: skill.description });
     }
-
-    // 最后是扩展 skills / Then extension skills
     for (const skill of this.extensionSkills.values()) {
-      allSkills.push({
-        name: skill.name,
-        description: skill.description,
-      });
+      allSkills.push({ name: skill.name, description: skill.description });
     }
 
     return allSkills;
   }
 
-  /**
-   * 获取内置 skills 的索引
-   * Get index of builtin skills only
-   */
+  /** Get a lightweight index of builtin skills only. */
   getBuiltinSkillsIndex(): SkillIndex[] {
     return Array.from(this.builtinSkills.values()).map((skill) => ({
       name: skill.name,
@@ -443,39 +393,20 @@ export class AcpSkillManager {
     }));
   }
 
-  /**
-   * 检查是否有任何 skills（内置或可选）
-   * Check if there are any skills (builtin or optional)
-   */
+  /** Check whether any skill (builtin, optional, or extension) is loaded. */
   hasAnySkills(): boolean {
     return this.customSkills.size > 0 || this.hubSkills.size > 0 || this.builtinSkills.size > 0 || this.skills.size > 0 || this.extensionSkills.size > 0;
   }
 
   /**
-   * 按名称获取单个 skill 的完整内容（按需加载）
-   * 先查找内置 skills，再查找可选 skills
-   * Get full content of a skill by name (on-demand loading)
-   * Search builtin skills first, then optional skills
+   * Get a single skill by name with full body loaded.
+   * Search order (priority): custom > hub > merged skills > builtin > extension.
+   * Body is read from disk on first access and cached on the SkillDefinition.
    */
   async getSkill(name: string): Promise<SkillDefinition | null> {
-    // 按优先级查找：自定义 > Hub > 合并的 skills > 内置 > 扩展
-    // Search by priority: custom > hub > merged skills > builtin > extension
-    let skill = this.customSkills.get(name);
-    if (!skill) {
-      skill = this.hubSkills.get(name);
-    }
-    if (!skill) {
-      skill = this.skills.get(name);
-    }
-    if (!skill) {
-      skill = this.builtinSkills.get(name);
-    }
-    if (!skill) {
-      skill = this.extensionSkills.get(name);
-    }
+    const skill = this.customSkills.get(name) || this.hubSkills.get(name) || this.skills.get(name) || this.builtinSkills.get(name) || this.extensionSkills.get(name);
     if (!skill) return null;
 
-    // 如果 body 还没加载，现在加载
     if (skill.body === undefined) {
       try {
         const content = await fs.readFile(skill.location, 'utf-8');
@@ -489,10 +420,7 @@ export class AcpSkillManager {
     return skill;
   }
 
-  /**
-   * 获取多个 skills 的完整内容
-   * Get full content of multiple skills
-   */
+  /** Get multiple skills with bodies loaded; missing names are silently dropped. */
   async getSkills(names: string[]): Promise<SkillDefinition[]> {
     const results: SkillDefinition[] = [];
     for (const name of names) {
@@ -504,18 +432,12 @@ export class AcpSkillManager {
     return results;
   }
 
-  /**
-   * 检查 skill 是否存在（包括内置和可选）
-   * Check if a skill exists (including builtin and optional)
-   */
+  /** Check whether a skill exists across any source (builtin, optional, extension). */
   hasSkill(name: string): boolean {
     return this.customSkills.has(name) || this.hubSkills.has(name) || this.builtinSkills.has(name) || this.skills.has(name) || this.extensionSkills.has(name);
   }
 
-  /**
-   * 清除缓存的 body 内容（用于刷新）
-   * Clear cached body content (for refresh)
-   */
+  /** Drop cached body content across every source so the next getSkill() re-reads from disk. */
   clearCache(): void {
     for (const skill of this.builtinSkills.values()) {
       skill.body = undefined;
@@ -535,10 +457,7 @@ export class AcpSkillManager {
   }
 }
 
-/**
- * 构建 skills 索引文本（用于首条消息注入）
- * Build skills index text (for first message injection)
- */
+/** Build the [Available Skills] block injected into a first message. */
 export function buildSkillsIndexText(skills: SkillIndex[]): string {
   if (skills.length === 0) return '';
 
@@ -551,10 +470,7 @@ you can request it by outputting: [LOAD_SKILL: skill-name]
 ${lines.join('\n')}`;
 }
 
-/**
- * 检测消息中是否请求加载 skill
- * Detect if message requests loading a skill
- */
+/** Extract any [LOAD_SKILL: <name>] requests emitted by the agent. */
 export function detectSkillLoadRequest(content: string): string[] {
   const matches = content.matchAll(/\[LOAD_SKILL:\s*([^\]]+)\]/gi);
   const requested: string[] = [];
@@ -564,10 +480,7 @@ export function detectSkillLoadRequest(content: string): string[] {
   return requested;
 }
 
-/**
- * 构建 skill 内容文本（用于注入）
- * Build skill content text (for injection)
- */
+/** Build the [Skill: <name>] content blocks injected when a skill is loaded. */
 export function buildSkillContentText(skills: SkillDefinition[]): string {
   if (skills.length === 0) return '';
 
