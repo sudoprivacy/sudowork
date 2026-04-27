@@ -1,6 +1,13 @@
 # Nexus Integration Architecture
 
-**Scope**: sudowork ↔ nexus ↔ sudo-code integration — agent registration, audit trace, IPC/A2A, messenger.
+End-state architecture for the sudowork ↔ nexus ↔ sudo-code surface — agent identity,
+A2A messaging, audit trace, cross-instance transport.
+
+Cross-references:
+
+- nexus repo (`nexi-lab/nexus`) — `docs/architecture/KERNEL-ARCHITECTURE.md`: kernel primitives, syscall surface, dispatch model
+- nexus repo — `docs/architecture/federation-memo.md`: Raft, zone topology, gRPC transport
+- this repo — `OPEN-ITEMS.md`: items not yet implemented; xfail sentinel keeps the list visible in CI
 
 ---
 
@@ -11,10 +18,10 @@
 │                         sudowork (Electron)                          │
 │   Renderer (React UI)  ←IPC bridge→  Main process (Node/TS)         │
 │        │                                      │                      │
-│   chat UI, audit viewer,           starts nexusd, manages ACP       │
-│   messenger UI                     agents, channels, webserver       │
+│   chat UI, audit viewer,           starts nexusd, manages sessions  │
+│   messenger UI                     via gRPC                          │
 └───────────────────────────────────────┬─────────────────────────────┘
-                                        │ HTTP/gRPC (localhost)
+                                        │ gRPC (localhost:2028)
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │              nexusd + sudo-code  (single process, always-on)         │
@@ -24,116 +31,227 @@
 │  │  VFSRouter · DCache · Metastore(redb) · LockManager         │    │
 │  │  PipeManager(DT_PIPE) · StreamManager(DT_STREAM)            │    │
 │  │  FileWatchRegistry(sys_watch) · KernelDispatch(hooks)       │    │
-│  │  AuditHook · AgentStatusResolver (procfs view)              │    │
+│  │  AuditHook · AgentStatusResolver · DT_LINK resolver         │    │
 │  └────────────┬────────────────────────┬────────────────────────┘   │
 │               │                        │                             │
-│  ┌────────────▼─────────┐   ┌──────────▼──────────┐                 │
-│  │  Rust services rlib  │   │  sudo-code runtime  │                 │
-│  │  AgentTable (state)  │   │  (linked Rust)      │                 │
-│  └────────┬─────────────┘   │  file_ops →         │                 │
-│           │  PyO3 boundary  │  sys_read/sys_write │                 │
-│  ┌────────▼─────────────┐   └─────────────────────┘                 │
+│  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
+│  │  services rlib       │   │  sudo-code runtime          │         │
+│  │  AgentTable (state)  │   │  (linked Rust crate)        │         │
+│  └────────┬─────────────┘   │  one tokio task per pid     │         │
+│           │                 │  cwd = /proc/{pid}/workspace│         │
+│  ┌────────▼─────────────┐   └─────────────────────────────┘         │
 │  │  Python service tier │                                           │
 │  │  AgentRegistry shim  │   FastAPI bricks (mount, rebac, …)        │
-│  │  + admin HTTP API    │                                           │
+│  │  + SudoCodeService   │                                           │
 │  └──────────────────────┘                                           │
 │                                                                      │
-│  gRPC port 2028: NexusVFSService (Rust tonic — Read/Write/Delete/   │
-│                  Ping zero-PyO3; Call still PyO3 bridge)             │
-│  HTTP port 12012: nexusd admin API + agent registration              │
+│  gRPC port 2028: NexusVFSService + SudoCodeService                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Design Constraints
+### Constraints
 
-- **One nexusd per sudowork instance.** sudowork launches nexusd at startup (`DynamicNexusService`). All integration targets this single process.
-- **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module; rlib crates (`services`, `raft`, `library`, `contracts`) link source code into it. Two cdylibs cannot reliably share a Python process namespace.
-- **State SSOT in Rust.** Agent lifecycle state (pid → AgentState + condvar wakeup) lives in `services::agent_table::AgentTable` (`rust/services/src/agent_table.rs`). The Python `nexus.services.agents.agent_registry.AgentRegistry` is a thin shim that dual-writes every state mutation through the kernel `agent_*` syscalls.
-- **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: `IPC`, `FEDERATION`. No PostgreSQL, no RecordStore.
-- **Zone = VFS path mount point.** A zone's visibility boundary is its mount-point path. Nodes in the same Raft cluster share that zone's VFS namespace; access to specific sub-paths is governed by ReBAC.
-
----
-
-## 2. Data Replication Mechanisms
-
-Three orthogonal replication paths exist in the kernel. The distinction matters before choosing where to store audit data or IPC.
-
-### 2.1 Comparison Table
-
-| Mechanism | What enters Raft | What enters Backend | Semantics | Scope |
-|-----------|-----------------|---------------------|-----------|-------|
-| **DT_FILE** (regular file) | `SetMetadata` (size, etag, timestamps) | Content bytes (CAS-addressed) | overwrite, random read | intra-zone |
-| **DT_STREAM + WalStreamBackend** | `AppendStreamEntry` **with data** | nothing | append-only, offset read | intra-zone |
-| **Path-level replication** | nothing | content bytes fetched by path or hash | eventually consistent, cross-node | cross-zone capable |
-
-### 2.2 Where Application Data Goes
-
-`WalStreamBackend` is the only mechanism that puts application *data* into the Raft log. This is intentional for ordered, durable, append-only sequences (audit records, event streams):
-
-- Raft log grows with stream data — compaction pressure at high audit rates
-- Stream `AppendStreamEntry` shares Raft leader bandwidth with `SetMetadata`, `AcquireLock`, etc. (one `Command` enum, one cluster per zone)
-
-DT_FILE uses Raft only for coordination (metadata), with content in the backend — the conventional pattern. Path-level replication is fully independent of Raft.
+- **One nexusd per sudowork instance.** sudowork starts nexusd at launch and tears it down on quit.
+- **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
+- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup) lives in `services::agent_table::AgentTable`; the Python `AgentRegistry` is a shim that dual-writes through the kernel `agent_*` syscalls. Image config lives on disk under `/agents/{name}/`.
+- **gRPC is the integration surface.** sudowork (Node/TS) reaches nexusd through tonic-served gRPC at port 2028; HTTP is reserved for human-facing dashboards.
+- **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: IPC, FEDERATION.
+- **Zone = VFS path mount point.** A zone's visibility boundary is its mount path. ReBAC governs sub-path access within a zone.
 
 ---
 
-## 3. Agent Registration & Lifecycle
+## 2. Agent Identity & Runtime
 
-### 3.1 Registration Flow
+Two namespaces, the same Linux distinction between image and process:
 
-sudowork registers each ACP-spawned agent with nexusd's AgentRegistry before launching the child process. The kernel allocates the agent's per-agent VFS namespace and IPC inbox at registration time so the agent can address them by path on first call.
+| Namespace | Lifetime | Content | Backing store |
+|-----------|----------|---------|---------------|
+| `/agents/{name}/` | Persistent | Profile config: `config.toml`, `prompts/`, `skills/`, `chat-with-me` | Metastore (DT_FILE / DT_DIR) |
+| `/proc/{pid}/` | Ephemeral | Runtime: `status`, `agent` link, `chat-with-me`, `sessions/`, `tasks/`, `workspace/` | In-memory + WAL while pid alive |
 
-```
-sudowork (AcpConnection.connectSudoCodeBackend)
-    │  POST http://localhost:12012/api/v2/agents/register
-    │       { agent_id, name, grants, ipc: true }
-    ▼
-nexusd FastAPI admin tier
-    │  → AgentRegistry.spawn(...)         ← Python shim
-    │       └─► kernel.agent_register(...)  ← Rust AgentTable (SSOT)
-    │  → mkdir /agents/{id}/{inbox,outbox,processed,dead_letter,tasks}
-    │  → mint per-agent api_key
-    ▼
-Response: { agent_id, api_key, ipc_inbox }
-    │
-sudowork
-    │  inject NEXUS_AGENT_ID / NEXUS_WORKSPACE / NEXUS_API_KEY into env
-    ▼
-spawn sudo-code child  (env-driven)
-```
+`/agents/{name}/` is the stable identity an outsider addresses (other agents, humans on Damus). One image can spawn many `pid`s — different worktrees, parallel work — and all of them share the same image config.
 
-The Python `AgentRegistry` owns OS behavior — PID allocation, parent/child tree, signal semantics, transition validation, IPC provisioning. The Rust `AgentTable` owns runtime state — the per-pid `AgentState` field plus a condvar that wakes blocking waiters on every transition.
-
-### 3.2 AgentState Lifecycle
+### 2.1 Image namespace
 
 ```
-REGISTERED → WARMING_UP → READY ↔ BUSY → TERMINATED
-                              ↓     ↓
-                          SUSPENDED ─┘
-                              ↓
-                          TERMINATED
+/agents/scode-standard/          ← image config (DT_DIR)
+   config.toml                   ← model selection, MCP endpoints, default workspace recipe
+   prompts/                      ← system-prompt overrides, per-skill prompts
+   skills/                       ← which tool sets are loadable
+   chat-with-me                  ← image-level conversation endpoint
 ```
 
-`kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL via `py.detach()` and parks on the per-pid condvar — Python callers get a blocking wait without pinning the interpreter.
+`chat-with-me` resolution at the image level depends on the agent kind:
 
-### 3.3 Procfs View
+- **Local image with one-or-more running pids** (e.g. `scode-standard`): kernel-internal aggregator that fans writes to every running pid's `chat-with-me` and merges their reads. The aggregator is a `PathResolver` over `/agents/{name}/chat-with-me`, no on-disk content.
+- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`): the path is mounted with `NostrBackend` (§5). Writes become NIP-04 DMs to the configured npub; incoming DMs surface as `sys_watch` wake-ups.
+- **Local persistent identity** (e.g. `human-ethan` running in this nexusd): real DT_STREAM. The sudowork UI reads it for inbox display, writes for outgoing messages.
 
-`AgentStatusResolver` is a kernel-internal `PathResolver` (`rust/kernel/src/agent_status_resolver.rs`) that serves `/{zone}/proc/{pid}/status` from the `AgentTable`. Reads return the agent descriptor as JSON; the path is generated at read time, like Linux `/proc/{pid}/status`.
+### 2.2 Runtime namespace
+
+```
+/proc/{pid}/
+   status                        ← virtual file: AgentStatusResolver returns descriptor JSON
+   agent                         ← DT_LINK → /agents/{name}/   (Linux /proc/{pid}/exe analogue)
+   chat-with-me                  ← DT_STREAM: this pid's conversation
+   sessions/                     ← jsonl files written by sudo-code (cwd-driven)
+   tasks/                        ← named task lists for this pid
+   workspace/                    ← real DT_DIR; OS-level symlinks point at host repos
+      chat-with-me               ← DT_LINK → /proc/{pid}/chat-with-me
+      project-x/                 ← OS symlink → host repo checkout
+      project-y/                 ← OS symlink → another host repo checkout
+```
+
+`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentTable`. The pid descriptor — state, exit code, image name, parent pid, timestamps — stays in `AgentTable`; the resolver renders it as JSON at read time.
+
+`/proc/{pid}/agent` is a kernel-resolved DT_LINK to the image directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its image — no metadata duplication.
+
+### 2.3 Spawn lifecycle
+
+1. sudowork sends gRPC `SudoCodeService.StartSession(image="scode-standard", repos=[…])`.
+2. nexus internals:
+   1. `AgentRegistry.spawn(name="scode-standard", kind=MANAGED)` → allocates `pid`, writes through to the Rust `AgentTable` SSOT.
+   2. Provisioner builds `/proc/{pid}/workspace/` as a real directory, plants OS-level symlinks for each requested repo, plants the `chat-with-me` DT_LINK.
+   3. `tokio::spawn` of the sudo-code agent loop with cwd = `/proc/{pid}/workspace/`. sudo-code's existing `SessionStore::from_cwd` writes `.scode/sessions/<workspace_hash>/{session_id}.jsonl` inside the VFS — no sudo-code change needed.
+3. Returns `{pid, session_id}` to sudowork.
+4. Subsequent gRPC `SendPrompt(session_id, …)` and `SubscribeEvents(session_id)` (server-streaming) carry the conversation; sudo-code drives them through the linked kernel.
+
+`AgentState` lifecycle: `REGISTERED → WARMING_UP → READY ↔ BUSY → SUSPENDED → TERMINATED`. `kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL and parks on the per-pid condvar — Python supervisors get a blocking wait without pinning the interpreter.
+
+### 2.4 sudo-code state placement
+
+sudo-code keeps its existing JSONL session format and on-disk task layout. The integration places that storage inside nexus VFS rather than rewriting sudo-code:
+
+| State | Path | Backing |
+|-------|------|---------|
+| Conversation jsonl | `/proc/{pid}/workspace/.scode/sessions/<workspace_hash>/{session_id}.jsonl` | DT_FILE |
+| Active task list | `/proc/{pid}/tasks/{task_list_name}.json` | DT_FILE |
+| Image config | `/agents/{name}/config.toml` | DT_FILE |
+
+User-global settings currently held by sudo-code in `~/.nexus/sudocode/settings.toml` remain on the host filesystem until the migration to `/agents/{name}/config.toml` lands (tracked in OPEN-ITEMS).
 
 ---
 
-## 4. Audit Trace
+## 3. A2A Communication
 
-### 4.1 Surface
+A2A, H2A, and A2H share one primitive: write a message to the recipient's `chat-with-me`.
+
+### 3.1 Mailbox
+
+`/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` are append-only message streams. They are normal DT_STREAMs that any caller can write to and the owner can read with `sys_watch`. Federation Raft replicates them across zone members; cross-instance reach happens through `NostrBackend` mounts (§5).
+
+### 3.2 The chat-with-me link inside a workspace
+
+Every workspace exposes a sibling `chat-with-me` entry as a DT_LINK to the owning pid's chat:
+
+```
+/proc/{pid}/workspace/chat-with-me  ← DT_LINK → /proc/{pid}/chat-with-me
+```
+
+So an agent inside another's workspace — say agent A is staged at `/proc/p_other/workspace/projects/nexus/` and wants to talk to whoever owns this nexus repo — writes to `chat-with-me` relative to wherever it stands; the link follows back to the workspace owner's stream.
+
+The link target is resolved by the kernel `route()` step (one hop, with cycle detection). All hooks fire on the resolved target path, so audit, sender stamping, and boundary checks behave identically to a direct `/proc/{pid}/chat-with-me` write.
+
+### 3.3 Sender identity
+
+`MailboxStampingHook` is registered as an `INTERCEPT pre-write` hook on every path matching `/{...}/chat-with-me`. It reads the caller's `agent_id` from the kernel auth context and rewrites the message envelope's `from` field before the write reaches the backend. LLMs cannot forge identity because the field is overwritten in-kernel — they do not author it.
+
+```
+agent A writes envelope { to: "scode-standard", body: "ping" }
+   │
+   ▼
+INTERCEPT pre-write: MailboxStampingHook
+   reads ctx.caller_agent_id = "human-ethan"
+   rewrites envelope: { from: "human-ethan", to: "scode-standard", body: "ping", ts: now() }
+   │
+   ▼
+DT_STREAM append
+```
+
+### 3.4 Boundary teaching UX
+
+`WorkspaceBoundaryHook` is registered as an `INTERCEPT pre-write` hook scoped to `/proc/{pid}/workspace/{...}`. It compares the caller's `agent_id` to the workspace owner derived from the path (`pid → AgentTable.lookup(pid).name`). On mismatch the hook returns `Err(EPERM)` with a structured payload:
+
+```
+EPERM at /proc/p_scode/workspace/projects/nexus/src/main.rs:
+  This workspace is owned by agent 'scode-standard' (pid p_scode).
+  You are 'human-ethan'. To send a message about this workspace, write to:
+     /proc/p_scode/workspace/chat-with-me
+  (Or address scode-standard directly at /agents/scode-standard/chat-with-me.)
+```
+
+The error is intentionally instructive. LLMs that hit it once learn the convention without memory or system-prompt edits — the path layout itself is the SSOT for permissions.
+
+### 3.5 Same primitive across humans and agents
+
+`/agents/human-ethan/chat-with-me` is the canonical Ethan address. From sudowork's UI Ethan sends through gRPC writes to other agents' `chat-with-me`; he reads his own through `sys_watch` over the same path. Other humans (Bob on Damus) appear via `NostrBackend` mount (§5) — the sender does not pick the transport, the mount does.
+
+---
+
+## 4. Cross-instance Transport via NostrBackend
+
+`NostrBackend` is a bidirectional storage driver mounted at any `chat-with-me` path that needs to reach a remote identity. It is registered like any other backend through `sys_setattr(DT_MOUNT, backend=NostrBackend{npub: …, relays: […]})`.
+
+```
+/agents/human-bob/chat-with-me  ← mount: NostrBackend{npub: bob_npub, relays: [wss://relay.damus.io, …]}
+```
+
+### 4.1 Outbound
+
+```
+agent X writes envelope to /agents/human-bob/chat-with-me
+      │
+      │  MailboxStampingHook stamps from = "agent-X"
+      ▼
+NostrBackend::push(envelope)
+      │
+      │  build NIP-04 EVENT (kind 4), encrypt to bob_npub, sign with X's nostr key
+      ▼
+relay client publishes to configured relays
+```
+
+X's nostr key is the same identity nexus issues for X — one cryptographic identity covers VFS, federation, and Nostr. The recipient on Damus sees a regular encrypted DM authored by X.
+
+### 4.2 Inbound
+
+```
+relay client subscribes to filter { kinds: [4], #p: bob_npub }
+      │  EVENT arrives
+      ▼
+NostrBackend::on_event
+      │
+      │  decrypt, unwrap envelope, append to local mirror
+      ▼
+StreamBackend emits FileEvent → FileWatchRegistry wakes sys_watch subscribers
+```
+
+The recipient's `sys_watch("/agents/human-bob/chat-with-me")` wakes and reads the message, identical to a local DT_STREAM read. The transport is transparent.
+
+### 4.3 Why this beats a separate Nostr API
+
+The driver-as-backend model gives Nostr messaging the rest of the kernel's machinery for free:
+
+- **Permissions** — ReBAC on the path governs who may send to a remote identity.
+- **Audit** — every send is a normal write, captured by `AuditHook` like any other VFS write.
+- **Discoverability** — `sys_readdir("/agents/")` lists local and remote identities uniformly.
+- **UI reuse** — Bob's client stays Damus or Amethyst; nexus does not own that surface.
+
+Native VFS clients (sudowork) stay on the gRPC path, indifferent to whether the recipient happens to be backed by Raft or Nostr.
+
+---
+
+## 5. Audit Trace
+
+### 5.1 Surface
 
 | Concern | What | Source |
 |---------|------|--------|
-| **VFS operation trace** | Every file read/write/delete/rename through nexus kernel | Rust `AuditHook` on kernel dispatch (POST phase) |
-| **Exchange audit** | Agent economic transactions | Python exchange service |
+| VFS operation trace | Every read/write/delete/rename through nexus kernel, including chat-with-me writes | Rust `AuditHook` on kernel dispatch (POST phase) |
+| Exchange audit | Agent economic transactions | Python exchange service |
 
 Both write to **DT_STREAM with WalStreamBackend** — ordered, durable, Raft-replicated.
 
-### 4.2 AuditHook Pipeline
+### 5.2 AuditHook pipeline
 
 ```
 Kernel dispatch (Rust)
@@ -153,30 +271,13 @@ WalStreamCore  (Command::AppendStreamEntry → zone Raft cluster)
       └─► registered with StreamManager at /{zone}/audit/traces/
 ```
 
-### 4.3 Auto-Wiring on Zone Create / Join
+### 5.3 Auto-wiring on zone create / join
 
-`zone_create(zone_id, audit=true)` and `zone_join(zone_id, as_learner, audit=true)` are kernel syscalls that auto-wire the AuditHook from Rust before any `sys_*` mutation can race in. The legacy Python wire-up (`_init_audit_hook` in `nexus/__init__.py`) only handles the boot-time root-zone hook for federation deployments; every other zone gets its hook through the syscall flag.
+`zone_create(zone_id, audit=true)` and `zone_join(zone_id, as_learner, audit=true)` are kernel syscalls that auto-wire the AuditHook from Rust before any `sys_*` mutation can race in. The legacy Python wire-up (`_init_audit_hook` in `nexus/__init__.py`) handles the boot-time root-zone hook for federation deployments; every other zone gets its hook through the syscall flag.
 
-### 4.4 AuditRecord Schema
+### 5.4 Central audit zone
 
-```json
-{
-  "v": 1,
-  "ts": "2026-04-26T10:00:00.123Z",
-  "trace_id": "req_a1b2c3d4",
-  "agent_id": "agent:sudo-code",
-  "op": "write",
-  "path": "/workspace/project/src/main.rs",
-  "zone_id": "root",
-  "size_bytes": 1024,
-  "status": "ok",
-  "duration_us": 42
-}
-```
-
-### 4.5 Central Audit Zone
-
-Each production node shares a dedicated 1:1 zone with the audit-node. `AuditHook` writes formatted `AuditRecord` entries to a DT_STREAM in that shared zone; the audit-node reads and gathers them locally.
+Each production node shares a 1:1 zone with the audit-node. `AuditHook` writes formatted `AuditRecord` entries to `/audit/traces/` in that shared zone; the audit-node reads and gathers them locally.
 
 ```
 Production nexusd (node A)
@@ -197,142 +298,53 @@ Audit nexusd (audit-node)
     └── local collect/gather: reads all /audit/traces/ streams, aggregates
 ```
 
-**1:1 zone (vs. learning the production zone):**
-- Minimum privilege: audit-node sees only the DT_STREAM it needs, not all production zone Raft commands
-- AuditHook formats the `AuditRecord` explicitly — audit-node receives structured audit data, not raw kernel internals
-- Production zone Raft quorum is unaffected (audit-node is in a separate Raft cluster)
+The 1:1 zone holds `AuditRecord` only — formatted by `AuditHook`, with no production-zone metadata or lock commands. audit-node joins via `zone_join(zone_id, as_learner=true, audit=true)` so the production zone's voter quorum is unaffected; audit loss is preferable to blocking production writes.
 
-**audit-node as learner:** within each 1:1 zone, audit-node joins via `zone_join(zone_id, as_learner=true, audit=true)`. AddLearnerNode is proposed by the leader so quorum stays driven by production voters; audit loss is preferable to blocking production writes.
-
-**Multiple audit consumers** (CEO audit, compliance audit) each get their own audit nexusd — each becoming a learner of the same 1:1 zones, or reading from a remote-mounted stream path once cross-zone federation is established.
-
----
-
-## 5. sudo-code ↔ nexus VFS
-
-**Same process, direct Rust syscalls.**
-
-sudo-code and nexusd run in the same OS process. sudo-code links against `nexus_kernel` as a Rust library and calls kernel syscalls directly — no gRPC, no network hop:
-
-```
-sudowork (Electron)
-    │  registers agent → spawns combined nexusd + sudo-code process
-    │
-    └─► nexusd+sudo-code (single Rust process)
-           │
-           ├── nexus_kernel cdylib (shared state)
-           │       VFSRouter · Metastore · LockManager · …
-           │       AgentTable (services rlib linked into the cdylib)
-           │
-           └── sudo-code runtime (Rust)
-                   file_ops.rs calls kernel::sys_read / sys_write directly
-                   no socket, no serialisation, no auth header
-```
-
-When `NEXUS_AGENT_ID` is set in the environment (injected by sudowork at registration), sudo-code resolves its workspace at `/agents/{NEXUS_AGENT_ID}/` and uses `NEXUS_API_KEY` for the few HTTP-only admin calls (e.g. exchange transfers). The `std::fs` fallback remains for standalone (kernel-less) development mode.
-
----
-
-## 6. IPC / A2A
-
-### 6.1 IPC over VFS
-
-IPC is implemented as VFS operations on canonical agent paths. Messages are files; delivery is filesystem events.
-
-```
-/agents/{agent_id}/
-├── AGENT.json          # Agent descriptor
-├── inbox/              # Incoming MessageEnvelope JSON files
-├── outbox/             # Sent messages (audit trail)
-├── processed/          # Successfully handled messages
-├── dead_letter/        # Failed messages
-└── tasks/              # Task persistence
-```
-
-The directory tree is created at registration time (§3.1) so senders can address `inbox/` immediately.
-
-### 6.2 Message Delivery Flow
-
-```
-Sender
-    │  sys_write("/agents/recipient/inbox/{ts}_{id}.json", envelope)
-    │  → AuditHook fires automatically (IPC is auditable)
-    │
-Recipient
-    │  sys_watch("/agents/my-agent/inbox/**", timeout_ms=30_000)
-    │  → returns FileEvent when new file appears
-    │  sys_read(event.path)
-    │  sys_rename(event.path, processed_path)
-```
-
-### 6.3 MessageEnvelope Wire Format
+### 5.5 AuditRecord schema
 
 ```json
 {
-  "nexus_message": "1.0",
-  "id": "msg_7f3a9b2c",
-  "from": "agent:analyst",
-  "to": "agent:reviewer",
-  "type": "task",
-  "correlation_id": "task_42",
-  "timestamp": "2026-04-26T10:00:00Z",
-  "ttl_seconds": 3600,
-  "payload": { "action": "review_document", "path": "/workspace/doc.md" }
+  "v": 1,
+  "ts": "2026-04-26T10:00:00.123Z",
+  "trace_id": "req_a1b2c3d4",
+  "agent_id": "agent:sudo-code",
+  "op": "write",
+  "path": "/proc/p_scode/workspace/projects/nexus/src/main.rs",
+  "zone_id": "root",
+  "size_bytes": 1024,
+  "status": "ok",
+  "duration_us": 42
 }
 ```
 
-### 6.4 nexus-ipc Rust API
+---
 
-```rust
-use nexus_kernel::ipc::{send_message, MessageEnvelope};
+## 6. Data Replication Mechanisms
 
-send_message(&kernel, "agent:reviewer", envelope)?;
-let msg = wait_for_message(&kernel, "agent:analyst", timeout_ms)?;
-```
+Three replication paths exist in the kernel; the integration uses each for a different purpose:
 
-Internally: `sys_write` + `sys_watch` — no new transport.
+| Mechanism | Where in this doc | Semantics |
+|-----------|-------------------|-----------|
+| **DT_FILE** (regular file) | sudo-code sessions, image configs, task lists | Metadata + content via CAS; random read; intra-zone |
+| **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, Raft-replicated |
+| **NostrBackend** (mount) | Remote `chat-with-me` paths | Cross-instance encrypted DM; bidirectional driver |
 
-### 6.5 Pipe / Stream Primitives
-
-For non-message IPC (raw byte streams between agents, or audit-node ingestion), the kernel exposes:
-
-| Primitive | Purpose |
-|-----------|---------|
-| `PipeManager::splice(from, to, count)` | Linux `splice(2)` analogue — zero-copy intra-process move between two DT_PIPEs |
-| `StreamManager::forward(from, to, from_offset)` | Non-destructive read-then-append between DT_STREAMs; returns `(forwarded, next_offset)` for resumable ingestion |
-| `RemotePipeBackend` | Proxies DT_PIPE push/pop across nexusd nodes via JSON-RPC over `RpcTransport` |
-
-### 6.6 Cross-Zone IPC
-
-Cross-zone messages route through VFS federation — `sys_write` to a remote-mounted path uses `FederationClient` gRPC. No special A2A code needed beyond the federation layer.
+`WalStreamBackend` is the only mechanism that puts application data into the Raft log; this is the right tradeoff for ordered, durable conversation streams (audit, chat). DT_FILE uses Raft only for metadata coordination; content lives in the backend. `NostrBackend` is fully external — Raft is not involved.
 
 ---
 
-## 7. Messenger
+## 7. Messenger Surface
 
-**Nostr relay as nexus service** (`rust/kernel/src/nostr_relay.rs`).
+The Nostr side (§4) is the kernel-level transport. The messenger product surface consumes it:
 
-Rationale:
-- Protocol simplicity: NIP-01 event = signed JSON; relay stores and filters
-- Cryptographic identity: nexus agent key ↔ Nostr keypair (one identity)
-- Polished clients: Damus (iOS), Amethyst (Android), Snort (web)
-- NIP-90 Data Vending Machine: standard AI task request/response over Nostr
+- **Damus / Amethyst / Snort** for human-facing chat. Cross-network, NIP-04 DMs and NIP-90 DVM tasks.
+- **sudowork chat UI** for in-app conversations. Reads from local `chat-with-me` streams over gRPC.
+- **NIP-90 DVM** kinds (5000–5999 / 6000–6999) double as a public AI task interface for agents that publish their availability over Nostr.
 
-### Nostr Relay Architecture
+Identity unification: each agent's Nostr keypair == its nexus identity. One key, every surface.
 
-```
-Nostr client (WebSocket, NIP-01)
-    ▼
-nostr_relay service  (Rust, nostr_relay.rs)
-    ├── Event ingestion: verify secp256k1 sig → sys_write("/nostr/events/{id}.json")
-    ├── Subscription: filter(kind/pubkey/tags/since/until) → sys_watch → push
-    └── Federation: event files replicate to Raft peers automatically
-```
-
-### Nostr kind → Platform mapping
-
-| kind | Platform meaning |
-|------|-----------------|
+| Nostr `kind` | Platform meaning |
+|--------------|-----------------|
 | 1 | Short text / agent status |
 | 4, 44 | Encrypted DM (NIP-04 / NIP-44) |
 | 9735 | Zap → nexus exchange transfer |
@@ -341,16 +353,32 @@ nostr_relay service  (Rust, nostr_relay.rs)
 
 ---
 
-## 8. Appendix A: Kernel Dispatch Hook Lifecycle
+## 8. Open Items
+
+The following items are necessary for the end-state architecture and are tracked individually in `OPEN-ITEMS.md`. The xfail sentinel test in this repo fails until each is resolved or struck through.
+
+- `DT_LINK` kernel primitive: new entry type, route() follow with cycle detection, sys_setattr wiring
+- `MailboxStampingHook`: INTERCEPT pre-write hook on chat-with-me paths injecting `from = caller_agent_id`
+- `WorkspaceBoundaryHook`: INTERCEPT pre-write hook scoped to `/proc/{pid}/workspace/`, returning the structured EPERM teaching payload
+- `NostrBackend` driver: bidirectional, NIP-04 DM, mount-based, signed with sender's nexus identity key
+- gRPC `SudoCodeService`: `StartSession`, `SendPrompt`, `SubscribeEvents`, `Cancel` (proto + nexus impl + sudowork client)
+- `/agents/{name}/chat-with-me` aggregator PathResolver for local multi-instance images
+- Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to `/agents/{name}/config.toml`
+- Auth fallback: `agentRegistry.ts` (and any future gRPC client) must try unauthenticated first, then bearer, when the `--auth-type none` assumption no longer holds
+
+---
+
+## 9. Appendix A: Kernel Dispatch Hook Lifecycle
 
 ```
 syscall (sys_write, sys_read, …)
     │
     ├─► [PRE] HookRegistry::get_pre_hook_impls(op)
     │         NativeInterceptHook::on_pre(ctx)
-    │         → can return Err to abort (permission check, quota)
+    │         → return Err to abort (permission, quota, MailboxStampingHook rewrite,
+    │                                  WorkspaceBoundaryHook teaching reject)
     │
-    ├─► [EXECUTE] actual backend write (redb / CAS / MemoryStreamBackend / …)
+    ├─► [EXECUTE] backend write (redb / CAS / MemoryStreamBackend / NostrBackend / …)
     │
     ├─► [POST] HookRegistry::get_post_hook_impls(op)
     │         NativeInterceptHook::on_post(ctx)  ← AuditHook fires here
@@ -363,18 +391,20 @@ syscall (sys_write, sys_read, …)
 
 ---
 
-## 9. Appendix B: Raft Command Taxonomy
+## 10. Appendix B: Raft Command Taxonomy
 
 All commands in a zone's Raft cluster share a single `Command` enum (`state_machine.rs`):
 
 ```
-Command::SetMetadata      — VFS file/dir metadata (path, size, etag, …)
-Command::DeleteMetadata   — VFS delete
-Command::AcquireLock      — distributed lock
-Command::ReleaseLock      — lock release
-Command::AppendStreamEntry{ key, data }  — WalStreamBackend stream data
-Command::DeleteStreamEntry — stream cleanup
+Command::SetMetadata           — VFS file/dir metadata (path, size, etag, …)
+Command::DeleteMetadata        — VFS delete
+Command::AcquireLock           — distributed lock
+Command::ReleaseLock           — lock release
+Command::AppendStreamEntry{…}  — WalStreamBackend stream data (chat, audit)
+Command::DeleteStreamEntry     — stream cleanup
 … (others)
 ```
 
 In the audit 1:1 zone the only `AppendStreamEntry` traffic comes from `AuditHook` writes to `/audit/traces/`; the audit-node learner applies them in order and exposes the aggregated stream to its local `collect/gather` consumer.
+
+In a chat zone the `AppendStreamEntry` traffic is the conversation itself — every `MailboxStampingHook`-stamped envelope replicates to every voter and learner in the zone.
