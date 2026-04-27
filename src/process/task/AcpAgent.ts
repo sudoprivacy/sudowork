@@ -37,7 +37,7 @@ import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
-import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 
@@ -704,13 +704,11 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (this.isFirstMessage) {
-          contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
-            presetContext: this.options.presetContext,
-            enabledSkills: this.options.enabledSkills,
-            workspace: this.workspace,
-            presetAgentType: this.options.backend,
-          });
-
+          // For Claude ACP we additionally pass a workspace skills hint so the
+          // [Skills Directory] block is folded into the single-pass envelope
+          // (other ACP backends like Codex / sudo-code don't currently get
+          // the workspace hint — preserving prior behaviour).
+          let workspaceSkillsHint: { skillsDir: string } | undefined;
           if (this.options.backend === 'claude') {
             const skillsDir = resolveWorkspaceSkillsDir({
               type: 'acp',
@@ -719,10 +717,16 @@ This identity statement takes priority over the default identity in USER.md.
                 backend: this.options.backend,
               },
             });
-            if (skillsDir) {
-              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
-            }
+            if (skillsDir) workspaceSkillsHint = { skillsDir };
           }
+
+          contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
+            presetContext: this.options.presetContext,
+            enabledSkills: this.options.enabledSkills,
+            workspace: this.workspace,
+            presetAgentType: this.options.backend,
+            workspaceSkillsHint,
+          });
         } else if (this.options.presetAssistantId && this.options.presetContext) {
           // For subsequent messages, inject identity override to ensure latest assistant name
           // 后续消息时，注入身份声明以确保使用最新的助手名称

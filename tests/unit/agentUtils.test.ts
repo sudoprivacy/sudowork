@@ -74,4 +74,23 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('/tmp/workspace/skills');
     expect(result.indexOf('[Skills Directory]')).toBeLessThan(result.indexOf('[User Request]'));
   });
+
+  it('folds workspaceSkillsHint into a single-pass envelope (no post-hoc splice)', async () => {
+    const { prepareFirstMessageWithSkillsIndex } = await import('../../src/process/task/agentUtils');
+
+    const result = await prepareFirstMessageWithSkillsIndex('do something', {
+      presetContext: 'rules',
+      workspace: '/tmp/workspace',
+      presetAgentType: 'claude',
+      workspaceSkillsHint: { skillsDir: '/tmp/workspace/skills' },
+    });
+
+    expect(result).toContain('[Assistant Rules');
+    expect(result).toContain('[Skills Directory]');
+    expect(result).toContain('/tmp/workspace/skills');
+    expect(result).toContain('[User Request]');
+    // Order: Assistant Rules → Skills Directory → User Request, all from one wrap.
+    expect(result.indexOf('[Assistant Rules')).toBeLessThan(result.indexOf('[Skills Directory]'));
+    expect(result.indexOf('[Skills Directory]')).toBeLessThan(result.indexOf('[User Request]'));
+  });
 });

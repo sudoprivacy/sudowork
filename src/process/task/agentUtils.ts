@@ -100,19 +100,30 @@ Example: If user asks about document operations, first run 'mcporter list' to se
 The mcporter config is at: ${MCPORTER_CONFIG_PATH}`;
 }
 
-/**
- * 首次消息处理配置
- * First message processing configuration
- */
+/** First-message processing configuration. */
 export interface FirstMessageConfig {
-  /** 预设上下文/规则 / Preset context/rules */
+  /** Preset rules/context to inject as [Assistant Rules]. */
   presetContext?: string;
-  /** 启用的 skills 列表 / Enabled skills list */
+  /** Enabled skills (skill names; UUIDs are resolved by loadSkillsContent). */
   enabledSkills?: string[];
-  /** 工作空间路径 / Workspace path (used for drafts instruction) */
+  /** Workspace path (used for drafts instruction). */
   workspace?: string;
-  /** 预设 Agent 类型 / Preset agent type - used to control skill injection behavior */
+  /** Preset agent type — controls which skill injection format is used. */
   presetAgentType?: PresetAgentType | string;
+  /**
+   * Optional workspace skills directory hint.  When set, an additional
+   * [Skills Directory] block is injected pointing at this directory so the
+   * agent knows where to read non-builtin skills' SKILL.md from.
+   *
+   * - skillsDir is required if the hint is set
+   * - enabledSkillNames, if provided, enumerates discoverable skills inline
+   *   (with descriptions resolved via AcpSkillManager); when omitted the hint
+   *   is just the directory path with a relative-path resolution note
+   */
+  workspaceSkillsHint?: {
+    skillsDir: string;
+    enabledSkillNames?: string[];
+  };
 }
 
 /**
@@ -295,6 +306,38 @@ ${lines.join('\n')}`;
 }
 
 /**
+ * Build the [Skills Directory] block used for non-builtin (workspace-installed)
+ * skills.  When enabledSkillNames is provided, enumerate them inline with
+ * descriptions resolved via AcpSkillManager.  Otherwise emit just the path +
+ * relative-path resolution hint.
+ */
+async function buildWorkspaceSkillsHintBlock(hint: NonNullable<FirstMessageConfig['workspaceSkillsHint']>): Promise<string> {
+  const { skillsDir, enabledSkillNames } = hint;
+
+  if (enabledSkillNames && enabledSkillNames.length > 0) {
+    const skillManager = AcpSkillManager.getInstance();
+    await skillManager.discoverSkills(enabledSkillNames);
+    const descriptionMap = new Map<string, string>(skillManager.getSkillsIndex().map((s: SkillIndex) => [s.name, s.description]));
+    const lines = enabledSkillNames.map((name) => {
+      const desc = descriptionMap.get(name);
+      return desc ? `- ${name} (${desc}): ${skillsDir}/${name}/SKILL.md` : `- ${name}: ${skillsDir}/${name}/SKILL.md`;
+    });
+    return `[Skills Directory]
+Skills are installed at: ${skillsDir}
+Each skill has a SKILL.md file containing detailed instructions. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
+
+Available workspace skills:
+${lines.join('\n')}
+
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
+  }
+
+  return `[Skills Directory]
+Skills are installed at: ${skillsDir}
+When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
+}
+
+/**
  * 构建系统指令内容（完整 skills 内容注入 - 用于 Gemini）
  * Build system instructions content (full skills content injection - for Gemini)
  *
@@ -351,6 +394,10 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
   const skillsBlock = buildBuiltinSkillsBlock(await loadBuiltinSkillsIndex(), 'load-tag');
   if (skillsBlock) instructions.push(skillsBlock);
 
+  if (config.workspaceSkillsHint) {
+    instructions.push(await buildWorkspaceSkillsHintBlock(config.workspaceSkillsHint));
+  }
+
   return wrapWithUserRequest(content, instructions);
 }
 
@@ -370,45 +417,25 @@ export async function prepareOpenClawFirstMessage(content: string, config: First
   const skillsBlock = buildBuiltinSkillsBlock(await loadBuiltinSkillsIndex(), 'concrete-list');
   if (skillsBlock) instructions.push(skillsBlock);
 
+  if (config.workspaceSkillsHint) {
+    instructions.push(await buildWorkspaceSkillsHintBlock(config.workspaceSkillsHint));
+  }
+
   return wrapWithUserRequest(content, instructions);
 }
 
 /**
- * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
- * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ * @deprecated Pass `workspaceSkillsHint` to `prepareFirstMessageWithSkillsIndex`
+ * or `prepareOpenClawFirstMessage` instead so the hint is built in a single
+ * pass.  This wrapper exists only for callers we haven't migrated yet; new
+ * code must not call it.
  *
- * Enumerates enabled skill names so the agent knows exactly which skills exist
- * and where to find their SKILL.md files — mirroring the builtin skills instruction.
+ * Splices a [Skills Directory] block in front of [User Request] in already-
+ * wrapped content.  The two-pass shape (wrap, then post-hoc string-replace)
+ * is fragile: any change to the [User Request] sentinel breaks it silently.
  */
 export async function injectSkillsDirectoryHint(content: string, skillsDir: string, enabledSkillNames?: string[]): Promise<string> {
-  // Warm the skill manager so hub/custom skill descriptions are available.
-  // discoverSkills() is idempotent — returns immediately if already initialized.
-  const skillManager = AcpSkillManager.getInstance();
-  await skillManager.discoverSkills(enabledSkillNames);
-  const descriptionMap = new Map<string, string>(skillManager.getSkillsIndex().map((s: SkillIndex) => [s.name, s.description]));
-
-  const skillLines =
-    enabledSkillNames && enabledSkillNames.length > 0
-      ? enabledSkillNames
-          .map((name) => {
-            const desc = descriptionMap.get(name);
-            return desc ? `- ${name} (${desc}): ${skillsDir}/${name}/SKILL.md` : `- ${name}: ${skillsDir}/${name}/SKILL.md`;
-          })
-          .join('\n')
-      : null;
-
-  const hint = skillLines
-    ? `[Skills Directory]
-Skills are installed at: ${skillsDir}
-Each skill has a SKILL.md file containing detailed instructions. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
-
-Available workspace skills:
-${skillLines}
-
-When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`
-    : `[Skills Directory]
-Skills are installed at: ${skillsDir}
-When skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them as "${skillsDir}/{name}/scripts/...".`;
+  const hint = await buildWorkspaceSkillsHintBlock({ skillsDir, enabledSkillNames });
 
   if (content.includes('[User Request]')) {
     return content.replace('[User Request]', `${hint}\n\n[User Request]`);

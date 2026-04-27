@@ -22,7 +22,7 @@ import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import type AcpAgent from '../task/AcpAgent';
 import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage, prepareOpenClawFirstMessage, injectSkillsDirectoryHint } from '../task/agentUtils';
+import { prepareFirstMessage, prepareOpenClawFirstMessage } from '../task/agentUtils';
 import { resolveOpenClawConnectionStatus } from '../utils/connectionStatus';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
@@ -1036,18 +1036,16 @@ This identity statement takes priority over the default identity in USER.md.
         let agentContent = other.input;
 
         const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
-        // Use prepareOpenClawFirstMessage — openclaw agents have a file read tool and must
-        // read SKILL.md directly. prepareFirstMessageWithSkillsIndex injects [LOAD_SKILL:]
-        // which is a Gemini-only protocol that openclaw doesn't support.
-        agentContent = await prepareOpenClawFirstMessage(agentContent, {
-          presetContext,
-          enabledSkills: skillsToInject,
-        });
+
+        // Resolve workspace skills hint (skillsDir + enumerated skill names) before
+        // building the first message so prepareOpenClawFirstMessage can fold the
+        // [Skills Directory] block into a single-pass [Assistant Rules] envelope.
         const skillsDir = resolveWorkspaceSkillsDir(conversation);
+        let workspaceSkillsHint: { skillsDir: string; enabledSkillNames?: string[] } | undefined;
         if (skillsDir) {
           // Read the actual symlinked skill names from disk — the directory is the
-          // source of truth for what the agent can use (may include more skills than
-          // the stored enabledSkills list when no filter is applied).
+          // source of truth for what the agent can use (may include more skills
+          // than the stored enabledSkills list when no filter is applied).
           const linkedSkillNames = await fs
             .readdir(skillsDir, { withFileTypes: true })
             .then((entries) =>
@@ -1057,8 +1055,17 @@ This identity statement takes priority over the default identity in USER.md.
                 .sort()
             )
             .catch(() => skillsToInject ?? []);
-          agentContent = await injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
+          workspaceSkillsHint = { skillsDir, enabledSkillNames: linkedSkillNames };
         }
+
+        // Use prepareOpenClawFirstMessage — openclaw agents have a file read tool and must
+        // read SKILL.md directly. prepareFirstMessageWithSkillsIndex injects [LOAD_SKILL:]
+        // which is a Gemini-only protocol that openclaw doesn't support.
+        agentContent = await prepareOpenClawFirstMessage(agentContent, {
+          presetContext,
+          enabledSkills: skillsToInject,
+          workspaceSkillsHint,
+        });
 
         if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
           const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
