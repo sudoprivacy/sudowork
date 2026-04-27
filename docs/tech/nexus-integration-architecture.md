@@ -92,7 +92,7 @@ Two namespaces, the same Linux distinction between an executable on disk and a r
 `chat-with-me` resolution at the agent-name level depends on the kind of agent:
 
 - **Local agent with one-or-more running pids** (e.g. `scode-standard`): kernel-internal aggregator (`services::agents::agent_chat`) routes writes to the matching `/proc/{pid}/chat-with-me` when exactly one instance is active; ambiguous (>1 active pid) and missing (0 active pid) cases surface a structured error pointing at `/proc/{pid}/chat-with-me`.
-- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`): the path is mounted with `NostrBackend` (§5). Writes become NIP-04 DMs to the configured npub; incoming DMs surface as `sys_watch` wake-ups.
+- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`): the path is mounted with `NostrBackend` (§4). Writes become NIP-04 DMs to the configured npub; incoming DMs surface as `sys_watch` wake-ups.
 - **Local persistent identity** (e.g. `human-ethan` running in this nexusd): real DT_STREAM. The sudowork UI reads it for inbox display, writes for outgoing messages.
 
 ### 2.2 Runtime namespace
@@ -131,58 +131,79 @@ sudowork (Electron, TS)
    │ gRPC: SudoCodeService.StartSession(agent="scode-standard", repos=[…])
    ▼
 nexusd:
-   SudoCodeService gRPC handler
-      │ AgentRegistry.spawn(name="scode-standard", kind=MANAGED)
-      │   → allocates pid, dual-writes through to the Rust AgentTable
-      │ Provisioner builds /proc/{pid}/workspace/ with OS-level symlinks
-      │   for each requested repo, plants the DT_LINK /proc/{pid}/workspace/
-      │   chat-with-me → /proc/{pid}/chat-with-me
-      │ AgentRuntimeRegistry.spawn(agent_name, pid, workspace_path)
-      │   → tokio::spawn of the sudo-code agent loop, cwd =
-      │     /proc/{pid}/workspace/. The runtime calls kernel syscalls
-      │     directly — no IPC, no serialisation, no auth header.
+   SudoCodeRPCService.sudo_code_start_session
+      │ AgentRegistry.spawn(name, owner, zone, kind=MANAGED, labels)
+      │   → allocates pid; AgentTable in services rlib carries the
+      │     authoritative state; Python AgentRegistry holds the PCB shim
+      │ session_id = "sess-" + uuid4()[:12]
+      │ workspace_path = "/proc/{pid}/workspace/"
+      │ AgentRuntimeRegistry.get(agent) → AgentRuntime | None
+      │   • None: log a warning, keep the AgentRegistry record, return.
+      │     A follow-up runtime install can pick the agent up — the
+      │     gRPC contract is decoupled from runtime wire-up timing.
+      │   • Some(runtime): runtime.spawn(pid, workspace_path, repos, model).
+      │     Spawn failure reaps the pid and surfaces RuntimeError to
+      │     sudowork so the session is never reported as live.
       ▼
-   {session_id, agent_id, workspace_path} → sudowork
+   {session_id, agent_id=pid, workspace_path} → sudowork
 ```
+
+The provisioner step that builds `/proc/{pid}/workspace/` with OS-level
+symlinks for each `WorkspaceRepo` and plants the DT_LINK shortcut at
+`/proc/{pid}/workspace/chat-with-me` is tracked separately in
+`OPEN-ITEMS.md / sudo-code-grpc-service`. Until it lands, `workspace_path`
+is just the path string — the runtime task can still take cwd at it once
+nexus VFS exposes the directory.
 
 After spawn, prompts and responses flow through the chat-with-me VFS surface
 — same A2A primitive every other agent uses (§3). sudowork writes prompts to
-`/agents/scode-standard/chat-with-me` (the agent_chat resolver routes to the
-active pid; `MailboxStampingHook` stamps the `from` field with sudowork's
-`agent_id`). The sudo-code task in nexusd `sys_watch`es its own
-`/proc/{pid}/chat-with-me` for incoming prompts and writes responses to
-`/agents/{user}/chat-with-me`. sudowork's UI `sys_watch`es Ethan's
-chat-with-me for those responses.
+`/agents/scode-standard/chat-with-me`; the kernel's agent_chat resolver
+routes single-pid writes and broadcasts multi-pid writes; the kernel rewrites
+the envelope's `from` field to sudowork's `agent_id` (§3.3). The sudo-code
+task in nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me` for incoming
+prompts and writes responses to `/agents/{user}/chat-with-me`. sudowork's UI
+`sys_watch`es the user's chat-with-me for those responses.
 
-**`SudoCodeService` gRPC surface stays narrow** — only spawn / cancel / liveness:
+**`SudoCodeService` gRPC surface is intentionally narrow** — only spawn /
+cancel / liveness:
 
-- `StartSession(agent, repos)` → `{session_id, agent_id, workspace_path}`
-- `Cancel(session_id, mode)` → `{cancelled}`
-- `GetSession(session_id)` → `{state, agent, workspace_path}`
+- `StartSession(agent, repos, model)` → `{session_id, agent_id, workspace_path}`
+- `Cancel(session_id, mode)` → `{cancelled}`. `mode ∈ {cancel_turn, cancel_session}`
+  — turn aborts the current generation, session also reaps the pid.
+- `GetSession(session_id)` → `{session_id, agent_id, agent, workspace_path, model, state}`
 
 Prompt / event flow uses the existing `NexusVFSService` gRPC (`sys_write`,
 `sys_watch`, `sys_read`) over the chat-with-me paths. There is no
 `SendPrompt` or `SubscribeEvents` gRPC — those would duplicate the A2A
 surface the rest of the system uses.
 
-**`AgentRuntimeRegistry`** is the kernel-side trait + slot pair the
-`SudoCodeService` handler dispatches through. The trait shape mirrors
-the kernel-knows pattern PR #3921 already establishes for hooks and
-backends:
+#### AgentRuntimeRegistry
 
-```rust
-pub trait AgentRuntime: Send + Sync {
-    fn spawn(&self, pid: &str, workspace: &str, params: SpawnParams) -> Result<()>;
-    fn cancel(&self, pid: &str, mode: CancelMode) -> Result<()>;
-}
+`AgentRuntimeRegistry` is the kernel-knows DI slot the
+`SudoCodeRPCService` handler dispatches through, parallel to
+`NativeInterceptHook` registration. It lives in
+`nexus.services.sudo_code.runtime_registry` and exposes a small surface:
+
+```python
+class AgentRuntime(Protocol):
+    def spawn(self, *, pid: str, workspace_path: str,
+              repos: list[dict[str, Any]], model: str) -> None: ...
+    def cancel(self, *, pid: str, mode: str) -> None: ...
+
+class AgentRuntimeRegistry:
+    def register(self, agent_name: str, runtime: AgentRuntime) -> None: ...
+    def unregister(self, agent_name: str) -> None: ...
+    def get(self, agent_name: str) -> AgentRuntime | None: ...
+    def list(self) -> list[str]: ...
 ```
 
-The trait is declared in nexus; the sudo-code runtime crate (separate
-git repo, but linked into nexusd at build time) implements it and
-registers its instance into the slot at module init. nexus has no
-Cargo dependency on sudo-code — the dependency direction is
-`sudo-code → nexus` only — and sudo-code's crash blast radius
-matches every other in-process panic boundary in nexusd.
+The trait is declared as a Python `Protocol` (duck-typed) so the same
+slot accepts both an in-process Rust impl bound through PyO3 (the
+shape sudo-code's runtime crate will use) and pure-Python implementations
+useful for testing. The Rust counterpart trait — `pub trait AgentRuntime:
+Send + Sync` in the services rlib — is deferred until the sudo-code crate
+itself lands, so the dependency direction stays `sudo-code → nexus` only
+and nexus carries no Cargo edge into sudo-code.
 
 `AgentState` lifecycle: `REGISTERED → WARMING_UP → READY ↔ BUSY → SUSPENDED → TERMINATED`.
 `kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL and
@@ -209,7 +230,7 @@ A2A, H2A, and A2H share one primitive: write a message to the recipient's `chat-
 
 ### 3.1 Mailbox
 
-`/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` are append-only message streams. They are normal DT_STREAMs that any caller can write to and the owner can read with `sys_watch`. Federation Raft replicates them across zone members; cross-instance reach happens through `NostrBackend` mounts (§5).
+`/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` are append-only message streams. They are normal DT_STREAMs that any caller can write to and the owner can read with `sys_watch`. Federation Raft replicates them across zone members; cross-instance reach happens through `NostrBackend` mounts (§4).
 
 ### 3.2 The chat-with-me link inside a workspace
 
@@ -225,18 +246,33 @@ The link target is resolved by the kernel `route()` step (one hop, with cycle de
 
 ### 3.3 Sender identity
 
-`MailboxStampingHook` is registered as an `INTERCEPT pre-write` hook on every path matching `/{...}/chat-with-me`. It reads the caller's `agent_id` from the kernel auth context and rewrites the message envelope's `from` field before the write reaches the backend. LLMs cannot forge identity because the field is overwritten in-kernel — they do not author it.
+Mailbox envelope stamping rewrites the message envelope's `from` field
+before the write reaches the backend. The kernel calls
+`services::agents::mailbox_stamping::maybe_stamp_chat_envelope` inline
+from `sys_write` on every path matching `*/chat-with-me`; the helper
+short-circuits on the path test for non-mailbox paths and on writes
+without a caller `agent_id`. LLMs cannot forge identity because the
+field is overwritten in-kernel — they do not author it.
+
+The stamping is an inline call rather than a registered
+`NativeInterceptHook` because the hook surface contract is read-only
+(hooks see the write, accept or reject it, but do not mutate
+content). Mutating the envelope before backend dispatch needs a
+content-rewriting carve-out; rather than widen the hook surface for
+one consumer, the kernel calls the policy function directly and
+non-mailbox paths pay zero cost.
 
 ```
 agent A writes envelope { to: "scode-standard", body: "ping" }
    │
    ▼
-INTERCEPT pre-write: MailboxStampingHook
-   reads ctx.caller_agent_id = "human-ethan"
+sys_write inline: maybe_stamp_chat_envelope
+   reads ctx.agent_id = "human-ethan"
    rewrites envelope: { from: "human-ethan", to: "scode-standard", body: "ping", ts: now() }
    │
    ▼
-DT_STREAM append
+DT_STREAM append (per-pid stream, possibly broadcast across pids
+                  for the multi-instance agent_chat case — §3.6)
 ```
 
 ### 3.4 Boundary teaching UX
@@ -255,7 +291,32 @@ The error is intentionally instructive. LLMs that hit it once learn the conventi
 
 ### 3.5 Same primitive across humans and agents
 
-`/agents/human-ethan/chat-with-me` is the canonical Ethan address. From sudowork's UI Ethan sends through gRPC writes to other agents' `chat-with-me`; he reads his own through `sys_watch` over the same path. Other humans (Bob on Damus) appear via `NostrBackend` mount (§5) — the sender does not pick the transport, the mount does.
+`/agents/human-ethan/chat-with-me` is the canonical Ethan address. From sudowork's UI Ethan sends through gRPC writes to other agents' `chat-with-me`; he reads his own through `sys_watch` over the same path. Other humans (Bob on Damus) appear via `NostrBackend` mount (§4) — the sender does not pick the transport, the mount does.
+
+### 3.6 Multi-instance agent_chat resolution
+
+One agent name can have many running pids — `scode-standard` running in
+two worktrees is a normal case. The agent_chat resolver
+(`services::agents::agent_chat`) handles all three cardinalities:
+
+- **0 active pids** → kernel returns a `FileNotFound` error citing the
+  agent name, so callers see "no instance running" instead of the
+  generic missing-path error.
+- **1 active pid** → the resolver rebinds `/agents/{name}/chat-with-me`
+  to the matching `/proc/{pid}/chat-with-me` and the rest of `sys_*`
+  walks the resolved path.
+- **N active pids** → on writes, the kernel broadcasts: every active
+  pid's `/proc/{pid}/chat-with-me` receives a copy of the envelope
+  (recursive `sys_write` so per-pid hooks fire normally; mailbox
+  stamping happens once on the resolved path so every recipient sees
+  the same `from`). On reads, the kernel surfaces an `Ambiguous` error
+  pointing at the candidate pids — the multi-pid read merge that
+  interleaves entries by timestamp is tracked in
+  `OPEN-ITEMS.md / agent-chat-multi-instance-read`.
+
+Active = `AgentState ∈ { WarmingUp, Ready, Busy, Suspended }`. Terminated
+and Registered (not-yet-warm) pids are skipped so a stale agent record
+does not intercept the path.
 
 ---
 
@@ -272,9 +333,9 @@ The error is intentionally instructive. LLMs that hit it once learn the conventi
 ```
 agent X writes envelope to /agents/human-bob/chat-with-me
       │
-      │  MailboxStampingHook stamps from = "agent-X"
+      │  inline kernel stamping rewrites from = "agent-X" (§3.3)
       ▼
-NostrBackend::push(envelope)
+NostrBackend::write_content(envelope)
       │
       │  build NIP-04 EVENT (kind 4), encrypt to bob_npub, sign with X's nostr key
       ▼
@@ -426,16 +487,43 @@ Identity unification: each agent's Nostr keypair == its nexus identity. One key,
 
 ## 8. Open Items
 
-The following items are necessary for the end-state architecture and are tracked individually in `OPEN-ITEMS.md`. The xfail sentinel test in this repo fails until each is resolved or struck through.
+The following items are necessary for the end-state architecture and are
+tracked individually in `OPEN-ITEMS.md`. The xfail sentinel test in this
+repo fails until each is resolved or struck through.
 
-- `DT_LINK` kernel primitive: new entry type, route() follow with cycle detection, sys_setattr wiring
-- `MailboxStampingHook`: INTERCEPT pre-write hook on chat-with-me paths injecting `from = caller_agent_id`
-- `WorkspaceBoundaryHook`: INTERCEPT pre-write hook scoped to `/proc/{pid}/workspace/`, returning the structured EPERM teaching payload
-- `NostrBackend` driver: bidirectional, NIP-04 DM, mount-based, signed with sender's nexus identity key
-- gRPC `SudoCodeService`: `StartSession`, `SendPrompt`, `SubscribeEvents`, `Cancel` (proto + nexus impl + sudowork client)
-- `/agents/{name}/chat-with-me` aggregator for local multi-instance agents (multi-pid fan-out / merge — single-instance routing landed in nexus PR #3922)
-- Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to `/agents/{name}/config.toml`
-- Auth fallback: `agentRegistry.ts` (and any future gRPC client) must try unauthenticated first, then bearer, when the `--auth-type none` assumption no longer holds
+- `DT_LINK` kernel primitive — entry type, `route()` follow with cycle
+  detection, `sys_setattr` wiring, `sys_stat` lstat-style surfacing of
+  `link_target`. Phase 1 + most of Phase 2 landed; remaining wiring is
+  scoped in OPEN-ITEMS.
+- `NostrBackend` driver runtime — bidirectional, NIP-04 DM, mount-based,
+  signed with sender's nexus identity key. ObjectStore stub committed
+  (every method returns `NotSupported`); relay client + NIP-04
+  encrypt/decrypt + local-mirror + mount wire-up still pending.
+- gRPC `SudoCodeService` — `StartSession` / `Cancel` / `GetSession`
+  proto + Python `SudoCodeRPCService` impl wired into AgentRegistry +
+  `AgentRuntimeRegistry` Protocol have landed. Pending: sudo-code
+  Rust runtime crate that implements `AgentRuntime` and registers
+  itself at module init; `/proc/{pid}/workspace/` materialization
+  (OS-level repo symlinks + DT_LINK chat-with-me shortcut); TS gRPC
+  client in this repo.
+- Multi-instance `/agents/{name}/chat-with-me` read merge — write-side
+  broadcast across active pids landed; read merge that interleaves
+  entries from multiple pids by timestamp is pending.
+- Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to
+  `/agents/{name}/config.toml` — sudo-code-side change.
+- Auth fallback — when the future TS gRPC client lands in this repo,
+  it must try unauthenticated first and fall back to a bearer token
+  on `Unauthenticated` so the `--auth-type none` assumption (cluster
+  profile default) does not become load-bearing.
+
+The following items are **closed** in nexi-lab/nexus#3922; they remain
+listed here only to anchor the architecture description above:
+
+- Mailbox envelope stamping (`services::agents::mailbox_stamping` +
+  inline kernel call from `sys_write` — not a registered
+  `NativeInterceptHook`; see §3.3 for why)
+- `WorkspaceBoundaryHook` — INTERCEPT pre-write hook + boot-time
+  registration in `Kernel::register_native_hook`
 
 ---
 
@@ -444,10 +532,15 @@ The following items are necessary for the end-state architecture and are tracked
 ```
 syscall (sys_write, sys_read, …)
     │
+    ├─► [INLINE REWRITE — sys_write only] mailbox stamping
+    │         services::agents::mailbox_stamping::maybe_stamp_chat_envelope
+    │         → rewrites envelope `from` for paths matching */chat-with-me;
+    │           short-circuits on the path test for everything else.
+    │
     ├─► [PRE] HookRegistry::get_pre_hook_impls(op)
     │         NativeInterceptHook::on_pre(ctx)
-    │         → return Err to abort (permission, quota, MailboxStampingHook rewrite,
-    │                                  WorkspaceBoundaryHook teaching reject)
+    │         → return Err to abort (permission, quota, WorkspaceBoundaryHook
+    │                                 teaching reject)
     │
     ├─► [EXECUTE] backend write (redb / CAS / MemoryStreamBackend / NostrBackend / …)
     │
@@ -459,6 +552,13 @@ syscall (sys_write, sys_read, …)
               → StreamEventObserver writes to DT_STREAM (sys_watch wakeup)
               → FileWatcher wakes sys_watch subscribers
 ```
+
+The mailbox stamping step lives outside the `NativeInterceptHook`
+contract because hooks see writes but cannot mutate them. Adding a
+content-rewriting carve-out would have widened the hook surface for
+one consumer; an inline call from `sys_write` is the smaller change.
+The `[PRE]` hook list still owns everything that can reject a write
+without rewriting it.
 
 ---
 
@@ -478,4 +578,4 @@ Command::DeleteStreamEntry     — stream cleanup
 
 In the audit 1:1 zone the only `AppendStreamEntry` traffic comes from `AuditHook` writes to `/audit/traces/`; the audit-node learner applies them in order and exposes the aggregated stream to its local `collect/gather` consumer.
 
-In a chat zone the `AppendStreamEntry` traffic is the conversation itself — every `MailboxStampingHook`-stamped envelope replicates to every voter and learner in the zone.
+In a chat zone the `AppendStreamEntry` traffic is the conversation itself — every envelope (with its `from` field rewritten by the inline mailbox stamping step in `sys_write`, §3.3) replicates to every voter and learner in the zone.
