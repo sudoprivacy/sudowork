@@ -91,8 +91,17 @@ function extractBody(content: string): string {
  * - 可选 skills: 通过 enabledSkills 参数控制
  */
 export class AcpSkillManager {
-  private static instance: AcpSkillManager | null = null;
-  private static instanceKey: string | null = null;
+  /**
+   * Per-key instance cache.
+   *
+   * Previously a single mutable instance keyed by enabledSkills was kept; when
+   * two concurrent conversations had different enabledSkills lists the second
+   * caller's getInstance() would replace the first caller's manager mid-flight,
+   * dropping any in-progress discoverSkills() work.  A Map keyed by the same
+   * canonical cacheKey lets independent conversations coexist; resetInstance()
+   * still clears everything (the `skill change → reset` workflow is preserved).
+   */
+  private static cache: Map<string, AcpSkillManager> = new Map();
 
   private skills: Map<string, SkillDefinition> = new Map();
   private builtinSkills: Map<string, SkillDefinition> = new Map();
@@ -129,25 +138,20 @@ export class AcpSkillManager {
     // no skills → load none).  An empty array must NOT map to 'all'.
     const cacheKey = enabledSkills ? (enabledSkills.length > 0 ? [...enabledSkills].sort().join(',') : '__none__') : 'all';
 
-    // 如果缓存键变化，需要重新创建实例
-    // If cache key changed, need to recreate instance
-    if (AcpSkillManager.instance && AcpSkillManager.instanceKey === cacheKey) {
-      return AcpSkillManager.instance;
+    let instance = AcpSkillManager.cache.get(cacheKey);
+    if (!instance) {
+      instance = new AcpSkillManager();
+      AcpSkillManager.cache.set(cacheKey, instance);
     }
-
-    // 创建新实例
-    AcpSkillManager.instance = new AcpSkillManager();
-    AcpSkillManager.instanceKey = cacheKey;
-    return AcpSkillManager.instance;
+    return instance;
   }
 
   /**
-   * 重置单例实例（用于测试或配置变更）
-   * Reset singleton instance (for testing or config changes)
+   * 清空所有缓存的实例（用于测试或 skills 目录变更后强制重新发现）
+   * Clear all cached instances (for tests or to force rediscovery after skills directory changes)
    */
   static resetInstance(): void {
-    AcpSkillManager.instance = null;
-    AcpSkillManager.instanceKey = null;
+    AcpSkillManager.cache.clear();
   }
 
   /**
