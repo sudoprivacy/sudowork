@@ -8,47 +8,60 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
-// Match @ at start of input or after whitespace, followed by query text
-// Supports @ at any position in input (not just start)
+// Match @ followed by query text, ending at the current cursor position
+// Matches @ at start of input or after whitespace
 const AT_QUERY_RE = /(?:^|\s)@([^\s@]*)$/;
 
 /**
- * Extract the @ query from input text.
+ * Extract the @ query from input text based on cursor position.
  * Returns the query string after @, or null if no @ trigger found.
  */
-export function matchSkillQuery(input: string): string | null {
-  const match = input.match(AT_QUERY_RE);
+export function matchSkillQuery(input: string, cursorPosition?: number): string | null {
+  const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input;
+  const match = textBeforeCursor.match(AT_QUERY_RE);
   return match ? match[1] : null;
 }
 
 /**
- * Strip the @query portion from input text, keeping everything before @.
+ * Strip the @query portion from input text at specific position.
  */
-export function stripAtQuery(input: string): string {
-  const match = input.match(/(?:^|\s)@[^\s@]*$/);
+export function stripAtQuery(input: string, cursorPosition?: number): string {
+  const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input;
+  const textAfterCursor = cursorPosition !== undefined ? input.slice(cursorPosition) : '';
+
+  const match = textBeforeCursor.match(/(?:^|\s)@[^\s@]*$/);
   if (!match) return input;
+
   const matchStart = match.index ?? 0;
-  // Keep everything before the @ (including the leading space if any)
-  const prefix = input.slice(0, matchStart);
-  // If the match started with a space, keep it
+  const prefix = textBeforeCursor.slice(0, matchStart);
+
+  let resultPrefix = prefix;
   if (match[0].startsWith(' ') || match[0].startsWith('\t') || match[0].startsWith('\n')) {
-    return prefix + match[0][0];
+    resultPrefix = prefix + match[0][0];
   }
-  return prefix;
+
+  return resultPrefix + textAfterCursor;
 }
 
 /**
  * Replace the @query portion in input text with a new value.
  */
-export function replaceAtQuery(input: string, replacement: string): string {
-  const match = input.match(/(?:^|\s)@[^\s@]*$/);
+export function replaceAtQuery(input: string, replacement: string, cursorPosition?: number): string {
+  const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input;
+  const textAfterCursor = cursorPosition !== undefined ? input.slice(cursorPosition) : '';
+
+  const match = textBeforeCursor.match(/(?:^|\s)@[^\s@]*$/);
   if (!match) return input + replacement;
+
   const matchStart = match.index ?? 0;
-  const prefix = input.slice(0, matchStart);
+  const prefix = textBeforeCursor.slice(0, matchStart);
+
+  let resultPrefix = prefix;
   if (match[0].startsWith(' ') || match[0].startsWith('\t') || match[0].startsWith('\n')) {
-    return prefix + match[0][0] + replacement + ' ';
+    resultPrefix = prefix + match[0][0];
   }
-  return prefix + replacement + ' ';
+
+  return resultPrefix + replacement + ' ' + textAfterCursor;
 }
 
 export type AtMentionTab = 'skills' | 'files';
@@ -64,6 +77,7 @@ export interface SkillSelectorItem {
 
 interface UseSkillSelectorControllerOptions {
   input: string;
+  cursorPosition?: number;
   skills: SkillSelectorItem[];
   selectedSkills: string[];
   onSelectSkill: (skillName: string) => void;
@@ -80,8 +94,8 @@ interface UseSkillSelectorControllerOptions {
 const DEBOUNCE_DELAY = 150;
 
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile, filterDisabled = false } = options;
-  const query = useMemo(() => matchSkillQuery(input), [input]);
+  const { input, cursorPosition, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile, filterDisabled = false } = options;
+  const query = useMemo(() => matchSkillQuery(input, cursorPosition), [input, cursorPosition]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
@@ -206,7 +220,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
         return true;
       }
     },
-    [activeTab, filteredSkills, filteredFiles, onSelectSkill, onSelectFile]
+    [activeTab, filteredSkills, filteredFiles, onSelectSkill, onSelectFile, input, cursorPosition]
   );
 
   const switchTab = useCallback(() => {

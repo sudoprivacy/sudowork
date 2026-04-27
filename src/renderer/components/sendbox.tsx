@@ -73,6 +73,7 @@ const SendBox: React.FC<{
   const mobileUserFocusIntentUntilRef = useRef(0);
   const latestInputRef = useLatestRef(input);
   const setInputRef = useLatestRef(setInput);
+  const [cursorPosition, setCursorPosition] = useState(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const handleContextMenu = useCallback(
@@ -314,29 +315,27 @@ const SendBox: React.FC<{
   );
 
   // Transform installed skills to selector items (only enabled skills)
-  const skillSelectorItems = useMemo<SkillSelectorItem[]>(
-    () => {
-      const items = installedSkills
-        .filter((skill) => skill.enabled !== false)
-        .map((skill) => {
-          const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-          return {
-            name: skill.name,
-            displayName,
-            description,
-            icon: icon || resolveSkillIcon(skill.meta?.icon),
-            emoji,
-            enabled: skill.enabled,
-          };
-        });
-      // Deduplicate items by name to prevent duplicate keys
-      return Array.from(new Map(items.map((item) => [item.name, item])).values());
-    },
-    [installedSkills]
-  );
+  const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
+    const items = installedSkills
+      .filter((skill) => skill.enabled !== false)
+      .map((skill) => {
+        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+        return {
+          name: skill.name,
+          displayName,
+          description,
+          icon: icon || resolveSkillIcon(skill.meta?.icon),
+          emoji,
+          enabled: skill.enabled,
+        };
+      });
+    // Deduplicate items by name to prevent duplicate keys
+    return Array.from(new Map(items.map((item) => [item.name, item])).values());
+  }, [installedSkills]);
 
   const skillSelectorController = useSkillSelectorController({
     input,
+    cursorPosition,
     skills: skillSelectorItems,
     selectedSkills,
     onSelectSkill: (skillName) => {
@@ -344,7 +343,7 @@ const SendBox: React.FC<{
         setSelectedSkills([...selectedSkills, skillName]);
       }
       // Strip the @query from input when selecting a skill
-      setInput(stripAtQuery(input));
+      setInput(stripAtQuery(input, cursorPosition));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
@@ -352,7 +351,7 @@ const SendBox: React.FC<{
     workspaceFiles,
     onSelectFile: (file) => {
       // Replace @query with @relativePath in input
-      const newInput = replaceAtQuery(input, `@${file.relativePath}`);
+      const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
       setInput(newInput);
     },
   });
@@ -682,6 +681,10 @@ const SendBox: React.FC<{
             }}
             onChange={(v) => {
               setInput(v);
+            }}
+            onSelect={(e) => {
+              const target = e.currentTarget as HTMLTextAreaElement;
+              setCursorPosition(target.selectionStart);
             }}
             onPaste={onPaste}
             onContextMenu={handleContextMenu}
