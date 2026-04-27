@@ -14,9 +14,16 @@ sentinel test and this file.
 
 ## dt-link
 
-DT_LINK kernel primitive — VFS-internal symlink. New entry type, kernel `route()`
-follows targets one hop with cycle detection, `sys_setattr` accepts a `link_target`
-field, `sys_stat` reports the entry as a link.
+DT_LINK kernel primitive — VFS-internal symlink. Two phases:
+
+- **Phase 1 (landed in nexi-lab/nexus#3922)**: entry type (`DT_LINK = 6`),
+  `FileMetadata.link_target` field across proto / Rust / Python contracts,
+  `DCache::resolve_link` one-hop resolver with `LinkResolveError`
+  (Chained / SelfLoop / MissingTarget) variants, unit tests.
+- **Phase 2 (pending)**: `route()` integration so every `sys_*` resolves
+  links transparently. `sys_setattr` accepts the `link_target` arg and
+  rejects self-loops at write time. `sys_stat` surfaces `link_target`
+  for callers that want raw link metadata (Linux `lstat` analogue).
 
 Owner: nexus repo. Blocks: chat-with-me workspace shortcut, `/proc/{pid}/agent`
 back-reference to image.
@@ -35,7 +42,13 @@ Owner: nexus repo (kernel hook crate). Blocks: A2A sender identity guarantee.
 Compares caller `agent_id` to workspace owner derived from path; on mismatch returns
 `Err(EPERM)` with the structured teaching payload (see design doc §3.4).
 
-Owner: nexus repo (kernel hook crate). Blocks: cross-agent boundary teaching.
+Implementation landed in `nexi-lab/nexus#3922` with eight unit tests covering the
+boundary, the chat-with-me carve-out, runtime-metadata pass-through, and the
+empty-caller escape hatch. Registration into `Kernel::register_native_hook` at
+boot is the remaining one-line follow-up — kept out of the same commit so the
+rule and its proof land before the wire-up.
+
+Owner: nexus repo. Blocks: cross-agent boundary teaching at runtime.
 
 ## nostr-backend-driver
 
