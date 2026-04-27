@@ -30,25 +30,26 @@ back-reference to the agent profile.
 
 ## mailbox-stamping-hook
 
-`MailboxStampingHook` — INTERCEPT pre-write hook on every path matching `*/chat-with-me`.
-Reads `caller_agent_id` from kernel auth context; rewrites the envelope's `from` field
-in place. LLMs cannot author the field.
+Mailbox envelope stamping — on writes to `*/chat-with-me`, the kernel
+rewrites the envelope's `from` field to the caller's `agent_id` so
+LLMs cannot author the field. Policy lives in
+`services::agents::mailbox_stamping::maybe_stamp_chat_envelope`; the
+kernel calls it inline from `sys_write` (not as a registered
+`NativeInterceptHook`, since that surface cannot mutate content) so
+non-mailbox paths short-circuit on the path test inside the helper.
 
-Owner: nexus repo (kernel hook crate). Blocks: A2A sender identity guarantee.
+Landed in `nexi-lab/nexus#3922`. Owner: nexus repo.
 
 ## workspace-boundary-hook
 
-`WorkspaceBoundaryHook` — INTERCEPT pre-write hook scoped to `/proc/{pid}/workspace/`.
-Compares caller `agent_id` to workspace owner derived from path; on mismatch returns
-`Err(EPERM)` with the structured teaching payload (see design doc §3.4).
+`WorkspaceBoundaryHook` — INTERCEPT pre-write hook scoped to
+`/proc/{pid}/workspace/`. Compares caller `agent_id` to the workspace
+owner derived from path; on mismatch returns `Err(EPERM)` with the
+structured teaching payload (see design doc §3.4). Implementation +
+boot-time registration into `Kernel::register_native_hook` both landed
+in `nexi-lab/nexus#3922`.
 
-Implementation landed in `nexi-lab/nexus#3922` with eight unit tests covering the
-boundary, the chat-with-me carve-out, runtime-metadata pass-through, and the
-empty-caller escape hatch. Registration into `Kernel::register_native_hook` at
-boot is the remaining one-line follow-up — kept out of the same commit so the
-rule and its proof land before the wire-up.
-
-Owner: nexus repo. Blocks: cross-agent boundary teaching at runtime.
+Owner: nexus repo. Closed.
 
 ## nostr-backend-driver
 
