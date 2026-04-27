@@ -60,6 +60,13 @@
   "refresh": "更新",
   "tray.showWindow": "Sudowork を表示",
   "tray.quit": "終了",
+  "siderMenu": {
+    "agent": "デジタルアシスタント",
+    "skillStore": "スキルストア",
+    "security": "セキュリティ",
+    "webui": "リモート接続",
+    "cron": "スケジュールタスク"
+  },
   "ariaLabel": {
     "close": "閉じる",
     "edit": "編集",

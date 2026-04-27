@@ -44,11 +44,11 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 功能菜单项定义 / Function menu items definition
   const functionMenus = [
-    { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
-    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
-    { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
-    { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
-    { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
+    { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
+    { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
+    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
+    { id: 'webui', label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' },
+    { id: 'cron', label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' },
   ];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
@@ -231,7 +231,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
                     onClick={async () => {
                       await logout();
-                      Message.success('已退出登录');
+                      Message.success(t('login.logoutSuccess'));
                       void navigate('/login', { replace: true });
                     }}
                   >

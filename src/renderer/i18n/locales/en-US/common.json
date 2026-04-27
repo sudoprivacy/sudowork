@@ -63,6 +63,13 @@
   "refresh": "Refresh",
   "tray.showWindow": "Show Sudowork",
   "tray.quit": "Quit",
+  "siderMenu": {
+    "agent": "Digital Assistants",
+    "skillStore": "Skill Store",
+    "security": "Security",
+    "webui": "Remote Access",
+    "cron": "Scheduled Tasks"
+  },
   "ariaLabel": {
     "close": "Close",
     "edit": "Edit",
