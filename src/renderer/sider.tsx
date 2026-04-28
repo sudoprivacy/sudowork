@@ -1,11 +1,11 @@
-import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, Search, SettingTwo, Shield, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Input, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
@@ -32,6 +32,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { logout, user: currentUser } = useAuth();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
@@ -94,6 +95,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     },
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
+    searchQuery,
     showTitle: false, // 我们已经在上面渲染了标题
   };
   const tooltipEnabled = collapsed && !isMobile;
@@ -196,6 +198,21 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               </Tooltip>
             </div>
+
+            {/* 搜索框 / Search input */}
+            {!collapsed && (
+              <div className='mb-8px px-8px'>
+                <Input
+                  placeholder={t('conversation.history.searchPlaceholder', { defaultValue: '搜索会话...' })}
+                  value={searchQuery}
+                  onChange={(v) => setSearchQuery(v)}
+                  allowClear
+                  size='small'
+                  prefix={<Search size={14} />}
+                  className='sider-search-input'
+                />
+              </div>
+            )}
 
             <Suspense fallback={<div className='flex-1 min-h-0' />}>
               <WorkspaceGroupedHistory {...workspaceHistoryProps}></WorkspaceGroupedHistory>

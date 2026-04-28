@@ -13,11 +13,11 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
 import type { GroupedHistoryResult } from '../types';
-import { buildGroupedHistory } from '../utils/groupingHelpers';
+import { buildGroupedHistory, filterConversations } from '../utils/groupingHelpers';
 
 const EXPANSION_STORAGE_KEY = 'aionui_workspace_expansion';
 
-export const useConversations = () => {
+export const useConversations = (searchQuery = '') => {
   const [conversations, setConversations] = useState<TChatConversation[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => {
     try {
@@ -34,8 +34,14 @@ export const useConversations = () => {
   const { id } = useParams();
   const { t } = useTranslation();
 
-  // Track whether auto-expand has already been performed to avoid
-  // re-expanding workspaces after a user manually collapses them (#1156)
+  // ── Section ordering: which section is pinned to top ──
+  // When active conversation changes, this is updated to the section containing it.
+  type SectionType = 'scheduled' | 'pinned' | 'timeline';
+  const [activeSectionType, setActiveSectionType] = useState<SectionType | null>(null);
+  // For timeline type: which specific timeline label (e.g. "今天") is active.
+  const [activeTimelineLabel, setActiveTimelineLabel] = useState<string | null>(null);
+
+  // Track whether initial auto-expand has been performed (#1156)
   const hasAutoExpandedRef = useRef(false);
 
   useEffect(() => {
@@ -76,6 +82,112 @@ export const useConversations = () => {
     };
   }, []);
 
+  const { jobs: cronJobs } = useAllCronJobs();
+
+  const groupedHistory: GroupedHistoryResult = useMemo(() => {
+    const filtered = filterConversations(conversations, searchQuery);
+    return buildGroupedHistory(filtered, t, cronJobs);
+  }, [conversations, t, cronJobs, searchQuery]);
+
+  const { pinnedConversations, timelineSections, scheduledGroups } = groupedHistory;
+
+  // ── Determine which section the active conversation belongs to ──
+  const findConversationSection = useCallback(() => {
+    if (!id) return { sectionType: null as SectionType | null, timelineLabel: null as string | null };
+
+    // Check pinned
+    if (pinnedConversations.some((c) => c.id === id)) {
+      return { sectionType: 'pinned' as SectionType, timelineLabel: null };
+    }
+
+    // Check scheduled
+    for (const group of scheduledGroups) {
+      if (group.conversations.some((c) => c.id === id)) {
+        return { sectionType: 'scheduled' as SectionType, timelineLabel: null };
+      }
+    }
+
+    // Check timeline sections
+    for (const section of timelineSections) {
+      const found = section.items.some((item) => {
+        if (item.type === 'workspace' && item.workspaceGroup) {
+          return item.workspaceGroup.conversations.some((c) => c.id === id);
+        }
+        if (item.type === 'conversation' && item.conversation) {
+          return item.conversation.id === id;
+        }
+        return false;
+      });
+      if (found) {
+        return { sectionType: 'timeline' as SectionType, timelineLabel: section.timeline };
+      }
+    }
+
+    return { sectionType: null as SectionType | null, timelineLabel: null as string | null };
+  }, [id, pinnedConversations, scheduledGroups, timelineSections]);
+
+  // ── Auto-expand workspace for active conversation ──
+  const findConversationWorkspace = useCallback(() => {
+    if (!id) return null;
+    for (const section of timelineSections) {
+      for (const item of section.items) {
+        if (item.type === 'workspace' && item.workspaceGroup) {
+          if (item.workspaceGroup.conversations.some((c) => c.id === id)) {
+            return item.workspaceGroup.workspace;
+          }
+        }
+      }
+    }
+    return null;
+  }, [id, timelineSections]);
+
+  // ── Section reordering & workspace auto-expand ──
+  // Unified logic: whenever the active conversation changes,
+  // determine which section it belongs to and pin that section to top.
+  useEffect(() => {
+    const allWorkspaces: string[] = [];
+    timelineSections.forEach((section) => {
+      section.items.forEach((item) => {
+        if (item.type === 'workspace' && item.workspaceGroup) {
+          allWorkspaces.push(item.workspaceGroup.workspace);
+        }
+      });
+    });
+
+    const { sectionType, timelineLabel } = findConversationSection();
+    const activeWs = findConversationWorkspace();
+
+    if (!hasAutoExpandedRef.current) {
+      // First load: expand all workspaces
+      setExpandedWorkspaces(allWorkspaces);
+      hasAutoExpandedRef.current = true;
+
+      if (sectionType) {
+        setActiveSectionType(sectionType);
+        setActiveTimelineLabel(timelineLabel);
+      } else {
+        // No active conversation: default to "Today" section
+        setActiveSectionType('timeline');
+        setActiveTimelineLabel(t('conversation.history.today'));
+      }
+      return;
+    }
+
+    // Active conversation changed: update section ordering
+    if (sectionType) {
+      setActiveSectionType(sectionType);
+      setActiveTimelineLabel(timelineLabel);
+    }
+
+    // Auto-expand workspace containing active conversation
+    if (activeWs) {
+      setExpandedWorkspaces((prev) => {
+        if (prev.includes(activeWs)) return prev;
+        return [activeWs, ...prev];
+      });
+    }
+  }, [id, timelineSections, pinnedConversations.length, scheduledGroups.length, t, findConversationSection, findConversationWorkspace]);
+
   // Scroll active conversation into view
   useEffect(() => {
     if (!id) return;
@@ -96,35 +208,6 @@ export const useConversations = () => {
       // ignore
     }
   }, [expandedWorkspaces]);
-
-  const { jobs: cronJobs } = useAllCronJobs();
-
-  const groupedHistory: GroupedHistoryResult = useMemo(() => {
-    return buildGroupedHistory(conversations, t, cronJobs);
-  }, [conversations, t, cronJobs]);
-
-  const { pinnedConversations, timelineSections, scheduledGroups } = groupedHistory;
-
-  // Auto-expand all workspaces on first load only (#1156)
-  useEffect(() => {
-    if (hasAutoExpandedRef.current) return;
-    if (expandedWorkspaces.length > 0) {
-      hasAutoExpandedRef.current = true;
-      return;
-    }
-    const allWorkspaces: string[] = [];
-    timelineSections.forEach((section) => {
-      section.items.forEach((item) => {
-        if (item.type === 'workspace' && item.workspaceGroup) {
-          allWorkspaces.push(item.workspaceGroup.workspace);
-        }
-      });
-    });
-    if (allWorkspaces.length > 0) {
-      setExpandedWorkspaces(allWorkspaces);
-      hasAutoExpandedRef.current = true;
-    }
-  }, [timelineSections]);
 
   // Remove stale workspace entries that no longer exist in the data
   useEffect(() => {
@@ -152,12 +235,46 @@ export const useConversations = () => {
     });
   }, []);
 
+  // ── Reorder timeline sections: active section first ──
+  const reorderedTimelineSections = useMemo(() => {
+    if (!activeTimelineLabel) return timelineSections;
+
+    return [...timelineSections].sort((a, b) => {
+      if (a.timeline === activeTimelineLabel) return -1;
+      if (b.timeline === activeTimelineLabel) return 1;
+      // Maintain default order for others
+      const order = [t('conversation.history.today'), t('conversation.history.yesterday'), t('conversation.history.recent7Days'), t('conversation.history.earlier')];
+      return order.indexOf(a.timeline) - order.indexOf(b.timeline);
+    });
+  }, [timelineSections, activeTimelineLabel, t]);
+
+  // ── Compute render order based on active section type ──
+  // Pinned always renders first (if it exists).
+  // Among the remaining sections, the one containing the active conversation goes first.
+  const sectionRenderOrder = useMemo(() => {
+    const order: SectionType[] = [];
+
+    // 1. Pinned always first (if any pinned conversations exist)
+    if (pinnedConversations.length > 0) order.push('pinned');
+
+    // 2. Active section among the rest (scheduled or timeline)
+    if (activeSectionType && activeSectionType !== 'pinned') order.push(activeSectionType);
+
+    // 3. Remaining sections in default order
+    if (activeSectionType !== 'timeline') order.push('timeline');
+    if (activeSectionType !== 'scheduled') order.push('scheduled');
+
+    return order;
+  }, [activeSectionType, pinnedConversations.length]);
+
   return {
     conversations,
     expandedWorkspaces,
     pinnedConversations,
-    timelineSections,
+    timelineSections: reorderedTimelineSections,
     scheduledGroups,
     handleToggleWorkspace,
+    sectionRenderOrder,
+    activeTimelineLabel,
   };
 };

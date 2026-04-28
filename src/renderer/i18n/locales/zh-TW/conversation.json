@@ -66,7 +66,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "刪除成功",
-    "deleteFailed": "刪除失敗"
+    "deleteFailed": "刪除失敗",
+    "searchPlaceholder": "搜尋對話...",
+    "searchEmpty": "無相符的對話"
   },
   "dropdown": {
     "cliAgents": "CLI Agents",

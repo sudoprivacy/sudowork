@@ -30,7 +30,7 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
 
-const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange }) => {
+const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, searchQuery = '' }) => {
   const { id } = useParams();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
@@ -43,7 +43,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace, sectionRenderOrder, activeTimelineLabel } = useConversations(searchQuery);
 
   // ── Timeline section collapse state ──
   const TIMELINE_EXPANSION_KEY = 'aionui_timeline_expansion';
@@ -61,16 +61,35 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     return {};
   });
 
+  // Auto-expand the active timeline section when the active conversation changes
+  useEffect(() => {
+    if (activeTimelineLabel) {
+      setExpandedTimeline((prev) => {
+        if (prev[activeTimelineLabel] === true) return prev;
+        return { ...prev, [activeTimelineLabel]: true };
+      });
+    }
+  }, [id, activeTimelineLabel]);
+
   const isTimelineSectionExpanded = useCallback(
     (timelineLabel: string): boolean => {
-      return expandedTimeline[timelineLabel] !== false; // default to expanded
+      if (expandedTimeline[timelineLabel] !== undefined) {
+        return expandedTimeline[timelineLabel]!;
+      }
+      // Default: only expand "Today"
+      return timelineLabel === t('conversation.history.today');
     },
-    [expandedTimeline]
+    [expandedTimeline, t]
   );
 
   const handleToggleTimeline = useCallback((timelineLabel: string) => {
     setExpandedTimeline((prev) => {
-      const currentlyExpanded = prev[timelineLabel] !== false; // default true
+      const currentlyExpanded = (() => {
+        if (prev[timelineLabel] !== undefined) {
+          return prev[timelineLabel]!;
+        }
+        return timelineLabel === t('conversation.history.today');
+      })();
       const next = { ...prev, [timelineLabel]: !currentlyExpanded };
       try {
         localStorage.setItem(TIMELINE_EXPANSION_KEY, JSON.stringify(next));
@@ -79,7 +98,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       }
       return next;
     });
-  }, []);
+  }, [t]);
 
   // ── Scheduled section top-level collapse state ──
   const SCHEDULED_SECTION_KEY = 'aionui_scheduled_section_expanded';
@@ -215,11 +234,35 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (timelineSections.length === 0 && pinnedConversations.length === 0) {
+  const isSearching = searchQuery.trim().length > 0;
+  const searchItems = useMemo(() => {
+    const items: { time: number; conversation: TChatConversation }[] = [];
+    for (const section of timelineSections) {
+      for (const item of section.items) {
+        if (item.type === 'workspace' && item.workspaceGroup) {
+          for (const conv of item.workspaceGroup.conversations) {
+            items.push({ time: item.time, conversation: conv });
+          }
+        }
+        if (item.type === 'conversation' && item.conversation) {
+          items.push({ time: item.time, conversation: item.conversation });
+        }
+      }
+    }
+    // Include scheduled groups (cron sessions)
+    for (const group of scheduledGroups) {
+      for (const conv of group.conversations) {
+        items.push({ time: conv.modifyTime || conv.createTime || 0, conversation: conv });
+      }
+    }
+    return items;
+  }, [timelineSections, scheduledGroups]);
+
+  if (isSearching && searchItems.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='flex-center'>
-          <Empty description={t('conversation.history.noHistory')} />
+          <Empty description={t('conversation.history.searchEmpty', { defaultValue: 'No matching conversations' })} />
         </div>
       </FlexFullContainer>
     );
@@ -342,112 +385,112 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
-        {/* ── SCHEDULED SECTION ── */}
-        {scheduledGroups.length > 0 && (
-          <div className='mb-8px min-w-0'>
-            {!collapsed && (
-              <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
-                <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
-                <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
-              </div>
-            )}
-            {(collapsed || scheduledSectionExpanded) &&
-              scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
-                const isExpanded = expandedScheduled.includes(jobName);
-                return (
-                  <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
-                    <WorkspaceCollapse
-                      expanded={isExpanded}
-                      onToggle={() => handleToggleScheduled(jobName)}
-                      siderCollapsed={collapsed}
-                      header={
-                        <div className='flex items-center gap-8px text-14px min-w-0'>
-                          <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
-                        </div>
-                      }
-                    >
-                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv))}</div>
-                    </WorkspaceCollapse>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-          {pinnedConversations.length > 0 && (
-            <div className='mb-8px min-w-0'>
-              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
-              <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
-                <div className='min-w-0'>
-                  {pinnedConversations.map((conversation) => {
-                    const props = getConversationRowProps(conversation);
-                    return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
-                  })}
-                </div>
-              </SortableContext>
+        {isSearching ? (
+          /* ── SEARCH MODE: flat list, no group headers ── */
+          searchItems.length > 0 ? (
+            <div className='min-w-0'>
+              {searchItems.map(({ conversation }) => renderConversation(conversation))}
             </div>
-          )}
-
-          <DragOverlay dropAnimation={null}>{activeId && activeConversation ? <DragOverlayContent conversation={activeConversation} /> : null}</DragOverlay>
-        </DndContext>
-
-        {timelineSections.map((section) => {
-          const sectionExpanded = isTimelineSectionExpanded(section.timeline);
-          return (
-            <div key={section.timeline} className='mb-8px min-w-0'>
-              {!collapsed && (
-                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
-                  <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
-                  <span>{section.timeline}</span>
-                </div>
-              )}
-
-              {(collapsed || sectionExpanded) &&
-                section.items.map((item) => {
-                  if (item.type === 'workspace' && item.workspaceGroup) {
-                    const group = item.workspaceGroup;
-                    return (
-                      <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
-                        <WorkspaceCollapse
-                          expanded={expandedWorkspaces.includes(group.workspace)}
-                          onToggle={() => handleToggleWorkspace(group.workspace)}
-                          siderCollapsed={collapsed}
-                          header={
-                            <div className='flex items-center gap-8px text-14px min-w-0'>
-                              <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
-                              <button
-                                type='button'
-                                className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
-                                title={t('conversation.workspace.renameWorkspace.title')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleWorkspaceRenameStart(group.workspace, group.displayName);
-                                }}
-                              >
-                                <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-                                  <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
-                                  <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
-                                </svg>
-                              </button>
-                            </div>
-                          }
-                        >
-                          <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation))}</div>
-                        </WorkspaceCollapse>
+          ) : null
+        ) : (
+          <>
+            {sectionRenderOrder.map((sectionType) => {
+              if (sectionType === 'scheduled') {
+                return scheduledGroups.length > 0 ? (
+                  <div key='scheduled' className='mb-8px min-w-0'>
+                    {!collapsed && (
+                      <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
+                        <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                        <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
                       </div>
-                    );
-                  }
+                    )}
+                    {(collapsed || scheduledSectionExpanded) &&
+                      scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
+                        const isExpanded = expandedScheduled.includes(jobName);
+                        return (
+                          <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                            <WorkspaceCollapse expanded={isExpanded} onToggle={() => handleToggleScheduled(jobName)} siderCollapsed={collapsed} header={<div className='flex items-center gap-8px text-14px min-w-0'><span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span></div>}>
+                              <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv))}</div>
+                            </WorkspaceCollapse>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : null;
+              }
 
-                  if (item.type === 'conversation' && item.conversation) {
-                    return renderConversation(item.conversation);
-                  }
+              if (sectionType === 'pinned') {
+                return (
+                  <DndContext key='pinned' sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+                    {pinnedConversations.length > 0 && (
+                      <div className='mb-8px min-w-0'>
+                        {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
+                        <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
+                          <div className='min-w-0'>
+                            {pinnedConversations.map((conversation) => {
+                              const props = getConversationRowProps(conversation);
+                              return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
+                            })}
+                          </div>
+                        </SortableContext>
+                      </div>
+                    )}
 
-                  return null;
-                })}
-            </div>
-          );
-        })}
+                    <DragOverlay dropAnimation={null}>{activeId && activeConversation ? <DragOverlayContent conversation={activeConversation} /> : null}</DragOverlay>
+                  </DndContext>
+                );
+              }
+
+              if (sectionType === 'timeline') {
+                return timelineSections.map((section) => {
+                  const sectionExpanded = isTimelineSectionExpanded(section.timeline);
+                  return (
+                    <div key={section.timeline} className='mb-8px min-w-0'>
+                      {!collapsed && (
+                        <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                          <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                          <span>{section.timeline}</span>
+                        </div>
+                      )}
+
+                      {(collapsed || sectionExpanded) &&
+                        section.items.map((item) => {
+                          if (item.type === 'workspace' && item.workspaceGroup) {
+                            const group = item.workspaceGroup;
+                            return (
+                              <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
+                                <WorkspaceCollapse expanded={expandedWorkspaces.includes(group.workspace)} onToggle={() => handleToggleWorkspace(group.workspace)} siderCollapsed={collapsed} header={
+                                  <div className='flex items-center gap-8px text-14px min-w-0'>
+                                    <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
+                                    <button type='button' className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity' title={t('conversation.workspace.renameWorkspace.title')} onClick={(e) => { e.stopPropagation(); handleWorkspaceRenameStart(group.workspace, group.displayName); }}>
+                                      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                        <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
+                                        <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                }>
+                                  <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation))}</div>
+                                </WorkspaceCollapse>
+                              </div>
+                            );
+                          }
+
+                          if (item.type === 'conversation' && item.conversation) {
+                            return renderConversation(item.conversation);
+                          }
+
+                          return null;
+                        })}
+                    </div>
+                  );
+                });
+              }
+
+              return null;
+            })}
+          </>
+        )}
       </div>
     </FlexFullContainer>
   );

@@ -181,6 +181,16 @@ const buildScheduledGroups = (conversations: TChatConversation[], cronJobs: ICro
   return groups;
 };
 
+/**
+ * Filter conversations by search query (matches against conversation name).
+ * Case-insensitive substring match.
+ */
+export const filterConversations = (conversations: TChatConversation[], query: string): TChatConversation[] => {
+  const q = query.toLowerCase().trim();
+  if (!q) return conversations;
+  return conversations.filter((c) => c.name.toLowerCase().includes(q));
+};
+
 export const buildGroupedHistory = (conversations: TChatConversation[], t: (key: string) => string, cronJobs: ICronJob[] = []): GroupedHistoryResult => {
   // Conversations with `extra.cronJobId` are cron-created run records → Scheduled only.
   // Pre-bound user conversations are NOT tagged; they stay in the regular timeline

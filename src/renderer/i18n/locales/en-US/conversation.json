@@ -67,7 +67,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "Deleted successfully",
-    "deleteFailed": "Delete failed"
+    "deleteFailed": "Delete failed",
+    "searchPlaceholder": "Search sessions...",
+    "searchEmpty": "No matching sessions"
   },
   "tabs": {
     "closeAll": "Close All",

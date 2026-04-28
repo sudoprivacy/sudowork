@@ -1207,7 +1207,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   isLeaf: 'isFile',
                 }}
                 multiple
-                onRightClick={(node, event) => {
+                // @ts-expect-error Arco Tree missing onRightClick in type defs
+                onRightClick={(node: any, event: MouseEvent) => {
                   const nodeData = node.dataRef as IDirOrFile;
                   event.preventDefault();
                   event.stopPropagation();

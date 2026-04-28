@@ -67,7 +67,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "削除しました",
-    "deleteFailed": "削除に失敗しました"
+    "deleteFailed": "削除に失敗しました",
+    "searchPlaceholder": "セッションを検索...",
+    "searchEmpty": "一致するセッションはありません"
   },
   "dropdown": {
     "cliAgents": "CLI Agents",

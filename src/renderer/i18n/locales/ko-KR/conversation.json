@@ -67,7 +67,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "삭제되었습니다",
-    "deleteFailed": "삭제에 실패했습니다"
+    "deleteFailed": "삭제에 실패했습니다",
+    "searchPlaceholder": "세션 검색...",
+    "searchEmpty": "일치하는 세션이 없습니다"
   },
   "dropdown": {
     "cliAgents": "CLI Agents",

@@ -68,6 +68,7 @@ export type WorkspaceGroupedHistoryProps = {
   tooltipEnabled?: boolean;
   batchMode?: boolean;
   onBatchModeChange?: (value: boolean) => void;
+  searchQuery?: string;
 };
 
 export type DragItemType = 'conversation' | 'workspace';

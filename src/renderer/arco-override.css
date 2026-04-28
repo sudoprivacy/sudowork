@@ -256,3 +256,46 @@ body[arco-theme='dark'] .arco-message-error {
     background-color: var(--fill-0) !important;
   }
 }
+
+/* Sider conversation search input */
+.sider-search-input {
+  .arco-input-wrapper {
+    border-radius: 8px !important;
+    background-color: var(--color-fill-2) !important;
+    border-color: transparent !important;
+  }
+  .arco-input-inner-wrapper {
+    border-radius: 8px !important;
+    background-color: var(--color-fill-2) !important;
+    border-color: transparent !important;
+  }
+  .arco-input {
+    background-color: transparent !important;
+    color: var(--color-text-1);
+  }
+  .arco-input-prefix {
+    color: var(--color-text-3) !important;
+  }
+  &:hover .arco-input-inner-wrapper,
+  &:hover .arco-input-wrapper {
+    background-color: var(--color-fill-3) !important;
+  }
+  &:focus-within .arco-input-inner-wrapper,
+  &:focus-within .arco-input-wrapper {
+    background-color: var(--color-bg-2) !important;
+    border-color: var(--color-border-3) !important;
+  }
+}
+
+body[arco-theme='dark'] .sider-search-input {
+  .arco-input-wrapper,
+  .arco-input-inner-wrapper {
+    background-color: var(--color-fill-2) !important;
+  }
+  .arco-input {
+    color: var(--color-text-1);
+  }
+  .arco-input-prefix {
+    color: var(--color-text-3) !important;
+  }
+}
