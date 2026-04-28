@@ -47,6 +47,9 @@ import { initImageGenerationBridge } from './imageGenerationBridge';
 import { initSecretBridge } from './secretBridge';
 import { initPwdLoginBridge } from './pwdLoginBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
+import { initTelemetryBridge } from './telemetryBridge';
+// Crash bridge is initialized early in src/process/index.ts before storage
+// to handle renderer errors during startup
 
 /**
  * 初始化所有IPC桥接模块
@@ -95,6 +98,8 @@ export function initAllBridges(): void {
   initSecretBridge();
   initPwdLoginBridge();
   initWorkspaceBridge();
+  initTelemetryBridge();
+  // Note: initCrashBridge() is called early in src/process/index.ts before storage
 }
 
 /**

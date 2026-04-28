@@ -35,6 +35,19 @@ import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
+// ============ Telemetry Performance Tracking ============
+// Mark app start time as early as possible for cold_start metric
+import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry } from './process/telemetry';
+// CrashReporter for native crash and JS exception reporting
+import {
+  initCrashReporter,
+  captureRendererCrash,
+  captureException,
+  systemBreadcrumbs,
+  windowBreadcrumbs,
+} from './process/telemetry';
+markAppStart();
+
 // 记录应用启动
 mainLog('App', `Sudowork starting, version: ${app.getVersion()}`);
 mainLog('App', `Platform: ${process.platform}, Arch: ${process.arch}`);
@@ -211,19 +224,23 @@ protocol.registerSchemesAsPrivileged([
 // Global error handlers for main process
 // 捕获未处理的同步异常，防止显示 Electron 默认错误对话框
 // Catch uncaught synchronous exceptions to prevent Electron's default error dialog
-process.on('uncaughtException', (_error) => {
-  // 在生产环境中，可以将错误记录到文件或上报到错误追踪服务
-  // In production, errors can be logged to file or sent to error tracking service
+process.on('uncaughtException', (error) => {
+  // 在生产环境中，将错误上报到 CrashReporter
+  // In production, send error to CrashReporter
   if (process.env.NODE_ENV !== 'development') {
-    // TODO: Add error logging or reporting
+    captureException(error, { process_type: 'main' });
   }
 });
 
 // 捕获未处理的 Promise 拒绝，避免应用崩溃
 // Catch unhandled Promise rejections to prevent app crashes
-process.on('unhandledRejection', (_reason, _promise) => {
-  // 可以在这里添加错误上报逻辑
-  // Error reporting logic can be added here
+process.on('unhandledRejection', (reason, _promise) => {
+  // 上报未处理的 Promise 拒绝到 CrashReporter
+  // Send unhandled rejection to CrashReporter
+  if (process.env.NODE_ENV !== 'development') {
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    captureException(error, { process_type: 'main', component: 'unhandledRejection' });
+  }
 });
 
 const hasSwitch = (flag: string) => process.argv.includes(`--${flag}`) || app.commandLine.hasSwitch(flag);
@@ -583,10 +600,19 @@ const createWindow = (): void => {
     }
   };
   mainWindow.once('ready-to-show', () => {
+    // Telemetry: mark first window show time for cold_start metric
+    markFirstWindowShow();
+
+    // Breadcrumb: window created and ready
+    windowBreadcrumbs.create(mainWindow.id.toString(), 'main');
+
     showWindow();
   });
   // Belt-and-suspenders: also show on did-finish-load in case ready-to-show already fired
   mainWindow.webContents.once('did-finish-load', () => {
+    // Breadcrumb: page loaded
+    windowBreadcrumbs.loadComplete('main-window');
+
     showWindow();
   });
   // Fallback: show window after 5s even if events don't fire (e.g. loadURL failure)
@@ -670,6 +696,10 @@ const createWindow = (): void => {
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[Sudowork] render-process-gone:', details);
+    // CrashReporter: capture renderer crash
+    if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
+      captureRendererCrash(details);
+    }
   });
 
   mainWindow.webContents.on('unresponsive', () => {
@@ -678,6 +708,9 @@ const createWindow = (): void => {
 
   mainWindow.on('closed', () => {
     console.log('[Sudowork] Main window closed');
+
+    // Breadcrumb: window closed
+    windowBreadcrumbs.close('main');
   });
 
   // 只在开发环境自动打开 DevTools / Only auto-open DevTools in development
@@ -686,6 +719,9 @@ const createWindow = (): void => {
   const disableDevToolsByEnv = process.env.NEXUS_DISABLE_DEVTOOLS === '1' || process.env.NEXUS_E2E_TEST === '1';
   if (!app.isPackaged && !disableDevToolsByEnv) {
     mainWindow.webContents.openDevTools();
+
+    // Breadcrumb: DevTools opened
+    windowBreadcrumbs.devToolsOpen(mainWindow.id.toString());
   }
 
   // Listen to DevTools state changes and notify Renderer
@@ -853,6 +889,18 @@ const handleAppReady = async (): Promise<void> => {
 
     // Wait for backend initialization to complete before proceeding with tray/settings
     await initDone;
+
+    // Telemetry: initialize telemetry modules after process config is ready
+    try {
+      await initializeTelemetry();
+      // Initialize CrashReporter after telemetry is ready
+      await initCrashReporter();
+      // Add app start breadcrumb
+      systemBreadcrumbs.appStart();
+    } catch (error) {
+      console.error('[App] Failed to initialize telemetry/crash reporter:', error);
+      // Don't exit on telemetry init failure - it's non-critical
+    }
 
     // Keep detection running in background; log when it finishes.
     void acpDetectionDone.then(() => {
@@ -1057,9 +1105,18 @@ app.on('before-quit', (event) => {
       await getChannelManager().shutdown();
     } catch (error) {
       console.error('[App] Failed to shutdown ChannelManager:', error);
-    } finally {
-      finishAppQuit();
     }
+
+    // Telemetry: flush remaining events before exit
+    try {
+      // Add app quit breadcrumb
+      systemBreadcrumbs.appQuit();
+      await shutdownTelemetry();
+    } catch (error) {
+      console.error('[App] Failed to shutdown telemetry:', error);
+    }
+
+    finishAppQuit();
   })();
 });
 

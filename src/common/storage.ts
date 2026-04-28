@@ -164,6 +164,12 @@ export interface IConfigStorageRefer {
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
   'agent.idleTimeout'?: number;
+  // Telemetry configuration / 遥测配置
+  'telemetry.enabled'?: boolean; // 是否启用遥测上报 / Whether telemetry reporting is enabled
+  'telemetry.optInShown'?: boolean; // 是否已显示 opt-in 弹窗 / Whether opt-in dialog has been shown
+  'telemetry.serverUrl'?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
+  'telemetry.installId'?: string; // 安装 ID / Install ID
+  'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
 }
 
 export interface IEnvStorageRefer {

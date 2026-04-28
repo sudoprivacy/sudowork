@@ -51,8 +51,23 @@ export interface ElectronBridgeAPI {
   webuiGetStatus?: () => Promise<WebUIGetStatusResult>;
   // 修改密码（不需要当前密码）/ Change password (no current password required)
   webuiChangePassword?: (newPassword: string) => Promise<WebUIChangePasswordResult>;
-  // 生成二维��� token / Generate QR token
+  // 生成二维码 token / Generate QR token
   webuiGenerateQRToken?: () => Promise<WebUIGenerateQRTokenResult>;
+  // ==================== Crash Reporter ====================
+  // 上报 JS 异常到主进程 CrashReporter / Report JS exception to main process
+  crashReportException?: (data: {
+    error_name: string;
+    error_message: string;
+    stack_trace?: string;
+    context?: Record<string, unknown>;
+  }) => Promise<void>;
+  // 添加面包屑到主进程 CrashReporter / Add breadcrumb to main process
+  crashAddBreadcrumb?: (data: {
+    category: string;
+    message: string;
+    data?: Record<string, unknown>;
+    level?: 'debug' | 'info' | 'warning' | 'error';
+  }) => Promise<void>;
 }
 
 declare global {

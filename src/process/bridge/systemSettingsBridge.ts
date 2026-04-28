@@ -16,6 +16,7 @@ import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { changeLanguage } from '@process/i18n';
 import { mainError } from '@process/utils/mainLogger';
+import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
 
 type CloseToTrayChangeListener = (enabled: boolean) => void;
 let _changeListener: CloseToTrayChangeListener | null = null;
@@ -61,6 +62,9 @@ export function initSystemSettingsBridge(): void {
   // 设置"关闭到托盘"，先持久化再通知主进程
   // Set "close to tray", persist first then notify main process
   ipcBridge.systemSettings.setCloseToTray.provider(async ({ enabled }) => {
+    // Breadcrumb: settings changed
+    userBreadcrumbs.settingsChange('closeToTray', enabled);
+
     // 先持久化到配置存储
     await ProcessConfig.set('system.closeToTray', enabled);
     // 然后通知主进程更新托盘状态
@@ -83,6 +87,9 @@ export function initSystemSettingsBridge(): void {
   // 语言变更通知，同步主进程 i18n 并通知托盘重建
   // Language change notification, sync main process i18n and notify tray rebuild
   ipcBridge.systemSettings.changeLanguage.provider(async ({ language }) => {
+    // Breadcrumb: settings changed
+    userBreadcrumbs.settingsChange('language', language);
+
     // Broadcast to all renderers FIRST (desktop + WebUI) for real-time sync.
     // This must happen before the potentially slow main-process i18n switch.
     ipcBridge.systemSettings.languageChanged.emit({ language });

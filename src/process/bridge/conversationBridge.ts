@@ -34,6 +34,7 @@ import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 

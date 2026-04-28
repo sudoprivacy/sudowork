@@ -913,5 +913,14 @@
   "promptTimeout": "LLM 请求超时",
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
-  "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟"
+  "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟",
+  "productImprovement": {
+    "title": "参与产品体验改进计划",
+    "description": "帮助我们持续优化产品体验，为您带来更好的服务。",
+    "hint": "开启后不会收集您的对话内容或个人信息，您可以随时关闭此功能。",
+    "dialogTitle": "产品体验改进计划",
+    "privacy": "开启后将匿名收集 SudoClaw 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
+    "confirm": "确认开启",
+    "cancel": "暂不开启"
+  }
 }
