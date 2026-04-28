@@ -21,7 +21,7 @@ import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
@@ -39,6 +39,22 @@ import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
+
+// Telemetry imports for conversation tracking
+import {
+  startConversationTracking,
+  endConversationSuccess,
+  endConversationError,
+  endConversationUserCancel,
+} from '../telemetry';
+
+// CrashReporter imports for breadcrumb tracking
+import {
+  conversationBreadcrumbs,
+  apiBreadcrumbs,
+  systemBreadcrumbs,
+  mcpBreadcrumbs,
+} from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -589,6 +605,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
 
+      // Start telemetry conversation tracking
+      const modelInfo = this.getModelInfo();
+      const modelId = modelInfo?.currentModelId || this.persistedModelId || 'unknown';
+      // Map openclaw-gateway to sudoclaw for telemetry
+      const modelProvider = this.options.backend === 'openclaw-gateway' ? 'sudoclaw' : this.options.backend;
+      startConversationTracking(this.conversation_id, modelId, modelProvider);
+
+      // Breadcrumb: conversation started
+      conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
+
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
         const userMessage: TMessage = {
@@ -755,16 +781,55 @@ This identity statement takes priority over the default identity in USER.md.
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
         }
+        // Handle sendToConnection error result (not thrown)
+        if (!result.success) {
+          const acpError = (result as { success: false; error: AcpError }).error;
+          endConversationError(this.conversation_id);
+          conversationBreadcrumbs.error(this.conversation_id, acpError.type.toString() || 'unknown', acpError.message);
+        }
         return result;
       }
       const agentSendStart = Date.now();
       const result = await this.sendToConnection(data.content, data.msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
+      // Handle sendToConnection error result (not thrown)
+      if (!result.success) {
+        const acpError = (result as { success: false; error: AcpError }).error;
+        endConversationError(this.conversation_id);
+        conversationBreadcrumbs.error(this.conversation_id, acpError.type.toString() || 'unknown', acpError.message);
+      }
       return result;
     } catch (e) {
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+
+      // Telemetry: end conversation tracking (error)
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      let errorCode: string | undefined;
+      if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
+        errorCode = 'E002';
+        endConversationError(this.conversation_id, 'E002');
+      } else if (errorMsg.includes('authentication') || errorMsg.includes('认证失败')) {
+        errorCode = 'E006';
+        endConversationError(this.conversation_id, 'E006');
+      } else if (errorMsg.includes('interrupted') || errorMsg.includes('SSE') || errorMsg.includes('stream')) {
+        errorCode = 'E003';
+        endConversationError(this.conversation_id, 'E003');
+      } else if (errorMsg.includes('parse') || errorMsg.includes('JSON') || errorMsg.includes('invalid response')) {
+        errorCode = 'E005';
+        endConversationError(this.conversation_id, 'E005');
+      } else if (errorMsg.includes('connection') || errorMsg.includes('Connection')) {
+        errorCode = 'E001';
+        endConversationError(this.conversation_id, 'E001');
+      } else {
+        errorCode = 'E009';
+        endConversationError(this.conversation_id, 'E009');
+      }
+
+      // Breadcrumb: conversation ended (error)
+      conversationBreadcrumbs.error(this.conversation_id, errorCode || 'unknown', errorMsg);
+
       const message: IResponseMessage = {
         type: 'error',
         conversation_id: this.conversation_id,
@@ -880,8 +945,14 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       const promptStart = Date.now();
+      // Breadcrumb: API request
+      apiBreadcrumbs.request(`session/prompt`, 'POST', this.conversation_id);
+
       await this.connection.sendPrompt(processedContent, images);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
+
+      // Breadcrumb: API response success
+      apiBreadcrumbs.responseSuccess(`session/prompt`, 200, Date.now() - sendStart);
 
       this.statusMessageId = null;
       return { success: true, data: null };
@@ -911,6 +982,10 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       this.emitErrorMessage(errorMsg);
+
+      // Breadcrumb: API response error
+      apiBreadcrumbs.responseError(`session/prompt`, errorType === AcpErrorType.TIMEOUT ? 408 : 500, errorMsg);
+
       return {
         success: false,
         error: createAcpError(errorType, errorMsg, retryable),
@@ -943,6 +1018,12 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async stop(): Promise<void> {
+    // Telemetry: end conversation tracking (user cancel)
+    endConversationUserCancel(this.conversation_id);
+
+    // Breadcrumb: conversation ended (user cancel)
+    conversationBreadcrumbs.userCancel(this.conversation_id);
+
     // 1. Flush buffered streaming text
     this.streamTextBuffer.flushAll();
 
@@ -1228,6 +1309,10 @@ This identity statement takes priority over the default identity in USER.md.
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+
+        // Breadcrumb: MCP/tool call started
+        mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
+
         if (NavigationInterceptor.isNavigationTool(toolName)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
@@ -1243,6 +1328,13 @@ This identity statement takes priority over the default identity in USER.md.
       if (data.update?.sessionUpdate === 'tool_call_update') {
         const statusUpdate = data as import('@/types/acpTypes').ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
+        const toolStatus = statusUpdate.update?.status;
+
+        // Breadcrumb: MCP/tool call result
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
         if (toolCallId && this.pendingNavigationTools.has(toolCallId)) {
           if (statusUpdate.update?.status === 'completed' && statusUpdate.update?.content) {
             for (const item of statusUpdate.update.content) {
@@ -1354,6 +1446,12 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleEndTurn(): void {
+    // Telemetry: end conversation tracking (success)
+    endConversationSuccess(this.conversation_id);
+
+    // Breadcrumb: conversation ended (success)
+    conversationBreadcrumbs.end(this.conversation_id, 'success');
+
     const msg: IResponseMessage = {
       type: 'finish',
       conversation_id: this.conversation_id,
@@ -1405,6 +1503,12 @@ This identity statement takes priority over the default identity in USER.md.
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
     this.emitErrorMessage(errorMsg);
+
+    // Telemetry: end conversation tracking (connection error)
+    endConversationError(this.conversation_id, 'E001');
+
+    // Breadcrumb: conversation ended (disconnect)
+    conversationBreadcrumbs.error(this.conversation_id, 'E001', errorMsg);
 
     const finishMsg: IResponseMessage = {
       type: 'finish',

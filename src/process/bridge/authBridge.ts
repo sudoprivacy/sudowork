@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { getDataPath } from '../utils';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
+import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
 
 export function initAuthBridge(): void {
   ipcBridge.googleAuth.status.provider(async ({ proxy }) => {
@@ -93,6 +94,8 @@ export function initAuthBridge(): void {
           const oauthInfo = await getOauthInfoWithCache(proxy);
           if (oauthInfo && oauthInfo.email) {
             mainLog('Auth', 'Login successful, account:', oauthInfo.email);
+            // Breadcrumb: user login
+            userBreadcrumbs.login('google_oauth');
             return { success: true, data: { account: oauthInfo.email } };
           }
 
@@ -124,6 +127,8 @@ export function initAuthBridge(): void {
   });
 
   ipcBridge.googleAuth.logout.provider(async () => {
+    // Breadcrumb: user logout
+    userBreadcrumbs.logout();
     return await clearCachedCredentialFile();
   });
 

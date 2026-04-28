@@ -33,6 +33,7 @@ import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
+import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 

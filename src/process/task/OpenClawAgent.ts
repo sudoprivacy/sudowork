@@ -36,6 +36,21 @@ import * as nodePath from 'node:path';
 import { ProcessConfig } from '@process/initStorage';
 import { serviceManager } from '@process/services/serviceManager';
 
+// Telemetry imports for conversation tracking
+import {
+  startConversationTracking,
+  endConversationSuccess,
+  endConversationError,
+  endConversationUserCancel,
+} from '../telemetry';
+
+// CrashReporter imports for breadcrumb tracking
+import {
+  conversationBreadcrumbs,
+  apiBreadcrumbs,
+  systemBreadcrumbs,
+} from '../telemetry/BreadcrumbTracker';
+
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 
@@ -444,6 +459,13 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       await this.bootstrap;
       mainLog('OpenClawAgent', 'sendMessage: bootstrap completed');
 
+      // Start telemetry conversation tracking
+      const modelId = this.options.model || 'unknown';
+      startConversationTracking(this.conversation_id, modelId, 'sudoclaw');
+
+      // Breadcrumb: conversation started
+      conversationBreadcrumbs.start(this.conversation_id, modelId, 'sudoclaw');
+
       // Auto-reconnect if needed
       if (!this.connection?.isConnected || !this.connection?.sessionKey) {
         this.bootstrap = this.connect(this.options);
@@ -540,6 +562,9 @@ ${draftsInstruction}`;
       this.applyPromptTimeoutFromConfig();
       mainLog('OpenClawAgent', 'sendMessage: applyPromptTimeoutFromConfig completed');
 
+      // Breadcrumb: API request
+      apiBreadcrumbs.request('chatSend', 'POST', this.conversation_id);
+
       // Send chat message
       mainLog('OpenClawAgent', `sendMessage: about to call chatSend with sessionKey=${this.connection!.sessionKey}`);
       await this.connection!.chatSend({
@@ -548,10 +573,39 @@ ${draftsInstruction}`;
       });
       mainLog('OpenClawAgent', 'sendMessage: chatSend completed');
 
+      // Breadcrumb: API response success
+      apiBreadcrumbs.responseSuccess('chatSend', 200);
+
       return { success: true, data: null } as AcpResult;
     } catch (error) {
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+
+      // Telemetry: end conversation tracking (error)
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      let errorCode: string | undefined;
+      if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
+        errorCode = 'E002';
+        endConversationError(this.conversation_id, 'E002');
+      } else if (errorMsg.includes('interrupted') || errorMsg.includes('SSE') || errorMsg.includes('stream')) {
+        errorCode = 'E003';
+        endConversationError(this.conversation_id, 'E003');
+      } else if (errorMsg.includes('parse') || errorMsg.includes('JSON') || errorMsg.includes('invalid response')) {
+        errorCode = 'E005';
+        endConversationError(this.conversation_id, 'E005');
+      } else if (errorMsg.includes('Connection') || errorMsg.includes('Gateway')) {
+        errorCode = 'E001';
+        endConversationError(this.conversation_id, 'E001');
+      } else {
+        errorCode = 'E009';
+        endConversationError(this.conversation_id, 'E009');
+      }
+
+      // Breadcrumb: conversation ended (error)
+      conversationBreadcrumbs.error(this.conversation_id, errorCode || 'unknown', errorMsg);
+
+      // Breadcrumb: API response error
+      apiBreadcrumbs.responseError('chatSend', errorCode === 'E002' ? 408 : errorCode === 'E001' ? 503 : 500, errorMsg);
 
       // Post-cleanup on error: move intermediate files from workspace root to .drafts/
       // Also cleanup misplaced files from parent workspace directory
@@ -565,7 +619,6 @@ ${draftsInstruction}`;
         });
       }
 
-      const errorMsg = error instanceof Error ? error.message : String(error);
       if (!this.shouldSuppressTransientGatewayError(errorMsg)) {
         this.emitErrorMessage(`Failed to send Sudoclaw message: ${errorMsg}`);
       }
@@ -590,6 +643,12 @@ ${draftsInstruction}`;
   }
 
   async stop(): Promise<void> {
+    // Telemetry: end conversation tracking (user cancel)
+    endConversationUserCancel(this.conversation_id);
+
+    // Breadcrumb: conversation ended (user cancel)
+    conversationBreadcrumbs.userCancel(this.conversation_id);
+
     if (this.connection?.isConnected && this.connection?.sessionKey) {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
@@ -788,9 +847,14 @@ ${draftsInstruction}`;
           break;
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       mainError('OpenClawAgent', `Unhandled error in event handler (${evt.event}):`, error);
+      // Telemetry: end conversation tracking (internal error)
+      endConversationError(this.conversation_id);
+      // Breadcrumb: conversation ended (internal error)
+      conversationBreadcrumbs.error(this.conversation_id, 'E008', errorMsg);
       // Emit error to UI and force end turn to prevent hanging
-      this.emitErrorMessage(`Internal error processing event: ${error instanceof Error ? error.message : String(error)}`);
+      this.emitErrorMessage(`Internal error processing event: ${errorMsg}`);
       this.handleEndTurn();
     }
   }
@@ -910,6 +974,10 @@ ${draftsInstruction}`;
           message: event.message,
           usage: event.usage,
         }, null, 2));
+        // Telemetry: end conversation tracking (error)
+        endConversationError(this.conversation_id);
+        // Breadcrumb: conversation ended (chat error)
+        conversationBreadcrumbs.error(this.conversation_id, 'E008', event.errorMessage || 'Chat error');
         this.emitErrorMessage(event.errorMessage || 'Unknown error');
         this.handleEndTurn();
         break;
@@ -1069,6 +1137,12 @@ ${draftsInstruction}`;
   }
 
   private handleEndTurn(): void {
+    // Telemetry: end conversation tracking (success)
+    endConversationSuccess(this.conversation_id);
+
+    // Breadcrumb: conversation ended (success)
+    conversationBreadcrumbs.end(this.conversation_id, 'success');
+
     // Flush any content that was buffered for NO_REPLY prefix detection
     // (e.g. "NO" that turned out to be a real response, not NO_REPLY)
     if (this.noReplyBuffering && this.accumulatedAssistantText && this.currentStreamMsgId) {
@@ -1117,8 +1191,13 @@ ${draftsInstruction}`;
     if (!retrying) {
       this.emitStatusMessage('disconnected');
     }
+    const errorMsg = `Gateway disconnected: ${reason}`;
     if (!retrying && !this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
-      this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+      this.emitErrorMessage(errorMsg, 'disconnect');
+      // Telemetry: end conversation tracking (gateway disconnect)
+      endConversationError(this.conversation_id, 'E010');
+      // Breadcrumb: conversation ended (disconnect)
+      conversationBreadcrumbs.error(this.conversation_id, 'E010', errorMsg);
     }
 
     // Post-cleanup on disconnect: move intermediate files from workspace root to .drafts/

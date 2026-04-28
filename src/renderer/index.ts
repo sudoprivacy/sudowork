@@ -5,6 +5,7 @@
  */
 
 import './bootstrap/runtimePatches';
+import './bootstrap/crashHandler';
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';

@@ -899,5 +899,14 @@
   "promptTimeout": "LLM Request Timeout",
   "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
   "idleTimeout": "Agent Idle Timeout",
-  "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes"
+  "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes",
+  "productImprovement": {
+    "title": "Join Product Improvement Program",
+    "description": "Help us continuously improve the product experience for better service.",
+    "hint": "When enabled, we do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "dialogTitle": "Product Improvement Program",
+    "privacy": "When enabled, SudoClaw performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "confirm": "Enable",
+    "cancel": "Not Now"
+  }
 }

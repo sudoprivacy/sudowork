@@ -1394,3 +1394,102 @@ export const secret = {
   /** Restore a soft-deleted secret */
   restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
 };
+
+// ==================== Telemetry API ====================
+// Telemetry data collection and reporting
+// 遥测数据收集和上报
+
+export interface ITelemetryStatus {
+  enabled: boolean;
+  queueSize: number;
+  isFlushing: boolean;
+}
+
+export interface ITelemetryPerfData {
+  metric: 'cold_start' | 'first_screen' | 'first_token';
+  value_ms: number;
+  session_id?: string;
+}
+
+export interface ITelemetryConversationStartData {
+  session_id: string;
+  model_id: string;
+  model_provider?: string;
+}
+
+export interface ITelemetryConversationEndData {
+  session_id: string;
+  status: 'success' | 'error' | 'user_cancel';
+  error_code?: string; // 错误码如 E001-E010
+  tokens_used?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export interface ITelemetryTokenUpdateData {
+  session_id: string;
+  tokens_used?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export const telemetry = {
+  /** Get telemetry status */
+  getStatus: bridge.buildProvider<IBridgeResponse<ITelemetryStatus>, void>('telemetry.get-status'),
+  /** Enable/disable telemetry */
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('telemetry.set-enabled'),
+  /** Check if opt-in dialog has been shown */
+  getOptInShown: bridge.buildProvider<IBridgeResponse<boolean>, void>('telemetry.get-opt-in-shown'),
+  /** Mark opt-in dialog as shown */
+  setOptInShown: bridge.buildProvider<IBridgeResponse, void>('telemetry.set-opt-in-shown'),
+  /** Mark renderer ready (first screen time) */
+  markRendererReady: bridge.buildProvider<IBridgeResponse, void>('telemetry.mark-renderer-ready'),
+  /** Record first token time */
+  recordFirstToken: bridge.buildProvider<IBridgeResponse, { session_id: string; duration_ms?: number }>('telemetry.record-first-token'),
+  /** Start conversation tracking */
+  startConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationStartData>('telemetry.start-conversation'),
+  /** Update conversation tokens */
+  updateConversationTokens: bridge.buildProvider<IBridgeResponse, ITelemetryTokenUpdateData>('telemetry.update-conversation-tokens'),
+  /** End conversation tracking */
+  endConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationEndData>('telemetry.end-conversation'),
+  /** Flush all pending telemetry events */
+  flush: bridge.buildProvider<IBridgeResponse, void>('telemetry.flush'),
+};
+
+// ==================== Crash API ====================
+// Crash/Exception reporting for sudoclaw-qms CrashReporter
+// Crash/异常上报 (替代 Sentry SDK)
+
+export interface ICrashExceptionData {
+  error_name: string;
+  error_message: string;
+  stack_trace?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ICrashBreadcrumbData {
+  category: string;
+  message: string;
+  data?: Record<string, unknown>;
+  level?: 'debug' | 'info' | 'warning' | 'error';
+}
+
+export interface ICrashReporterStatus {
+  enabled: boolean;
+  queueSize: number;
+  breadcrumbCount: number;
+  isFlushing: boolean;
+}
+
+export const crash = {
+  /** Report JS exception from renderer */
+  reportException: bridge.buildProvider<IBridgeResponse, ICrashExceptionData>('crash.report-exception'),
+  /** Add breadcrumb from renderer */
+  addBreadcrumb: bridge.buildProvider<IBridgeResponse, ICrashBreadcrumbData>('crash.add-breadcrumb'),
+  /** Get crash reporter status */
+  getStatus: bridge.buildProvider<IBridgeResponse<ICrashReporterStatus>, void>('crash.get-status'),
+  /** Clear breadcrumbs */
+  clearBreadcrumbs: bridge.buildProvider<IBridgeResponse, void>('crash.clear-breadcrumbs'),
+  /** Flush all pending crash events */
+  flush: bridge.buildProvider<IBridgeResponse, void>('crash.flush'),
+};
