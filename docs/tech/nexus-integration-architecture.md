@@ -270,28 +270,46 @@ The link target is resolved by the kernel `route()` step (one hop, with cycle de
 ### 3.3 Sender identity
 
 Mailbox envelope stamping rewrites the message envelope's `from` field
-before the write reaches the backend. The kernel calls
-`services::agents::mailbox_stamping::maybe_stamp_chat_envelope` inline
-from `sys_write` on every path matching `*/chat-with-me`; the helper
-short-circuits on the path test for non-mailbox paths and on writes
-without a caller `agent_id`. LLMs cannot forge identity because the
-field is overwritten in-kernel — they do not author it.
+to the caller's authenticated `agent_id` before the write reaches the
+backend. LLMs cannot forge identity because the field is overwritten
+in-kernel — they do not author it.
 
-The stamping is an inline call rather than a registered
-`NativeInterceptHook` because the hook surface contract is read-only
-(hooks see the write, accept or reject it, but do not mutate
-content). Mutating the envelope before backend dispatch needs a
-content-rewriting carve-out; rather than widen the hook surface for
-one consumer, the kernel calls the policy function directly and
-non-mailbox paths pay zero cost.
+The rewrite is implemented as a registered `NativeInterceptHook`
+(`MailboxStampingHook`, in the kernel rlib) that delegates the actual
+envelope policy to `services::agents::mailbox_stamping::
+maybe_stamp_chat_envelope` in the services rlib. Kernel owns "how to
+be a hook" (dispatch wiring); services owns "what to rewrite"
+(envelope schema, identity guarantee). The hook trait was widened to
+support content rewriting — `on_pre` returns
+`Result<HookOutcome, String>` where `HookOutcome::Replace(bytes)` is
+the new variant that substitutes write content. Accept/reject hooks
+(audit, permission, workspace boundary) all return `HookOutcome::Pass`.
+
+To keep the hot path allocation-free for the writes that don't need
+rewriting, hooks declare a `mutating_path_suffix` and the dispatcher
+uses it as a double bypass:
+
+- **Layer 1 (no mutating hooks registered)**: empty-Vec check, dispatcher
+  goes straight to `WriteHookCtx::content = vec![]` — identical to the
+  pre-widening cost.
+- **Layer 2 (mutating hook registered, write path doesn't match)**:
+  suffix scan returns false, dispatcher still passes `vec![]`. Only
+  writes whose path ends in a registered suffix (today: `*/chat-with-me`)
+  pay the content clone.
 
 ```
 agent A writes envelope { to: "scode-standard", body: "ping" }
    │
    ▼
-sys_write inline: maybe_stamp_chat_envelope
+sys_write
+   has_mutating_hook_match(path) → true (suffix matches "/chat-with-me")
+   clone content into WriteHookCtx
+   │
+   ▼
+dispatch_native_pre → MailboxStampingHook.on_pre
    reads ctx.agent_id = "human-ethan"
-   rewrites envelope: { from: "human-ethan", to: "scode-standard", body: "ping", ts: now() }
+   delegates to maybe_stamp_chat_envelope
+   returns HookOutcome::Replace({ from:"human-ethan", to:"scode-standard", … })
    │
    ▼
 DT_STREAM append (the per-pid stream — `/proc/{pid}/chat-with-me`,
@@ -560,20 +578,23 @@ listed here only to anchor the architecture description above:
 ```
 syscall (sys_write, sys_read, …)
     │
-    ├─► [INLINE REWRITE — sys_write only] mailbox stamping
-    │         services::agents::mailbox_stamping::maybe_stamp_chat_envelope
-    │         → rewrites envelope `from` for paths matching */chat-with-me;
-    │           short-circuits on the path test for everything else.
+    ├─► [CLONE GATE — sys_write only] mutating-suffix bypass
+    │         has_mutating_hook_match(path)
+    │         → false: WriteHookCtx.content = vec![] (no clone)
+    │         → true:  WriteHookCtx.content = clone(content)
     │
-    ├─► [PRE] HookRegistry::get_pre_hook_impls(op)
-    │         NativeInterceptHook::on_pre(ctx)
-    │         → return Err to abort (permission, quota, WorkspaceBoundaryHook
-    │                                 teaching reject)
+    ├─► [PRE] NativeInterceptHook chain
+    │         on_pre(ctx) → Result<HookOutcome, String>
+    │         → Err to abort  (PermissionHook, WorkspaceBoundaryHook)
+    │         → HookOutcome::Pass to proceed unchanged
+    │         → HookOutcome::Replace(bytes) to rewrite write content
+    │           (MailboxStampingHook on */chat-with-me)
     │
-    ├─► [EXECUTE] backend write (redb / CAS / MemoryStreamBackend / NostrBackend / …)
+    ├─► [EXECUTE] backend write with replacement.unwrap_or(content)
+    │             (redb / CAS / MemoryStreamBackend / NostrBackend / …)
     │
-    ├─► [POST] HookRegistry::get_post_hook_impls(op)
-    │         NativeInterceptHook::on_post(ctx)  ← AuditHook fires here
+    ├─► [POST] NativeInterceptHook chain
+    │         on_post(ctx)  ← AuditHook fires here
     │         → fire-and-forget, non-blocking (mpsc try_send)
     │
     └─► [OBSERVE] MutationObserver::on_mutation(FileEvent)
@@ -581,12 +602,15 @@ syscall (sys_write, sys_read, …)
               → FileWatcher wakes sys_watch subscribers
 ```
 
-The mailbox stamping step lives outside the `NativeInterceptHook`
-contract because hooks see writes but cannot mutate them. Adding a
-content-rewriting carve-out would have widened the hook surface for
-one consumer; an inline call from `sys_write` is the smaller change.
-The `[PRE]` hook list still owns everything that can reject a write
-without rewriting it.
+The clone gate is what keeps the hot path allocation-free for the
+~99% of writes that don't need rewriting. Hooks declare a
+`mutating_path_suffix` at registration; the gate scans the registered
+suffixes against the write path. Today only `MailboxStampingHook`
+declares one (`/chat-with-me`); accept/reject hooks (audit,
+permission, workspace boundary) declare `None` and never see real
+content. If we ever add a second mutating hook (e.g. DLP), it slots
+into the same surface — the chain semantics are last-write-wins for
+now (only one mutating hook exists, so chain composition is moot).
 
 ---
 
@@ -606,4 +630,4 @@ Command::DeleteStreamEntry     — stream cleanup
 
 In the audit 1:1 zone the only `AppendStreamEntry` traffic comes from `AuditHook` writes to `/audit/traces/`; the audit-node learner applies them in order and exposes the aggregated stream to its local `collect/gather` consumer.
 
-In a chat zone the `AppendStreamEntry` traffic is the conversation itself — every envelope (with its `from` field rewritten by the inline mailbox stamping step in `sys_write`, §3.3) replicates to every voter and learner in the zone.
+In a chat zone the `AppendStreamEntry` traffic is the conversation itself — every envelope (with its `from` field rewritten by `MailboxStampingHook` on `*/chat-with-me`, see §3.3) replicates to every voter and learner in the zone.
