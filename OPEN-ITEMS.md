@@ -76,39 +76,43 @@ through the same surface as any other VFS write, mount-side wiring.
 
 Owner: nexus repo. Blocks: cross-instance A2A and human-on-Damus reach.
 
-## sudo-code-grpc-service
+## managed-agent-grpc-service
 
-gRPC `SudoCodeService` — narrow surface (`StartSession`, `Cancel`,
-`GetSession`). Prompt + event flow uses the existing chat-with-me VFS
-surface, not duplicate RPCs. Replaces the prior ACP-child-process
-integration path.
+`ManagedAgentService` — narrow surface (`start_session_v1`,
+`cancel_v1`, `get_session_v1`) reachable through
+`NexusVFSService.Call` Rust dispatch. Prompt + event flow uses the
+existing chat-with-me VFS surface, not duplicate RPCs.
 
-Landed in `nexi-lab/nexus#3922`:
-- proto contract (`proto/nexus/grpc/sudo_code/sudo_code.proto`)
-- `SudoCodeRPCService` Python impl wired into `AgentRegistry` —
-  spawn / cancel / liveness with session_id ↔ pid map. Fails loudly
-  (reaps the AgentRegistry pid + raises `RuntimeError`) when no
-  runtime is registered for the agent name; silent failure was the
-  earlier behaviour and broke sudowork's UI assumption that a
-  returned session_id means the agent is alive.
-- `AgentRuntimeRegistry` Python class — name-keyed slot map the
-  sudo-code crate registers into. The Rust trait counterpart is
-  deliberately deferred until the crate ships, so the cross-repo
-  dependency direction stays `sudo-code → nexus` only.
+Landed:
+- Service struct + lifecycle in `rust/kernel/src/managed_agent/`,
+  registered into `ServiceRegistry` at boot. State writes go to
+  `services::agent_table::AgentTable` directly (no Python hop).
+- gRPC `Call` handler resolves Rust services first
+  (`Kernel::dispatch_rust_call`) and falls back to Python @rpc_expose
+  on miss. Both dotted (`managed_agent.start_session_v1`) and flat
+  (`managed_agent_start_session_v1`) method names are accepted.
+- `AcpService` follows the same dispatch pattern (`acp_call`,
+  `acp_kill`, …); the Python `services.acp` package + `AcpRPCService`
+  + `agent_runtime` are gone, replaced by `AcpAdapter` (~50 LOC) +
+  `nx_acp_dispatch` PyO3 hook for in-process callers.
 
 Remaining:
-- sudo-code Rust crate (separate repo, worktree at
-  `sudocode-sudowork-2-tmp`) that satisfies the `AgentRuntime`
-  Protocol via PyO3 and registers itself at module init.
+- managed-agent runtime Rust crate that drives the LLM loop after
+  `start_session_v1` returns. Registers against the service's runtime
+  slot at module init.
 - Workspace materialization at `start_session`: building
   `/proc/{pid}/workspace/` with the requested repos visible inside,
   plus the DT_LINK shortcut at `/proc/{pid}/workspace/chat-with-me`.
   Reaping on `cancel_session` / kill.
 - TypeScript gRPC client in this repo + wire-up from the renderer.
+- Permission-lease revocation through `nx_acp_register_on_terminate`
+  is wired but the cross-PR with the lease table is still WIP — keep
+  an eye on regressions if `_perm_lease_table.invalidate_agent`
+  changes signature.
 
-Owner: split — sudo-code repo for runtime crate; nexus repo for
-workspace setup; this repo for TS client. Blocks: sudowork ↔
-sudo-code integration.
+Owner: split — managed-agent runtime crate; nexus repo for workspace
+setup; this repo for TS client. Blocks: sudowork ↔ managed-agent
+integration.
 
 ## sudocode-config-migration
 
@@ -120,8 +124,8 @@ Owner: sudo-code repo. Blocks: full SSOT for agent identity surface.
 
 ## auth-fallback
 
-When the `SudoCodeService` gRPC client lands in this repo (see
-`sudo-code-grpc-service`), the assumption that nexus runs with
+When the `ManagedAgentService` gRPC client lands in this repo (see
+`managed-agent-grpc-service`), the assumption that nexus runs with
 `--auth-type none` (sudowork profile default) needs to be guarded. The
 client should try unauthenticated first and fall back to a bearer token
 from a sudowork-side credential store on `Unauthenticated`.
@@ -132,7 +136,7 @@ file was removed in the revert; the auth fallback is a guardrail for
 the future gRPC client.
 
 Owner: this repo. Blocks: hardening sudowork against multi-tenant
-deployment. Cannot start until `sudo-code-grpc-service` lands the
+deployment. Cannot start until `managed-agent-grpc-service` lands the
 client surface to attach the fallback to.
 
 ## password-not-in-cluster-profile

@@ -42,18 +42,20 @@ Cross-references:
 │  └────────┬─────────────┘   │  one tokio task per pid     │         │
 │           │                 │  cwd = /proc/{pid}/workspace│         │
 │  ┌────────▼─────────────┐   │  direct kernel syscalls,    │         │
-│  │  Python service tier │   │  no stdio, no JSON-RPC      │         │
-│  │  AgentRegistry shim  │   └─────────────────────────────┘         │
-│  │  SudoCodeService     │                                           │
-│  │  AcpService          │   FastAPI bricks (mount, rebac, …)        │
-│  │   (claude/codex/…)   │                                           │
+│  │  Rust service tier   │   │  no stdio, no JSON-RPC      │         │
+│  │  ManagedAgentService │   └─────────────────────────────┘         │
+│  │  AcpService          │                                           │
+│  │   (claude/codex/…)   │   FastAPI bricks (mount, rebac, …)        │
+│  │  + AgentRegistry     │   AgentRegistry stays Python; ACP         │
+│  │    PyAgentRegistry   │   reaches it through the trait bridge.    │
 │  └──────────────────────┘                                           │
 │                                                                      │
 │  AcpService spawns external ACP backends as subprocesses with        │
-│  StdioPipeBackend → /proc/{pid}/fd/{0,1,2}; sudo-code does NOT use   │
-│  that path because it shares the process with nexusd.                │
+│  StdioPipeBackend → /proc/{pid}/fd/{0,1,2}; managed-agent runtimes   │
+│  do NOT use that path because they share the process with nexusd.    │
 │                                                                      │
-│  gRPC port 2028: NexusVFSService + SudoCodeService                  │
+│  gRPC port 2028: NexusVFSService.Call routes ACP +                  │
+│    ManagedAgent methods through Rust dispatch                        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,7 +100,7 @@ the canonical address, and `/proc/{pid}/workspace/chat-with-me` is a
 DT_LINK shortcut to it. The agent-name level (`/agents/{name}/chat-with-me`)
 is **not a writable path** — the kernel does not maintain a name-level
 aggregator. Callers always have a pid by the time they need to address
-an agent (sudowork gets it from `SudoCodeService.StartSession`; in-process
+an agent (sudowork gets it from `ManagedAgentService.start_session_v1`; in-process
 runtimes have their own `pid`); requiring the pid keeps the addressing
 model unambiguous and avoids the design questions around multi-instance
 fan-out / fan-in.
@@ -151,25 +153,28 @@ uses.
 
 ```
 sudowork (Electron, TS)
-   │ gRPC: SudoCodeService.StartSession(agent="scode-standard", repos=[…])
+   │ gRPC: NexusVFSService.Call(method="managed_agent.start_session_v1",
+   │       payload={agent:"scode-standard", repos:[…], model, owner_id, zone_id})
    ▼
 nexusd:
-   SudoCodeRPCService.sudo_code_start_session
-      │ AgentRegistry.spawn(name, owner, zone, kind=MANAGED, labels)
-      │   → allocates pid; AgentTable in services rlib carries the
-      │     authoritative state; Python AgentRegistry holds the PCB shim
-      │ session_id = "sess-" + uuid4()[:12]
-      │ workspace_path = "/proc/{pid}/workspace/"
-      │ AgentRuntimeRegistry.get(agent) → AgentRuntime | None
-      │   • None: log a warning, keep the AgentRegistry record, return.
-      │     A follow-up runtime install can pick the agent up — the
-      │     gRPC contract is decoupled from runtime wire-up timing.
-      │   • Some(runtime): runtime.spawn(pid, workspace_path, repos, model).
-      │     Spawn failure reaps the pid and surfaces RuntimeError to
-      │     sudowork so the session is never reported as live.
+   tonic Call handler
+      │ resolve_rust_dispatch -> ("managed_agent", "start_session_v1")
+      │ Kernel::dispatch_rust_call -> ManagedAgentService::dispatch
+      │ ManagedAgentService::start_session
+      │   → AgentTable.register (Rust SSOT — no PyO3 boundary;
+      │     managed agents skip Python AgentRegistry because their
+      │     PCB metadata doesn't apply)
+      │   → AgentTable.update_state(WARMING_UP)
+      │   → session_id = "sess-" + uuid4()[:12]
+      │   → workspace_path = "/proc/{pid}/workspace/"
       ▼
    {session_id, agent_id=pid, workspace_path} → sudowork
 ```
+
+The actual managed-agent runtime crate (the Rust task that spawns
+once `start_session_v1` returns and drives the LLM loop) is wired
+separately. ManagedAgentService just plants the AgentTable record
++ session row; runtime wire-up evolves on its own cadence.
 
 The provisioner step that builds `/proc/{pid}/workspace/` with OS-level
 symlinks for each `WorkspaceRepo` and plants the DT_LINK shortcut at
@@ -187,25 +192,33 @@ nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me` for incoming
 prompts and writes responses to `/agents/{user}/chat-with-me`. sudowork's
 UI `sys_watch`es the user's chat-with-me for those responses.
 
-**`SudoCodeService` gRPC surface is intentionally narrow** — only spawn /
-cancel / liveness:
+**ManagedAgentService surface is intentionally narrow** — only spawn /
+cancel / liveness, exposed over `NexusVFSService.Call`:
 
-- `StartSession(agent, repos, model)` → `{session_id, agent_id, workspace_path}`
-- `Cancel(session_id, mode)` → `{cancelled}`. `mode ∈ {cancel_turn, cancel_session}`
-  — turn aborts the current generation, session also reaps the pid.
-- `GetSession(session_id)` → `{session_id, agent_id, agent, workspace_path, model, state}`
+- `start_session_v1` — payload `{agent, repos, model, owner_id, zone_id}` →
+  `{session_id, agent_id, workspace_path}`
+- `cancel_v1` — payload `{session_id, mode}` → `{cancelled}`.
+  `mode ∈ {turn, session}` — turn aborts the current generation,
+  session also reaps the pid.
+- `get_session_v1` — payload `{session_id}` →
+  `{session_id, agent_id, agent, workspace_path, model, state}`
 
-Prompt / event flow uses the existing `NexusVFSService` gRPC (`sys_write`,
-`sys_watch`, `sys_read`) over the chat-with-me paths. There is no
-`SendPrompt` or `SubscribeEvents` gRPC — those would duplicate the A2A
-surface the rest of the system uses.
+The dotted form (`managed_agent.start_session_v1`) is canonical;
+flat-name fallback (`managed_agent_start_session_v1`) is wired for
+backward compat in the gRPC `Call` handler (KERNEL-ARCHITECTURE §8.1).
+Prompt / event flow uses the existing `NexusVFSService` gRPC
+(`sys_write`, `sys_watch`, `sys_read`) over the chat-with-me paths.
+There is no `SendPrompt` or `SubscribeEvents` gRPC — those would
+duplicate the A2A surface the rest of the system uses.
 
-#### AgentRuntimeRegistry
+#### Runtime registry
 
-`AgentRuntimeRegistry` is the kernel-knows DI slot the
-`SudoCodeRPCService` handler dispatches through, parallel to
-`NativeInterceptHook` registration. It lives in
-`nexus.services.sudo_code.runtime_registry` and exposes a small surface:
+The runtime-side trait that ManagedAgentService dispatches against
+once `start_session_v1` returns lives next to the service in
+`rust/kernel/src/managed_agent/`. Its DI slot mirrors
+`NativeInterceptHook` registration: register a `Box<dyn AgentRuntime>`
+for each agent name, the service looks it up at spawn time. Today the
+trait surface is:
 
 ```python
 class AgentRuntime(Protocol):
@@ -349,7 +362,7 @@ different sessions, different supervisors. The kernel does **not**
 maintain a name-level chat-with-me aggregator for these:
 
 - **For ongoing conversations** (the common case), the caller already
-  has the pid: sudowork received it from `SudoCodeService.StartSession`,
+  has the pid: sudowork received it from `managed_agent.start_session_v1`,
   in-process runtimes have their own `self.pid`. Requiring `/proc/{pid}/
   chat-with-me` keeps the addressing model unambiguous.
 - **First-contact addressing** (write to `/agents/scode-standard/
@@ -548,11 +561,12 @@ repo fails until each is resolved or struck through.
   signed with sender's nexus identity key. ObjectStore stub committed
   (every method returns `NotSupported`); relay client + NIP-04
   encrypt/decrypt + local-mirror + mount wire-up still pending.
-- gRPC `SudoCodeService` — `StartSession` / `Cancel` / `GetSession`
-  proto + Python `SudoCodeRPCService` impl wired into AgentRegistry +
-  `AgentRuntimeRegistry` Protocol have landed. Pending: sudo-code
-  Rust runtime crate that implements `AgentRuntime` and registers
-  itself at module init; `/proc/{pid}/workspace/` materialization
+- `ManagedAgentService` — `start_session_v1` / `cancel_v1` /
+  `get_session_v1` reachable through `NexusVFSService.Call` Rust
+  dispatch (no Python facade). AcpService follows the same dispatch
+  pattern (`acp_call`, `acp_kill`, …). Pending: managed-agent runtime
+  Rust crate that owns the LLM loop and registers against the
+  service's runtime slot; `/proc/{pid}/workspace/` materialization
   (OS-level repo symlinks + DT_LINK chat-with-me shortcut); TS gRPC
   client in this repo.
 - Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to
