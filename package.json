@@ -1,7 +1,7 @@
 {
   "name": "sudowork",
   "productName": "sudowork",
-  "version": "0.1.6",
+  "version": "0.1.9",
   "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
   "engines": {
@@ -165,6 +165,7 @@
     "diff2html": "^3.4.55",
     "dingtalk-stream": "^2.1.4",
     "docx": "^9.5.1",
+    "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
     "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",

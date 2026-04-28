@@ -22,7 +22,8 @@ interface ExcelPreviewProps {
 }
 
 // 缓存 Map / Cache Map
-const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
+// 添加 mtime 字段以检测文件修改 / Added mtime field to detect file modifications
+const pdfCache = new Map<string, { pdfPath: string; timestamp: number; mtime: number }>();
 const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 
 // 宽表格列数阈值 / Wide table column threshold
@@ -129,8 +130,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
           if (response.result.success && response.result.data) {
             setPdfPath(response.result.data as string);
-            // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
+            // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+            const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now(), mtime });
           }
         } else {
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
@@ -195,16 +197,21 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         return;
       }
 
-      // 检查缓存 / Check cache
+      // 检查缓存（同时检查文件修改时间）/ Check cache (also check file modification time)
       const cached = pdfCache.get(filePath);
-      if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
-        console.log('[ExcelViewer] Cache hit:', filePath);
-        setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
-        setPdfPath(cached.pdfPath);
-        setLoading(false);
-        return;
-      }
       if (cached) {
+        // 获取当前文件的 mtime / Get current file mtime
+        const currentMtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+        // 缓存有效条件：mtime 未变化且未超时 / Cache valid if: mtime unchanged and not expired
+        if (cached.mtime === currentMtime && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+          console.log('[ExcelViewer] Cache hit:', filePath, 'mtime:', currentMtime);
+          setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
+          setPdfPath(cached.pdfPath);
+          setLoading(false);
+          return;
+        }
+        // mtime 变化或超时，清除缓存 / mtime changed or expired, clear cache
+        console.log('[ExcelViewer] Cache invalidated:', filePath, 'cached mtime:', cached.mtime, 'current mtime:', currentMtime);
         pdfCache.delete(filePath);
       }
 
@@ -257,9 +264,10 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
 
             if (pdfResponse.result.success && pdfResponse.result.data) {
               setPdfPath(pdfResponse.result.data);
-              // 保存到缓存 / Save to cache
-              pdfCache.set(filePath, { pdfPath: pdfResponse.result.data, timestamp: Date.now() });
-              console.log('[ExcelViewer] Converted and cached:', filePath);
+              // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+              const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+              pdfCache.set(filePath, { pdfPath: pdfResponse.result.data, timestamp: Date.now(), mtime });
+              console.log('[ExcelViewer] Converted and cached:', filePath, 'mtime:', mtime);
             } else {
               // PDF 转换失败，回退到 JSON 渲染 / PDF conversion failed, fallback to JSON
               setUseLibreOffice(false);
@@ -472,13 +480,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   if (needsLibreOfficeInstall) {
     return (
       <div className='h-full w-full'>
-        <LibreOfficeInstallPrompt
-          fileType='excel'
-          installing={installingLibreOffice}
-          percent={installPercent}
-          phase={installPhase}
-          onInstall={handleInstallLibreOffice}
-        />
+        <LibreOfficeInstallPrompt fileType='excel' installing={installingLibreOffice} percent={installPercent} phase={installPhase} onInstall={handleInstallLibreOffice} />
       </div>
     );
   }

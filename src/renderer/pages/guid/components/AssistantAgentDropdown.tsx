@@ -41,7 +41,9 @@ type AssistantAgentDropdownProps = {
   disabled?: boolean;
 };
 
-const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent, disabled }) => {
+const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent, disabled: _disabled }) => {
+  // Main agent dropdown is always disabled - only SudoClaw is supported
+  const disabled = true;
   const [visible, setVisible] = useState(false);
 
   // Build set of available backends from detected agents

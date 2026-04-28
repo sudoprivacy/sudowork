@@ -22,7 +22,8 @@ interface WordPreviewProps {
 }
 
 // 缓存 Map / Cache Map
-const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
+// 添加 mtime 字段以检测文件修改 / Added mtime field to detect file modifications
+const pdfCache = new Map<string, { pdfPath: string; timestamp: number; mtime: number }>();
 const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 
 /**
@@ -137,8 +138,9 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         const response = await ipcBridge.document.convert.invoke({ filePath: currentFilePath, to: 'libreoffice-pdf' });
         if (response.result.success && response.result.data) {
           setPdfPath(response.result.data as string);
-          // 保存到缓存 / Save to cache
-          pdfCache.set(currentFilePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
+          // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+          const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath: currentFilePath });
+          pdfCache.set(currentFilePath, { pdfPath: response.result.data as string, timestamp: Date.now(), mtime });
         }
       } else {
         const response = await ipcBridge.document.convert.invoke({ filePath: currentFilePath, to: 'markdown' });
@@ -169,16 +171,21 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         return;
       }
 
-      // 检查缓存 / Check cache
+      // 检查缓存（同时检查文件修改时间）/ Check cache (also check file modification time)
       const cached = pdfCache.get(filePath);
-      if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
-        console.log('[WordViewer] Cache hit:', filePath);
-        setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
-        setPdfPath(cached.pdfPath);
-        setLoading(false);
-        return;
-      }
       if (cached) {
+        // 获取当前文件的 mtime / Get current file mtime
+        const currentMtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+        // 缓存有效条件：mtime 未变化且未超时 / Cache valid if: mtime unchanged and not expired
+        if (cached.mtime === currentMtime && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+          console.log('[WordViewer] Cache hit:', filePath, 'mtime:', currentMtime);
+          setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
+          setPdfPath(cached.pdfPath);
+          setLoading(false);
+          return;
+        }
+        // mtime 变化或超时，清除缓存 / mtime changed or expired, clear cache
+        console.log('[WordViewer] Cache invalidated:', filePath, 'cached mtime:', cached.mtime, 'current mtime:', currentMtime);
         pdfCache.delete(filePath);
       }
 
@@ -215,9 +222,10 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
 
           if (response.result.success && response.result.data) {
             setPdfPath(response.result.data);
-            // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now() });
-            console.log('[WordViewer] Converted and cached:', filePath);
+            // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+            const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+            pdfCache.set(filePath, { pdfPath: response.result.data, timestamp: Date.now(), mtime });
+            console.log('[WordViewer] Converted and cached:', filePath, 'mtime:', mtime);
           } else {
             throw new Error(response.result.error || t('preview.word.loadFailed'));
           }
@@ -302,13 +310,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
   if (needsLibreOfficeInstall) {
     return (
       <div className='h-full w-full'>
-        <LibreOfficeInstallPrompt
-          fileType='word'
-          installing={installingLibreOffice}
-          percent={installPercent}
-          phase={installPhase}
-          onInstall={handleInstallLibreOffice}
-        />
+        <LibreOfficeInstallPrompt fileType='word' installing={installingLibreOffice} percent={installPercent} phase={installPhase} onInstall={handleInstallLibreOffice} />
       </div>
     );
   }

@@ -22,8 +22,11 @@ import { getSudoclawCliPath, SUDOCLAW_BIN_DIR } from '@/process/services/sudocla
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
+/** Sudo Code bin directory for scode CLI */
+const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode', 'bin');
+
 /** Priority bin directories for CLI detection */
-const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
+const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SCODE_BIN_DIR, SUDOCLAW_BIN_DIR];
 
 interface DetectedAgent {
   backend: AcpBackendAll;

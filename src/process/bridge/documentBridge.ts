@@ -145,6 +145,16 @@ export function initDocumentBridge(): void {
     return await conversionService.isLibreOfficeAvailable();
   });
 
+  // 获取文件最后修改时间 (mtime) / Get file last modification time
+  ipcBridge.document.getFileMtime.provider(async ({ filePath }) => {
+    try {
+      const stats = await fs.promises.stat(filePath);
+      return stats.mtimeMs; // 返回毫秒级时间戳
+    } catch {
+      return 0; // 文件不存在或无法访问时返回 0
+    }
+  });
+
   // 保存为 Word 文档接口 / Save as Word document endpoint
   ipcBridge.document.saveAsDocx.provider(async ({ markdown, conversationId, fileName }) => {
     try {

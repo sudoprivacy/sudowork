@@ -209,6 +209,13 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
     }
   }
 
+  // 同步用户昵称到主进程，触发 USER.md 更新，让 AI 能正确称呼用户
+  if (isDesktopRuntime && authData.nickname) {
+    ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: authData.nickname }).catch((error) => {
+      console.error('[Auth] Failed to sync user nickname:', error);
+    });
+  }
+
   if (isDesktopRuntime) {
     if (!loginSudoclawPayload) {
       setUser(null);
@@ -416,6 +423,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           });
         }
 
+        // 从 localStorage 恢复登录状态时，也同步昵称到主进程
+        if (isDesktopRuntime && authStorage.user.nickname) {
+          ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: authStorage.user.nickname }).catch((error) => {
+            console.error('[Auth] Failed to sync user nickname on restore:', error);
+          });
+        }
+
         // 检查 token 是否需要刷新
         if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
           await refreshTokens();
@@ -448,6 +462,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (isDesktopRuntime && parsed.phone) {
           ipcBridge.sudoworkAuth.saveUserPhone.invoke({ phone: parsed.phone }).catch((error) => {
             console.error('[Auth] Failed to save user phone on restore:', error);
+          });
+        }
+
+        // 旧版本存储恢复时，也同步昵称到主进程
+        if (isDesktopRuntime && parsed.nickname) {
+          ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: parsed.nickname }).catch((error) => {
+            console.error('[Auth] Failed to sync user nickname on restore:', error);
           });
         }
         return;

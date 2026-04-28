@@ -105,6 +105,8 @@
   "cacheClearFailed": "Önbellek temizlenemedi",
   "language": "Dil",
   "closeToTray": "Tepsiye Kapat",
+  "avatarEnabled": "Yüzen Avatar",
+  "avatarEnabledDesc": "Aktif konuşmanızı yansıtan yüzen masaüstü yardımcısını göster",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Çalışma Zamanı",

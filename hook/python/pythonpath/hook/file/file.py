@@ -44,7 +44,7 @@ class FileInterceptor:
         """
         original_open = builtins.open
 
-        def open_(file: FileDescriptorOrPath, mode, *args, **kwargs):
+        def open_(file: FileDescriptorOrPath, mode='r', *args, **kwargs):
             # Build FileData with the absolute path and parsed flags for policy check
             reason = self.callback(FileData(path=Path(file).absolute(), flags=parse_flags(mode)))
             if reason:

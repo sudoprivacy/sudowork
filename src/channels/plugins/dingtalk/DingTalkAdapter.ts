@@ -677,3 +677,44 @@ export function extractCardAction(params: Record<string, string>): IMessageActio
     params: actionParams,
   };
 }
+
+// ==================== Media Upload Helpers ====================
+
+/**
+ * DingTalk upload API supported image extensions
+ * https://open.dingtalk.com/document/orgapp/upload-media-files
+ */
+const DINGTALK_UPLOAD_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'gif', 'png', 'bmp']);
+
+/**
+ * Map file extension to DingTalk sampleFile fileType parameter.
+ * https://open.dingtalk.com/document/development/robot-message-type
+ * Official supported: xlsx, pdf, zip, rar, doc, docx
+ */
+const DINGTALK_FILE_TYPE_MAP: Record<string, string> = {
+  pdf: 'pdf',
+  doc: 'doc', docx: 'doc',
+  xls: 'xlsx', xlsx: 'xlsx',
+  ppt: 'ppt', pptx: 'ppt',
+  zip: 'zip',
+  rar: 'rar',
+};
+
+/**
+ * Determine upload media type based on file extension.
+ * Only returns 'image' for extensions DingTalk upload API explicitly supports as image type.
+ * All other extensions default to 'file'.
+ */
+export function getUploadMediaType(fileName: string): 'image' | 'file' {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return DINGTALK_UPLOAD_IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file';
+}
+
+/**
+ * Map file extension to DingTalk sampleFile fileType parameter.
+ * Falls back to 'pdf' for unknown extensions.
+ */
+export function getDingTalkFileType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return DINGTALK_FILE_TYPE_MAP[ext] || 'pdf';
+}

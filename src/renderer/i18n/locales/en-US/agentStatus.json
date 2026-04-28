@@ -5,5 +5,8 @@
   "session_active": "Active",
   "disconnected": "Disconnected",
   "error": "Error",
-  "unknown": "Unknown"
+  "unknown": "Unknown",
+  "restartAndConnect": "Restart & Connect",
+  "restartCommandSent": "Restart command sent",
+  "restartFailed": "Restart failed"
 }

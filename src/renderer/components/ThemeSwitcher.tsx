@@ -50,7 +50,7 @@ export const ThemeSwitcher = () => {
               style={{
                 color: isActive ? 'rgb(var(--primary-6))' : 'var(--color-text-4)',
                 backgroundColor: isActive ? 'var(--color-bg-2)' : 'transparent',
-                boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
               }}
               onClick={() => {
                 if (!isActive) void setTheme(option.value);

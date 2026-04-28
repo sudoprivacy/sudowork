@@ -8,6 +8,25 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 
 /**
+ * 递归排序树节点：文件夹优先，然后按文件名正序排列
+ * Recursively sort tree nodes: directories first, then by filename in ascending order
+ */
+export function sortTreeNodes(nodes: IDirOrFile[]): IDirOrFile[] {
+  return [...nodes]
+    .sort((a, b) => {
+      // 文件夹优先 / Directories first
+      if (a.isDir && !b.isDir) return -1;
+      if (!a.isDir && b.isDir) return 1;
+      // 按文件名正序排列（支持数字自然排序）/ Sort by name ascending (natural numeric sort)
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    })
+    .map((node) => ({
+      ...node,
+      children: node.children ? sortTreeNodes(node.children) : node.children,
+    }));
+}
+
+/**
  * 从 Tree 节点中提取数据引用
  * Extract data reference from Tree node
  */
@@ -65,6 +84,35 @@ export function getFirstLevelKeys(nodes: IDirOrFile[]): string[] {
     return [''];
   }
   return [];
+}
+
+/**
+ * 获取有限深度的文件夹 keys（用于大目录优化）
+ * Get folder keys up to a limited depth (for large directory optimization)
+ * @param nodes - Tree nodes
+ * @param maxDepth - Maximum depth to expand (default: 2)
+ */
+export function getLimitedDepthKeys(nodes: IDirOrFile[], maxDepth: number = 2): string[] {
+  const keys: string[] = [];
+
+  function collectKeys(node: IDirOrFile, currentDepth: number) {
+    if (currentDepth > maxDepth) return;
+
+    if (node.isDir) {
+      keys.push(node.relativePath);
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          collectKeys(child, currentDepth + 1);
+        }
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    collectKeys(node, 0);
+  }
+
+  return keys;
 }
 
 /**

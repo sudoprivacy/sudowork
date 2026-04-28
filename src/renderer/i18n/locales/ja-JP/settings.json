@@ -107,6 +107,8 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "言語",
   "closeToTray": "トレイに最小化",
+  "avatarEnabled": "フローティング アバター",
+  "avatarEnabledDesc": "現在の会話状態を反映するフローティング デスクトップ コンパニオンを表示",
   "gemini": "Gemini",
   "model": "モデル",
   "runtime": "ランタイム",

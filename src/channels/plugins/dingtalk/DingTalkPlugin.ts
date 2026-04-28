@@ -12,7 +12,7 @@ import https from 'https';
 
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, convertHtmlToDingTalkMarkdown, getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath } from './DingTalkAdapter';
+import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, convertHtmlToDingTalkMarkdown, getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath, getUploadMediaType, getDingTalkFileType } from './DingTalkAdapter';
 import { mainLog, mainWarn, mainError } from '@/process/utils/mainLogger';
 import type { DingTalkStreamMessage } from './DingTalkAdapter';
 
@@ -220,8 +220,34 @@ export class DingTalkPlugin extends BasePlugin {
   async sendMessage(chatId: string, message: IUnifiedOutgoingMessage): Promise<string> {
     await this.ensureAccessToken();
 
-    const { contentType, content, rawText } = toDingTalkSendParams(message);
     const { type: chatType, id } = parseChatId(chatId);
+
+    // Handle image messages - upload then send via API
+    if (message.type === 'image' && message.imageUrl) {
+      try {
+        const uploadType = getUploadMediaType(message.imageUrl);
+        const mediaId = await this.uploadMedia(message.imageUrl, uploadType);
+        return this.sendMediaViaAPI(chatType, id, 'image', mediaId);
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to send image', error);
+        throw error;
+      }
+    }
+
+    // Handle file messages - upload then send via API
+    if (message.type === 'file' && message.fileUrl && message.fileName) {
+      try {
+        const uploadType = getUploadMediaType(message.fileName);
+        const mediaId = await this.uploadMedia(message.fileUrl, uploadType);
+        const fileType = getDingTalkFileType(message.fileName);
+        return this.sendMediaViaAPI(chatType, id, 'file', mediaId, message.fileName, fileType);
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to send file', error);
+        throw error;
+      }
+    }
+
+    const { contentType, content, rawText } = toDingTalkSendParams(message);
 
     // Try AI Card streaming for text/markdown messages
     if (contentType === 'markdown' && rawText !== undefined) {
@@ -940,5 +966,133 @@ export class DingTalkPlugin extends BasePlugin {
         error: error.message || 'Failed to connect to DingTalk API',
       };
     }
+  }
+
+  // ==================== Media Upload & Send ====================
+
+  // DingTalk old API base for media upload (multipart/form-data)
+  private static readonly DINGTALK_OAPI_BASE = 'https://oapi.dingtalk.com';
+
+  /**
+   * Upload a media file to DingTalk and return media_id.
+   * Uses the old oapi endpoint with access_token as query parameter.
+   */
+  private async uploadMedia(filePath: string, uploadType: 'image' | 'file'): Promise<string> {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    const token = await this.getAccessToken();
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileName = path.basename(filePath);
+
+    const boundary = `----DingTalkBoundary${Date.now()}`;
+    const CRLF = '\r\n';
+    const fileData = fileBuffer.toString('binary');
+
+    // Build multipart/form-data body
+    const body =
+      `--${boundary}${CRLF}` +
+      `Content-Disposition: form-data; name="media"; filename="${fileName}"${CRLF}` +
+      `Content-Type: application/octet-stream${CRLF}` +
+      CRLF +
+      fileData +
+      CRLF +
+      `--${boundary}--${CRLF}`;
+
+    const url = `${DingTalkPlugin.DINGTALK_OAPI_BASE}/media/upload?access_token=${encodeURIComponent(token)}&type=${uploadType}`;
+
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(url);
+      const bodyBuffer = Buffer.from(body, 'binary');
+
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': bodyBuffer.length,
+        },
+      };
+
+      const req = https.request(options, (res) => {
+        let responseData = '';
+        res.on('data', (chunk) => {
+          responseData += chunk;
+        });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            if (parsed.errcode && parsed.errcode !== 0) {
+              reject(new Error(`DingTalk upload failed: errcode=${parsed.errcode}, errmsg=${parsed.errmsg}`));
+              return;
+            }
+            if (!parsed.media_id) {
+              reject(new Error('DingTalk upload failed: no media_id in response'));
+              return;
+            }
+            resolve(parsed.media_id);
+          } catch {
+            reject(new Error(`Invalid upload response: ${responseData}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.setTimeout(30000, () => {
+        req.destroy(new Error('Upload timed out'));
+      });
+      req.write(bodyBuffer);
+      req.end();
+    });
+  }
+
+  /**
+   * Send image or file message via DingTalk robot API.
+   * Uses the new api.dingtalk.com endpoint with header-based auth.
+   */
+  private async sendMediaViaAPI(
+    chatType: 'user' | 'group',
+    id: string,
+    mediaType: 'image' | 'file',
+    mediaId: string,
+    fileName?: string,
+    fileType?: string,
+  ): Promise<string> {
+    const token = await this.getAccessToken();
+
+    let msgKey: string;
+    let msgParam: string;
+
+    if (mediaType === 'image') {
+      msgKey = 'sampleImageMsg';
+      msgParam = JSON.stringify({ photoURL: mediaId });
+    } else {
+      msgKey = 'sampleFile';
+      msgParam = JSON.stringify({ mediaId, fileName, fileType });
+    }
+
+    if (chatType === 'user') {
+      const body: Record<string, unknown> = {
+        robotCode: this.clientId,
+        userIds: [id],
+        msgKey,
+        msgParam,
+      };
+      const response = await this.apiRequest('POST', '/v1.0/robot/oToMessages/batchSend', token, body);
+      return response?.processQueryKey || `api_media_${Date.now()}`;
+    }
+
+    // Group chat
+    const body: Record<string, unknown> = {
+      robotCode: this.clientId,
+      openConversationId: id,
+      msgKey,
+      msgParam,
+    };
+    const response = await this.apiRequest('POST', '/v1.0/robot/groupMessages/send', token, body);
+    return response?.processQueryKey || `api_media_${Date.now()}`;
   }
 }

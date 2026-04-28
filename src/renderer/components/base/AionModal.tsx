@@ -10,6 +10,7 @@ import { Close } from '@icon-park/react';
 import classNames from 'classnames';
 import type { CSSProperties } from 'react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 // ==================== 类型定义导出 ====================
@@ -112,6 +113,7 @@ const FOOTER_BASE_CLASS = 'flex-shrink-0 bg-transparent';
  * - 灵活的 header/footer 配置 / Flexible header/footer configuration
  * - 向后兼容旧 API / Backward compatible with old API
  * - 自动视口适配 / Auto viewport adaptation
+ * - 默认支持 Escape 键关闭 / Escape key to close by default
  *
  * @example
  * ```tsx
@@ -174,6 +176,7 @@ const AionModal: React.FC<AionModalProps> = ({
   style,
   ...props
 }) => {
+  const { t } = useTranslation();
   const { fontScale } = useThemeContext();
   // 处理 contentStyle 配置，转换为 CSS 变量
   const contentBg = contentStyle?.background || 'var(--bg-1)';
@@ -288,10 +291,10 @@ const AionModal: React.FC<AionModalProps> = ({
           <div className='flex justify-end gap-10px mt-10px'>
             {/* 默认按钮提供统一圆角，文案可通过 cancelText/okText 覆盖 */}
             {/* Default buttons ship with rounded corners; text can be overridden via cancelText/okText */}
-            <Button onClick={onCancel} className='px-20px min-w-80px' style={{ borderRadius: 8 }}>
+            <Button onClick={onCancel} className='px-20px min-w-80px' style={{ borderRadius: 'var(--radius-md)' }}>
               {cancelLabel}
             </Button>
-            <Button type='primary' onClick={props.onOk} loading={props.confirmLoading} className='px-20px min-w-80px' style={{ borderRadius: 8 }}>
+            <Button type='primary' onClick={props.onOk} loading={props.confirmLoading} className='px-20px min-w-80px' style={{ borderRadius: 'var(--radius-md)' }}>
               {okLabel}
             </Button>
           </div>
@@ -334,9 +337,9 @@ const AionModal: React.FC<AionModalProps> = ({
 
     return (
       <div className={headerClassName} style={headerStyle}>
-        {headerConfig.title && <h3 className={TITLE_BASE_CLASS}>{headerConfig.title}</h3>}
+        {headerConfig.title && <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>{headerConfig.title}</h3>}
         {headerConfig.showClose && (
-          <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label='Close'>
+          <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label={headerConfig.closeIcon ? t('common.ariaLabel.close') : t('common.ariaLabel.close')}>
             {headerConfig.closeIcon || <Close size={20} fill='#86909c' />}
           </button>
         )}
@@ -363,8 +366,18 @@ const AionModal: React.FC<AionModalProps> = ({
   };
 
   return (
-    <Modal {...props} title={null} closable={false} footer={null} onCancel={onCancel} className={`aionui-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
-      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }}>
+    <Modal
+      {...props}
+      title={null}
+      closable={false}
+      footer={null}
+      escToExit
+      onCancel={onCancel}
+      className={`aionui-modal ${className}`}
+      style={finalStyle}
+      getPopupContainer={() => document.body}
+    >
+      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}>
         {renderHeader()}
         <div className='aionui-modal-body-content' style={bodyInlineStyle}>
           {children}

@@ -18,7 +18,7 @@ import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/util
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Lightning, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
+import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -92,7 +92,8 @@ const InstalledAssistantCard: React.FC<{
   onClick: () => void;
 }> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick }) => {
   const { t } = useTranslation();
-  const isCustom = !assistant.isBuiltin && !isExtension;
+  const isCustom = !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
+  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled;
   const isEnabled = isExtension ? true : assistant.enabled !== false;
 
   const resolvedAvatar = assistant.avatar?.trim();
@@ -114,7 +115,7 @@ const InstalledAssistantCard: React.FC<{
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
 
   return (
-    <div className={classNames('group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar + toggle */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -143,7 +144,9 @@ const InstalledAssistantCard: React.FC<{
       {/* Content */}
       <div className='flex-1 min-w-0 pr-58px'>
         <div className='h-20px flex items-center'>
-          <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
+          <span className='font-medium text-13px text-t-primary truncate' title={displayName.length > 15 ? displayName : undefined}>
+            {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
+          </span>
         </div>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{assistant.id}</div>}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
@@ -154,34 +157,42 @@ const InstalledAssistantCard: React.FC<{
         )}
       </div>
 
-      {/* Top-right: upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
+      {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
+        <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onClick}>
+          {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
+          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}</span>
+        </button>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
-          <button type='button' className='h-22px px-6px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-3px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary opacity-0 group-hover:opacity-100' onClick={onUpload}>
-            <Upload size='12' />
+          <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onUpload}>
+            <Upload size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.upload', { defaultValue: '上传' })}</span>
           </button>
         )}
         {/* Duplicate button - available for all assistant types */}
-        <button type='button' className='h-22px px-6px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-3px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary opacity-0 group-hover:opacity-100' onClick={onDuplicate}>
-          <Copy size='12' />
+        <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
+          <Copy size='13' />
+          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
         </button>
         {/* Shield (builtin/extension) or Delete (custom) */}
         {assistant.isBuiltin || isExtension ? (
-          <div className='w-22px h-22px flex items-center justify-center text-primary' title='内置助手'>
+          <div className='w-24px h-24px flex items-center justify-center text-primary' title='内置助手'>
             <Shield size='15' />
           </div>
         ) : (
           <Popconfirm
-            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}
+            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
             onOk={onDelete}
             okText={t('common.delete', { defaultValue: '删除' })}
             cancelText={t('common.cancel', { defaultValue: '取消' })}
             okButtonProps={{ status: 'danger' }}
           >
-            <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors opacity-0 group-hover:opacity-100'>
-              <Delete size='15' />
-            </div>
+            <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-danger'>
+              <Delete size='13' />
+              <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.delete', { defaultValue: '删除' })}</span>
+            </button>
           </Popconfirm>
         )}
       </div>
@@ -1052,6 +1063,8 @@ const AgentModalContent: React.FC = () => {
           }
           await fetchInstalledAssistantNames();
           await loadAssistants();
+          // Refresh agent detection so GuidPage's useGuidAgentSelection picks up the new assistant
+          await refreshAgentDetection();
           setHubDetailVisible(false);
         } else {
           Message.error(t('settings.assistant.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `安装失败: ${res.msg || '未知错误'}` }));
@@ -1064,15 +1077,17 @@ const AgentModalContent: React.FC = () => {
         setInstallProgress(0);
       }
     },
-    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, t]
+    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
   // Go use installed assistant (navigate to guid page)
-  const handleGoUseHubAssistant = useCallback(() => {
+  const handleGoUseHubAssistant = useCallback(async () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
+    // Refresh agent detection before navigating so GuidPage's customAgents are up-to-date
+    await refreshAgentDetection();
     void navigate(`/guid?assistant=${encodeURIComponent(hubDetailAssistant.name)}`);
-  }, [hubDetailAssistant, navigate]);
+  }, [hubDetailAssistant, navigate, refreshAgentDetection]);
 
   // Open duplicate confirm modal for hub assistant
   const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
@@ -1126,7 +1141,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
             avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
-            presetAgentType: duplicateAssistant.preset_agent_type || 'sudoclaw',
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateAssistant.skills || [],
@@ -1165,7 +1180,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
             avatar: duplicateInstalledAssistant.avatar,
-            presetAgentType: duplicateInstalledAssistant.presetAgentType || 'sudoclaw',
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
@@ -1343,7 +1358,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: editAgent,
+            presetAgentType: 'sudoclaw',
             enabled: true,
             source_type: 'custom',
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
@@ -1357,14 +1372,14 @@ const AgentModalContent: React.FC = () => {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
 
-        // For custom assistants, save all fields
+        // For custom assistants, save all fields (presetAgentType always locked to sudoclaw)
         await ipcBridge.assistantHub.updateAssistantMeta.invoke({
           name: lookupName,
           updates: {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: editAgent,
+            presetAgentType: 'sudoclaw',
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
           },
         });
@@ -1706,39 +1721,13 @@ const AgentModalContent: React.FC = () => {
               <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: 'What can this assistant help with?' })} />
             </div>
 
-            {/* Main Agent */}
+            {/* Main Agent - locked to SudoClaw */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonlyAssistant}>
-                {[
-                  { value: 'gemini', label: 'Gemini CLI' },
-                  { value: 'claude', label: 'Claude Code' },
-                  { value: 'qwen', label: 'Qwen Code' },
-                  { value: 'codex', label: 'Codex' },
-                  { value: 'codebuddy', label: 'CodeBuddy' },
-                  { value: 'opencode', label: 'OpenCode' },
-                  { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
-                ]
-                  .filter((opt) => availableBackends.has(opt.backendId || opt.value))
-                  .map((opt) => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))}
-                {extensionAcpAdapters?.map((adapter) => {
-                  const id = adapter.id as string;
-                  const name = (adapter.name as string) || id;
-                  return (
-                    <Select.Option key={id} value={id}>
-                      <span className='flex items-center gap-6px'>
-                        {name}
-                        <Tag size='small' color='arcoblue'>
-                          ext
-                        </Tag>
-                      </span>
-                    </Select.Option>
-                  );
-                })}
+              <Select className='mt-10px w-full rounded-4px' value='sudoclaw' disabled>
+                <Select.Option key='sudoclaw' value='sudoclaw'>
+                  SudoClaw
+                </Select.Option>
               </Select>
             </div>
 
@@ -1828,7 +1817,7 @@ const AgentModalContent: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       <Modal title={t('settings.deleteAssistantTitle', { defaultValue: '删除助手' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
-        <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该助手将会同步删除已关联该助手的会话，是否确认删除？' })}</p>
+        <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>

@@ -115,9 +115,9 @@ const GuidPage: React.FC = () => {
       const skillExists = installedSkills.some((s) => s.name === skillParam);
       if (skillExists && !selectedSkills.includes(skillParam)) {
         setSelectedSkills([...selectedSkills, skillParam]);
-        Message.success(`已添加技能：${skillParam}`);
+        Message.success(t('guid.skillAdded', { name: skillParam }));
       } else if (!skillExists) {
-        Message.warning(`技能未安装：${skillParam}`);
+        Message.warning(t('guid.skillNotInstalled', { name: skillParam }));
       }
       void navigate('/guid', { replace: true, state: location.state });
     }
@@ -193,9 +193,13 @@ const GuidPage: React.FC = () => {
       };
     });
     if (agentEnabledSkills && agentEnabledSkills.length > 0) {
-      return items.filter((item) => agentEnabledSkills.includes(item.name));
+      // Use Set for O(1) lookup and deduplicate agentEnabledSkills
+      const enabledSkillSet = new Set(agentEnabledSkills);
+      return items.filter((item) => enabledSkillSet.has(item.name));
     }
-    return items;
+    // Deduplicate items by name to prevent duplicate keys
+    const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
+    return uniqueItems;
   }, [installedSkills, agentEnabledSkills]);
 
   // Skill selector controller
@@ -212,6 +216,7 @@ const GuidPage: React.FC = () => {
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
+    filterDisabled: true, // Guide page should not show disabled skills
   });
 
   // Convert to menu items for rendering
@@ -658,7 +663,7 @@ const GuidPage: React.FC = () => {
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
               skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' searchQuery={skillSelectorController.searchQuery} onSearchChange={skillSelectorController.setSearchQuery} onDismiss={() => skillSelectorController.setDismissed(true)} /> : null}
+              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title={t('guid.skillSelectorTitle')} items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText={t('guid.noSkills')} searchQuery={skillSelectorController.searchQuery} onSearchChange={skillSelectorController.setSearchQuery} onDismiss={() => skillSelectorController.setDismissed(true)} /> : null}
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {

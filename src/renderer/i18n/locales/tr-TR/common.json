@@ -58,5 +58,12 @@
   "setupContinuesInBackground": "Uygulamaya şimdi girin. Çalışma zamanı kurulumu arka planda devam edecek.",
   "refresh": "Yenile",
   "tray.showWindow": "Sudowork'ü Göster",
-  "tray.quit": "Çıkış"
+  "tray.quit": "Çıkış",
+  "siderMenu": {
+    "agent": "Dijital Asistanlar",
+    "skillStore": "Beceri Mağazası",
+    "security": "Güvenlik",
+    "webui": "Uzak Erişim",
+    "cron": "Zamanlanmış Görevler"
+  }
 }

@@ -187,9 +187,54 @@ fi
 echo "[generate_image] Response length: ${#RESPONSE}" >&2
 echo "[generate_image] Response preview: ${RESPONSE:0:200}" >&2
 
+WATERMARK_TEXT="${WATERMARK_TEXT:-Sudoclaw}"
+
+# Add watermark to image
+add_watermark() {
+  python3 -c "
+import sys, os
+from PIL import Image, ImageDraw, ImageFont
+
+path = sys.argv[1]
+text = sys.argv[2]
+scale = float(sys.argv[3])
+
+img = Image.open(path).convert('RGBA')
+w, h = img.size
+
+# Font size scales with image size, min 12px
+font_size = max(int(min(w, h) * scale * 0.05), 12)
+
+try:
+    font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', font_size)
+except:
+    font = ImageFont.load_default()
+
+# Add text shadow for readability on any background
+txt_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+draw = ImageDraw.Draw(txt_layer)
+
+# Position: bottom-right with padding
+bbox = draw.textbbox((0, 0), text, font=font)
+tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+padding = int(min(w, h) * 0.02)
+x = w - tw - padding
+y = h - th - padding
+
+# Shadow
+draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 128))
+# Main text (white with dark outline)
+draw.text((x, y), text, font=font, fill=(255, 255, 255, 230))
+
+out = Image.alpha_composite(img, txt_layer)
+out.convert('RGB').save(path)
+print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}')
+" "$1" "$WATERMARK_TEXT" "${WATERMARK_SCALE:-0.8}"
+}
+
 # Extract image data, save to file, and print the path
 # Response is piped via stdin to avoid OS command-line arg size limits (b64 data can be 2.5MB+)
-echo "$RESPONSE" | python3 -c "
+SAVED_FILE=$(echo "$RESPONSE" | python3 -c "
 import json, sys, base64, os, urllib.request
 
 response = json.load(sys.stdin)
@@ -248,4 +293,9 @@ with open(filename, 'wb') as f:
 
 print(f'[generate_image] Saved: {filename} ({len(image_bytes)} bytes)', file=sys.stderr)
 print(filename)
-" "$FILENAME"
+" "$FILENAME")
+
+# Add watermark after save
+if [ -f "$SAVED_FILE" ]; then
+  add_watermark "$SAVED_FILE"
+fi

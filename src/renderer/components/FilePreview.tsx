@@ -5,11 +5,13 @@
  */
 
 import { Close } from '@icon-park/react';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import type { PreviewContentType } from '@/common/types/preview';
 import { getFileExtension } from '@/renderer/services/FileService';
 import { ipcBridge } from '@/common';
 import { Image } from '@arco-design/web-react';
 import fileIcon from '@/renderer/assets/file-icon.svg';
+import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
 
@@ -25,6 +27,25 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+};
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
+const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
+  ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
+  doc: 'word', docx: 'word', odt: 'word',
+  xls: 'excel', xlsx: 'excel', ods: 'excel',
+};
+
+const getContentTypeFromExt = (ext: string): PreviewContentType => {
+  const e = ext.toLowerCase();
+  if (e === 'md' || e === 'markdown') return 'markdown';
+  if (e === 'diff' || e === 'patch') return 'diff';
+  if (e === 'pdf') return 'pdf';
+  if (OFFICE_EXTENSIONS[e]) return OFFICE_EXTENSIONS[e];
+  if (e === 'csv') return 'code';
+  if (e === 'html' || e === 'htm') return 'html';
+  if (IMAGE_EXTENSIONS.has(e)) return 'image';
+  return 'code';
 };
 
 interface FilePreviewProps {
@@ -51,6 +72,19 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   // remount and avoid spamming the backend with repeated IPC calls for a
   // file that doesn't exist.
   const [fileError, setFileError] = useState(false);
+  const { launchPreview, loading } = usePreviewLauncher();
+
+  const handlePreviewClick = useCallback(() => {
+    if (!readonly || loading || fileError) return;
+    const ext = getFileExtension(path).replace('.', '');
+    const contentType = getContentTypeFromExt(ext);
+    launchPreview({
+      originalPath: path,
+      fileName,
+      contentType,
+      editable: false,
+    });
+  }, [readonly, loading, fileError, path, fileName, launchPreview]);
 
   useEffect(() => {
     // bdpan:// paths are remote — skip local fs operations
@@ -115,7 +149,11 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
 
   return (
     <div className='relative inline-block mb-10px'>
-      <div className='h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid' style={{ borderColor: 'var(--border-base)', boxShadow: '0 0 0 1px rgba(0,0,0,0.02)' }}>
+      <div
+        className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid'}
+        style={{ borderColor: 'var(--border-base)', boxShadow: 'var(--shadow-sm)' }}
+        onClick={handlePreviewClick}
+      >
         <div className='w-40px h-40px rd-8px flex items-center justify-center flex-shrink-0'>
           <img className='w-full h-full object-contain' src={fileIcon} alt='File Icon' />
         </div>

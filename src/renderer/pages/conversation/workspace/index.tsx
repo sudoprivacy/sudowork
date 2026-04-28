@@ -9,6 +9,7 @@ import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import useDebounce from '@/renderer/hooks/useDebounce';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -20,6 +21,7 @@ import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { AudioFile, Cloudy, DownSmall, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, FolderOpen, Magic, Refresh, Search, VideoFile } from '@icon-park/react';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
@@ -36,7 +38,7 @@ import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
-import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath } from './utils/treeHelpers';
+import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes } from './utils/treeHelpers';
 import './workspace-card.css';
 
 const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
@@ -494,19 +496,22 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Hide root directory when there's a single root with children, as Toolbar serves as the first-level directory
   const rawTreeData = treeHook.files.length === 1 && (treeHook.files[0]?.children?.length ?? 0) > 0 ? (treeHook.files[0]?.children ?? []) : treeHook.files;
   const visibleTreeData = useMemo(() => {
-    if (!isTemporaryWorkspace) {
-      return rawTreeData;
+    let data = rawTreeData;
+
+    if (isTemporaryWorkspace) {
+      const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
+        nodes
+          .filter((node) => !isHiddenWorkspaceEntry(node.name))
+          .map((node) => ({
+            ...node,
+            children: node.children ? filterNodes(node.children) : node.children,
+          }));
+
+      data = filterNodes(data);
     }
 
-    const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
-      nodes
-        .filter((node) => !isHiddenWorkspaceEntry(node.name))
-        .map((node) => ({
-          ...node,
-          children: node.children ? filterNodes(node.children) : node.children,
-        }));
-
-    return filterNodes(rawTreeData);
+    // 按文件名正序排列（文件夹优先）/ Sort by filename ascending (directories first)
+    return sortTreeNodes(data);
   }, [isTemporaryWorkspace, rawTreeData]);
 
   const treeData = useMemo(() => {
@@ -534,7 +539,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         };
       });
 
-    return decorateNodes(visibleTreeData);
+    const result = decorateNodes(visibleTreeData);
+    return result;
   }, [visibleTreeData]);
 
   // Get workspace display name - prefer stored display name, fallback to path-derived name
@@ -816,6 +822,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     },
     [treeHook.ensureNodeSelected, modalsHook.setContextMenu]
   );
+
+  // NOTE: Capture-phase listener removed - Arco Design Tree doesn't use data-key attribute.
+  // The onContextMenu handler on the renderTitle div handles context menu correctly.
 
   // Get target folder path for paste confirm modal
   const targetFolderPathForModal = getTargetFolderPath(treeHook.selectedNodeRef.current, treeHook.selected, treeHook.files, workspace);
@@ -1166,163 +1175,23 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
              * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
              */}
 
-            {/* Context Menu */}
-            {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && (
-              <div
-                className='fixed z-100 min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
-                style={{ top: contextMenuStyle.top, left: contextMenuStyle.left }}
-                onClick={(event) => event.stopPropagation()}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-              >
-                <div className='flex flex-col gap-4px'>
-                  {isContextMenuNodeRoot ? (
-                    <>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          void fileOpsHook.handleOpenNode(contextMenuNode);
-                          modalsHook.closeContextMenu();
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.open')}
-                      </button>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          openNewFolderModal(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.newFolder')}
-                      </button>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          setWsRenameModal({ visible: true, name: workspaceDisplayName });
-                          modalsHook.closeContextMenu();
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.rename')}
-                      </button>
-                      <div className='h-1px bg-3 my-2px'></div>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          showBdpanUploadPicker(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          fileOpsHook.handleAddToChat(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.addToChat')}
-                      </button>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          void fileOpsHook.handleOpenNode(contextMenuNode);
-                          modalsHook.closeContextMenu();
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.open')}
-                      </button>
-                      {isContextMenuNodeFile && (
-                        <button
-                          type='button'
-                          className={menuButtonBase}
-                          onClick={() => {
-                            void fileOpsHook.handleRevealNode(contextMenuNode);
-                            modalsHook.closeContextMenu();
-                          }}
-                        >
-                          {t('conversation.workspace.contextMenu.openLocation')}
-                        </button>
-                      )}
-                      {isContextMenuNodeFile && isPreviewSupported && (
-                        <button
-                          type='button'
-                          className={menuButtonBase}
-                          onClick={() => {
-                            void fileOpsHook.handlePreviewFile(contextMenuNode);
-                          }}
-                        >
-                          {t('conversation.workspace.contextMenu.preview')}
-                        </button>
-                      )}
-                      {!isContextMenuNodeFile && (
-                        <button
-                          type='button'
-                          className={menuButtonBase}
-                          onClick={() => {
-                            openNewFolderModal(contextMenuNode);
-                          }}
-                        >
-                          {t('conversation.workspace.contextMenu.newFolder')}
-                        </button>
-                      )}
-                      <div className='h-1px bg-3 my-2px'></div>
-                      <button
-                        type='button'
-                        className={menuButtonBase}
-                        onClick={() => {
-                          showBdpanUploadPicker(contextMenuNode);
-                        }}
-                      >
-                        {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                      </button>
-                      <div className='h-1px bg-3 my-2px'></div>
-                      {!isContextMenuNodeDrafts && (
-                        <button
-                          type='button'
-                          className={menuButtonBase}
-                          onClick={() => {
-                            fileOpsHook.handleDeleteNode(contextMenuNode);
-                          }}
-                        >
-                          {t('common.delete')}
-                        </button>
-                      )}
-                      {!isContextMenuNodeDrafts && (
-                        <button
-                          type='button'
-                          className={menuButtonBase}
-                          onClick={() => {
-                            fileOpsHook.openRenameModal(contextMenuNode);
-                          }}
-                        >
-                          {t('conversation.workspace.contextMenu.rename')}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
-              <div className='workspace-card__empty flex-1 size-full'>
-                <div className='workspace-card__empty-icon'>
-                  <FolderOpen theme='outline' size='20' fill='currentColor' />
-                </div>
-                <div className='workspace-card__empty-title'>{searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}</div>
-                {!searchText && <div className='workspace-card__empty-desc'>{t('conversation.workspace.emptyDescription')}</div>}
-              </div>
+              <EmptyState
+                icon={<FolderOpen theme='outline' size='48' fill='var(--color-text-3)' />}
+                title={searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}
+                description={!searchText ? t('conversation.workspace.emptyDescription') : undefined}
+                actions={!searchText ? [
+                  {
+                    label: t('conversation.welcome.linkFolder'),
+                    onClick: () => {
+                      setShowDirectorySelector(true);
+                    },
+                    type: 'primary',
+                  },
+                ] : undefined}
+                simple
+              />
             ) : (
               <Tree
                 className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
@@ -1338,6 +1207,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   isLeaf: 'isFile',
                 }}
                 multiple
+                onRightClick={(node, event) => {
+                  const nodeData = node.dataRef as IDirOrFile;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openNodeContextMenu(nodeData, event.clientX, event.clientY);
+                }}
                 renderTitle={(node) => {
                   const relativePath = node.dataRef.relativePath;
                   const isFile = node.dataRef.isFile;
@@ -1352,6 +1227,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                     <div
                       className='flex items-center justify-between gap-6px min-w-0'
                       style={{ color: 'inherit' }}
+                      onClick={() => {
+                      }}
                       onDoubleClick={() => {
                         if (isFile) {
                           fileOpsHook.handleAddToChat(nodeData);
@@ -1508,6 +1385,155 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           );
         })()}
       </div>
+
+      {/* Context Menu - rendered via Portal to avoid overflow clipping */}
+      {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && typeof document !== 'undefined' && createPortal(
+        <div
+          className='fixed z-[9999] min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
+          style={{ top: contextMenuStyle.top, left: contextMenuStyle.left }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          <div className='flex flex-col gap-4px'>
+            {isContextMenuNodeRoot ? (
+              <>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    void fileOpsHook.handleOpenNode(contextMenuNode);
+                    modalsHook.closeContextMenu();
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.open')}
+                </button>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    openNewFolderModal(contextMenuNode);
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.newFolder')}
+                </button>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    setWsRenameModal({ visible: true, name: workspaceDisplayName });
+                    modalsHook.closeContextMenu();
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.rename')}
+                </button>
+                <div className='h-1px bg-3 my-2px'></div>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    showBdpanUploadPicker(contextMenuNode);
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    fileOpsHook.handleAddToChat(contextMenuNode);
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.addToChat')}
+                </button>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    void fileOpsHook.handleOpenNode(contextMenuNode);
+                    modalsHook.closeContextMenu();
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.open')}
+                </button>
+                {isContextMenuNodeFile && (
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      void fileOpsHook.handleRevealNode(contextMenuNode);
+                      modalsHook.closeContextMenu();
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.openLocation')}
+                  </button>
+                )}
+                {isContextMenuNodeFile && isPreviewSupported && (
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      void fileOpsHook.handlePreviewFile(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.preview')}
+                  </button>
+                )}
+                {!isContextMenuNodeFile && (
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      openNewFolderModal(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.newFolder')}
+                  </button>
+                )}
+                <div className='h-1px bg-3 my-2px'></div>
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    showBdpanUploadPicker(contextMenuNode);
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                </button>
+                <div className='h-1px bg-3 my-2px'></div>
+                {!isContextMenuNodeDrafts && (
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      fileOpsHook.handleDeleteNode(contextMenuNode);
+                    }}
+                  >
+                    {t('common.delete')}
+                  </button>
+                )}
+                {!isContextMenuNodeDrafts && (
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      fileOpsHook.openRenameModal(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.rename')}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

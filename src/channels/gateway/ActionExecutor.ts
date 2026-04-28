@@ -45,6 +45,33 @@ function isMediaContentType(type: string): boolean {
   return type === 'photo' || type === 'document' || type === 'voice' || type === 'audio' || type === 'video';
 }
 
+/**
+ * Validate a file path before sending - filter out invalid/truncated paths.
+ * Agent streaming can output partial paths (e.g., "/Users/y", "/Users/yobach/.nexus/channel")
+ * which are directories and cause EISDIR errors when WeComUploader tries to read them.
+ */
+function isValidFilePath(filePath: string): boolean {
+  // Skip empty paths
+  if (!filePath || filePath.trim().length === 0) return false;
+
+  // Skip paths that end with "/" (directory indicators)
+  if (filePath.endsWith('/')) return false;
+
+  // Skip paths that don't have a file extension (likely directories or truncated)
+  const ext = path.extname(filePath);
+  if (!ext || ext.length < 2) return false;
+
+  // Check if path exists and is a file (not a directory)
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ==================== Platform-specific Helpers ====================
 
 /**
@@ -180,8 +207,7 @@ function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isCo
       // Parse [[NEXUS_FILES]] marker to extract file paths for media attachments
       // This enables WeChat/Lark/etc to upload and send files to users
       const { cleanText, files } = parseNexusFilesMarker(rawText);
-      const text = cleanText.trim() ? cleanText : '...';
-
+      const text = cleanText.trim();
       // Determine imageUrl and fileUrl from extracted files
       // First image file -> imageUrl, first non-image file -> fileUrl
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
@@ -699,6 +725,22 @@ export class ActionExecutor {
       // Track last message content for adding action buttons after stream ends
       let lastMessageContent: IUnifiedOutgoingMessage | null = null;
 
+      // 跟踪最后一条文本消息内容，用于文件消息后仍能正确 finalize AI Card
+      // Track last text content to finalize AI Card even when last message is file/image
+      let lastTextContent: IUnifiedOutgoingMessage | null = null;
+
+      // 跟踪已发送的文件，避免重复发送
+      // Track sent files to avoid duplicate sends
+      const sentFiles: Set<string> = new Set();
+
+      // 记录用户输入的文件，避免发回给用户
+      // Track user input files to avoid sending back to user
+      const userInputFiles: Set<string> = new Set(files || []);
+
+      // 缓存待发送的文件，等到流结束后再发送（保证文本先输出，文件最后发送）
+      // Buffer pending files to send after stream ends (ensure text outputs first, files last)
+      const pendingFilesToSend: IUnifiedOutgoingMessage[] = [];
+
       // 执行消息编辑的函数
       // Function to perform message edit
       const doEditMessage = async (msg: IUnifiedOutgoingMessage, forceThinkingTarget = false) => {
@@ -707,7 +749,7 @@ export class ActionExecutor {
         lastUpdateTime = Date.now();
         // When updating thinking message, always target thinkingMsgId directly
         // (not sentMessageIds[last], which may be a file/image message)
-        const targetMsgId = (forceThinkingTarget && thinkingMsgId) ? thinkingMsgId : (sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId);
+        const targetMsgId = forceThinkingTarget && thinkingMsgId ? thinkingMsgId : sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
         try {
           await context.editMessage(targetMsgId, msg);
         } catch {
@@ -727,6 +769,9 @@ export class ActionExecutor {
         // Skip desktop-only message types (agent_status, plan, etc.)
         if (!outgoingMessage) return;
 
+        // [DEBUG] Log outgoing message details
+        console.log(`[ActionExecutor] 📤 Outgoing: isInsert=${isInsert}, type=${outgoingMessage.type}, text="${outgoingMessage.text?.slice(0, 50)}...", imageUrl=${outgoingMessage.imageUrl || 'no'}, fileUrl=${outgoingMessage.fileUrl || 'no'}, fileName=${outgoingMessage.fileName || 'none'}`);
+
         // Strip replyMarkup during streaming to prevent premature card finalization.
         // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
         // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
@@ -736,6 +781,9 @@ export class ActionExecutor {
         // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
         // Save last message content (without replyMarkup, final message adds it separately)
         lastMessageContent = streamOutgoing;
+        if (streamOutgoing.type === 'text') {
+          lastTextContent = streamOutgoing;
+        }
 
         // IMPORTANT: Treat first text streaming message as update to thinking message
         // This prevents async race condition where first insert's sendMessage takes time
@@ -749,33 +797,99 @@ export class ActionExecutor {
           // First text streaming message: update thinking message instead of inserting
           // 第一个text流式消息：更新thinking消息而不是插入新消息
           thinkingUpdated = true;
-          pendingMessage = streamOutgoing;
 
-          if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-              pendingUpdateTimer = null;
-            }
-            await doEditMessage(streamOutgoing, true);
-          } else {
-            if (pendingUpdateTimer) {
-              clearTimeout(pendingUpdateTimer);
-            }
-            const delay = UPDATE_THROTTLE_MS - (now - lastUpdateTime);
-            pendingUpdateTimer = setTimeout(() => {
-              if (pendingMessage) {
-                void doEditMessage(pendingMessage, true);
-                pendingMessage = null;
-              }
-              pendingUpdateTimer = null;
-            }, delay);
+          // CRITICAL: First thinking update must be sent IMMEDIATELY without throttle delay.
+          // If we delay it with a timer, subsequent UPDATE messages will overwrite the content
+          // before the timer fires, and the first message content will be lost forever.
+          // 关键：第一个 thinking 更新必须立即发送，不能用节流延迟。
+          // 如果用定时器延迟，后续 UPDATE 会在定时器触发前覆盖内容，导致第一条消息永远丢失。
+          lastUpdateTime = Date.now();
+          try {
+            await context.editMessage(thinkingMsgId, streamOutgoing);
+          } catch {
+            // Ignore edit errors
           }
         } else if (isInsert) {
           // 新消息：发送新消息
           // New message: send new message
           if (supportsEdit) {
+            // 特殊处理 file_send 类型（Agent 生成的文件）
+            // WeCom: 缓存文件，等流结束后发送（保证文本先输出，文件最后）
+            // Lark/DingTalk/Telegram: 立即发送（保持原有行为）
+            // Special handling for file_send type (Agent-generated files)
+            // WeCom: buffer files to send after stream ends (text first, files last)
+            // Lark/DingTalk/Telegram: send immediately (keep original behavior)
+            if (streamOutgoing.type === 'image' || streamOutgoing.type === 'file') {
+              const isWeCom = context.platform === 'wecom';
+              const isDingTalk = context.platform === 'dingtalk';
+              const isLark = context.platform === 'lark';
+
+              // 检查是否是用户输入的文件，避免发回给用户
+              // Check if this is a user input file to avoid sending back to user
+              const fileUrl = streamOutgoing.fileUrl;
+              const imageUrl = streamOutgoing.imageUrl;
+              const isUserInputFile = (fileUrl && userInputFiles.has(fileUrl)) || (imageUrl && userInputFiles.has(imageUrl));
+
+              if (isUserInputFile) {
+                console.log(`[ActionExecutor] 📎 file_send SKIPPED (user input): type=${streamOutgoing.type}, fileUrl=${fileUrl || 'none'}, imageUrl=${imageUrl || 'none'}`);
+                // 记录到 sentFiles 防止后续重复发送
+                // Record to sentFiles to prevent duplicate sends later
+                if (fileUrl) sentFiles.add(fileUrl);
+                if (imageUrl) sentFiles.add(imageUrl);
+                // 标记 thinking 已更新
+                // Mark thinking as updated
+                if (!thinkingUpdated && thinkingMsgId) {
+                  thinkingUpdated = true;
+                }
+                return;
+              }
+
+              // 记录文件路径到 sentFiles，避免后续重复发送（仅记录有效路径）
+              // Record valid file paths to sentFiles to avoid duplicate sends later
+              if (streamOutgoing.fileUrl && isValidFilePath(streamOutgoing.fileUrl)) sentFiles.add(streamOutgoing.fileUrl);
+              if (streamOutgoing.imageUrl && isValidFilePath(streamOutgoing.imageUrl)) sentFiles.add(streamOutgoing.imageUrl);
+
+              if (isWeCom || isDingTalk || isLark) {
+                // WeCom/DingTalk/Lark: 缓存文件，等流结束后发送
+                // WeCom/DingTalk/Lark: buffer file to send after stream ends
+                console.log(`[ActionExecutor] 📎 file_send buffered (WeCom/DingTalk/Lark): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
+                pendingFilesToSend.push(streamOutgoing);
+                // WeCom 不支持 edit，需要标记 thinkingUpdated 让后续文本走新消息路径
+                // DingTalk/Lark 支持 edit，不设置 thinkingUpdated，让第一条 text 继续编辑 thinking 卡片
+                if (isWeCom && !thinkingUpdated && thinkingMsgId) {
+                  thinkingUpdated = true;
+                }
+                return;
+              } else {
+                // Lark/DingTalk/Telegram: 立即发送文件（保持原有行为）
+                // Lark/DingTalk/Telegram: send file immediately (keep original behavior)
+                console.log(`[ActionExecutor] 📎 file_send immediate (${context.platform}): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
+                try {
+                  await context.sendMessage(streamOutgoing);
+                } catch {
+                  // Ignore file send errors
+                }
+                // 标记 thinking 已更新
+                // Mark thinking as updated
+                if (!thinkingUpdated && thinkingMsgId) {
+                  thinkingUpdated = true;
+                }
+                return;
+              }
+            }
+
+            // 记录文件路径到 sentFiles，避免后续重复发送（仅记录有效路径）
+            // Record valid file paths to sentFiles to avoid duplicate sends later
+            if (streamOutgoing.fileUrl && isValidFilePath(streamOutgoing.fileUrl)) sentFiles.add(streamOutgoing.fileUrl);
+            if (streamOutgoing.imageUrl && isValidFilePath(streamOutgoing.imageUrl)) sentFiles.add(streamOutgoing.imageUrl);
+            // [DEBUG] Log new message send with file tracking
+            const fileValid = streamOutgoing.fileUrl ? isValidFilePath(streamOutgoing.fileUrl) : false;
+            const imageValid = streamOutgoing.imageUrl ? isValidFilePath(streamOutgoing.imageUrl) : false;
+            console.log(`[ActionExecutor] 📥 NEW message: type=${streamOutgoing.type}, imageUrl=${streamOutgoing.imageUrl || 'none'}(valid=${imageValid}), fileUrl=${streamOutgoing.fileUrl || 'none'}(valid=${fileValid}), sentFiles now=${Array.from(sentFiles).join(',') || 'empty'}`);
             try {
               const newMsgId = await context.sendMessage(streamOutgoing);
+              // image/file 已在上方特殊处理并 return，此处仅处理 text/buttons
+              // image/file already handled above with return, here only text/buttons
               sentMessageIds.push(newMsgId);
             } catch {
               // Ignore send errors
@@ -794,6 +908,82 @@ export class ActionExecutor {
           // 更新消息：使用定时器节流，确保最后一条消息能被发送
           // Update message: throttle with timer to ensure last message is sent
           if (supportsEdit) {
+            // 检查是否有文件附件需要发送（支持 edit 的平台如 WeCom 需要单独发送文件）
+            // Check if there are file attachments to send (edit-capable platforms like WeCom need separate file send)
+            // 排除用户输入的文件，避免发回给用户
+            // Exclude user input files to avoid sending back to user
+            // 验证路径有效性，过滤 Agent 流式输出的部分/截断路径（如 "/Users/y"，是目录而非文件）
+            // Validate path to filter out partial/truncated paths from Agent streaming (e.g., "/Users/y" is a directory)
+            const rawFileUrl = streamOutgoing.fileUrl;
+            const rawImageUrl = streamOutgoing.imageUrl;
+            const fileToSend = rawFileUrl && isValidFilePath(rawFileUrl) && !sentFiles.has(rawFileUrl) && !userInputFiles.has(rawFileUrl) ? rawFileUrl : null;
+            const imageToSend = rawImageUrl && isValidFilePath(rawImageUrl) && !sentFiles.has(rawImageUrl) && !userInputFiles.has(rawImageUrl) ? rawImageUrl : null;
+
+            // [DEBUG] Log file send decision with validation status
+            const fileValid = rawFileUrl ? isValidFilePath(rawFileUrl) : false;
+            const imageValid = rawImageUrl ? isValidFilePath(rawImageUrl) : false;
+            console.log(`[ActionExecutor] 📎 File check: fileUrl=${rawFileUrl || 'none'}(valid=${fileValid}), imageUrl=${rawImageUrl || 'none'}(valid=${imageValid}), sentFiles=${Array.from(sentFiles).join(',') || 'empty'}, userInputFiles=${Array.from(userInputFiles).join(',') || 'empty'}, fileToSend=${fileToSend || 'skip'}, imageToSend=${imageToSend || 'skip'}`);
+
+            // 处理文件发送：WeCom 缓存到流结束，其他渠道立即发送
+            // Handle file send: WeCom buffers until stream ends, other channels send immediately
+            const isWeCom = context.platform === 'wecom';
+
+            if (fileToSend) {
+              sentFiles.add(fileToSend);
+              if (isWeCom) {
+                // WeCom: 缓存文件，等流结束后发送
+                // WeCom: buffer file to send after stream ends
+                console.log(`[ActionExecutor] 📁 File buffered (WeCom): ${fileToSend}`);
+                pendingFilesToSend.push({
+                  type: 'file',
+                  text: '',
+                  fileUrl: fileToSend,
+                  fileName: streamOutgoing.fileName,
+                });
+              } else {
+                // Lark/DingTalk/Telegram: 立即发送文件
+                // Lark/DingTalk/Telegram: send file immediately
+                console.log(`[ActionExecutor] 📁 File sending immediately (${context.platform}): ${fileToSend}`);
+                try {
+                  await context.sendMessage({
+                    type: 'file',
+                    text: '',
+                    fileUrl: fileToSend,
+                    fileName: streamOutgoing.fileName,
+                  });
+                } catch {
+                  // Ignore file send errors
+                }
+              }
+            }
+
+            if (imageToSend) {
+              sentFiles.add(imageToSend);
+              if (isWeCom) {
+                // WeCom: 缓存图片，等流结束后发送
+                // WeCom: buffer image to send after stream ends
+                console.log(`[ActionExecutor] 🖼️ Image buffered (WeCom): ${imageToSend}`);
+                pendingFilesToSend.push({
+                  type: 'image',
+                  text: '',
+                  imageUrl: imageToSend,
+                });
+              } else {
+                // Lark/DingTalk/Telegram: 立即发送图片
+                // Lark/DingTalk/Telegram: send image immediately
+                console.log(`[ActionExecutor] 🖼️ Image sending immediately (${context.platform}): ${imageToSend}`);
+                try {
+                  await context.sendMessage({
+                    type: 'image',
+                    text: '',
+                    imageUrl: imageToSend,
+                  });
+                } catch {
+                  // Ignore image send errors
+                }
+              }
+            }
+
             pendingMessage = streamOutgoing;
 
             if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
@@ -846,7 +1036,14 @@ export class ActionExecutor {
         // Skip edit for non-text messages (file/image) — these were already sent via sendMessage
         // and cannot be edited (LarkPlugin.editMessage only supports card messages)
         if (lastMessageContent.type === 'file' || lastMessageContent.type === 'image') {
-          // No action needed; file/image messages were already sent correctly via sendMessage
+          // File/image was the last message — still need to finalize the AI Card
+          // with the last text content so it stops spinning
+          if (lastTextContent && supportsEdit && sentMessageIds.length > 0) {
+            const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastTextContent.text);
+            const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, replyMarkup: responseMarkup };
+            const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
+            await context.editMessage(lastMsgId, finalMessage);
+          }
         } else {
           const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
           const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
@@ -854,11 +1051,28 @@ export class ActionExecutor {
           if (supportsEdit && sentMessageIds.length > 0) {
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
+          } else if (context.platform === 'lark' && supportsEdit && thinkingMsgId) {
+            // 飞书：文件缓冲后 sentMessageIds 为空，回退到 thinkingMsgId 编辑原卡片，避免重复发送文字
+            await context.editMessage(thinkingMsgId, finalMessage);
           } else {
             // For WeChat or if no message was sent yet, send the final content as a new message
             await context.sendMessage(finalMessage);
           }
         }
+      }
+
+      // 流结束后发送缓存的文件（保证文本先输出完整，文件最后发送）
+      // Send buffered files after stream ends (ensure text outputs first, files last)
+      if (pendingFilesToSend.length > 0) {
+        console.log(`[ActionExecutor] 📁 Sending ${pendingFilesToSend.length} buffered files after stream ends`);
+        for (const fileMsg of pendingFilesToSend) {
+          try {
+            await context.sendMessage(fileMsg);
+          } catch {
+            // Ignore file send errors
+          }
+        }
+        pendingFilesToSend.length = 0; // Clear buffer
       }
     } catch (error: any) {
       console.error(`[ActionExecutor] Chat processing failed:`, error);

@@ -260,8 +260,8 @@
 
 /* ——— Tree rows — rounded hover fill (tighter spacing to match mockup) ——— */
 .chat-workspace.workspace-card .workspace-tree .arco-tree-node {
-  border-radius: 6px;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 2px 4px 2px 0;
   margin: 1px 0;
 }
@@ -271,13 +271,13 @@
 }
 
 .chat-workspace.workspace-card .workspace-tree .arco-tree-node-title-wrapper {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .chat-workspace.workspace-card .workspace-tree .arco-tree-node-title {
   padding: 4px 6px;
-  border-radius: 6px;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   width: 100%;
@@ -369,6 +369,48 @@
   color: var(--color-text-3, #86909c);
   line-height: 1.5;
   max-width: 240px;
+}
+
+/* ——— Unified EmptyState component ——— */
+.empty-state {
+  text-align: center;
+}
+
+.empty-state--with-border {
+  border-radius: 12px;
+  border: 1px dashed var(--color-border-2, #e5e6eb);
+  background: var(--color-fill-1, rgba(128, 128, 128, 0.08));
+}
+
+.empty-state--simple {
+  background: transparent;
+}
+
+.empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-2, #4e5969);
+  line-height: 1.5;
+}
+
+.empty-state__description {
+  font-size: 13px;
+  color: var(--color-text-3, #86909c);
+  line-height: 1.5;
+}
+
+.empty-state__actions {
+  margin-top: 16px;
+}
+
+.empty-state__action-btn {
+  transition: all 0.2s ease;
 }
 
 /* ——— Skills tab (responsive grid, auto-wrap by available width) ——— */

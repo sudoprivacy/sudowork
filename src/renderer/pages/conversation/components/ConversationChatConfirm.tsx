@@ -193,7 +193,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
         <div
           className={`relative p-16px bg-white flex flex-col overflow-hidden m-b-20px rd-20px max-w-800px w-full mx-auto box-border`}
           style={{
-            boxShadow: '0px 2px 20px 0px rgba(74, 88, 250, 0.1)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           {/* 错误标题 / Error title */}
@@ -232,7 +232,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
         <div
           className={`relative p-16px bg-white flex flex-col overflow-hidden m-b-20px rd-20px max-w-800px max-h-[calc(100vh-200px)] w-full mx-auto box-border`}
           style={{
-            boxShadow: '0px 2px 20px 0px rgba(74, 88, 250, 0.1)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           <div className='flex-1 overflow-y-auto min-h-0'>

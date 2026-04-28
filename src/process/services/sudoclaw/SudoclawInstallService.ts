@@ -21,6 +21,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { buildVersion } from '@/common/buildInfo';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -68,6 +69,7 @@ export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const SUDOCLAW_DEFAULT_GATEWAY_RELOAD = {
   mode: 'hot' as const,
 };
+const SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL = 'https://hk.sudorouter.ai/search/tavily';
 
 /** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
 export function removeSudoclawCli(): void {
@@ -432,21 +434,23 @@ export function repairOpenClawConfig(): void {
       changed = true;
     }
 
-    // Repair tavily plugin config — backfill apiKey from sudorouter provider if missing.
-    // This ensures tavily web search works for existing users who had apiKey in providers
-    // but did not have it propagated to the tavily plugin config.
+    // Repair tavily plugin config — backfill apiKey from sudorouter provider and
+    // restore the managed webSearch baseUrl when either field is missing.
     {
       const pluginsObj = config.plugins as { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> } | undefined;
-      const tavilyWebSearch = pluginsObj?.entries?.tavily?.config?.webSearch as { apiKey?: string } | undefined;
-      const tavilyApiKey = tavilyWebSearch?.apiKey;
-      if (!tavilyApiKey?.trim()) {
+      const tavilyWebSearch = pluginsObj?.entries?.tavily?.config?.webSearch as { apiKey?: string; baseUrl?: string } | undefined;
+      const tavilyApiKey = tavilyWebSearch?.apiKey?.trim();
+      const tavilyBaseUrl = tavilyWebSearch?.baseUrl?.trim();
+      if (!tavilyApiKey || !tavilyBaseUrl) {
         const providersObj = (config.models as { providers?: Record<string, { apiKey?: string }> } | undefined)?.providers;
         const sudorouterApiKey =
           providersObj?.sudorouter?.apiKey?.trim() ||
           Object.values(providersObj || {})
             .find((p) => p?.apiKey?.trim())
             ?.apiKey?.trim();
-        if (sudorouterApiKey) {
+        const shouldBackfillBaseUrl = !tavilyBaseUrl;
+        const shouldBackfillApiKey = !tavilyApiKey && !!sudorouterApiKey;
+        if (shouldBackfillApiKey || shouldBackfillBaseUrl) {
           if (!config.plugins || typeof config.plugins !== 'object') {
             (config as Record<string, unknown>).plugins = { entries: {} };
           }
@@ -462,12 +466,14 @@ export function repairOpenClawConfig(): void {
               ...existingTavilyConfig,
               webSearch: {
                 ...existingWebSearch,
-                apiKey: sudorouterApiKey,
+                ...(shouldBackfillApiKey ? { apiKey: sudorouterApiKey } : {}),
+                ...(shouldBackfillBaseUrl ? { baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL } : {}),
               },
             },
           };
           changed = true;
-          mainLog('Sudoclaw', 'Repaired tavily apiKey from sudorouter provider');
+          const repairedFields = [shouldBackfillApiKey ? 'apiKey' : null, shouldBackfillBaseUrl ? 'baseUrl' : null].filter(Boolean).join(' + ');
+          mainLog('Sudoclaw', `Repaired tavily ${repairedFields}`);
         }
       }
     }
@@ -613,6 +619,8 @@ export function repairOpenClawConfig(): void {
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
+    ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to ensure workspace/USER.md during config repair: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -661,7 +669,7 @@ export function ensureDefaultConfig(): void {
           enabled: true,
           config: {
             webSearch: {
-              baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+              baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL,
             },
           },
         },
@@ -705,6 +713,15 @@ const USER_MD_NO_GENERATED_BY_MARKER = '<!-- SUDOCLAW_NO_GENERATED_BY -->';
 /** Marker used to identify the no-expose-usermd section inside USER.md */
 const USER_MD_NO_EXPOSE_USERMD_MARKER = '<!-- SUDOCLAW_NO_EXPOSE_USERMD -->';
 
+/** Marker used to identify the file-send-instruction section inside USER.md */
+const USER_MD_FILE_SEND_MARKER = '<!-- SUDOCLAW_FILE_SEND_INSTRUCTION -->';
+
+/** Marker used to identify the version-info section inside USER.md */
+const USER_MD_VERSION_INFO_MARKER = '<!-- SUDOCLAW_VERSION_INFO -->';
+
+/** Marker used to identify the username-statement section inside USER.md */
+const USER_MD_USERNAME_MARKER = '<!-- SUDOCLAW_USERNAME_STATEMENT -->';
+
 /**
  * Update or insert a marker-based block in USER.md
  * If marker exists, replace the entire block; if not, append it
@@ -716,7 +733,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [USER_MD_SAFETY_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER];
+  const markers = [USER_MD_SAFETY_MARKER, USER_MD_USERNAME_MARKER, USER_MD_IDENTITY_MARKER, USER_MD_NO_GENERATED_BY_MARKER, USER_MD_NO_EXPOSE_USERMD_MARKER, USER_MD_FILE_SEND_MARKER, USER_MD_VERSION_INFO_MARKER];
   const markerPositions: { marker: string; pos: number }[] = [];
 
   for (const m of markers) {
@@ -1068,10 +1085,7 @@ export function patchOpenclawReadDescription(): void {
   // template literal and break the bundle's JS parse. Keep "read" plain.
   const replacementPhrase = 'For images (jpg/png/gif/webp), the pixel data is embedded directly into your context — use the read tool to read captchas, inspect screenshots, and verify UI state visually.';
   if (!source.includes(originalPhrase)) {
-    mainWarn(
-      'Sudoclaw',
-      'patchOpenclawReadDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to skip `read` for images.',
-    );
+    mainWarn('Sudoclaw', 'patchOpenclawReadDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to skip `read` for images.');
     return;
   }
   source = source.replace(originalPhrase, replacementPhrase);
@@ -1128,10 +1142,7 @@ export function patchOpenclawPdfDescription(): void {
   const originalPhrase = 'Supports native PDF analysis for Anthropic and Google models, with text/image extraction fallback for other providers. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze.';
   const replacementPhrase = 'Supports native PDF analysis for Anthropic and Google models. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze. For non-PDF image files (jpg/png/gif/webp), use the `read` tool instead — pdf only accepts PDF input.';
   if (!source.includes(originalPhrase)) {
-    mainWarn(
-      'Sudoclaw',
-      'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.',
-    );
+    mainWarn('Sudoclaw', 'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.');
     return;
   }
   source = source.replace(originalPhrase, replacementPhrase);
@@ -1380,6 +1391,280 @@ This applies to all conversation scenarios. Simply execute the required behavior
   }
 }
 
+/**
+ * 文件发送指令 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "file send instruction"
+ * section. If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdFileSendInstruction(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const fileSendBlock = `
+${USER_MD_FILE_SEND_MARKER}
+## 文件发送指令 / File Send Instruction
+
+**中文：**
+
+当用户请求发送文件时，你必须在回复末尾添加 \`[[NEXUS_FILES]]\` 标记来触发文件上传功能。
+
+格式：
+\`\`\`
+回复内容...
+
+[[NEXUS_FILES]]
+文件路径1
+文件路径2
+\`\`\`
+
+示例：
+- 用户请求发送 PDF 文件 → 回复内容 + \`[[NEXUS_FILES]]\` + PDF 文件绝对路径
+- 用户请求发送图片 → 回复内容 + \`[[NEXUS_FILES]]\` + 图片文件绝对路径
+
+**注意：**
+1. 文件路径必须是绝对路径
+2. 每行一个文件路径
+3. 不要说"无法发送文件"，直接使用标记即可
+
+**English:**
+
+When user requests to send a file, you MUST add \`[[NEXUS_FILES]]\` marker at the end of your response to trigger file upload.
+
+Format:
+\`\`\`
+Response content...
+
+[[NEXUS_FILES]]
+file_path_1
+file_path_2
+\`\`\`
+
+Example:
+- User requests PDF file → Response content + \`[[NEXUS_FILES]]\` + PDF file absolute path
+- User requests image → Response content + \`[[NEXUS_FILES]]\` + image file absolute path
+
+**Note:**
+1. File paths must be absolute paths
+2. One file path per line
+3. Do NOT say "cannot send file", just use the marker
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User${fileSendBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with file-send instruction');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_FILE_SEND_MARKER, fileSendBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_FILE_SEND_MARKER)) {
+          mainLog('Sudoclaw', 'Updated file-send instruction in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended file-send instruction to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md file-send instruction', err);
+  }
+}
+
+/**
+ * 版本信息规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "version info" section
+ * with the current application version (buildVersion). This allows the AI
+ * to respond with the same version shown in the settings page.
+ * If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function ensureUserMdVersionInfoStatement(): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const versionInfoBlock = `
+${USER_MD_VERSION_INFO_MARKER}
+## 版本信息规则 / Version Info Rules
+
+当前 SudoClaw 版本：**${buildVersion}**
+
+**中文：**
+
+当用户询问版本信息时，禁止输出 OpenClaw 的版本信息。你应当回复上方标注的 SudoClaw 客户端版本。
+
+规则如下：
+1. **禁止**在回复中提及 OpenClaw 版本号、OpenClaw 版本信息或任何 OpenClaw 相关的版本标识；
+2. 当用户询问"版本"、"版本号"、"当前版本"等相关问题时，**必须**回复上方标注的版本号（${buildVersion}）；
+3. 此规则适用于所有语言的对话场景。
+
+回复示例："当前 SudoClaw 版本为：${buildVersion}"
+
+**English:**
+
+When users ask about version information, do NOT output OpenClaw version info. You should respond with the SudoClaw client version shown above.
+
+Rules:
+1. **Do NOT** mention OpenClaw version numbers, OpenClaw version info, or any OpenClaw-related version identifiers in responses;
+2. When users ask about "version", "version number", "current version", etc., you **MUST** respond with the version shown above (${buildVersion});
+3. This rule applies to all conversation scenarios in all languages.
+
+Response example: "Current SudoClaw version: ${buildVersion}"
+`;
+
+  try {
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${versionInfoBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with version-info statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_VERSION_INFO_MARKER, versionInfoBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_VERSION_INFO_MARKER)) {
+          mainLog('Sudoclaw', 'Updated version-info statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended version-info statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to ensure USER.md version-info statement', err);
+  }
+}
+
+/**
+ * 用户称呼规则 — 写入 USER.md
+ *
+ * Ensures that the workspace USER.md contains a "username statement"
+ * section with the current user's nickname. This allows AI to correctly
+ * address the user by their configured name.
+ * If USER.md does not exist it is created; if the marker exists the
+ * block is updated; otherwise it is appended.
+ */
+export function updateUserMdUsernameStatement(username: string): void {
+  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const usernameBlock = `
+${USER_MD_USERNAME_MARKER}
+## 用户称呼规则 / User Addressing Rules
+
+当前用户名称：**${username}**
+
+**中文：**
+当称呼用户时，必须使用上方标注的用户名称（${username}）：
+- 示例："你好，${username}，有什么可以帮助你的吗？"
+- 禁止使用其他名称如 "Gemini"、"AionUI"、"Claude"、"Sudo"  等称呼用户
+- 此规则适用于所有对话场景
+
+**English:**
+When addressing the user, must use the username shown above (${username}):
+- Example: "Hello ${username}, how can I help you?"
+- Do NOT use other names like "Gemini", "AionUI", "Claude", "Sudo" etc. to address the user
+- This rule applies to all conversation scenarios
+`;
+
+  try {
+    // Ensure workspace directory exists
+    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(userMdPath)) {
+      const content = `# User\n${usernameBlock}`;
+      fs.writeFileSync(userMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created USER.md with username statement');
+    } else {
+      const existing = fs.readFileSync(userMdPath, 'utf-8');
+      const updated = updateMarkerBlock(existing, USER_MD_USERNAME_MARKER, usernameBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(userMdPath, updated, 'utf-8');
+        if (existing.includes(USER_MD_USERNAME_MARKER)) {
+          mainLog('Sudoclaw', 'Updated username statement in USER.md');
+        } else {
+          mainLog('Sudoclaw', 'Appended username statement to USER.md');
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to update USER.md username statement', err);
+  }
+}
+
+/**
+ * IDENTITY.md Name 字段更新
+ *
+ * Updates the Name field in IDENTITY.md with the user's nickname.
+ * This ensures AI correctly identifies the user when reading IDENTITY.md.
+ * If IDENTITY.md doesn't exist or has no Name field, creates/updates it with proper format.
+ */
+export function updateIdentityMdName(username: string): void {
+  const identityMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'IDENTITY.md');
+
+  try {
+    // Ensure workspace directory exists
+    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(identityMdPath)) {
+      // Create new IDENTITY.md with Name field
+      const content = `# IDENTITY.md - Who Am I?
+
+_Fill this in during your first conversation. Make it yours._
+
+- **Name:**
+  ${username}
+- **Creature:**
+  AI Assistant
+- **Vibe:**
+  Efficient, proactive, and genuinely helpful.
+- **Emoji:**
+  🤖
+
+---
+
+This isn't just metadata. It's the start of figuring out who you are.
+
+Notes:
+
+- Save this file at the workspace root as \`IDENTITY.md\`.
+`;
+      fs.writeFileSync(identityMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created IDENTITY.md with user name: ' + username);
+      return;
+    }
+
+    // Update existing IDENTITY.md
+    const existing = fs.readFileSync(identityMdPath, 'utf-8');
+
+    // Check if Name field exists and update it
+    // Pattern: "- **Name:**" followed by newline and then the name value
+    const namePattern = /(- \*{0,2}Name:\*{0,2}\s*\n\s*)([^\n]+)/;
+    const updatedContent = existing.replace(namePattern, `$1${username}`);
+
+    if (updatedContent !== existing) {
+      fs.writeFileSync(identityMdPath, updatedContent, 'utf-8');
+      mainLog('Sudoclaw', 'Updated IDENTITY.md Name field to: ' + username);
+    } else {
+      // Name field might not exist, try to add it
+      if (!existing.includes('Name:') && !existing.includes('**Name**')) {
+        // Find a good position to insert Name field (after the header)
+        const headerPattern = /^# IDENTITY\.md.*\n\n.*\n\n/;
+        const match = existing.match(headerPattern);
+        if (match) {
+          const insertPos = match[0].length;
+          const nameField = `- **Name:**\n  ${username}\n`;
+          const contentWithName = existing.slice(0, insertPos) + nameField + existing.slice(insertPos);
+          fs.writeFileSync(identityMdPath, contentWithName, 'utf-8');
+          mainLog('Sudoclaw', 'Added Name field to IDENTITY.md: ' + username);
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to update IDENTITY.md Name field', err);
+  }
+}
+
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {
   // Try migrating from the most recent legacy path first (v2: ~/.nexus/.sudoclaw)
@@ -1564,6 +1849,8 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   ensureUserMdIdentityStatement();
   ensureUserMdNoGeneratedByStatement();
   ensureUserMdNoExposeUserMdStatement();
+  ensureUserMdFileSendInstruction();
+  ensureUserMdVersionInfoStatement();
 
   const pkgRoot = resolvePackageRoot();
   const versionState = getSudoclawVersionState();
@@ -1639,6 +1926,8 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
     ensureUserMdNoExposeUserMdStatement();
+    ensureUserMdFileSendInstruction();
+    ensureUserMdVersionInfoStatement();
     writeSudoclawInstallManifest();
 
     mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);

@@ -11,8 +11,9 @@ import WebSocket from 'ws';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
 import { WECOM_MESSAGE_LIMIT, encodeChatId, getDefaultExtension, parseChatId, toUnifiedIncomingMessage, toWeComSendParams } from './WeComAdapter';
-import type { WeComMsgCallback, WeComEventCallback } from './WeComAdapter';
+import type { WeComMsgCallback, WeComEventCallback, WeComUploadType } from './WeComAdapter';
 import { downloadAndDecryptMedia } from './WeComCrypto';
+import { WeComUploader } from './WeComUploader';
 
 /**
  * Detect Office document type from ZIP content.
@@ -131,6 +132,9 @@ export class WeComPlugin extends BasePlugin {
   // Media download directory
   private mediaDir: string | null = null;
 
+  // Media uploader
+  private uploader: WeComUploader | null = null;
+
   /**
    * Initialize the WeCom client
    */
@@ -144,6 +148,9 @@ export class WeComPlugin extends BasePlugin {
 
     this.botId = botId as string;
     this.secret = secret as string;
+
+    // Initialize uploader with send function
+    this.uploader = new WeComUploader(this.send.bind(this), this.generateReqId.bind(this));
   }
 
   /**
@@ -188,6 +195,12 @@ export class WeComPlugin extends BasePlugin {
     this.streamSessions.clear();
     this.reqIdCache.clear();
     this.mediaDir = null;
+
+    // Clear uploader pending responses
+    if (this.uploader) {
+      this.uploader.clearPending();
+    }
+
     this.isConnected = false;
 
     console.log('[WeComPlugin] Stopped and cleaned up');
@@ -216,7 +229,35 @@ export class WeComPlugin extends BasePlugin {
    * Uses stream mode for real-time streaming responses
    */
   async sendMessage(chatId: string, message: IUnifiedOutgoingMessage): Promise<string> {
-    console.log(`[WeComPlugin] sendMessage: chatId=${chatId}, text=${message.text?.slice(0, 100)}`);
+    console.log(`[WeComPlugin] sendMessage: chatId=${chatId}, type=${message.type}, imageUrl=${message.imageUrl ? 'yes' : 'no'}, fileUrl=${message.fileUrl ? 'yes' : 'no'}, text=${message.text?.slice(0, 100)}`);
+
+    // Handle image attachment - upload and send
+    if (message.imageUrl) {
+      try {
+        const mediaId = await this.uploadMedia(message.imageUrl, 'image');
+        if (mediaId) {
+          await this.sendImageMessage(chatId, mediaId);
+          return `image_${mediaId}`;
+        }
+      } catch (error) {
+        console.error('[WeComPlugin] Failed to send image:', error);
+      }
+    }
+
+    // Handle file attachment - upload and send
+    if (message.fileUrl) {
+      try {
+        const mediaId = await this.uploadMedia(message.fileUrl, 'file');
+        if (mediaId) {
+          await this.sendFileMessage(chatId, mediaId, message.fileName);
+          return `file_${mediaId}`;
+        }
+      } catch (error) {
+        console.error('[WeComPlugin] Failed to send file:', error);
+      }
+    }
+
+    // Handle text message
     const { content } = toWeComSendParams(message);
     const reqId = this.reqIdCache.get(chatId);
 
@@ -256,15 +297,15 @@ export class WeComPlugin extends BasePlugin {
     }
 
     // Otherwise, use proactive push (aibot_send_msg)
-    const { type: chatType } = parseChatId(chatId);
+    const { type: chatType, id: pureId } = parseChatId(chatId);
     const sendReqId = this.generateReqId();
-    console.log(`[WeComPlugin] sendMessage: using proactive push, chatType=${chatType}, sendReqId=${sendReqId}`);
+    console.log(`[WeComPlugin] sendMessage: using proactive push, chatType=${chatType}, pureId=${pureId}, sendReqId=${sendReqId}`);
 
     this.send({
       cmd: 'aibot_send_msg',
       headers: { req_id: sendReqId },
       body: {
-        chatid: chatId,
+        chatid: pureId,
         chat_type: chatType === 'group' ? 2 : 1,
         msgtype: 'markdown',
         markdown: { content: truncatedContent },
@@ -314,6 +355,117 @@ export class WeComPlugin extends BasePlugin {
       // Mark as finished to prevent further attempts
       this.streamSessions.set(chatId, { ...session, isFinished: true });
     }
+  }
+
+  // ==================== Media Download ====================
+
+  // ==================== Media Upload ====================
+
+  /**
+   * Upload a media file to WeCom and return media_id
+   *
+   * @param filePath - Local file path to upload
+   * @param type - Upload type (image/file/voice/video)
+   * @returns media_id for use in message sending, or null on failure
+   */
+  private async uploadMedia(filePath: string, type: WeComUploadType): Promise<string | null> {
+    if (!this.uploader) {
+      console.error('[WeComPlugin] Uploader not initialized');
+      return null;
+    }
+
+    if (!fs.existsSync(filePath)) {
+      console.error(`[WeComPlugin] File not found: ${filePath}`);
+      return null;
+    }
+
+    try {
+      const mediaId = await this.uploader.uploadFile(filePath, type);
+      console.log(`[WeComPlugin] Uploaded media: type=${type}, path=${filePath}, media_id=${mediaId}`);
+      return mediaId;
+    } catch (error) {
+      console.error('[WeComPlugin] uploadMedia failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Send an image message to a chat
+   *
+   * @param chatId - Target chat ID
+   * @param mediaId - Media ID from upload
+   */
+  private async sendImageMessage(chatId: string, mediaId: string): Promise<void> {
+    const reqId = this.reqIdCache.get(chatId);
+
+    if (reqId) {
+      // Respond to incoming message
+      this.send({
+        cmd: 'aibot_respond_msg',
+        headers: { req_id: reqId },
+        body: {
+          msgtype: 'image',
+          image: { media_id: mediaId },
+        },
+      });
+    } else {
+      // Proactive push
+      const { type: chatType, id: pureId } = parseChatId(chatId);
+      const sendReqId = this.generateReqId();
+
+      this.send({
+        cmd: 'aibot_send_msg',
+        headers: { req_id: sendReqId },
+        body: {
+          chatid: pureId,
+          chat_type: chatType === 'group' ? 2 : 1,
+          msgtype: 'image',
+          image: { media_id: mediaId },
+        },
+      });
+    }
+
+    console.log(`[WeComPlugin] Sent image message: chatId=${chatId}, mediaId=${mediaId}`);
+  }
+
+  /**
+   * Send a file message to a chat
+   *
+   * @param chatId - Target chat ID
+   * @param mediaId - Media ID from upload
+   * @param fileName - File name to display
+   */
+  private async sendFileMessage(chatId: string, mediaId: string, fileName?: string): Promise<void> {
+    const reqId = this.reqIdCache.get(chatId);
+
+    if (reqId) {
+      // Respond to incoming message
+      this.send({
+        cmd: 'aibot_respond_msg',
+        headers: { req_id: reqId },
+        body: {
+          msgtype: 'file',
+          file: { media_id: mediaId },
+        },
+      });
+    } else {
+      // Proactive push
+      const { type: chatType, id: pureId } = parseChatId(chatId);
+      const sendReqId = this.generateReqId();
+
+      this.send({
+        cmd: 'aibot_send_msg',
+        headers: { req_id: sendReqId },
+        body: {
+          chatid: pureId,
+          chat_type: chatType === 'group' ? 2 : 1,
+          msgtype: 'file',
+          file: { media_id: mediaId },
+        },
+      });
+    }
+
+    console.log(`[WeComPlugin] Sent file message: chatId=${chatId}, mediaId=${mediaId}, fileName=${fileName}`);
   }
 
   // ==================== Media Download ====================
@@ -542,6 +694,14 @@ export class WeComPlugin extends BasePlugin {
     const cmd = msg.cmd as string;
     const errcode = msg.errcode as number | undefined;
     console.log(`[WeComPlugin] handleWsMessage: cmd=${cmd || 'none'}, errcode=${errcode}, full msg=${JSON.stringify(msg).slice(0, 500)}`);
+
+    // Check if this is an upload response (handled by uploader)
+    if (cmd?.startsWith('aibot_upload_media_') || (errcode !== undefined && !cmd)) {
+      if (this.uploader) {
+        this.uploader.handleResponse(msg);
+      }
+      return;
+    }
 
     switch (cmd) {
       case 'aibot_msg_callback':

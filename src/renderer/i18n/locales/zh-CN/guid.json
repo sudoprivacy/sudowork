@@ -52,6 +52,10 @@
       "compareContent": "请对比...和...的区别，从原理、优缺点、适用场景等方面分析"
     }
   },
+  "skillSelectorTitle": "技能",
+  "noSkills": "暂无技能",
+  "skillAdded": "已添加技能：{{name}}",
+  "skillNotInstalled": "技能未安装：{{name}}",
   "trySuggestionPrompts": "试试这些可点击的案例提示词：",
   "agentFallbackNotice": "{{original}} 不可用，已自动切换到 {{fallback}}。",
   "noAgentAvailable": "没有可用的 Main Agent。请登录 Google 或安装 Claude/Codex CLI。是否前往设置？",

@@ -19,6 +19,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { assistantManager } from '@/process/AssistantManager';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { createConversation } from '../conversationService';
@@ -562,6 +563,15 @@ class CronService {
 
       if (!task) {
         throw new Error('Failed to initialize task');
+      }
+
+      // Set up channel response routing if conversation source is a channel type
+      const db = getDatabase();
+      const convResult = db.getConversation(activeConversationId);
+      mainLog('CronService', `Setting up routing check for convId=${activeConversationId}, success=${convResult.success}, hasData=${!!convResult.data}`);
+      if (convResult.success && convResult.data) {
+        mainLog('CronService', `Conversation data: source=${convResult.data.source}, chatId=${convResult.data.channelChatId}`);
+        setupChannelResponseRouting(convResult.data);
       }
 
       mainLog('CronService', `Sending message to conversationId=${activeConversationId}`);

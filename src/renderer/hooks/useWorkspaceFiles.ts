@@ -67,7 +67,7 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
       // 并行获取工作空间文件和草稿箱文件
       const [result, draftsResult] = await Promise.all([
         ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace }),
-        ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch(() => null),
+        ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch((): null => null),
       ]);
 
       const flatList = result && result.length > 0 && result[0].children ? flattenFileTree(result[0].children) : [];
