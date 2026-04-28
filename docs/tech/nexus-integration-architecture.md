@@ -37,8 +37,8 @@ Cross-references:
 │  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
 │  │  services rlib       │   │  sudo-code runtime          │         │
 │  │  AgentTable (state)  │   │  (linked Rust crate,        │         │
-│  │  agent_chat resolver │   │   trait DI registered into  │         │
-│  │  mailbox stamping    │   │   AgentRuntimeRegistry)     │         │
+│  │  mailbox stamping    │   │   trait DI registered into  │         │
+│  │                      │   │   AgentRuntimeRegistry)     │         │
 │  └────────┬─────────────┘   │  one tokio task per pid     │         │
 │           │                 │  cwd = /proc/{pid}/workspace│         │
 │  ┌────────▼─────────────┐   │  direct kernel syscalls,    │         │
@@ -86,14 +86,37 @@ Two namespaces, the same Linux distinction between an executable on disk and a r
    config.toml                   ← model selection, MCP endpoints, default workspace recipe
    prompts/                      ← system-prompt overrides, per-skill prompts
    skills/                       ← which tool sets are loadable
-   chat-with-me                  ← agent-name conversation endpoint
 ```
 
-`chat-with-me` resolution at the agent-name level depends on the kind of agent:
+(`/agents/{name}/chat-with-me` exists only for **human** identities —
+e.g. `/agents/human-ethan/chat-with-me` is a real DT_STREAM. For agent
+names like `scode-standard` it is intentionally absent; addressing
+goes through the pid level. See §3.6.)
 
-- **Local agent with one-or-more running pids** (e.g. `scode-standard`): kernel-internal aggregator (`services::agents::agent_chat`) routes writes to the matching `/proc/{pid}/chat-with-me` when exactly one instance is active; ambiguous (>1 active pid) and missing (0 active pid) cases surface a structured error pointing at `/proc/{pid}/chat-with-me`.
-- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`): the path is mounted with `NostrBackend` (§4). Writes become NIP-04 DMs to the configured npub; incoming DMs surface as `sys_watch` wake-ups.
-- **Local persistent identity** (e.g. `human-ethan` running in this nexusd): real DT_STREAM. The sudowork UI reads it for inbox display, writes for outgoing messages.
+`chat-with-me` lives at the pid level — `/proc/{pid}/chat-with-me` is
+the canonical address, and `/proc/{pid}/workspace/chat-with-me` is a
+DT_LINK shortcut to it. The agent-name level (`/agents/{name}/chat-with-me`)
+is **not a writable path** — the kernel does not maintain a name-level
+aggregator. Callers always have a pid by the time they need to address
+an agent (sudowork gets it from `SudoCodeService.StartSession`; in-process
+runtimes have their own `pid`); requiring the pid keeps the addressing
+model unambiguous and avoids the design questions around multi-instance
+fan-out / fan-in.
+
+Three kinds of recipient still share the same DT_STREAM-backed surface:
+
+- **Local agent pid** (e.g. `/proc/p_42/chat-with-me` for the active
+  scode-standard instance): real DT_STREAM. Writes append; `sys_watch`
+  wakes up readers.
+- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`):
+  the recipient's chat-with-me path is mounted with `NostrBackend` (§4).
+  Writes become NIP-04 DMs to the configured npub; incoming DMs surface
+  as `sys_watch` wake-ups on the local mirror.
+- **Local persistent identity** (e.g. `/agents/human-ethan/chat-with-me`):
+  a long-lived DT_STREAM owned by the user, not a transient pid. The
+  sudowork UI reads it for inbox display, writes for outgoing messages.
+  This is the one place `/agents/{name}/...` resolves directly to a
+  stream, because the "user" agent has no spawn lifecycle.
 
 ### 2.2 Runtime namespace
 
@@ -155,14 +178,14 @@ symlinks for each `WorkspaceRepo` and plants the DT_LINK shortcut at
 is just the path string — the runtime task can still take cwd at it once
 nexus VFS exposes the directory.
 
-After spawn, prompts and responses flow through the chat-with-me VFS surface
-— same A2A primitive every other agent uses (§3). sudowork writes prompts to
-`/agents/scode-standard/chat-with-me`; the kernel's agent_chat resolver
-routes single-pid writes and broadcasts multi-pid writes; the kernel rewrites
-the envelope's `from` field to sudowork's `agent_id` (§3.3). The sudo-code
-task in nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me` for incoming
-prompts and writes responses to `/agents/{user}/chat-with-me`. sudowork's UI
-`sys_watch`es the user's chat-with-me for those responses.
+After spawn, prompts and responses flow through the chat-with-me VFS
+surface — same A2A primitive every other agent uses (§3). sudowork
+writes prompts to `/proc/{pid}/chat-with-me` (using the `agent_id` it
+got from `StartSession`); the kernel rewrites the envelope's `from`
+field to sudowork's caller identity (§3.3). The sudo-code task in
+nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me` for incoming
+prompts and writes responses to `/agents/{user}/chat-with-me`. sudowork's
+UI `sys_watch`es the user's chat-with-me for those responses.
 
 **`SudoCodeService` gRPC surface is intentionally narrow** — only spawn /
 cancel / liveness:
@@ -271,8 +294,8 @@ sys_write inline: maybe_stamp_chat_envelope
    rewrites envelope: { from: "human-ethan", to: "scode-standard", body: "ping", ts: now() }
    │
    ▼
-DT_STREAM append (per-pid stream, possibly broadcast across pids
-                  for the multi-instance agent_chat case — §3.6)
+DT_STREAM append (the per-pid stream — `/proc/{pid}/chat-with-me`,
+                  possibly reached via the workspace DT_LINK shortcut)
 ```
 
 ### 3.4 Boundary teaching UX
@@ -284,39 +307,47 @@ EPERM at /proc/p_scode/workspace/projects/nexus/src/main.rs:
   This workspace is owned by agent 'scode-standard' (pid p_scode).
   You are 'human-ethan'. To send a message about this workspace, write to:
      /proc/p_scode/workspace/chat-with-me
-  (Or address scode-standard directly at /agents/scode-standard/chat-with-me.)
+  (Resolves to /proc/p_scode/chat-with-me via DT_LINK.)
 ```
 
 The error is intentionally instructive. LLMs that hit it once learn the convention without memory or system-prompt edits — the path layout itself is the SSOT for permissions.
 
 ### 3.5 Same primitive across humans and agents
 
-`/agents/human-ethan/chat-with-me` is the canonical Ethan address. From sudowork's UI Ethan sends through gRPC writes to other agents' `chat-with-me`; he reads his own through `sys_watch` over the same path. Other humans (Bob on Damus) appear via `NostrBackend` mount (§4) — the sender does not pick the transport, the mount does.
+`/agents/human-ethan/chat-with-me` is the canonical Ethan address —
+"human" identities have no spawn lifecycle so the path resolves
+directly to a long-lived DT_STREAM, no pid indirection needed. From
+sudowork's UI Ethan sends through gRPC writes to other agents'
+`/proc/{pid}/chat-with-me`; he reads his own through `sys_watch` over
+`/agents/human-ethan/chat-with-me`. Other humans (Bob on Damus)
+appear via `NostrBackend` mount (§4) on `/agents/human-bob/chat-with-me`
+— the sender does not pick the transport, the mount does.
 
-### 3.6 Multi-instance agent_chat resolution
+### 3.6 Why agent-name addressing for non-human agents is omitted
 
-One agent name can have many running pids — `scode-standard` running in
-two worktrees is a normal case. The agent_chat resolver
-(`services::agents::agent_chat`) handles all three cardinalities:
+A non-human agent name (`scode-standard`, `claude`, etc.) can have
+zero, one, or many running pids in parallel — different worktrees,
+different sessions, different supervisors. The kernel does **not**
+maintain a name-level chat-with-me aggregator for these:
 
-- **0 active pids** → kernel returns a `FileNotFound` error citing the
-  agent name, so callers see "no instance running" instead of the
-  generic missing-path error.
-- **1 active pid** → the resolver rebinds `/agents/{name}/chat-with-me`
-  to the matching `/proc/{pid}/chat-with-me` and the rest of `sys_*`
-  walks the resolved path.
-- **N active pids** → on writes, the kernel broadcasts: every active
-  pid's `/proc/{pid}/chat-with-me` receives a copy of the envelope
-  (recursive `sys_write` so per-pid hooks fire normally; mailbox
-  stamping happens once on the resolved path so every recipient sees
-  the same `from`). On reads, the kernel surfaces an `Ambiguous` error
-  pointing at the candidate pids — the multi-pid read merge that
-  interleaves entries by timestamp is tracked in
-  `OPEN-ITEMS.md / agent-chat-multi-instance-read`.
+- **For ongoing conversations** (the common case), the caller already
+  has the pid: sudowork received it from `SudoCodeService.StartSession`,
+  in-process runtimes have their own `self.pid`. Requiring `/proc/{pid}/
+  chat-with-me` keeps the addressing model unambiguous.
+- **First-contact addressing** (write to `/agents/scode-standard/
+  chat-with-me` without knowing pids) is YAGNI today — no caller in
+  the system uses it. If we eventually need it, we can add a pid
+  picker (least-loaded? round-robin?) without changing the
+  per-pid surface.
+- **Multi-instance fan-out** (deliver one envelope to every active
+  pid of an agent name) has no clear use case for the supervised
+  workflows we run. Different worktrees do different work; spamming
+  every instance is rarely what the sender wants.
 
-Active = `AgentState ∈ { WarmingUp, Ready, Busy, Suspended }`. Terminated
-and Registered (not-yet-warm) pids are skipped so a stale agent record
-does not intercept the path.
+The `agent_chat` services module that previously implemented these
+patterns has been removed. `/proc/{pid}/chat-with-me` (direct DT_STREAM)
+and `/proc/{pid}/workspace/chat-with-me` (DT_LINK) are the only
+chat-with-me surfaces for non-human agents.
 
 ---
 
@@ -506,9 +537,6 @@ repo fails until each is resolved or struck through.
   itself at module init; `/proc/{pid}/workspace/` materialization
   (OS-level repo symlinks + DT_LINK chat-with-me shortcut); TS gRPC
   client in this repo.
-- Multi-instance `/agents/{name}/chat-with-me` read merge — write-side
-  broadcast across active pids landed; read merge that interleaves
-  entries from multiple pids by timestamp is pending.
 - Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to
   `/agents/{name}/config.toml` — sudo-code-side change.
 - Auth fallback — when the future TS gRPC client lands in this repo,
