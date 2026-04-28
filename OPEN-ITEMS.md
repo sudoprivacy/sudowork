@@ -14,29 +14,35 @@ sentinel test and this file.
 
 ## dt-link
 
-DT_LINK kernel primitive — VFS-internal symlink. Two phases:
+`DT_LINK` kernel primitive — VFS-internal symlink. Landed in
+`nexi-lab/nexus#3922`:
 
-- **Phase 1 (landed in nexi-lab/nexus#3922)**: entry type (`DT_LINK = 6`),
-  `FileMetadata.link_target` field across proto / Rust / Python contracts,
-  `DCache::resolve_link` one-hop resolver with `LinkResolveError`
-  (Chained / SelfLoop / MissingTarget) variants, unit tests.
-- **Phase 2 (pending)**: `route()` integration so every `sys_*` resolves
-  links transparently. `sys_setattr` accepts the `link_target` arg and
-  rejects self-loops at write time. `sys_stat` surfaces `link_target`
-  for callers that want raw link metadata (Linux `lstat` analogue).
+- New entry type (`DT_LINK = 6`), `FileMetadata.link_target` field
+  across proto / Rust / Python contracts.
+- `DCache::resolve_link` one-hop resolver with `LinkResolveError`
+  (Chained / SelfLoop / MissingTarget) variants.
+- `sys_setattr` accepts `link_target` and rejects self-loops at write
+  time.
+- `sys_stat` surfaces `link_target` (Linux `lstat` analogue).
+- `route()` / `sys_read` / `sys_write` / `sys_copy` follow the link
+  transparently for content-touching syscalls.
 
-Owner: nexus repo. Blocks: chat-with-me workspace shortcut, `/proc/{pid}/agent`
-back-reference to the agent profile.
+Owner: nexus repo. Closed.
 
 ## mailbox-stamping-hook
 
-Mailbox envelope stamping — on writes to `*/chat-with-me`, the kernel
-rewrites the envelope's `from` field to the caller's `agent_id` so
-LLMs cannot author the field. Policy lives in
-`services::agents::mailbox_stamping::maybe_stamp_chat_envelope`; the
-kernel calls it inline from `sys_write` (not as a registered
-`NativeInterceptHook`, since that surface cannot mutate content) so
-non-mailbox paths short-circuit on the path test inside the helper.
+`MailboxStampingHook` — registered `NativeInterceptHook` that rewrites
+the envelope's `from` field on `*/chat-with-me` writes to the caller's
+authenticated `agent_id` so LLMs cannot forge identity. Kernel-side
+hook struct lives in `rust/kernel/src/mailbox_stamping_hook.rs`,
+delegates the rewrite policy to `services::agents::mailbox_stamping::
+maybe_stamp_chat_envelope` in the services rlib. Kernel owns "how to
+be a hook"; services owns "what to rewrite".
+
+The trait was widened in the same PR to support content rewriting
+(`HookOutcome::Replace(bytes)`). A double bypass (no mutating hooks
+registered, or write path doesn't match any registered suffix) keeps
+the hot path allocation-free.
 
 Landed in `nexi-lab/nexus#3922`. Owner: nexus repo.
 
@@ -79,43 +85,30 @@ integration path.
 
 Landed in `nexi-lab/nexus#3922`:
 - proto contract (`proto/nexus/grpc/sudo_code/sudo_code.proto`)
-- `SudoCodeRPCService` Python impl wired into AgentRegistry — spawn /
-  cancel / liveness with session_id ↔ pid map. Best-effort
-  `AgentRuntimeRegistry` dispatch for the in-process sudo-code crate;
-  when no runtime is registered the agent record is created and a
-  warning is logged so a follow-up runtime install can pick it up.
+- `SudoCodeRPCService` Python impl wired into `AgentRegistry` —
+  spawn / cancel / liveness with session_id ↔ pid map. Fails loudly
+  (reaps the AgentRegistry pid + raises `RuntimeError`) when no
+  runtime is registered for the agent name; silent failure was the
+  earlier behaviour and broke sudowork's UI assumption that a
+  returned session_id means the agent is alive.
+- `AgentRuntimeRegistry` Python class — name-keyed slot map the
+  sudo-code crate registers into. The Rust trait counterpart is
+  deliberately deferred until the crate ships, so the cross-repo
+  dependency direction stays `sudo-code → nexus` only.
 
 Remaining:
-- `AgentRuntimeRegistry` trait + slot in nexus services rlib (the
-  kernel-side anchor of the trait DI hook).
-- sudo-code Rust crate that implements the trait and registers itself
-  at module init (in-process — same process as nexusd, no stdio bind).
-- Workspace materialization at start_session: OS symlinks for each
-  `WorkspaceRepo` under `/proc/{pid}/workspace/{alias}` plus the
-  DT_LINK shortcut at `/proc/{pid}/workspace/chat-with-me`.
+- sudo-code Rust crate (separate repo, worktree at
+  `sudocode-sudowork-2-tmp`) that satisfies the `AgentRuntime`
+  Protocol via PyO3 and registers itself at module init.
+- Workspace materialization at `start_session`: building
+  `/proc/{pid}/workspace/` with the requested repos visible inside,
+  plus the DT_LINK shortcut at `/proc/{pid}/workspace/chat-with-me`.
+  Reaping on `cancel_session` / kill.
 - TypeScript gRPC client in this repo + wire-up from the renderer.
 
-Owner: split — nexus repo for runtime trait + workspace setup, this
-repo for TS client. Blocks: sudowork ↔ sudo-code integration.
-
-## agent-chat-multi-instance-read
-
-Multi-pid merge for **reads** of `/agents/{name}/chat-with-me` when
-more than one pid is active for the agent. Write-side broadcast already
-landed in `nexi-lab/nexus#3922`
-(`services::agents::agent_chat::list_active_pid_chat_paths` + kernel
-`sys_write` fan-out): a write addressed at the agent name reaches every
-active `/proc/{pid}/chat-with-me`. Reads still surface the structured
-Ambiguous error pointing at the candidate pids.
-
-The remaining follow-up implements interleaved tail merge — pulling
-the most-recent N entries off each active pid's stream and emitting
-them in timestamp order so a reader using the agent name sees one
-unified conversation surface across instances. Skipped when the path
-is mounted with `NostrBackend` (remote identity case).
-
-Owner: nexus repo. Blocks: reading a multi-instance agent by name
-without picking a pid.
+Owner: split — sudo-code repo for runtime crate; nexus repo for
+workspace setup; this repo for TS client. Blocks: sudowork ↔
+sudo-code integration.
 
 ## sudocode-config-migration
 
