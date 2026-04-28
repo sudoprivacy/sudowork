@@ -19,6 +19,8 @@ import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
+// Crash bridge must be initialized early to handle renderer errors before other bridges
+import { initCrashBridge } from './bridge/crashBridge';
 
 export const initializeProcess = async () => {
   const totalStart = Date.now();
@@ -27,7 +29,16 @@ export const initializeProcess = async () => {
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
 
-  // 1. Initialize storage first (required for bridges)
+  // 0. Initialize crash bridge FIRST to handle any renderer errors during startup
+  // This must happen before the renderer process can trigger error events
+  try {
+    initCrashBridge();
+    mainLog('Process', 'Crash bridge initialized (early)');
+  } catch (error) {
+    mainError('Process', 'Crash bridge initialization failed', error);
+  }
+
+  // 1. Initialize storage first (required for most bridges)
   const storageStart = Date.now();
   await initStorage();
   perfLog('initStorage', Date.now() - storageStart);
