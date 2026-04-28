@@ -847,8 +847,11 @@ ${draftsInstruction}`;
       case 'final': {
         if (event.message) {
           const finalText = this.extractTextFromMessage(event.message);
-          // Filter out NO_REPLY — internal agent protocol signal, not user-facing
-          if (finalText?.trim() === 'NO_REPLY') {
+          // Filter out NO_REPLY and its prefixes — internal agent protocol signal, not user-facing.
+          // A standalone NO_REPLY prefix (e.g. "NO") as the entire text content of a turn
+          // is an internal protocol artifact, not a meaningful user response.
+          const trimmedFinal = finalText?.trim() || '';
+          if (trimmedFinal && 'NO_REPLY'.startsWith(trimmedFinal)) {
             this.noReplyBuffering = false;
             this.currentStreamMsgId = null;
             this.accumulatedAssistantText = '';
@@ -961,6 +964,13 @@ ${draftsInstruction}`;
 
       case 'tool':
       case 'tool_call': {
+        // If a tool call arrives while buffering a NO_REPLY prefix (e.g. "NO"),
+        // the buffered text is an internal protocol artifact, not user-facing content — discard it.
+        if (this.noReplyBuffering) {
+          this.noReplyBuffering = false;
+          this.accumulatedAssistantText = '';
+          this.currentStreamMsgId = null;
+        }
         if (!event.data) break;
         void this.handleToolCallEvent(event.data as ToolEventData);
         break;
@@ -972,7 +982,9 @@ ${draftsInstruction}`;
       case 'assistant': {
         if (!event.data) break;
         const text = (event.data.text as string) || '';
-        if (text && text.trim() !== 'NO_REPLY') {
+        // Filter out NO_REPLY and its prefixes ("N", "NO", "NO_", …) from fallback text
+        const trimmedAssistant = text.trim();
+        if (text && trimmedAssistant && !'NO_REPLY'.startsWith(trimmedAssistant)) {
           this.agentAssistantFallbackText = text;
         }
         break;
@@ -1074,16 +1086,11 @@ ${draftsInstruction}`;
   }
 
   private handleEndTurn(): void {
-    // Flush any content that was buffered for NO_REPLY prefix detection
-    // (e.g. "NO" that turned out to be a real response, not NO_REPLY)
-    if (this.noReplyBuffering && this.accumulatedAssistantText && this.currentStreamMsgId) {
-      this.handleStreamMessage({
-        type: 'content',
-        conversation_id: this.conversation_id,
-        msg_id: this.currentStreamMsgId,
-        data: this.accumulatedAssistantText,
-      });
-    }
+    // If still buffering a NO_REPLY prefix at end of turn, discard it silently.
+    // A partial NO_REPLY prefix (e.g. "NO") that was never completed or diverged is
+    // an internal protocol artifact, not meaningful user-facing content.
+    // Previously this buffer was flushed to the user, which caused "NO" to leak
+    // into visible messages (see issue #513).
 
     this.currentStreamMsgId = null;
     this.accumulatedAssistantText = '';
