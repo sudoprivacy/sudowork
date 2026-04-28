@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { getDataPath } from '../utils';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
+import { updateUserMdUsernameStatement, updateIdentityMdName } from '../services/sudoclaw/SudoclawInstallService';
 import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
 
 export function initAuthBridge(): void {
@@ -137,6 +138,7 @@ export function initAuthBridge(): void {
   // Skill reads encrypted content and sends to server for decryption with private key
 
   const USER_PHONE_FILE = 'user_phone.enc';
+  const USER_NICKNAME_FILE = 'user_nickname.txt';
 
   // Fixed RSA public key for encryption
   // 对应的私钥需要线下提供给服务方
@@ -202,6 +204,40 @@ WQIDAQAB
     } catch (error) {
       // File doesn't exist, that's fine
       return { success: true };
+    }
+  });
+
+  // ==================== User Nickname Storage ====================
+  // Store user nickname and sync to USER.md for AI addressing
+
+  ipcBridge.sudoworkAuth.saveUserNickname.provider(async ({ nickname }) => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_NICKNAME_FILE);
+      await fsPromises.writeFile(filePath, nickname, 'utf-8');
+
+      // Sync to USER.md for AI addressing
+      updateUserMdUsernameStatement(nickname);
+
+      // Sync to IDENTITY.md Name field for AI identity recognition
+      updateIdentityMdName(nickname);
+
+      mainLog('Sudowork Auth', 'User nickname saved, USER.md and IDENTITY.md updated');
+      return { success: true };
+    } catch (error) {
+      mainError('Sudowork Auth', 'Failed to save user nickname:', error);
+      return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.getUserNickname.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_NICKNAME_FILE);
+      const nickname = await fsPromises.readFile(filePath, 'utf-8');
+      return { success: true, data: nickname.trim() };
+    } catch {
+      return { success: true, data: null };
     }
   });
 }

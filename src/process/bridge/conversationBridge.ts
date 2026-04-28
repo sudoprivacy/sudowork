@@ -33,6 +33,7 @@ import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
@@ -740,6 +741,32 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Restart the underlying agent/ACP connection and reconnect
+  // Disconnects current connection, clears bootstrap, then re-initializes
+  ipcBridge.conversation.restartAndConnect.provider(async ({ conversation_id }) => {
+    try {
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | OpenClawAgent | undefined;
+      if (!task) return { success: false, msg: 'conversation not found' };
+
+      if (task.type === 'acp') {
+        const acpTask = task as AcpAgent;
+        await acpTask.restartAndConnect();
+        return { success: true };
+      }
+
+      if (task.type === 'openclaw-gateway') {
+        const openclawTask = task as OpenClawAgent;
+        await openclawTask.restartGateway();
+        return { success: true };
+      }
+
+      return { success: false, msg: 'unsupported conversation type' };
+    } catch (error) {
+      mainWarn('[conversationBridge]', 'restartAndConnect failed:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Abort controller for workspace reads: each new request aborts the previous one
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;
@@ -1042,8 +1069,18 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
-      await task.sendMessage(payload);
-      mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
+
+      // Set up channel response routing if conversation source is a channel type
+      if (conversation) {
+        setupChannelResponseRouting(conversation);
+      }
+
+      try {
+        await task.sendMessage(payload);
+        mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
+      } finally {
+        // Listener will self-cleanup on 'finish' event
+      }
       return { success: true };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };

@@ -56,6 +56,7 @@ export const conversation = {
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
+  restartAndConnect: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('conversation.restart-and-connect'),
   syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
   // Flush all pending messages to database immediately (used before reading from DB)
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
@@ -480,6 +481,8 @@ export const document = {
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
+  /** 获取文件最后修改时间 (mtime) / Get file last modification time */
+  getFileMtime: bridge.buildProvider<number, { filePath: string }>('document.get-file-mtime'),
 };
 
 export interface ICliStatus {
@@ -697,6 +700,10 @@ export const windowControls = {
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
   setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-close-to-tray'),
+  // Floating desktop avatar window — independent transparent BrowserWindow
+  // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
+  getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),
+  setAvatarEnabled: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-avatar-enabled'),
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
@@ -1099,7 +1106,7 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
-  source_type?: 'hub' | 'upload';
+  source_type?: 'hub' | 'upload' | 'custom';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
@@ -1365,6 +1372,10 @@ export const sudoworkAuth = {
   clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
   /** Get public key for encryption */
   getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
+  /** Save user nickname - triggers USER.md update for AI addressing */
+  saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>('sudowork-auth.save-user-nickname'),
+  /** Get stored user nickname */
+  getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-nickname'),
 };
 
 // ==================== Secret Management API ====================
@@ -1393,6 +1404,48 @@ export const secret = {
   delete: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.delete'),
   /** Restore a soft-deleted secret */
   restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
+};
+
+/**
+ * pwd_login: agent-level auto-login using credentials stored in nexus
+ * PasswordVaultService. Plaintext never enters the renderer or the agent
+ * LLM context — fetch happens in main process, bytes flow to the browser
+ * subprocess as base64 over sidechannel, then Buffer is zeroed.
+ *
+ * Phase 1: user-initiated via /login <title> slash command.
+ * Phase 2: agent-initiated (tool registration TBD).
+ */
+export interface IPwdLoginParams {
+  /** Vault entry title (matches nexus PasswordVaultService primary key) */
+  title: string;
+  /**
+   * Approval decision chosen by the user in the dialog. If missing, the
+   * backend checks ApprovalStore for a cached allow_always; otherwise
+   * returns {ok: false, error: approval_rejected} and expects the renderer
+   * to open the approval modal first.
+   */
+  optionId?: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+  /** Conversation context for logging / audit only; no permission scoping */
+  conversation_id?: string;
+  /**
+   * Optional URL override. If absent, the adapter's canonical loginUrl is used.
+   */
+  url?: string;
+}
+
+export interface IPwdLoginResult {
+  ok: boolean;
+  /** CDP target id returned by ai-dev-browser after successful fill (Phase 1: absent — sidechannel dispatch blocked on browser-ai) */
+  tab_id?: string;
+  /** Structured error code (string from PwdLoginErrorCode enum) when ok=false */
+  error?: string;
+  /** Non-sensitive diagnostic detail — MUST NOT contain password bytes or derivatives */
+  detail?: string;
+}
+
+export const pwdLogin = {
+  /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
+  start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
 };
 
 // ==================== Telemetry API ====================

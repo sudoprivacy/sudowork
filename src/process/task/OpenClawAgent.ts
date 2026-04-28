@@ -26,10 +26,11 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
-import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
 import * as nodePath from 'node:path';
@@ -529,9 +530,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
 1. Your ONLY valid workspace is: ${this.workspace}
 2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
 3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. If you find your OWN output files in ${configuredWorkspace}, MOVE them to ${this.workspace}
-   - EXCLUDE system files (DO NOT move): AGENTS.md, SOUL.md, USER.md, IDENTITY.md, HEARTBEAT.md, TOOLS.md, memory/, .openclaw/
-   - These are Agent identity/session config files, NOT your output files
+4. NOTE: Files mistakenly written to ${configuredWorkspace} are considered misplaced.
+   The system will automatically move them to ${this.workspace} after your turn completes.
+   Focus on using correct paths - no manual file movement is needed.
 
 [System: This directive applies even after errors/retries. The session workspace does NOT change.]
 
@@ -608,14 +609,9 @@ ${draftsInstruction}`;
       apiBreadcrumbs.responseError('chatSend', errorCode === 'E002' ? 408 : errorCode === 'E001' ? 503 : 500, errorMsg);
 
       // Post-cleanup on error: move intermediate files from workspace root to .drafts/
-      // Also cleanup misplaced files from parent workspace directory
       if (this.workspace) {
         cleanupIntermediateFiles(this.workspace).catch((err) => {
           mainError('OpenClawAgent', 'Post-cleanup on error failed:', err);
-        });
-        const parentWorkspace = getSudoclawWorkspaceRoot();
-        cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-          mainError('OpenClawAgent', 'Misplaced files cleanup on error failed:', err);
         });
       }
 
@@ -915,8 +911,11 @@ ${draftsInstruction}`;
       case 'final': {
         if (event.message) {
           const finalText = this.extractTextFromMessage(event.message);
-          // Filter out NO_REPLY — internal agent protocol signal, not user-facing
-          if (finalText?.trim() === 'NO_REPLY') {
+          // Filter out NO_REPLY and its prefixes — internal agent protocol signal, not user-facing.
+          // A standalone NO_REPLY prefix (e.g. "NO") as the entire text content of a turn
+          // is an internal protocol artifact, not a meaningful user response.
+          const trimmedFinal = finalText?.trim() || '';
+          if (trimmedFinal && 'NO_REPLY'.startsWith(trimmedFinal)) {
             this.noReplyBuffering = false;
             this.currentStreamMsgId = null;
             this.accumulatedAssistantText = '';
@@ -964,21 +963,30 @@ ${draftsInstruction}`;
         break;
 
       case 'error':
-        mainError('OpenClawAgent', '[DIAG] ChatEvent error received:', JSON.stringify({
-          runId: event.runId,
-          sessionKey: event.sessionKey,
-          seq: event.seq,
-          state: event.state,
-          stopReason: event.stopReason,
-          errorMessage: event.errorMessage,
-          message: event.message,
-          usage: event.usage,
-        }, null, 2));
+        mainError(
+          'OpenClawAgent',
+          '[DIAG] ChatEvent error received:',
+          JSON.stringify(
+            {
+              runId: event.runId,
+              sessionKey: event.sessionKey,
+              seq: event.seq,
+              state: event.state,
+              stopReason: event.stopReason,
+              errorMessage: event.errorMessage,
+              message: event.message,
+              usage: event.usage,
+            },
+            null,
+            2
+          )
+        );
         // Telemetry: end conversation tracking (error)
         endConversationError(this.conversation_id);
         // Breadcrumb: conversation ended (chat error)
         conversationBreadcrumbs.error(this.conversation_id, 'E008', event.errorMessage || 'Chat error');
-        this.emitErrorMessage(event.errorMessage || 'Unknown error');
+        const translatedError = translateLLMError(event.errorMessage || 'Unknown error');
+        this.emitErrorMessage(translatedError);
         this.handleEndTurn();
         break;
 
@@ -1024,6 +1032,13 @@ ${draftsInstruction}`;
 
       case 'tool':
       case 'tool_call': {
+        // If a tool call arrives while buffering a NO_REPLY prefix (e.g. "NO"),
+        // the buffered text is an internal protocol artifact, not user-facing content — discard it.
+        if (this.noReplyBuffering) {
+          this.noReplyBuffering = false;
+          this.accumulatedAssistantText = '';
+          this.currentStreamMsgId = null;
+        }
         if (!event.data) break;
         void this.handleToolCallEvent(event.data as ToolEventData);
         break;
@@ -1035,7 +1050,9 @@ ${draftsInstruction}`;
       case 'assistant': {
         if (!event.data) break;
         const text = (event.data.text as string) || '';
-        if (text && text.trim() !== 'NO_REPLY') {
+        // Filter out NO_REPLY and its prefixes ("N", "NO", "NO_", …) from fallback text
+        const trimmedAssistant = text.trim();
+        if (text && trimmedAssistant && !'NO_REPLY'.startsWith(trimmedAssistant)) {
           this.agentAssistantFallbackText = text;
         }
         break;
@@ -1143,16 +1160,11 @@ ${draftsInstruction}`;
     // Breadcrumb: conversation ended (success)
     conversationBreadcrumbs.end(this.conversation_id, 'success');
 
-    // Flush any content that was buffered for NO_REPLY prefix detection
-    // (e.g. "NO" that turned out to be a real response, not NO_REPLY)
-    if (this.noReplyBuffering && this.accumulatedAssistantText && this.currentStreamMsgId) {
-      this.handleStreamMessage({
-        type: 'content',
-        conversation_id: this.conversation_id,
-        msg_id: this.currentStreamMsgId,
-        data: this.accumulatedAssistantText,
-      });
-    }
+    // If still buffering a NO_REPLY prefix at end of turn, discard it silently.
+    // A partial NO_REPLY prefix (e.g. "NO") that was never completed or diverged is
+    // an internal protocol artifact, not meaningful user-facing content.
+    // Previously this buffer was flushed to the user, which caused "NO" to leak
+    // into visible messages (see issue #513).
 
     this.currentStreamMsgId = null;
     this.accumulatedAssistantText = '';
@@ -1170,14 +1182,9 @@ ${draftsInstruction}`;
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
     // Post-cleanup: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup failed:', err);
       });
     }
 
@@ -1201,14 +1208,9 @@ ${draftsInstruction}`;
     }
 
     // Post-cleanup on disconnect: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup on disconnect failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup on disconnect failed:', err);
       });
     }
 
@@ -1822,14 +1824,10 @@ ${draftsInstruction}`;
   }
 
   /** Document extensions that should trigger file sending to channel clients */
-  private static readonly DOCUMENT_EXTENSIONS = new Set([
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html',
-  ]);
+  private static readonly DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html']);
 
   /** Image extensions */
-  private static readonly IMAGE_EXTENSIONS = new Set([
-    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg',
-  ]);
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg']);
 
   /**
    * Extract file path from a tool call if it represents a file-creation operation.

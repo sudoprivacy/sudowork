@@ -24,6 +24,9 @@ let _changeListener: CloseToTrayChangeListener | null = null;
 type LanguageChangeListener = () => void;
 let _languageChangeListener: LanguageChangeListener | null = null;
 
+type AvatarEnabledChangeListener = (enabled: boolean) => void;
+let _avatarEnabledChangeListener: AvatarEnabledChangeListener | null = null;
+
 /**
  * 注册关闭到托盘设置变更监听器（供主进程 index.ts 使用）
  * Register a listener for close-to-tray setting changes (used by main process index.ts)
@@ -38,6 +41,15 @@ export function onCloseToTrayChanged(listener: CloseToTrayChangeListener): void 
  */
 export function onLanguageChanged(listener: LanguageChangeListener): void {
   _languageChangeListener = listener;
+}
+
+/**
+ * 注册 avatar 浮窗开关变更监听器（供主进程 index.ts 使用，控制 avatar 窗口生命周期）
+ * Register a listener for avatar-enabled setting changes (used by main process
+ * index.ts to create / destroy the floating avatar BrowserWindow at runtime).
+ */
+export function onAvatarEnabledChanged(listener: AvatarEnabledChangeListener): void {
+  _avatarEnabledChangeListener = listener;
 }
 
 export function initSystemSettingsBridge(): void {
@@ -57,6 +69,19 @@ export function initSystemSettingsBridge(): void {
     await ProcessConfig.set('system.closeToTray', enabled);
     // 然后通知主进程更新托盘状态
     _changeListener?.(enabled);
+  });
+
+  // 获取 avatar 浮窗开关 / Get floating avatar window enabled setting
+  ipcBridge.systemSettings.getAvatarEnabled.provider(async () => {
+    const value = await ProcessConfig.get('avatar.enabled');
+    return value ?? false;
+  });
+
+  // 设置 avatar 浮窗开关，先持久化再通知主进程切换窗口
+  // Set avatar enabled, persist first then notify main process to toggle window
+  ipcBridge.systemSettings.setAvatarEnabled.provider(async ({ enabled }) => {
+    await ProcessConfig.set('avatar.enabled', enabled);
+    _avatarEnabledChangeListener?.(enabled);
   });
 
   // 语言变更通知，同步主进程 i18n 并通知托盘重建

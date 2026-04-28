@@ -149,6 +149,23 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
+  // 桌面 avatar 浮窗开关 / Floating desktop avatar toggle
+  const [avatarEnabled, setAvatarEnabled] = useState(false);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getAvatarEnabled
+      .invoke()
+      .then((enabled) => setAvatarEnabled(enabled))
+      .catch(() => {});
+  }, []);
+
+  const handleAvatarEnabledChange = useCallback((checked: boolean) => {
+    setAvatarEnabled(checked);
+    ipcBridge.systemSettings.setAvatarEnabled.invoke({ enabled: checked }).catch(() => {
+      setAvatarEnabled(!checked);
+    });
+  }, []);
+
   // 产品体验改进计划状态 / Product improvement program state
   const [productImprovementEnabled, setProductImprovementEnabled] = useState(false);
   const [productImprovementLoading, setProductImprovementLoading] = useState(true);
@@ -260,6 +277,12 @@ const SystemModalContent: React.FC = () => {
       ) : (
         <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />
       ),
+    },
+    {
+      key: 'avatarEnabled',
+      label: t('settings.avatarEnabled'),
+      hint: t('settings.avatarEnabledDesc'),
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
     },
     {
       key: 'productImprovement',

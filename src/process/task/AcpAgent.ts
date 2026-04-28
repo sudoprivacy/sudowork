@@ -36,6 +36,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../messag
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
@@ -981,7 +982,7 @@ This identity statement takes priority over the default identity in USER.md.
         retryable = true;
       }
 
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(translateLLMError(errorMsg));
 
       // Breadcrumb: API response error
       apiBreadcrumbs.responseError(`session/prompt`, errorType === AcpErrorType.TIMEOUT ? 408 : 500, errorMsg);
@@ -1098,6 +1099,25 @@ This identity statement takes priority over the default identity in USER.md.
       })
       .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
       .finally(doKill);
+  }
+
+  /**
+   * Restart the underlying ACP connection and reconnect.
+   * Disconnects current connection, clears bootstrap, then re-initializes.
+   */
+  async restartAndConnect(): Promise<void> {
+    // Disconnect current connection (kills process, clears session state)
+    await this.connection.disconnect();
+    // Clear bootstrap so initAgent creates a fresh connection
+    this.bootstrap = undefined;
+    // Clear pending state
+    this.pendingPermissions.clear();
+    this.permissionRequestMeta.clear();
+    this.approvalStore.clear();
+    this.pendingNavigationTools.clear();
+    this.statusMessageId = null;
+    // Re-initialize agent connection
+    await this.initAgent();
   }
 
   async ensureYoloMode(): Promise<boolean> {
@@ -1540,6 +1560,10 @@ This identity statement takes priority over the default identity in USER.md.
       }
       const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
       if (!shouldDisplayStatus) {
+        // Still emit agent_status to renderer so the connection status indicator
+        // (AgentStatusDot) updates in real time after restart/reconnect.
+        // Only skip adding to chat history to avoid visual clutter.
+        ipcBridge.acpConversation.responseStream.emit(message);
         return;
       }
     }
