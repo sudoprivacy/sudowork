@@ -416,7 +416,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: true, // ✅ Sudo Code CLI，使用 `scode acp` 启动
     supportsStreaming: false,
-    acpArgs: ['acp'], // scode 使用 acp 子命令
+    acpArgs: ['acp', '--auth', 'proxy'], // scode 使用 acp 子命令，指定 proxy 认证模式
   },
   droid: {
     id: 'droid',
