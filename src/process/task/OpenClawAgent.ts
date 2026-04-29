@@ -523,21 +523,29 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       if (this.workspace) {
         const configuredWorkspace = getSudoclawWorkspaceRoot();
         const draftsInstruction = buildDraftsInstruction(this.workspace);
-        const workspaceDirective = `[CRITICAL: Workspace Path - MUST VERIFY ON EVERY FILE OPERATION]
+        const workspaceDirective = `[CRITICAL: Workspace & Identity - MUST VERIFY ON EVERY FILE OPERATION]
 
 ⚠️ PATH VERIFICATION CHECKLIST (apply to EVERY write/exec/bash operation):
 
-1. Your ONLY valid workspace is: ${this.workspace}
-2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
-3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. NOTE: Files mistakenly written to ${configuredWorkspace} are considered misplaced.
-   The system will automatically move them to ${this.workspace} after your turn completes.
-   Focus on using correct paths - no manual file movement is needed.
+1. Your task workspace (for task-specific output files) is: ${this.workspace}
+2. Before any file write, VERIFY the path starts with '${this.workspace}'
+3. All NEW files you create (scripts, documents, deliverables) MUST go into: ${this.workspace}
 
-[System: This directive applies even after errors/retries. The session workspace does NOT change.]
+[System: This directive applies even after errors/retries. The session task workspace does NOT change.]
 
-Your working directory for this session ONLY is '${this.workspace}'.
-All file operations, bash commands, and output (when calling write() tool) MUST use this path.
+## Task Workspace vs Shared Identity/Memory
+
+Your task workspace '${this.workspace}' is a **project directory** created for THIS specific task/session.
+It is used ONLY for storing files generated during this task (scripts, documents, reports, etc.).
+
+Your **identity, soul, and memory** persist across all sessions in the shared workspace:
+- Identity: ${configuredWorkspace}/IDENTITY.md
+- Soul: ${configuredWorkspace}/SOUL.md
+- Memory: ${configuredWorkspace}/memory/
+
+You are NOT a separate clone — you are the same OpenClaw entity across sessions.
+When you need to read or update your identity/soul/memory, access them from '${configuredWorkspace}'.
+When you create task output files, write them to '${this.workspace}'.
 
 ${draftsInstruction}`;
         processedContent = `${workspaceDirective}\n\n${processedContent}`;
