@@ -122,6 +122,7 @@ Features are grouped by category. Coverage status:
 | /status | Covered | scode-slash-commands | Model, permissions, usage |
 | /sandbox | Gap | — | Isolation status |
 | /cost (token usage) | Covered | scode-slash-commands | Token counts |
+| promptresponse token usage | Gap | - | Token counts |
 
 ### 12. Auth
 
