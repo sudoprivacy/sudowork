@@ -103,7 +103,7 @@ export const useConversations = () => {
     return buildGroupedHistory(conversations, t, cronJobs);
   }, [conversations, t, cronJobs]);
 
-  const { pinnedConversations, timelineSections, scheduledGroups } = groupedHistory;
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups } = groupedHistory;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -155,7 +155,8 @@ export const useConversations = () => {
   return {
     conversations,
     expandedWorkspaces,
-    pinnedConversations,
+    pinnedTimeline,
+    pinnedScheduled,
     timelineSections,
     scheduledGroups,
     handleToggleWorkspace,

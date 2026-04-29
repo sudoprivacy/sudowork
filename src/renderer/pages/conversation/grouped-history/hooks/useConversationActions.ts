@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useConversationTabs } from '../../context/ConversationTabsContext';
+import type { SidebarTabKey } from '../types';
 import { isConversationPinned } from '../utils/groupingHelpers';
 
 type UseConversationActionsParams = {
@@ -24,9 +25,10 @@ type UseConversationActionsParams = {
   setSelectedConversationIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   toggleSelectedConversation: (conversation: TChatConversation) => void;
   markAsRead: (conversationId: string) => void;
+  activeTab: SidebarTabKey;
 };
 
-export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead }: UseConversationActionsParams) => {
+export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead, activeTab }: UseConversationActionsParams) => {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renameModalName, setRenameModalName] = useState<string>('');
   const [renameModalId, setRenameModalId] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { openTab, closeAllTabs, activeTab, updateTabName } = useConversationTabs();
+  const { openTab, closeAllTabs, activeTab: conversationTab, updateTabName } = useConversationTabs();
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -68,7 +70,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         return;
       }
 
-      const currentWorkspace = activeTab?.workspace;
+      const currentWorkspace = conversationTab?.workspace;
       if (!currentWorkspace || currentWorkspace !== newWorkspace) {
         closeAllTabs();
       }
@@ -79,7 +81,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         onSessionClick();
       }
     },
-    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, activeTab, openTab]
+    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, conversationTab, openTab]
   );
 
   const removeConversation = useCallback(
@@ -216,6 +218,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
             extra: {
               pinned: !pinned,
               pinnedAt: pinned ? undefined : Date.now(),
+              pinnedTab: !pinned ? activeTab : undefined,
             } as Partial<TChatConversation['extra']>,
           } as Partial<TChatConversation>,
           mergeExtra: true,
@@ -231,7 +234,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         Message.error(t('conversation.history.pinFailed'));
       }
     },
-    [t]
+    [t, activeTab]
   );
 
   const handleMenuVisibleChange = useCallback((conversationId: string, visible: boolean) => {
