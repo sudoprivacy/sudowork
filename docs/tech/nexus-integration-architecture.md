@@ -288,11 +288,14 @@ backend. LLMs cannot forge identity because the field is overwritten
 in-kernel — they do not author it.
 
 The rewrite is implemented as a registered `NativeInterceptHook`
-(`MailboxStampingHook`, in the kernel rlib) that delegates the actual
-envelope policy to `services::agents::mailbox_stamping::
-maybe_stamp_chat_envelope` in the services rlib. Kernel owns "how to
-be a hook" (dispatch wiring); services owns "what to rewrite"
-(envelope schema, identity guarantee). The hook trait was widened to
+(`MailboxStampingHook`) that delegates the actual envelope policy to
+`mailbox_stamping_policy::maybe_stamp_chat_envelope`. Both live under
+`rust/kernel/src/managed_agent/` — owned by `ManagedAgentService`
+(the chat-with-me mailbox is a managed-agent concern, not a generic
+agent-table concern). The hook struct owns "how to be a hook"
+(dispatch wiring + content-clone bypass); the policy module owns
+"what to rewrite" (envelope schema, identity guarantee). The hook
+trait was widened to
 support content rewriting — `on_pre` returns
 `Result<HookOutcome, String>` where `HookOutcome::Replace(bytes)` is
 the new variant that substitutes write content. Accept/reject hooks
@@ -579,11 +582,28 @@ repo fails until each is resolved or struck through.
 The following items are **closed** in nexi-lab/nexus#3922; they remain
 listed here only to anchor the architecture description above:
 
-- Mailbox envelope stamping (`services::agents::mailbox_stamping` +
-  inline kernel call from `sys_write` — not a registered
-  `NativeInterceptHook`; see §3.3 for why)
+- `DT_LINK` kernel primitive (entry type, `route()` follow with
+  cycle detection, `sys_setattr` self-loop reject, `sys_stat` lstat
+  surfacing, transparent follow in `sys_read` / `sys_write` /
+  `sys_copy`)
+- `MailboxStampingHook` — registered `NativeInterceptHook` that
+  rewrites the envelope's `from` field via
+  `mailbox_stamping_policy::maybe_stamp_chat_envelope`; hook trait
+  widened to support content rewriting via `HookOutcome::Replace`
+  with double-bypass for non-mailbox writes
 - `WorkspaceBoundaryHook` — INTERCEPT pre-write hook + boot-time
-  registration in `Kernel::register_native_hook`
+  registration through `ManagedAgentService::install`
+- `ManagedAgentService` — first Rust-flavoured service registered
+  through the `RustService` trait into `ServiceRegistry`; owns the
+  two hooks above plus the `start_session_v1` / `cancel_v1` /
+  `get_session_v1` lifecycle (reachable through
+  `NexusVFSService.Call` Rust dispatch on port 2028)
+- `AcpService` — Rust port of the previous Python ACP service
+  (subprocess + ACP-over-stdio for external agents like claude /
+  codex). Same dispatch pattern as `ManagedAgentService`; the Python
+  `nexus.services.acp` package, `AcpRPCService`, and `agent_runtime`
+  loop are deleted, replaced by a thin `AcpAdapter` (~50 LOC) plus
+  `nx_kernel_dispatch_rust_call` for in-process callers
 
 ---
 

@@ -33,11 +33,13 @@ Owner: nexus repo. Closed.
 
 `MailboxStampingHook` — registered `NativeInterceptHook` that rewrites
 the envelope's `from` field on `*/chat-with-me` writes to the caller's
-authenticated `agent_id` so LLMs cannot forge identity. Kernel-side
-hook struct lives in `rust/kernel/src/mailbox_stamping_hook.rs`,
-delegates the rewrite policy to `services::agents::mailbox_stamping::
-maybe_stamp_chat_envelope` in the services rlib. Kernel owns "how to
-be a hook"; services owns "what to rewrite".
+authenticated `agent_id` so LLMs cannot forge identity. Hook struct +
+rewrite policy live together at `rust/kernel/src/managed_agent/`
+(`mailbox_stamping_hook.rs` for the dispatch wiring,
+`mailbox_stamping_policy.rs` for the envelope schema / identity
+guarantee). Both are owned by `ManagedAgentService` since the
+chat-with-me surface is a managed-agent concern, not a generic
+agent-table concern.
 
 The trait was widened in the same PR to support content rewriting
 (`HookOutcome::Replace(bytes)`). A double bypass (no mutating hooks
