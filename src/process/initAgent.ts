@@ -14,6 +14,7 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { computeOpenClawIdentityHash } from './utils/openclawUtils';
+import { mainLog, mainWarn } from './utils/mainLogger';
 
 /**
  * 创建工作空间目录（不复制文件）
@@ -95,18 +96,81 @@ export function getSudoclawWorkspaceRoot(): string {
   return getSystemDir().workDir;
 }
 
+/**
+ * Shared identity/soul/memory file names that should be symlinked from the
+ * parent (persistent) workspace into each per-session temporary workspace.
+ *
+ * This ensures every new conversation inherits the user's long-term persona,
+ * soul memory and accumulated memory data without duplicating it.  Because we
+ * use symlinks the agent can also *write* to these files and the changes
+ * persist across sessions automatically.
+ *
+ * 共享人设/灵魂/记忆文件名列表 — 在每个临时会话工作空间中创建指向父级持久
+ * 工作空间的符号链接。确保每个新会话继承用户的长期人格、灵魂记忆和积累的
+ * 记忆数据，而不是每个会话独立人格。
+ */
+const SHARED_IDENTITY_ENTRIES = ['IDENTITY.md', 'SOUL.md', 'memory'];
+
+/**
+ * Create symlinks in `sessionWorkspace` pointing to entries that exist in
+ * `parentWorkspace`.  Existing entries (symlink or real file) in the session
+ * workspace are left untouched — we never overwrite user-provided files.
+ *
+ * On Windows, directories are linked via junctions (no admin rights needed)
+ * while regular files use a normal symlink.
+ *
+ * 在会话工作空间中创建指向父级工作空间中共享文件的符号链接。
+ * 已存在的条目不会被覆盖，确保用户自定义工作空间的文件不受影响。
+ */
+async function symlinkSharedIdentityFiles(sessionWorkspace: string, parentWorkspace: string): Promise<void> {
+  for (const name of SHARED_IDENTITY_ENTRIES) {
+    const source = path.join(parentWorkspace, name);
+    const target = path.join(sessionWorkspace, name);
+
+    try {
+      // Skip if source does not exist in parent workspace
+      const sourceStat = await fs.stat(source).catch(() => null);
+      if (!sourceStat) continue;
+
+      // Skip if target already exists in session workspace (don't overwrite)
+      const targetExists = await fs.lstat(target).catch(() => null);
+      if (targetExists) continue;
+
+      if (sourceStat.isDirectory()) {
+        // Use 'junction' on Windows (no admin privilege needed), 'dir' on others
+        await fs.symlink(source, target, process.platform === 'win32' ? 'junction' : 'dir');
+      } else {
+        await fs.symlink(source, target, 'file');
+      }
+      mainLog('initAgent', `Symlinked shared ${name}: ${target} → ${source}`);
+    } catch (err) {
+      mainWarn('initAgent', `Failed to symlink shared ${name} into session workspace: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   // Use workspace root from sudoclaw.json so the agent's working dir matches the UI workspace panel.
   // Falls back to getSystemDir().workDir if sudoclaw.json is missing or has no workspace configured.
   const tempName = `sudoclaw-temp-${Date.now()}`;
   let resolvedWorkspace = extra.workspace;
+  const isAutoWorkspace = !resolvedWorkspace;
   if (!resolvedWorkspace) {
     const root = getSudoclawWorkspaceRoot();
     resolvedWorkspace = path.join(root, tempName);
     await fs.mkdir(resolvedWorkspace, { recursive: true });
   }
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
+
+  // Symlink shared identity/soul/memory files from the parent workspace into
+  // the per-session workspace so the agent inherits long-term persona data.
+  // Only for auto-generated workspaces — custom workspaces manage their own files.
+  if (isAutoWorkspace) {
+    const parentWorkspace = path.dirname(workspace);
+    await symlinkSharedIdentityFiles(workspace, parentWorkspace);
+  }
+
   const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
 
   const stateDir = SUDOCLAW_DIR;
