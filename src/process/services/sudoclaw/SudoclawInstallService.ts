@@ -1590,6 +1590,80 @@ When addressing the user, must use the username shown above (${username}):
   }
 }
 
+/**
+ * IDENTITY.md Name 字段更新
+ *
+ * Updates the Name field in IDENTITY.md with the assistant name.
+ * This ensures AI correctly identifies itself when reading IDENTITY.md.
+ * If IDENTITY.md doesn't exist or has no Name field, creates/updates it with proper format.
+ */
+export function updateIdentityMdName(name: string): void {
+  const identityMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'IDENTITY.md');
+
+  try {
+    // Ensure workspace directory exists
+    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
+      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(identityMdPath)) {
+      // Create new IDENTITY.md with Name field
+      const content = `# IDENTITY.md - Who Am I?
+
+_Fill this in during your first conversation. Make it yours._
+
+- **Name:**
+  ${name}
+- **Creature:**
+  AI Assistant
+- **Vibe:**
+  Efficient, proactive, and genuinely helpful.
+- **Emoji:**
+  🤖
+
+---
+
+This isn't just metadata. It's the start of figuring out who you are.
+
+Notes:
+
+- Save this file at the workspace root as \`IDENTITY.md\`.
+`;
+      fs.writeFileSync(identityMdPath, content, 'utf-8');
+      mainLog('Sudoclaw', 'Created IDENTITY.md with assistant name: ' + name);
+      return;
+    }
+
+    // Update existing IDENTITY.md
+    const existing = fs.readFileSync(identityMdPath, 'utf-8');
+
+    // Check if Name field exists and update it
+    // Pattern: "- **Name:**" followed by newline and then the name value
+    const namePattern = /(- \*{0,2}Name:\*{0,2}\s*\n\s*)([^\n]+)/;
+    const updatedContent = existing.replace(namePattern, `$1${name}`);
+
+    if (updatedContent !== existing) {
+      fs.writeFileSync(identityMdPath, updatedContent, 'utf-8');
+      mainLog('Sudoclaw', 'Updated IDENTITY.md Name field to: ' + name);
+    } else {
+      // Name field might not exist, try to add it
+      if (!existing.includes('Name:') && !existing.includes('**Name**')) {
+        // Find a good position to insert Name field (after the header)
+        const headerPattern = /^# IDENTITY\.md.*\n\n.*\n\n/;
+        const match = existing.match(headerPattern);
+        if (match) {
+          const insertPos = match[0].length;
+          const nameField = `- **Name:**\n  ${name}\n`;
+          const contentWithName = existing.slice(0, insertPos) + nameField + existing.slice(insertPos);
+          fs.writeFileSync(identityMdPath, contentWithName, 'utf-8');
+          mainLog('Sudoclaw', 'Added Name field to IDENTITY.md: ' + name);
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('Sudoclaw', 'Failed to update IDENTITY.md Name field', err);
+  }
+}
 
 /** Migrate from legacy paths (~/.sudoclaw or ~/.nexus/.sudoclaw) to ~/.nexus/sudoclaw */
 function migrateLegacySudoclaw(): void {

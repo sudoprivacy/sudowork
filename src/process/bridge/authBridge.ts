@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { getDataPath } from '../utils';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
-import { updateUserMdUsernameStatement } from '../services/sudoclaw/SudoclawInstallService';
+import { updateUserMdUsernameStatement, updateIdentityMdName } from '../services/sudoclaw/SudoclawInstallService';
 
 export function initAuthBridge(): void {
   ipcBridge.googleAuth.status.provider(async ({ proxy }) => {
@@ -214,7 +214,10 @@ WQIDAQAB
       // Sync to USER.md for AI addressing
       updateUserMdUsernameStatement(nickname);
 
-      mainLog('Sudowork Auth', 'User nickname saved, USER.md updated');
+      // Sync to IDENTITY.md Name field with assistant name
+      updateIdentityMdName('SudoClaw');
+
+      mainLog('Sudowork Auth', 'User nickname saved, USER.md and IDENTITY.md updated');
       return { success: true };
     } catch (error) {
       mainError('Sudowork Auth', 'Failed to save user nickname:', error);
