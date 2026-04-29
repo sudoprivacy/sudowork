@@ -72,7 +72,9 @@ export class AcpConnection {
   // Track if child process was spawned with detached: true (needs process group kill)
   private isDetached = false;
 
-  // Use LSP Content-Length framing instead of newline-delimited JSON (e.g. scode)
+  // Use LSP Content-Length framing instead of newline-delimited JSON.
+  // Sudo Code's current stdio ACP transport is newline-delimited JSON-RPC,
+  // so scode must NOT be routed through this path.
   private useLspFraming = false;
 
   /**
@@ -166,7 +168,7 @@ export class AcpConnection {
     }
 
     this.backend = backend;
-    this.useLspFraming = backend === 'scode';
+    this.useLspFraming = false;
     if (workingDir) {
       this.workingDir = workingDir;
     }
@@ -323,7 +325,7 @@ export class AcpConnection {
 
     // Handle messages from ACP server
     if (this.useLspFraming) {
-      // LSP Content-Length framed reader (used by scode)
+      // LSP Content-Length framed reader for backends that explicitly require it
       let lspBuffer = Buffer.alloc(0);
       let expectedLength = -1;
       child.stdout?.on('data', (data: Buffer) => {

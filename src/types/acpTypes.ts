@@ -414,9 +414,9 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Sudo Code',
     cliCommand: 'scode',
     authRequired: false,
-    enabled: true, // ✅ Sudo Code CLI，使用 `scode acp` 启动
+    enabled: true, // ✅ Sudo Code CLI，使用 `scode --auth proxy --model gemini-3-flash acp` 启动
     supportsStreaming: false,
-    acpArgs: ['acp'], // scode 使用 acp 子命令
+    acpArgs: ['--auth', 'proxy', '--model', 'gemini-3-flash', 'acp'], // scode 需要先声明全局认证参数和默认模型，再进入 acp 子命令
   },
   droid: {
     id: 'droid',

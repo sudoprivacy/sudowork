@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
@@ -99,7 +100,7 @@ type UseGuidAgentSelectionOptions = {
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
@@ -187,7 +188,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // Derived state
   const selectedAgent = selectedAgentKey.startsWith('custom:') ? ('custom' as const) : (selectedAgentKey as AcpBackend);
-  const selectedAgentInfo = useMemo(() => findAgentByKey(selectedAgentKey), [selectedAgentKey, availableAgents, customAgents]);
+  const selectedAgentInfo = useMemo(() => findAgentByKey(selectedAgentKey), [selectedAgentKey, findAgentByKey]);
   const isPresetAgent = Boolean(selectedAgentInfo?.isPreset);
 
   const customAgentAvatarMap = useMemo(() => {
@@ -332,38 +333,39 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     };
   }, []);
 
-  // Probe Codex model info on first selection so the Guid page can show
-  // the real account-scoped models before the first conversation starts.
+  // Probe account/config-scoped model info on first selection so the Guid page
+  // can show switchable models before the first conversation starts.
   useEffect(() => {
-    if (selectedAgentKey !== 'codex') return;
-    if (probedModelBackendsRef.current.has('codex')) return;
+    const backendToProbe: AcpBackend | null = selectedAgentKey === 'codex' || selectedAgentKey === 'scode' ? selectedAgentKey : null;
+    if (!backendToProbe) return;
+    if (probedModelBackendsRef.current.has(backendToProbe)) return;
 
     let cancelled = false;
-    probedModelBackendsRef.current.add('codex');
+    probedModelBackendsRef.current.add(backendToProbe);
 
     ipcBridge.acpConversation.probeModelInfo
-      .invoke({ backend: 'codex' })
+      .invoke({ backend: backendToProbe })
       .then(async (result) => {
         if (cancelled) return;
         const modelInfo = result.success ? result.data?.modelInfo : null;
         if (!modelInfo?.availableModels?.length) {
-          probedModelBackendsRef.current.delete('codex');
+          probedModelBackendsRef.current.delete(backendToProbe);
           return;
         }
 
-        console.log('[Guid][codex] Probed model info:', modelInfo);
+        console.log(`[Guid][${backendToProbe}] Probed model info:`, modelInfo);
 
         const cached = (await ConfigStorage.get('acp.cachedModels').catch(() => ({}))) || {};
         if (cancelled) return;
 
         const nextCachedModels = {
           ...cached,
-          codex: modelInfo,
+          [backendToProbe]: modelInfo,
         };
 
         setAcpCachedModels((prev) => ({
           ...prev,
-          codex: modelInfo,
+          [backendToProbe]: modelInfo,
         }));
 
         await ConfigStorage.set('acp.cachedModels', nextCachedModels).catch((error) => {
@@ -371,8 +373,8 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         });
       })
       .catch((error) => {
-        probedModelBackendsRef.current.delete('codex');
-        console.warn('[Guid][codex] Failed to probe model info:', error);
+        probedModelBackendsRef.current.delete(backendToProbe);
+        console.warn(`[Guid][${backendToProbe}] Failed to probe model info:`, error);
       });
 
     return () => {
@@ -389,18 +391,25 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     void ConfigStorage.get('acp.config')
       .then((config) => {
         if (cancelled) return;
-        const preferred = (config?.[backend as AcpBackend] as any)?.preferredModelId;
-        if (preferred) {
-          _setSelectedAcpModel(preferred);
-        } else {
-          const cachedInfo = acpCachedModels[backend];
-          _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
-        }
+        const preferred = config?.[backend as AcpBackend]?.preferredModelId;
+        const cachedInfo = acpCachedModels[backend];
+        _setSelectedAcpModel(
+          resolvePreferredAcpModelId({
+            backend,
+            preferredModelId: preferred,
+            cachedModelId: cachedInfo?.currentModelId ?? null,
+          })
+        );
       })
       .catch(() => {
         if (cancelled) return;
         const cachedInfo = acpCachedModels[backend];
-        _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
+        _setSelectedAcpModel(
+          resolvePreferredAcpModelId({
+            backend,
+            cachedModelId: cachedInfo?.currentModelId ?? null,
+          })
+        );
       });
 
     return () => {
@@ -428,7 +437,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           yoloMode = config?.yoloMode ?? false;
         } else if (selectedAgent !== 'custom') {
           const config = await ConfigStorage.get('acp.config');
-          const backendConfig = config?.[selectedAgent as AcpBackend] as any;
+          const backendConfig = config?.[selectedAgent as AcpBackend];
           preferred = backendConfig?.preferredMode;
           yoloMode = backendConfig?.yoloMode ?? false;
         }
