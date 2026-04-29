@@ -10,7 +10,7 @@ import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspaceHistory';
 
-import type { GroupedHistoryResult, ScheduledGroup, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
+import type { GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
 
 export const getConversationTimelineLabel = (conversation: TChatConversation, t: (key: string) => string): string => {
@@ -29,6 +29,11 @@ export const getConversationPinnedAt = (conversation: TChatConversation): number
     return extra.pinnedAt;
   }
   return 0;
+};
+
+export const getConversationPinnedTab = (conversation: TChatConversation): SidebarTabKey | undefined => {
+  const extra = conversation.extra as { pinnedTab?: SidebarTabKey } | undefined;
+  return extra?.pinnedTab;
 };
 
 export const groupConversationsByTimelineAndWorkspace = (conversations: TChatConversation[], t: (key: string) => string): TimelineSection[] => {
@@ -186,9 +191,9 @@ export const buildGroupedHistory = (conversations: TChatConversation[], t: (key:
   // Pre-bound user conversations are NOT tagged; they stay in the regular timeline
   // and are also included in the scheduled group for every job that binds them
   // (resolved via cronJobs in buildScheduledGroups).
-  const regularConvs = conversations.filter((conv) => !(conv.extra as any)?.cronJobId);
 
-  const pinnedConversations = regularConvs
+  // For pinned: include ALL conversations (cronJobId conversations can be pinned too)
+  const pinnedConversations = conversations
     .filter((conversation) => isConversationPinned(conversation))
     .sort((a, b) => {
       const orderA = getConversationSortOrder(a);
@@ -199,10 +204,24 @@ export const buildGroupedHistory = (conversations: TChatConversation[], t: (key:
       return getConversationPinnedAt(b) - getConversationPinnedAt(a);
     });
 
+  // Split pinned into timeline and scheduled tabs based on pinnedTab field.
+  // Legacy conversations without pinnedTab default to timeline.
+  const pinnedTimeline = pinnedConversations.filter((conv) => {
+    const pinnedTab = getConversationPinnedTab(conv);
+    return pinnedTab !== 'scheduled';
+  });
+
+  const pinnedScheduled = pinnedConversations.filter((conv) => {
+    return getConversationPinnedTab(conv) === 'scheduled';
+  });
+
+  // For timeline sections: exclude cronJobId conversations AND pinned conversations
+  const regularConvs = conversations.filter((conv) => !(conv.extra as any)?.cronJobId);
   const normalConversations = regularConvs.filter((conversation) => !isConversationPinned(conversation));
 
   return {
-    pinnedConversations,
+    pinnedTimeline,
+    pinnedScheduled,
     timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations, t),
     scheduledGroups: buildScheduledGroups(conversations, cronJobs),
   };

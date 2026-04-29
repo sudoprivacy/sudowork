@@ -30,7 +30,7 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
 
-const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange }) => {
+const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline' }) => {
   const { id } = useParams();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
@@ -43,7 +43,18 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+
+  // Select pinned list based on active tab
+  const pinnedConversations = activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+
+  // Filter out pinned conversations from scheduled groups to avoid duplicates
+  // Only filter based on pinnedScheduled (pinned in scheduled tab)
+  const currentPinnedIds = useMemo(() => new Set(pinnedScheduled.map((c) => c.id)), [pinnedScheduled]);
+  const filteredScheduledGroups = useMemo(
+    () => scheduledGroups.map((group) => ({ ...group, conversations: group.conversations.filter((c) => !currentPinnedIds.has(c.id)) })).filter((g) => g.conversations.length > 0),
+    [scheduledGroups, pinnedScheduled],
+  );
 
   // ── Timeline section collapse state ──
   const TIMELINE_EXPANSION_KEY = 'aionui_timeline_expansion';
@@ -164,6 +175,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } = useConversationActions({
     batchMode,
+    activeTab,
     onSessionClick,
     onBatchModeChange,
     selectedConversationIds,
@@ -215,7 +227,17 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (timelineSections.length === 0 && pinnedConversations.length === 0) {
+  if (activeTab === 'timeline' && timelineSections.length === 0 && pinnedConversations.length === 0) {
+    return (
+      <FlexFullContainer>
+        <div className='flex-center'>
+          <Empty description={t('conversation.history.noHistory')} />
+        </div>
+      </FlexFullContainer>
+    );
+  }
+
+  if (activeTab === 'scheduled' && filteredScheduledGroups.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='flex-center'>
@@ -342,8 +364,27 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
-        {/* ── SCHEDULED SECTION ── */}
-        {scheduledGroups.length > 0 && (
+        {/* ── PINNED SECTION ── */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+          {pinnedConversations.length > 0 && (
+            <div className='mb-8px min-w-0'>
+              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
+              <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
+                <div className='min-w-0'>
+                  {pinnedConversations.map((conversation) => {
+                    const props = getConversationRowProps(conversation);
+                    return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
+                  })}
+                </div>
+              </SortableContext>
+            </div>
+          )}
+
+          <DragOverlay dropAnimation={null}>{activeId && activeConversation ? <DragOverlayContent conversation={activeConversation} /> : null}</DragOverlay>
+        </DndContext>
+
+        {/* ── SCHEDULED SECTION (Scheduled tab only) ── */}
+        {activeTab === 'scheduled' && filteredScheduledGroups.length > 0 && (
           <div className='mb-8px min-w-0'>
             {!collapsed && (
               <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
@@ -352,7 +393,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               </div>
             )}
             {(collapsed || scheduledSectionExpanded) &&
-              scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
+              filteredScheduledGroups.map(({ jobName, conversations: cronConvs }) => {
                 const isExpanded = expandedScheduled.includes(jobName);
                 return (
                   <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
@@ -374,25 +415,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           </div>
         )}
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-          {pinnedConversations.length > 0 && (
-            <div className='mb-8px min-w-0'>
-              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
-              <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
-                <div className='min-w-0'>
-                  {pinnedConversations.map((conversation) => {
-                    const props = getConversationRowProps(conversation);
-                    return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
-                  })}
-                </div>
-              </SortableContext>
-            </div>
-          )}
-
-          <DragOverlay dropAnimation={null}>{activeId && activeConversation ? <DragOverlayContent conversation={activeConversation} /> : null}</DragOverlay>
-        </DndContext>
-
-        {timelineSections.map((section) => {
+        {activeTab === 'timeline' && timelineSections.map((section) => {
           const sectionExpanded = isTimelineSectionExpanded(section.timeline);
           return (
             <div key={section.timeline} className='mb-8px min-w-0'>

@@ -29,8 +29,11 @@ export type TimelineSection = {
   items: TimelineItem[];
 };
 
+export type SidebarTabKey = 'timeline' | 'scheduled';
+
 export type GroupedHistoryResult = {
-  pinnedConversations: TChatConversation[];
+  pinnedTimeline: TChatConversation[];
+  pinnedScheduled: TChatConversation[];
   timelineSections: TimelineSection[];
   scheduledGroups: ScheduledGroup[];
 };
@@ -68,6 +71,7 @@ export type WorkspaceGroupedHistoryProps = {
   tooltipEnabled?: boolean;
   batchMode?: boolean;
   onBatchModeChange?: (value: boolean) => void;
+  activeTab?: SidebarTabKey;
 };
 
 export type DragItemType = 'conversation' | 'workspace';

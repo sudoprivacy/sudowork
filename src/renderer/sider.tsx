@@ -11,7 +11,7 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
-import { emitter } from './utils/emitter';
+import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
@@ -32,6 +32,31 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { logout, user: currentUser } = useAuth();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Sidebar tab state: 'timeline' or 'scheduled'
+  const SIDER_TAB_STORAGE_KEY = 'aionui_sider_tab';
+  const [activeTab, setActiveTab] = useState<'timeline' | 'scheduled'>(() => {
+    try {
+      const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);
+      if (stored === 'scheduled') return 'scheduled';
+    } catch {
+      // ignore
+    }
+    return 'timeline';
+  });
+
+  // Listen for command palette tab switch events
+  useEffect(() => {
+    const removeListener = addEventListener('sider.tab.switch', (tab) => {
+      setActiveTab(tab);
+      try {
+        localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+      } catch {
+        // ignore
+      }
+    });
+    return removeListener;
+  }, []);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
@@ -94,7 +119,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     },
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
-    showTitle: false, // 我们已经在上面渲染了标题
+    activeTab,
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
@@ -187,9 +212,39 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               })}
             </div>
 
-            {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
+            {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-              {!collapsed && <span className='text-13px font-medium text-t-secondary'>{t('conversation.history.allRecords', { defaultValue: '所有对话' })}</span>}
+              {!collapsed && (
+                <div className="flex items-center gap-1px flex-1">
+                  {(['timeline', 'scheduled'] as const).map((tab) => {
+                    const isActive = activeTab === tab;
+                    const label = tab === 'timeline'
+                      ? t('conversation.history.timeline', { defaultValue: '对话' })
+                      : t('conversation.history.scheduledTab', { defaultValue: '定时任务' });
+                    return (
+                      <div
+                        key={tab}
+                        className={classNames(
+                          'flex-1 text-center text-13px py-8px rd-8px cursor-pointer transition-colors select-none',
+                          isActive
+                            ? 'bg-aou-2 text-aou-6 font-medium'
+                            : 'text-t-secondary hover:text-t-primary hover:bg-hover'
+                        )}
+                        onClick={() => {
+                          setActiveTab(tab);
+                          try {
+                            localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
                 <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />

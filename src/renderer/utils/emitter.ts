@@ -48,6 +48,8 @@ interface EventTypes {
   // Command palette events
   'commandPalette.open': void;
   'commandPalette.close': void;
+  // Sidebar tab switch event (from command palette to switch sider tab)
+  'sider.tab.switch': ['timeline' | 'scheduled'];
 }
 
 export const emitter = new EventEmitter<EventTypes>();
