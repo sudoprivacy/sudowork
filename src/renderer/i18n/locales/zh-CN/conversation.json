@@ -67,7 +67,9 @@
     "pinFailed": "置顶操作失败",
     "pinnedSection": "置顶",
     "deleteSuccess": "删除成功",
-    "deleteFailed": "删除失败"
+    "deleteFailed": "删除失败",
+    "timeline": "对话",
+    "scheduledTab": "定时任务"
   },
   "tabs": {
     "closeAll": "关闭全部",

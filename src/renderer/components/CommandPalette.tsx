@@ -22,6 +22,7 @@ interface CommandPaletteItem {
   icon: React.ReactNode;
   action: () => void;
   score?: number;
+  tabKey?: 'timeline' | 'scheduled';
 }
 
 interface CommandPaletteProps {
@@ -41,7 +42,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
   useEffect(() => {
     if (visible) {
       ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 50 })
+        .invoke({ page: 0, pageSize: 10000 })
         .then((history) => {
           if (history && Array.isArray(history)) {
             const sorted = history.sort((a, b) => getActivityTime(b) - getActivityTime(a));
@@ -117,6 +118,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
         const score = titleMatch ? 2 : 0;
         if (score > 0) {
           const activityTime = getActivityTime(conv);
+          const tabKey: 'timeline' | 'scheduled' = (conv.extra as any)?.cronJobId ? 'scheduled' : 'timeline';
           items.push({
             id: `conv-${conv.id}`,
             type: 'conversation',
@@ -124,10 +126,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
             subtitle: formatSessionTime(activityTime, 'zh-CN', '昨天'),
             icon: <History size={18} />,
             action: () => {
+              emitter.emit('sider.tab.switch', tabKey);
               navigate(`/conversation/${conv.id}`);
               onClose();
             },
             score,
+            tabKey,
           });
         }
       });

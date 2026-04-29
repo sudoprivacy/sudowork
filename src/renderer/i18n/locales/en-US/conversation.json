@@ -67,7 +67,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "Deleted successfully",
-    "deleteFailed": "Delete failed"
+    "deleteFailed": "Delete failed",
+    "timeline": "Chat",
+    "scheduledTab": "Scheduled"
   },
   "tabs": {
     "closeAll": "Close All",
