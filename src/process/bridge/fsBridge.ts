@@ -19,6 +19,9 @@ import { readDirectoryRecursive } from '../utils';
 import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
+// CrashReporter imports for breadcrumb tracking
+import { fileBreadcrumbs } from '../telemetry/BreadcrumbTracker';
+
 // ============================================================================
 // Helper functions for builtin resource directory resolution
 // 内置资源目录解析辅助函数
@@ -446,6 +449,9 @@ export function initFsBridge(): void {
   // 读取文件内容（UTF-8编码）/ Read file content (UTF-8 encoding)
   ipcBridge.fs.readFile.provider(async ({ path: filePath }) => {
     try {
+      // Breadcrumb: file read
+      fileBreadcrumbs.read(filePath);
+
       const content = await fs.readFile(filePath, 'utf-8');
       return content;
     } catch (error) {
@@ -454,6 +460,10 @@ export function initFsBridge(): void {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return '';
       }
+
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to read file:', error);
       throw error;
     }
@@ -462,11 +472,17 @@ export function initFsBridge(): void {
   // 读取二进制文件为 ArrayBuffer / Read binary file as ArrayBuffer
   ipcBridge.fs.readFileBuffer.provider(async ({ path: filePath }) => {
     try {
+      // Breadcrumb: file read (binary)
+      fileBreadcrumbs.read(filePath);
+
       const buffer = await fs.readFile(filePath);
       // 将 Node.js Buffer 转换为 ArrayBuffer
       // Convert Node.js Buffer to ArrayBuffer
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     } catch (error) {
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to read file buffer:', error);
       throw error;
     }
@@ -475,6 +491,9 @@ export function initFsBridge(): void {
   // 写入文件
   ipcBridge.fs.writeFile.provider(async ({ path: filePath, data }) => {
     try {
+      // Breadcrumb: file write
+      const dataSize = typeof data === 'string' ? data.length : (data as Uint8Array)?.byteLength || 0;
+      fileBreadcrumbs.write(filePath, dataSize);
       // 处理字符串类型 / Handle string type
       if (typeof data === 'string') {
         await fs.writeFile(filePath, data, 'utf-8');
@@ -529,6 +548,9 @@ export function initFsBridge(): void {
       await fs.writeFile(filePath, bufferData);
       return true;
     } catch (error) {
+      // Breadcrumb: file write error
+      fileBreadcrumbs.error('write', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to write file:', error);
       return false;
     }
@@ -537,9 +559,15 @@ export function initFsBridge(): void {
   // 创建目录
   ipcBridge.fs.createDir.provider(async ({ path: dirPath }) => {
     try {
+      // Breadcrumb: directory created
+      fileBreadcrumbs.createDir(dirPath);
+
       await fs.mkdir(dirPath, { recursive: true });
       return true;
     } catch (error) {
+      // Breadcrumb: directory create error
+      fileBreadcrumbs.error('create_dir', dirPath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to create directory:', error);
       return false;
     }
@@ -760,6 +788,9 @@ export function initFsBridge(): void {
   // Delete file or directory on disk (删除磁盘上的文件或文件夹)
   ipcBridge.fs.removeEntry.provider(async ({ path: targetPath }) => {
     try {
+      // Breadcrumb: file delete
+      fileBreadcrumbs.delete(targetPath);
+
       const stats = await fs.lstat(targetPath);
       if (stats.isDirectory()) {
         await fs.rm(targetPath, { recursive: true, force: true });
@@ -786,6 +817,9 @@ export function initFsBridge(): void {
       }
       return { success: true };
     } catch (error) {
+      // Breadcrumb: file delete error
+      fileBreadcrumbs.error('delete', targetPath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to remove entry:', error);
       return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
     }

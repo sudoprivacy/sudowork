@@ -15,6 +15,7 @@ import path from 'path';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
+import { recordFirstToken } from '@process/telemetry';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
@@ -650,7 +651,12 @@ export class AcpConnection {
           // Track first chunk latency since prompt was sent
           if (!this.firstChunkReceived && this.lastPromptSentAt > 0) {
             this.firstChunkReceived = true;
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${Date.now() - this.lastPromptSentAt}ms (since prompt sent)`);
+            const firstTokenLatency = Date.now() - this.lastPromptSentAt;
+            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${firstTokenLatency}ms (since prompt sent)`);
+            // Telemetry: record first token time
+            if (this.sessionId) {
+              recordFirstToken(this.sessionId, firstTokenLatency);
+            }
           }
           // Reset timeout on streaming updates - LLM is still processing
           this.resetSessionPromptTimeouts();
