@@ -13,6 +13,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
 import { getSudoclawVersionState as getInstalledSudoclawVersionState, isSudoclawInstalled as isInstalledSudoclaw } from '../sudoclaw/SudoclawInstallService';
+import { isScodeInstalled as isInstalledScode, ensureScodeInstalled as ensureScodeInstalled, getScodeVersionState as getScodeVersionState } from '../scode/ScodeInstallService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -103,15 +104,16 @@ class RuntimeInstaller {
       const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
       const nexusVersionState = await installedNexusService.getVersionState();
       const sudoclawVersionState = getSudoclawVersionState();
+      const scodeVersionState = getScodeVersionState();
 
-      if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade) {
+      if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
         initStatusManager.setDisplayMode('startup');
         markFastInstalledSteps();
         return startCriticalServices();
       }
 
-      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudoclaw=${sudoclawVersionState.needsUpgrade ? `${sudoclawVersionState.installedVersion}→${sudoclawVersionState.bundledVersion}` : 'ok'}`);
+      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudoclaw=${sudoclawVersionState.needsUpgrade ? `${sudoclawVersionState.installedVersion}→${sudoclawVersionState.bundledVersion}` : 'ok'}, Scode=${scodeVersionState.needsUpgrade ? `${scodeVersionState.installedVersion}→${scodeVersionState.bundledVersion}` : 'ok'}`);
     }
     // ── End fast check ──────────────────────────────────────────────────────
 
@@ -128,6 +130,8 @@ class RuntimeInstaller {
     const nodeInstalled = isNodeInstalled();
     const sudoclawInstalled = isInstalledSudoclaw();
     const sudoclawVersionState = getSudoclawVersionState();
+    const scodeInstalled = isInstalledScode();
+    const scodeVersionState = getScodeVersionState();
     const nexusInstalledPromise = dynamicNexusService.checkInstalled();
     const nexusVersionStatePromise = dynamicNexusService.getVersionState();
     const gitInstalledPromise = isGitInstalled();
@@ -160,13 +164,15 @@ class RuntimeInstaller {
     const willInstallNode = !nodeInstalled && hasNodeResource;
     const willInstallSudoclaw = !sudoclawInstalled || sudoclawVersionState.needsUpgrade;
     const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
+    const willInstallScode = !scodeInstalled || scodeVersionState.needsUpgrade;
 
     if (willInstallNode || willInstallSudoclaw || willInstallNexus) {
       initStatusManager.setDisplayMode('full');
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
-    if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus) {
+    // Note: scode is installed silently in the background, not shown in UI
+    if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus && !willInstallScode) {
       mainWarn(TAG, 'Some components missing but no installation resources found, starting services');
       initStatusManager.setDisplayMode('startup');
       markFastInstalledSteps();
@@ -534,7 +540,27 @@ class RuntimeInstaller {
       }
     })();
 
+    // Scode installation task - silent, no UI, runs in background
+    const scodePromise = (async () => {
+      if (!willInstallScode) {
+        mainLog(TAG, 'Scode already installed, skipping');
+        return;
+      }
+
+      try {
+        mainLog(TAG, `Installing scode ${scodeVersionState.needsUpgrade ? `(${scodeVersionState.installedVersion} → ${scodeVersionState.bundledVersion})` : ''}...`);
+        await ensureScodeInstalled({ forceReinstall: scodeVersionState.needsUpgrade });
+        mainLog(TAG, 'Scode installation completed');
+      } catch (err) {
+        mainWarn(TAG, `Scode installation failed: ${err instanceof Error ? err.message : String(err)}`);
+        // Scode is non-critical, continue anyway
+      }
+    })();
+
     const results = await Promise.all([gitTask, nodeTask, claudeTask, sudoclawTask, nexusTask, bdpanTask]);
+
+    // Wait for scode installation to complete (runs in background, non-blocking)
+    await scodePromise;
     const failedRequired = results.filter((result) => result.required && !result.ok);
     if (failedRequired.length > 0) {
       const error = `以下组件安装未完成: ${failedRequired.map((item) => item.step).join('、')}`;
