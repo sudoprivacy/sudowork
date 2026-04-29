@@ -17,13 +17,20 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 
+type GeminiModeOption = {
+  label?: string;
+  description?: string;
+  modelHint?: string;
+  subModels?: Array<{ label: string; value: string }>;
+};
+
 type GuidModelSelectorProps = {
   // Gemini model state
   isGeminiMode: boolean;
   modelList: IProvider[];
   currentModel: TProviderWithModel | undefined;
   setCurrentModel: (model: TProviderWithModel) => Promise<void>;
-  geminiModeLookup: Map<string, any>;
+  geminiModeLookup: Map<string, GeminiModeOption>;
 
   // ACP model state
   currentAcpCachedModelInfo: AcpModelInfo | null;
@@ -63,7 +70,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
   }, [currentModel?.useModel, defaultModelLabel, geminiSelectedLabel]);
 
   const acpSelectedLabel = React.useMemo(() => {
-    return currentAcpCachedModelInfo?.availableModels?.find((m) => m.id === selectedAcpModel)?.label || currentAcpCachedModelInfo?.currentModelLabel || currentAcpCachedModelInfo?.currentModelId || '';
+    return currentAcpCachedModelInfo?.availableModels?.find((m) => m.id === selectedAcpModel)?.label || currentAcpCachedModelInfo?.currentModelLabel || currentAcpCachedModelInfo?.currentModelId || selectedAcpModel || '';
   }, [currentAcpCachedModelInfo?.availableModels, currentAcpCachedModelInfo?.currentModelId, currentAcpCachedModelInfo?.currentModelLabel, selectedAcpModel]);
 
   const acpButtonLabel = React.useMemo(() => {
@@ -252,7 +259,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
       <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small' style={{ cursor: 'default' }}>
         <span className='flex items-center gap-6px min-w-0'>
           <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-          <span>{defaultModelLabel}</span>
+          <span>{acpButtonLabel}</span>
         </span>
       </Button>
     </Tooltip>

@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IProvider } from '@/common/storage';
@@ -17,6 +18,17 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
+
+function buildFallbackModelInfo(modelId?: string | null): AcpModelInfo | null {
+  if (!modelId) return null;
+  return {
+    source: 'models',
+    currentModelId: modelId,
+    currentModelLabel: modelId,
+    canSwitch: false,
+    availableModels: [],
+  };
+}
 
 /**
  * Model selector for ACP-based agents.
@@ -40,7 +52,11 @@ const AcpModelSelector: React.FC<{
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const layout = useLayoutContext();
-  const [modelInfo, setModelInfo] = useState<AcpModelInfo | null>(null);
+  const fallbackModelId = resolvePreferredAcpModelId({
+    backend,
+    explicitModelId: initialModelId,
+  });
+  const [modelInfo, setModelInfo] = useState<AcpModelInfo | null>(() => buildFallbackModelInfo(fallbackModelId));
   const modelInfoRef = useRef(modelInfo);
   modelInfoRef.current = modelInfo;
   // Track whether user has manually switched model via dropdown
@@ -65,17 +81,23 @@ const AcpModelSelector: React.FC<{
             setModelInfo(info);
           } else if (backend) {
             void loadCachedModelInfo(backend, cancelled);
-          } else {
+          } else if (info.currentModelId || info.currentModelLabel) {
             setModelInfo(info);
+          } else {
+            setModelInfo(buildFallbackModelInfo(fallbackModelId));
           }
         } else if (backend) {
           // Manager not yet created — load cached model list from storage
           void loadCachedModelInfo(backend, cancelled);
+        } else {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
         }
       })
       .catch(() => {
         if (!cancelled && backend) {
           void loadCachedModelInfo(backend, cancelled);
+        } else if (!cancelled) {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
         }
       });
 
@@ -92,18 +114,26 @@ const AcpModelSelector: React.FC<{
           if (backendKey === 'codex') {
             console.log('[AcpModelSelector][codex] Loaded cached model info:', cachedInfo);
           }
-          const effectiveModelId = initialModelId || cachedInfo.currentModelId || null;
+          const effectiveModelId = resolvePreferredAcpModelId({
+            backend: backendKey,
+            explicitModelId: initialModelId,
+            cachedModelId: cachedInfo.currentModelId || null,
+          });
           setModelInfo({
             ...cachedInfo,
             currentModelId: effectiveModelId,
             currentModelLabel: (effectiveModelId && cachedInfo.availableModels.find((m) => m.id === effectiveModelId)?.label) || effectiveModelId,
           });
+        } else {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
         }
       } catch {
-        // Silently ignore
+        if (!isCancelled) {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
+        }
       }
     }
-  }, [conversationId, backend, initialModelId]);
+  }, [conversationId, backend, fallbackModelId, initialModelId]);
 
   // Listen for acp_model_info / codex_model_info events from responseStream
   useEffect(() => {
