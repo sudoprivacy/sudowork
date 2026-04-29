@@ -164,6 +164,9 @@ cross-tool integration pattern that exercises multiple features in a single flow
 1. Git workflow: `/commit` + `/pr` (scode's primary value proposition)
 2. Planning mode: `/plan` then execute
 3. edit_file: explicit text replacement verification
+4. **True async cancel (interrupt in-flight API)**: ACP session/cancel sends abort signal but the backend only checks `hook_abort_signal.is_aborted()` between API call iterations — not during the blocking HTTP request. Cancel during a long-running API (e.g. WebSearch) does not interrupt the request, it only takes effect on the next loop iteration.
+   - **Expected**: cancel must be able to interrupt an in-flight API request mid-request (e.g. via tokio::time::timeout or per-call abort checking in the streaming response path), so that `sleep 999` + API call can be truly cancelled without waiting for the API to finish.
+   - **Current**: only detects abort between loop iterations, API must complete before cancel takes effect.
 
 ### P1 — High-Value Tools
 4. WebFetch: fetch URL and extract info
