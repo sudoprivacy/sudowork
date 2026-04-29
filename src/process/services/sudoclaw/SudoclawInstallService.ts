@@ -1593,11 +1593,11 @@ When addressing the user, must use the username shown above (${username}):
 /**
  * IDENTITY.md Name 字段更新
  *
- * Updates the Name field in IDENTITY.md with the user's nickname.
- * This ensures AI correctly identifies the user when reading IDENTITY.md.
+ * Updates the Name field in IDENTITY.md with the assistant name.
+ * This ensures AI correctly identifies itself when reading IDENTITY.md.
  * If IDENTITY.md doesn't exist or has no Name field, creates/updates it with proper format.
  */
-export function updateIdentityMdName(username: string): void {
+export function updateIdentityMdName(name: string): void {
   const identityMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'IDENTITY.md');
 
   try {
@@ -1613,7 +1613,7 @@ export function updateIdentityMdName(username: string): void {
 _Fill this in during your first conversation. Make it yours._
 
 - **Name:**
-  ${username}
+  ${name}
 - **Creature:**
   AI Assistant
 - **Vibe:**
@@ -1630,7 +1630,7 @@ Notes:
 - Save this file at the workspace root as \`IDENTITY.md\`.
 `;
       fs.writeFileSync(identityMdPath, content, 'utf-8');
-      mainLog('Sudoclaw', 'Created IDENTITY.md with user name: ' + username);
+      mainLog('Sudoclaw', 'Created IDENTITY.md with assistant name: ' + name);
       return;
     }
 
@@ -1640,11 +1640,11 @@ Notes:
     // Check if Name field exists and update it
     // Pattern: "- **Name:**" followed by newline and then the name value
     const namePattern = /(- \*{0,2}Name:\*{0,2}\s*\n\s*)([^\n]+)/;
-    const updatedContent = existing.replace(namePattern, `$1${username}`);
+    const updatedContent = existing.replace(namePattern, `$1${name}`);
 
     if (updatedContent !== existing) {
       fs.writeFileSync(identityMdPath, updatedContent, 'utf-8');
-      mainLog('Sudoclaw', 'Updated IDENTITY.md Name field to: ' + username);
+      mainLog('Sudoclaw', 'Updated IDENTITY.md Name field to: ' + name);
     } else {
       // Name field might not exist, try to add it
       if (!existing.includes('Name:') && !existing.includes('**Name**')) {
@@ -1653,10 +1653,10 @@ Notes:
         const match = existing.match(headerPattern);
         if (match) {
           const insertPos = match[0].length;
-          const nameField = `- **Name:**\n  ${username}\n`;
+          const nameField = `- **Name:**\n  ${name}\n`;
           const contentWithName = existing.slice(0, insertPos) + nameField + existing.slice(insertPos);
           fs.writeFileSync(identityMdPath, contentWithName, 'utf-8');
-          mainLog('Sudoclaw', 'Added Name field to IDENTITY.md: ' + username);
+          mainLog('Sudoclaw', 'Added Name field to IDENTITY.md: ' + name);
         }
       }
     }
