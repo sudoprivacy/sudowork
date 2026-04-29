@@ -26,8 +26,8 @@ const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'win
 /** Architecture mapping: Node.js process.arch → scode archive arch name */
 const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
 
-/** Scode root: ~/.nexus/scode */
-export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'scode');
+/** Scode root: ~/.nexus/bin */
+export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
@@ -104,7 +104,12 @@ export function getScodeVersionState(): { installedVersion?: string; bundledVers
   const installedVersion = getInstalledScodeVersion();
   const bundledVersion = getScodeVersion();
 
-  if (!installedVersion || !bundledVersion) {
+  if (!installedVersion) {
+    // Not installed - needs upgrade (install)
+    return { installedVersion, bundledVersion, needsUpgrade: true };
+  }
+
+  if (!bundledVersion) {
     return { installedVersion, bundledVersion, needsUpgrade: false };
   }
 

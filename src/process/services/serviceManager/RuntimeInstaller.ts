@@ -147,7 +147,7 @@ class RuntimeInstaller {
     mainLog(TAG, `Full check: ${fullCheckSummary}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
-    if (nodeInstalled && sudoclawInstalled && nexusInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
+    if (nodeInstalled && sudoclawInstalled && nexusInstalled && scodeInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
       mainLog(TAG, 'All runtimes confirmed installed');
       initStatusManager.setDisplayMode('startup');
       markFastInstalledSteps();
