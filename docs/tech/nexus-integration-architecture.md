@@ -215,7 +215,7 @@ duplicate the A2A surface the rest of the system uses.
 
 The runtime-side trait that ManagedAgentService dispatches against
 once `start_session_v1` returns lives next to the service in
-`rust/kernel/src/managed_agent/`. Its DI slot mirrors
+`rust/services/src/managed_agent/`. Its DI slot mirrors
 `NativeInterceptHook` registration: register a `Box<dyn AgentRuntime>`
 for each agent name, the service looks it up at spawn time. Today the
 trait surface is:
@@ -256,7 +256,7 @@ sudo-code keeps its existing JSONL session format and on-disk task layout. The i
 | Active task list | `/proc/{pid}/tasks/{task_list_name}.json` | DT_FILE |
 | Agent profile config | `/agents/{name}/config.toml` | DT_FILE |
 
-User-global settings currently held by sudo-code in `~/.nexus/sudocode/settings.toml` remain on the host filesystem until the migration to `/agents/{name}/config.toml` lands (tracked in OPEN-ITEMS).
+User-global agent settings live at `/agents/{name}/config.toml` inside nexus VFS, sharing the same SSOT as the rest of agent identity.
 
 ---
 
@@ -290,7 +290,7 @@ in-kernel — they do not author it.
 The rewrite is implemented as a registered `NativeInterceptHook`
 (`MailboxStampingHook`) that delegates the actual envelope policy to
 `mailbox_stamping_policy::maybe_stamp_chat_envelope`. Both live under
-`rust/kernel/src/managed_agent/` — owned by `ManagedAgentService`
+`rust/services/src/managed_agent/` — owned by `ManagedAgentService`
 (the chat-with-me mailbox is a managed-agent concern, not a generic
 agent-table concern). The hook struct owns "how to be a hook"
 (dispatch wiring + content-clone bypass); the policy module owns
@@ -357,31 +357,22 @@ sudowork's UI Ethan sends through gRPC writes to other agents'
 appear via `NostrBackend` mount (§4) on `/agents/human-bob/chat-with-me`
 — the sender does not pick the transport, the mount does.
 
-### 3.6 Why agent-name addressing for non-human agents is omitted
+### 3.6 Addressing non-human agents
 
-A non-human agent name (`scode-standard`, `claude`, etc.) can have
+Non-human agent names (`scode-standard`, `claude`, etc.) can map to
 zero, one, or many running pids in parallel — different worktrees,
-different sessions, different supervisors. The kernel does **not**
-maintain a name-level chat-with-me aggregator for these:
+sessions, supervisors. The chat-with-me surface for these agents is
+per-pid:
 
-- **For ongoing conversations** (the common case), the caller already
-  has the pid: sudowork received it from `managed_agent.start_session_v1`,
-  in-process runtimes have their own `self.pid`. Requiring `/proc/{pid}/
-  chat-with-me` keeps the addressing model unambiguous.
-- **First-contact addressing** (write to `/agents/scode-standard/
-  chat-with-me` without knowing pids) is YAGNI today — no caller in
-  the system uses it. If we eventually need it, we can add a pid
-  picker (least-loaded? round-robin?) without changing the
-  per-pid surface.
-- **Multi-instance fan-out** (deliver one envelope to every active
-  pid of an agent name) has no clear use case for the supervised
-  workflows we run. Different worktrees do different work; spamming
-  every instance is rarely what the sender wants.
+- `/proc/{pid}/chat-with-me` — direct DT_STREAM at the per-pid path.
+- `/proc/{pid}/workspace/chat-with-me` — DT_LINK shortcut into the
+  same stream from inside the workspace tree.
 
-The `agent_chat` services module that previously implemented these
-patterns has been removed. `/proc/{pid}/chat-with-me` (direct DT_STREAM)
-and `/proc/{pid}/workspace/chat-with-me` (DT_LINK) are the only
-chat-with-me surfaces for non-human agents.
+Callers reach the pid through the lifecycle surface: sudowork from
+`managed_agent.start_session_v1` (§2.3); in-process runtimes from
+`self.pid`. Per-pid addressing keeps the routing model unambiguous
+for the supervised, parallel-worktree workflows this integration
+runs.
 
 ---
 
@@ -424,16 +415,19 @@ StreamBackend emits FileEvent → FileWatchRegistry wakes sys_watch subscribers
 
 The recipient's `sys_watch("/agents/human-bob/chat-with-me")` wakes and reads the message, identical to a local DT_STREAM read. The transport is transparent.
 
-### 4.3 Why this beats a separate Nostr API
+### 4.3 Properties inherited from the driver-as-backend model
 
-The driver-as-backend model gives Nostr messaging the rest of the kernel's machinery for free:
+Modeling Nostr as an `ObjectStore` driver mounted at a path gives the
+transport every kernel-level surface for free:
 
 - **Permissions** — ReBAC on the path governs who may send to a remote identity.
 - **Audit** — every send is a normal write, captured by `AuditHook` like any other VFS write.
 - **Discoverability** — `sys_readdir("/agents/")` lists local and remote identities uniformly.
-- **UI reuse** — Bob's client stays Damus or Amethyst; nexus does not own that surface.
+- **Client reuse** — Bob's client stays Damus or Amethyst; nexus owns the relay-side write/read surface.
 
-Native VFS clients (sudowork) stay on the gRPC path, indifferent to whether the recipient happens to be backed by Raft or Nostr.
+Native VFS clients (sudowork) stay on the gRPC path; the recipient's
+backing transport (Raft / Nostr) resolves at the mount, not at the
+caller.
 
 ---
 
@@ -526,7 +520,7 @@ Three replication paths exist in the kernel; the integration uses each for a dif
 | **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, Raft-replicated |
 | **NostrBackend** (mount) | Remote `chat-with-me` paths | Cross-instance encrypted DM; bidirectional driver |
 
-`WalStreamBackend` is the only mechanism that puts application data into the Raft log; this is the right tradeoff for ordered, durable conversation streams (audit, chat). DT_FILE uses Raft only for metadata coordination; content lives in the backend. `NostrBackend` is fully external — Raft is not involved.
+`WalStreamBackend` puts ordered, durable conversation streams (audit, chat) directly into the Raft log — the right tradeoff for traffic that needs total order across replicas. `DT_FILE` keeps metadata coordination in Raft and stores content in the backend. `NostrBackend` is an external transport: relay-side delivery, signed by the sender's nexus identity key.
 
 ---
 
@@ -550,64 +544,7 @@ Identity unification: each agent's Nostr keypair == its nexus identity. One key,
 
 ---
 
-## 8. Open Items
-
-The following items are necessary for the end-state architecture and are
-tracked individually in `OPEN-ITEMS.md`. The xfail sentinel test in this
-repo fails until each is resolved or struck through.
-
-- `DT_LINK` kernel primitive — entry type, `route()` follow with cycle
-  detection, `sys_setattr` wiring, `sys_stat` lstat-style surfacing of
-  `link_target`. Phase 1 + most of Phase 2 landed; remaining wiring is
-  scoped in OPEN-ITEMS.
-- `NostrBackend` driver runtime — bidirectional, NIP-04 DM, mount-based,
-  signed with sender's nexus identity key. ObjectStore stub committed
-  (every method returns `NotSupported`); relay client + NIP-04
-  encrypt/decrypt + local-mirror + mount wire-up still pending.
-- `ManagedAgentService` — `start_session_v1` / `cancel_v1` /
-  `get_session_v1` reachable through `NexusVFSService.Call` Rust
-  dispatch (no Python facade). AcpService follows the same dispatch
-  pattern (`acp_call`, `acp_kill`, …). Pending: managed-agent runtime
-  Rust crate that owns the LLM loop and registers against the
-  service's runtime slot; `/proc/{pid}/workspace/` materialization
-  (OS-level repo symlinks + DT_LINK chat-with-me shortcut); TS gRPC
-  client in this repo.
-- Migration of sudo-code's `~/.nexus/sudocode/settings.toml` to
-  `/agents/{name}/config.toml` — sudo-code-side change.
-- Auth fallback — when the future TS gRPC client lands in this repo,
-  it must try unauthenticated first and fall back to a bearer token
-  on `Unauthenticated` so the `--auth-type none` assumption (cluster
-  profile default) does not become load-bearing.
-
-The following items are **closed** in nexi-lab/nexus#3922; they remain
-listed here only to anchor the architecture description above:
-
-- `DT_LINK` kernel primitive (entry type, `route()` follow with
-  cycle detection, `sys_setattr` self-loop reject, `sys_stat` lstat
-  surfacing, transparent follow in `sys_read` / `sys_write` /
-  `sys_copy`)
-- `MailboxStampingHook` — registered `NativeInterceptHook` that
-  rewrites the envelope's `from` field via
-  `mailbox_stamping_policy::maybe_stamp_chat_envelope`; hook trait
-  widened to support content rewriting via `HookOutcome::Replace`
-  with double-bypass for non-mailbox writes
-- `WorkspaceBoundaryHook` — INTERCEPT pre-write hook + boot-time
-  registration through `ManagedAgentService::install`
-- `ManagedAgentService` — first Rust-flavoured service registered
-  through the `RustService` trait into `ServiceRegistry`; owns the
-  two hooks above plus the `start_session_v1` / `cancel_v1` /
-  `get_session_v1` lifecycle (reachable through
-  `NexusVFSService.Call` Rust dispatch on port 2028)
-- `AcpService` — Rust port of the previous Python ACP service
-  (subprocess + ACP-over-stdio for external agents like claude /
-  codex). Same dispatch pattern as `ManagedAgentService`; the Python
-  `nexus.services.acp` package, `AcpRPCService`, and `agent_runtime`
-  loop are deleted, replaced by a thin `AcpAdapter` (~50 LOC) plus
-  `nx_kernel_dispatch_rust_call` for in-process callers
-
----
-
-## 9. Appendix A: Kernel Dispatch Hook Lifecycle
+## 8. Appendix A: Kernel Dispatch Hook Lifecycle
 
 ```
 syscall (sys_write, sys_read, …)
@@ -636,19 +573,19 @@ syscall (sys_write, sys_read, …)
               → FileWatcher wakes sys_watch subscribers
 ```
 
-The clone gate is what keeps the hot path allocation-free for the
-~99% of writes that don't need rewriting. Hooks declare a
-`mutating_path_suffix` at registration; the gate scans the registered
-suffixes against the write path. Today only `MailboxStampingHook`
-declares one (`/chat-with-me`); accept/reject hooks (audit,
-permission, workspace boundary) declare `None` and never see real
-content. If we ever add a second mutating hook (e.g. DLP), it slots
-into the same surface — the chain semantics are last-write-wins for
-now (only one mutating hook exists, so chain composition is moot).
+The clone gate keeps the hot path allocation-free for writes that
+do not need rewriting. Each hook declares a `mutating_path_suffix`
+at registration; the dispatcher scans the registered suffixes
+against the write path and only clones content into `WriteHookCtx`
+when one matches. `MailboxStampingHook` declares `/chat-with-me`;
+accept/reject hooks (audit, permission, workspace boundary) declare
+`None` and the dispatcher passes them an empty content vec. When
+multiple mutating hooks register, the chain semantics are
+last-write-wins on `HookOutcome::Replace`.
 
 ---
 
-## 10. Appendix B: Raft Command Taxonomy
+## 9. Appendix B: Raft Command Taxonomy
 
 All commands in a zone's Raft cluster share a single `Command` enum (`state_machine.rs`):
 
