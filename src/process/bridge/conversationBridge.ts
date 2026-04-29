@@ -28,6 +28,7 @@ import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from 
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
+import { getSudoclawWorkspaceRoot } from '../initAgent';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
@@ -216,7 +217,9 @@ export function initConversationBridge(): void {
       await task.bootstrap.catch(() => {});
 
       const diagnostics = task.getDiagnostics();
-      const identityHash = await computeOpenClawIdentityHash(diagnostics.workspace || conversation.extra?.workspace);
+      // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
+      // not from the per-session temp directory.
+      const identityHash = await computeOpenClawIdentityHash(getSudoclawWorkspaceRoot());
       const conversationModel = (conversation as { model?: { useModel?: string } }).model;
       const resolvedModel = diagnostics.model || conversation.extra?.openclawModelId || conversation.extra?.runtimeValidation?.expectedModel || conversationModel?.useModel;
 

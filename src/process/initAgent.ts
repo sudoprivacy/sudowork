@@ -107,7 +107,11 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
     await fs.mkdir(resolvedWorkspace, { recursive: true });
   }
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
-  const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
+  // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
+  // not from the per-session temp directory. The temp workspace is only for task-specific files;
+  // identity and memory persist in the parent workspace across all sessions.
+  const sharedWorkspaceRoot = getSudoclawWorkspaceRoot();
+  const expectedIdentityHash = await computeOpenClawIdentityHash(sharedWorkspaceRoot);
 
   const stateDir = SUDOCLAW_DIR;
 
