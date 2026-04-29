@@ -219,8 +219,8 @@ WQIDAQAB
       // Sync to USER.md for AI addressing
       updateUserMdUsernameStatement(nickname);
 
-      // Sync to IDENTITY.md Name field for AI identity recognition
-      updateIdentityMdName(nickname);
+      // Sync to IDENTITY.md Name field with assistant name
+      updateIdentityMdName('SudoClaw');
 
       mainLog('Sudowork Auth', 'User nickname saved, USER.md and IDENTITY.md updated');
       return { success: true };
