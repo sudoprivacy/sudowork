@@ -79,6 +79,76 @@ describe('Scode ACP integration', () => {
     });
   });
 
+  describe('scode auth arg resolution', () => {
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+    });
+
+    async function loadResolveScodeAcpArgs() {
+      vi.doMock('electron', () => ({
+        app: {
+          isPackaged: false,
+          getAppPath: () => '/mock-app',
+        },
+      }));
+
+      vi.doMock('@process/services/safety/SafetyPollingService', () => ({
+        isSafetyHookEnabled: () => true,
+      }));
+
+      vi.doMock('@process/utils/mainLogger', () => ({
+        mainLog: vi.fn(),
+        mainWarn: vi.fn(),
+      }));
+
+      vi.doMock('@process/utils/shellEnv', () => ({
+        getEnhancedEnv: () => ({
+          PATH: '/usr/bin',
+        }),
+        findSuitableNodeBin: vi.fn(),
+        resolveNpxPath: vi.fn(() => 'npx'),
+      }));
+
+      const { resolveScodeAcpArgs } = await import('@/agent/acp/acpConnectors');
+      return resolveScodeAcpArgs;
+    }
+
+    it('forces proxy auth when proxy credentials are available', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {
+        PROXY_AUTH_TOKEN: 'proxy-token',
+        PROXY_BASE_URL: 'https://proxy.example.com',
+      });
+
+      expect(args).toEqual(['--auth', 'proxy', 'acp']);
+    });
+
+    it('does not duplicate auth flags when cliPath already specifies auth mode', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode --auth proxy', ['acp'], {
+        PROXY_AUTH_TOKEN: 'proxy-token',
+        PROXY_BASE_URL: 'https://proxy.example.com',
+      });
+
+      expect(args).toEqual(['acp']);
+    });
+
+    it('keeps original args when proxy credentials are not available', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {});
+
+      expect(args).toEqual(['acp']);
+    });
+  });
+
   describe('scode environment preparation', () => {
     beforeEach(() => {
       vi.resetModules();

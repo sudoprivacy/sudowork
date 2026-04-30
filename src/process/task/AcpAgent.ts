@@ -720,6 +720,17 @@ This identity statement takes priority over the default identity in USER.md.
           contentToSend = contentToSend.split(NEXUS_FILES_MARKER)[0].trimEnd();
         }
 
+        if (data.files && data.files.length > 0) {
+          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
+          contentToSend = fileRefs + ' ' + contentToSend;
+        }
+
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        contentToSend = processed.text;
+        if (processed.images.length > 0) {
+          mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
+        }
+
         if (this.isFirstMessage) {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
@@ -754,17 +765,6 @@ This identity statement takes priority over the default identity in USER.md.
               contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
             }
           }
-        }
-
-        if (data.files && data.files.length > 0) {
-          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
-          contentToSend = fileRefs + ' ' + contentToSend;
-        }
-
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
-        contentToSend = processed.text;
-        if (processed.images.length > 0) {
-          mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
         }
 
         const agentSendStart = Date.now();
@@ -930,22 +930,12 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       const shouldInjectScodeStartupModelNotice = this.extra.backend === 'scode' && this.isFirstMessage && !this.pendingModelSwitchNotice;
-      const activeModelNoticeId =
-        this.pendingModelSwitchNotice || (shouldInjectScodeStartupModelNotice ? this.getModelInfo()?.currentModelId || this.persistedModelId : null);
+      const activeModelNoticeId = this.pendingModelSwitchNotice || (shouldInjectScodeStartupModelNotice ? this.getModelInfo()?.currentModelId || this.persistedModelId : null);
 
       // Inject model identity reminder for backends whose upstream identity text can be stale.
       if (activeModelNoticeId && (this.extra.backend === 'claude' || this.extra.backend === 'scode')) {
-        const staleIdentityHint =
-          this.extra.backend === 'claude'
-            ? 'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.'
-            : 'Your built-in assistant identity or branding text may still mention Claude or Anthropic even when the actual active model is different.';
-        const modelNotice =
-          `<system-reminder>\n` +
-          `Active model: ${activeModelNoticeId}. ` +
-          `You are currently running as ${activeModelNoticeId}. ` +
-          `${staleIdentityHint} ` +
-          `When asked which model you are, answer ${activeModelNoticeId}.\n` +
-          `</system-reminder>\n\n`;
+        const staleIdentityHint = this.extra.backend === 'claude' ? 'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.' : 'Your built-in assistant identity or branding text may still mention Claude or Anthropic even when the actual active model is different.';
+        const modelNotice = `<system-reminder>\n` + `Active model: ${activeModelNoticeId}. ` + `You are currently running as ${activeModelNoticeId}. ` + `${staleIdentityHint} ` + `When asked which model you are, answer ${activeModelNoticeId}.\n` + `</system-reminder>\n\n`;
         processedContent = modelNotice + processedContent;
         this.pendingModelSwitchNotice = null;
       }

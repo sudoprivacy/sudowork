@@ -70,6 +70,28 @@ type PrepareCleanEnvOptions = {
   injectSafetyHook?: boolean;
 };
 
+function scodeCliPathIncludesAuthFlag(cliPath: string): boolean {
+  return /(?:^|\s)--auth(?:\s|$)/.test(cliPath);
+}
+
+function scodeArgsIncludeAuthFlag(args: string[] | undefined): boolean {
+  return Array.isArray(args) && args.includes('--auth');
+}
+
+export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>): string[] | undefined {
+  const baseArgs = acpArgs ?? ['acp'];
+
+  if (scodeCliPathIncludesAuthFlag(cliPath) || scodeArgsIncludeAuthFlag(baseArgs)) {
+    return baseArgs;
+  }
+
+  if (env.PROXY_AUTH_TOKEN && env.PROXY_BASE_URL) {
+    return ['--auth', 'proxy', ...baseArgs];
+  }
+
+  return baseArgs;
+}
+
 function removePathEntry(envPath: string | undefined, entry: string): string | undefined {
   if (!envPath) return undefined;
 
@@ -486,7 +508,11 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
   const spawnStart = Date.now();
-  const config = createGenericSpawnConfig(cliPath, workingDir, acpArgs, undefined, cleanEnv as Record<string, string>);
+  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv) : acpArgs;
+  if (backend === 'scode' && effectiveAcpArgs !== acpArgs && effectiveAcpArgs?.includes('proxy')) {
+    mainLog('[ACP scode]', 'Forcing proxy auth mode because proxy credentials are available');
+  }
+  const config = createGenericSpawnConfig(cliPath, workingDir, effectiveAcpArgs, undefined, cleanEnv as Record<string, string>);
   const child = spawn(config.command, config.args, config.options);
   if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: ${backend} process spawned ${Date.now() - spawnStart}ms`);
 
