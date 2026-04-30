@@ -107,6 +107,8 @@ export interface ICdpConfig {
 
 export const application = {
   restart: bridge.buildProvider<void, void>('restart-app'), // 重启应用
+  /** Start consumer-mode services (serviceManager + ChannelManager) without restarting the app. */
+  startConsumerServices: bridge.buildProvider<IBridgeResponse<void>, void>('start-consumer-services'),
   openDevTools: bridge.buildProvider<boolean, void>('open-dev-tools'), // 打开/关闭开发者工具，返回操作后的状态
   isDevToolsOpened: bridge.buildProvider<boolean, void>('is-dev-tools-opened'), // 获取 DevTools 当前状态
   systemInfo: bridge.buildProvider<{ cacheDir: string; workDir: string; platform: string; arch: string }, void>('system.info'), // 获取系统信息
@@ -1545,4 +1547,21 @@ export const crash = {
   clearBreadcrumbs: bridge.buildProvider<IBridgeResponse, void>('crash.clear-breadcrumbs'),
   /** Flush all pending crash events */
   flush: bridge.buildProvider<IBridgeResponse, void>('crash.flush'),
+};
+
+// --- Enterprise mode (eeclaw) IPC namespace ---
+export const eeclaw = {
+  /** Fetch enterprise cloud assistants from the enterprise server */
+  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string }>>, void>('eeclaw.get-cloud-assistants'),
+  /** Verify enterprise server connectivity via /healthz (runs in main process to avoid CORS) */
+  verifyServer: bridge.buildProvider<IBridgeResponse<{ ok: boolean }>, { serverUrl: string }>('eeclaw.verify-server'),
+  /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
+  login: bridge.buildProvider<
+    IBridgeResponse<{
+      access_token: string;
+      expires_in: number;
+      user: { id: string; name: string; role: string; orgId: string };
+    }>,
+    { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
+  >('eeclaw.login'),
 };

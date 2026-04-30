@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key, User } from '@icon-park/react';
+import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { ConfigStorage } from '@/common/storage';
 import './LoginPage.css';
 
 // 运行时判断 / Runtime check
@@ -41,10 +43,25 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, login, register } = useAuth();
+  const { status, login, register, enterpriseLogin, logout } = useAuth();
+  const { isEnterprise } = useAppMode();
+
+  // Enterprise login state
+  const [loginTab, setLoginTab] = useState<'password' | 'key'>('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [tenantName, setTenantName] = useState<string>('');
 
   // 从 localStorage 读取缓存的租户配置
   const tenantConfig = getCachedTenantConfig();
+
+  // Enterprise: load tenantName on mount
+  useEffect(() => {
+    if (isEnterprise) {
+      ConfigStorage.get('eeclaw.tenantName').then(setTenantName);
+    }
+  }, [isEnterprise]);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginPhone, setLoginPhone] = useState('');
@@ -153,6 +170,45 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+
+    // Enterprise mode login
+    if (isEnterprise) {
+      if (loginTab === 'password') {
+        if (!username.trim() || !password.trim()) {
+          Message.warning('请填写所有必填项');
+          return;
+        }
+        setLoading(true);
+        try {
+          const result = await enterpriseLogin({ username: username.trim(), password: password.trim() });
+          if (result.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(result.message || '登录失败');
+          }
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        if (!apiKey.trim()) {
+          Message.warning('请输入 API Key');
+          return;
+        }
+        setLoading(true);
+        try {
+          const result = await enterpriseLogin({ api_key: apiKey.trim() });
+          if (result.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(result.message || '登录失败');
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+      return;
+    }
+
     if (!currentPhone || !code) {
       Message.warning('请填写所有必填项');
       return;
@@ -306,6 +362,97 @@ const LoginPage: React.FC = () => {
               返回登录
             </Button>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Enterprise mode: return mode selection handler
+  const handleBackToModeSelect = async () => {
+    try {
+      // Clear all enterprise-related ConfigStorage keys
+      await ConfigStorage.remove('eeclaw.authStorage' as any);
+      await ConfigStorage.remove('eeclaw.userInfo' as any);
+      await ConfigStorage.remove('eeclaw.serverUrl' as any);
+      await ConfigStorage.remove('eeclaw.tenantName' as any);
+      await ConfigStorage.remove('system.appMode' as any);
+      // Clear enterprise auth from localStorage
+      localStorage.removeItem('eeclaw_auth_v1');
+      // Clear C-side auth to avoid falling into authenticated state
+      localStorage.removeItem('sudowork_auth_v2');
+      localStorage.removeItem('sudowork_auth_v1');
+      // Reload page instead of restarting app
+      window.location.reload();
+    } catch (error) {
+      console.error('[LoginPage] Failed to reset mode:', error);
+    }
+  };
+
+  // Enterprise login UI
+  if (isEnterprise) {
+    return (
+      <div className='login-page'>
+        {isDesktopRuntime && <WindowControls />}
+
+        <div className='login-page__background'>
+          <div className='login-page__background-circle login-page__background-circle--lg' />
+          <div className='login-page__background-circle login-page__background-circle--md' />
+          <div className='login-page__background-circle login-page__background-circle--sm' />
+        </div>
+
+        <div className='login-page__card'>
+          <div className='login-page__header'>
+            <div className='login-page__logo'>
+              <img
+                src={SudoworkIcon}
+                alt={tenantName || 'SudoClaw'}
+                className='w-64px h-64px object-contain'
+              />
+            </div>
+            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantName || 'SudoClaw'}</h1>
+            <p className='text-13px text-t-secondary'>企业版登录</p>
+          </div>
+
+          {/* Enterprise login tabs: password / key */}
+          <div className='login-tabs'>
+            <button type='button' className={`login-tab ${loginTab === 'password' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('password')}>
+              密码登录
+            </button>
+            <button type='button' className={`login-tab ${loginTab === 'key' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('key')}>
+              密钥登录
+            </button>
+          </div>
+
+          <div className='flex flex-col gap-20px mt-24px'>
+            {loginTab === 'password' ? (
+              <>
+                <div className='flex flex-col gap-8px'>
+                  <div className='text-12px font-600 text-t-secondary ml-4px'>用户名</div>
+                  <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+                </div>
+                <div className='flex flex-col gap-8px'>
+                  <div className='text-12px font-600 text-t-secondary ml-4px'>密码</div>
+                  <Input.Password size='large' prefix={<Lock className='text-t-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+                </div>
+              </>
+            ) : (
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>API Key</div>
+                <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+              </div>
+            )}
+
+            <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+              登录
+            </Button>
+          </div>
+
+          {/* Back to mode selection */}
+          <div className='text-center mt-20px'>
+            <button type='button' className='text-13px text-t-tertiary hover:text-t-primary cursor-pointer bg-transparent border-none' onClick={() => void handleBackToModeSelect()}>
+              返回模式选择
+            </button>
+          </div>
         </div>
       </div>
     );
