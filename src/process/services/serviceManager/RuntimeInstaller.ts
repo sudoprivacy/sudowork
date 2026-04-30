@@ -12,13 +12,12 @@ import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
-import { getSudoclawVersionState as getInstalledSudoclawVersionState, isSudoclawInstalled as isInstalledSudoclaw } from '../sudoclaw/SudoclawInstallService';
-import { isScodeInstalled as isInstalledScode, ensureScodeInstalled as ensureScodeInstalled, getScodeVersionState as getScodeVersionState } from '../scode/ScodeInstallService';
+import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState } from '../scode/ScodeInstallService';
 
 const TAG = 'RuntimeInstaller';
 
 /**
- * Ensures the core runtimes required for startup (Node.js, Sudoclaw, Nexus) are installed.
+ * Ensures the core runtimes required for startup (Node.js, Sudocode, Nexus) are installed.
  *
  * Extracted from ServiceManager so that runtime installation is decoupled
  * from service lifecycle management.
@@ -26,11 +25,11 @@ const TAG = 'RuntimeInstaller';
 class RuntimeInstaller {
   primeStatusForStartup(): void {
     const fastNodeOk = isNodeInstalled();
-    const fastSudoclawOk = isInstalledSudoclaw();
+    const fastScodeOk = isInstalledScode();
     const fastNexusOk = installedNexusService.checkInstalledSync();
-    const fastSudoclawNeedsUpgrade = fastSudoclawOk && getInstalledSudoclawVersionState().needsUpgrade;
+    const fastScodeNeedsUpgrade = fastScodeOk && getScodeVersionState().needsUpgrade;
 
-    initStatusManager.setDisplayMode(fastNodeOk && fastSudoclawOk && fastNexusOk && !fastSudoclawNeedsUpgrade ? 'startup' : 'full');
+    initStatusManager.setDisplayMode(fastNodeOk && fastScodeOk && fastNexusOk && !fastScodeNeedsUpgrade ? 'startup' : 'full');
   }
 
   /**
@@ -38,7 +37,7 @@ class RuntimeInstaller {
    * Returns true if startup should proceed to service starts,
    * false if a critical install failure occurred.
    */
-  async ensureAll(options?: { startSudoclaw?: (timeoutMs?: number) => Promise<void>; startNexus?: () => Promise<void> }): Promise<boolean> {
+  async ensureAll(options?: { startNexus?: () => Promise<void> }): Promise<boolean> {
     const isWin32 = process.platform === 'win32';
     const shouldAssumeBundledResources = app.isPackaged;
 
@@ -46,14 +45,14 @@ class RuntimeInstaller {
     // Running before the first `await` means this executes synchronously in the
     // same event-loop tick as `void serviceManager.startup()`, so
     // initStatusManager is set to 'ready' before the renderer can poll
-    // getStatus via IPC.  This prevents the brief "组件安装中" flash on
+    // getStatus via IPC. This prevents the brief "组件安装中" flash on
     // subsequent launches.
     const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
 
     const fastNodeOk = isNodeInstalled();
-
-    const fastSudoclawOk = isInstalledSudoclaw();
+    const fastScodeOk = isInstalledScode();
     const fastNexusOk = installedNexusService.checkInstalledSync();
+
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');
       initStatusManager.setStepProgress('git', 100, 'Git 环境检查已跳过');
@@ -61,75 +60,61 @@ class RuntimeInstaller {
       initStatusManager.setStepProgress('claude', 100, 'Claude Code CLI 不参与启动判定');
       initStatusManager.setStepState('bdpan', 'done', 'bdpan CLI 不参与启动判定');
       initStatusManager.setStepProgress('bdpan', 100, 'bdpan CLI 不参与启动判定');
+
       if (fastNodeOk) {
         initStatusManager.setStepState('node', 'done', 'Node.js 运行时已就绪');
         initStatusManager.setStepProgress('node', 100, 'Node.js 运行时已就绪');
       }
-      if (fastSudoclawOk) {
-        initStatusManager.setStepState('sudoclaw', options?.startSudoclaw ? 'pending' : 'done', options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪');
-        initStatusManager.setStepProgress('sudoclaw', options?.startSudoclaw ? 88 : 100, options?.startSudoclaw ? '等待启动 Sudoclaw...' : 'Sudoclaw 文件已就绪');
+
+      if (fastScodeOk) {
+        initStatusManager.setStepState('scode', 'done', 'Sudocode 文件已就绪');
+        initStatusManager.setStepProgress('scode', 100, 'Sudocode 文件已就绪');
       }
+
       if (fastNexusOk) {
         initStatusManager.setStepState('nexus', options?.startNexus ? 'pending' : 'done', options?.startNexus ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
         initStatusManager.setStepProgress('nexus', options?.startNexus ? 88 : 100, options?.startNexus ? '等待启动 Nexus...' : 'Nexus 文件已就绪');
       }
     };
 
-    mainLog(TAG, `Fast check: Git=skipped, Node=${fastNodeOk}, Sudoclaw=${fastSudoclawOk}, Nexus=${fastNexusOk}`);
+    mainLog(TAG, `Fast check: Git=skipped, Node=${fastNodeOk}, Sudocode=${fastScodeOk}, Nexus=${fastNexusOk}`);
 
     const startCriticalServices = async (): Promise<boolean> => {
-      const serviceStartTasks: Promise<void>[] = [];
-
-      if (options?.startSudoclaw) {
-        initStatusManager.setStepState('sudoclaw', 'active', '正在启动 Sudoclaw 服务...');
-        initStatusManager.setStepProgress('sudoclaw', 92, '正在启动 Sudoclaw 服务...');
-        serviceStartTasks.push(options.startSudoclaw());
-      }
-
-      if (options?.startNexus) {
-        initStatusManager.setStepState('nexus', 'active', '正在启动 Nexus 服务...');
-        initStatusManager.setStepProgress('nexus', 92, '正在启动 Nexus 服务...');
-        serviceStartTasks.push(options.startNexus());
-      }
-
-      if (serviceStartTasks.length === 0) {
+      if (!options?.startNexus) {
         return true;
       }
 
-      await Promise.all(serviceStartTasks);
+      initStatusManager.setStepState('nexus', 'active', '正在启动 Nexus 服务...');
+      initStatusManager.setStepProgress('nexus', 92, '正在启动 Nexus 服务...');
+      await options.startNexus();
       return true;
     };
 
-    if (fastNodeOk && fastSudoclawOk && fastNexusOk) {
-      const { getSudoclawVersionState } = await import('../sudoclaw/SudoclawInstallService');
+    if (fastNodeOk && fastScodeOk && fastNexusOk) {
       const nexusVersionState = await installedNexusService.getVersionState();
-      const sudoclawVersionState = getSudoclawVersionState();
       const scodeVersionState = getScodeVersionState();
 
-      if (!nexusVersionState.needsUpgrade && !sudoclawVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
+      if (!nexusVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
         initStatusManager.setDisplayMode('startup');
         markFastInstalledSteps();
         return startCriticalServices();
       }
 
-      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudoclaw=${sudoclawVersionState.needsUpgrade ? `${sudoclawVersionState.installedVersion}→${sudoclawVersionState.bundledVersion}` : 'ok'}, Scode=${scodeVersionState.needsUpgrade ? `${scodeVersionState.installedVersion}→${scodeVersionState.bundledVersion}` : 'ok'}`);
+      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudocode=${scodeVersionState.needsUpgrade ? `${scodeVersionState.installedVersion}→${scodeVersionState.bundledVersion}` : 'ok'}`);
     }
     // ── End fast check ──────────────────────────────────────────────────────
 
     // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
-    const runtimeModules = await Promise.all([import('../nexus/DynamicNexusService'), import('../sudoclaw/SudoclawInstallService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
-    const [nexusModule, sudoclawModule, claudeCliModule, gitModule, bdpanModule] = runtimeModules;
+    const runtimeModules = await Promise.all([import('../nexus/DynamicNexusService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
+    const [nexusModule, claudeCliModule, gitModule, bdpanModule] = runtimeModules;
     const { dynamicNexusService } = nexusModule;
-    const { ensureSudoclawInstalled, getSudoclawVersionState } = sudoclawModule;
     const { claudeCliService } = claudeCliModule;
     const { ensureGitInstalled, isGitInstalled } = gitModule;
     const { ensureBdpanInstalled, isBdpanInstalled } = bdpanModule;
 
     const nodeInstalled = isNodeInstalled();
-    const sudoclawInstalled = isInstalledSudoclaw();
-    const sudoclawVersionState = getSudoclawVersionState();
     const scodeInstalled = isInstalledScode();
     const scodeVersionState = getScodeVersionState();
     const nexusInstalledPromise = dynamicNexusService.checkInstalled();
@@ -143,43 +128,34 @@ class RuntimeInstaller {
     const claudeInstalled = claudeStatus.installed;
     const hasClaudeResource = claudeCliService.hasTgzResource();
 
-    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudoclaw=${sudoclawInstalled}, Nexus=${nexusInstalled}, ` + `SudoclawUpgrade=${sudoclawVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`;
+    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudocode=${scodeInstalled}, Nexus=${nexusInstalled}, ` + `SudocodeUpgrade=${scodeVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`;
     mainLog(TAG, `Full check: ${fullCheckSummary}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
-    if (nodeInstalled && sudoclawInstalled && nexusInstalled && scodeInstalled && !sudoclawVersionState.needsUpgrade && !nexusVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
+    if (nodeInstalled && scodeInstalled && nexusInstalled && !scodeVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
       mainLog(TAG, 'All runtimes confirmed installed');
       initStatusManager.setDisplayMode('startup');
       markFastInstalledSteps();
       return startCriticalServices();
     }
 
-    // Node still requires a local resource bundle. Sudoclaw installs are
+    // Node still requires a local resource bundle. Sudocode installs are
     // version-driven and can fall back to remote download inside
-    // ensureSudoclawInstalled(), so do not gate it on local resources here.
+    // ensureScodeInstalled(), so do not gate it on local resources here.
     const nodeResExt = isWin32 ? 'zip' : 'tar.gz';
     const nodeResName = `node-${process.platform}-${process.arch}.${nodeResExt}`;
     const hasNodeResource = shouldAssumeBundledResources || fs.existsSync(path.join(resDir, nodeResName));
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
-    const willInstallSudoclaw = !sudoclawInstalled || sudoclawVersionState.needsUpgrade;
-    const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
     const willInstallScode = !scodeInstalled || scodeVersionState.needsUpgrade;
+    const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
-    if (willInstallNode || willInstallSudoclaw || willInstallNexus) {
+    if (willInstallNode || willInstallScode || willInstallNexus) {
       initStatusManager.setDisplayMode('full');
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
-    // Note: scode is installed silently in the background, not shown in UI
-    if (!willInstallNode && !willInstallSudoclaw && !willInstallNexus && !willInstallScode) {
-      mainWarn(TAG, 'Some components missing but no installation resources found, starting services');
-      initStatusManager.setDisplayMode('startup');
-      markFastInstalledSteps();
-      return startCriticalServices();
-    }
-
-    type RuntimeStepId = 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan';
+    type RuntimeStepId = 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan';
     type TaskResult = { step: RuntimeStepId; ok: boolean; required: boolean; error?: string };
 
     const markStepDone = (step: RuntimeStepId, detail: string): void => {
@@ -226,16 +202,11 @@ class RuntimeInstaller {
       markStepDone('claude', '未找到 Claude Code CLI 安装资源，已跳过');
     }
 
-    if (sudoclawInstalled && !sudoclawVersionState.needsUpgrade) {
-      if (options?.startSudoclaw) {
-        initStatusManager.setStepState('sudoclaw', 'pending', '等待启动 Sudoclaw...');
-        initStatusManager.setStepProgress('sudoclaw', 88, '等待启动 Sudoclaw...');
-      } else {
-        markStepDone('sudoclaw', 'Sudoclaw 文件已就绪');
-      }
+    if (scodeInstalled && !scodeVersionState.needsUpgrade) {
+      markStepDone('scode', 'Sudocode 文件已就绪');
     } else {
-      initStatusManager.setStepState('sudoclaw', 'pending', '等待安装 Sudoclaw...');
-      initStatusManager.setStepProgress('sudoclaw', 0, '等待安装 Sudoclaw...');
+      initStatusManager.setStepState('scode', 'pending', '等待安装 Sudocode...');
+      initStatusManager.setStepProgress('scode', 0, '等待安装 Sudocode...');
     }
 
     if (nexusInstalled && !nexusVersionState.needsUpgrade) {
@@ -245,9 +216,6 @@ class RuntimeInstaller {
       } else {
         markStepDone('nexus', 'Nexus 文件已就绪');
       }
-    } else if (willInstallNexus) {
-      initStatusManager.setStepState('nexus', 'pending', '等待安装 Nexus...');
-      initStatusManager.setStepProgress('nexus', 0, '等待安装 Nexus...');
     } else {
       initStatusManager.setStepState('nexus', 'pending', '等待安装 Nexus...');
       initStatusManager.setStepProgress('nexus', 0, '等待安装 Nexus...');
@@ -391,59 +359,51 @@ class RuntimeInstaller {
       }
     })();
 
-    const sudoclawTask: Promise<TaskResult> = (async () => {
-      if (sudoclawInstalled && !sudoclawVersionState.needsUpgrade) {
-        if (!options?.startSudoclaw) {
-          return { step: 'sudoclaw', ok: true, required: true };
-        }
-        try {
-          markStepActive('sudoclaw', '正在启动 Sudoclaw 服务...', 92);
-          initStatusManager.addLog('开始启动 Sudoclaw 服务...');
-          await options.startSudoclaw();
-          return { step: 'sudoclaw', ok: true, required: true };
-        } catch (err) {
-          const error = err instanceof Error ? err.message : String(err);
-          markStepError('sudoclaw', `Sudoclaw 启动失败: ${error}`, 92);
-          initStatusManager.addLog(`⚠ Sudoclaw 启动失败: ${error}`);
-          return { step: 'sudoclaw', ok: false, required: true, error };
-        }
+    const scodeTask: Promise<TaskResult> = (async () => {
+      if (scodeInstalled && !scodeVersionState.needsUpgrade) {
+        return { step: 'scode', ok: true, required: true };
       }
+
       try {
-        const isUpgrade = sudoclawVersionState.needsUpgrade;
-        const action = isUpgrade ? `升级 Sudoclaw ${sudoclawVersionState.installedVersion} → ${sudoclawVersionState.bundledVersion}` : '安装 Sudoclaw';
+        const action = scodeVersionState.needsUpgrade ? `升级 Sudocode ${scodeVersionState.installedVersion} → ${scodeVersionState.bundledVersion}` : '安装 Sudocode';
         mainLog(TAG, action);
-        markStepActive('sudoclaw', '准备解压 Sudoclaw...', 0);
+        markStepActive('scode', '准备安装 Sudocode...', 0);
         initStatusManager.addLog(`开始${action}...`);
-        const result = await ensureSudoclawInstalled({
-          forceReinstall: isUpgrade,
+
+        const ok = await ensureScodeInstalled({
+          forceReinstall: scodeVersionState.needsUpgrade,
           onProgress: (percent) => {
-            const progress = capInstallProgress(percent, 88);
-            initStatusManager.setStepProgress('sudoclaw', progress, `正在解压 Sudoclaw... ${percent}%`);
+            const progress = capInstallProgress(percent, 100);
+            initStatusManager.setStepProgress('scode', progress, `正在安装 Sudocode... ${percent}%`);
           },
         });
-        if (!result.installed) {
-          const error = result.error ?? 'Sudoclaw 安装未完成';
+
+        if (!ok) {
+          const error = 'Sudocode 安装未完成';
           mainError(TAG, error);
-          markStepError('sudoclaw', error);
+          markStepError('scode', error);
           initStatusManager.addLog(`⚠ ${error}`);
-          return { step: 'sudoclaw', ok: false, required: true, error };
+          return { step: 'scode', ok: false, required: true, error };
         }
-        if (!options?.startSudoclaw) {
-          markStepDone('sudoclaw', 'Sudoclaw 文件已就绪');
-          initStatusManager.addLog('✓ Sudoclaw 安装完成');
-          return { step: 'sudoclaw', ok: true, required: true };
+
+        try {
+          const { acpDetector } = await import('@/agent/acp/AcpDetector');
+          await acpDetector.rescanCliAgents();
+          initStatusManager.addLog('✓ Sudocode agent 列表已刷新');
+        } catch (error) {
+          mainWarn(TAG, 'Sudocode installed but agent rescan failed', error);
+          initStatusManager.addLog(`⚠ Sudocode 安装完成，但 agent 列表刷新失败: ${error instanceof Error ? error.message : String(error)}`);
         }
-        markStepActive('sudoclaw', 'Sudoclaw 文件已就绪，正在启动服务...', 92);
-        initStatusManager.addLog('✓ Sudoclaw 安装完成，开始启动服务...');
-        await options.startSudoclaw();
-        return { step: 'sudoclaw', ok: true, required: true };
+
+        markStepDone('scode', 'Sudocode 文件已就绪');
+        initStatusManager.addLog('✓ Sudocode 安装完成');
+        return { step: 'scode', ok: true, required: true };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
-        mainError(TAG, 'Sudoclaw install failed', err);
-        const prefix = sudoclawInstalled && !sudoclawVersionState.needsUpgrade ? 'Sudoclaw 启动失败' : 'Sudoclaw 安装失败';
-        markStepError('sudoclaw', `${prefix}: ${error}`);
-        initStatusManager.addLog(`⚠ ${prefix}: ${error}`);
-        return { step: 'sudoclaw', ok: false, required: true, error };
+        mainError(TAG, 'Sudocode install failed', err);
+        markStepError('scode', `Sudocode 安装失败: ${error}`);
+        initStatusManager.addLog(`⚠ Sudocode 安装失败: ${error}`);
+        return { step: 'scode', ok: false, required: true, error };
       }
     })();
 
@@ -464,6 +424,7 @@ class RuntimeInstaller {
           return { step: 'nexus', ok: false, required: true, error };
         }
       }
+
       try {
         const isUpgrade = nexusVersionState.needsUpgrade;
         const action = isUpgrade ? `升级 Nexus ${nexusVersionState.installedVersion} → ${nexusVersionState.bundledVersion}` : '安装 Nexus';
@@ -496,6 +457,7 @@ class RuntimeInstaller {
           initStatusManager.addLog('✓ Nexus 安装完成');
           return { step: 'nexus', ok: true, required: true };
         }
+
         markStepActive('nexus', 'Nexus 文件已就绪，正在启动服务...', 92);
         initStatusManager.addLog('✓ Nexus 安装完成，开始启动服务...');
         await options.startNexus();
@@ -540,27 +502,7 @@ class RuntimeInstaller {
       }
     })();
 
-    // Scode installation task - silent, no UI, runs in background
-    const scodePromise = (async () => {
-      if (!willInstallScode) {
-        mainLog(TAG, 'Scode already installed, skipping');
-        return;
-      }
-
-      try {
-        mainLog(TAG, `Installing scode ${scodeVersionState.needsUpgrade ? `(${scodeVersionState.installedVersion} → ${scodeVersionState.bundledVersion})` : ''}...`);
-        await ensureScodeInstalled({ forceReinstall: scodeVersionState.needsUpgrade });
-        mainLog(TAG, 'Scode installation completed');
-      } catch (err) {
-        mainWarn(TAG, `Scode installation failed: ${err instanceof Error ? err.message : String(err)}`);
-        // Scode is non-critical, continue anyway
-      }
-    })();
-
-    const results = await Promise.all([gitTask, nodeTask, claudeTask, sudoclawTask, nexusTask, bdpanTask]);
-
-    // Wait for scode installation to complete (runs in background, non-blocking)
-    await scodePromise;
+    const results = await Promise.all([gitTask, nodeTask, claudeTask, scodeTask, nexusTask, bdpanTask]);
     const failedRequired = results.filter((result) => result.required && !result.ok);
     if (failedRequired.length > 0) {
       const error = `以下组件安装未完成: ${failedRequired.map((item) => item.step).join('、')}`;

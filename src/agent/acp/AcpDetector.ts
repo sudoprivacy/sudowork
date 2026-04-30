@@ -23,8 +23,8 @@ import { getScodePath } from '@/process/services/scode/ScodeInstallService';
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
-/** Sudo Code bin directory for scode CLI */
-const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode', 'bin');
+/** Sudo Code runtime directory for the managed scode CLI */
+const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 
 /** Priority bin directories for CLI detection */
 const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SCODE_BIN_DIR, SUDOCLAW_BIN_DIR];
@@ -165,8 +165,8 @@ class AcpDetector {
     }
 
     /**
-     * Check if CLI exists in priority bin directories first
-     * 优先检查 ~/.nexus/bin 等目录下是否存在 CLI（解决 macOS 环境变量问题）
+     * Check if CLI exists in priority runtime directories first
+     * 优先检查 ~/.nexus/bin、~/.nexus/sudocode 等目录下是否存在 CLI（解决 macOS 环境变量问题）
      */
     const findCliInPriorityDirs = (cliCommand: string): string | null => {
       for (const binDir of PRIORITY_BIN_DIRS) {
@@ -231,8 +231,8 @@ class AcpDetector {
     // 并行检测所有潜在的 ACP CLI（真正的并行 — isCliAvailable 现在是 async）
     // Truly parallel detection — isCliAvailable is now async, so all CLI checks run concurrently
     const detectionPromises = POTENTIAL_ACP_CLIS.map(async (cli) => {
-      // 优先检查 ~/.nexus/bin 等目录
-      // Check priority bin directories first
+      // 优先检查 ~/.nexus/bin、~/.nexus/sudocode 等目录
+      // Check priority runtime directories first
       const priorityCliPath = findCliInPriorityDirs(cli.cmd);
       if (priorityCliPath) {
         console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);

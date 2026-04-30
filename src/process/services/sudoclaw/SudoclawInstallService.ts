@@ -7,9 +7,12 @@
 /**
  * Sudoclaw Install Service
  *
- * Built-in OpenClaw installation for Sudowork. Installs to ~/.nexus/sudoclaw (separate
- * from official ~/.openclaw) so users get a one-click experience without system
- * Node.js. Uses bundled Node.js runtime to avoid macOS Dock bounce.
+ * Legacy OpenClaw/Sudoclaw installation service kept for explicit
+ * `openclaw-gateway` compatibility flows. The default startup-critical ACP
+ * runtime now installs through `src/process/services/scode/ScodeInstallService.ts`.
+ *
+ * This service still installs to ~/.nexus/sudoclaw (separate from official
+ * ~/.openclaw) so users get a one-click experience without system Node.js.
  */
 
 import { execFileSync } from 'child_process';

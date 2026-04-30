@@ -53,14 +53,14 @@ describe('Scode ACP integration', () => {
     });
 
     it('should handle full path to scode binary', () => {
-      const cliPath = '/home/user/.nexus/sudocode/bin/scode';
+      const cliPath = '/home/user/.nexus/sudocode/scode';
       const acpArgs = ['acp'];
 
       const parts = cliPath.split(/\s+/);
       const command = parts[0];
       const args = [...parts.slice(1), ...acpArgs];
 
-      expect(command).toBe('/home/user/.nexus/sudocode/bin/scode');
+      expect(command).toBe('/home/user/.nexus/sudocode/scode');
       expect(args).toEqual(['acp']);
     });
 

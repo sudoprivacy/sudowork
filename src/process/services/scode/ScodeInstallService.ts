@@ -7,8 +7,9 @@
 /**
  * Scode Install Service
  *
- * Silent installation of scode CLI tool bundled with the app.
- * Installs to ~/.nexus/scode (separate from other runtime tools).
+ * Installs the bundled/downloaded scode CLI into its dedicated runtime root at
+ * ~/.nexus/sudocode so startup can verify the default ACP runtime without
+ * depending on the legacy Sudoclaw/OpenClaw gateway bootstrap path.
  */
 
 import { app } from 'electron';
@@ -17,7 +18,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
-import { extractTarGzWithProgress, listTarGzEntries } from '../archiveProgress';
+import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 
 const TAG = 'ScodeInstallService';
 
@@ -26,8 +27,8 @@ const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'win
 /** Architecture mapping: Node.js process.arch → scode archive arch name */
 const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
 
-/** Scode root: ~/.nexus/bin */
-export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'bin');
+/** Scode root: ~/.nexus/sudocode */
+export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
@@ -153,7 +154,7 @@ function getBundledScodePath(): string | null {
 
 /** Analyze archive structure to determine strip level */
 async function analyzeArchiveStructure(archivePath: string): Promise<{ strip: number; topLevelNames: Set<string> }> {
-  const entries = await listTarGzEntries(archivePath);
+  const entries = archivePath.endsWith('.zip') ? await listZipEntries(archivePath) : await listTarGzEntries(archivePath);
   const scodeName = getScodeExeName();
 
   const topLevelDirs = new Set<string>();
@@ -202,19 +203,18 @@ function setInstalledPermissions(dir: string): void {
 }
 
 /** Extract scode archive to target directory */
-async function extractArchive(archivePath: string, targetDir: string, strip: number): Promise<void> {
+async function extractArchive(archivePath: string, targetDir: string, strip: number, onProgress?: (percent: number) => void): Promise<void> {
   if (archivePath.endsWith('.zip')) {
-    const { extractZipWithProgress } = await import('../archiveProgress');
-    await extractZipWithProgress(archivePath, targetDir, undefined, { strip });
+    await extractZipWithProgress(archivePath, targetDir, onProgress, { strip });
   } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
-    await extractTarGzWithProgress(archivePath, targetDir, undefined, { strip });
+    await extractTarGzWithProgress(archivePath, targetDir, onProgress, { strip });
   } else {
     throw new Error(`Unsupported archive format: ${archivePath}`);
   }
 }
 
 /** Download scode from GitHub release */
-async function downloadScode(url: string, destPath: string): Promise<void> {
+async function downloadScode(url: string, destPath: string, onProgress?: (percent: number) => void): Promise<void> {
   const https = await import('https');
   const http = await import('http');
 
@@ -251,6 +251,7 @@ async function downloadScode(url: string, destPath: string): Promise<void> {
           if (totalSize > 0) {
             const percent = Math.round((downloaded / totalSize) * 100);
             mainLog(TAG, `Downloading scode... ${percent}%`);
+            onProgress?.(percent);
           }
         });
 
@@ -258,17 +259,26 @@ async function downloadScode(url: string, destPath: string): Promise<void> {
 
         file.on('finish', () => {
           file.close();
+          onProgress?.(100);
           resolve();
         });
 
         file.on('error', (err: Error) => {
-          try { fs.unlinkSync(destPath); } catch { /* ignore */ }
+          try {
+            fs.unlinkSync(destPath);
+          } catch {
+            /* ignore */
+          }
           reject(err);
         });
       });
 
       req.on('error', (err: Error) => {
-        try { fs.unlinkSync(destPath); } catch { /* ignore */ }
+        try {
+          fs.unlinkSync(destPath);
+        } catch {
+          /* ignore */
+        }
         reject(err);
       });
     };
@@ -292,6 +302,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
 
   if (!forceReinstall && isScodeInstalled()) {
     mainLog(TAG, `Scode ${getScodeVersion()} already installed, skipping`);
+    options?.onProgress?.(100);
     return true;
   }
 
@@ -305,6 +316,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
   if (bundledPath) {
     archivePath = bundledPath;
     mainLog(TAG, `Using bundled scode archive from ${bundledPath}`);
+    options?.onProgress?.(5);
   } else {
     // Download from GitHub
     mainLog(TAG, 'Bundled scode not found, attempting download from GitHub...');
@@ -316,7 +328,10 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     for (const attempt of downloadAttempts) {
       try {
         mainLog(TAG, `Downloading scode from ${attempt.label}: ${attempt.url}`);
-        await downloadScode(attempt.url, downloadDest);
+        await downloadScode(attempt.url, downloadDest, (percent) => {
+          const mapped = Math.max(5, Math.min(45, Math.round((percent / 100) * 45)));
+          options?.onProgress?.(mapped);
+        });
         archivePath = downloadDest;
         break;
       } catch (err) {
@@ -358,7 +373,11 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     }
 
     // Extract archive
-    await extractArchive(archivePath, binDir, strip);
+    const extractBaseProgress = bundledPath ? 5 : 45;
+    await extractArchive(archivePath, binDir, strip, (percent) => {
+      const mapped = extractBaseProgress + Math.round((percent / 100) * (100 - extractBaseProgress));
+      options?.onProgress?.(Math.max(extractBaseProgress, Math.min(100, mapped)));
+    });
 
     // Set permissions
     setInstalledPermissions(binDir);
@@ -366,6 +385,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     // Write version marker
     const markerFile = getReadyMarkerPath();
     fs.writeFileSync(markerFile, getScodeVersion());
+    options?.onProgress?.(100);
 
     mainLog(TAG, `Scode installation completed: ${binDir}`);
 
@@ -373,7 +393,9 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     if (archivePath === downloadDest && fs.existsSync(downloadDest)) {
       try {
         fs.unlinkSync(downloadDest);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     return true;
@@ -387,5 +409,14 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
 /** Get scode binary path if installed */
 export function getScodePath(): string | null {
   const scodePath = getInstalledScodePath();
-  return fs.existsSync(scodePath) ? scodePath : null;
+  return isScodeInstalled() && fs.existsSync(scodePath) ? scodePath : null;
+}
+
+/** Remove the managed scode runtime directory. */
+export function removeScodeInstallation(): void {
+  if (!fs.existsSync(SCODE_DIR)) {
+    return;
+  }
+
+  fs.rmSync(SCODE_DIR, { recursive: true, force: true });
 }
