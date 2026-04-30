@@ -32,6 +32,7 @@ import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
+import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -140,9 +141,9 @@ const useAcpMessage = (conversation_id: string) => {
       }
 
       // Cancel pending finish timeout if new message arrives
-      // 如果新消息到达，取消待处理的 finish timeout
+      // 如果真正的会话活动在 finish 后继续到达，取消待处理的 finish timeout
       const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
-      if (pendingTimeout && message.type !== 'finish') {
+      if (pendingTimeout && shouldCancelAcpFinishTimeout(message.type)) {
         clearTimeout(pendingTimeout);
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
@@ -195,6 +196,7 @@ const useAcpMessage = (conversation_id: string) => {
                 aiProcessingRef.current = false;
                 setThought({ subject: '', description: '' });
               }
+              (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
             }, 1000);
             (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = timeoutId;
             hasContentInTurnRef.current = false;

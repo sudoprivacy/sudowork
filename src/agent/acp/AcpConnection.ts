@@ -619,15 +619,15 @@ export class AcpConnection {
           // Check for end_turn message and extract usage data
           if (message.result && typeof message.result === 'object') {
             const promptResult = message.result as Record<string, unknown>;
-            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
-              this.onEndTurn();
-            }
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
               if (typeof usage.totalTokens === 'number') {
                 this.onPromptUsage(usage);
               }
+            }
+            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
+              this.onEndTurn();
             }
           }
           resolve(message.result);
