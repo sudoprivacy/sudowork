@@ -13,6 +13,7 @@ import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
 import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
+import { useAppMode } from './hooks/useAppMode';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -30,6 +31,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout, user: currentUser } = useAuth();
+  const { isEnterprise } = useAppMode();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -72,7 +74,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
     { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
-    { id: 'webui', label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' },
+    ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
     { id: 'cron', label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' },
   ];
 
