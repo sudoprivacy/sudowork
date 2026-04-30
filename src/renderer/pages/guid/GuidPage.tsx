@@ -398,7 +398,12 @@ const GuidPage: React.FC = () => {
   const handleSelectAgentFromPillBar = useCallback(
     (key: string) => {
       // If clicking on the currently selected agent, deselect it and clear input
+      // BUT: when only one agent is available (enterprise mode), don't allow deselection
       if (agentSelection.selectedAgentKey === key) {
+        // Skip deselection when only one agent available (enterprise mode: single remote-agent)
+        if (agentSelection.availableAgents && agentSelection.availableAgents.length === 1) {
+          return;
+        }
         agentSelection.resetSelection();
         guidInput.setInput('');
         prefilledAssistantRef.current = null;
@@ -410,7 +415,7 @@ const GuidPage: React.FC = () => {
       mention.setMentionSelectorOpen(false);
       mention.setMentionActiveIndex(0);
     },
-    [agentSelection.selectedAgentKey, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
+    [agentSelection.selectedAgentKey, agentSelection.availableAgents, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
   );
 
   const handleSelectAssistant = useCallback(

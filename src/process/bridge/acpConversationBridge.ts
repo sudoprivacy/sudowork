@@ -14,6 +14,9 @@ import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getConversationProvider } from '@/process/providers';
+import RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 
 export function initAcpConversationBridge(): void {
   // Debug provider to check environment variables
@@ -43,6 +46,23 @@ export function initAcpConversationBridge(): void {
   // Enrich with MCP transport support info so the frontend can show accurate counts
   ipcBridge.acpConversation.getAvailableAgents.provider(() => {
     try {
+      // Enterprise mode: ONLY show remote-agent (Moss Server), hide all local agents
+      if (isEnterpriseMode()) {
+        return Promise.resolve({
+          success: true,
+          data: [{
+            backend: 'remote-agent' as any,
+            name: 'Moss Server',
+            cliPath: undefined,
+            isExtension: false,
+            customAgentId: undefined,
+            isPreset: false,
+            supportedTransports: ['stdio', 'sse', 'http', 'streamable_http'],
+          }],
+        });
+      }
+
+      // Local mode: return all detected local agents (ACP, OpenClaw, etc.)
       const agents = acpDetector.getDetectedAgents();
       const enriched = agents.map((agent) => ({
         ...agent,
@@ -217,12 +237,36 @@ export function initAcpConversationBridge(): void {
   // Get model info for ACP/Codex agents
   // 获取 ACP/Codex 代理的模型信息
   // Use getTaskById (cache-only) to avoid spawning a worker process on read-only queries
-  ipcBridge.acpConversation.getModelInfo.provider(({ conversationId }) => {
+  ipcBridge.acpConversation.getModelInfo.provider(async ({ conversationId }) => {
+    mainLog('AcpConversationBridge', `getModelInfo called for conversation ${conversationId}`);
     const task = WorkerManage.getTaskById(conversationId);
-    if (!task || !(task instanceof AcpAgent)) {
-      return Promise.resolve({ success: true, data: { modelInfo: null } });
+    if (!task) {
+      mainLog('AcpConversationBridge', `No task found for ${conversationId}, checking provider cache`);
+      // For remote-agent, check cached model info from provider
+      // 对于 remote-agent，检查 provider 缓存的模型信息
+      const provider = getConversationProvider();
+      mainLog('AcpConversationBridge', `Provider type: ${provider.type}`);
+      if (provider.type === 'remote') {
+        const cachedInfo = await (provider as RemoteConversationProvider).getCachedModelInfo(conversationId);
+        mainLog('AcpConversationBridge', `Cached model info for ${conversationId}: ${JSON.stringify(cachedInfo)}`);
+        return { success: true, data: { modelInfo: cachedInfo } };
+      }
+      return { success: true, data: { modelInfo: null } };
     }
-    return Promise.resolve({ success: true, data: { modelInfo: task.getModelInfo() } });
+    if (!(task instanceof AcpAgent)) {
+      mainLog('AcpConversationBridge', `Task is not AcpAgent, checking provider cache`);
+      // Non-ACP agent (e.g., RemoteAgent) - check provider cache
+      // 非 ACP agent（如 RemoteAgent）- 检查 provider 缓存
+      const provider = getConversationProvider();
+      if (provider.type === 'remote') {
+        const cachedInfo = await (provider as RemoteConversationProvider).getCachedModelInfo(conversationId);
+        mainLog('AcpConversationBridge', `Cached model info: ${JSON.stringify(cachedInfo)}`);
+        return { success: true, data: { modelInfo: cachedInfo } };
+      }
+      return { success: true, data: { modelInfo: null } };
+    }
+    mainLog('AcpConversationBridge', `Task is AcpAgent, returning task.getModelInfo()`);
+    return { success: true, data: { modelInfo: task.getModelInfo() } };
   });
 
   ipcBridge.acpConversation.probeModelInfo.provider(async ({ backend }) => {

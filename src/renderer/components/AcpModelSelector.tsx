@@ -58,6 +58,12 @@ const AcpModelSelector: React.FC<{
           if (backend === 'codex') {
             console.log('[AcpModelSelector][codex] Initial model info:', info);
           }
+          // For remote-agent, always use the model info returned (no local cache)
+          // remote-agent 直接使用返回的模型信息（没有本地缓存）
+          if (backend === 'remote-agent') {
+            setModelInfo(info);
+            return;
+          }
           // When agent is not fully initialized, getModelInfo returns
           // canSwitch=false with empty availableModels. Prefer cached data
           // in that case to keep the dropdown functional.
@@ -68,13 +74,14 @@ const AcpModelSelector: React.FC<{
           } else {
             setModelInfo(info);
           }
-        } else if (backend) {
+        } else if (backend && backend !== 'remote-agent') {
           // Manager not yet created — load cached model list from storage
+          // remote-agent has no local cache, skip this
           void loadCachedModelInfo(backend, cancelled);
         }
       })
       .catch(() => {
-        if (!cancelled && backend) {
+        if (!cancelled && backend && backend !== 'remote-agent') {
           void loadCachedModelInfo(backend, cancelled);
         }
       });

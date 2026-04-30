@@ -106,6 +106,57 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
+    // Remote Agent path (Moss Server - enterprise mode)
+    if (selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent') {
+      console.log('Enterprise mode: Creating remote-agent conversation');
+
+      try {
+        // Directly call conversation.create, Provider handles Moss API internally
+        // 直接调用 conversation.create，Provider 内部处理 Moss API 调用
+        // This avoids duplicate Moss session creation
+        // 这避免了重复创建 Moss session
+        const conversation = await ipcBridge.conversation.create.invoke({
+          type: 'remote-agent',
+          name: input, // Use user input as initial name / 使用用户输入作为初始名称
+          model: {} as TProviderWithModel,
+          extra: {
+            workspace: finalWorkspace,
+            backend: 'remote-agent',
+            agentName: agentInfo?.name || 'Moss Server',
+            presetAssistantId: agentInfo?.name || 'Moss Server',
+            sessionMode: selectedMode,
+            dangerouslySkipPermissions: selectedMode === 'yolo',
+          },
+        });
+
+        if (!conversation || !conversation.id) {
+          alert('Failed to create remote agent conversation');
+          return;
+        }
+
+        console.log(`Remote agent conversation created: ${conversation.id}`);
+
+        // Store initial message for AcpSendBox to read
+        // 存储初始消息供 AcpSendBox 使用
+        const initialMessageData = {
+          input,
+          files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
+        };
+        sessionStorage.setItem(`remote_initial_message_${conversation.id}`, JSON.stringify(initialMessageData));
+
+        // Navigate to conversation page
+        // 导航到会话页面
+        await navigate(`/conversation/${conversation.id}`);
+        emitter.emit('chat.history.refresh');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        alert(`Failed to create remote agent conversation: ${errorMessage}`);
+        throw error;
+      }
+      return;
+    }
+
     // OpenClaw Gateway path (sudoclaw backend or preset with sudoclaw agent type)
     if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'sudoclaw') {
       const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
@@ -174,6 +225,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     // ACP path (including preset with claude agent type)
     {
+      // Local mode: ACP path
       // Agent-type fallback only applies to preset assistants whose primary agent
       // was unavailable and got switched (e.g. claude → gemini).  For non-preset
       // agents (including extension-contributed ACP adapters with backend='custom'),

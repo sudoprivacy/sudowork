@@ -28,6 +28,16 @@ type UseConversationActionsParams = {
   activeTab: SidebarTabKey;
 };
 
+/**
+ * Unified conversation actions hook
+ *
+ * All operations now go through Provider abstraction layer:
+ * - ipcBridge.conversation.remove → Provider.deleteConversation
+ * - ipcBridge.conversation.update → Provider.updateConversation
+ *
+ * Enterprise mode (remote-agent) conversations are cached locally,
+ * so all UI operations work the same way.
+ */
 export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead, activeTab }: UseConversationActionsParams) => {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renameModalName, setRenameModalName] = useState<string>('');
@@ -47,7 +57,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   }, [batchMode]);
 
   const handleConversationClick = useCallback(
-    (conversation: TChatConversation) => {
+    async (conversation: TChatConversation) => {
       setDropdownVisibleId(null);
       if (batchMode) {
         toggleSelectedConversation(conversation);
@@ -84,15 +94,19 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, conversationTab, openTab]
   );
 
+  /**
+   * Remove conversation - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   */
   const removeConversation = useCallback(
-    async (conversationId: string) => {
-      const success = await ipcBridge.conversation.remove.invoke({ id: conversationId });
+    async (conversation: TChatConversation) => {
+      const success = await ipcBridge.conversation.remove.invoke({ id: conversation.id });
       if (!success) {
         return false;
       }
 
-      emitter.emit('conversation.deleted', conversationId);
-      if (id === conversationId) {
+      emitter.emit('conversation.deleted', conversation.id);
+      if (id === conversation.id) {
         void navigate('/');
       }
       return true;
@@ -101,7 +115,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   );
 
   const handleDeleteClick = useCallback(
-    (conversationId: string) => {
+    (conversation: TChatConversation) => {
       Modal.confirm({
         title: t('conversation.history.deleteTitle'),
         content: t('conversation.history.deleteConfirm'),
@@ -110,7 +124,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const success = await removeConversation(conversationId);
+            const success = await removeConversation(conversation);
             if (success) {
               emitter.emit('chat.history.refresh');
               Message.success(t('conversation.history.deleteSuccess'));
@@ -130,42 +144,46 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     [removeConversation, t]
   );
 
-  const handleBatchDelete = useCallback(() => {
-    if (selectedConversationIds.size === 0) {
-      Message.warning(t('conversation.history.batchNoSelection'));
-      return;
-    }
+  const handleBatchDelete = useCallback(
+    (conversations: TChatConversation[]) => {
+      if (selectedConversationIds.size === 0) {
+        Message.warning(t('conversation.history.batchNoSelection'));
+        return;
+      }
 
-    Modal.confirm({
-      title: t('conversation.history.batchDelete'),
-      content: t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size }),
-      okText: t('conversation.history.confirmDelete'),
-      cancelText: t('conversation.history.cancelDelete'),
-      okButtonProps: { status: 'warning' },
-      onOk: async () => {
-        const selectedIds = Array.from(selectedConversationIds);
-        try {
-          const results = await Promise.all(selectedIds.map((conversationId) => removeConversation(conversationId)));
-          const successCount = results.filter(Boolean).length;
-          emitter.emit('chat.history.refresh');
-          if (successCount > 0) {
-            Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
-          } else {
+      Modal.confirm({
+        title: t('conversation.history.batchDelete'),
+        content: t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size }),
+        okText: t('conversation.history.confirmDelete'),
+        cancelText: t('conversation.history.cancelDelete'),
+        okButtonProps: { status: 'warning' },
+        onOk: async () => {
+          const selectedIds = Array.from(selectedConversationIds);
+          const selectedConvs = conversations.filter(c => selectedIds.includes(c.id));
+          try {
+            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv)));
+            const successCount = results.filter(Boolean).length;
+            if (successCount > 0) {
+              emitter.emit('chat.history.refresh');
+              Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
+            } else {
+              Message.error(t('conversation.history.deleteFailed'));
+            }
+          } catch (error) {
+            console.error('Failed to batch delete conversations:', error);
             Message.error(t('conversation.history.deleteFailed'));
+          } finally {
+            setSelectedConversationIds(new Set());
+            onBatchModeChange?.(false);
           }
-        } catch (error) {
-          console.error('Failed to batch delete conversations:', error);
-          Message.error(t('conversation.history.deleteFailed'));
-        } finally {
-          setSelectedConversationIds(new Set());
-          onBatchModeChange?.(false);
-        }
-      },
-      style: { borderRadius: '12px' },
-      alignCenter: true,
-      getPopupContainer: () => document.body,
-    });
-  }, [onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]);
+        },
+        style: { borderRadius: '12px' },
+        alignCenter: true,
+        getPopupContainer: () => document.body,
+      });
+    },
+    [onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]
+  );
 
   const handleEditStart = useCallback((conversation: TChatConversation) => {
     setRenameModalId(conversation.id);
@@ -173,6 +191,11 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     setRenameModalVisible(true);
   }, []);
 
+  /**
+   * Rename conversation - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   * Remote-agent conversations cache name locally
+   */
   const handleRenameConfirm = useCallback(async () => {
     if (!renameModalId || !renameModalName.trim()) return;
 
@@ -207,6 +230,11 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     setRenameModalName('');
   }, []);
 
+  /**
+   * Toggle pin - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   * Remote-agent conversations cache pin status locally
+   */
   const handleTogglePin = useCallback(
     async (conversation: TChatConversation) => {
       const pinned = isConversationPinned(conversation);

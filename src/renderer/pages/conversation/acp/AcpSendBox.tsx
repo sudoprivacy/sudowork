@@ -508,15 +508,18 @@ const AcpSendBox: React.FC<{
   // 2. Waiting for 'session_active' creates a deadlock (status only updates after message is sent)
   // 3. This matches the behavior of onSendHandler which sends immediately
   useEffect(() => {
-    const storageKey = `acp_initial_message_${conversation_id}`;
-    const storedMessage = sessionStorage.getItem(storageKey);
+    // Check both ACP and remote-agent initial message keys
+    const acpStorageKey = `acp_initial_message_${conversation_id}`;
+    const remoteStorageKey = `remote_initial_message_${conversation_id}`;
+    const storedMessage = sessionStorage.getItem(acpStorageKey) || sessionStorage.getItem(remoteStorageKey);
 
     if (!storedMessage) {
       return;
     }
 
-    // Clear immediately to prevent duplicate sends (e.g., if component remounts while sendMessage is pending)
-    sessionStorage.removeItem(storageKey);
+    // Clear both keys to prevent duplicate sends
+    sessionStorage.removeItem(acpStorageKey);
+    sessionStorage.removeItem(remoteStorageKey);
 
     const sendInitialMessage = async () => {
       try {

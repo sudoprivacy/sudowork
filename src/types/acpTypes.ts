@@ -64,7 +64,8 @@ export type AcpBackendAll =
   | 'openclaw-gateway' // OpenClaw Gateway WebSocket
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
-  | 'custom'; // User-configured custom ACP agent
+  | 'custom' // User-configured custom ACP agent
+  | 'remote-agent'; // Enterprise: Moss Server remote agent
 
 /**
  * 潜在的 ACP CLI 工具列表
@@ -479,6 +480,14 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: false,
     supportsStreaming: false,
+  },
+  'remote-agent': {
+    id: 'remote-agent',
+    name: 'Moss Server', // Enterprise remote agent
+    cliCommand: undefined, // No CLI, uses WebSocket to Moss Server
+    authRequired: true, // Requires enterprise auth token
+    enabled: true, // Enabled when enterprise mode is active
+    supportsStreaming: true,
   },
 };
 

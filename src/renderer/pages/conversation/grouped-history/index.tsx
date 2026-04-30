@@ -28,7 +28,7 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
-import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
+import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline' }) => {
   const { id } = useParams();
@@ -185,20 +185,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   });
 
   const { exportTask, exportModalVisible, exportTargetPath, exportModalLoading, exportFinished, showExportDirectorySelector, setShowExportDirectorySelector, closeExportModal, handleSelectExportDirectoryFromModal, handleSelectExportFolder, handleExportConversation, handleBatchExport, handleConfirmExport } = useExport({
-    conversations,
+    conversations: conversations as TChatConversation[],
     selectedConversationIds,
     setSelectedConversationIds,
     onBatchModeChange,
   });
 
   const { sensors, activeId, activeConversation, handleDragStart, handleDragEnd, handleDragCancel, isDragEnabled } = useDragAndDrop({
-    pinnedConversations,
+    pinnedConversations: pinnedConversations as TChatConversation[],
     batchMode,
     collapsed,
   });
 
   const getConversationRowProps = useCallback(
-    (conversation: TChatConversation): ConversationRowProps => ({
+    (conversation: ConversationItem): ConversationRowProps => ({
       conversation,
       collapsed,
       tooltipEnabled,
@@ -219,7 +219,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
   );
 
-  const renderConversation = (conversation: TChatConversation) => {
+  const renderConversation = (conversation: ConversationItem) => {
     const rowProps = getConversationRowProps(conversation);
     return <ConversationRow key={conversation.id} {...rowProps} />;
   };
@@ -355,7 +355,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' type='secondary' onClick={handleBatchExport}>
                 {t('conversation.history.batchExport')}
               </Button>
-              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' status='warning' onClick={handleBatchDelete}>
+              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' status='warning' onClick={() => handleBatchDelete(conversations)}>
                 {t('conversation.history.batchDelete')}
               </Button>
             </div>
@@ -372,7 +372,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
                 <div className='min-w-0'>
                   {pinnedConversations.map((conversation) => {
-                    const props = getConversationRowProps(conversation);
+                    const props = getConversationRowProps(conversation as ConversationItem);
                     return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
                   })}
                 </div>
@@ -407,7 +407,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                         </div>
                       }
                     >
-                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv))}</div>
+                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv as ConversationItem))}</div>
                     </WorkspaceCollapse>
                   </div>
                 );
@@ -456,14 +456,14 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                             </div>
                           }
                         >
-                          <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation))}</div>
+                          <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation as ConversationItem))}</div>
                         </WorkspaceCollapse>
                       </div>
                     );
                   }
 
                   if (item.type === 'conversation' && item.conversation) {
-                    return renderConversation(item.conversation);
+                    return renderConversation(item.conversation as ConversationItem);
                   }
 
                   return null;

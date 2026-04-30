@@ -101,21 +101,36 @@ type UseGuidAgentSelectionOptions = {
  */
 export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
+  // Track selectedAgentKey with ref to avoid dependency array cycles
+  const selectedAgentKeyRef = useRef<string>('openclaw-gateway');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
+  // Track availableAgents with ref for resetSelection to access
+  const availableAgentsRef = useRef<AvailableAgent[] | undefined>(undefined);
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
   const probedModelBackendsRef = useRef(new Set<string>());
+  // Track whether we've auto-selected first agent (enterprise mode case) to prevent infinite loops
+  const hasAutoSelectedAgentRef = useRef(false);
+  // Track the last availableAgents to detect mode changes
+  const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
 
-  // Wrap setSelectedAgentKey to also save to storage
+  // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
     _setSelectedAgentKey(key);
+    selectedAgentKeyRef.current = key;
     ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
       console.error('Failed to save selected agent:', error);
     });
+  }, []);
+
+  // Internal setter that also syncs ref (for auto-selection without storage save)
+  const _setSelectedAgentKeyWithRef = useCallback((key: string) => {
+    _setSelectedAgentKey(key);
+    selectedAgentKeyRef.current = key;
   }, []);
 
   // Wrap setSelectedMode to also save preferred mode to the agent's own config
@@ -206,21 +221,57 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   useEffect(() => {
     if (availableAgentsData) {
       setAvailableAgents(availableAgentsData);
+      availableAgentsRef.current = availableAgentsData;
     }
   }, [availableAgentsData]);
 
   // Load last selected agent (skip when URL parameter takes priority)
+  // Auto-select first available agent if current selection is not valid (enterprise mode case)
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
     // Skip restoring persisted agent when a URL parameter explicitly specifies the assistant
     if (assistantFromUrl) return;
 
+    // Create a key to detect when availableAgents fundamentally changes (e.g., enterprise mode toggle)
+    const agentsKey = availableAgents.map((a) => a.backend).join(',');
+    if (agentsKey !== lastAvailableAgentsKeyRef.current) {
+      // Agent list changed fundamentally, reset auto-selection flag
+      lastAvailableAgentsKeyRef.current = agentsKey;
+      hasAutoSelectedAgentRef.current = false;
+    }
+
     let cancelled = false;
 
     const loadLastSelectedAgent = async () => {
       try {
+        // Use ref value to avoid dependency cycle
+        const currentKey = selectedAgentKeyRef.current;
+
+        // Check if current selectedAgentKey is valid (in availableAgents)
+        const currentIsInAvailable = availableAgents.some((agent) => {
+          const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
+          return key === currentKey;
+        });
+
+        // If current selection is not valid (e.g., enterprise mode: 'openclaw-gateway' not available),
+        // auto-select the first available agent (e.g., 'remote-agent')
+        // Use ref to prevent infinite loops from re-triggering
+        if (!currentIsInAvailable && !hasAutoSelectedAgentRef.current) {
+          hasAutoSelectedAgentRef.current = true;
+          const firstAgent = availableAgents[0];
+          const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+          _setSelectedAgentKeyWithRef(firstKey);
+          // Save to storage for persistence
+          ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+            console.error('Failed to save auto-selected agent:', error);
+          });
+          return;
+        }
+
+        // Current selection is valid or already auto-selected, try to restore saved preference
+        // Only restore if it's different from current selection
         const savedAgentKey = await ConfigStorage.get('guid.lastSelectedAgent');
-        if (cancelled || !savedAgentKey) return;
+        if (cancelled || !savedAgentKey || savedAgentKey === currentKey) return;
 
         const isInAvailable = availableAgents.some((agent) => {
           const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
@@ -228,7 +279,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         });
 
         if (isInAvailable) {
-          _setSelectedAgentKey(savedAgentKey);
+          _setSelectedAgentKeyWithRef(savedAgentKey);
         }
       } catch (error) {
         console.error('Failed to load last selected agent:', error);
@@ -240,7 +291,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     return () => {
       cancelled = true;
     };
-  }, [availableAgents, assistantFromUrl]);
+  }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
 
   // Load custom agents + extension-contributed assistants
   useEffect(() => {
@@ -692,14 +743,38 @@ This identity statement takes priority over the default identity in USER.md.
   }, []);
 
   // Reset agent selection to default state (no assistant selected)
+  // In enterprise mode, directly select the first available agent (remote-agent)
+  // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
-    _setSelectedAgentKey('openclaw-gateway');
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
+    hasAutoSelectedAgentRef.current = false;
     // Clear persisted agent key so it won't be restored on next mount
     ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
       console.error('Failed to clear saved agent:', error);
     });
+
+    // Check if openclaw-gateway is available (non-enterprise mode)
+    // If not available (enterprise mode), select first available agent directly
+    const agents = availableAgentsRef.current;
+    const openclawAvailable = agents?.some((a) => a.backend === 'openclaw-gateway');
+    if (openclawAvailable) {
+      _setSelectedAgentKey('openclaw-gateway');
+      selectedAgentKeyRef.current = 'openclaw-gateway';
+    } else if (agents && agents.length > 0) {
+      // Enterprise mode: select first available agent (remote-agent)
+      const firstAgent = agents[0];
+      const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+      _setSelectedAgentKey(firstKey);
+      selectedAgentKeyRef.current = firstKey;
+      ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+        console.error('Failed to save auto-selected agent:', error);
+      });
+    } else {
+      // No agents available yet, set default and let auto-selection handle it later
+      _setSelectedAgentKey('openclaw-gateway');
+      selectedAgentKeyRef.current = 'openclaw-gateway';
+    }
   }, []);
 
   return {

@@ -7,7 +7,7 @@
 import { ipcBridge } from '../../common';
 import type { IConfirmation } from '../../common/chatLib';
 
-type AgentType = 'acp' | 'openclaw-gateway';
+type AgentType = 'acp' | 'openclaw-gateway' | 'remote-agent';
 
 /**
  * Base class for agent runtime instances (ACP and OpenClaw).

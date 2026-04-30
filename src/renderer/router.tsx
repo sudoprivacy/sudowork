@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
+const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/About'));
 const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/DisplaySettings'));
@@ -59,6 +60,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route index element={<Navigate to='/guid' replace />} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
+          <Route path='/moss-session/:sessionId' element={withRouteFallback(MossSessionPage)} />
           <Route path='/settings/gemini' element={withRouteFallback(GeminiSettings)} />
           <Route path='/settings/model' element={withRouteFallback(ModeSettings)} />
           <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />

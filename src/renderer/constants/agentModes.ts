@@ -69,6 +69,11 @@ export const AGENT_MODES: Record<string, AgentModeOption[]> = {
     { value: 'default', label: 'Default' },
     { value: 'yolo', label: 'YOLO' },
   ],
+  // Enterprise mode: Moss Server / Remote Agent
+  'remote-agent': [
+    { value: 'default', label: 'Default' },
+    { value: 'yolo', label: 'YOLO' },
+  ],
 };
 
 /**

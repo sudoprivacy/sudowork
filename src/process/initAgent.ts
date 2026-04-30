@@ -152,3 +152,42 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
     id: uuid(),
   };
 };
+
+/**
+ * Create Remote Agent conversation (Moss Server enterprise mode)
+ * Remote agent doesn't need CLI detection - connection is established lazily when sendMessage is called
+ */
+export const createRemoteAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  const { extra } = options;
+  const tempName = `moss-temp-${Date.now()}`;
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+
+  return {
+    type: 'remote-agent',
+    extra: {
+      workspace: workspace,
+      customWorkspace,
+      // Moss Server specific fields
+      mossServerUrl: extra.mossServerUrl,
+      authToken: extra.authToken,
+      username: extra.username,
+      password: extra.password,
+      runtimeType: extra.runtimeType,
+      dangerouslySkipPermissions: extra.dangerouslySkipPermissions,
+      // Agent identification
+      agentName: extra.agentName,
+      customAgentId: extra.customAgentId,
+      presetAssistantId: extra.presetAssistantId,
+      presetContext: extra.presetContext,
+      enabledSkills: extra.enabledSkills,
+      sessionMode: extra.sessionMode,
+      // Cron job metadata
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
+    },
+    createTime: Date.now(),
+    modifyTime: Date.now(),
+    name: workspace,
+    id: uuid(),
+  };
+};

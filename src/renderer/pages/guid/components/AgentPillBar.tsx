@@ -7,7 +7,8 @@
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import type { AcpBackend, AvailableAgent } from '../types';
+import type { AvailableAgent } from '../types';
+import type { AcpBackendAll } from '@/types/acpTypes';
 import { Robot } from '@icon-park/react';
 import React from 'react';
 import styles from '../index.module.css';
@@ -15,7 +16,7 @@ import styles from '../index.module.css';
 type AgentPillBarProps = {
   availableAgents: AvailableAgent[];
   selectedAgentKey: string;
-  getAgentKey: (agent: { backend: AcpBackend; customAgentId?: string }) => string;
+  getAgentKey: (agent: { backend: AcpBackendAll; customAgentId?: string }) => string;
   onSelectAgent: (key: string) => void;
 };
 
@@ -27,6 +28,8 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
   const getAgentPriority = (agent: AvailableAgent): number => {
     const backend = agent.backend;
     switch (backend) {
+      case 'remote-agent':
+        return -1; // Moss Server (enterprise) - highest priority
       case 'openclaw-gateway':
         return 0;
       case 'claude':
