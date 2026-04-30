@@ -26,8 +26,8 @@ const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 /** Sudo Code runtime directory for the managed scode CLI */
 const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 
-/** Priority bin directories for CLI detection */
-const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SCODE_BIN_DIR, SUDOCLAW_BIN_DIR];
+/** Priority bin directories for CLI detection (scode first to prefer ~/.nexus/sudocode over ~/.nexus/bin) */
+const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
 
 interface DetectedAgent {
   backend: AcpBackendAll;
