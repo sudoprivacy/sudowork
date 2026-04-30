@@ -95,7 +95,7 @@ describe('createConversationParams', () => {
     expect(params.extra.agentName).toBe('Codebuddy Assistant'); // agentName should be set for placeholder display
   });
 
-  it('injects identity prefix when rules lack explicit identity', async () => {
+  it('normalizes legacy sudoclaw presets to scode ACP conversations', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'Some generic rules without identity',
       skills: '',
@@ -114,7 +114,8 @@ describe('createConversationParams', () => {
       'zh-CN'
     );
 
-    expect(params.type).toBe('openclaw-gateway');
+    expect(params.type).toBe('acp');
+    expect(params.extra.backend).toBe('scode');
     // Should inject identity override block for rules without explicit identity
     expect(params.extra.presetContext).toContain('[Identity Override - 最高优先级]');
     expect(params.extra.presetContext).toContain('你的身份是：自定义助手');

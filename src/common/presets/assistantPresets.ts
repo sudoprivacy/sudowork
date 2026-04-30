@@ -58,7 +58,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'star-office-helper',
     avatar: '📺',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/star-office-helper',
     ruleFiles: {
       'en-US': 'star-office-helper.md',
@@ -81,7 +81,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'openclaw-setup',
     avatar: '🦞',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/openclaw-setup',
     ruleFiles: {
       'en-US': 'openclaw-setup.md',
@@ -104,7 +104,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'cowork',
     avatar: 'cowork.svg',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/cowork',
     ruleFiles: {
       'en-US': 'cowork.md',
@@ -131,7 +131,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'pptx-generator',
     avatar: '📊',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/pptx-generator',
     ruleFiles: {
       'en-US': 'pptx-generator.md',
@@ -153,7 +153,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'pdf-to-ppt',
     avatar: '📄',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/pdf-to-ppt',
     ruleFiles: {
       'en-US': 'pdf-to-ppt.md',
@@ -175,7 +175,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'game-3d',
     avatar: '🎮',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/game-3d',
     ruleFiles: {
       'en-US': 'game-3d.md',
@@ -197,7 +197,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'ui-ux-pro-max',
     avatar: '🎨',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/ui-ux-pro-max',
     ruleFiles: {
       'en-US': 'ui-ux-pro-max.md',
@@ -219,7 +219,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'planning-with-files',
     avatar: '📋',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/planning-with-files',
     ruleFiles: {
       'en-US': 'planning-with-files.md',
@@ -241,7 +241,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'human-3-coach',
     avatar: '🧭',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/human-3-coach',
     ruleFiles: {
       'en-US': 'human-3-coach.md',
@@ -263,7 +263,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'social-job-publisher',
     avatar: '📣',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/social-job-publisher',
     ruleFiles: {
       'en-US': 'social-job-publisher.md',
@@ -290,7 +290,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'moltbook',
     avatar: '🦞',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/moltbook',
     ruleFiles: {
       'en-US': 'moltbook.md',
@@ -317,7 +317,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'beautiful-mermaid',
     avatar: '📈',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/beautiful-mermaid',
     ruleFiles: {
       'en-US': 'beautiful-mermaid.md',
@@ -340,7 +340,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'copilot',
     avatar: '🧭',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/copilot',
     ruleFiles: {
       'en-US': 'copilot.md',
@@ -362,7 +362,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'story-roleplay',
     avatar: '📖',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/story-roleplay',
     ruleFiles: {
       'en-US': 'story-roleplay.md',
@@ -423,7 +423,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'jiansheku',
     avatar: '🏗️',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/jiansheku',
     ruleFiles: {
       'en-US': 'jiansheku.md',
@@ -450,7 +450,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'ui-designer',
     avatar: '✨',
-    presetAgentType: 'sudoclaw',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/ui-designer',
     ruleFiles: {
       'en-US': 'ui-designer.md',

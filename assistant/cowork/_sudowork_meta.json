@@ -20,7 +20,7 @@
       "提取并总结所有 PDF 文件的关键信息"
     ]
   },
-  "presetAgentType": "sudoclaw",
+  "presetAgentType": "scode",
   "avatar": "cowork.svg",
   "ruleFile": "cowork.md",
   "defaultEnabledSkills": [

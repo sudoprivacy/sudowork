@@ -16,7 +16,7 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from '@/renderer/pages/settings/assistantSkillSelection';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
 import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
 import classNames from 'classnames';
@@ -182,13 +182,7 @@ const InstalledAssistantCard: React.FC<{
             <Shield size='15' />
           </div>
         ) : (
-          <Popconfirm
-            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
-            onOk={onDelete}
-            okText={t('common.delete', { defaultValue: '删除' })}
-            cancelText={t('common.cancel', { defaultValue: '取消' })}
-            okButtonProps={{ status: 'danger' }}
-          >
+          <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
             <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-danger'>
               <Delete size='13' />
               <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.delete', { defaultValue: '删除' })}</span>
@@ -601,7 +595,7 @@ const AgentModalContent: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editContext, setEditContext] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  const [editAgent, setEditAgent] = useState<string>('sudoclaw');
+  const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
@@ -1141,7 +1135,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
             avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
-            presetAgentType: 'sudoclaw',
+            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateAssistant.skills || [],
@@ -1180,7 +1174,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': customName },
             descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
             avatar: duplicateInstalledAssistant.avatar,
-            presetAgentType: 'sudoclaw',
+            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
             enabled: true,
             source_type: 'custom',
             enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
@@ -1300,7 +1294,7 @@ const AgentModalContent: React.FC = () => {
     setEditName(assistant.nameI18n?.[localeKey] || assistant.name || '');
     setEditDescription(assistant.descriptionI18n?.[localeKey] || assistant.description || '');
     setEditAvatar(assistant.avatar || '');
-    setEditAgent(assistant.presetAgentType || 'sudoclaw');
+    setEditAgent(normalizePresetAgentType(assistant.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE);
     setEditVisible(true);
 
     if (isExtensionAssistant(assistant)) {
@@ -1331,7 +1325,7 @@ const AgentModalContent: React.FC = () => {
     setEditDescription('');
     setEditContext('');
     setEditAvatar('🤖');
-    setEditAgent('sudoclaw');
+    setEditAgent(DEFAULT_PRESET_AGENT_TYPE);
     setSelectedSkills([]);
     setPromptViewMode('edit');
     setEditVisible(true);
@@ -1358,7 +1352,7 @@ const AgentModalContent: React.FC = () => {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: 'sudoclaw',
+            presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
             enabled: true,
             source_type: 'custom',
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
@@ -1372,14 +1366,14 @@ const AgentModalContent: React.FC = () => {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
 
-        // For custom assistants, save all fields (presetAgentType always locked to sudoclaw)
+        // For custom assistants, save all fields (presetAgentType stays locked to Sudo Code)
         await ipcBridge.assistantHub.updateAssistantMeta.invoke({
           name: lookupName,
           updates: {
             nameI18n: { 'zh-CN': editName },
             descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
             avatar: editAvatar,
-            presetAgentType: 'sudoclaw',
+            presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
           },
         });
@@ -1721,12 +1715,12 @@ const AgentModalContent: React.FC = () => {
               <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: 'What can this assistant help with?' })} />
             </div>
 
-            {/* Main Agent - locked to SudoClaw */}
+            {/* Main Agent - locked to Sudo Code */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value='sudoclaw' disabled>
-                <Select.Option key='sudoclaw' value='sudoclaw'>
-                  SudoClaw
+              <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+                <Select.Option key='scode' value='scode'>
+                  Sudo Code
                 </Select.Option>
               </Select>
             </div>

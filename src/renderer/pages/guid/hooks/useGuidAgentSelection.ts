@@ -10,6 +10,7 @@ import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/constants/agentModes';
@@ -101,7 +102,7 @@ type UseGuidAgentSelectionOptions = {
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
 export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -568,10 +569,10 @@ This identity statement takes priority over the default identity in USER.md.
 
   const resolvePresetAgentType = useCallback(
     (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined): string => {
-      if (!agentInfo) return 'claude';
+      if (!agentInfo) return DEFAULT_PRESET_AGENT_TYPE;
       if (agentInfo.backend !== 'custom') return agentInfo.backend as string;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.presetAgentType || 'claude';
+      return resolvePresetAgentBackend(customAgent?.presetAgentType);
     },
     [customAgents]
   );
@@ -592,9 +593,14 @@ This identity statement takes priority over the default identity in USER.md.
   // --- Availability checks ---
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      // Sudoclaw preset type maps to openclaw-gateway backend
-      const actualBackend = agentType === 'sudoclaw' ? 'openclaw-gateway' : agentType;
-      return availableAgents?.some((agent) => agent.backend === actualBackend) ?? false;
+      const actualBackend = resolvePresetAgentBackend(agentType);
+      return (
+        availableAgents?.some((agent) => {
+          if (agent.backend !== actualBackend) return false;
+          if (actualBackend === 'scode') return !!agent.cliPath;
+          return true;
+        }) ?? false
+      );
     },
     [availableAgents]
   );
@@ -702,7 +708,7 @@ This identity statement takes priority over the default identity in USER.md.
 
   // Reset agent selection to default state (no assistant selected)
   const resetSelection = useCallback(() => {
-    _setSelectedAgentKey('openclaw-gateway');
+    _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
     // Clear persisted agent key so it won't be restored on next mount

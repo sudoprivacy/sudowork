@@ -17,7 +17,8 @@ import { ProcessConfig } from '@/process/initStorage';
 import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { getSudoclawCliPath, SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
+import { getScodePath } from '@/process/services/scode/ScodeInstallService';
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
@@ -266,16 +267,16 @@ class AcpDetector {
       }
     }
 
-    // 始终展示 Sudoclaw（不依赖探测，避免安装完成后需重启才显示的问题）
-    // Always show Sudoclaw (no detection; avoids icon missing until restart after install)
-    const sudoclawDetected = detected.some((agent) => agent.backend === 'openclaw-gateway');
-    if (!sudoclawDetected) {
+    // 始终展示 Sudo Code（不依赖探测，避免安装完成后需重启才显示的问题）
+    // Always show Sudo Code (no detection; avoids icon missing until restart after install)
+    const scodeDetected = detected.some((agent) => agent.backend === 'scode');
+    if (!scodeDetected) {
       detected.unshift({
-        backend: 'openclaw-gateway',
-        name: 'Sudoclaw',
-        cliPath: getSudoclawCliPath() ?? undefined,
-        acpArgs: ['gateway'],
-        presetAgentType: 'sudoclaw',
+        backend: 'scode',
+        name: 'Sudo Code',
+        cliPath: getScodePath() ?? undefined,
+        acpArgs: ['acp'],
+        presetAgentType: 'scode',
       });
     }
 

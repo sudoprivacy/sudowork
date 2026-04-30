@@ -86,14 +86,16 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const { rules: presetRules } = await resolvePresetRulesAndSkills(agentInfo);
     const enabledSkills = resolveEnabledSkills(agentInfo);
+    const scodeAgentInfo = findAgentByKey('scode');
+    const hasScodeCli = Boolean(scodeAgentInfo?.cliPath);
 
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
       // Only fallback within the same routing category:
       // ACP types (claude, qwen, codebuddy, etc.) can fallback to each other,
-      // but never to sudoclaw (OpenClaw Gateway) — they have different capabilities.
+      // but never to OpenClaw Gateway — it has different capabilities.
       const fallback = getAvailableFallbackAgent();
-      const isSameCategory = fallback && fallback !== 'sudoclaw' && effectiveAgentType !== 'sudoclaw';
+      const isSameCategory = fallback && fallback !== 'openclaw-gateway' && effectiveAgentType !== 'openclaw-gateway';
       if (fallback && fallback !== effectiveAgentType && isSameCategory) {
         finalEffectiveAgentType = fallback;
         Message.info(
@@ -106,12 +108,31 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-    // OpenClaw Gateway path (sudoclaw backend or preset with sudoclaw agent type)
-    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'sudoclaw') {
-      const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+    if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
+      const gatewayAgentInfo = findAgentByKey('openclaw-gateway');
+      if (gatewayAgentInfo) {
+        Message.info(
+          t('guid.autoSwitchedAgent', {
+            defaultValue: 'scode is not available, switched to openclaw-gateway',
+            from: 'scode',
+            to: 'openclaw-gateway',
+          })
+        );
+        finalEffectiveAgentType = 'openclaw-gateway';
+      } else {
+        Message.error(
+          t('guid.agentNotAvailable', {
+            defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
+          })
+        );
+        return;
+      }
+    }
 
-      // For sudoclaw preset, find the openclaw-gateway agent info
-      const actualAgentInfo = finalEffectiveAgentType === 'sudoclaw' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
+    // OpenClaw Gateway path (explicit gateway selection or preset that still routes to gateway)
+    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'openclaw-gateway') {
+      const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+      const actualAgentInfo = finalEffectiveAgentType === 'openclaw-gateway' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
 
       try {
         const conversation = await ipcBridge.conversation.create.invoke({
