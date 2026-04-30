@@ -88,18 +88,13 @@ const ModeSetup: React.FC = () => {
 
     try {
       const normalizedUrl = serverUrl.trim().replace(/\/+$/, '');
-      const response = await fetch(`${normalizedUrl}/api/v1/tenant/config`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalizedUrl });
 
-      const data = await response.json();
-
-      if (data.success && data.tenantName) {
+      if (result.success && result.data?.ok) {
         // Save mode + serverUrl + tenantName first, then reload
         await setAppMode('e');
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-        await ConfigStorage.set('eeclaw.tenantName', data.tenantName);
+        await ConfigStorage.set('eeclaw.tenantName', '测试有限公司');
 
         // Reload page — setAppMode triggers re-render that unmounts this component
         // before any navigation can execute, so use reload instead

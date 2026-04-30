@@ -9,6 +9,60 @@ import { ProcessConfig } from '@process/initStorage';
 import { mainWarn } from '@process/utils/mainLogger';
 
 export function initEeclawBridge(): void {
+  ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
+    try {
+      const response = await fetch(`${serverUrl}/healthz`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, data: { ok: !!data.ok } };
+      }
+      return { success: false, error: 'server_error' as const, data: undefined };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'verifyServer error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
+    try {
+      const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: (data?.error || 'login_failed') as string, data: undefined };
+      }
+
+      return {
+        success: true,
+        data: {
+          access_token: data.access_token,
+          expires_in: data.expires_in,
+          user: {
+            id: data.user.id,
+            name: data.user.name,
+            role: data.user.role,
+            orgId: data.user.orgId,
+          },
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'login error:', error);
+      return { success: false, error: 'network_error' as string, data: undefined };
+    }
+  });
+
   ipcBridge.eeclaw.getCloudAssistants.provider(async () => {
     try {
       const serverUrl = await ProcessConfig.get('eeclaw.serverUrl');

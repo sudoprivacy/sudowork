@@ -50,7 +50,7 @@ const LoginPage: React.FC = () => {
   const [loginTab, setLoginTab] = useState<'password' | 'key'>('password');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [publicKey, setPublicKey] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [tenantName, setTenantName] = useState<string>('');
 
   // 从 localStorage 读取缓存的租户配置
@@ -190,13 +190,13 @@ const LoginPage: React.FC = () => {
           setLoading(false);
         }
       } else {
-        if (!publicKey.trim()) {
-          Message.warning('请输入密钥');
+        if (!apiKey.trim()) {
+          Message.warning('请输入 API Key');
           return;
         }
         setLoading(true);
         try {
-          const result = await enterpriseLogin({ public_key: publicKey.trim() });
+          const result = await enterpriseLogin({ api_key: apiKey.trim() });
           if (result.success) {
             setTimeout(() => navigate('/guid', { replace: true }), 300);
           } else {
@@ -437,8 +437,8 @@ const LoginPage: React.FC = () => {
               </>
             ) : (
               <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-t-secondary ml-4px'>公钥</div>
-                <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='请输入公钥' value={publicKey} onChange={setPublicKey} className='login-input !rd-12px h-48px' />
+                <div className='text-12px font-600 text-t-secondary ml-4px'>API Key</div>
+                <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             )}
 

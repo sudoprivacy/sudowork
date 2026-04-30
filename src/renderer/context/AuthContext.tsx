@@ -109,7 +109,7 @@ interface EnterpriseLoginParams {
 }
 
 interface EnterpriseLoginParamsByKey {
-  public_key: string;
+  api_key: string;
 }
 
 interface AuthContextValue {
@@ -203,11 +203,11 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
   return null;
 }
 
-// Map enterprise user to AuthUser compatible type
-function mapEnterpriseUser(enterpriseUser: { id: string; username: string; role?: string }, token?: string): AuthUser {
+// Map MOSS enterprise user to AuthUser compatible type
+function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: string }, token?: string): AuthUser {
   return {
     id: enterpriseUser.id,
-    nickname: enterpriseUser.username, // enterprise user has no nickname, use username
+    nickname: enterpriseUser.name,
     role: (enterpriseUser.role as AuthUser['role']) || 'USER',
     status: 1, // default active
     token,
@@ -326,51 +326,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   // Token 刷新函数 — supports both C-side and enterprise mode
   const refreshTokens = useCallback(async (): Promise<boolean> => {
-    // Enterprise mode: refresh from enterprise server
+    // Enterprise mode: MOSS uses JWT without refresh, token expiry requires re-login
     const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
     if (eeclawStored) {
-      try {
-        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
-        const { refresh_token, device_id } = authStorage;
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (!serverUrl) return false;
-
-        const response = await fetch(`${serverUrl}/api/v1/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token, device_id }),
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          const newStorage: EeclawAuthStorage = {
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-            expires_at: Date.now() + data.expires_in * 1000,
-            user: authStorage.user,
-            device_id: device_id || getDeviceId(),
-          };
-          localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(newStorage));
-          setUser({ ...authStorage.user, token: data.access_token });
-          console.log('[Auth] Enterprise token refreshed successfully');
-
-          // Sync token to ConfigStorage for eeclawBridge
-          try {
-            await ConfigStorage.set('eeclaw.authStorage', {
-              access_token: data.access_token,
-              refresh_token: data.refresh_token,
-              expires_at: newStorage.expires_at,
-              device_id: newStorage.device_id,
-            });
-          } catch (e) {
-            console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage:', e);
-          }
-
-          return true;
-        }
-      } catch (error) {
-        console.error('[Auth] Enterprise token refresh failed:', error);
-      }
       return false;
     }
 
@@ -744,32 +702,36 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       const deviceId = getDeviceId();
-      const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-Id': deviceId,
-        },
-        body: JSON.stringify(params),
+      // Build MOSS-compatible request body with grant_type
+      const isApiKeyLogin = 'api_key' in params;
+      const requestBody = isApiKeyLogin
+        ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key }
+        : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
+
+      // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
+      const result = await ipcBridge.eeclaw.login.invoke({
+        serverUrl,
+        body: requestBody,
+        deviceId,
       });
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
+      if (!result.success || !result.data) {
         return {
           success: false,
-          message: data?.msg || data?.message || '登录失败',
+          message: result.error === 'network_error' ? '连接到企业服务器失败' : (result.error || '登录失败'),
           code: 'invalidCredentials',
         };
       }
 
-      // Map enterprise user to AuthUser compatible type
-      const mappedUser = mapEnterpriseUser(data.user, data.token);
+      const data = result.data;
+
+      // Map MOSS user to AuthUser compatible type
+      const mappedUser = mapEnterpriseUser(data.user, data.access_token);
 
       // Save to localStorage (eeclaw_auth_v1, separate from C-side)
       const eeclawAuthStorage: EeclawAuthStorage = {
-        access_token: data.token,
-        refresh_token: data.refresh_token,
+        access_token: data.access_token,
+        refresh_token: '',
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         user: mappedUser,
         device_id: deviceId,
@@ -780,7 +742,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         await ConfigStorage.set('eeclaw.userInfo', {
           id: data.user.id,
-          username: data.user.username,
+          username: data.user.name,
           role: data.user.role,
         });
       } catch (e) {
@@ -790,8 +752,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // Sync token to ConfigStorage for eeclawBridge
       try {
         await ConfigStorage.set('eeclaw.authStorage', {
-          access_token: data.token,
-          refresh_token: data.refresh_token,
+          access_token: data.access_token,
+          refresh_token: '',
           expires_at: eeclawAuthStorage.expires_at,
           device_id: deviceId,
         });
@@ -800,8 +762,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         // Retry once
         try {
           await ConfigStorage.set('eeclaw.authStorage', {
-            access_token: data.token,
-            refresh_token: data.refresh_token,
+            access_token: data.access_token,
+            refresh_token: '',
             expires_at: eeclawAuthStorage.expires_at,
             device_id: deviceId,
           });
