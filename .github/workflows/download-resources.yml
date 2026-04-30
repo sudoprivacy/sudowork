@@ -64,11 +64,6 @@ jobs:
         env:
           npm_config_arch: ${{ matrix.arch }}
 
-      - name: Build openclaw
-        run: node scripts/download-openclaw.js --force
-        env:
-          npm_config_arch: ${{ matrix.arch }}
-
       - name: List resources
         shell: bash
         run: ls -lh resources/*.tgz
@@ -80,7 +75,6 @@ jobs:
           path: |
             resources/claude-code.tgz
             resources/gemini-cli.tgz
-            resources/*-sudoclaw-*.tgz
           retention-days: 7
 
   create-release:
@@ -121,22 +115,18 @@ jobs:
           # macOS arm64
           cp tmp/macos-arm64/claude-code.tgz release-assets/claude-code-macos-arm64.tgz
           cp tmp/macos-arm64/gemini-cli.tgz release-assets/gemini-cli-macos-arm64.tgz
-          cp tmp/macos-arm64/*-sudoclaw-*.tgz release-assets/openclaw-macos-arm64.tgz
 
           # macOS x64
           cp tmp/macos-x64/claude-code.tgz release-assets/claude-code-macos-x64.tgz
           cp tmp/macos-x64/gemini-cli.tgz release-assets/gemini-cli-macos-x64.tgz
-          cp tmp/macos-x64/*-sudoclaw-*.tgz release-assets/openclaw-macos-x64.tgz
 
           # Windows x64
           cp tmp/windows-x64/claude-code.tgz release-assets/claude-code-windows-x64.tgz
           cp tmp/windows-x64/gemini-cli.tgz release-assets/gemini-cli-windows-x64.tgz
-          cp tmp/windows-x64/*-sudoclaw-*.tgz release-assets/openclaw-windows-x64.tgz
 
           # Windows arm64
           cp tmp/windows-arm64/claude-code.tgz release-assets/claude-code-windows-arm64.tgz
           cp tmp/windows-arm64/gemini-cli.tgz release-assets/gemini-cli-windows-arm64.tgz
-          cp tmp/windows-arm64/*-sudoclaw-*.tgz release-assets/openclaw-windows-arm64.tgz
 
       - name: List release assets
         run: ls -lh release-assets/
@@ -152,10 +142,10 @@ jobs:
 
             | Platform | Arch | Files |
             |----------|------|-------|
-            | macOS | arm64 | claude-code-macos-arm64.tgz, gemini-cli-macos-arm64.tgz, openclaw-macos-arm64.tgz |
-            | macOS | x64 | claude-code-macos-x64.tgz, gemini-cli-macos-x64.tgz, openclaw-macos-x64.tgz |
-            | Windows | x64 | claude-code-windows-x64.tgz, gemini-cli-windows-x64.tgz, openclaw-windows-x64.tgz |
-            | Windows | arm64 | claude-code-windows-arm64.tgz, gemini-cli-windows-arm64.tgz, openclaw-windows-arm64.tgz |
+            | macOS | arm64 | claude-code-macos-arm64.tgz, gemini-cli-macos-arm64.tgz |
+            | macOS | x64 | claude-code-macos-x64.tgz, gemini-cli-macos-x64.tgz |
+            | Windows | x64 | claude-code-windows-x64.tgz, gemini-cli-windows-x64.tgz |
+            | Windows | arm64 | claude-code-windows-arm64.tgz, gemini-cli-windows-arm64.tgz |
           files: release-assets/*
           draft: false
           prerelease: true

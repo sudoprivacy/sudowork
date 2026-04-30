@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import { ConfigStorage, type TChatConversation } from '@/common/storage';
-import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll, type AcpBackendConfig } from '@/types/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
 
-// Sentinel for "no assistant selected" (default → Sudoclaw). Using an explicit
+// Sentinel for "no assistant selected" (default → Sudo Code). Using an explicit
 // sentinel instead of '' because Arco Select treats empty string as unset and
 // won't reliably fire onChange when switching back to it.
 const DEFAULT_ASSISTANT = '__default__';
@@ -148,7 +148,7 @@ const CronJobDetail: React.FC<{
   const assistants = useAssistantsForCron();
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
-  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudoclaw' : 'Sudoclaw';
+  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudo Code' : 'Sudo Code';
 
   return (
     <div className='space-y-24px'>
@@ -376,12 +376,12 @@ const CronJobFormDrawer: React.FC<{
       // that conversation — ignore the form values.
       const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
 
-      // Derive agentType from selected assistant's presetAgentType; default to openclaw-gateway (Sudoclaw)
+      // Derive agentType from selected assistant's presetAgentType; default to scode
       const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
       const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
       const selectedAssistant = effectiveAssistantId ? assistants.find((a) => a.id === effectiveAssistantId) : undefined;
-      const presetAgentType = selectedAssistant?.presetAgentType || 'sudoclaw';
-      const agentType = (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackendAll;
+      const presetAgentType = selectedAssistant?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
+      const agentType = resolvePresetAgentBackend(presetAgentType) as AcpBackendAll;
 
       // For reuse mode, allow optionally binding an existing conversation so the
       // very first run appends to it. New mode ignores the picker entirely.
@@ -604,7 +604,7 @@ const CronJobFormDrawer: React.FC<{
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
                   <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
-                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
+                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
                     </Select.Option>
                     {assistants.map((a) => (
                       <Select.Option key={a.id} value={a.id}>

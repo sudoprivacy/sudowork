@@ -170,6 +170,16 @@ export interface IConfigStorageRefer {
   'telemetry.serverUrl'?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
   'telemetry.installId'?: string; // 安装 ID / Install ID
   'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
+  // App mode: 'c' for consumer, 'e' for enterprise, undefined = not set (new user)
+  'system.appMode'?: 'c' | 'e';
+  // Enterprise server URL / 企业服务器地址
+  'eeclaw.serverUrl'?: string;
+  // Enterprise tenant name / 企业租户名称
+  'eeclaw.tenantName'?: string;
+  // Enterprise user info / 企业用户信息
+  'eeclaw.userInfo'?: { id: string; username: string; role?: string };
+  // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
+  'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string };
 }
 
 export interface IEnvStorageRefer {

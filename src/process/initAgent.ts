@@ -5,6 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
+import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
@@ -48,6 +49,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const currentModelId = extra.currentModelId || getDefaultAcpModelId(extra.backend) || undefined;
   return {
     type: 'acp',
     extra: {
@@ -66,7 +68,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       // Initial session mode selected on Guid page (from AgentModeSelector)
       sessionMode: extra.sessionMode,
       // Pre-selected model from Guid page (cached model list)
-      currentModelId: extra.currentModelId,
+      currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
       // Cron job metadata (set when conversation is created by a cron execution)
@@ -107,7 +109,11 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
     await fs.mkdir(resolvedWorkspace, { recursive: true });
   }
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
-  const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
+  // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
+  // not from the per-session temp directory. The temp workspace is only for task-specific files;
+  // identity and memory persist in the parent workspace across all sessions.
+  const sharedWorkspaceRoot = getSudoclawWorkspaceRoot();
+  const expectedIdentityHash = await computeOpenClawIdentityHash(sharedWorkspaceRoot);
 
   const stateDir = SUDOCLAW_DIR;
 

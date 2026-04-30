@@ -142,7 +142,7 @@ jobs:
       - name: Build safety hook
         run: bun run hook:build
 
-      - name: Download CLI resources (Node.js, Nexus, Claude Code, OpenClaw, Bdpan, Mcporter)
+      - name: Download CLI resources (Node.js, Nexus, Claude Code, Bdpan, Mcporter)
         shell: bash
         run: |
           # Map CI platform to script platform format
@@ -159,7 +159,6 @@ jobs:
           node scripts/download-node.js "$PLATFORM"
           node scripts/download-nexus.js "$PLATFORM"
           node scripts/download-claude-code.js
-          node scripts/download-openclaw.js
           node scripts/download-bdpan.js "$PLATFORM"
           node scripts/download-mcporter.js
         env:

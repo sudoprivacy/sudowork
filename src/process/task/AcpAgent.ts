@@ -39,23 +39,14 @@ import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles } from './draftsCleanup';
+import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
-import {
-  startConversationTracking,
-  endConversationSuccess,
-  endConversationError,
-  endConversationUserCancel,
-} from '../telemetry';
+import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
-import {
-  conversationBreadcrumbs,
-  apiBreadcrumbs,
-  systemBreadcrumbs,
-  mcpBreadcrumbs,
-} from '../telemetry/BreadcrumbTracker';
+import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -729,6 +720,17 @@ This identity statement takes priority over the default identity in USER.md.
           contentToSend = contentToSend.split(NEXUS_FILES_MARKER)[0].trimEnd();
         }
 
+        if (data.files && data.files.length > 0) {
+          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
+          contentToSend = fileRefs + ' ' + contentToSend;
+        }
+
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        contentToSend = processed.text;
+        if (processed.images.length > 0) {
+          mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
+        }
+
         if (this.isFirstMessage) {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
@@ -737,7 +739,7 @@ This identity statement takes priority over the default identity in USER.md.
             presetAgentType: this.options.backend,
           });
 
-          if (this.options.backend === 'claude') {
+          if (this.options.backend === 'claude' || this.options.backend === 'scode') {
             const skillsDir = resolveWorkspaceSkillsDir({
               type: 'acp',
               extra: {
@@ -746,7 +748,16 @@ This identity statement takes priority over the default identity in USER.md.
               },
             });
             if (skillsDir) {
-              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
+              const linkedSkillNames = await fs.promises
+                .readdir(skillsDir, { withFileTypes: true })
+                .then((entries) =>
+                  entries
+                    .filter((entry) => entry.isSymbolicLink() || entry.isDirectory())
+                    .map((entry) => entry.name)
+                    .sort()
+                )
+                .catch((): string[] => []);
+              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir, linkedSkillNames);
             }
           }
         } else if (this.options.presetAssistantId && this.options.presetContext) {
@@ -763,17 +774,6 @@ This identity statement takes priority over the default identity in USER.md.
               contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
             }
           }
-        }
-
-        if (data.files && data.files.length > 0) {
-          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
-          contentToSend = fileRefs + ' ' + contentToSend;
-        }
-
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
-        contentToSend = processed.text;
-        if (processed.images.length > 0) {
-          mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
         }
 
         const agentSendStart = Date.now();
@@ -938,9 +938,13 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
-      // Inject model switch notice
-      if (this.pendingModelSwitchNotice && this.extra.backend === 'claude') {
-        const modelNotice = `<system-reminder>\n` + `Model switch: The active model has been changed to ${this.pendingModelSwitchNotice} via the /model command. ` + `You are now running as ${this.pendingModelSwitchNotice}. ` + `The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model. ` + `When asked which model you are, answer ${this.pendingModelSwitchNotice}.\n` + `</system-reminder>\n\n`;
+      const shouldInjectScodeStartupModelNotice = this.extra.backend === 'scode' && this.isFirstMessage && !this.pendingModelSwitchNotice;
+      const activeModelNoticeId = this.pendingModelSwitchNotice || (shouldInjectScodeStartupModelNotice ? this.getModelInfo()?.currentModelId || this.persistedModelId : null);
+
+      // Inject model identity reminder for backends whose upstream identity text can be stale.
+      if (activeModelNoticeId && (this.extra.backend === 'claude' || this.extra.backend === 'scode')) {
+        const staleIdentityHint = this.extra.backend === 'claude' ? 'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.' : 'Your built-in assistant identity or branding text may still mention Claude or Anthropic even when the actual active model is different.';
+        const modelNotice = `<system-reminder>\n` + `Active model: ${activeModelNoticeId}. ` + `You are currently running as ${activeModelNoticeId}. ` + `${staleIdentityHint} ` + `When asked which model you are, answer ${activeModelNoticeId}.\n` + `</system-reminder>\n\n`;
         processedContent = modelNotice + processedContent;
         this.pendingModelSwitchNotice = null;
       }
@@ -1045,14 +1049,17 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.confirmations = [];
 
-    // 4. Cancel the current turn (waits for backend to confirm, or kills after 3s)
-    let result: 'cancelled' | 'disconnected';
+    // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
+    // abandon the local wait but keep the session/process alive for the next turn.
+    let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
       result = await this.connection.cancel();
     } catch {
       await this.connection.disconnect();
       result = 'disconnected';
     }
+
+    this.status = 'finished';
 
     if (result === 'disconnected') {
       // Backend didn't respond to cancel — process was killed
@@ -1067,7 +1074,19 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: uuid(),
         data: null,
       });
+      return;
     }
+
+    if (result === 'abandoned') {
+      void this.handleSignalEvent({
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      });
+      return;
+    }
+
     // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
     // The finish event was already emitted by handleEndTurn() when the backend responded
   }
@@ -1148,9 +1167,10 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Model / Mode / Config API ==========
 
   getModelInfo(): AcpModelInfo | null {
+    let modelInfo: AcpModelInfo | null = null;
     if (!this.connection?.isConnected) {
       if (this.persistedModelId) {
-        return {
+        modelInfo = {
           source: 'models',
           currentModelId: this.persistedModelId,
           currentModelLabel: this.persistedModelId,
@@ -1158,9 +1178,15 @@ This identity statement takes priority over the default identity in USER.md.
           availableModels: [],
         };
       }
-      return null;
+    } else {
+      modelInfo = buildAcpModelInfo(this.connection.getConfigOptions(), this.connection.getModels());
     }
-    return buildAcpModelInfo(this.connection.getConfigOptions(), this.connection.getModels());
+
+    if (this.options.backend === 'scode') {
+      return mergeScodeProxyModelInfo(modelInfo, this.persistedModelId);
+    }
+
+    return modelInfo;
   }
 
   async setModel(modelId: string): Promise<AcpModelInfo | null> {
@@ -1200,6 +1226,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     this.userModelOverride = modelId;
     this.pendingModelSwitchNotice = modelId;
+    this.persistedModelId = modelId;
     return this.getModelInfo();
   }
 

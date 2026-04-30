@@ -18,7 +18,10 @@
  * 预设助手的主 Agent 类型，用于决定创建哪种类型的对话
  * The primary agent type for preset assistants, used to determine which conversation type to create.
  */
-export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | 'sudoclaw';
+export const DEFAULT_PRESET_AGENT_TYPE = 'scode' as const;
+export const LEGACY_SUDOCLAW_PRESET_AGENT_TYPE = 'sudoclaw' as const;
+
+export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -27,7 +30,7 @@ export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'ge
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen', 'sudoclaw'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen', 'scode', 'sudoclaw'] as const;
 
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;
@@ -43,6 +46,25 @@ export const CODEBUDDY_ACP_NPX_PACKAGE = '@tencent-ai/codebuddy-code';
  */
 export function isAcpRoutedPresetType(type: PresetAgentType | undefined): boolean {
   return type !== undefined && ACP_ROUTED_PRESET_TYPES.includes(type);
+}
+
+/**
+ * 将旧的 sudoclaw 预设类型归一化到 scode，便于新旧配置共存
+ * Normalize the legacy sudoclaw preset type to scode so old metadata still works.
+ */
+export function normalizePresetAgentType(type: string | undefined): string | undefined {
+  if (type === LEGACY_SUDOCLAW_PRESET_AGENT_TYPE) {
+    return DEFAULT_PRESET_AGENT_TYPE;
+  }
+  return type;
+}
+
+/**
+ * Resolve the runtime backend for a preset assistant.
+ * Falls back to the new scode default when metadata is missing.
+ */
+export function resolvePresetAgentBackend(type: string | undefined): AcpBackendAll {
+  return (normalizePresetAgentType(type) || DEFAULT_PRESET_AGENT_TYPE) as AcpBackendAll;
 }
 
 // 全部后端类型定义 - 包括暂时不支持的 / All backend types - including temporarily unsupported ones

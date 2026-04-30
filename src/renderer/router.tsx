@@ -1,7 +1,8 @@
 import React, { Suspense } from 'react';
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
+import { useAppMode, isModeResolved } from './hooks/useAppMode';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -25,6 +26,7 @@ const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
+const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
@@ -33,8 +35,19 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
   </Suspense>
 );
 
+// Enterprise-allowed settings paths
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/display', '/settings/system', '/settings/about'];
+
+// Mode-aware default settings route
+const SettingsDefaultRoute: React.FC = () => {
+  const { isEnterprise } = useAppMode();
+  return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/agent'} replace />;
+};
+
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
+  const { isEnterprise } = useAppMode();
+  const location = useLocation();
 
   if (status === 'checking') {
     return <AppLoader />;
@@ -42,6 +55,16 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 
   if (status !== 'authenticated') {
     return <Navigate to='/login' replace />;
+  }
+
+  // Wait for useAppMode async initialization to prevent route guard bypass on page refresh
+  if (!isModeResolved()) {
+    return <AppLoader />;
+  }
+
+  // Enterprise mode route guard: restrict access to allowed settings paths
+  if (isEnterprise && location.pathname.startsWith('/settings/') && !ENTERPRISE_ALLOWED_PATHS.includes(location.pathname)) {
+    return <Navigate to='/settings/enterprise' replace />;
   }
 
   return React.cloneElement(layout);
@@ -77,8 +100,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
           <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
+          <Route path='/settings/enterprise' element={withRouteFallback(EnterpriseSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
-          <Route path='/settings' element={<Navigate to='/settings/agent' replace />} />
+          <Route path='/settings' element={<SettingsDefaultRoute />} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
         <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />

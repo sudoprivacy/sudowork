@@ -17,16 +17,17 @@ import { ProcessConfig } from '@/process/initStorage';
 import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { getSudoclawCliPath, SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
+import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
+import { getScodePath } from '@/process/services/scode/ScodeInstallService';
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
-/** Sudo Code bin directory for scode CLI */
-const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode', 'bin');
+/** Sudo Code runtime directory for the managed scode CLI */
+const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 
-/** Priority bin directories for CLI detection */
-const PRIORITY_BIN_DIRS = [NEXUS_BIN_DIR, SCODE_BIN_DIR, SUDOCLAW_BIN_DIR];
+/** Priority bin directories for CLI detection (scode first to prefer ~/.nexus/sudocode over ~/.nexus/bin) */
+const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
 
 interface DetectedAgent {
   backend: AcpBackendAll;
@@ -164,8 +165,8 @@ class AcpDetector {
     }
 
     /**
-     * Check if CLI exists in priority bin directories first
-     * 优先检查 ~/.nexus/bin 等目录下是否存在 CLI（解决 macOS 环境变量问题）
+     * Check if CLI exists in priority runtime directories first
+     * 优先检查 ~/.nexus/bin、~/.nexus/sudocode 等目录下是否存在 CLI（解决 macOS 环境变量问题）
      */
     const findCliInPriorityDirs = (cliCommand: string): string | null => {
       for (const binDir of PRIORITY_BIN_DIRS) {
@@ -230,8 +231,8 @@ class AcpDetector {
     // 并行检测所有潜在的 ACP CLI（真正的并行 — isCliAvailable 现在是 async）
     // Truly parallel detection — isCliAvailable is now async, so all CLI checks run concurrently
     const detectionPromises = POTENTIAL_ACP_CLIS.map(async (cli) => {
-      // 优先检查 ~/.nexus/bin 等目录
-      // Check priority bin directories first
+      // 优先检查 ~/.nexus/bin、~/.nexus/sudocode 等目录
+      // Check priority runtime directories first
       const priorityCliPath = findCliInPriorityDirs(cli.cmd);
       if (priorityCliPath) {
         console.log(`[ACP] Found ${cli.cmd} in priority dir: ${priorityCliPath}`);
@@ -266,16 +267,16 @@ class AcpDetector {
       }
     }
 
-    // 始终展示 Sudoclaw（不依赖探测，避免安装完成后需重启才显示的问题）
-    // Always show Sudoclaw (no detection; avoids icon missing until restart after install)
-    const sudoclawDetected = detected.some((agent) => agent.backend === 'openclaw-gateway');
-    if (!sudoclawDetected) {
+    // 始终展示 Sudo Code（不依赖探测，避免安装完成后需重启才显示的问题）
+    // Always show Sudo Code (no detection; avoids icon missing until restart after install)
+    const scodeDetected = detected.some((agent) => agent.backend === 'scode');
+    if (!scodeDetected) {
       detected.unshift({
-        backend: 'openclaw-gateway',
-        name: 'Sudoclaw',
-        cliPath: getSudoclawCliPath() ?? undefined,
-        acpArgs: ['gateway'],
-        presetAgentType: 'sudoclaw',
+        backend: 'scode',
+        name: 'Sudo Code',
+        cliPath: getScodePath() ?? undefined,
+        acpArgs: ['acp'],
+        presetAgentType: 'scode',
       });
     }
 

@@ -1,0 +1,361 @@
+/* Mode Setup Page Styles */
+
+/* Window Controls Positioning — same as LoginPage */
+.mode-setup .app-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.mode-setup .app-window-controls__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.mode-setup .app-window-controls__button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.mode-setup .app-window-controls__button--close:hover {
+  background: #e81123 !important;
+  color: white !important;
+}
+
+[data-theme='dark'] .mode-setup .app-window-controls__button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .mode-setup .app-window-controls__button--close:hover {
+  background: #f1707a !important;
+  color: white !important;
+}
+
+.mode-setup {
+  -webkit-app-region: drag;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px 24px;
+  font-family:
+    -apple-system,
+    PingFang SC,
+    Microsoft YaHei;
+  background: linear-gradient(135deg, var(--aou-5) 0%, var(--aou-7) 100%);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.mode-setup__background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mode-setup__background-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--primary-light-1, rgba(99, 102, 241, 0.12)) 0%, transparent 70%);
+}
+
+.mode-setup__background-circle--lg {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  right: -150px;
+}
+
+.mode-setup__background-circle--sm {
+  width: 300px;
+  height: 300px;
+  bottom: -100px;
+  left: -100px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.1) 0%, transparent 70%);
+}
+
+.mode-setup__container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 36px 36px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 20px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e5e6eb;
+  animation: modeSetupSlideUp 0.5s ease-out;
+}
+
+.mode-setup__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.mode-setup__header h1 {
+  margin: 0 0 8px;
+  line-height: normal;
+}
+
+.mode-setup__header p {
+  margin: 0;
+}
+
+.mode-setup__logo {
+  width: 64px;
+  height: 64px;
+  object-contain;
+  margin-bottom: 20px;
+  animation: modeSetupPulse 3s infinite;
+}
+
+.mode-setup__cards {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+}
+
+.mode-setup__card {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 20px 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 2px solid #e5e6eb;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.mode-setup__card h3 {
+  margin: 0;
+}
+
+.mode-setup__card:hover {
+  border-color: var(--primary-light, #4080ff);
+  box-shadow: 0 0 0 3px rgba(22, 93, 253, 0.1);
+}
+
+.mode-setup__card--selected {
+  border-color: var(--primary, #165dfd);
+  background: var(--primary-bg, rgba(22, 93, 253, 0.08));
+  box-shadow: 0 0 0 3px rgba(22, 93, 253, 0.15);
+}
+
+.mode-setup__card__icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  color: #fff;
+}
+
+.mode-setup__card__icon svg {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+}
+
+.mode-setup__card:first-child .mode-setup__card__icon {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+}
+
+.mode-setup__card:last-child .mode-setup__card__icon {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+}
+
+.mode-setup__card__check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--primary-color, #6366f1);
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.mode-setup__card--selected .mode-setup__card__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.mode-setup__card__check svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+/* Enterprise form (expandable) — copied from prototype .enterprise-form */
+.mode-setup__form {
+  width: 100%;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.3s ease, margin-top 0.3s ease;
+  opacity: 0;
+  margin-top: 0;
+  -webkit-app-region: no-drag;
+}
+
+.mode-setup__form--visible {
+  max-height: 400px;
+  opacity: 1;
+  margin-top: 24px;
+}
+
+/* Consumer button — copied from prototype .personal-next */
+.mode-setup__btn--consumer.arco-btn {
+  margin-top: 24px !important;
+  animation: modeSetupFadeIn 0.3s ease-out;
+}
+
+/* Enterprise button — copied from prototype .setup-card__submit */
+.mode-setup__btn:not(.mode-setup__btn--consumer).arco-btn {
+  margin-top: 20px !important;
+}
+
+.mode-setup__verify-result {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-setup__verify-result--success {
+  background: rgba(82, 196, 26, 0.1);
+  color: rgb(82, 196, 26);
+}
+
+.mode-setup__verify-result--error {
+  background: rgba(245, 63, 63, 0.1);
+  color: rgb(245, 63, 63);
+}
+
+.mode-setup__btn.arco-btn {
+  width: 100% !important;
+  height: 52px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #165dfd, #8b5cf6) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+.mode-setup__btn.arco-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #165dfd, #8b5cf6) !important;
+  opacity: 0.9;
+}
+
+.mode-setup__btn.arco-btn:active:not(:disabled) {
+  opacity: 0.9;
+}
+
+.mode-setup__btn.arco-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #165dfd, #8b5cf6) !important;
+  color: #fff !important;
+}
+
+.arco-input.mode-setup__input {
+  height: 48px !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+  border: 1px solid #e5e6eb !important;
+  font-size: 14px;
+  background: #ffffff !important;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.arco-input.mode-setup__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.arco-input.mode-setup__input:focus {
+  border-color: var(--primary, #165dfd) !important;
+  box-shadow: 0 0 0 3px rgba(22, 93, 253, 0.15) !important;
+}
+
+.arco-input-wrapper:has(.mode-setup__input) {
+  height: 48px !important;
+  border-radius: 12px !important;
+}
+
+@keyframes modeSetupSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modeSetupPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes modeSetupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

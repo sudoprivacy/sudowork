@@ -5,13 +5,16 @@
  */
 
 import { ipcBridge } from '@/common';
+import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/constants/agentModes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
@@ -100,9 +103,9 @@ type UseGuidAgentSelectionOptions = {
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
 export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('openclaw-gateway');
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   // Track selectedAgentKey with ref to avoid dependency array cycles
-  const selectedAgentKeyRef = useRef<string>('openclaw-gateway');
+  const selectedAgentKeyRef = useRef<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   // Track availableAgents with ref for resetSelection to access
   const availableAgentsRef = useRef<AvailableAgent[] | undefined>(undefined);
@@ -117,6 +120,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
+  const { isEnterprise } = useAppMode();
 
   // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -202,7 +206,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // Derived state
   const selectedAgent = selectedAgentKey.startsWith('custom:') ? ('custom' as const) : (selectedAgentKey as AcpBackend);
-  const selectedAgentInfo = useMemo(() => findAgentByKey(selectedAgentKey), [selectedAgentKey, availableAgents, customAgents]);
+  const selectedAgentInfo = useMemo(() => findAgentByKey(selectedAgentKey), [selectedAgentKey, findAgentByKey]);
   const isPresetAgent = Boolean(selectedAgentInfo?.isPreset);
 
   const customAgentAvatarMap = useMemo(() => {
@@ -210,20 +214,41 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, [customAgents]);
 
   // --- SWR: Fetch available agents ---
-  const { data: availableAgentsData } = useSWR('acp.agents.available', async () => {
-    const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-    if (result.success) {
-      return result.data;
+  const swrKey = isEnterprise ? 'eeclaw.agents.cloud' : 'acp.agents.available';
+  const { data: availableAgentsData } = useSWR(swrKey, async () => {
+    if (isEnterprise) {
+      const result = await ipcBridge.eeclaw.getCloudAssistants.invoke();
+      return result.data ?? [];
     }
-    return [];
+    const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+    return result.data ?? [];
   });
 
   useEffect(() => {
-    if (availableAgentsData) {
-      setAvailableAgents(availableAgentsData);
-      availableAgentsRef.current = availableAgentsData;
+    if (availableAgentsData && Array.isArray(availableAgentsData)) {
+      if (isEnterprise) {
+        // Enterprise agents: { key, name }[] -> AvailableAgent format
+        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string }>;
+        const mapped: AvailableAgent[] = enterpriseAgents.map((a) => ({
+          backend: 'remote-agent' as AcpBackend,
+          name: a.name,
+          customAgentId: a.key,
+        }));
+        setAvailableAgents(mapped);
+        availableAgentsRef.current = mapped;
+      } else {
+        setAvailableAgents(availableAgentsData as AvailableAgent[]);
+        availableAgentsRef.current = availableAgentsData as AvailableAgent[];
+      }
     }
-  }, [availableAgentsData]);
+  }, [availableAgentsData, isEnterprise]);
+
+  // Enterprise mode: default to 'remote-agent' when agents are loaded
+  useEffect(() => {
+    if (isEnterprise && availableAgents && availableAgents.length > 0) {
+      _setSelectedAgentKey('remote-agent');
+    }
+  }, [isEnterprise, availableAgents]);
 
   // Load last selected agent (skip when URL parameter takes priority)
   // Auto-select first available agent if current selection is not valid (enterprise mode case)
@@ -295,6 +320,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // Load custom agents + extension-contributed assistants
   useEffect(() => {
+    if (isEnterprise) return; // 企业模式不需要本地自定义助手
     let isActive = true;
     Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([agents, extAssistants]) => {
@@ -353,7 +379,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     return () => {
       isActive = false;
     };
-  }, [availableCustomAgentIds]);
+  }, [isEnterprise, availableCustomAgentIds]);
 
   // Pre-select assistant from URL parameter (assistantFromUrl)
   useEffect(() => {
@@ -383,38 +409,39 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     };
   }, []);
 
-  // Probe Codex model info on first selection so the Guid page can show
-  // the real account-scoped models before the first conversation starts.
+  // Probe account/config-scoped model info on first selection so the Guid page
+  // can show switchable models before the first conversation starts.
   useEffect(() => {
-    if (selectedAgentKey !== 'codex') return;
-    if (probedModelBackendsRef.current.has('codex')) return;
+    const backendToProbe: AcpBackend | null = selectedAgentKey === 'codex' || selectedAgentKey === 'scode' ? selectedAgentKey : null;
+    if (!backendToProbe) return;
+    if (probedModelBackendsRef.current.has(backendToProbe)) return;
 
     let cancelled = false;
-    probedModelBackendsRef.current.add('codex');
+    probedModelBackendsRef.current.add(backendToProbe);
 
     ipcBridge.acpConversation.probeModelInfo
-      .invoke({ backend: 'codex' })
+      .invoke({ backend: backendToProbe })
       .then(async (result) => {
         if (cancelled) return;
         const modelInfo = result.success ? result.data?.modelInfo : null;
         if (!modelInfo?.availableModels?.length) {
-          probedModelBackendsRef.current.delete('codex');
+          probedModelBackendsRef.current.delete(backendToProbe);
           return;
         }
 
-        console.log('[Guid][codex] Probed model info:', modelInfo);
+        console.log(`[Guid][${backendToProbe}] Probed model info:`, modelInfo);
 
         const cached = (await ConfigStorage.get('acp.cachedModels').catch(() => ({}))) || {};
         if (cancelled) return;
 
         const nextCachedModels = {
           ...cached,
-          codex: modelInfo,
+          [backendToProbe]: modelInfo,
         };
 
         setAcpCachedModels((prev) => ({
           ...prev,
-          codex: modelInfo,
+          [backendToProbe]: modelInfo,
         }));
 
         await ConfigStorage.set('acp.cachedModels', nextCachedModels).catch((error) => {
@@ -422,8 +449,8 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         });
       })
       .catch((error) => {
-        probedModelBackendsRef.current.delete('codex');
-        console.warn('[Guid][codex] Failed to probe model info:', error);
+        probedModelBackendsRef.current.delete(backendToProbe);
+        console.warn(`[Guid][${backendToProbe}] Failed to probe model info:`, error);
       });
 
     return () => {
@@ -440,18 +467,25 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     void ConfigStorage.get('acp.config')
       .then((config) => {
         if (cancelled) return;
-        const preferred = (config?.[backend as AcpBackend] as any)?.preferredModelId;
-        if (preferred) {
-          _setSelectedAcpModel(preferred);
-        } else {
-          const cachedInfo = acpCachedModels[backend];
-          _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
-        }
+        const preferred = config?.[backend as AcpBackend]?.preferredModelId;
+        const cachedInfo = acpCachedModels[backend];
+        _setSelectedAcpModel(
+          resolvePreferredAcpModelId({
+            backend,
+            preferredModelId: preferred,
+            cachedModelId: cachedInfo?.currentModelId ?? null,
+          })
+        );
       })
       .catch(() => {
         if (cancelled) return;
         const cachedInfo = acpCachedModels[backend];
-        _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
+        _setSelectedAcpModel(
+          resolvePreferredAcpModelId({
+            backend,
+            cachedModelId: cachedInfo?.currentModelId ?? null,
+          })
+        );
       });
 
     return () => {
@@ -479,7 +513,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           yoloMode = config?.yoloMode ?? false;
         } else if (selectedAgent !== 'custom') {
           const config = await ConfigStorage.get('acp.config');
-          const backendConfig = config?.[selectedAgent as AcpBackend] as any;
+          const backendConfig = config?.[selectedAgent as AcpBackend];
           preferred = backendConfig?.preferredMode;
           yoloMode = backendConfig?.yoloMode ?? false;
         }
@@ -610,10 +644,10 @@ This identity statement takes priority over the default identity in USER.md.
 
   const resolvePresetAgentType = useCallback(
     (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined): string => {
-      if (!agentInfo) return 'claude';
+      if (!agentInfo) return DEFAULT_PRESET_AGENT_TYPE;
       if (agentInfo.backend !== 'custom') return agentInfo.backend as string;
       const customAgent = customAgents.find((agent) => agent.id === agentInfo.customAgentId);
-      return customAgent?.presetAgentType || 'claude';
+      return resolvePresetAgentBackend(customAgent?.presetAgentType);
     },
     [customAgents]
   );
@@ -634,9 +668,14 @@ This identity statement takes priority over the default identity in USER.md.
   // --- Availability checks ---
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      // Sudoclaw preset type maps to openclaw-gateway backend
-      const actualBackend = agentType === 'sudoclaw' ? 'openclaw-gateway' : agentType;
-      return availableAgents?.some((agent) => agent.backend === actualBackend) ?? false;
+      const actualBackend = resolvePresetAgentBackend(agentType);
+      return (
+        availableAgents?.some((agent) => {
+          if (agent.backend !== actualBackend) return false;
+          if (actualBackend === 'scode') return !!agent.cliPath;
+          return true;
+        }) ?? false
+      );
     },
     [availableAgents]
   );
@@ -698,6 +737,10 @@ This identity statement takes priority over the default identity in USER.md.
 
   const refreshCustomAgents = useCallback(async () => {
     try {
+      if (isEnterprise) {
+        await mutate('eeclaw.agents.cloud');
+        return;
+      }
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
       await mutate('acp.agents.available');
 
@@ -719,7 +762,7 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);
     }
-  }, []);
+  }, [isEnterprise]);
 
   useEffect(() => {
     void refreshCustomAgents();
@@ -732,6 +775,10 @@ This identity statement takes priority over the default identity in USER.md.
   // then revalidates the SWR cache so the UI picks up the change.
   useEffect(() => {
     const handler = () => {
+      if (isEnterprise) {
+        void mutate('eeclaw.agents.cloud');
+        return;
+      }
       void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
         void mutate('acp.agents.available');
       });
@@ -740,12 +787,14 @@ This identity statement takes priority over the default identity in USER.md.
     return () => {
       emitter.off('guid.reset', handler);
     };
-  }, []);
+  }, [isEnterprise]);
 
   // Reset agent selection to default state (no assistant selected)
   // In enterprise mode, directly select the first available agent (remote-agent)
   // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
+    _setSelectedAgentKey(isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE);
+    selectedAgentKeyRef.current = isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
     hasAutoSelectedAgentRef.current = false;
@@ -772,10 +821,10 @@ This identity statement takes priority over the default identity in USER.md.
       });
     } else {
       // No agents available yet, set default and let auto-selection handle it later
-      _setSelectedAgentKey('openclaw-gateway');
-      selectedAgentKeyRef.current = 'openclaw-gateway';
+      _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
+      selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
     }
-  }, []);
+  }, [isEnterprise]);
 
   return {
     selectedAgentKey,

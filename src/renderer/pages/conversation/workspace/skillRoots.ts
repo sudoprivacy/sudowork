@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type WorkspaceSkillSource = 'skills' | 'claude-skills';
+export type WorkspaceSkillSource = 'skills' | 'claude-skills' | 'scode-skills';
 
 export function resolveWorkspaceSkillRoot(workspace: string, eventPrefix: 'acp' | 'openclaw-gateway' = 'acp', backend?: string): { path: string; source: WorkspaceSkillSource } {
   const normalizedWorkspace = workspace.replace(/\/$/, '');
@@ -19,6 +19,13 @@ export function resolveWorkspaceSkillRoot(workspace: string, eventPrefix: 'acp' 
     return {
       path: `${normalizedWorkspace}/.claude/skills`,
       source: 'claude-skills',
+    };
+  }
+
+  if (backend === 'scode') {
+    return {
+      path: `${normalizedWorkspace}/.nexus/sudocode/skills`,
+      source: 'scode-skills',
     };
   }
 

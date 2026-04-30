@@ -8,6 +8,8 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
+import { getDatabase } from '@process/database';
+import { getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgent from '@/process/task/AcpAgent';
 import { mcpService } from '@/process/services/mcpServices/McpService';
@@ -17,6 +19,20 @@ import * as os from 'os';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
 import RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
+
+function getScodeConversationModelInfo(conversationId: string) {
+  const result = getDatabase().getConversation(conversationId);
+  if (!result.success || !result.data || result.data.type !== 'acp') {
+    return null;
+  }
+
+  const extra = result.data.extra as { backend?: string; currentModelId?: string };
+  if (extra.backend !== 'scode') {
+    return null;
+  }
+
+  return getScodeProxyModelInfoSync(extra.currentModelId);
+}
 
 export function initAcpConversationBridge(): void {
   // Debug provider to check environment variables
@@ -240,6 +256,7 @@ export function initAcpConversationBridge(): void {
   ipcBridge.acpConversation.getModelInfo.provider(async ({ conversationId }) => {
     mainLog('AcpConversationBridge', `getModelInfo called for conversation ${conversationId}`);
     const task = WorkerManage.getTaskById(conversationId);
+const task = WorkerManage.getTaskById(conversationId);
     if (!task) {
       mainLog('AcpConversationBridge', `No task found for ${conversationId}, checking provider cache`);
       // For remote-agent, check cached model info from provider
@@ -251,7 +268,8 @@ export function initAcpConversationBridge(): void {
         mainLog('AcpConversationBridge', `Cached model info for ${conversationId}: ${JSON.stringify(cachedInfo)}`);
         return { success: true, data: { modelInfo: cachedInfo } };
       }
-      return { success: true, data: { modelInfo: null } };
+      // Fallback: check scode conversation model info
+      return { success: true, data: { modelInfo: getScodeConversationModelInfo(conversationId) } };
     }
     if (!(task instanceof AcpAgent)) {
       mainLog('AcpConversationBridge', `Task is not AcpAgent, checking provider cache`);
@@ -263,13 +281,17 @@ export function initAcpConversationBridge(): void {
         mainLog('AcpConversationBridge', `Cached model info: ${JSON.stringify(cachedInfo)}`);
         return { success: true, data: { modelInfo: cachedInfo } };
       }
-      return { success: true, data: { modelInfo: null } };
+      return { success: true, data: { modelInfo: getScodeConversationModelInfo(conversationId) } };
     }
     mainLog('AcpConversationBridge', `Task is AcpAgent, returning task.getModelInfo()`);
     return { success: true, data: { modelInfo: task.getModelInfo() } };
   });
 
   ipcBridge.acpConversation.probeModelInfo.provider(async ({ backend }) => {
+    if (backend === 'scode') {
+      return { success: true, data: { modelInfo: getScodeProxyModelInfoSync() } };
+    }
+
     const agents = acpDetector.getDetectedAgents();
     const agent = agents.find((item) => item.backend === backend);
 

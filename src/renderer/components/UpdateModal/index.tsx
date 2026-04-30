@@ -316,6 +316,10 @@ const UpdateModal: React.FC = () => {
     };
   }, [downloadId, t]);
 
+  // 下载过程中不允许关闭弹窗（只能通过关闭按钮关闭）
+  // Prevent accidental dismissal during active download
+  const isDownloading = status === 'downloading';
+
   const handleClose = () => {
     setVisible(false);
   };
@@ -508,6 +512,8 @@ const UpdateModal: React.FC = () => {
     <AionModal
       visible={visible}
       onCancel={handleClose}
+      maskClosable={!isDownloading}
+      escToExit={!isDownloading}
       size={status === 'available' ? 'medium' : 'small'}
       header={{
         title: t('update.modalTitle'),

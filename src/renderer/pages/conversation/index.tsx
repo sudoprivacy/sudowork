@@ -7,7 +7,7 @@ import useSWR from 'swr';
 import ChatConversation from './ChatConversation';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { useConversationTabs } from './context/ConversationTabsContext';
-import { addEventListener } from '@/renderer/utils/emitter';
+import { addEventListener, emitter } from '@/renderer/utils/emitter';
 
 const ChatConversationIndex: React.FC = () => {
   const { id } = useParams();
@@ -40,6 +40,26 @@ const ChatConversationIndex: React.FC = () => {
       void mutate();
     });
   }, [id, mutate]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    return addEventListener('skills.changed', () => {
+      if (!data || !shouldSyncWorkspaceSkills(data)) {
+        return;
+      }
+
+      void ipcBridge.conversation.syncWorkspaceSkills
+        .invoke({ conversation_id: data.id })
+        .then(() => {
+          void mutate();
+          emitter.emit(data.type === 'openclaw-gateway' ? 'openclaw-gateway.workspace.refresh' : 'acp.workspace.refresh');
+        })
+        .catch((error) => {
+          console.warn('Failed to sync workspace skills after skills.changed:', error);
+        });
+    });
+  }, [id, data, mutate]);
 
   // 当会话数据加载完成后，自动打开 tab
   // Automatically open tab when conversation data is loaded

@@ -25,15 +25,27 @@ vi.mock('@/process/services/serviceManager/RuntimeInstaller', () => ({
   },
 }));
 
+vi.mock('@/process/services/serviceManager/ComponentHealthMonitor', () => ({
+  componentHealthMonitor: {
+    start: vi.fn(),
+    stop: vi.fn(),
+  },
+}));
+
 import { ServiceManager } from '@/process/services/serviceManager/ServiceManager';
+import { runtimeInstaller } from '@/process/services/serviceManager/RuntimeInstaller';
+import { initStatusManager } from '@/process/services/initStatus';
 
 type TestableServiceManager = ServiceManager & {
   startNexusWithRetries: () => Promise<void>;
   startOpenClawWithRetries: () => Promise<void>;
+  verifyStartupReadiness: () => Promise<void>;
+  startSafetyPolling: () => Promise<void>;
 };
 
 describe('ServiceManager', () => {
   afterEach(() => {
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -63,5 +75,20 @@ describe('ServiceManager', () => {
     await Promise.all([manager.startNexus(), manager.startNexus(), manager.startNexus()]);
 
     expect(startNexusWithRetries).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts up without requesting Sudoclaw startup', async () => {
+    const manager = new ServiceManager() as TestableServiceManager;
+    vi.mocked(runtimeInstaller.ensureAll).mockResolvedValue(true);
+    vi.mocked(initStatusManager.getStatus).mockReturnValue({ stepDetails: {}, displayMode: 'startup' });
+    vi.spyOn(manager, 'verifyStartupReadiness').mockResolvedValue(undefined);
+    vi.spyOn(manager, 'startSafetyPolling').mockResolvedValue(undefined);
+
+    await manager.startup();
+
+    expect(runtimeInstaller.ensureAll).toHaveBeenCalledTimes(1);
+    expect(runtimeInstaller.ensureAll).toHaveBeenCalledWith({
+      startNexus: expect.any(Function),
+    });
   });
 });

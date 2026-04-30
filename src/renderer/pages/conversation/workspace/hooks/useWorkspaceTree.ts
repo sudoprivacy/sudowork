@@ -30,6 +30,9 @@ export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventP
     if (eventPrefix === 'acp' && backend === 'claude') {
       hiddenNames.add('.claude');
     }
+    if (eventPrefix === 'acp' && backend === 'scode') {
+      hiddenNames.add('.nexus');
+    }
   }
 
   return nodes
