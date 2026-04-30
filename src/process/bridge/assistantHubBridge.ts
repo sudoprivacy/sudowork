@@ -9,6 +9,7 @@ import { assistantManager } from '@/process/AssistantManager';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -603,7 +604,7 @@ export function initAssistantHubBridge(): void {
         descriptionI18n: assistantMeta.description ? { 'zh-CN': assistantMeta.description } : undefined,
         avatar: assistantMeta.avatar || assistantMeta.emoji || undefined,
         emoji: assistantMeta.emoji,
-        presetAgentType: assistantMeta.preset_agent_type || 'sudoclaw',
+        presetAgentType: normalizePresetAgentType(assistantMeta.preset_agent_type) || DEFAULT_PRESET_AGENT_TYPE,
         source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
         tag: assistantMeta.tag || 'hub',
         // skills: store skill IDs (UUID format)

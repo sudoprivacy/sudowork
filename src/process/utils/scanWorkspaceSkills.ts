@@ -145,7 +145,14 @@ async function readSkillMeta(skillPath: string): Promise<SkillMeta | undefined> 
 export async function scanWorkspaceSkills(folderPath: string): Promise<ScannedWorkspaceSkill[]> {
   const skills: ScannedWorkspaceSkill[] = [];
 
-  await fs.access(folderPath);
+  try {
+    await fs.access(folderPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return skills;
+    }
+    throw error;
+  }
   const entries = await fs.readdir(folderPath, { withFileTypes: true });
 
   for (const entry of entries) {

@@ -13,6 +13,7 @@
  * Sources:
  *   - OpenClaw agents  → `<workspace>/skills/`
  *   - Claude Code      → `<workspace>/.claude/skills/`
+ *   - Sudo Code        → `<workspace>/.nexus/sudocode/skills/`
  *
  * Each sub-directory containing a SKILL.md (YAML frontmatter) shows up as a
  * card. The `icon:` and `color:` fields from frontmatter are honoured when
@@ -47,8 +48,8 @@ export interface WorkspaceSkillsProps {
   workspace: string;
   /**
    * Which agent backend is driving this workspace — determines whether skills
-   * live under `skills/` (OpenClaw / non-Claude ACP) or `.claude/skills/`
-   * (Claude Code).
+ * live under `skills/` (OpenClaw / most ACP), `.claude/skills/`
+ * (Claude Code), or `.nexus/sudocode/skills/` (Sudo Code).
    */
   eventPrefix?: 'acp' | 'openclaw-gateway';
   backend?: string;
@@ -77,7 +78,7 @@ interface SkillItem {
   path: string;
   displayName?: string;
   /** Which sub-directory it was found under (for tooltip / debug) */
-  source: 'skills' | 'claude-skills';
+  source: 'skills' | 'claude-skills' | 'scode-skills';
   /** Icon name from SKILL.md frontmatter, if declared. */
   icon?: string;
   /** Image URL from _sudowork_meta.json icon field, if declared. */
@@ -97,6 +98,12 @@ const resolveEmptyDescription = (eventPrefix: 'acp' | 'openclaw-gateway' | undef
   if (backend === 'claude') {
     return t('conversation.workspace.skillsEmptyDescClaude', {
       defaultValue: '在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示',
+    });
+  }
+
+  if (backend === 'scode') {
+    return t('conversation.workspace.skillsEmptyDescScode', {
+      defaultValue: '在 .nexus/sudocode/skills/ 目录下添加 SKILL.md 后会自动显示',
     });
   }
 

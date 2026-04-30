@@ -40,6 +40,7 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import type { AcpBackendConfig } from './types';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { ConfigProvider, Message } from '@arco-design/web-react';
 import { EditTwo, Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -551,8 +552,8 @@ const GuidPage: React.FC = () => {
 
   // Resolve current assistant agent type for dropdown
   const currentAssistantAgentType = useMemo(() => {
-    if (!selectedAssistantConfig) return 'sudoclaw';
-    return selectedAssistantConfig.presetAgentType || 'sudoclaw';
+    if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
+    return normalizePresetAgentType(selectedAssistantConfig.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE;
   }, [selectedAssistantConfig]);
 
   // Whether we are in selected assistant mode (preset or user-created custom)

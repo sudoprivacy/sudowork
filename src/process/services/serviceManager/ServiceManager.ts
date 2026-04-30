@@ -39,7 +39,6 @@ export class ServiceManager {
   private nexusStartPromise: Promise<void> | null = null;
   private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
-  private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_START_ATTEMPTS = 3;
   private readonly NEXUS_START_ATTEMPTS = 3;
 
@@ -89,12 +88,11 @@ export class ServiceManager {
 
     if (initStatusManager.getStatus().displayMode === 'startup') {
       initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
-      initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+      initStatusManager.setDetail('正在检查 Sudocode 与 Nexus 服务状态...');
     }
 
     try {
       const ok = await runtimeInstaller.ensureAll({
-        startSudoclaw: this.startOpenClawForStartup.bind(this),
         startNexus: this.startNexusForStartup.bind(this),
       });
       if (!ok) {
@@ -293,10 +291,6 @@ export class ServiceManager {
       this.openClawStartPromise = null;
     });
     await this.openClawStartPromise;
-  }
-
-  private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
-    await this.startOpenClawWithRetries();
   }
 
   private async startOpenClawWithRetries(): Promise<void> {
@@ -733,20 +727,20 @@ export class ServiceManager {
 
   private async verifyStartupReadiness(): Promise<void> {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
-    const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
-    const [sudoclawModule, nexusModule] = serviceModules;
-    const { isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
+    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus/DynamicNexusService')]);
+    const [scodeModule, nexusModule] = serviceModules;
+    const { isScodeInstalled } = scodeModule;
     const { dynamicNexusService } = nexusModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
     while (Date.now() < deadline) {
-      const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
+      const scodeReadyPromise = Promise.resolve(isScodeInstalled());
       const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
-      const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
+      const [scodeReady, nexusHealthy] = await Promise.all([scodeReadyPromise, nexusHealthyPromise]);
 
       const readinessChecks = [
-        { name: 'Sudoclaw', ok: isSudoclawInstalled() && sudoclawHealthy },
+        { name: 'Sudocode', ok: scodeReady },
         { name: 'Nexus', ok: nexusHealthy },
       ];
 

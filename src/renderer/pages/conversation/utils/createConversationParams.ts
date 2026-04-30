@@ -10,7 +10,7 @@ import type { TProviderWithModel } from '@/common/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/renderer/shared/agents/presetAssistantResources';
 import type { AvailableAgent } from '@/renderer/shared/agents/types';
-import type { AcpBackend, AcpBackendAll } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
 
 /**
  * Get the default Gemini model configuration from user settings.
@@ -66,16 +66,10 @@ export function getConversationTypeForBackend(backend: string): ICreateConversat
 
 /**
  * Determine the conversation type from a preset assistant's presetAgentType.
- * ACP-routed types include claude, codebuddy, opencode, qwen, codex.
- * Sudoclaw uses openclaw-gateway type.
+ * Legacy sudoclaw preset metadata is normalized to scode.
  */
-export function getConversationTypeForPreset(presetAgentType: string): ICreateConversationParams['type'] {
-  // Sudoclaw uses OpenClaw Gateway (WebSocket), not ACP CLI
-  if (presetAgentType === 'sudoclaw') {
-    return 'openclaw-gateway';
-  }
-  // All other preset agent types route through ACP
-  return 'acp';
+export function getConversationTypeForPreset(presetAgentType: string | undefined): ICreateConversationParams['type'] {
+  return resolvePresetAgentBackend(presetAgentType) === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
 }
 
 /**
@@ -112,7 +106,7 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
  * [BUG-3 fix]: callers must invoke this inside a try block because getDefaultGeminiModel may throw.
  */
 export async function buildPresetAssistantParams(agent: AvailableAgent, workspace: string, language: string): Promise<ICreateConversationParams> {
-  const { customAgentId, presetAgentType = 'claude', name: agentName } = agent;
+  const { customAgentId, presetAgentType = DEFAULT_PRESET_AGENT_TYPE, name: agentName } = agent;
 
   // [BUG-2] Map raw i18n.language to standard locale key
   const localeKey = resolveLocaleKey(language);
@@ -143,6 +137,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   const type = getConversationTypeForPreset(presetAgentType);
+  const presetBackend = resolvePresetAgentBackend(presetAgentType);
 
   const extra: ICreateConversationParams['extra'] = {
     workspace,
@@ -151,8 +146,7 @@ This identity statement takes priority over the default identity in USER.md.
     presetAssistantId: customAgentId,
     presetContext,
     agentName, // Add agentName for placeholder display
-    // Sudoclaw preset type maps to openclaw-gateway backend
-    backend: (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackend,
+    backend: presetBackend,
   };
 
   const model = {} as TProviderWithModel;

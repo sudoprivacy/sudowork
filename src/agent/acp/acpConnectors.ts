@@ -13,7 +13,7 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { promises as fs } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
@@ -66,6 +66,46 @@ function getHookPythonPath(): string {
 
 // ── Environment helpers ─────────────────────────────────────────────
 
+type PrepareCleanEnvOptions = {
+  injectSafetyHook?: boolean;
+};
+
+function scodeCliPathIncludesAuthFlag(cliPath: string): boolean {
+  return /(?:^|\s)--auth(?:\s|$)/.test(cliPath);
+}
+
+function scodeArgsIncludeAuthFlag(args: string[] | undefined): boolean {
+  return Array.isArray(args) && args.includes('--auth');
+}
+
+export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>): string[] | undefined {
+  const baseArgs = acpArgs ?? ['acp'];
+
+  if (scodeCliPathIncludesAuthFlag(cliPath) || scodeArgsIncludeAuthFlag(baseArgs)) {
+    return baseArgs;
+  }
+
+  if (env.PROXY_AUTH_TOKEN && env.PROXY_BASE_URL) {
+    return ['--auth', 'proxy', ...baseArgs];
+  }
+
+  return baseArgs;
+}
+
+function removePathEntry(envPath: string | undefined, entry: string): string | undefined {
+  if (!envPath) return undefined;
+
+  const normalize = (value: string) => {
+    const normalized = path.normalize(value);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+
+  const normalizedEntry = normalize(entry);
+  const filtered = envPath.split(path.delimiter).filter((part) => part.length > 0 && normalize(part) !== normalizedEntry);
+
+  return filtered.length > 0 ? filtered.join(path.delimiter) : undefined;
+}
+
 /**
  * Prepare a clean environment for ACP backends.
  * Removes Electron-injected NODE_OPTIONS, npm lifecycle vars, and other
@@ -73,11 +113,13 @@ function getHookPythonPath(): string {
  *
  * Also injects safety hook via NODE_OPTIONS if safety hook is enabled.
  */
-export function prepareCleanEnv(): Record<string, string | undefined> {
+export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOptions = {}): Record<string, string | undefined> {
   const cleanEnv = getEnhancedEnv();
   delete cleanEnv.NODE_OPTIONS;
   delete cleanEnv.NODE_INSPECT;
   delete cleanEnv.NODE_DEBUG;
+  delete cleanEnv.HOOK_PYTHON_WHL;
+  delete cleanEnv.SUDOWORK_ACP_CHILD;
   // Remove CLAUDECODE env var to prevent claude-agent-sdk from detecting
   // a nested session when Sudowork itself is launched from Claude Code.
   delete cleanEnv.CLAUDECODE;
@@ -104,19 +146,26 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
     cleanEnv.AI_DEV_BROWSER_PORT = '9230';
   }
 
-  // Inject safety hook via NODE_OPTIONS if enabled
+  const basePythonPath = removePathEntry(cleanEnv.PYTHONPATH, getHookPythonPath());
+  if (basePythonPath) {
+    cleanEnv.PYTHONPATH = basePythonPath;
+  } else {
+    delete cleanEnv.PYTHONPATH;
+  }
+
+  // Inject safety hook via NODE_OPTIONS if enabled.
   // Also set SUDOWORK_ACP_CHILD=1 so the hook skips in ACP bridge child processes
-  // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC)
-  cleanEnv.SUDOWORK_ACP_CHILD = '1';
-  if (isSafetyHookEnabled()) {
+  // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC).
+  if (injectSafetyHook && isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
     const hookOption = buildRequireNodeOption(hookJsPath);
     cleanEnv.NODE_OPTIONS = hookOption;
+    cleanEnv.SUDOWORK_ACP_CHILD = '1';
     console.log(`[ACP] Injecting safety hook via NODE_OPTIONS: ${hookOption}`);
 
     const pythonpath = getHookPythonPath();
     cleanEnv.HOOK_PYTHON_WHL = getHookPythonWhlPath();
-    cleanEnv.PYTHONPATH = pythonpath;
+    cleanEnv.PYTHONPATH = basePythonPath ? `${pythonpath}${path.delimiter}${basePythonPath}` : pythonpath;
     console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
 
@@ -125,9 +174,7 @@ export function prepareCleanEnv(): Record<string, string | undefined> {
   // Python silently ignores non-existent entries, so no existence check needed.
   const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
-  cleanEnv.PYTHONPATH = prevPythonPath
-    ? `${browserSkillDir}${path.delimiter}${prevPythonPath}`
-    : browserSkillDir;
+  cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 
   return cleanEnv;
 }
@@ -254,7 +301,22 @@ export type NpxPrepareResult = {
  * Spawn an npx-based ACP backend package.
  * Used by Claude, Codex, and CodeBuddy connectors.
  */
-export function spawnNpxBackend(backend: string, npxPackage: string, npxCommand: string, cleanEnv: Record<string, string | undefined>, workingDir: string, isWindows: boolean, preferOffline: boolean, { extraArgs = [], detached = false }: { extraArgs?: string[]; detached?: boolean } = {}): SpawnResult {
+export function spawnNpxBackend(
+  backend: string,
+  npxPackage: string,
+  npxCommand: string,
+  cleanEnv: Record<string, string | undefined>,
+  workingDir: string,
+  isWindows: boolean,
+  preferOffline: boolean,
+  {
+    extraArgs = [],
+    detached = false,
+  }: {
+    extraArgs?: string[];
+    detached?: boolean;
+  } = {}
+): SpawnResult {
   const spawnArgs = ['--yes', ...(preferOffline ? ['--prefer-offline'] : []), npxPackage, ...extraArgs];
 
   const spawnStart = Date.now();
@@ -373,7 +435,7 @@ async function prepareCodebuddy(): Promise<NpxPrepareResult> {
 function readAnthropicCredsFromSudoclaw(): { apiKey: string; baseUrl: string } | null {
   try {
     const configPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
-    const content = require('fs').readFileSync(configPath, 'utf-8');
+    const content = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(content);
     const providers = config?.models?.providers;
     if (!providers || typeof providers !== 'object') return null;
@@ -403,7 +465,9 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     // best-effort: if mkdir fails, let spawn report the actual error
   }
 
-  const cleanEnv = prepareCleanEnv();
+  const cleanEnv = prepareCleanEnv({
+    injectSafetyHook: backend !== 'scode',
+  });
   if (customEnv) {
     Object.assign(cleanEnv, customEnv);
   }
@@ -430,9 +494,7 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // Inject Claude Code OAuth token for scode subscription auth if available
   if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
     try {
-      const keychain = require('child_process').execFileSync('security', [
-        'find-generic-password', '-s', 'Claude Code-credentials', '-a', require('os').userInfo().username, '-w',
-      ], { encoding: 'utf-8', timeout: 3000 }).trim();
+      const keychain = execFileSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-a', os.userInfo().username, '-w'], { encoding: 'utf-8', timeout: 3000 }).trim();
       const payload = JSON.parse(keychain);
       if (payload?.claudeAiOauth?.accessToken) {
         cleanEnv.CLAUDE_CODE_OAUTH_TOKEN = payload.claudeAiOauth.accessToken;
@@ -446,7 +508,11 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
   const spawnStart = Date.now();
-  const config = createGenericSpawnConfig(cliPath, workingDir, acpArgs, undefined, cleanEnv as Record<string, string>);
+  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv) : acpArgs;
+  if (backend === 'scode' && effectiveAcpArgs !== acpArgs && effectiveAcpArgs?.includes('proxy')) {
+    mainLog('[ACP scode]', 'Forcing proxy auth mode because proxy credentials are available');
+  }
+  const config = createGenericSpawnConfig(cliPath, workingDir, effectiveAcpArgs, undefined, cleanEnv as Record<string, string>);
   const child = spawn(config.command, config.args, config.options);
   if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: ${backend} process spawned ${Date.now() - spawnStart}ms`);
 

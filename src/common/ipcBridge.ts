@@ -625,7 +625,7 @@ export interface InitStatus {
   /** Which loading UI should be rendered. */
   displayMode?: 'full' | 'startup';
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
   step?: string;
   /** Detail message for current step */
   detail?: string;
@@ -647,7 +647,7 @@ export const init = {
   /** Retry startup checks without reinstalling runtimes */
   retryStartup: bridge.buildProvider<IBridgeResponse<void>, void>('init.retry-startup'),
   /** Manually reinstall a failed runtime component and rerun startup checks */
-  reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'sudoclaw' | 'nexus' }>('init.reinstall-component'),
+  reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'scode' | 'nexus' }>('init.reinstall-component'),
   /** Subscribe to initialization status changes */
   onStatusChange: bridge.buildEmitter<InitStatus>('init.status-change'),
   /** Quit the entire application */

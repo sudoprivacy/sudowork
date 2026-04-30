@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect } from 'vitest';
+import os from 'os';
+import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACP_BACKENDS_ALL, POTENTIAL_ACP_CLIS } from '../../src/types/acpTypes';
 import type { AcpBackendAll } from '../../src/types/acpTypes';
 
@@ -53,14 +55,14 @@ describe('Scode ACP integration', () => {
     });
 
     it('should handle full path to scode binary', () => {
-      const cliPath = '/home/user/.nexus/sudocode/bin/scode';
+      const cliPath = '/home/user/.nexus/sudocode/scode';
       const acpArgs = ['acp'];
 
       const parts = cliPath.split(/\s+/);
       const command = parts[0];
       const args = [...parts.slice(1), ...acpArgs];
 
-      expect(command).toBe('/home/user/.nexus/sudocode/bin/scode');
+      expect(command).toBe('/home/user/.nexus/sudocode/scode');
       expect(args).toEqual(['acp']);
     });
 
@@ -74,6 +76,165 @@ describe('Scode ACP integration', () => {
       const acpArgs: string[] = [];
       const effectiveAcpArgs = acpArgs === undefined ? ['--experimental-acp'] : acpArgs;
       expect(effectiveAcpArgs).toEqual([]);
+    });
+  });
+
+  describe('scode auth arg resolution', () => {
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+    });
+
+    async function loadResolveScodeAcpArgs() {
+      vi.doMock('electron', () => ({
+        app: {
+          isPackaged: false,
+          getAppPath: () => '/mock-app',
+        },
+      }));
+
+      vi.doMock('@process/services/safety/SafetyPollingService', () => ({
+        isSafetyHookEnabled: () => true,
+      }));
+
+      vi.doMock('@process/utils/mainLogger', () => ({
+        mainLog: vi.fn(),
+        mainWarn: vi.fn(),
+      }));
+
+      vi.doMock('@process/utils/shellEnv', () => ({
+        getEnhancedEnv: () => ({
+          PATH: '/usr/bin',
+        }),
+        findSuitableNodeBin: vi.fn(),
+        resolveNpxPath: vi.fn(() => 'npx'),
+      }));
+
+      const { resolveScodeAcpArgs } = await import('@/agent/acp/acpConnectors');
+      return resolveScodeAcpArgs;
+    }
+
+    it('forces proxy auth when proxy credentials are available', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {
+        PROXY_AUTH_TOKEN: 'proxy-token',
+        PROXY_BASE_URL: 'https://proxy.example.com',
+      });
+
+      expect(args).toEqual(['--auth', 'proxy', 'acp']);
+    });
+
+    it('does not duplicate auth flags when cliPath already specifies auth mode', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode --auth proxy', ['acp'], {
+        PROXY_AUTH_TOKEN: 'proxy-token',
+        PROXY_BASE_URL: 'https://proxy.example.com',
+      });
+
+      expect(args).toEqual(['acp']);
+    });
+
+    it('keeps original args when proxy credentials are not available', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {});
+
+      expect(args).toEqual(['acp']);
+    });
+  });
+
+  describe('scode environment preparation', () => {
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+      vi.unstubAllEnvs();
+    });
+
+    async function loadPrepareCleanEnv(
+      options: {
+        safetyHookEnabled: boolean;
+        inheritedPythonPath?: string;
+      } = { safetyHookEnabled: true }
+    ) {
+      vi.doMock('electron', () => ({
+        app: {
+          isPackaged: false,
+          getAppPath: () => '/mock-app',
+        },
+      }));
+
+      vi.doMock('@process/services/safety/SafetyPollingService', () => ({
+        isSafetyHookEnabled: () => options.safetyHookEnabled,
+      }));
+
+      vi.doMock('@process/utils/mainLogger', () => ({
+        mainLog: vi.fn(),
+        mainWarn: vi.fn(),
+      }));
+
+      vi.doMock('@process/utils/shellEnv', () => ({
+        getEnhancedEnv: () => ({
+          PATH: '/usr/bin',
+          PYTHONPATH: options.inheritedPythonPath ?? '/custom/python',
+          NODE_OPTIONS: '--inspect',
+          NODE_INSPECT: '1',
+          NODE_DEBUG: '1',
+          CLAUDECODE: '1',
+          npm_config_registry: 'https://example.com',
+        }),
+        findSuitableNodeBin: vi.fn(),
+        resolveNpxPath: vi.fn(() => 'npx'),
+      }));
+
+      const { prepareCleanEnv } = await import('@/agent/acp/acpConnectors');
+      return prepareCleanEnv;
+    }
+
+    it('skips safety hook injection for scode while keeping browser PYTHONPATH', async () => {
+      const hookPythonPath = '/mock-app/hook/python/pythonpath';
+      const inheritedPythonPath = ['/custom/python', hookPythonPath].join(path.delimiter);
+      const prepareCleanEnv = await loadPrepareCleanEnv({
+        safetyHookEnabled: true,
+        inheritedPythonPath,
+      });
+
+      const env = prepareCleanEnv({ injectSafetyHook: false });
+      const pythonPaths = env.PYTHONPATH?.split(path.delimiter) ?? [];
+
+      expect(env.NODE_OPTIONS).toBeUndefined();
+      expect(env.HOOK_PYTHON_WHL).toBeUndefined();
+      expect(env.SUDOWORK_ACP_CHILD).toBeUndefined();
+      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser'));
+      expect(pythonPaths).toContain('/custom/python');
+      expect(pythonPaths).not.toContain(hookPythonPath);
+      expect(env.CLAUDECODE).toBeUndefined();
+      expect(env.npm_config_registry).toBeUndefined();
+    });
+
+    it('still injects safety hook for other ACP backends by default', async () => {
+      const prepareCleanEnv = await loadPrepareCleanEnv({
+        safetyHookEnabled: true,
+      });
+
+      const env = prepareCleanEnv();
+      const pythonPaths = env.PYTHONPATH?.split(path.delimiter) ?? [];
+
+      expect(env.NODE_OPTIONS).toContain('/mock-app/hook/node/dist/hook.js');
+      expect(env.HOOK_PYTHON_WHL).toBe('/mock-app/hook/python/dist/hook-0.0.1-py3-none-any.whl');
+      expect(env.SUDOWORK_ACP_CHILD).toBe('1');
+      expect(pythonPaths).toContain('/mock-app/hook/python/pythonpath');
+      expect(pythonPaths).toContain('/custom/python');
+      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser'));
     });
   });
 });
