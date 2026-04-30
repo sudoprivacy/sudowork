@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Download pre-built openclaw (sudoclaw) archive for bundling with the app.
- * Run during build process: bun run openclaw:download
+ * Download pre-built openclaw (sudoclaw) archive for ad-hoc debugging.
+ * This archive is no longer bundled into app packages by CI or build scripts.
  *
  * Downloads from GitHub releases with COS fallback:
  * - GitHub: https://github.com/sudoprivacy/sudorepo/releases/download/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz

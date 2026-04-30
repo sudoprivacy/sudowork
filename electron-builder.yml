@@ -141,12 +141,6 @@ extraResources:
     to: claude-code.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
-  # Sudoclaw/OpenClaw runtime for macOS - versioned archive + manifest
-  - from: resources
-    to: .
-    filter:
-      - v*-sudoclaw-macos-*.tgz
-      - v*-sudoclaw-macos-*.manifest.json
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.
@@ -175,12 +169,6 @@ win:
     # bdpan installer for Windows (bundled at build time)
     - from: resources/bdpan-installer-windows-${arch}.exe
       to: bdpan-installer-windows-${arch}.exe
-    # Sudoclaw/OpenClaw runtime for Windows - versioned archive + manifest
-    - from: resources
-      to: .
-      filter:
-        - v*-sudoclaw-windows-*.tgz
-        - v*-sudoclaw-windows-*.manifest.json
     # Nexus binary for Windows - versioned
     - from: resources
       to: .
