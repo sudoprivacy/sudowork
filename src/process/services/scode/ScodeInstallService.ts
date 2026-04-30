@@ -35,6 +35,67 @@ const SCODE_READY_MARKER = '.scode-bin-ready';
 
 /** GitHub release base URL for scode downloads */
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
+const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
+const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
+const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills']);
+
+function readLegacyManagedScodeSkillEntries(): Map<string, string> {
+  try {
+    const raw = fs.readFileSync(SCODE_LEGACY_MANAGED_SKILLS_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as { entries?: Record<string, unknown> };
+    if (!parsed.entries || typeof parsed.entries !== 'object') {
+      return new Map();
+    }
+
+    return new Map(
+      Object.entries(parsed.entries)
+        .filter(([, target]) => typeof target === 'string' && target.trim().length > 0)
+        .map(([name, target]) => [name, path.resolve(target as string)])
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function readSymlinkTarget(linkPath: string): string | null {
+  try {
+    const stat = fs.lstatSync(linkPath);
+    if (!stat.isSymbolicLink()) {
+      return null;
+    }
+
+    return path.resolve(path.dirname(linkPath), fs.readlinkSync(linkPath));
+  } catch {
+    return null;
+  }
+}
+
+function cleanupLegacyManagedScodeSkills(): void {
+  if (!fs.existsSync(SCODE_LEGACY_MANAGED_SKILLS_FILE)) {
+    return;
+  }
+
+  const managedEntries = readLegacyManagedScodeSkillEntries();
+  for (const [name, previousTarget] of managedEntries) {
+    const linkPath = path.join(SCODE_SKILLS_DIR, name);
+    const currentTarget = readSymlinkTarget(linkPath);
+    if (!currentTarget || currentTarget !== previousTarget) {
+      continue;
+    }
+
+    fs.rmSync(linkPath, { recursive: true, force: true });
+  }
+
+  try {
+    if (fs.existsSync(SCODE_SKILLS_DIR) && fs.readdirSync(SCODE_SKILLS_DIR).length === 0) {
+      fs.rmSync(SCODE_SKILLS_DIR, { recursive: true, force: true });
+    }
+  } catch (error) {
+    mainWarn(TAG, `Failed to clean legacy scode skills directory: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  fs.rmSync(SCODE_LEGACY_MANAGED_SKILLS_FILE, { force: true });
+}
 
 /** Get the scode executable name for the current platform */
 function getScodeExeName(): string {
@@ -299,6 +360,7 @@ function getGitHubDownloadUrl(): string {
  */
 export async function ensureScodeInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<boolean> {
   const forceReinstall = options?.forceReinstall === true;
+  cleanupLegacyManagedScodeSkills();
 
   if (!forceReinstall && isScodeInstalled()) {
     mainLog(TAG, `Scode ${getScodeVersion()} already installed, skipping`);
@@ -412,11 +474,21 @@ export function getScodePath(): string | null {
   return isScodeInstalled() && fs.existsSync(scodePath) ? scodePath : null;
 }
 
-/** Remove the managed scode runtime directory. */
+/** Remove managed runtime artifacts while preserving user-managed config and skills. */
 export function removeScodeInstallation(): void {
   if (!fs.existsSync(SCODE_DIR)) {
     return;
   }
 
-  fs.rmSync(SCODE_DIR, { recursive: true, force: true });
+  cleanupLegacyManagedScodeSkills();
+
+  const entries = fs.readdirSync(SCODE_DIR, { withFileTypes: true });
+  for (const entry of entries) {
+    if (SCODE_PRESERVED_ENTRY_NAMES.has(entry.name)) {
+      continue;
+    }
+
+    const entryPath = path.join(SCODE_DIR, entry.name);
+    fs.rmSync(entryPath, { recursive: true, force: true });
+  }
 }

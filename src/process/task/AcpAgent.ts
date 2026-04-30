@@ -739,7 +739,7 @@ This identity statement takes priority over the default identity in USER.md.
             presetAgentType: this.options.backend,
           });
 
-          if (this.options.backend === 'claude') {
+          if (this.options.backend === 'claude' || this.options.backend === 'scode') {
             const skillsDir = resolveWorkspaceSkillsDir({
               type: 'acp',
               extra: {
@@ -748,7 +748,16 @@ This identity statement takes priority over the default identity in USER.md.
               },
             });
             if (skillsDir) {
-              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir);
+              const linkedSkillNames = await fs.promises
+                .readdir(skillsDir, { withFileTypes: true })
+                .then((entries) =>
+                  entries
+                    .filter((entry) => entry.isSymbolicLink() || entry.isDirectory())
+                    .map((entry) => entry.name)
+                    .sort()
+                )
+                .catch((): string[] => []);
+              contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir, linkedSkillNames);
             }
           }
         } else if (this.options.presetAssistantId && this.options.presetContext) {

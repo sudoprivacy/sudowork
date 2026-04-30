@@ -162,40 +162,64 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
   });
 }
 
+function queueConversationWorkspaceSkillSync(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) {
+    return Promise.resolve();
+  }
+
+  const workspace = conversation.extra.workspace;
+  const previousTask = workspaceSkillSyncTasks.get(workspace) ?? Promise.resolve();
+  const task = previousTask.then(
+    async () => {
+      await syncConversationWorkspaceSkills(conversation, requestedSkillNames);
+    },
+    async () => {
+      await syncConversationWorkspaceSkills(conversation, requestedSkillNames);
+    }
+  );
+
+  workspaceSkillSyncTasks.set(workspace, task);
+
+  return task.finally(() => {
+    if (workspaceSkillSyncTasks.get(workspace) === task) {
+      workspaceSkillSyncTasks.delete(workspace);
+    }
+  });
+}
+
+function ensureConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation)) {
+    return Promise.resolve();
+  }
+
+  const existingTask = workspaceSkillSyncTasks.get(conversation.extra.workspace);
+  if (existingTask) {
+    return existingTask;
+  }
+
+  return queueConversationWorkspaceSkillSync(conversation);
+}
+
 function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): void {
   if (!shouldSyncWorkspaceSkills(conversation)) return;
   const workspace = conversation.extra.workspace;
 
-  const existingTask = workspaceSkillSyncTasks.get(workspace);
-  if (existingTask) {
-    mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync skipped: task already running', {
-      conversationId: conversation?.id,
-      workspace,
-    });
-    return;
-  }
-
   mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync queued', {
     conversationId: conversation?.id,
     workspace,
+    hasPendingTask: workspaceSkillSyncTasks.has(workspace),
   });
 
-  const task = Promise.resolve()
-    .then(async () => {
-      await syncConversationWorkspaceSkills(conversation);
-    })
+  void ensureConversationWorkspaceSkillSync(conversation)
     .catch((error) => {
       mainWarn('ConversationSkillSync', 'Failed to sync workspace skills', error);
     })
     .finally(() => {
-      workspaceSkillSyncTasks.delete(workspace);
       mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync finished', {
         conversationId: conversation?.id,
         workspace,
       });
     });
-
-  workspaceSkillSyncTasks.set(workspace, task);
 }
 
 export function initConversationBridge(): void {
@@ -581,7 +605,7 @@ export function initConversationBridge(): void {
         return { success: false, msg: 'Conversation not found' };
       }
 
-      scheduleConversationWorkspaceSkillSync(result.data);
+      await ensureConversationWorkspaceSkillSync(result.data);
       return { success: true };
     } catch (error) {
       mainError('conversationBridge', 'Failed to sync workspace skills:', error);
@@ -1024,7 +1048,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     // Ensure workspace skills symlinks exist before dispatching to the gateway.
     // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
-    await syncConversationWorkspaceSkills(conversation, other.skills);
+    await queueConversationWorkspaceSkillSync(conversation, other.skills);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents

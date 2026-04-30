@@ -20,6 +20,10 @@ export function shouldSyncWorkspaceSkills(conversation?: TChatConversation, requ
     return true;
   }
 
+  if (conversation.type === 'acp' && conversation.extra?.backend === 'scode') {
+    return true;
+  }
+
   if (Array.isArray(conversation.extra?.enabledSkills)) {
     return true;
   }
