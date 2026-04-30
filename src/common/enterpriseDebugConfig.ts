@@ -4,167 +4,195 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage } from './storage';
+import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
 
 /**
- * Temporary debug configuration - for parallel development
+ * Enterprise Configuration for Production Environment
+ * 企业模式生产环境配置
  *
- * TODO: Replace when merging with official implementation:
- * - isEnterpriseMode() → Use eeclawMode.ts from colleagues
- * - getAuthToken() → Use auth service from login colleagues
+ * Uses sudoclaw JWT token directly as request header authentication token.
+ * 直接使用 sudoclaw JWT token 作为请求头认证 token。
+ *
+ * Auth flow (PR #529):
+ * 1. Enterprise login via eeclawBridge → returns JWT access_token
+ * 2. JWT is stored in 'eeclaw.authStorage' in ProcessConfig
+ * 3. Moss API calls use this JWT directly as Bearer token
+ *
+ * 认证流程（PR #529）：
+ * 1. 通过 eeclawBridge 企业登录 → 返回 JWT access_token
+ * 2. JWT 存储在 ProcessConfig 的 'eeclaw.authStorage' 中
+ * 3. Moss API 调用直接使用此 JWT 作为 Bearer token
+ *
+ * NOTE: This module is used in both renderer and main process.
+ * 注意：此模块在渲染进程和主进程中都使用。
+ * In main process, use ProcessConfig.getSync() for synchronous access.
+ * 在主进程中，使用 ProcessConfig.getSync() 进行同步访问。
+ * In renderer process, use ConfigStorage.get() for async access.
+ * 在渲染进程中，使用 ConfigStorage.get() 进行异步访问。
  */
 
-// ========== Debug switches ==========
+// Cache for synchronous access in main process (updated by refreshEnterpriseCache)
+// 主进程同步访问的缓存（由 refreshEnterpriseCache 更新）
+let cachedAppMode: 'c' | 'e' | null = null;
+let cachedServerUrl: string = '';
+let cachedAuthToken: string = '';
 
-/** Whether to enable enterprise mode debug (B-side mode) */
-export const DEBUG_ENTERPRISE_MODE = true; // Set to true for debugging, false when merging
-
-/** Moss Server address */
-export const DEBUG_MOSS_SERVER_URL = 'http://172.16.30.49:43127';
-
-/** Debug auth token (get from Moss Server or Admin UI) */
-export const DEBUG_AUTH_TOKEN = 'moss_sk_430f2bbd-ba95-4d9a-a8ea-35bacc09f47d.HYz15dqFFO3-fQ5jDcSM-5lK0zw3Neaq';
-
-/** Debug username for password login (optional) */
-export const DEBUG_USERNAME = '';
-
-/** Debug password for password login (optional) */
-export const DEBUG_PASSWORD = '';
-
-// ========== Auth mode selection ==========
-
-/** Auth mode: 'api_key' | 'password' | 'access_token' */
-export type AuthMode = 'api_key' | 'password' | 'access_token';
+// Dynamic import for ProcessConfig (main process only)
+// ProcessConfig 的动态导入（仅主进程）
+let ProcessConfig: typeof import('@process/initStorage').ProcessConfig | null = null;
 
 /**
- * Get current auth mode based on available credentials
+ * Get ProcessConfig instance (main process only)
+ * 获取 ProcessConfig 实例（仅主进程）
  */
-export function getAuthMode(): AuthMode {
-  if (DEBUG_AUTH_TOKEN && DEBUG_AUTH_TOKEN.startsWith('eyJ')) {
-    return 'access_token';
+async function getProcessConfig(): Promise<typeof import('@process/initStorage').ProcessConfig> {
+  if (!ProcessConfig) {
+    ProcessConfig = await import('@process/initStorage').then((m) => m.ProcessConfig);
   }
-  if (DEBUG_AUTH_TOKEN && DEBUG_AUTH_TOKEN.startsWith('moss_sk_')) {
-    return 'api_key';
-  }
-  if (DEBUG_USERNAME && DEBUG_PASSWORD) {
-    return 'password';
-  }
-  return 'api_key'; // Default fallback
+  return ProcessConfig;
 }
 
-// ========== Debug config getter methods ==========
+/**
+ * Update cache from async config (called by main process on init)
+ * 从异步配置更新缓存（主进程初始化时调用）
+ */
+export async function refreshEnterpriseCache(): Promise<void> {
+  try {
+    const config = await getProcessConfig();
+    cachedAppMode = config.getSync('system.appMode');
+    const authStorage = config.getSync('eeclaw.authStorage');
+    cachedAuthToken = authStorage?.access_token || '';
+    cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
+  } catch {
+    // Keep existing cache values on error
+  }
+}
 
 /**
- * Temporary: Check if enterprise mode
- *
- * TODO: Replace with eeclawMode.isEnterpriseMode()
+ * Check if the app is in enterprise mode
+ * 检查是否为企业模式
  */
 export async function isEnterpriseModeAsync(): Promise<boolean> {
-  // During debugging, return true directly to skip local mode
-  if (DEBUG_ENTERPRISE_MODE) {
-    return true;
-  }
-
-  // After merge, use official check
-  // return eeclawMode.isEnterpriseMode();
-
-  // Temporary fallback: check config
-  try {
-    const config = await ConfigStorage.get('sudowork.server');
-    return !!config?.enterpriseCode;
-  } catch {
-    return false;
-  }
+  return eeclawIsEnterpriseMode();
 }
 
 /**
  * Synchronous version for cases where async is not available
+ * 同步版本（用于无法使用 async 的场景）
+ *
+ * Note: Uses cached value, may not be immediately accurate after mode change
+ * 注意：使用缓存值，模式变更后可能不是立即准确
  */
 export function isEnterpriseMode(): boolean {
-  // During debugging, return true directly
-  if (DEBUG_ENTERPRISE_MODE) {
-    return true;
+  // Return cached value if available
+  // 如果有缓存值则返回
+  if (cachedAppMode !== null) {
+    return cachedAppMode === 'e';
   }
+
+  // Try to use ProcessConfig.getSync if available (main process)
+  // 尝试使用 ProcessConfig.getSync（主进程）
+  try {
+    // This will only work in main process where ProcessConfig is available
+    // 这只在主进程中有效，因为 ProcessConfig 可用
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const processConfig = require('@process/initStorage').ProcessConfig;
+    if (processConfig && processConfig.getSync) {
+      const mode = processConfig.getSync('system.appMode');
+      if (mode) {
+        cachedAppMode = mode;
+        return mode === 'e';
+      }
+    }
+  } catch {
+    // ProcessConfig not available (renderer process)
+  }
+
   return false;
 }
 
 /**
- * Temporary: Get auth token
- *
- * TODO: Replace with authService.getToken()
+ * Set the cached app mode (called by main process on mode change)
+ * 设置缓存的应用模式（模式变更时由主进程调用）
+ */
+export function setCachedAppMode(mode: 'c' | 'e'): void {
+  cachedAppMode = mode;
+}
+
+/**
+ * Set the cached auth token (called by main process after login)
+ * 设置缓存的认证 token（登录后由主进程调用）
+ */
+export function setCachedAuthToken(token: string): void {
+  cachedAuthToken = token;
+}
+
+/**
+ * Set the cached server URL (called by main process after config)
+ * 设置缓存的服务器 URL（配置后由主进程调用）
+ */
+export function setCachedServerUrl(url: string): void {
+  cachedServerUrl = url;
+}
+
+/**
+ * Get enterprise auth token (JWT access_token from eeclaw auth storage)
+ * 获取企业认证 token（eeclaw auth storage 中的 JWT access_token）
  */
 export async function getAuthTokenAsync(): Promise<string> {
-  // During debugging, return hardcode token
-  if (DEBUG_ENTERPRISE_MODE && DEBUG_AUTH_TOKEN) {
-    return DEBUG_AUTH_TOKEN;
-  }
-
-  // After merge, use official auth
-  // return authService.getToken();
-
-  // Temporary fallback: read from config
   try {
-    const config = await ConfigStorage.get('enterprise.config' as any);
-    return config?.authToken || '';
+    const config = await getProcessConfig();
+    const authStorage = config.getSync('eeclaw.authStorage');
+    if (authStorage && authStorage.access_token) {
+      return authStorage.access_token;
+    }
+    return '';
   } catch {
     return '';
   }
 }
 
 /**
- * Synchronous version
+ * Synchronous version (uses cached value)
+ * 同步版本（使用缓存值）
  */
 export function getAuthToken(): string {
-  // During debugging, return hardcode token
-  if (DEBUG_ENTERPRISE_MODE && DEBUG_AUTH_TOKEN) {
-    return DEBUG_AUTH_TOKEN;
-  }
-  return '';
+  return cachedAuthToken;
 }
 
 /**
- * Temporary: Get Moss Server URL
- *
- * TODO: Read from enterprise config
+ * Get Moss Server URL from enterprise config
+ * 从企业配置获取 Moss Server URL
  */
 export async function getMossServerUrlAsync(): Promise<string> {
-  // During debugging, return hardcode URL
-  if (DEBUG_ENTERPRISE_MODE && DEBUG_MOSS_SERVER_URL) {
-    return DEBUG_MOSS_SERVER_URL;
-  }
-
-  // After merge, read from official config
   try {
-    const config = await ConfigStorage.get('enterprise.config' as any);
-    return config?.mossServerUrl || 'http://172.16.30.49:43127';
+    const config = await getProcessConfig();
+    const serverUrl = config.getSync('eeclaw.serverUrl');
+    if (serverUrl) {
+      return serverUrl;
+    }
+    return '';
   } catch {
-    return 'http://172.16.30.49:43127';
+    return '';
   }
 }
 
 /**
- * Synchronous version
+ * Synchronous version (uses cached value)
+ * 同步版本（使用缓存值）
  */
 export function getMossServerUrl(): string {
-  // During debugging, return hardcode URL
-  if (DEBUG_ENTERPRISE_MODE && DEBUG_MOSS_SERVER_URL) {
-    return DEBUG_MOSS_SERVER_URL;
-  }
-  return 'http://172.16.30.49:43127';
+  return cachedServerUrl;
 }
 
 /**
- * Temporary: Get enterprise config
- *
- * TODO: Read from enterprise config
+ * Get enterprise config for provider initialization
+ * 获取企业配置用于 Provider 初始化
  */
 export async function getEnterpriseConfigAsync(): Promise<{
   mossServerUrl: string;
   authToken: string;
   runtimeType?: 'host' | 'docker';
-  enterpriseCode?: string;
-  orgId?: string;
-  userId?: string;
 }> {
   return {
     mossServerUrl: await getMossServerUrlAsync(),
@@ -175,27 +203,15 @@ export async function getEnterpriseConfigAsync(): Promise<{
 }
 
 /**
- * Synchronous version
+ * Synchronous version for provider initialization
+ * 同步版本用于 Provider 初始化
  */
 export function getEnterpriseConfig(): {
   mossServerUrl: string;
-  authToken?: string;
-  username?: string;
-  password?: string;
-  authMode: AuthMode;
-  runtimeType?: 'host' | 'docker';
-  enterpriseCode?: string;
-  orgId?: string;
-  userId?: string;
+  authToken: string;
 } {
-  const authMode = getAuthMode();
   return {
-    mossServerUrl: getMossServerUrl(),
-    authToken: DEBUG_AUTH_TOKEN,
-    username: DEBUG_USERNAME,
-    password: DEBUG_PASSWORD,
-    authMode,
-    // runtimeType not specified - Moss Server handles default
-    // runtimeType 不指定，Moss Server 处理默认值
+    mossServerUrl: cachedServerUrl,
+    authToken: cachedAuthToken,
   };
 }

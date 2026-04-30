@@ -50,14 +50,19 @@ export class RemoteConversationProvider implements IConversationProvider {
   }
 
   /**
-   * Initialize Moss API client with authentication
-   * 初始化 Moss API 客户端并进行认证
+   * Initialize Moss API client with JWT access token
+   * 初始化 Moss API 客户端并设置 JWT access token
+   *
+   * Uses sudoclaw JWT token directly as Bearer token for authentication.
+   * 直接使用 sudoclaw JWT token 作为 Bearer token 进行认证。
+   * No need to convert API-KEY to auth-token.
+   * 无需将 API-KEY 转换为 auth-token。
    */
   private mossApiPromise: Promise<MossSessionApi> | null = null;
 
   private async ensureMossApi(): Promise<MossSessionApi> {
-    // If already initialized and authentication completed, return immediately
-    // 如果已经初始化且认证完成，立即返回
+    // If already initialized, return immediately
+    // 如果已经初始化，立即返回
     if (this.mossApi) {
       return this.mossApi;
     }
@@ -72,9 +77,18 @@ export class RemoteConversationProvider implements IConversationProvider {
     // 开始初始化
     this.mossApiPromise = (async () => {
       const api = initMossApi(this.config.mossServerUrl || 'http://127.0.0.1:43127');
-      await api.authenticate(this.config.authToken, this.config.username, this.config.password);
+
+      // Use JWT token directly (from eeclaw auth storage)
+      // 直接使用 JWT token（来自 eeclaw auth storage）
+      if (!this.config.authToken) {
+        throw new Error('Enterprise auth token not set. Please login first.');
+      }
+
+      // Set the JWT access token directly, no conversion needed
+      // 直接设置 JWT access token，无需转换
+      api.setAccessToken(this.config.authToken);
       this.mossApi = api;
-      mainLog('RemoteProvider', 'Moss API initialized and authenticated');
+      mainLog('RemoteProvider', 'Moss API initialized with JWT token');
       return api;
     })();
 

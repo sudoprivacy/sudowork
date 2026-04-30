@@ -103,9 +103,17 @@ type UseGuidAgentSelectionOptions = {
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
 export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
+  const { isEnterprise } = useAppMode();
+
+  // Initial selected agent key based on enterprise mode
+  // 企业模式默认选择 'remote-agent'，非企业模式选择默认预设类型
+  const getInitialAgentKey = useCallback(() => {
+    return isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
+  }, [isEnterprise]);
+
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(() => getInitialAgentKey());
   // Track selectedAgentKey with ref to avoid dependency array cycles
-  const selectedAgentKeyRef = useRef<string>(DEFAULT_PRESET_AGENT_TYPE);
+  const selectedAgentKeyRef = useRef<string>(getInitialAgentKey());
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   // Track availableAgents with ref for resetSelection to access
   const availableAgentsRef = useRef<AvailableAgent[] | undefined>(undefined);
@@ -120,7 +128,6 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
-  const { isEnterprise } = useAppMode();
 
   // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -160,6 +167,32 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       return newModelId;
     });
   }, []);
+
+  // When isEnterprise changes, update the default agent selection
+  // 当企业模式变化时，更新默认 Agent 选择
+  useEffect(() => {
+    if (isEnterprise) {
+      // Enterprise mode: always select 'remote-agent'
+      // 企业模式：始终选择 'remote-agent'
+      if (selectedAgentKeyRef.current !== 'remote-agent') {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+        ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
+          console.error('Failed to save enterprise agent:', error);
+        });
+      }
+    } else {
+      // Consumer mode: reset to default preset if currently on remote-agent
+      // 消费者模式：如果当前是 remote-agent 则重置为默认预设
+      if (selectedAgentKeyRef.current === 'remote-agent') {
+        _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
+        selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
+        ConfigStorage.set('guid.lastSelectedAgent', DEFAULT_PRESET_AGENT_TYPE).catch((error) => {
+          console.error('Failed to save consumer agent:', error);
+        });
+      }
+    }
+  }, [isEnterprise]);
 
   const availableCustomAgentIds = useMemo(() => {
     const ids = new Set<string>();
@@ -234,19 +267,47 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           name: a.name,
           customAgentId: a.key,
         }));
+        // Always ensure at least one 'remote-agent' is available in enterprise mode
+        // 企业模式下始终确保至少有一个 'remote-agent' 可用
+        if (mapped.length === 0) {
+          mapped.push({
+            backend: 'remote-agent' as AcpBackend,
+            name: 'Remote Agent',
+            customAgentId: undefined,
+          });
+        }
         setAvailableAgents(mapped);
         availableAgentsRef.current = mapped;
       } else {
         setAvailableAgents(availableAgentsData as AvailableAgent[]);
         availableAgentsRef.current = availableAgentsData as AvailableAgent[];
       }
+    } else if (isEnterprise) {
+      // Enterprise mode: even if API fails, provide a default remote-agent
+      // 企业模式：即使 API 失败，也提供默认的 remote-agent
+      const defaultAgent: AvailableAgent = {
+        backend: 'remote-agent' as AcpBackend,
+        name: 'Remote Agent',
+        customAgentId: undefined,
+      };
+      setAvailableAgents([defaultAgent]);
+      availableAgentsRef.current = [defaultAgent];
     }
   }, [availableAgentsData, isEnterprise]);
 
   // Enterprise mode: default to 'remote-agent' when agents are loaded
+  // This effect runs when:
+  // 1. isEnterprise changes from false to true
+  // 2. availableAgents loads/changes in enterprise mode
   useEffect(() => {
     if (isEnterprise && availableAgents && availableAgents.length > 0) {
+      // Always force 'remote-agent' in enterprise mode, regardless of current selection
       _setSelectedAgentKey('remote-agent');
+      selectedAgentKeyRef.current = 'remote-agent';
+      // Save to storage for persistence
+      ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
+        console.error('Failed to save enterprise agent:', error);
+      });
     }
   }, [isEnterprise, availableAgents]);
 

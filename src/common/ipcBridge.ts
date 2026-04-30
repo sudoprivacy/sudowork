@@ -298,15 +298,12 @@ export const moss = {
   /** Get Moss Server URL and auth config */
   getConfig: bridge.buildProvider<{
     serverUrl: string;
-    authMode: 'api_key' | 'password' | 'access_token';
     hasToken: boolean;
   }, void>('moss.get-config'),
-  /** Authenticate with Moss Server */
-  authenticate: bridge.buildProvider<IBridgeResponse<{ success: boolean; tokenType?: string }>, {
-    authToken?: string;
-    username?: string;
-    password?: string;
-  }>('moss.authenticate'),
+  /** Set JWT auth token directly (no conversion needed) */
+  setAuthToken: bridge.buildProvider<IBridgeResponse, {
+    authToken: string;
+  }>('moss.set-auth-token'),
   /** List all sessions from Moss Server */
   listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>('moss.list-sessions'),
   /** Create a new session on Moss Server */
@@ -1649,4 +1646,6 @@ export const eeclaw = {
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
   >('eeclaw.login'),
+  /** Set app mode and update main process cache */
+  setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
 };

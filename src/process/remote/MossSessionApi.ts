@@ -27,40 +27,32 @@ export class MossSessionApi {
   }
 
   /**
-   * Exchange API Key or login with password for access_token
-   * POST /api/v1/auth/token
+   * Set access token directly (JWT from eeclaw auth storage)
+   * 直接设置 access token（eeclaw auth storage 中的 JWT）
+   *
+   * In production, enterprise login returns JWT access_token which is used directly.
+   * No need to convert API-KEY to auth-token.
+   * 生产环境中，企业登录返回 JWT access_token，直接使用。
+   * 无需将 API-KEY 转换为 auth-token。
+   *
+   * @param accessToken - JWT access token from enterprise login
    */
-  async authenticate(authToken?: string, username?: string, password?: string): Promise<string> {
-    // If authToken is already a JWT, use it directly
-    if (authToken && authToken.startsWith('eyJ')) {
-      this.accessToken = authToken;
-      return authToken;
+  setAccessToken(accessToken: string): void {
+    this.accessToken = accessToken;
+  }
+
+  /**
+   * Ensure access token is set
+   * 确保 access token 已设置
+   *
+   * Throws error if token is not set (should be set during initialization).
+   * 如果 token 未设置则抛出错误（应在初始化时设置）。
+   */
+  async ensureAuthenticated(): Promise<string> {
+    if (!this.accessToken) {
+      throw new Error('Access token not set. Please call setAccessToken() first.');
     }
-
-    const grantType = authToken ? 'api_key' : 'password';
-    const body =
-      grantType === 'api_key'
-        ? { grant_type: 'api_key', api_key: authToken }
-        : {
-            grant_type: 'password',
-            ...(username ? { username } : {}),
-            ...(password ? { password } : {}),
-          };
-
-    const response = await fetch(`${this.serverUrl}/api/v1/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Authentication failed: ${response.status} ${text}`);
-    }
-
-    const data = (await response.json()) as { access_token: string };
-    this.accessToken = data.access_token;
-    return data.access_token;
+    return this.accessToken;
   }
 
   /**

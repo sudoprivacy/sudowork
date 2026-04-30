@@ -256,7 +256,6 @@ export function initAcpConversationBridge(): void {
   ipcBridge.acpConversation.getModelInfo.provider(async ({ conversationId }) => {
     mainLog('AcpConversationBridge', `getModelInfo called for conversation ${conversationId}`);
     const task = WorkerManage.getTaskById(conversationId);
-const task = WorkerManage.getTaskById(conversationId);
     if (!task) {
       mainLog('AcpConversationBridge', `No task found for ${conversationId}, checking provider cache`);
       // For remote-agent, check cached model info from provider

@@ -37,15 +37,19 @@ export function getConversationProvider(): IConversationProvider {
   // Create new provider / 创建新的 Provider
   if (isEnterprise) {
     const config = getEnterpriseConfig();
-    mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${config.mossServerUrl}`);
+    mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${config.mossServerUrl || 'not set'}, Token: ${config.authToken ? 'set' : 'not set'}`);
+
+    if (!config.mossServerUrl || !config.authToken) {
+      mainLog('Provider', 'Enterprise config incomplete, falling back to LOCAL provider');
+      currentProvider = new LocalConversationProvider();
+      currentProviderType = 'local';
+      return currentProvider;
+    }
 
     currentProvider = new RemoteConversationProvider({
       isEnterpriseMode: true,
       mossServerUrl: config.mossServerUrl,
       authToken: config.authToken,
-      username: config.username,
-      password: config.password,
-      runtimeType: config.runtimeType,
     });
     currentProviderType = 'remote';
   } else {

@@ -28,27 +28,25 @@ export function initMossBridge(): void {
     const config = getEnterpriseConfig();
     return {
       serverUrl: config.mossServerUrl,
-      authMode: config.authMode,
-      hasToken: !!config.authToken || (!!config.username && !!config.password),
+      hasToken: !!config.authToken,
     };
   });
 
-  // moss.authenticate
-  ipcBridge.moss.authenticate.provider(async ({ authToken, username, password }) => {
+  // moss.set-auth-token - Set JWT token directly (no conversion needed)
+  // moss.set-auth-token - 直接设置 JWT token（无需转换）
+  ipcBridge.moss.setAuthToken.provider(async ({ authToken }) => {
     try {
       const config = getEnterpriseConfig();
+      if (!config.mossServerUrl) {
+        return { success: false, msg: 'Moss Server URL not configured' };
+      }
+
       const api = initMossApi(config.mossServerUrl);
+      // Set JWT token directly (from eeclaw auth storage)
+      // 直接设置 JWT token（来自 eeclaw auth storage）
+      api.setAccessToken(authToken);
 
-      const token = await api.authenticate(
-        authToken || config.authToken,
-        username || config.username,
-        password || config.password
-      );
-
-      return {
-        success: true,
-        tokenType: token.startsWith('eyJ') ? 'access_token' : 'api_key',
-      };
+      return { success: true };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       return { success: false, msg };

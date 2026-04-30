@@ -90,18 +90,17 @@ export interface IConversationProvider {
 
 /**
  * Provider factory configuration / Provider 工厂配置
+ *
+ * For enterprise mode, uses JWT access_token directly from eeclaw auth storage.
+ * 企业模式下，直接使用 eeclaw auth storage 中的 JWT access_token。
  */
 export interface IProviderConfig {
   /** Whether to use remote (enterprise) mode / 是否使用远程（企业）模式 */
   isEnterpriseMode: boolean;
   /** Moss Server URL (for remote provider) / Moss Server URL（用于远程 Provider） */
   mossServerUrl?: string;
-  /** Auth token (for remote provider) / 认证令牌（用于远程 Provider） */
+  /** JWT access token from enterprise login (for remote provider) / 企业登录的 JWT access token（用于远程 Provider） */
   authToken?: string;
-  /** Username (for password login) / 用户名（用于密码登录） */
-  username?: string;
-  /** Password (for password login) / 密码（用于密码登录） */
-  password?: string;
   /** Runtime type / 运行时类型 */
   runtimeType?: 'host' | 'docker';
 }
