@@ -4,10 +4,14 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
+import { Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+
+/** Enterprise mode builtin tab IDs (restricted subset) - synced with SettingsSider */
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'system', 'about'] as const;
 interface SettingsPageWrapperProps {
   children: React.ReactNode;
   className?: string;
@@ -21,6 +25,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const { pathname } = useLocation();
   const { t } = useTranslation();
   const isDesktop = isElectronDesktop();
+  const { isEnterprise } = useAppMode();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
 
@@ -39,6 +44,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     // Sync with SettingsSider menu items / 与 SettingsSider 菜单项保持一致
     const builtinMap: Record<string, NavItem> = {
       profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User theme='outline' size='16' />, path: 'profile' },
+      enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <BuildingTwo theme='outline' size='16' />, path: 'enterprise' },
       members: { id: 'members', label: t('settings.memberManagement', { defaultValue: '成员管理' }), icon: <Peoples theme='outline' size='16' />, path: 'members', hidden: true },
       agent: { id: 'agent', label: '数字助手', icon: <Robot theme='outline' size='16' />, path: 'agent' },
       tools: { id: 'tools', label: '工具', icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
@@ -54,7 +60,8 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
     const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
-    const builtins: NavItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
+    const activeBuiltinTabIds = isEnterprise ? ENTERPRISE_BUILTIN_TAB_IDS : BUILTIN_TAB_IDS;
+    const builtins: NavItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Insert extension tabs before system (unanchored default) or at anchor position
     const result = [...builtins];
@@ -100,8 +107,24 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       result.splice(idx, 0, ...unanchored.map(toNavItem));
     }
 
+    // Enterprise mode: filter extension tabs whose anchor targets a hidden builtin tab
+    // Keep: unanchored extension tabs, and extension tabs anchored to ENTERPRISE_BUILTIN_TAB_IDS
+    // Remove: extension tabs anchored to hidden builtins (e.g., agent, tools, skill, etc.)
+    if (isEnterprise) {
+      const enterpriseIds = new Set<string>(ENTERPRISE_BUILTIN_TAB_IDS);
+      for (let i = result.length - 1; i >= 0; i--) {
+        const item = result[i];
+        if (item.path.startsWith('ext/')) {
+          const extTab = extensionTabs.find((t) => t.id === item.id);
+          if (extTab?.position?.anchor && !enterpriseIds.has(extTab.position.anchor)) {
+            result.splice(i, 1);
+          }
+        }
+      }
+    }
+
     return result;
-  }, [isDesktop, t, extensionTabs, resolveExtTabName]);
+  }, [isDesktop, t, extensionTabs, resolveExtTabName, isEnterprise]);
 
   const containerClass = classNames('settings-page-wrapper w-full min-h-full box-border overflow-y-auto', isMobile ? 'px-16px py-14px' : 'px-12px md:px-40px py-32px', className);
 

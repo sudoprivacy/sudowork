@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { ConfigStorage } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
@@ -31,6 +32,15 @@ interface AuthStorage {
   access_token: string;
   refresh_token: string;
   expires_at: number; // 过期时间戳（毫秒）
+  user: AuthUser;
+  device_id: string;
+}
+
+// Enterprise auth storage (localStorage, separate from C-side)
+interface EeclawAuthStorage {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
   user: AuthUser;
   device_id: string;
 }
@@ -92,6 +102,16 @@ type SetAuthStatus = (status: AuthStatus) => void;
 type SetAuthReady = (ready: boolean) => void;
 type SetSyncMessage = (message: string | null) => void;
 
+// Enterprise login params
+interface EnterpriseLoginParams {
+  username: string;
+  password: string;
+}
+
+interface EnterpriseLoginParamsByKey {
+  public_key: string;
+}
+
 interface AuthContextValue {
   ready: boolean;
   user: AuthUser | null;
@@ -103,12 +123,14 @@ interface AuthContextValue {
   refresh: () => Promise<void>;
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
+  enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const AUTH_USER_ENDPOINT = '/api/auth/user';
 const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
+const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -179,6 +201,17 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
   }
 
   return null;
+}
+
+// Map enterprise user to AuthUser compatible type
+function mapEnterpriseUser(enterpriseUser: { id: string; username: string; role?: string }, token?: string): AuthUser {
+  return {
+    id: enterpriseUser.id,
+    nickname: enterpriseUser.username, // enterprise user has no nickname, use username
+    role: (enterpriseUser.role as AuthUser['role']) || 'USER',
+    status: 1, // default active
+    token,
+  };
 }
 
 // 处理登录成功后的通用逻辑
@@ -291,8 +324,57 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [ready, setReady] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Token 刷新函数
+  // Token 刷新函数 — supports both C-side and enterprise mode
   const refreshTokens = useCallback(async (): Promise<boolean> => {
+    // Enterprise mode: refresh from enterprise server
+    const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (eeclawStored) {
+      try {
+        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+        const { refresh_token, device_id } = authStorage;
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (!serverUrl) return false;
+
+        const response = await fetch(`${serverUrl}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token, device_id }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          const newStorage: EeclawAuthStorage = {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            expires_at: Date.now() + data.expires_in * 1000,
+            user: authStorage.user,
+            device_id: device_id || getDeviceId(),
+          };
+          localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(newStorage));
+          setUser({ ...authStorage.user, token: data.access_token });
+          console.log('[Auth] Enterprise token refreshed successfully');
+
+          // Sync token to ConfigStorage for eeclawBridge
+          try {
+            await ConfigStorage.set('eeclaw.authStorage', {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+              expires_at: newStorage.expires_at,
+              device_id: newStorage.device_id,
+            });
+          } catch (e) {
+            console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage:', e);
+          }
+
+          return true;
+        }
+      } catch (error) {
+        console.error('[Auth] Enterprise token refresh failed:', error);
+      }
+      return false;
+    }
+
+    // C-side mode: refresh from sudowork server
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!stored) return false;
 
@@ -328,24 +410,42 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return false;
   }, []);
 
-  // 确保有效 Token（在请求前调用）
+  // 确保有效 Token（在请求前调用）— supports both modes
   const ensureValidToken = useCallback(
     async (forceRefresh = false): Promise<string | null> => {
-      // 优先检查新版本存储
+      // Enterprise mode: check eeclaw_auth_v1
+      const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+      if (eeclawStored) {
+        try {
+          const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+          const { access_token, expires_at } = authStorage;
+
+          if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
+            const refreshed = await refreshTokens();
+            if (!refreshed) return null;
+            const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
+            return newStorage.access_token || null;
+          }
+
+          return access_token;
+        } catch (error) {
+          console.error('[Auth] Failed to ensure valid enterprise token:', error);
+        }
+        return null;
+      }
+
+      // C-side: original logic
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
         try {
           const authStorage: AuthStorage = JSON.parse(stored);
           const { access_token, expires_at } = authStorage;
 
-          // 强制刷新 或 提前 5 分钟刷新
           if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
             const refreshed = await refreshTokens();
             if (!refreshed) {
-              // refresh_token 也过期，需要重新登录
               return null;
             }
-            // 返回新的 access_token
             const newStorage = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
             return newStorage.access_token || null;
           }
@@ -361,8 +461,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (oldStored) {
         try {
           const oldAuthData = JSON.parse(oldStored);
-          // 旧版本没有 refresh_token，直接返回 token
-          // 如果 token 失效，用户需要重新登录才能获得新机制
           return oldAuthData.token || null;
         } catch (error) {
           console.error('[Auth] Failed to parse old auth storage:', error);
@@ -374,17 +472,31 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     [refreshTokens]
   );
 
-  // 强制刷新 Token（当服务器返回 401 时调用）
+  // 强制刷新 Token — supports both modes
   const forceRefreshToken = useCallback(async (): Promise<string | null> => {
     console.log('[Auth] Force refreshing token...');
 
-    // 检查是否有新版本存储（有 refresh_token）
+    // Enterprise mode
+    const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (eeclawStored) {
+      try {
+        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+        if (authStorage.refresh_token) {
+          return ensureValidToken(true);
+        }
+      } catch (error) {
+        console.error('[Auth] Failed to check enterprise auth storage:', error);
+      }
+      console.warn('[Auth] No enterprise refresh_token available, user needs to re-login');
+      return null;
+    }
+
+    // C-side
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
       try {
         const authStorage: AuthStorage = JSON.parse(stored);
         if (authStorage.refresh_token) {
-          // 有 refresh_token，可以刷新
           return ensureValidToken(true);
         }
       } catch (error) {
@@ -392,13 +504,48 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
     }
 
-    // 旧版本用户没有 refresh_token，返回 null 让用户重新登录
     console.warn('[Auth] No refresh_token available, user needs to re-login');
     return null;
   }, [ensureValidToken]);
 
   const refresh = useCallback(async () => {
-    // 优先检查新版本存储
+    // === Enterprise mode: restore from eeclaw_auth_v1 ===
+    const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (eeclawStored) {
+      try {
+        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+
+        if (!authStorage.user) {
+          localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+        } else {
+          setUser(authStorage.user);
+          setStatus('authenticated');
+          setReady(true);
+
+          // Sync token to ConfigStorage for eeclawBridge
+          try {
+            await ConfigStorage.set('eeclaw.authStorage', {
+              access_token: authStorage.access_token,
+              refresh_token: authStorage.refresh_token,
+              expires_at: authStorage.expires_at,
+              device_id: authStorage.device_id,
+            });
+          } catch (e) {
+            console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage:', e);
+          }
+
+          // Check if token needs refresh
+          if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
+            await refreshTokens();
+          }
+          return;
+        }
+      } catch (e) {
+        localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+      }
+    }
+
+    // === C-side: original logic ===
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
       try {
@@ -454,7 +601,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           return;
         }
 
-        // 旧 token 没有 refresh_token，用户需要重新登录才能获得新机制
         setUser(parsed);
         setStatus('authenticated');
         setReady(true);
@@ -465,7 +611,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           });
         }
 
-        // 旧版本存储恢复时，也同步昵称到主进程
         if (isDesktopRuntime && parsed.nickname) {
           ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: parsed.nickname }).catch((error) => {
             console.error('[Auth] Failed to sync user nickname on restore:', error);
@@ -478,7 +623,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     if (isDesktopRuntime) {
-      // 桌面端默认未登录，除非有本地存储的 Token
       setStatus('unauthenticated');
       setUser(null);
       setReady(true);
@@ -591,7 +735,140 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
+  // Enterprise login — independent from C-side login flow
+  const enterpriseLogin = useCallback(async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
+    try {
+      const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+      if (!serverUrl) {
+        return { success: false, message: '未配置企业服务器地址' };
+      }
+
+      const deviceId = getDeviceId();
+      const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify(params),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        return {
+          success: false,
+          message: data?.msg || data?.message || '登录失败',
+          code: 'invalidCredentials',
+        };
+      }
+
+      // Map enterprise user to AuthUser compatible type
+      const mappedUser = mapEnterpriseUser(data.user, data.token);
+
+      // Save to localStorage (eeclaw_auth_v1, separate from C-side)
+      const eeclawAuthStorage: EeclawAuthStorage = {
+        access_token: data.token,
+        refresh_token: data.refresh_token,
+        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+        user: mappedUser,
+        device_id: deviceId,
+      };
+      localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
+
+      // Save user info to ConfigStorage
+      try {
+        await ConfigStorage.set('eeclaw.userInfo', {
+          id: data.user.id,
+          username: data.user.username,
+          role: data.user.role,
+        });
+      } catch (e) {
+        console.warn('[Auth] Failed to save enterprise user info:', e);
+      }
+
+      // Sync token to ConfigStorage for eeclawBridge
+      try {
+        await ConfigStorage.set('eeclaw.authStorage', {
+          access_token: data.token,
+          refresh_token: data.refresh_token,
+          expires_at: eeclawAuthStorage.expires_at,
+          device_id: deviceId,
+        });
+      } catch (e) {
+        console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage (will retry):', e);
+        // Retry once
+        try {
+          await ConfigStorage.set('eeclaw.authStorage', {
+            access_token: data.token,
+            refresh_token: data.refresh_token,
+            expires_at: eeclawAuthStorage.expires_at,
+            device_id: deviceId,
+          });
+        } catch (e2) {
+          console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
+        }
+      }
+
+      // Set auth state
+      setUser(mappedUser);
+      setStatus('authenticated');
+      setReady(true);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[Auth] Enterprise login failed:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '连接到企业服务器失败',
+        code: 'networkError',
+      };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
+    // Enterprise mode logout
+    const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (eeclawStored) {
+      try {
+        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+        const { refresh_token, device_id } = authStorage;
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+
+        if (serverUrl) {
+          try {
+            await fetch(`${serverUrl}/api/v1/auth/logout`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token, device_id }),
+            });
+          } catch (error) {
+            console.error('[Auth] Enterprise logout request failed:', error);
+          }
+        }
+      } catch (error) {
+        console.error('[Auth] Failed to parse enterprise auth storage:', error);
+      }
+
+      // Clear enterprise auth data
+      localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+
+      // Clear enterprise ConfigStorage (but keep system.appMode = 'e')
+      try {
+        await ConfigStorage.set('eeclaw.authStorage', undefined);
+      } catch { /* noop */ }
+      try {
+        await ConfigStorage.set('eeclaw.userInfo', undefined);
+      } catch { /* noop */ }
+
+      setUser(null);
+      setStatus('unauthenticated');
+      setSyncMessage(null);
+      setReady(true);
+      return;
+    }
+
+    // C-side logout (original logic)
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
 
     if (stored) {
@@ -599,7 +876,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const authStorage: AuthStorage = JSON.parse(stored);
         const { refresh_token, device_id } = authStorage;
 
-        // 调用服务端注销接口
         await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -612,7 +888,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     // 清除本地存储
     localStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem('sudowork_auth_v1'); // 也清理旧版本
+    localStorage.removeItem('sudowork_auth_v1');
 
     // 清除用户手机号文件
     if (isDesktopRuntime) {
@@ -659,8 +935,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refresh,
       ensureValidToken,
       forceRefreshToken,
+      enterpriseLogin,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

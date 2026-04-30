@@ -50,6 +50,7 @@ import { initWorkspaceBridge } from './workspaceBridge';
 import { initTelemetryBridge } from './telemetryBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
+import { initEeclawBridge } from './eeclawBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -100,6 +101,7 @@ export function initAllBridges(): void {
   initWorkspaceBridge();
   initTelemetryBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
+  initEeclawBridge();
 }
 
 /**

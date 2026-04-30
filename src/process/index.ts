@@ -12,12 +12,13 @@ import { app } from 'electron';
 if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
-import initStorage from './initStorage';
+import initStorage, { ProcessConfig } from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
+import { initStatusManager } from './services/initStatus';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
@@ -54,34 +55,49 @@ export const initializeProcess = async () => {
   }
   perfLog('initBridge', Date.now() - bridgeStart);
 
-  // 3. Start ServiceManager — installs missing runtimes & starts services (non-blocking)
-  //    Handles: Node.js, Sudoclaw, Nexus install + OpenClaw gateway + Nexus + SafetyPollingService
-  const { serviceManager } = await import('./services/serviceManager');
-  void serviceManager.startup();
+  // ExtensionRegistry is zero-coupled to serviceManager/ChannelManager (verified in source),
+  // so it must be initialized in ALL modes to support themes, i18n, settings tabs, etc.
+  const extStart = Date.now();
+  try {
+    await ExtensionRegistry.getInstance().initialize();
+  } catch (error) {
+    mainError('Process', 'Failed to initialize ExtensionRegistry', error);
+  }
+  perfLog('ExtensionRegistry', Date.now() - extStart);
 
-  // Initialize Extension Registry and Channel subsystem in parallel (they are independent)
-  const parallelStart = Date.now();
-  await Promise.all([
-    (async () => {
-      const extStart = Date.now();
-      try {
-        await ExtensionRegistry.getInstance().initialize();
-      } catch (error) {
-        mainError('Process', 'Failed to initialize ExtensionRegistry', error);
-      }
-      perfLog('ExtensionRegistry', Date.now() - extStart);
-    })(),
-    (async () => {
-      const channelStart = Date.now();
-      try {
-        await getChannelManager().initialize();
-      } catch (error) {
-        mainError('Process', 'Failed to initialize ChannelManager', error);
-      }
-      perfLog('ChannelManager', Date.now() - channelStart);
-    })(),
-  ]);
-  perfLog('ExtensionRegistry+ChannelManager(parallel)', Date.now() - parallelStart);
+  // 3. Three-way mode branching: 'e' (enterprise), 'c' (consumer), null (new user)
+  // Use ProcessConfig.getSync() instead of ConfigStorage.get() because the latter
+  // uses BroadcastChannel IPC which doesn't work in the main process (no renderer yet).
+  const appMode = ProcessConfig.getSync('system.appMode') ?? null;
+
+  if (appMode === 'e') {
+    // Enterprise mode: bridge is ready, skip local services, set ready immediately
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+  } else if (appMode === 'c') {
+    // Consumer mode: normal full startup
+    const serviceStart = Date.now();
+    const { serviceManager } = await import('./services/serviceManager');
+    void serviceManager.startup();
+    perfLog('serviceManager.startup', Date.now() - serviceStart);
+
+    const parallelStart = Date.now();
+    await Promise.all([
+      (async () => {
+        const channelStart = Date.now();
+        try {
+          await getChannelManager().initialize();
+        } catch (error) {
+          mainError('Process', 'Failed to initialize ChannelManager', error);
+        }
+        perfLog('ChannelManager', Date.now() - channelStart);
+      })(),
+    ]);
+    perfLog('ChannelManager', Date.now() - parallelStart);
+  } else {
+    // New user (no appMode set): skip services, show ModeSetup
+    // User selects C → startConsumerServices IPC + renderer reload (no app restart needed)
+    initStatusManager.setStatus('ready', '初始化完成', 100);
+  }
 
   perfLog('total_startup', Date.now() - totalStart);
   mainLog('Process', `Initialization complete in ${Date.now() - totalStart}ms`);
