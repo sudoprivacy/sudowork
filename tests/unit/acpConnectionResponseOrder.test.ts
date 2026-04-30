@@ -98,4 +98,39 @@ describe('AcpConnection prompt response ordering', () => {
       },
     });
   });
+
+  it('abandons cancel locally after timeout without disconnecting the session', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const harness = connection as unknown as AcpConnectionTestHarness & {
+      child: { killed: boolean } | null;
+      sessionId: string | null;
+      sendMessage: (message: unknown) => void;
+      disconnect: () => Promise<void>;
+    };
+    const resolve = vi.fn();
+    const disconnectSpy = vi.fn().mockResolvedValue(undefined);
+
+    harness.child = { killed: false };
+    harness.sessionId = 'session-1';
+    harness.sendMessage = vi.fn();
+    harness.disconnect = disconnectSpy;
+
+    harness.pendingRequests.set(7, {
+      resolve,
+      reject: vi.fn(),
+      method: 'session/prompt',
+      isPaused: false,
+      startTime: Date.now(),
+      timeoutDuration: 300000,
+      timeoutId: undefined,
+    });
+
+    const result = await connection.cancel(5);
+
+    expect(result).toBe('abandoned');
+    expect(resolve).toHaveBeenCalledWith({ stopReason: 'cancelled' });
+    expect(harness.pendingRequests.has(7)).toBe(false);
+    expect(disconnectSpy).not.toHaveBeenCalled();
+  });
 });

@@ -1049,14 +1049,17 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.confirmations = [];
 
-    // 4. Cancel the current turn (waits for backend to confirm, or kills after 3s)
-    let result: 'cancelled' | 'disconnected';
+    // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
+    // abandon the local wait but keep the session/process alive for the next turn.
+    let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
       result = await this.connection.cancel();
     } catch {
       await this.connection.disconnect();
       result = 'disconnected';
     }
+
+    this.status = 'finished';
 
     if (result === 'disconnected') {
       // Backend didn't respond to cancel — process was killed
@@ -1071,7 +1074,19 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: uuid(),
         data: null,
       });
+      return;
     }
+
+    if (result === 'abandoned') {
+      void this.handleSignalEvent({
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      });
+      return;
+    }
+
     // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
     // The finish event was already emitted by handleEndTurn() when the backend responded
   }

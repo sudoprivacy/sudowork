@@ -1006,7 +1006,7 @@ export class AcpConnection {
    * by responding to the pending session/prompt with stopReason: 'cancelled'.
    * Falls back to disconnect() if the backend doesn't respond within timeout.
    */
-  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'disconnected'> {
+  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'abandoned' | 'disconnected'> {
     if (!this.child || !this.sessionId) {
       await this.disconnect();
       return 'disconnected';
@@ -1031,12 +1031,28 @@ export class AcpConnection {
     const resolved = await this.waitForRequestResolution(pendingPromptId, timeoutMs);
 
     if (!resolved) {
-      // Backend didn't respond in time — force kill
-      await this.disconnect();
-      return 'disconnected';
+      // Backend didn't acknowledge cancel in time. Abandon the local wait,
+      // keep the session alive, and ignore the eventual late response.
+      this.resolvePendingPromptAsCancelled(pendingPromptId);
+      return 'abandoned';
     }
 
     return 'cancelled';
+  }
+
+  private resolvePendingPromptAsCancelled(requestId: number): void {
+    const request = this.pendingRequests.get(requestId);
+    if (!request) {
+      return;
+    }
+
+    if (request.timeoutId) {
+      clearTimeout(request.timeoutId);
+    }
+    this.pendingRequests.delete(requestId);
+    request.resolve({
+      stopReason: 'cancelled',
+    });
   }
 
   /** Find the request ID of a pending session/prompt request, if any. */
