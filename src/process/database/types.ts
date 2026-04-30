@@ -70,7 +70,7 @@ export interface IConversationRow {
   id: string;
   user_id: string;
   name: string;
-  type: 'acp' | 'openclaw-gateway';
+  type: 'acp' | 'openclaw-gateway' | 'remote-agent';
   extra: string; // JSON string of extra data
   model?: string; // JSON string of TProviderWithModel (gemini type has this)
   status?: 'pending' | 'running' | 'finished';
@@ -157,6 +157,15 @@ export function rowToConversation(row: IConversationRow): TChatConversation {
     return {
       ...base,
       type: 'openclaw-gateway' as const,
+      extra: JSON.parse(row.extra),
+    } as TChatConversation;
+  }
+
+  // Remote Agent type
+  if (row.type === 'remote-agent') {
+    return {
+      ...base,
+      type: 'remote-agent' as const,
       extra: JSON.parse(row.extra),
     } as TChatConversation;
   }

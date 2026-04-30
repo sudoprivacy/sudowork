@@ -325,7 +325,9 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         id: uuid(),
         type: 'tips',
         msg_id: message.msg_id,
-        position: 'center',
+        // Position: 'left' to show AI avatar on the left side (consistent with assistant messages)
+        // Position: 'left' 以在左侧显示 AI 头像（与 assistant 消息保持一致）
+        position: 'left',
         conversation_id: message.conversation_id,
         content: {
           content: message.data as string,

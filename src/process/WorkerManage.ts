@@ -7,6 +7,7 @@
 import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
 import OpenClawAgent from './task/OpenClawAgent';
+import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
@@ -42,7 +43,54 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
   }
 
   switch (conversation.type) {
+    case 'remote-agent': {
+      // Enterprise mode: connect to Moss Server / 企业模式：连接 Moss Server
+      const extra = conversation.extra as {
+        mossServerUrl?: string;
+        authToken?: string;
+        username?: string;
+        password?: string;
+        acpWsUrl?: string;
+        mossSessionId?: string;
+        mossSessionPending?: boolean;
+        presetAssistantId?: string;
+        agentName?: string;
+        dangerouslySkipPermissions?: boolean;
+        runtimeType?: 'host' | 'docker';
+      };
+      const mossServerUrl = extra?.mossServerUrl || 'http://127.0.0.1:43127';
+      const authToken = extra?.authToken || '';
+      const wsUrl = extra?.acpWsUrl;
+      const mossSessionPending = extra?.mossSessionPending;
+      const mossSessionId = extra?.mossSessionId;
+
+      const task = new RemoteAgent({
+        conversation_id: conversation.id,
+        workspace: conversation.extra?.workspace,
+        serverUrl: mossServerUrl,
+        authToken,
+        username: extra?.username,
+        password: extra?.password,
+        assistantName: extra?.presetAssistantId || extra?.agentName,
+        dangerouslySkipPermissions: options?.yoloMode ?? extra?.dangerouslySkipPermissions,
+        runtimeType: extra?.runtimeType,
+        yoloMode: options?.yoloMode,
+        // Resume mode: use existing wsUrl and sessionId
+        // 恢复模式：使用已有的 wsUrl 和 sessionId
+        wsUrl,
+        sessionId: wsUrl ? mossSessionId || conversation.id : undefined,
+        // Lazy creation: pass mossSessionPending flag
+        // 延迟创建：传递 mossSessionPending 标志
+        mossSessionPending,
+      });
+
+      if (!options?.skipCache) {
+        taskList.push({ id: conversation.id, task });
+      }
+      return task;
+    }
     case 'acp': {
+      // Local ACP agent / 本地 ACP Agent
       const task = new AcpAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
@@ -108,6 +156,13 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
     mainLog('WorkerManage', `Building conversation from file storage: ${id}`);
     return buildConversation(conversation, options);
   }
+
+  // Note: Enterprise mode (Moss Server) conversations are now handled by RemoteConversationProvider
+  // 注意：企业模式（Moss Server）会话现在由 RemoteConversationProvider 处理
+  // The Provider layer manages session creation/resume, so WorkerManage no longer needs
+  // Moss fallback logic here. See src/process/providers/RemoteConversationProvider.ts
+  // Provider 层管理会话创建/恢复，因此 WorkerManage 不再需要 Moss 回退逻辑
+  // 参见 src/process/providers/RemoteConversationProvider.ts
 
   mainError('WorkerManage', 'Conversation not found in database or file storage:', id);
   return Promise.reject(new Error('Conversation not found'));

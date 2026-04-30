@@ -1,0 +1,430 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import BaseAgent from './BaseAgent';
+import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
+import { ipcBridge } from '@/common';
+import type { IResponseMessage } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
+import { uuid } from '@/common/utils';
+import { mainLog, mainError } from '../utils/mainLogger';
+import { getDatabase } from '../database/export';
+import { getConversationProvider } from '../providers';
+
+/**
+ * RemoteAgent data interface
+ */
+export interface RemoteAgentData {
+  conversation_id: string;
+  workspace?: string;
+  /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+  serverUrl: string;
+  /** Auth token - can be API Key, Access Token, or empty (use username/password) */
+  authToken?: string;
+  /** Username for password login (when authToken is empty) */
+  username?: string;
+  /** Password for password login (when authToken is empty) */
+  password?: string;
+  /** Agent name (corresponds to Moss assistant_name) */
+  assistantName?: string;
+  /** Skip permission confirmation */
+  dangerouslySkipPermissions?: boolean;
+  /** Runtime type */
+  runtimeType?: 'host' | 'docker';
+  /** Yolo mode (auto-approve all) */
+  yoloMode?: boolean;
+  /** Existing WebSocket URL (for resume mode - reconnect to existing session) */
+  wsUrl?: string;
+  /** Existing Moss session ID (for resume mode) */
+  sessionId?: string;
+  /** Whether Moss session is pending creation */
+  mossSessionPending?: boolean;
+}
+
+/**
+ * Remote Agent - integrates with Moss Server Session API
+ *
+ * LAZY CREATION PATTERN:
+ * - If mossSessionPending=true, creates Moss session on first sendMessage
+ * - If wsUrl exists, attaches/resumes to existing Moss session
+ */
+class RemoteAgent extends BaseAgent<RemoteAgentData> {
+  private connection: MossWsConnection | null = null;
+  private options: RemoteAgentData;
+  private bootstrap: Promise<void> | undefined;
+  private statusMessageId: string | null = null;
+  private mossSessionId: string | null = null;
+  private mossWsUrl: string | null = null;
+
+  /** Workspace path for this agent */
+  workspace: string;
+
+  constructor(data: RemoteAgentData) {
+    super('remote-agent', data);
+    this.conversation_id = data.conversation_id;
+    this.options = data;
+    this.status = 'pending';
+    this.workspace = data.workspace || process.cwd();
+  }
+
+  /**
+   * Initialize Agent:
+   * - If mossSessionPending: Create new Moss session first, then connect
+   * - If wsUrl exists: Attach/resume to existing Moss session
+   */
+  private async initAgent(): Promise<void> {
+    if (this.bootstrap) {
+      mainLog('RemoteAgent', `Reusing existing bootstrap for conversation ${this.conversation_id}`);
+      return this.bootstrap;
+    }
+
+    mainLog('RemoteAgent', `Starting initAgent for conversation ${this.conversation_id}`);
+    mainLog('RemoteAgent', `serverUrl: ${this.options.serverUrl}, mossSessionPending: ${this.options.mossSessionPending}`);
+
+    this.bootstrap = (async () => {
+      this.emitStatusMessage('connecting');
+
+      // Determine mode: create new session or attach/resume existing
+      // 确定模式：创建新 session 还是 attach/resume 已存在的
+      const isPendingMode = this.options.mossSessionPending;
+      const hasExistingWsUrl = !!this.options.wsUrl;
+
+      if (isPendingMode && !hasExistingWsUrl) {
+        // LAZY CREATION: Create Moss session now
+        // 延迟创建：现在创建 Moss session
+        mainLog('RemoteAgent', 'LAZY CREATION MODE: Creating Moss session on first send');
+
+        const config: MossWsConnectionConfig = {
+          serverUrl: this.options.serverUrl,
+          authToken: this.options.authToken,
+          username: this.options.username,
+          password: this.options.password,
+          cwd: this.workspace,
+          assistantName: this.options.assistantName,
+          dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
+          runtimeType: this.options.runtimeType,
+          // No wsUrl - will create new session
+          wsUrl: undefined,
+          sessionId: undefined,
+        };
+
+        mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd}, assistant=${config.assistantName || 'default'}`);
+
+        const callbacks: MossWsCallbacks = {
+          onMessage: (msg) => this.handleStreamMessage(msg),
+          onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
+          onConnected: () => this.handleConnected(),
+          onDisconnected: () => this.handleDisconnected(),
+          onReconnecting: (attempt, max) => this.handleReconnecting(attempt, max),
+          onError: (err) => this.handleError(err),
+        };
+
+        this.connection = new MossWsConnection(config, callbacks);
+        await this.connection.connect();
+
+        // Get created session info
+        // 获取创建的 session 信息
+        this.mossSessionId = this.connection.getSessionId();
+        this.mossWsUrl = this.connection.getWsUrl();
+
+        mainLog('RemoteAgent', `Moss session created: sessionId=${this.mossSessionId}, wsUrl=${this.mossWsUrl}`);
+
+        // Update local database with Moss session info
+        // 更新本地数据库的 Moss session 信息
+        await this.updateConversationWithMossSession();
+      } else if (hasExistingWsUrl) {
+        // RESUME/ATTACH MODE: Use existing wsUrl
+        // 恢复/附加模式：使用已有的 wsUrl
+        mainLog('RemoteAgent', 'RESUME/ATTACH MODE: Using existing wsUrl');
+
+        const config: MossWsConnectionConfig = {
+          serverUrl: this.options.serverUrl,
+          authToken: this.options.authToken,
+          username: this.options.username,
+          password: this.options.password,
+          cwd: this.workspace,
+          assistantName: this.options.assistantName,
+          dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
+          runtimeType: this.options.runtimeType,
+          // Resume mode: use existing wsUrl and sessionId
+          wsUrl: this.options.wsUrl,
+          sessionId: this.options.sessionId || this.conversation_id,
+        };
+
+        mainLog('RemoteAgent', `MossWsConnection config: resume=${!!config.wsUrl}, sessionId=${config.sessionId}`);
+
+        const callbacks: MossWsCallbacks = {
+          onMessage: (msg) => this.handleStreamMessage(msg),
+          onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
+          onConnected: () => this.handleConnected(),
+          onDisconnected: () => this.handleDisconnected(),
+          onReconnecting: (attempt, max) => this.handleReconnecting(attempt, max),
+          onError: (err) => this.handleError(err),
+        };
+
+        this.connection = new MossWsConnection(config, callbacks);
+        await this.connection.connect();
+
+        this.mossSessionId = this.connection.getSessionId();
+        this.mossWsUrl = this.connection.getWsUrl();
+      } else {
+        // No wsUrl and not pending - need to check conversation status
+        // 没有 wsUrl 且不是 pending - 需要检查会话状态
+        mainLog('RemoteAgent', 'Checking conversation status for resume/attach...');
+
+        // This shouldn't happen in normal flow
+        // 正常流程不应该发生这种情况
+        throw new Error('Invalid state: no wsUrl and not pending');
+      }
+
+      this.emitStatusMessage('session_active');
+      mainLog('RemoteAgent', `initAgent completed for conversation ${this.conversation_id}`);
+    })();
+
+    return this.bootstrap;
+  }
+
+  /**
+   * Update conversation record with Moss session info
+   * 更新会话记录的 Moss session 信息
+   */
+  private async updateConversationWithMossSession(): Promise<void> {
+    if (!this.mossSessionId || !this.mossWsUrl) {
+      mainError('RemoteAgent', 'No Moss session info to update');
+      return;
+    }
+
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(this.conversation_id);
+
+      if (!existing.success || !existing.data) {
+        mainError('RemoteAgent', `Conversation ${this.conversation_id} not found for Moss session update`);
+        return;
+      }
+
+      const updatedConversation = {
+        ...existing.data,
+        extra: {
+          ...existing.data.extra,
+          mossSessionId: this.mossSessionId,
+          acpWsUrl: this.mossWsUrl,
+          mossSessionPending: false,
+        },
+        status: 'finished',
+        modifyTime: Date.now(),
+      } as unknown as TChatConversation;
+
+      db.updateConversation(this.conversation_id, updatedConversation);
+      mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}`);
+
+      // Emit refresh event to update sidebar
+      // 发送刷新事件更新侧边栏
+      ipcBridge.database.conversationChanged.emit({
+        conversationId: this.conversation_id,
+        source: 'aionui',
+        action: 'updated',
+      });
+    } catch (error) {
+      mainError('RemoteAgent', `Failed to update conversation with Moss session: ${error}`);
+    }
+  }
+
+  /**
+   * Send message
+   */
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string }): Promise<{ success: boolean; msg?: string }> {
+    mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
+    mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
+    this.status = 'running';
+
+    try {
+      mainLog('RemoteAgent', 'Calling initAgent...');
+      await this.initAgent();
+      mainLog('RemoteAgent', 'initAgent completed');
+
+      if (!this.connection?.isConnected()) {
+        mainError('RemoteAgent', 'Connection not ready after initAgent');
+        throw new Error('Connection not ready');
+      }
+
+      // Emit user message to UI
+      if (data.msg_id && data.content) {
+        ipcBridge.conversation.responseStream.emit({
+          type: 'user_content',
+          conversation_id: this.conversation_id,
+          msg_id: data.msg_id,
+          data: data.content,
+        });
+      }
+
+      // Send start event
+      ipcBridge.conversation.responseStream.emit({
+        type: 'start',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(36),
+        data: null,
+      });
+
+      // Handle file references
+      let contentToSend = data.content;
+      if (data.files && data.files.length > 0) {
+        const fileRefs = data.files.map((f) => (f.includes(' ') ? `@"${f}"` : `@${f}`)).join(' ');
+        contentToSend = `${fileRefs} ${contentToSend}`;
+      }
+
+      // Send to Moss Server
+      const result = this.connection.sendMessage({
+        content: contentToSend,
+        files: data.files,
+        msg_id: data.msg_id,
+      });
+
+      if (!result.success) {
+        this.emitErrorMessage(result.msg || 'Send failed');
+      }
+
+      return result;
+    } catch (error) {
+      this.status = 'finished';
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.emitErrorMessage(errorMsg);
+      return { success: false, msg: errorMsg };
+    }
+  }
+
+  /**
+   * Stop streaming response
+   */
+  async stop(): Promise<void> {
+    this.connection?.sendInterrupt();
+    this.emitFinishMessage();
+  }
+
+  /**
+   * Kill the agent
+   */
+  kill(): void {
+    this.connection?.disconnect();
+    this.connection = null;
+    this.bootstrap = undefined;
+  }
+
+  /**
+   * Confirm permission request
+   */
+  async confirm(id: string, callId: string, data: string): Promise<void> {
+    super.confirm(id, callId, data);
+    this.connection?.respondToPermissionRequest(callId, data);
+  }
+
+  // ========== Event handlers ==========
+
+  private handleStreamMessage(msg: IResponseMessage): void {
+    const enrichedMsg = { ...msg, conversation_id: this.conversation_id };
+    ipcBridge.conversation.responseStream.emit(enrichedMsg);
+
+    // Only set finished status when receiving 'finish' message
+    // 'content' messages are streaming and do NOT indicate session end
+    // 只有收到 'finish' 消息才设置 finished 状态
+    // 'content' 消息是流式的，不代表会话结束
+    if (msg.type === 'finish') {
+      this.status = 'finished';
+    }
+  }
+
+  private handlePermissionRequest(req: any, requestId: string): void {
+    this.addConfirmation({
+      id: requestId,
+      callId: requestId,
+      title: req.title || req.tool_name || 'Permission Required',
+      description: JSON.stringify(req.rawInput || req.input || {}),
+      options: req.options?.map((opt: any) => ({
+        label: opt.name || opt,
+        value: opt.optionId || opt,
+      })) || [
+        { label: 'Allow', value: 'allow_once' },
+        { label: 'Always Allow', value: 'allow_always' },
+        { label: 'Reject', value: 'reject_once' },
+      ],
+    });
+  }
+
+  private handleConnected(): void {
+    mainLog('RemoteAgent', `Connected to Moss Server for conversation ${this.conversation_id}`);
+    this.emitStatusMessage('connected');
+  }
+
+  private handleDisconnected(): void {
+    mainError('RemoteAgent', `Disconnected from Moss Server for conversation ${this.conversation_id}`);
+    this.emitStatusMessage('disconnected');
+    this.emitFinishMessage();
+  }
+
+  private handleReconnecting(attempt: number, max: number): void {
+    mainLog('RemoteAgent', `Reconnecting to Moss Server (${attempt}/${max})`);
+    this.emitStatusMessage('connecting');
+  }
+
+  private handleError(err: Error): void {
+    mainError('RemoteAgent', `Moss connection error: ${err.message}`);
+    this.emitErrorMessage(err.message);
+  }
+
+  // ========== Message emission ==========
+
+  private emitStatusMessage(status: 'connecting' | 'connected' | 'session_active' | 'disconnected' | 'error'): void {
+    if (!this.statusMessageId) {
+      this.statusMessageId = uuid(36);
+    }
+
+    ipcBridge.conversation.responseStream.emit({
+      type: 'agent_status',
+      conversation_id: this.conversation_id,
+      msg_id: this.statusMessageId,
+      data: {
+        backend: 'moss-server',
+        status,
+        agentName: this.options.assistantName,
+        mossSessionId: this.mossSessionId,
+      },
+    });
+  }
+
+  private emitErrorMessage(error: string): void {
+    ipcBridge.conversation.responseStream.emit({
+      type: 'error',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(36),
+      data: error,
+    });
+    // After error, must emit finish to end the session
+    // 发送错误后必须发送 finish 结束会话
+    this.status = 'finished';
+    this.emitFinishMessage();
+  }
+
+  private emitFinishMessage(): void {
+    ipcBridge.conversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(36),
+      data: null,
+    });
+  }
+
+  /**
+   * Get Moss session info
+   */
+  getMossSessionInfo(): { sessionId: string | null; wsUrl: string | null } {
+    return {
+      sessionId: this.mossSessionId,
+      wsUrl: this.mossWsUrl,
+    };
+  }
+}
+
+export default RemoteAgent;

@@ -48,6 +48,7 @@ import { initSecretBridge } from './secretBridge';
 import { initPwdLoginBridge } from './pwdLoginBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
 import { initTelemetryBridge } from './telemetryBridge';
+import { initMossBridge } from './mossBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
@@ -100,6 +101,7 @@ export function initAllBridges(): void {
   initPwdLoginBridge();
   initWorkspaceBridge();
   initTelemetryBridge();
+  initMossBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
 }

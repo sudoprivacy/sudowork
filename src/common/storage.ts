@@ -326,6 +326,77 @@ export type TChatConversation =
         }
       >,
       'model'
+    >
+  | Omit<
+      IChatConversation<
+        'remote-agent',
+        {
+          workspace?: string;
+          /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+          mossServerUrl?: string;
+          /** Auth token for Moss Server (API Key or JWT) */
+          authToken?: string;
+          /** Username for password login (when authToken is empty) */
+          username?: string;
+          /** Password for password login (when authToken is empty) */
+          password?: string;
+          /** Agent name (corresponds to Moss assistant_name) */
+          agentName?: string;
+          /** Custom workspace flag */
+          customWorkspace?: boolean;
+          /** Custom agent ID */
+          customAgentId?: string;
+          /** Preset context/rules */
+          presetContext?: string;
+          /** Skip permission confirmation */
+          dangerouslySkipPermissions?: boolean;
+          /** Runtime type */
+          runtimeType?: 'host' | 'docker';
+          /** Backend type for compatibility */
+          backend?: AcpBackendAll;
+          /** Enterprise code */
+          enterpriseCode?: string;
+          /** Organization ID */
+          orgId?: string;
+          /** User ID */
+          userId?: string;
+          /** CLI path for compatibility */
+          cliPath?: string;
+          /** 预设助手 ID / Preset assistant ID */
+          presetAssistantId?: string;
+          /** 启用的 skills 列表 / Enabled skills list */
+          enabledSkills?: string[];
+          /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
+          sessionMode?: string;
+          /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
+          currentModelId?: string;
+          /** 是否置顶会话 / Whether this conversation is pinned */
+          pinned?: boolean;
+          /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
+          pinnedAt?: number;
+          /** Health check marker */
+          isHealthCheck?: boolean;
+          /** Moss Session ID for resume */
+          mossSessionId?: string;
+          /** Moss Session last update time */
+          mossSessionUpdatedAt?: number;
+          /** WebSocket URL from resume API (for reconnecting to existing session) */
+          acpWsUrl?: string;
+          /** Whether Moss session is pending creation (lazy creation pattern) / Moss session 是否待创建（延迟创建模式） */
+          mossSessionPending?: boolean;
+          /** Display name override for workspace */
+          workspaceDisplayName?: string;
+          /** Cron job ID that created this conversation */
+          cronJobId?: string;
+          /** Cron job name that created this conversation */
+          cronJobName?: string;
+          /** Cron job ID this conversation is pre-bound to */
+          cronJobBoundId?: string;
+          /** Cron job name this conversation is pre-bound to */
+          cronJobBoundName?: string;
+        }
+      >,
+      'model'
     >;
 
 export type IChatConversationRefer = {

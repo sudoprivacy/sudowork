@@ -102,24 +102,46 @@ type UseGuidAgentSelectionOptions = {
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
+export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+  const { isEnterprise } = useAppMode();
+
+  // Initial selected agent key based on enterprise mode
+  // 企业模式默认选择 'remote-agent'，非企业模式选择默认预设类型
+  const getInitialAgentKey = useCallback(() => {
+    return isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
+  }, [isEnterprise]);
+
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(() => getInitialAgentKey());
+  // Track selectedAgentKey with ref to avoid dependency array cycles
+  const selectedAgentKeyRef = useRef<string>(getInitialAgentKey());
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
+  // Track availableAgents with ref for resetSelection to access
+  const availableAgentsRef = useRef<AvailableAgent[] | undefined>(undefined);
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
   const probedModelBackendsRef = useRef(new Set<string>());
+  // Track whether we've auto-selected first agent (enterprise mode case) to prevent infinite loops
+  const hasAutoSelectedAgentRef = useRef(false);
+  // Track the last availableAgents to detect mode changes
+  const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
-  const { isEnterprise } = useAppMode();
 
-  // Wrap setSelectedAgentKey to also save to storage
+  // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
     _setSelectedAgentKey(key);
+    selectedAgentKeyRef.current = key;
     ConfigStorage.set('guid.lastSelectedAgent', key).catch((error) => {
       console.error('Failed to save selected agent:', error);
     });
+  }, []);
+
+  // Internal setter that also syncs ref (for auto-selection without storage save)
+  const _setSelectedAgentKeyWithRef = useCallback((key: string) => {
+    _setSelectedAgentKey(key);
+    selectedAgentKeyRef.current = key;
   }, []);
 
   // Wrap setSelectedMode to also save preferred mode to the agent's own config
@@ -145,6 +167,32 @@ export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _is
       return newModelId;
     });
   }, []);
+
+  // When isEnterprise changes, update the default agent selection
+  // 当企业模式变化时，更新默认 Agent 选择
+  useEffect(() => {
+    if (isEnterprise) {
+      // Enterprise mode: always select 'remote-agent'
+      // 企业模式：始终选择 'remote-agent'
+      if (selectedAgentKeyRef.current !== 'remote-agent') {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+        ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
+          console.error('Failed to save enterprise agent:', error);
+        });
+      }
+    } else {
+      // Consumer mode: reset to default preset if currently on remote-agent
+      // 消费者模式：如果当前是 remote-agent 则重置为默认预设
+      if (selectedAgentKeyRef.current === 'remote-agent') {
+        _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
+        selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
+        ConfigStorage.set('guid.lastSelectedAgent', DEFAULT_PRESET_AGENT_TYPE).catch((error) => {
+          console.error('Failed to save consumer agent:', error);
+        });
+      }
+    }
+  }, [isEnterprise]);
 
   const availableCustomAgentIds = useMemo(() => {
     const ids = new Set<string>();
@@ -219,32 +267,97 @@ export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _is
           name: a.name,
           customAgentId: a.key,
         }));
+        // Always ensure at least one 'remote-agent' is available in enterprise mode
+        // 企业模式下始终确保至少有一个 'remote-agent' 可用
+        if (mapped.length === 0) {
+          mapped.push({
+            backend: 'remote-agent' as AcpBackend,
+            name: 'Remote Agent',
+            customAgentId: undefined,
+          });
+        }
         setAvailableAgents(mapped);
+        availableAgentsRef.current = mapped;
       } else {
         setAvailableAgents(availableAgentsData as AvailableAgent[]);
+        availableAgentsRef.current = availableAgentsData as AvailableAgent[];
       }
+    } else if (isEnterprise) {
+      // Enterprise mode: even if API fails, provide a default remote-agent
+      // 企业模式：即使 API 失败，也提供默认的 remote-agent
+      const defaultAgent: AvailableAgent = {
+        backend: 'remote-agent' as AcpBackend,
+        name: 'Remote Agent',
+        customAgentId: undefined,
+      };
+      setAvailableAgents([defaultAgent]);
+      availableAgentsRef.current = [defaultAgent];
     }
   }, [availableAgentsData, isEnterprise]);
 
   // Enterprise mode: default to 'remote-agent' when agents are loaded
+  // This effect runs when:
+  // 1. isEnterprise changes from false to true
+  // 2. availableAgents loads/changes in enterprise mode
   useEffect(() => {
     if (isEnterprise && availableAgents && availableAgents.length > 0) {
+      // Always force 'remote-agent' in enterprise mode, regardless of current selection
       _setSelectedAgentKey('remote-agent');
+      selectedAgentKeyRef.current = 'remote-agent';
+      // Save to storage for persistence
+      ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
+        console.error('Failed to save enterprise agent:', error);
+      });
     }
   }, [isEnterprise, availableAgents]);
 
   // Load last selected agent (skip when URL parameter takes priority)
+  // Auto-select first available agent if current selection is not valid (enterprise mode case)
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
     // Skip restoring persisted agent when a URL parameter explicitly specifies the assistant
     if (assistantFromUrl) return;
 
+    // Create a key to detect when availableAgents fundamentally changes (e.g., enterprise mode toggle)
+    const agentsKey = availableAgents.map((a) => a.backend).join(',');
+    if (agentsKey !== lastAvailableAgentsKeyRef.current) {
+      // Agent list changed fundamentally, reset auto-selection flag
+      lastAvailableAgentsKeyRef.current = agentsKey;
+      hasAutoSelectedAgentRef.current = false;
+    }
+
     let cancelled = false;
 
     const loadLastSelectedAgent = async () => {
       try {
+        // Use ref value to avoid dependency cycle
+        const currentKey = selectedAgentKeyRef.current;
+
+        // Check if current selectedAgentKey is valid (in availableAgents)
+        const currentIsInAvailable = availableAgents.some((agent) => {
+          const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
+          return key === currentKey;
+        });
+
+        // If current selection is not valid (e.g., enterprise mode: 'openclaw-gateway' not available),
+        // auto-select the first available agent (e.g., 'remote-agent')
+        // Use ref to prevent infinite loops from re-triggering
+        if (!currentIsInAvailable && !hasAutoSelectedAgentRef.current) {
+          hasAutoSelectedAgentRef.current = true;
+          const firstAgent = availableAgents[0];
+          const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+          _setSelectedAgentKeyWithRef(firstKey);
+          // Save to storage for persistence
+          ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+            console.error('Failed to save auto-selected agent:', error);
+          });
+          return;
+        }
+
+        // Current selection is valid or already auto-selected, try to restore saved preference
+        // Only restore if it's different from current selection
         const savedAgentKey = await ConfigStorage.get('guid.lastSelectedAgent');
-        if (cancelled || !savedAgentKey) return;
+        if (cancelled || !savedAgentKey || savedAgentKey === currentKey) return;
 
         const isInAvailable = availableAgents.some((agent) => {
           const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
@@ -252,7 +365,7 @@ export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _is
         });
 
         if (isInAvailable) {
-          _setSelectedAgentKey(savedAgentKey);
+          _setSelectedAgentKeyWithRef(savedAgentKey);
         }
       } catch (error) {
         console.error('Failed to load last selected agent:', error);
@@ -264,7 +377,7 @@ export const useGuidAgentSelection = ({ modelList: _modelList, isGoogleAuth: _is
     return () => {
       cancelled = true;
     };
-  }, [availableAgents, assistantFromUrl]);
+  }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
 
   // Load custom agents + extension-contributed assistants
   useEffect(() => {
@@ -738,14 +851,40 @@ This identity statement takes priority over the default identity in USER.md.
   }, [isEnterprise]);
 
   // Reset agent selection to default state (no assistant selected)
+  // In enterprise mode, directly select the first available agent (remote-agent)
+  // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
     _setSelectedAgentKey(isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE);
+    selectedAgentKeyRef.current = isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
+    hasAutoSelectedAgentRef.current = false;
     // Clear persisted agent key so it won't be restored on next mount
     ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
       console.error('Failed to clear saved agent:', error);
     });
+
+    // Check if openclaw-gateway is available (non-enterprise mode)
+    // If not available (enterprise mode), select first available agent directly
+    const agents = availableAgentsRef.current;
+    const openclawAvailable = agents?.some((a) => a.backend === 'openclaw-gateway');
+    if (openclawAvailable) {
+      _setSelectedAgentKey('openclaw-gateway');
+      selectedAgentKeyRef.current = 'openclaw-gateway';
+    } else if (agents && agents.length > 0) {
+      // Enterprise mode: select first available agent (remote-agent)
+      const firstAgent = agents[0];
+      const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+      _setSelectedAgentKey(firstKey);
+      selectedAgentKeyRef.current = firstKey;
+      ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+        console.error('Failed to save auto-selected agent:', error);
+      });
+    } else {
+      // No agents available yet, set default and let auto-selection handle it later
+      _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
+      selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
+    }
   }, [isEnterprise]);
 
   return {

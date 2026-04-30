@@ -5,61 +5,38 @@
  */
 
 import { ipcBridge } from '../../common';
-import { getDatabase } from '@process/database';
-import { ProcessChat } from '../initStorage';
-import type { TChatConversation } from '@/common/storage';
-import { migrateConversationToDatabase } from './migrationUtils';
-import { mainWarn, mainError } from '@process/utils/mainLogger';
+import { getConversationProvider, isRemoteProvider } from '../providers';
+import { mainError } from '@process/utils/mainLogger';
 
 export function initDatabaseBridge(): void {
-  // Get conversation messages from database
+  // Get conversation messages from database (or remote provider)
+  // 从数据库获取会话消息（或远程 Provider）
   ipcBridge.database.getConversationMessages.provider(({ conversation_id, page = 0, pageSize = 10000 }) => {
     try {
-      const db = getDatabase();
-      const result = db.getConversationMessages(conversation_id, page, pageSize);
-      return Promise.resolve(result.data || []);
+      const provider = getConversationProvider();
+      // Note: For remote provider, messages are stored on Moss Server, not locally
+      // 注意：对于远程 Provider，消息存储在 Moss Server 上，不在本地
+      // The provider.getMessages() returns empty array for remote-agent
+      return provider.getMessages(conversation_id, page, pageSize);
     } catch (error) {
       mainError('DatabaseBridge', 'Error getting conversation messages:', error);
       return Promise.resolve([]);
     }
   });
 
-  // Get user conversations from database with lazy migration from file storage
+  // Get user conversations (paginated) via Provider
+  // 通过 Provider 获取用户会话（分页）
   ipcBridge.database.getUserConversations.provider(async ({ page = 0, pageSize = 10000 }) => {
     try {
-      const db = getDatabase();
-      const result = db.getUserConversations(undefined, page, pageSize);
-      const dbConversations = result.data || [];
+      const provider = getConversationProvider();
 
-      // Try to get conversations from file storage
-      let fileConversations: TChatConversation[] = [];
-      try {
-        fileConversations = (await ProcessChat.get('chat.history')) || [];
-      } catch (error) {
-        mainWarn('DatabaseBridge', 'No file-based conversations found:', error);
-      }
+      // For remote provider, this fetches from Moss Server
+      // 对于远程 Provider，从 Moss Server 获取
+      // For local provider, this fetches from database with file storage fallback
+      // 对于本地 Provider，从数据库获取，并支持文件存储回退
+      const conversations = await provider.listConversations(page, pageSize);
 
-      // Use database conversations as the primary source while backfilling missing ones from file storage
-      // 以数据库结果为主，只补充文件中尚未迁移的会话，避免删除后出现“只剩更早记录”的问题
-      // Build a map for fast lookup to avoid duplicates when merging
-      const dbConversationMap = new Map(dbConversations.map((conv) => [conv.id, conv] as const));
-
-      // Filter out conversations that already exist in database
-      // 只保留文件里数据库没有的会话，确保不会重复
-      const fileOnlyConversations = fileConversations.filter((conv) => !dbConversationMap.has(conv.id));
-
-      // If there are conversations that only exist in file storage, migrate them in background
-      // 对剩余会话做懒迁移，保证后续刷新直接使用数据库
-      if (fileOnlyConversations.length > 0) {
-        void Promise.all(fileOnlyConversations.map((conv) => migrateConversationToDatabase(conv)));
-      }
-
-      // Combine database conversations (source of truth) with any remaining file-only conversations
-      // 返回数据库结果 + 未迁移会话，这样"今天"与"更早"记录都能稳定展示
-      const allConversations = [...dbConversations, ...fileOnlyConversations];
-      // Re-sort by modifyTime (or createTime as fallback) to maintain correct order
-      allConversations.sort((a, b) => (b.modifyTime || b.createTime || 0) - (a.modifyTime || a.createTime || 0));
-      return allConversations;
+      return conversations;
     } catch (error) {
       mainError('DatabaseBridge', 'Error getting user conversations:', error);
       return [];

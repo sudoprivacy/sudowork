@@ -36,6 +36,7 @@ import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
+import { getConversationProvider, isRemoteProvider } from '../providers';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -460,19 +461,26 @@ export function initConversationBridge(): void {
   });
 
   ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation> => {
-    // 使用 ConversationService 创建会话 / Use ConversationService to create conversation
-    const result = await ConversationService.createConversation({
-      ...params,
-      source: 'aionui', // AionUI 创建的会话标记为 aionui / Mark conversations created by AionUI as aionui
-    });
+    // Use Provider abstraction layer for conversation creation
+    // 使用 Provider 抽象层创建会话
+    mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
 
-    if (!result.success || !result.conversation) {
-      throw new Error(result.error || 'Failed to create conversation');
+    // Enterprise mode: force remote-agent type for all conversations
+    // 企业模式：强制使用 remote-agent 类型
+    let finalParams = params;
+    if (isRemoteProvider() && params.type !== 'remote-agent') {
+      mainLog('conversationBridge', `Enterprise mode: forcing remote-agent type`);
+      finalParams = { ...params, type: 'remote-agent' };
     }
 
-    scheduleConversationWorkspaceSkillSync(result.conversation);
+    const provider = getConversationProvider();
+    const conversation = await provider.createConversation(finalParams);
 
-    return result.conversation;
+    mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);
+
+    scheduleConversationWorkspaceSkillSync(conversation);
+
+    return conversation;
   });
 
   // Reload context is not supported for ACP or OpenClaw agents
@@ -615,9 +623,8 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.remove.provider(async ({ id }) => {
     try {
-      const db = getDatabase();
-
       // Get conversation to check source before deletion
+      const db = getDatabase();
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
@@ -650,10 +657,13 @@ export function initConversationBridge(): void {
         }
       }
 
-      // Delete conversation from database (will cascade delete messages due to foreign key)
-      const result = db.deleteConversation(id);
-      if (!result.success) {
-        mainError('conversationBridge', 'Failed to delete conversation from database:', result.error);
+      // Use Provider abstraction layer for deletion (will cascade delete messages due to foreign key)
+      // 使用 Provider 抽象层删除会话（由于外键约束会级联删除消息）
+      const provider = getConversationProvider();
+      const success = await provider.deleteConversation(id);
+
+      if (!success) {
+        mainError('conversationBridge', 'Failed to delete conversation');
         return false;
       }
 
@@ -666,35 +676,28 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.update.provider(async ({ id, updates, mergeExtra }: { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }) => {
     try {
+      // Check for model change (local mode only) / 检查模型变更（仅本地模式）
       const db = getDatabase();
       const existing = db.getConversation(id);
       const prevModel = existing.success && existing.data && 'model' in existing.data ? existing.data.model : undefined;
       const nextModel = 'model' in updates ? updates.model : undefined;
       const modelChanged = !!nextModel && JSON.stringify(prevModel) !== JSON.stringify(nextModel);
 
-      let finalUpdates = updates;
-      if (mergeExtra && updates.extra && existing.success && existing.data) {
-        finalUpdates = {
-          ...updates,
-          extra: {
-            ...existing.data.extra,
-            ...updates.extra,
-          },
-        } as Partial<TChatConversation>;
-      }
-
-      const result = await Promise.resolve(db.updateConversation(id, finalUpdates));
+      // Use Provider abstraction layer / 使用 Provider 抽象层
+      const provider = getConversationProvider();
+      const success = await provider.updateConversation(id, updates, mergeExtra);
 
       // If model changed, kill running task to force rebuild with new model on next send
-      if (result.success && modelChanged) {
+      // 如果模型变更，终止运行中的任务以在下次发送时强制重建
+      if (success && modelChanged) {
         try {
           WorkerManage.kill(id);
-        } catch (killErr) {
-          // ignore kill error, will lazily rebuild later
+        } catch {
+          // ignore kill error, will lazily rebuild later / 忽略终止错误，稍后延迟重建
         }
       }
 
-      return result.success;
+      return success;
     } catch (error) {
       mainError('conversationBridge', 'Failed to update conversation:', error);
       return false;
@@ -710,30 +713,20 @@ export function initConversationBridge(): void {
     return Promise.resolve();
   });
 
-  ipcBridge.conversation.get.provider(async ({ id }) => {
+  ipcBridge.conversation.get.provider(async ({ id }): Promise<TChatConversation | undefined> => {
     try {
-      const db = getDatabase();
+      // Use Provider abstraction layer / 使用 Provider 抽象层
+      const provider = getConversationProvider();
+      const conversation = await provider.getConversation(id);
 
-      const result = db.getConversation(id);
-      if (result.success && result.data) {
-        const conversation = result.data;
-        const task = WorkerManage.getTaskById(id);
-        const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
-        conversation.status = taskStatus || 'finished';
-        return conversation;
-      }
-
-      const history = await ProcessChat.get('chat.history');
-      const conversation = (history || []).find((item) => item.id === id);
       if (conversation) {
+        // Update status from running task / 从运行中的任务更新状态
         const task = WorkerManage.getTaskById(id);
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
-        void migrateConversationToDatabase(conversation);
-        return conversation;
       }
 
-      return undefined;
+      return conversation;
     } catch (error) {
       mainError('conversationBridge', 'Failed to get conversation:', error);
       return undefined;
@@ -832,7 +825,7 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.stop.provider(async ({ conversation_id }) => {
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: true, msg: 'conversation not found' };
-    if (task.type !== 'acp' && task.type !== 'openclaw-gateway') {
+    if (task.type !== 'acp' && task.type !== 'openclaw-gateway' && task.type !== 'remote-agent') {
       return { success: false, msg: 'not support' };
     }
     await task.stop();
@@ -850,7 +843,7 @@ export function initConversationBridge(): void {
       const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
 
       const conversation = convResult.data;
-      if (conversation.type === 'openclaw-gateway') {
+      if (conversation.type === 'openclaw-gateway' || conversation.type === 'remote-agent') {
         return { success: true, data: { commands: [imageCommand] } };
       }
 
@@ -874,9 +867,9 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
-    let task: AcpAgent | OpenClawAgent | undefined;
+    let task: AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
     try {
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
+      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
     } catch (err) {
       mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
@@ -897,7 +890,7 @@ export function initConversationBridge(): void {
     }
 
     // Download bdpan:// files to workspace before copying
-    const workspace = task.workspace ?? '';
+    const workspace = (task as any).workspace ?? '';
     const resolvedFiles: string[] = [];
     for (const f of filesToProcess) {
       if (f.startsWith('bdpan://')) {

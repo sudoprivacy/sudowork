@@ -42,7 +42,7 @@ export const openclaw = {
 export const conversation = {
   create: bridge.buildProvider<TChatConversation, ICreateConversationParams>('create-conversation'), // 创建对话
   createWithConversation: bridge.buildProvider<TChatConversation, { conversation: TChatConversation; sourceConversationId?: string }>('create-conversation-with-conversation'), // Create new conversation from history (supports migration) / 通过历史会话创建新对话（支持迁移）
-  get: bridge.buildProvider<TChatConversation, { id: string }>('get-conversation'), // 获取对话信息
+  get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
   getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
   remove: bridge.buildProvider<boolean, { id: string }>('remove-conversation'), // 删除对话
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
@@ -281,6 +281,61 @@ export const bedrock = {
   testConnection: bridge.buildProvider<IBridgeResponse<{ msg?: string }>, { bedrockConfig: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('bedrock.test-connection'),
 };
 
+// Moss Server (Enterprise) interfaces - 企业模式下会话由 Moss Server 管理
+export interface MossSessionInfo {
+  sessionId: string;
+  wsUrl: string;
+  workDir?: string;
+  assistantName?: string;
+  status?: 'active' | 'idle' | 'terminated' | 'ended';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export const moss = {
+  /** Check if enterprise mode is enabled */
+  isEnterpriseMode: bridge.buildProvider<boolean, void>('moss.is-enterprise-mode'),
+  /** Get Moss Server URL and auth config */
+  getConfig: bridge.buildProvider<{
+    serverUrl: string;
+    hasToken: boolean;
+  }, void>('moss.get-config'),
+  /** Set JWT auth token directly (no conversion needed) */
+  setAuthToken: bridge.buildProvider<IBridgeResponse, {
+    authToken: string;
+  }>('moss.set-auth-token'),
+  /** List all sessions from Moss Server */
+  listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>('moss.list-sessions'),
+  /** Create a new session on Moss Server */
+  createSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, {
+    cwd?: string;
+    assistantName?: string;
+    dangerouslySkipPermissions?: boolean;
+    runtimeType?: 'host' | 'docker';
+  }>('moss.create-session'),
+  /** Get session details */
+  getSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string }>('moss.get-session'),
+  /** Delete a session */
+  deleteSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.delete-session'),
+  /** Update session metadata (e.g., title) */
+  updateSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string; title?: string }>('moss.update-session'),
+  /** Resume an existing session to get WebSocket URL */
+  resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
+  /** Send message to session (WebSocket) */
+  sendMessage: bridge.buildProvider<IBridgeResponse, {
+    sessionId: string;
+    wsUrl: string;
+    content: string;
+    files?: string[];
+  }>('moss.send-message'),
+  /** Stream response from Moss Server */
+  responseStream: bridge.buildEmitter<IResponseMessage>('moss.response-stream'),
+  /** Stop/interrupt current operation */
+  stop: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.stop'),
+  /** Respond to permission request */
+  respondPermission: bridge.buildProvider<IBridgeResponse, { sessionId: string; requestId: string; optionId: string }>('moss.respond-permission'),
+};
+
 export const mode = {
   fetchModelList: bridge.buildProvider<IBridgeResponse<{ mode: Array<string | { id: string; name: string }>; fix_base_url?: string }>, { base_url?: string; api_key: string; try_fix?: boolean; platform?: string; bedrockConfig?: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('mode.get-model-list'),
   saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>('mode.save-model-config'),
@@ -297,7 +352,7 @@ export const acpConversation = {
   getAvailableAgents: bridge.buildProvider<
     IBridgeResponse<
       Array<{
-        backend: AcpBackend;
+        backend: AcpBackendAll;
         name: string;
         cliPath?: string;
         customAgentId?: string;
@@ -309,6 +364,12 @@ export const acpConversation = {
         supportedTransports?: string[];
         isExtension?: boolean;
         extensionName?: string;
+        // Enterprise-specific metadata for remote-agent
+        enterpriseMetadata?: {
+          mossServerUrl?: string;
+          authMode?: 'api_key' | 'password' | 'access_token';
+          runtimeType?: 'host' | 'docker';
+        };
       }>
     >,
     void
@@ -815,7 +876,7 @@ export interface ICreateCronJobParams {
   presetAssistantId?: string | null;
 }
 
-interface ISendMessageParams {
+export interface ISendMessageParams {
   input: string;
   msg_id: string;
   conversation_id: string;
@@ -834,7 +895,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'acp' | 'openclaw-gateway';
+  type: 'acp' | 'openclaw-gateway' | 'remote-agent';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -885,6 +946,27 @@ export interface ICreateConversationParams {
     cronJobBoundId?: string;
     /** Cron job name this conversation is pre-bound to */
     cronJobBoundName?: string;
+    // ========== Remote-agent (Moss Server) specific fields ==========
+    /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+    mossServerUrl?: string;
+    /** Auth token for Moss Server (API Key or JWT access_token) */
+    authToken?: string;
+    /** Username for password login (when authToken is empty) */
+    username?: string;
+    /** Password for password login (when authToken is empty) */
+    password?: string;
+    /** Runtime type for Moss Server */
+    runtimeType?: 'host' | 'docker';
+    /** Enterprise code */
+    enterpriseCode?: string;
+    /** Organization ID */
+    orgId?: string;
+    /** User ID */
+    userId?: string;
+    /** Skip permission confirmation */
+    dangerouslySkipPermissions?: boolean;
+    /** WebSocket URL from Moss Server session (for reconnecting) */
+    acpWsUrl?: string;
   };
 }
 interface IResetConversationParams {
@@ -1564,4 +1646,6 @@ export const eeclaw = {
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
   >('eeclaw.login'),
+  /** Set app mode and update main process cache */
+  setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
 };

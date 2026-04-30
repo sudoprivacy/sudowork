@@ -57,6 +57,10 @@ const AGENT_LOGO_MAP = {
   vibe: MistralLogo,
   nanobot: NanobotLogo,
   qoder: QoderLogo,
+  // Enterprise mode: Moss Server / Remote Agent
+  'remote-agent': OpenClawLogo,
+  moss: OpenClawLogo,
+  'moss-server': OpenClawLogo,
 } as const satisfies Record<string, string>;
 
 function isDarkTheme(): boolean {

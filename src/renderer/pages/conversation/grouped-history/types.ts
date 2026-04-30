@@ -6,22 +6,31 @@
 
 import type { TChatConversation } from '@/common/storage';
 
+/**
+ * Unified conversation type for sidebar rendering
+ *
+ * With Provider abstraction layer, all conversations are TChatConversation:
+ * - Local conversations (acp, openclaw-gateway): stored in database
+ * - Enterprise conversations (remote-agent): cached locally as TChatConversation
+ */
+export type ConversationItem = TChatConversation;
+
 export type WorkspaceGroup = {
   workspace: string;
   displayName: string;
-  conversations: TChatConversation[];
+  conversations: ConversationItem[];
 };
 
 export type ScheduledGroup = {
   jobName: string;
-  conversations: TChatConversation[]; // sorted newest-first
+  conversations: ConversationItem[]; // sorted newest-first
 };
 
 export type TimelineItem = {
   type: 'workspace' | 'conversation';
   time: number;
   workspaceGroup?: WorkspaceGroup;
-  conversation?: TChatConversation;
+  conversation?: ConversationItem;
 };
 
 export type TimelineSection = {
@@ -32,8 +41,8 @@ export type TimelineSection = {
 export type SidebarTabKey = 'timeline' | 'scheduled';
 
 export type GroupedHistoryResult = {
-  pinnedTimeline: TChatConversation[];
-  pinnedScheduled: TChatConversation[];
+  pinnedTimeline: ConversationItem[];
+  pinnedScheduled: ConversationItem[];
   timelineSections: TimelineSection[];
   scheduledGroups: ScheduledGroup[];
 };
@@ -47,7 +56,7 @@ export type ExportZipFile = {
 export type ExportTask = { mode: 'single'; conversation: TChatConversation } | { mode: 'batch'; conversationIds: string[] } | null;
 
 export type ConversationRowProps = {
-  conversation: TChatConversation;
+  conversation: ConversationItem;
   collapsed: boolean;
   tooltipEnabled: boolean;
   batchMode: boolean;
@@ -55,13 +64,13 @@ export type ConversationRowProps = {
   selected: boolean;
   menuVisible: boolean;
   onToggleChecked: (conversation: TChatConversation) => void;
-  onConversationClick: (conversation: TChatConversation) => void;
-  onOpenMenu: (conversation: TChatConversation) => void;
+  onConversationClick: (conversation: ConversationItem) => void;
+  onOpenMenu: (conversation: ConversationItem) => void;
   onMenuVisibleChange: (conversationId: string, visible: boolean) => void;
-  onEditStart: (conversation: TChatConversation) => void;
-  onDelete: (conversationId: string) => void;
+  onEditStart: (conversation: ConversationItem) => void;
+  onDelete: (conversation: ConversationItem) => void;
   onExport: (conversation: TChatConversation) => void;
-  onTogglePin: (conversation: TChatConversation) => void;
+  onTogglePin: (conversation: ConversationItem) => void;
   getJobStatus: (conversationId: string) => 'none' | 'active' | 'paused' | 'error' | 'unread';
 };
 

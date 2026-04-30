@@ -12,21 +12,31 @@ import { useEffect, useState } from 'react';
 let initialModePromise: Promise<'c' | 'e'> | null = null;
 let initialModeResolved = false;
 let appModeWasNull = false; // true when ConfigStorage had no appMode (true new user)
+let cachedMode: 'c' | 'e' | null = null; // cache for synchronous access
 
 if (typeof window !== 'undefined') {
   initialModePromise = getAppMode().then((mode) => {
     initialModeResolved = true;
+    cachedMode = mode ?? 'c';
     appModeWasNull = mode === null; // null = new user who never chose a mode
-    return mode ?? 'c'; // getAppMode() returns null for new users, fallback to 'c'
+    return cachedMode;
+    // getAppMode() returns null for new users, fallback to 'c'
     // needsSetup is determined by appModeWasNull, not by the mode value itself
-  }).catch(() => {
+  }).catch((error) => {
+    console.error('[useAppMode] Failed to get initial mode:', error);
     initialModeResolved = true;
+    cachedMode = 'c';
     return 'c' as const;
   });
 }
 
 export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSetup: boolean } {
   const [mode, setMode] = useState<'c' | 'e'>(() => {
+    // Use cached mode if already resolved, otherwise default to 'c'
+    // 如果已解析则使用缓存模式，否则默认 'c'
+    if (cachedMode !== null) {
+      return cachedMode;
+    }
     return 'c'; // safe default
   });
 
@@ -55,4 +65,11 @@ export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSet
  */
 export function isModeResolved(): boolean {
   return initialModeResolved;
+}
+
+/**
+ * Get the cached mode synchronously (may be null if not yet resolved)
+ */
+export function getCachedMode(): 'c' | 'e' | null {
+  return cachedMode;
 }

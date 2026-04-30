@@ -6,9 +6,18 @@
 
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
-import { mainWarn } from '@process/utils/mainLogger';
+import { mainWarn, mainLog } from '@process/utils/mainLogger';
+import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode } from '@/common/enterpriseDebugConfig';
 
 export function initEeclawBridge(): void {
+  // Set app mode and update main process cache
+  // 设置应用模式并更新主进程缓存
+  ipcBridge.eeclaw.setAppMode.provider(async ({ mode }) => {
+    await ProcessConfig.set('system.appMode', mode);
+    setCachedAppMode(mode);
+    mainLog('eeclawBridge', `App mode set to: ${mode}`);
+  });
+
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
     try {
       const response = await fetch(`${serverUrl}/healthz`, {
@@ -44,6 +53,24 @@ export function initEeclawBridge(): void {
         return { success: false, error: (data?.error || 'login_failed') as string, data: undefined };
       }
 
+      // Save server URL and auth storage to ProcessConfig
+      // 将服务器 URL 和认证存储保存到 ProcessConfig
+      await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
+      await ProcessConfig.set('eeclaw.authStorage', {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || '',
+        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+        device_id: deviceId,
+      });
+
+      // Update enterprise cache for synchronous access
+      // 更新企业配置缓存以供同步访问
+      setCachedServerUrl(serverUrl);
+      setCachedAuthToken(data.access_token);
+      setCachedAppMode('e');
+
+      mainLog('eeclawBridge', 'Login successful, cache updated');
+
       return {
         success: true,
         data: {
@@ -65,12 +92,12 @@ export function initEeclawBridge(): void {
 
   ipcBridge.eeclaw.getCloudAssistants.provider(async () => {
     try {
-      const serverUrl = await ProcessConfig.get('eeclaw.serverUrl');
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
       if (!serverUrl) {
         return { success: false, error: 'no_server_url' as const, data: undefined };
       }
 
-      const authStorage = await ProcessConfig.get('eeclaw.authStorage');
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
       if (!authStorage) {
         return { success: false, error: 'token_not_synced' as const, data: undefined };
       }

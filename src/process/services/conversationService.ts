@@ -50,7 +50,23 @@ export class ConversationService {
     try {
       let conversation: TChatConversation;
 
-      if (type === 'acp') {
+      if (type === 'remote-agent') {
+        // Enterprise mode: create local metadata record only (no agent process)
+        // Moss Server manages the session, local DB stores name for sidebar display
+        conversation = {
+          id: id || '',
+          name: name || 'Remote Agent',
+          type: 'remote-agent', // Use 'remote-agent' type for proper dispatch in WorkerManage
+          createTime: Date.now(),
+          modifyTime: Date.now(),
+          extra: {
+            ...extra,
+            backend: 'remote-agent',
+          },
+          status: 'finished',
+          source: source || 'aionui',
+        } as TChatConversation;
+      } else if (type === 'acp') {
         conversation = await createAcpAgent(params);
       } else if (type === 'openclaw-gateway') {
         conversation = await createOpenClawAgent(params);

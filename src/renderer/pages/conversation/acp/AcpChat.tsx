@@ -32,7 +32,7 @@ const AcpChat: React.FC<{
   }, [conversation_id]);
 
   return (
-    <ConversationProvider value={{ conversationId: conversation_id, workspace, type: 'acp' }}>
+    <ConversationProvider value={{ conversationId: conversation_id, workspace, type: backend === 'remote-agent' ? 'remote-agent' : 'acp' }}>
       <div className='flex-1 flex flex-col px-20px min-h-0'>
         <FlexFullContainer>
           <MessageList className='flex-1' aiProcessing={aiProcessing}></MessageList>

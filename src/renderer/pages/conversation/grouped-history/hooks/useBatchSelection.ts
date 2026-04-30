@@ -6,8 +6,9 @@
 
 import type { TChatConversation } from '@/common/storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ConversationItem } from '../types';
 
-export const useBatchSelection = (batchMode: boolean, conversations: TChatConversation[]) => {
+export const useBatchSelection = (batchMode: boolean, conversations: ConversationItem[]) => {
   const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
 
   // Reset selection when batch mode is turned off
