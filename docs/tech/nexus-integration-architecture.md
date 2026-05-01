@@ -79,7 +79,7 @@ Two namespaces, the same Linux distinction between an executable on disk and a r
 | `/agents/{name}/` | Persistent | Profile config: `config.toml`, `prompts/`, `skills/`, `chat-with-me` | Metastore (DT_FILE / DT_DIR) |
 | `/proc/{pid}/` | Ephemeral | Runtime: `status`, `agent` link, `chat-with-me`, `sessions/`, `tasks/`, `workspace/` | In-memory + WAL while pid alive |
 
-`/agents/{name}/` is the stable identity an outsider addresses (other agents, humans on Damus). One agent name can spawn many `pid`s — different worktrees, parallel work — and all of them share the same profile.
+`/agents/{name}/` is the stable identity an outsider addresses (other agents, humans on Element). One agent name can spawn many `pid`s — different worktrees, parallel work — and all of them share the same profile.
 
 ### 2.1 Agent-name namespace
 
@@ -110,10 +110,10 @@ Three kinds of recipient still share the same DT_STREAM-backed surface:
 - **Local agent pid** (e.g. `/proc/p_42/chat-with-me` for the active
   scode-standard instance): real DT_STREAM. Writes append; `sys_watch`
   wakes up readers.
-- **Remote identity** (e.g. `human-bob` reached via Damus, or `alice@damus`):
-  the recipient's chat-with-me path is mounted with `NostrBackend` (§4).
-  Writes become NIP-04 DMs to the configured npub; incoming DMs surface
-  as `sys_watch` wake-ups on the local mirror.
+- **Remote identity** (e.g. `human-bob` on a stock Matrix client like
+  Element): same DT_STREAM under the hood; reach across instances goes
+  through the Matrix C-S adapter (§4) which translates Element's HTTP
+  REST traffic into nexus VFS reads / writes against this stream.
 - **Local persistent identity** (e.g. `/agents/human-ethan/chat-with-me`):
   a long-lived DT_STREAM owned by the user, not a transient pid. The
   sudowork UI reads it for inbox display, writes for outgoing messages.
@@ -266,7 +266,7 @@ A2A, H2A, and A2H share one primitive: write a message to the recipient's `chat-
 
 ### 3.1 Mailbox
 
-`/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` are append-only message streams. They are normal DT_STREAMs that any caller can write to and the owner can read with `sys_watch`. Federation Raft replicates them across zone members; cross-instance reach happens through `NostrBackend` mounts (§4).
+`/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` are append-only message streams. They are normal DT_STREAMs that any caller can write to and the owner can read with `sys_watch`. Federation Raft replicates them across zone members; reach to clients outside the federation (e.g. Element on a stock Matrix server) goes through the Matrix C-S adapter (§4).
 
 ### 3.2 The chat-with-me link inside a workspace
 
@@ -353,9 +353,10 @@ The error is intentionally instructive. LLMs that hit it once learn the conventi
 directly to a long-lived DT_STREAM, no pid indirection needed. From
 sudowork's UI Ethan sends through gRPC writes to other agents'
 `/proc/{pid}/chat-with-me`; he reads his own through `sys_watch` over
-`/agents/human-ethan/chat-with-me`. Other humans (Bob on Damus)
-appear via `NostrBackend` mount (§4) on `/agents/human-bob/chat-with-me`
-— the sender does not pick the transport, the mount does.
+`/agents/human-ethan/chat-with-me`. Other humans (Bob on Element)
+reach the same DT_STREAM through the Matrix C-S adapter (§4); the
+adapter speaks Matrix REST at the edge and nexus VFS underneath, so
+the recipient's transport is invisible to the sender.
 
 ### 3.6 Addressing non-human agents
 
@@ -376,58 +377,72 @@ runs.
 
 ---
 
-## 4. Cross-instance Transport via NostrBackend
+## 4. Cross-instance Transport
 
-`NostrBackend` is a bidirectional storage driver mounted at any `chat-with-me` path that needs to reach a remote identity. It is registered like any other backend through `sys_setattr(DT_MOUNT, backend=NostrBackend{npub: …, relays: […]})`.
+Two layers compose. **Within** a federation, raft replicates the
+chat-with-me DT_STREAM across every nexus instance voted into the
+zone — recipients on any peer node read through their local kernel
+just like a same-host write. **Outside** the federation, a Matrix
+Client-Server adapter exposes the same DT_STREAMs over Matrix REST so
+unmodified third-party clients (Element, FluffyChat, Cinny) can join
+conversations without nexus needing a bespoke client.
+
+### 4.1 Federation-internal — raft replication
+
+Every chat-with-me DT_STREAM lives inside its zone's raft cluster. The
+write path is `sys_write` → `WalStreamCore` → `Command::AppendStreamEntry`
+→ raft commit → state-machine apply on every voter, including remote
+peers. Cross-instance reach is the same `sys_watch` wake-up that a
+same-host caller sees. Read § 6 for the broader DT_STREAM /
+WalStreamBackend contract — there is no separate transport for the
+in-federation case.
+
+### 4.2 Federation-external — Matrix C-S adapter
+
+The Matrix C-S adapter is a nexus services-tier component
+(`services::matrix_adapter`) that hosts the Matrix Client-Server REST
+surface at the edge and translates each call into a nexus VFS gRPC
+call underneath. Element opens a TCP socket to the adapter's
+`/_matrix/...` HTTP endpoints; the adapter walks the room state and
+DT_STREAM contents through `sys_read` / `sys_write` / `stream_read_batch`.
 
 ```
-/agents/human-bob/chat-with-me  ← mount: NostrBackend{npub: bob_npub, relays: [wss://relay.damus.io, …]}
+Element   ──HTTP REST + JSON──►  services::matrix_adapter  ──gRPC──►  nexus kernel
+                                  /_matrix/client/v3/sync                sys_read /
+                                  /_matrix/client/v3/rooms/.../send      sys_write /
+                                  /_matrix/media/v3/...                  stream_read_batch
+                                                                          on chat-with-me
+                                                                          DT_STREAMs
 ```
 
-### 4.1 Outbound
+The adapter ports the Matrix protocol mechanics from upstream
+implementations (Tuwunel — Conduit fork, Apache-2.0) — room state DAG
+resolution, PDU validation + canonical JSON, `/sync` long-poll, media
+repo, push gateway hooks. It does not reuse Tuwunel's storage layer
+(RocksDB → ZoneMetaStore + DT_STREAM instead) or its server-to-server
+federation (Matrix S2S → raft instead). Identity passes through
+nexus's existing `AuthService`: Matrix `/login` returns a session
+token that the adapter accepts on subsequent calls and stamps into
+`OperationContext`.
 
-```
-agent X writes envelope to /agents/human-bob/chat-with-me
-      │
-      │  inline kernel stamping rewrites from = "agent-X" (§3.3)
-      ▼
-NostrBackend::write_content(envelope)
-      │
-      │  build NIP-04 EVENT (kind 4), encrypt to bob_npub, sign with X's nostr key
-      ▼
-relay client publishes to configured relays
-```
+### 4.3 Properties retained across both layers
 
-X's nostr key is the same identity nexus issues for X — one cryptographic identity covers VFS, federation, and Nostr. The recipient on Damus sees a regular encrypted DM authored by X.
+Both layers preserve the kernel-level surfaces that make the
+chat-with-me primitive uniform:
 
-### 4.2 Inbound
+- **Permissions** — ReBAC on the DT_STREAM path governs who may write
+  / read. Matrix room membership is derived from the same ReBAC
+  decision on each `/send` call.
+- **Audit** — Every Matrix-originated write reaches the kernel through
+  `sys_write`, so `AuditHook` captures it like any other VFS write
+  with no Matrix-specific bookkeeping.
+- **Single SSOT** — The DT_STREAM at `/agents/human-bob/chat-with-me`
+  is authoritative. The Matrix room view, the sudowork chat UI, and a
+  federation peer's `sys_watch` all resolve to the same byte sequence;
+  the adapter does not maintain a parallel store.
 
-```
-relay client subscribes to filter { kinds: [4], #p: bob_npub }
-      │  EVENT arrives
-      ▼
-NostrBackend::on_event
-      │
-      │  decrypt, unwrap envelope, append to local mirror
-      ▼
-StreamBackend emits FileEvent → FileWatchRegistry wakes sys_watch subscribers
-```
-
-The recipient's `sys_watch("/agents/human-bob/chat-with-me")` wakes and reads the message, identical to a local DT_STREAM read. The transport is transparent.
-
-### 4.3 Properties inherited from the driver-as-backend model
-
-Modeling Nostr as an `ObjectStore` driver mounted at a path gives the
-transport every kernel-level surface for free:
-
-- **Permissions** — ReBAC on the path governs who may send to a remote identity.
-- **Audit** — every send is a normal write, captured by `AuditHook` like any other VFS write.
-- **Discoverability** — `sys_readdir("/agents/")` lists local and remote identities uniformly.
-- **Client reuse** — Bob's client stays Damus or Amethyst; nexus owns the relay-side write/read surface.
-
-Native VFS clients (sudowork) stay on the gRPC path; the recipient's
-backing transport (Raft / Nostr) resolves at the mount, not at the
-caller.
+Native sudowork clients keep talking gRPC directly to nexus; only
+external Matrix clients touch the adapter.
 
 ---
 
@@ -512,35 +527,36 @@ The 1:1 zone holds `AuditRecord` only — formatted by `AuditHook`, with no prod
 
 ## 6. Data Replication Mechanisms
 
-Three replication paths exist in the kernel; the integration uses each for a different purpose:
+Two storage mechanisms cover everything in this integration; the
+Matrix C-S adapter is an edge surface that consumes them, not a third
+storage path:
 
 | Mechanism | Where in this doc | Semantics |
 |-----------|-------------------|-----------|
 | **DT_FILE** (regular file) | sudo-code sessions, profile configs, task lists | Metadata + content via CAS; random read; intra-zone |
-| **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, Raft-replicated |
-| **NostrBackend** (mount) | Remote `chat-with-me` paths | Cross-instance encrypted DM; bidirectional driver |
+| **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, raft-replicated |
 
-`WalStreamBackend` puts ordered, durable conversation streams (audit, chat) directly into the Raft log — the right tradeoff for traffic that needs total order across replicas. `DT_FILE` keeps metadata coordination in Raft and stores content in the backend. `NostrBackend` is an external transport: relay-side delivery, signed by the sender's nexus identity key.
+`WalStreamBackend` puts ordered, durable conversation streams (audit, chat) directly into the raft log — the right tradeoff for traffic that needs total order across replicas. `DT_FILE` keeps metadata coordination in raft and stores content in the backend. External clients (Element on Matrix; §4.2) reach the same DT_STREAMs through the Matrix C-S adapter; the adapter holds no state of its own.
 
 ---
 
 ## 7. Messenger Surface
 
-The Nostr side (§4) is the kernel-level transport. The messenger product surface consumes it:
+Three clients sit over the same chat-with-me DT_STREAMs:
 
-- **Damus / Amethyst / Snort** for human-facing chat. Cross-network, NIP-04 DMs and NIP-90 DVM tasks.
-- **sudowork chat UI** for in-app conversations. Reads from local `chat-with-me` streams over gRPC.
-- **NIP-90 DVM** kinds (5000–5999 / 6000–6999) double as a public AI task interface for agents that publish their availability over Nostr.
+- **sudowork chat UI** — talks gRPC directly to nexus. Reads each
+  `/agents/{name}/chat-with-me` and `/proc/{pid}/chat-with-me` through
+  `stream_read_batch` + `sys_watch`; writes via `sys_write`.
+- **Stock Matrix clients** (Element, FluffyChat, Cinny) — connect to
+  the Matrix C-S adapter (§4.2) over HTTP. Each Matrix room id maps
+  1:1 to a chat-with-me path; `m.room.message` events serialize into
+  the same envelope schema sudowork's UI emits.
+- **In-process agent runtimes** — read / write `chat-with-me` directly
+  through the kernel like any other VFS surface; no gateway involved.
 
-Identity unification: each agent's Nostr keypair == its nexus identity. One key, every surface.
-
-| Nostr `kind` | Platform meaning |
-|--------------|-----------------|
-| 1 | Short text / agent status |
-| 4, 44 | Encrypted DM (NIP-04 / NIP-44) |
-| 9735 | Zap → nexus exchange transfer |
-| 5000–5999 | NIP-90 DVM task request |
-| 6000–6999 | NIP-90 DVM task result |
+The chat-with-me DT_STREAM is the SSOT. None of the three clients
+maintain a parallel inbox; identity, ordering, and audit all derive
+from the kernel.
 
 ---
 
@@ -562,7 +578,7 @@ syscall (sys_write, sys_read, …)
     │           (MailboxStampingHook on */chat-with-me)
     │
     ├─► [EXECUTE] backend write with replacement.unwrap_or(content)
-    │             (redb / CAS / MemoryStreamBackend / NostrBackend / …)
+    │             (redb / CAS / MemoryStreamBackend / WalStreamBackend / …)
     │
     ├─► [POST] NativeInterceptHook chain
     │         on_post(ctx)  ← AuditHook fires here
