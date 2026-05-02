@@ -175,12 +175,13 @@ once `start_session_v1` returns and drives the LLM loop) is wired
 separately. ManagedAgentService just plants the AgentRegistry record
 + session row; runtime wire-up evolves on its own cadence.
 
-The provisioner step that builds `/proc/{pid}/workspace/` with OS-level
-symlinks for each `WorkspaceRepo` and plants the DT_LINK shortcut at
-`/proc/{pid}/workspace/chat-with-me` is tracked separately in
-`OPEN-ITEMS.md / sudo-code-grpc-service`. Until it lands, `workspace_path`
-is just the path string — the runtime task can still take cwd at it once
-nexus VFS exposes the directory.
+`start_session` materialises `/proc/{pid}/workspace/` as a DT_DIR,
+plants a `chat-with-me` DT_LINK pointing at `/proc/{pid}/chat-with-me`,
+and adds one DT_LINK per `WorkspaceRepo` (alias → host_path).
+`cancel_session` and out-of-band termination (SIGTERM / SIGKILL /
+orphan reap) tear the tree down through the kernel
+`AgentRegistry::on_terminate` observer the service registers at
+install time, so workspace state always tracks agent lifetime.
 
 After spawn, prompts and responses flow through the chat-with-me VFS
 surface — same A2A primitive every other agent uses (§3). sudowork
@@ -283,8 +284,9 @@ The link target is resolved by the kernel `route()` step (one hop, with cycle de
 
 Mailbox envelope stamping rewrites the message envelope's `from` field
 to the caller's authenticated `agent_id` before the write reaches the
-backend. LLMs cannot forge identity because the field is overwritten
-in-kernel — they do not author it.
+backend. The on-disk envelope's `from` always reflects the kernel's
+authenticated identity; the LLM-supplied envelope contributes message
+body and metadata only.
 
 The rewrite is implemented as a registered `NativeInterceptHook`
 (`MailboxStampingHook`) that delegates the actual envelope policy to
@@ -309,7 +311,7 @@ uses it as a double bypass:
   pre-widening cost.
 - **Layer 2 (mutating hook registered, write path doesn't match)**:
   suffix scan returns false, dispatcher still passes `vec![]`. Only
-  writes whose path ends in a registered suffix (today: `*/chat-with-me`)
+  writes whose path ends in a registered suffix (`*/chat-with-me`)
   pay the content clone.
 
 ```
@@ -526,16 +528,35 @@ The 1:1 zone holds `AuditRecord` only — formatted by `AuditHook`, with no prod
 
 ## 6. Data Replication Mechanisms
 
-Two storage mechanisms cover everything in this integration; the
-Matrix C-S adapter is an edge surface that consumes them, not a third
-storage path:
+Replication composes two channels — metadata via raft and content
+via CAS — and dispatches by entry type:
 
-| Mechanism | Where in this doc | Semantics |
-|-----------|-------------------|-----------|
-| **DT_FILE** (regular file) | sudo-code sessions, profile configs, task lists | Metadata + content via CAS; random read; intra-zone |
-| **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, raft-replicated |
+| Entry type | Used for | Metadata channel | Content channel |
+|-----------|----------|------------------|-----------------|
+| **DT_FILE** | sudo-code sessions, profile configs, task lists | Raft (intra-zone, strongly consistent) | Local CAS (`cas_local` backend) + on-miss lazy fetch from a peer voter via `PeerBlobClient` |
+| **DT_STREAM** (via `WalStreamBackend`) | `chat-with-me`, `/audit/traces/` | Raft (intra-zone) | Same raft log — `WalStreamBackend` writes content as `Command::AppendStreamEntry` so total order across voters is the same channel as metadata |
 
-`WalStreamBackend` puts ordered, durable conversation streams (audit, chat) directly into the raft log — the right tradeoff for traffic that needs total order across replicas. `DT_FILE` keeps metadata coordination in raft and stores content in the backend. External clients (Element on Matrix; §4.2) reach the same DT_STREAMs through the Matrix C-S adapter; the adapter holds no state of its own.
+For `DT_FILE`, the file's `FileMetadata` (entry type, content hash,
+size, last-writer address, etc.) commits through raft so every voter
+agrees on the namespace. The bytes themselves stay local-first in the
+zone's CAS engine; a voter that misses the chunk on read pulls it on
+demand through `PeerBlobClient` from the recorded `last_writer_address`.
+
+For `DT_STREAM`, ordering is the load-bearing property — every voter
+applies the same sequence of `AppendStreamEntry` commands, so a
+`stream_read_batch` at offset N returns the same bytes on every node.
+Append throughput is bounded by raft commit latency; `chat-with-me`
+and audit traffic stay within that envelope by design.
+
+The Matrix C-S adapter (§4.2) is an edge surface that calls
+`sys_read` / `sys_write` / `stream_read_batch` against these same
+mechanisms; the adapter is stateless. Stock Matrix clients see the
+chat-with-me DT_STREAM, not a parallel store.
+
+Primitive contracts (`DT_FILE` / `DT_STREAM` / `WalStreamBackend` /
+`PeerBlobClient` / CAS engine) live in nexus
+`docs/architecture/KERNEL-ARCHITECTURE.md` §3 and §4. This doc
+captures only how the integration layer uses them.
 
 ---
 
