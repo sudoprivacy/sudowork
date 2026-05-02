@@ -27,7 +27,7 @@ Cross-references:
 │              nexusd + sudo-code  (single process, always-on)         │
 │                                                                      │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Rust Kernel cdylib  (nexus_kernel)                         │    │
+│  │  Rust Kernel cdylib  (nexus_runtime)                        │    │
 │  │  VFSRouter · DCache · Metastore(redb) · LockManager         │    │
 │  │  PipeManager(DT_PIPE) · StreamManager(DT_STREAM)            │    │
 │  │  FileWatchRegistry(sys_watch) · KernelDispatch(hooks)       │    │
@@ -36,7 +36,7 @@ Cross-references:
 │               │                        │                             │
 │  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
 │  │  services rlib       │   │  sudo-code runtime          │         │
-│  │  AgentTable (state)  │   │  (linked Rust crate,        │         │
+│  │  AgentRegistry (state)  │   │  (linked Rust crate,        │         │
 │  │  mailbox stamping    │   │   trait DI registered into  │         │
 │  │                      │   │   AgentRuntimeRegistry)     │         │
 │  └────────┬─────────────┘   │  one tokio task per pid     │         │
@@ -46,8 +46,9 @@ Cross-references:
 │  │  ManagedAgentService │   └─────────────────────────────┘         │
 │  │  AcpService          │                                           │
 │  │   (claude/codex/…)   │   FastAPI bricks (mount, rebac, …)        │
-│  │  + AgentRegistry     │   AgentRegistry stays Python; ACP         │
-│  │    PyAgentRegistry   │   reaches it through the trait bridge.    │
+│  │  + AgentRegistry     │   AgentRegistry is a Rust SSOT reachable │
+│  │    (Rust SSOT;       │   from Python via `kernel.agent_registry`;│
+│  │     PyAgentRegistry) │   ACP / managed_agent reach it directly.  │
 │  └──────────────────────┘                                           │
 │                                                                      │
 │  AcpService spawns external ACP backends as subprocesses with        │
@@ -62,8 +63,8 @@ Cross-references:
 ### Constraints
 
 - **One nexusd per sudowork instance.** sudowork starts nexusd at launch and tears it down on quit.
-- **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
-- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup) lives in `services::agents::agent_table::AgentTable`; the Python `AgentRegistry` is a shim that dual-writes through the kernel `agent_*` syscalls. Profile config lives on disk under `/agents/{name}/`.
+- **Single Python-facing cdylib.** `nexus_runtime` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
+- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup, signal semantics, parent/child links, transition validation) lives in `kernel::core::agents::registry::AgentRegistry`. Python callers reach it through `kernel.agent_registry` — a thin PyO3 wrapper handing back `nexus_runtime.AgentDescriptor` instances with attribute getters mirroring `contracts/process_types.py`. There is no Python-side state mirror or dual-write step. Profile config lives on disk under `/agents/{name}/`.
 - **gRPC is the integration surface.** sudowork (Node/TS) reaches nexusd through tonic-served gRPC at port 2028; HTTP is reserved for human-facing dashboards.
 - **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: IPC, FEDERATION.
 - **Zone = VFS path mount point.** A zone's visibility boundary is its mount path. ReBAC governs sub-path access within a zone.
@@ -135,7 +136,7 @@ Three kinds of recipient still share the same DT_STREAM-backed surface:
       project-y/                 ← OS symlink → another host repo checkout
 ```
 
-`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentTable`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentTable`; the resolver renders it as JSON at read time.
+`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentRegistry`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentRegistry`; the resolver renders it as JSON at read time.
 
 `/proc/{pid}/agent` is a kernel-resolved DT_LINK to the agent-name directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its profile — no metadata duplication.
 
@@ -161,10 +162,8 @@ nexusd:
       │ resolve_rust_dispatch -> ("managed_agent", "start_session_v1")
       │ Kernel::dispatch_rust_call -> ManagedAgentService::dispatch
       │ ManagedAgentService::start_session
-      │   → AgentTable.register (Rust SSOT — no PyO3 boundary;
-      │     managed agents skip Python AgentRegistry because their
-      │     PCB metadata doesn't apply)
-      │   → AgentTable.update_state(WARMING_UP)
+      │   → AgentRegistry.register (Rust SSOT — no PyO3 boundary)
+      │   → AgentRegistry.update_state(WARMING_UP)
       │   → session_id = "sess-" + uuid4()[:12]
       │   → workspace_path = "/proc/{pid}/workspace/"
       ▼
@@ -173,15 +172,16 @@ nexusd:
 
 The actual managed-agent runtime crate (the Rust task that spawns
 once `start_session_v1` returns and drives the LLM loop) is wired
-separately. ManagedAgentService just plants the AgentTable record
+separately. ManagedAgentService just plants the AgentRegistry record
 + session row; runtime wire-up evolves on its own cadence.
 
-The provisioner step that builds `/proc/{pid}/workspace/` with OS-level
-symlinks for each `WorkspaceRepo` and plants the DT_LINK shortcut at
-`/proc/{pid}/workspace/chat-with-me` is tracked separately in
-`OPEN-ITEMS.md / sudo-code-grpc-service`. Until it lands, `workspace_path`
-is just the path string — the runtime task can still take cwd at it once
-nexus VFS exposes the directory.
+`start_session` materialises `/proc/{pid}/workspace/` as a DT_DIR,
+plants a `chat-with-me` DT_LINK pointing at `/proc/{pid}/chat-with-me`,
+and adds one DT_LINK per `WorkspaceRepo` (alias → host_path).
+`cancel_session` and out-of-band termination (SIGTERM / SIGKILL /
+orphan reap) tear the tree down through the kernel
+`AgentRegistry::on_terminate` observer the service registers at
+install time, so workspace state always tracks agent lifetime.
 
 After spawn, prompts and responses flow through the chat-with-me VFS
 surface — same A2A primitive every other agent uses (§3). sudowork
@@ -284,8 +284,9 @@ The link target is resolved by the kernel `route()` step (one hop, with cycle de
 
 Mailbox envelope stamping rewrites the message envelope's `from` field
 to the caller's authenticated `agent_id` before the write reaches the
-backend. LLMs cannot forge identity because the field is overwritten
-in-kernel — they do not author it.
+backend. The on-disk envelope's `from` always reflects the kernel's
+authenticated identity; the LLM-supplied envelope contributes message
+body and metadata only.
 
 The rewrite is implemented as a registered `NativeInterceptHook`
 (`MailboxStampingHook`) that delegates the actual envelope policy to
@@ -310,7 +311,7 @@ uses it as a double bypass:
   pre-widening cost.
 - **Layer 2 (mutating hook registered, write path doesn't match)**:
   suffix scan returns false, dispatcher still passes `vec![]`. Only
-  writes whose path ends in a registered suffix (today: `*/chat-with-me`)
+  writes whose path ends in a registered suffix (`*/chat-with-me`)
   pay the content clone.
 
 ```
@@ -334,7 +335,7 @@ DT_STREAM append (the per-pid stream — `/proc/{pid}/chat-with-me`,
 
 ### 3.4 Boundary teaching UX
 
-`WorkspaceBoundaryHook` is registered as an `INTERCEPT pre-write` hook scoped to `/proc/{pid}/workspace/{...}`. It compares the caller's `agent_id` to the workspace owner derived from the path (`pid → AgentTable.lookup(pid).name`). On mismatch the hook returns `Err(EPERM)` with a structured payload:
+`WorkspaceBoundaryHook` is registered as an `INTERCEPT pre-write` hook scoped to `/proc/{pid}/workspace/{...}`. It compares the caller's `agent_id` to the workspace owner derived from the path (`pid → AgentRegistry.lookup(pid).name`). On mismatch the hook returns `Err(EPERM)` with a structured payload:
 
 ```
 EPERM at /proc/p_scode/workspace/projects/nexus/src/main.rs:
@@ -527,16 +528,35 @@ The 1:1 zone holds `AuditRecord` only — formatted by `AuditHook`, with no prod
 
 ## 6. Data Replication Mechanisms
 
-Two storage mechanisms cover everything in this integration; the
-Matrix C-S adapter is an edge surface that consumes them, not a third
-storage path:
+Replication composes two channels — metadata via raft and content
+via CAS — and dispatches by entry type:
 
-| Mechanism | Where in this doc | Semantics |
-|-----------|-------------------|-----------|
-| **DT_FILE** (regular file) | sudo-code sessions, profile configs, task lists | Metadata + content via CAS; random read; intra-zone |
-| **DT_STREAM + WalStreamBackend** | `chat-with-me`, `/audit/traces/` | Append-only; offset-based read; intra-zone, raft-replicated |
+| Entry type | Used for | Metadata channel | Content channel |
+|-----------|----------|------------------|-----------------|
+| **DT_FILE** | sudo-code sessions, profile configs, task lists | Raft (intra-zone, strongly consistent) | Local CAS (`cas_local` backend) + on-miss lazy fetch from a peer voter via `PeerBlobClient` |
+| **DT_STREAM** (via `WalStreamBackend`) | `chat-with-me`, `/audit/traces/` | Raft (intra-zone) | Same raft log — `WalStreamBackend` writes content as `Command::AppendStreamEntry` so total order across voters is the same channel as metadata |
 
-`WalStreamBackend` puts ordered, durable conversation streams (audit, chat) directly into the raft log — the right tradeoff for traffic that needs total order across replicas. `DT_FILE` keeps metadata coordination in raft and stores content in the backend. External clients (Element on Matrix; §4.2) reach the same DT_STREAMs through the Matrix C-S adapter; the adapter holds no state of its own.
+For `DT_FILE`, the file's `FileMetadata` (entry type, content hash,
+size, last-writer address, etc.) commits through raft so every voter
+agrees on the namespace. The bytes themselves stay local-first in the
+zone's CAS engine; a voter that misses the chunk on read pulls it on
+demand through `PeerBlobClient` from the recorded `last_writer_address`.
+
+For `DT_STREAM`, ordering is the load-bearing property — every voter
+applies the same sequence of `AppendStreamEntry` commands, so a
+`stream_read_batch` at offset N returns the same bytes on every node.
+Append throughput is bounded by raft commit latency; `chat-with-me`
+and audit traffic stay within that envelope by design.
+
+The Matrix C-S adapter (§4.2) is an edge surface that calls
+`sys_read` / `sys_write` / `stream_read_batch` against these same
+mechanisms; the adapter is stateless. Stock Matrix clients see the
+chat-with-me DT_STREAM, not a parallel store.
+
+Primitive contracts (`DT_FILE` / `DT_STREAM` / `WalStreamBackend` /
+`PeerBlobClient` / CAS engine) live in nexus
+`docs/architecture/KERNEL-ARCHITECTURE.md` §3 and §4. This doc
+captures only how the integration layer uses them.
 
 ---
 

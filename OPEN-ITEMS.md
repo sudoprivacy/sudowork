@@ -59,34 +59,6 @@ in `nexi-lab/nexus#3922`.
 
 Owner: nexus repo. Closed.
 
-## matrix-cs-adapter
-
-Federation-external messenger reach (§4.2 of the integration design
-doc) is delivered through a Matrix Client-Server adapter at
-`services::matrix_adapter` rather than a Nostr backend. Stock Matrix
-clients (Element, FluffyChat, Cinny) hit the adapter's HTTP REST
-endpoints; the adapter translates each call into nexus VFS gRPC reads
-/ writes against the chat-with-me DT_STREAMs that already back
-in-federation reach (§4.1).
-
-The protocol mechanics are ported from upstream Tuwunel (Conduit
-fork, Apache-2.0): room state DAG resolution, PDU validation +
-canonical JSON, `/sync` long-poll, media repo, push gateway hooks.
-The adapter does not embed Tuwunel's RocksDB storage layer
-(ZoneMetaStore + DT_STREAM is the SSOT) or its server-to-server
-federation (raft is the SSOT). Identity passes through nexus's
-existing `AuthService`; Matrix `/login` returns a session token the
-adapter accepts on subsequent calls and stamps into
-`OperationContext`.
-
-Spike work: run Element against a mock backend, capture the endpoint
-trace, output a design doc enumerating the C-S subset to implement
-(~20–30 endpoints expected) plus the Tuwunel modules to port for
-each. Implementation work follows once the spike narrows scope.
-
-Owner: nexus repo (`services::matrix_adapter` crate / module). Blocks:
-cross-instance reach for users who run a stock Matrix client.
-
 ## managed-agent-grpc-service
 
 `ManagedAgentService` — narrow surface (`start_session_v1`,
