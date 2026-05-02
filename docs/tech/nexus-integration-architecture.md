@@ -27,7 +27,7 @@ Cross-references:
 │              nexusd + sudo-code  (single process, always-on)         │
 │                                                                      │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Rust Kernel cdylib  (nexus_kernel)                         │    │
+│  │  Rust Kernel cdylib  (nexus_runtime)                        │    │
 │  │  VFSRouter · DCache · Metastore(redb) · LockManager         │    │
 │  │  PipeManager(DT_PIPE) · StreamManager(DT_STREAM)            │    │
 │  │  FileWatchRegistry(sys_watch) · KernelDispatch(hooks)       │    │
@@ -63,7 +63,7 @@ Cross-references:
 ### Constraints
 
 - **One nexusd per sudowork instance.** sudowork starts nexusd at launch and tears it down on quit.
-- **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
+- **Single Python-facing cdylib.** `nexus_runtime` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
 - **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup, signal semantics, parent/child links, transition validation) lives in `kernel::core::agents::registry::AgentRegistry`. Python callers reach it through `kernel.agent_registry` — a thin PyO3 wrapper handing back `nexus_runtime.AgentDescriptor` instances with attribute getters mirroring `contracts/process_types.py`. There is no Python-side state mirror or dual-write step. Profile config lives on disk under `/agents/{name}/`.
 - **gRPC is the integration surface.** sudowork (Node/TS) reaches nexusd through tonic-served gRPC at port 2028; HTTP is reserved for human-facing dashboards.
 - **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: IPC, FEDERATION.
