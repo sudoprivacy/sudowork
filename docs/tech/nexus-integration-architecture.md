@@ -36,7 +36,7 @@ Cross-references:
 │               │                        │                             │
 │  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
 │  │  services rlib       │   │  sudo-code runtime          │         │
-│  │  AgentTable (state)  │   │  (linked Rust crate,        │         │
+│  │  AgentRegistry (state)  │   │  (linked Rust crate,        │         │
 │  │  mailbox stamping    │   │   trait DI registered into  │         │
 │  │                      │   │   AgentRuntimeRegistry)     │         │
 │  └────────┬─────────────┘   │  one tokio task per pid     │         │
@@ -46,8 +46,9 @@ Cross-references:
 │  │  ManagedAgentService │   └─────────────────────────────┘         │
 │  │  AcpService          │                                           │
 │  │   (claude/codex/…)   │   FastAPI bricks (mount, rebac, …)        │
-│  │  + AgentRegistry     │   AgentRegistry stays Python; ACP         │
-│  │    PyAgentRegistry   │   reaches it through the trait bridge.    │
+│  │  + AgentRegistry     │   AgentRegistry is a Rust SSOT reachable │
+│  │    (Rust SSOT;       │   from Python via `kernel.agent_registry`;│
+│  │     PyAgentRegistry) │   ACP / managed_agent reach it directly.  │
 │  └──────────────────────┘                                           │
 │                                                                      │
 │  AcpService spawns external ACP backends as subprocesses with        │
@@ -63,7 +64,7 @@ Cross-references:
 
 - **One nexusd per sudowork instance.** sudowork starts nexusd at launch and tears it down on quit.
 - **Single Python-facing cdylib.** `nexus_kernel` is the only PyO3 extension module. Service-tier rlibs (`services`, `raft`, `library`, `contracts`) link into it.
-- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup) lives in `services::agents::agent_table::AgentTable`; the Python `AgentRegistry` is a shim that dual-writes through the kernel `agent_*` syscalls. Profile config lives on disk under `/agents/{name}/`.
+- **State SSOT.** Agent runtime state (`pid → AgentState`, condvar wakeup, signal semantics, parent/child links, transition validation) lives in `kernel::core::agents::registry::AgentRegistry`. Python callers reach it through `kernel.agent_registry` — a thin PyO3 wrapper handing back `nexus_runtime.AgentDescriptor` instances with attribute getters mirroring `contracts/process_types.py`. There is no Python-side state mirror or dual-write step. Profile config lives on disk under `/agents/{name}/`.
 - **gRPC is the integration surface.** sudowork (Node/TS) reaches nexusd through tonic-served gRPC at port 2028; HTTP is reserved for human-facing dashboards.
 - **Cluster profile.** sudowork uses Nexus's cluster profile — bricks: IPC, FEDERATION.
 - **Zone = VFS path mount point.** A zone's visibility boundary is its mount path. ReBAC governs sub-path access within a zone.
@@ -135,7 +136,7 @@ Three kinds of recipient still share the same DT_STREAM-backed surface:
       project-y/                 ← OS symlink → another host repo checkout
 ```
 
-`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentTable`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentTable`; the resolver renders it as JSON at read time.
+`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentRegistry`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentRegistry`; the resolver renders it as JSON at read time.
 
 `/proc/{pid}/agent` is a kernel-resolved DT_LINK to the agent-name directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its profile — no metadata duplication.
 
@@ -161,10 +162,8 @@ nexusd:
       │ resolve_rust_dispatch -> ("managed_agent", "start_session_v1")
       │ Kernel::dispatch_rust_call -> ManagedAgentService::dispatch
       │ ManagedAgentService::start_session
-      │   → AgentTable.register (Rust SSOT — no PyO3 boundary;
-      │     managed agents skip Python AgentRegistry because their
-      │     PCB metadata doesn't apply)
-      │   → AgentTable.update_state(WARMING_UP)
+      │   → AgentRegistry.register (Rust SSOT — no PyO3 boundary)
+      │   → AgentRegistry.update_state(WARMING_UP)
       │   → session_id = "sess-" + uuid4()[:12]
       │   → workspace_path = "/proc/{pid}/workspace/"
       ▼
@@ -173,7 +172,7 @@ nexusd:
 
 The actual managed-agent runtime crate (the Rust task that spawns
 once `start_session_v1` returns and drives the LLM loop) is wired
-separately. ManagedAgentService just plants the AgentTable record
+separately. ManagedAgentService just plants the AgentRegistry record
 + session row; runtime wire-up evolves on its own cadence.
 
 The provisioner step that builds `/proc/{pid}/workspace/` with OS-level
@@ -334,7 +333,7 @@ DT_STREAM append (the per-pid stream — `/proc/{pid}/chat-with-me`,
 
 ### 3.4 Boundary teaching UX
 
-`WorkspaceBoundaryHook` is registered as an `INTERCEPT pre-write` hook scoped to `/proc/{pid}/workspace/{...}`. It compares the caller's `agent_id` to the workspace owner derived from the path (`pid → AgentTable.lookup(pid).name`). On mismatch the hook returns `Err(EPERM)` with a structured payload:
+`WorkspaceBoundaryHook` is registered as an `INTERCEPT pre-write` hook scoped to `/proc/{pid}/workspace/{...}`. It compares the caller's `agent_id` to the workspace owner derived from the path (`pid → AgentRegistry.lookup(pid).name`). On mismatch the hook returns `Err(EPERM)` with a structured payload:
 
 ```
 EPERM at /proc/p_scode/workspace/projects/nexus/src/main.rs:
