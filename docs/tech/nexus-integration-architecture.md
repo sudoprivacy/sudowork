@@ -171,31 +171,44 @@ nexusd:
 ```
 
 The session identifier IS the AgentRegistry pid — there is no second id.
-The descriptor (`AgentDescriptor`) is the per-pid SSOT for everything
-sudowork's lifecycle calls need: `agent_id` (static profile name) lands
-in `desc.name`, `model` in `desc.labels["model"]`, workspace mounts in
-`desc.repos`. ManagedAgentService plants the descriptor and stamps the
-procfs dirent; the actual managed-agent runtime crate (the Rust task
-that drives the LLM loop after `start_session_v1` returns) is wired
-separately.
+The descriptor (`AgentDescriptor`) is the per-pid SSOT for spawn-time
+surface info: `agent_id` (static profile name) lands in `desc.name`,
+`model` in `desc.labels["model"]`, workspace mount list in
+`desc.repos`.  ManagedAgentService plants the descriptor, stamps the
+per-pid procfs entries, and hands off to sudo-code:
 
-The kernel side of `/proc/{pid}/workspace/` follows the procfs split:
-the dirent + stat for `/proc/{pid}/workspace/` is a real metastore
-entry stamped at start_session, while the link contents inside that
-directory are composed at read time from the descriptor:
+  - `/proc/{pid}/` (DT_DIR) — process root.
+  - `/proc/{pid}/agent` (DT_LINK → `/agents/{desc.name}/`) — Linux
+    `/proc/{pid}/exe` analogue; readlink returns the static profile dir.
+  - `/proc/{pid}/chat-with-me` (DT_STREAM) — the canonical mailbox; A2A
+    writes append here, sudo-code's loop `sys_watch`es it for prompts.
+  - `/proc/{pid}/sessions/` (DT_DIR) — sudo-code writes per-session jsonl
+    transcripts under this prefix.
+  - `/proc/{pid}/tasks/` (DT_DIR) — reserved for sudo-code task list
+    persistence.
+  - `/proc/{pid}/workspace/` (DT_DIR) — agent cwd; per-repo mounts and
+    the chat-with-me shortcut hang under here.
+  - `/proc/{pid}/workspace/chat-with-me` (DT_LINK → `/proc/{pid}/chat-with-me`)
+    — workspace shortcut so the agent can write `chat-with-me` relative
+    to its cwd.  Resolved by VFSRouter's standard DT_LINK follow.
+  - `/proc/{pid}/workspace/{alias}` (DT_LINK → `desc.repos[alias].mount_path`)
+    — one per `WorkspaceRepo` in the spawn request.
 
-  - `workspace/chat-with-me` → derived as `/proc/{pid}/chat-with-me`
-    (fixed convention; see §3.2).
-  - `workspace/{alias}` → derived from `desc.repos[alias].mount_path`.
+Out-of-band termination (SIGTERM / SIGKILL / orphan reap) flows through
+`AgentRegistry::on_terminate`, which reaps every entry under
+`/proc/{pid}/`.  `cancel(Session)` calls `AgentRegistry::kill(pid, 0)`
+for the same outcome — orphan auto-reap removes the descriptor, the
+observer reaps the procfs subtree.
 
-`ProcWorkspaceResolver` (a `PathResolver` registered alongside
-`AgentStatusResolver` for `/proc/{pid}/status` — see KERNEL-ARCHITECTURE
-§3) owns the rendering. The descriptor is the SSOT for both content and
-lifetime; out-of-band termination (SIGTERM / SIGKILL / orphan reap)
-flows through `AgentRegistry::on_terminate`, which fires
-`unregister_proc_entry` to drop the dirent. Cancel(Session) calls
-`AgentRegistry::kill(pid, 0)` for the same outcome — orphan auto-reap
-removes the descriptor and the observer drops the dirent.
+After the procfs entries are in place, ManagedAgentService hands off
+to the sudo-code crate by calling `sudo_code::spawn_task(pid, ...)` —
+a direct in-process Rust call into a crate linked into the same nexusd
+binary.  The crate spawns a tokio task on the kernel's shared runtime
+(`kernel.runtime()`); the task is the per-pid agent loop.  Tokio is
+the I/O-concurrency model (LLM HTTP round-trips run seconds; many pids
+share a small worker pool); the call surface between
+ManagedAgentService and sudo-code is plain Rust function calls,
+sharing the address space with the kernel.
 
 After spawn, prompts and responses flow through the chat-with-me VFS
 surface — same A2A primitive every other agent uses (§3). sudowork
@@ -226,40 +239,17 @@ Prompt / event flow uses the existing `NexusVFSService` gRPC
 There is no `SendPrompt` or `SubscribeEvents` gRPC — those would
 duplicate the A2A surface the rest of the system uses.
 
-#### Runtime registry
-
-The runtime-side trait that ManagedAgentService dispatches against
-once `start_session_v1` returns lives next to the service in
-`rust/services/src/managed_agent/`. Its DI slot mirrors
-`NativeInterceptHook` registration: register a `Box<dyn AgentRuntime>`
-for each agent name, the service looks it up at spawn time. Today the
-trait surface is:
-
-```python
-class AgentRuntime(Protocol):
-    def spawn(self, *, pid: str, workspace_path: str,
-              repos: list[dict[str, Any]], model: str) -> None: ...
-    def cancel(self, *, pid: str, mode: str) -> None: ...
-
-class AgentRuntimeRegistry:
-    def register(self, agent_name: str, runtime: AgentRuntime) -> None: ...
-    def unregister(self, agent_name: str) -> None: ...
-    def get(self, agent_name: str) -> AgentRuntime | None: ...
-    def list(self) -> list[str]: ...
-```
-
-The trait is declared as a Python `Protocol` (duck-typed) so the same
-slot accepts both an in-process Rust impl bound through PyO3 (the
-shape sudo-code's runtime crate will use) and pure-Python implementations
-useful for testing. The Rust counterpart trait — `pub trait AgentRuntime:
-Send + Sync` in the services rlib — is deferred until the sudo-code crate
-itself lands, so the dependency direction stays `sudo-code → nexus` only
-and nexus carries no Cargo edge into sudo-code.
-
 `AgentState` lifecycle: `REGISTERED → WARMING_UP → READY ↔ BUSY → SUSPENDED → TERMINATED`.
 `kernel.agent_wait(pid, target_state, timeout_ms)` releases the GIL and
 parks on the per-pid condvar — Python supervisors get a blocking wait
 without pinning the interpreter.
+
+ManagedAgentService dispatches to the runtime through a direct
+in-process call — `sudo_code::spawn_task(pid, ...)` — keeping the
+dispatch surface a single named function for the one-runtime
+configuration. The dispatch site is the place a trait lands the day
+a second in-process runtime joins; the existing call slots in as
+the first trait impl with no behavior change.
 
 ### 2.4 sudo-code state placement
 
@@ -418,29 +408,104 @@ in-federation case.
 
 The Matrix C-S adapter is a nexus services-tier component
 (`services::matrix_adapter`) that hosts the Matrix Client-Server REST
-surface at the edge and translates each call into a nexus VFS gRPC
-call underneath. Element opens a TCP socket to the adapter's
+surface at the edge and translates each call into nexus kernel
+syscalls underneath. Element opens a TCP socket to the adapter's
 `/_matrix/...` HTTP endpoints; the adapter walks the room state and
 DT_STREAM contents through `sys_read` / `sys_write` / `stream_read_batch`.
 
 ```
-Element   ──HTTP REST + JSON──►  services::matrix_adapter  ──gRPC──►  nexus kernel
-                                  /_matrix/client/v3/sync                sys_read /
-                                  /_matrix/client/v3/rooms/.../send      sys_write /
-                                  /_matrix/media/v3/...                  stream_read_batch
-                                                                          on chat-with-me
-                                                                          DT_STREAMs
+Element   ──HTTP REST + JSON──►  services::matrix_adapter  ──in-process──►  nexus kernel
+                                  /_matrix/client/v3/sync                    sys_read /
+                                  /_matrix/client/v3/rooms/.../send          sys_write /
+                                  /_matrix/media/v3/...                      stream_read_batch
+                                                                              on chat-with-me
+                                                                              DT_STREAMs
 ```
 
-The adapter ports the Matrix protocol mechanics from upstream
-implementations (Tuwunel — Conduit fork, Apache-2.0) — room state DAG
-resolution, PDU validation + canonical JSON, `/sync` long-poll, media
-repo, push gateway hooks. It does not reuse Tuwunel's storage layer
-(RocksDB → ZoneMetaStore + DT_STREAM instead) or its server-to-server
-federation (Matrix S2S → raft instead). Identity passes through
-nexus's existing `AuthService`: Matrix `/login` returns a session
-token that the adapter accepts on subsequent calls and stamps into
-`OperationContext`.
+#### Endpoint scope
+
+The adapter implements the minimal Client-Server v3 surface needed
+for stock chat clients (Element, FluffyChat, Cinny) to participate
+in nexus chat-with-me streams.  Scope is the C-S surface those
+clients use — server-to-server federation, admin API, application
+service, spaces, and end-to-end encryption are layers nexus already
+covers (raft / AuthService / ReBAC) or layers the v1 surface does
+not need.  ~20 endpoints organised in five groups:
+
+| Group | Endpoints | Backed by |
+|-------|-----------|-----------|
+| **Auth** | `POST /_matrix/client/v3/login`, `POST /_matrix/client/v3/logout`, `GET /_matrix/client/v3/account/whoami` | `AuthService`; Matrix access token = AuthService session token, stamped into `OperationContext` per call |
+| **Sync** | `GET /_matrix/client/v3/sync` (long-poll, since-token paging) | `sys_watch` on the user's joined chat-with-me streams; since-token is `(stream_path → offset)` map |
+| **Rooms — read state** | `GET /_matrix/client/v3/rooms/{rid}/state`, `GET /_matrix/client/v3/rooms/{rid}/state/{event_type}/{state_key}`, `GET /_matrix/client/v3/rooms/{rid}/messages` (back-paginate), `GET /_matrix/client/v3/rooms/{rid}/joined_members` | `stream_read_batch` over the chat-with-me DT_STREAM; room state synthesised from ReBAC membership + envelope metadata |
+| **Rooms — write** | `PUT /_matrix/client/v3/rooms/{rid}/send/{event_type}/{txn_id}`, `POST /_matrix/client/v3/rooms/{rid}/leave`, `POST /_matrix/client/v3/rooms/{rid}/join`, `POST /_matrix/client/v3/createRoom` | `sys_write` (envelope assembled from PDU body); join/leave write ReBAC mutations; createRoom binds a new `/agents/{name}/chat-with-me` |
+| **Media** | `GET /_matrix/media/v3/download/{server}/{media_id}`, `POST /_matrix/media/v3/upload`, `GET /_matrix/media/v3/thumbnail/{server}/{media_id}` | DT_FILE under `/media/{media_id}`; CAS storage for content, raft for the metastore entry |
+
+#### Room ↔ chat-with-me mapping
+
+A Matrix room id maps 1:1 to a chat-with-me DT_STREAM path.  Stable
+encoding so cross-restart the same room id resolves to the same
+stream:
+
+```
+!{base32(stream_path)}:nexus.local
+  e.g. /agents/human-bob/chat-with-me
+       ↔ !MFRGS43FORZS6ZTPMVQHIYLUMRZA:nexus.local
+```
+
+The `:nexus.local` suffix is the Matrix server-name; it's a stable
+constant per nexus deployment, configured at adapter boot.
+
+#### PDU envelope ↔ chat envelope
+
+Matrix PDUs (Persistent Data Units) and the nexus chat envelope
+(§3.3) are both JSON; the adapter translates field-by-field on the
+hot path:
+
+| PDU field | Chat envelope field | Notes |
+|-----------|---------------------|-------|
+| `sender` | `from` | Stamped by `MailboxStampingHook` from `OperationContext` — adapter cannot forge |
+| `content.body` | `body` | `m.room.message` text; pass-through |
+| `content.msgtype` | `msgtype` | `m.text`, `m.image`, etc. |
+| `origin_server_ts` | `ts_ms` | Unix ms |
+| `event_id` | derived from DT_STREAM offset | `$offset_{n}:nexus.local` so it's stable |
+| `room_id` | derived from path | See above |
+| `unsigned.age` | computed at send time | Standard Matrix |
+
+Adapter scope is the C-S surface stock chat clients use; nexus raft
+provides cross-instance replication (§4.1), so PDU signing, state DAG
+resolution, and depth/prev_events tracking belong to layers nexus
+already owns — the DT_STREAM linear order is the SSOT for
+ordering.
+
+#### Storage
+
+Adapter is **stateless** — every read/write goes through the kernel.
+The kernel's metastore + WalStreamBackend hold the SSOT; the adapter
+keeps three things in-memory, all rebuilt on restart:
+
+  - Active `/sync` long-poll registrations (channel per pinned client)
+  - Access-token → user-id map (mirrors AuthService; cache miss falls
+    back to AuthService lookup)
+  - Room id → stream path decoding (pure function of room id)
+
+#### Identity & permissions
+
+Matrix `/login` calls AuthService with the same credential schemes
+sudowork uses.  AuthService returns the session token; adapter
+returns it as Matrix `access_token`.  Subsequent calls validate the
+token once per request (cached) and stamp the resolved user id into
+`OperationContext` before issuing kernel syscalls.  ReBAC then
+governs read/write — Matrix room membership IS the ReBAC `read` /
+`write` predicate on the chat-with-me path.  No second permission
+model.
+
+#### Reference reading
+
+The Matrix protocol mechanics (PDU canonical JSON, `/sync` semantics,
+media repo) come from the [Matrix C-S spec v1.10+](https://spec.matrix.org/v1.10/client-server-api/);
+upstream Rust implementations to read for patterns: Tuwunel
+(Conduit fork, Apache-2.0).  The adapter is a fresh Rust crate that
+reuses no upstream storage or S2S code.
 
 ### 4.3 Properties retained across both layers
 
