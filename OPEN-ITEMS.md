@@ -105,6 +105,37 @@ so configuration sits under the same SSOT as the rest of agent identity.
 
 Owner: sudo-code repo. Blocks: full SSOT for agent identity surface.
 
+## matrix-cs-adapter
+
+`services::matrix_adapter` — Matrix Client-Server v3 surface so stock
+chat clients (Element, FluffyChat, Cinny) can read and write nexus
+chat-with-me DT_STREAMs as Matrix rooms. End-state spec lives in
+`docs/tech/nexus-integration-architecture.md` §4.2 (endpoint scope,
+room ↔ stream encoding, PDU ↔ chat envelope translation, identity
+through AuthService, kernel as the only storage).
+
+Multi-stage rollout:
+
+- **D1 — skeleton + auth** — crate scaffold under
+  `rust/services/src/matrix_adapter/`; axum router on `/_matrix/...`;
+  3 endpoints (`login`, `logout`, `whoami`) backed by AuthService;
+  access-token middleware that stamps `OperationContext`.
+- **D2 — PDU + room read/write** — PDU envelope translator, room-id
+  base32 encoder, state/messages/joined_members reads via
+  `stream_read_batch`, send/join/leave/createRoom writes via
+  `sys_write` + ReBAC mutations.
+- **D3 — sync long-poll + media + push** — `/sync` long-poll over
+  `sys_watch`; media repo backed by DT_FILE under `/media/{media_id}`;
+  push gateway hook (read-only).
+- **D4 — Element smoke** — local Element pointed at the adapter; one
+  round of login → join → send → image upload as a manual or scripted
+  CI smoke.
+
+Owner: nexus repo. Blocks: external-Matrix participation in nexus
+chat-with-me streams. Sudowork's own chat UI keeps talking gRPC
+directly to nexus (decision recorded 2026-05-02), so this PR series
+does not block sudowork UI work.
+
 ## auth-fallback
 
 When the `ManagedAgentService` gRPC client lands in this repo (see
