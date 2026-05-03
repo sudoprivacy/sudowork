@@ -31,7 +31,7 @@ Cross-references:
 │  │  VFSRouter · DCache · Metastore(redb) · LockManager         │    │
 │  │  PipeManager(DT_PIPE) · StreamManager(DT_STREAM)            │    │
 │  │  FileWatchRegistry(sys_watch) · KernelDispatch(hooks)       │    │
-│  │  AuditHook · AgentStatusResolver · DT_LINK resolver         │    │
+│  │  AuditHook · AgentStatusResolver · ProcWorkspaceResolver    │    │
 │  └────────────┬────────────────────────┬────────────────────────┘   │
 │               │                        │                             │
 │  ┌────────────▼─────────┐   ┌──────────▼──────────────────┐         │
@@ -98,7 +98,8 @@ goes through the pid level. See §3.6.)
 
 `chat-with-me` lives at the pid level — `/proc/{pid}/chat-with-me` is
 the canonical address, and `/proc/{pid}/workspace/chat-with-me` is a
-DT_LINK shortcut to it. The agent-name level (`/agents/{name}/chat-with-me`)
+procfs view onto it (rendered by `ProcWorkspaceResolver`, §2.3). The
+agent-name level (`/agents/{name}/chat-with-me`)
 is **not a writable path** — the kernel does not maintain a name-level
 aggregator. Callers always have a pid by the time they need to address
 an agent (sudowork gets it from `ManagedAgentService.start_session_v1`; in-process
@@ -125,18 +126,18 @@ Three kinds of recipient still share the same DT_STREAM-backed surface:
 
 ```
 /proc/{pid}/
-   status                        ← virtual file: AgentStatusResolver returns descriptor JSON
+   status                        ← virtual file: AgentStatusResolver renders descriptor JSON
    agent                         ← DT_LINK → /agents/{name}/   (Linux /proc/{pid}/exe analogue)
    chat-with-me                  ← DT_STREAM: this pid's conversation
    sessions/                     ← jsonl files written by sudo-code (cwd-driven)
    tasks/                        ← named task lists for this pid
-   workspace/                    ← real DT_DIR; OS-level symlinks point at host repos
-      chat-with-me               ← DT_LINK → /proc/{pid}/chat-with-me
-      project-x/                 ← OS symlink → host repo checkout
-      project-y/                 ← OS symlink → another host repo checkout
+   workspace/                    ← real DT_DIR (dirent in metastore)
+      chat-with-me               ← procfs view → /proc/{pid}/chat-with-me
+      project-x/                 ← procfs view → host repo path from desc.repos
+      project-y/                 ← procfs view → host repo path from desc.repos
 ```
 
-`/proc/{pid}/status` is served by `AgentStatusResolver` (kernel), reading from the Rust `AgentRegistry`. The pid descriptor — state, exit code, agent name, parent pid, timestamps — stays in `AgentRegistry`; the resolver renders it as JSON at read time.
+`/proc/{pid}/status` and `/proc/{pid}/workspace/{...}` are both served by `PathResolver` impls reading from the Rust `AgentRegistry`. `AgentStatusResolver` renders the descriptor as JSON at `status`; `ProcWorkspaceResolver` renders the workspace links from the same descriptor — `chat-with-me` from the fixed mailbox convention, per-repo aliases from `AgentDescriptor.repos`. The descriptor is the SSOT for state, exit code, agent name, parent pid, timestamps, model, and workspace mounts — every `/proc/{pid}/...` read is derived from it.
 
 `/proc/{pid}/agent` is a kernel-resolved DT_LINK to the agent-name directory. `readlink` returns `/agents/{name}/`; `stat` follows. This is the single SSOT pointer from a runtime back to its profile — no metadata duplication.
 
@@ -155,53 +156,67 @@ uses.
 ```
 sudowork (Electron, TS)
    │ gRPC: NexusVFSService.Call(method="managed_agent.start_session_v1",
-   │       payload={agent:"scode-standard", repos:[…], model, owner_id, zone_id})
+   │       payload={agent_id:"scode-standard", repos:[…], model, owner_id, zone_id})
    ▼
 nexusd:
    tonic Call handler
       │ resolve_rust_dispatch -> ("managed_agent", "start_session_v1")
       │ Kernel::dispatch_rust_call -> ManagedAgentService::dispatch
       │ ManagedAgentService::start_session
-      │   → AgentRegistry.register (Rust SSOT — no PyO3 boundary)
+      │   → AgentRegistry.register descriptor (model + repos in PCB)
       │   → AgentRegistry.update_state(WARMING_UP)
-      │   → session_id = "sess-" + uuid4()[:12]
-      │   → workspace_path = "/proc/{pid}/workspace/"
+      │   → register_proc_entry: stamp /proc/{pid}/workspace/ dirent
       ▼
-   {session_id, agent_id=pid, workspace_path} → sudowork
+   {session_id=pid, workspace_path="/proc/{pid}/workspace/"} → sudowork
 ```
 
-The actual managed-agent runtime crate (the Rust task that spawns
-once `start_session_v1` returns and drives the LLM loop) is wired
-separately. ManagedAgentService just plants the AgentRegistry record
-+ session row; runtime wire-up evolves on its own cadence.
+The session identifier IS the AgentRegistry pid — there is no second id.
+The descriptor (`AgentDescriptor`) is the per-pid SSOT for everything
+sudowork's lifecycle calls need: `agent_id` (static profile name) lands
+in `desc.name`, `model` in `desc.labels["model"]`, workspace mounts in
+`desc.repos`. ManagedAgentService plants the descriptor and stamps the
+procfs dirent; the actual managed-agent runtime crate (the Rust task
+that drives the LLM loop after `start_session_v1` returns) is wired
+separately.
 
-`start_session` materialises `/proc/{pid}/workspace/` as a DT_DIR,
-plants a `chat-with-me` DT_LINK pointing at `/proc/{pid}/chat-with-me`,
-and adds one DT_LINK per `WorkspaceRepo` (alias → host_path).
-`cancel_session` and out-of-band termination (SIGTERM / SIGKILL /
-orphan reap) tear the tree down through the kernel
-`AgentRegistry::on_terminate` observer the service registers at
-install time, so workspace state always tracks agent lifetime.
+The kernel side of `/proc/{pid}/workspace/` follows the procfs split:
+the dirent + stat for `/proc/{pid}/workspace/` is a real metastore
+entry stamped at start_session, while the link contents inside that
+directory are composed at read time from the descriptor:
+
+  - `workspace/chat-with-me` → derived as `/proc/{pid}/chat-with-me`
+    (fixed convention; see §3.2).
+  - `workspace/{alias}` → derived from `desc.repos[alias].mount_path`.
+
+`ProcWorkspaceResolver` (a `PathResolver` registered alongside
+`AgentStatusResolver` for `/proc/{pid}/status` — see KERNEL-ARCHITECTURE
+§3) owns the rendering. The descriptor is the SSOT for both content and
+lifetime; out-of-band termination (SIGTERM / SIGKILL / orphan reap)
+flows through `AgentRegistry::on_terminate`, which fires
+`unregister_proc_entry` to drop the dirent. Cancel(Session) calls
+`AgentRegistry::kill(pid, 0)` for the same outcome — orphan auto-reap
+removes the descriptor and the observer drops the dirent.
 
 After spawn, prompts and responses flow through the chat-with-me VFS
 surface — same A2A primitive every other agent uses (§3). sudowork
-writes prompts to `/proc/{pid}/chat-with-me` (using the `agent_id` it
-got from `StartSession`); the kernel rewrites the envelope's `from`
-field to sudowork's caller identity (§3.3). The sudo-code task in
-nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me` for incoming
-prompts and writes responses to `/agents/{user}/chat-with-me`. sudowork's
-UI `sys_watch`es the user's chat-with-me for those responses.
+writes prompts to `/proc/{pid}/chat-with-me`; the kernel rewrites the
+envelope's `from` field to sudowork's caller identity (§3.3). The
+sudo-code task in nexusd `sys_watch`es its own `/proc/{pid}/chat-with-me`
+for incoming prompts and writes responses to `/agents/{user}/chat-with-me`.
+sudowork's UI `sys_watch`es the user's chat-with-me for those responses.
 
 **ManagedAgentService surface is intentionally narrow** — only spawn /
 cancel / liveness, exposed over `NexusVFSService.Call`:
 
-- `start_session_v1` — payload `{agent, repos, model, owner_id, zone_id}` →
-  `{session_id, agent_id, workspace_path}`
+- `start_session_v1` — payload `{agent_id, repos, model, owner_id, zone_id}` →
+  `{session_id, workspace_path}`. `agent_id` names the static profile
+  (`/agents/{agent_id}/`); `session_id` is the runtime pid.
 - `cancel_v1` — payload `{session_id, mode}` → `{cancelled}`.
   `mode ∈ {turn, session}` — turn aborts the current generation,
-  session also reaps the pid.
+  session reaps the pid.
 - `get_session_v1` — payload `{session_id}` →
-  `{session_id, agent_id, agent, workspace_path, model, state}`
+  `{session_id, agent_id, workspace_path, model, state}`. `agent_id`
+  echoes the static profile; `state` mirrors `AgentDescriptor.state`.
 
 The dotted form (`managed_agent.start_session_v1`) is canonical;
 flat-name fallback (`managed_agent_start_session_v1`) is wired for
@@ -270,15 +285,15 @@ A2A, H2A, and A2H share one primitive: write a message to the recipient's `chat-
 
 ### 3.2 The chat-with-me link inside a workspace
 
-Every workspace exposes a sibling `chat-with-me` entry as a DT_LINK to the owning pid's chat:
+Every workspace exposes a sibling `chat-with-me` entry that resolves to the owning pid's chat:
 
 ```
-/proc/{pid}/workspace/chat-with-me  ← DT_LINK → /proc/{pid}/chat-with-me
+/proc/{pid}/workspace/chat-with-me  →  /proc/{pid}/chat-with-me
 ```
 
-So an agent inside another's workspace — say agent A is staged at `/proc/p_other/workspace/projects/nexus/` and wants to talk to whoever owns this nexus repo — writes to `chat-with-me` relative to wherever it stands; the link follows back to the workspace owner's stream.
+So an agent inside another's workspace — say agent A is staged at `/proc/p_other/workspace/projects/nexus/` and wants to talk to whoever owns this nexus repo — writes to `chat-with-me` relative to wherever it stands; resolution follows back to the workspace owner's stream.
 
-The link target is resolved by the kernel `route()` step (one hop, with cycle detection). All hooks fire on the resolved target path, so audit, sender stamping, and boundary checks behave identically to a direct `/proc/{pid}/chat-with-me` write.
+The target is rendered by `ProcWorkspaceResolver` (§2.3) — a `PathResolver` reading from `AgentRegistry`. The link is not a metastore row; the resolver returns the canonical pid path on demand. All hooks then fire on the resolved target path, so audit, sender stamping, and boundary checks behave identically to a direct `/proc/{pid}/chat-with-me` write.
 
 ### 3.3 Sender identity
 
@@ -330,7 +345,7 @@ dispatch_native_pre → MailboxStampingHook.on_pre
    │
    ▼
 DT_STREAM append (the per-pid stream — `/proc/{pid}/chat-with-me`,
-                  possibly reached via the workspace DT_LINK shortcut)
+                  possibly reached via the workspace procfs view)
 ```
 
 ### 3.4 Boundary teaching UX
@@ -342,7 +357,7 @@ EPERM at /proc/p_scode/workspace/projects/nexus/src/main.rs:
   This workspace is owned by agent 'scode-standard' (pid p_scode).
   You are 'human-ethan'. To send a message about this workspace, write to:
      /proc/p_scode/workspace/chat-with-me
-  (Resolves to /proc/p_scode/chat-with-me via DT_LINK.)
+  (Procfs view onto /proc/p_scode/chat-with-me.)
 ```
 
 The error is intentionally instructive. LLMs that hit it once learn the convention without memory or system-prompt edits — the path layout itself is the SSOT for permissions.
@@ -367,8 +382,9 @@ sessions, supervisors. The chat-with-me surface for these agents is
 per-pid:
 
 - `/proc/{pid}/chat-with-me` — direct DT_STREAM at the per-pid path.
-- `/proc/{pid}/workspace/chat-with-me` — DT_LINK shortcut into the
-  same stream from inside the workspace tree.
+- `/proc/{pid}/workspace/chat-with-me` — procfs view rendered by
+  `ProcWorkspaceResolver` to the same stream from inside the workspace
+  tree.
 
 Callers reach the pid through the lifecycle surface: sudowork from
 `managed_agent.start_session_v1` (§2.3); in-process runtimes from
