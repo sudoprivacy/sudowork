@@ -270,15 +270,30 @@ the first trait impl with no behavior change.
 
 ### 2.4 sudo-code state placement
 
-sudo-code keeps its existing JSONL session format and on-disk task layout. The integration places that storage inside nexus VFS rather than rewriting sudo-code:
+sudo-code's `runtime` crate already organises persistence around two
+configurable surfaces — `SessionStore` (which builds session jsonl
+paths) and `ConfigLoader` (which discovers config files via env +
+project-local lookup). The integration redirects those surfaces at
+nexus VFS paths and lets `file_ops.rs` workspace-bounded helpers
+(`read_file_in_workspace` / `write_file_in_workspace` / etc.) issue
+kernel syscalls instead of `std::fs`. sudo-code's static prompt
+sections + AGENTS.md scan stay as-is on the read path.
 
-| State | Path | Backing |
-|-------|------|---------|
-| Conversation jsonl | `/proc/{pid}/workspace/.scode/sessions/<workspace_hash>/{session_id}.jsonl` | DT_FILE |
-| Active task list | `/proc/{pid}/tasks/{task_list_name}.json` | DT_FILE |
-| Agent profile config | `/agents/{name}/config.toml` | DT_FILE |
+| sudo-code surface | Current on-disk shape | nexus VFS path | Adaptation |
+|---|---|---|---|
+| `SessionStore::from_data_dir(data_dir, workspace_root)` — conversation jsonls | `<data_dir>/sessions/<workspace_hash>/<session_id>.jsonl` (FNV-1a 64-bit hex of canonical workspace path) | `/proc/{pid}/sessions/<workspace_hash>/<session_id>.jsonl` | **READS UNCHANGED** — call `from_data_dir(data_dir="/proc/{pid}/sessions", workspace_root="/proc/{pid}/workspace")`; replace `std::fs` usage in `session.rs` with kernel syscalls |
+| `task_registry` — sub-agent task lifecycle | In-memory only (no disk) today | `/proc/{pid}/tasks/<task_list_name>.json` once persistence lands in sudo-code | **NEEDS PATCH** in upstream sudo-code (forked) — `tasks/` dirent is reserved by nexus; persistence is a sudo-code-side change driven by sudo-code's own roadmap, not by this integration |
+| `prompt.rs` — static prompt sections | Embedded `&'static str` constants returned by `get_simple_*_section()` | n/a (no IO) | **READS UNCHANGED** — embedded strings pass through |
+| `prompt.rs` — project AGENTS.md scan | Walks parent dirs from cwd looking for `AGENTS.md` and `.nexus/sudocode/AGENTS.md` | walks `/proc/{pid}/workspace/{repo}/...AGENTS.md` and `.nexus/sudocode/AGENTS.md` (DT_FILE under the repo's mount) | **READS UNCHANGED** — sudo-code already takes cwd as input; cwd = `/proc/{pid}/workspace/`; replace `std::fs` with kernel syscalls in the scanner |
+| `ConfigLoader` — runtime settings | `$SUDO_CODE_CONFIG_HOME` (default `$HOME/.nexus/sudocode/`) for user-level; `./.scode.json` or `./.nexus/sudocode/settings.json` for project-level | `/agents/{name}/config/` for user-level; `/proc/{pid}/workspace/{repo}/.nexus/sudocode/settings.json` for project-level | **READS UNCHANGED** — set `SUDO_CODE_CONFIG_HOME` to a VFS-mapped path; replace `std::fs` with kernel syscalls in the loader |
+| Agent profile config | (no equivalent on disk today) | `/agents/{name}/config.toml` (DT_FILE) | **NEW** — user-global agent settings written by sudowork's profile UI; sudo-code reads it through ConfigLoader's user-level slot |
 
-User-global agent settings live at `/agents/{name}/config.toml` inside nexus VFS, sharing the same SSOT as the rest of agent identity.
+`workspace_hash` matches sudo-code's existing FNV-1a 64-bit fingerprint
+of the canonical workspace path (16-char hex), so a single profile
+talking to multiple repos still partitions sessions per-repo on disk.
+
+User-global agent settings live at `/agents/{name}/config.toml` inside
+nexus VFS, sharing the same SSOT as the rest of agent identity.
 
 ---
 
