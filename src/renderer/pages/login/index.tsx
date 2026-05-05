@@ -446,13 +446,6 @@ const LoginPage: React.FC = () => {
               登录
             </Button>
           </div>
-
-          {/* Back to mode selection */}
-          <div className='text-center mt-20px'>
-            <button type='button' className='text-13px text-t-tertiary hover:text-t-primary cursor-pointer bg-transparent border-none' onClick={() => void handleBackToModeSelect()}>
-              返回模式选择
-            </button>
-          </div>
         </div>
       </div>
     );

@@ -1632,11 +1632,39 @@ export const crash = {
 };
 
 // --- Enterprise mode (eeclaw) IPC namespace ---
+
+export interface TenantConfigData {
+  id: string;
+  logo: string;
+  app_name: string;
+  top_name: string;
+  about_name: string;
+  app_company_name: string;
+  login_desp: string;
+  updated_at: number;
+}
+
+export interface UserProfileUsageData {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  session_count: number;
+}
+
+export interface UserProfileData {
+  username: string;
+  department: string;
+  role: string;
+  usage: UserProfileUsageData;
+}
+
 export const eeclaw = {
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string }>>, void>('eeclaw.get-cloud-assistants'),
-  /** Verify enterprise server connectivity via /healthz (runs in main process to avoid CORS) */
-  verifyServer: bridge.buildProvider<IBridgeResponse<{ ok: boolean }>, { serverUrl: string }>('eeclaw.verify-server'),
+  /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
+  verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
+  /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
+  getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
   /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
   login: bridge.buildProvider<
     IBridgeResponse<{
