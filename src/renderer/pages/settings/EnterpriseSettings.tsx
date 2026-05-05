@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { BuildingTwo, Success, Close } from '@icon-park/react';
 import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import { useAuth } from '@/renderer/context/AuthContext';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
@@ -53,14 +54,10 @@ const EnterpriseSettings: React.FC = () => {
     setConnectionStatus('checking');
 
     try {
-      // Step 1: Verify and get new tenantName from server
-      const response = await fetch(`${normalizedUrl}/api/v1/tenant/config`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await response.json();
+      // Step 1: Verify and get new tenantName from server via IPC bridge
+      const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalizedUrl });
 
-      if (!data.success || !data.tenantName) {
+      if (!result.success || !result.data) {
         Message.error('服务器响应异常，请检查地址是否正确');
         setConnectionStatus('disconnected');
         return;
@@ -68,9 +65,9 @@ const EnterpriseSettings: React.FC = () => {
 
       // Step 2: Update ConfigStorage
       await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-      await ConfigStorage.set('eeclaw.tenantName', data.tenantName);
+      await ConfigStorage.set('eeclaw.tenantName', result.data.app_company_name);
       setServerUrl(normalizedUrl);
-      setTenantName(data.tenantName);
+      setTenantName(result.data.app_company_name);
       setEditingServerUrl(normalizedUrl);
 
       // Step 3: Clear auth data (SECURITY-2)

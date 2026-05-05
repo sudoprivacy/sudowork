@@ -20,13 +20,16 @@ export function initEeclawBridge(): void {
 
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
     try {
-      const response = await fetch(`${serverUrl}/healthz`, {
+      const response = await fetch(`${serverUrl}/api/v1/tenant/config`, {
         method: 'GET',
         signal: AbortSignal.timeout(10000),
       });
       if (response.ok) {
-        const data = await response.json();
-        return { success: true, data: { ok: !!data.ok } };
+        const json = await response.json();
+        if (json.success && json.data) {
+          return { success: true, data: json.data };
+        }
+        return { success: false, error: 'server_error' as const, data: undefined };
       }
       return { success: false, error: 'server_error' as const, data: undefined };
     } catch (error) {
@@ -87,6 +90,47 @@ export function initEeclawBridge(): void {
     } catch (error) {
       mainWarn('eeclawBridge', 'login error:', error);
       return { success: false, error: 'network_error' as string, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.getUserProfile.provider(async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) {
+        return { success: false, error: 'no_server_url' as const, data: undefined };
+      }
+
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (!authStorage) {
+        return { success: false, error: 'token_not_synced' as const, data: undefined };
+      }
+
+      const response = await fetch(`${serverUrl}/api/v1/user/profile`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${authStorage.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (response.status === 401) {
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
+
+      if (!response.ok) {
+        mainWarn('eeclawBridge', `getUserProfile failed: ${response.status}`);
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        return { success: true, data: data.data };
+      }
+      return { success: false, error: 'server_error' as const, data: undefined };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'getUserProfile error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
     }
   });
 
