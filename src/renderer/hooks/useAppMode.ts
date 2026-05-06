@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getAppMode } from '@/common/eeclawMode';
+import { getAppMode, setAppMode } from '@/common/eeclawMode';
 import { useEffect, useState } from 'react';
 
 // Pre-initialize app mode on module load (avoids first-frame flash)
@@ -19,6 +19,12 @@ if (typeof window !== 'undefined') {
     initialModeResolved = true;
     cachedMode = mode ?? 'c';
     appModeWasNull = mode === null; // null = new user who never chose a mode
+    // Old user upgrade: has sudowork_auth_v2 but no appMode → auto-set 'c'
+    if (mode === null && localStorage.getItem('sudowork_auth_v2')) {
+      setAppMode('c').catch((e) => {
+        console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', e);
+      });
+    }
     return cachedMode;
     // getAppMode() returns null for new users, fallback to 'c'
     // needsSetup is determined by appModeWasNull, not by the mode value itself
