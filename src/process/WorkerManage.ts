@@ -58,7 +58,16 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         dangerouslySkipPermissions?: boolean;
         runtimeType?: 'host' | 'docker';
       };
-      const mossServerUrl = extra?.mossServerUrl || 'http://127.0.0.1:43127';
+
+      // Moss Server URL must be configured in enterprise settings
+      // Moss Server URL 必须在企业设置中配置
+      // Do NOT use hardcoded default value - read from enterprise config instead
+      // 不使用硬编码默认值 - 从企业配置读取
+      const mossServerUrl = extra?.mossServerUrl;
+      if (!mossServerUrl) {
+        mainError('WorkerManage', 'Moss Server URL not configured for remote-agent conversation');
+        return null;
+      }
       const authToken = extra?.authToken || '';
       const wsUrl = extra?.acpWsUrl;
       const mossSessionPending = extra?.mossSessionPending;

@@ -76,7 +76,15 @@ export class RemoteConversationProvider implements IConversationProvider {
     // Start initialization
     // 开始初始化
     this.mossApiPromise = (async () => {
-      const api = initMossApi(this.config.mossServerUrl || 'http://127.0.0.1:43127');
+      // Moss Server URL must be configured in enterprise settings
+      // Moss Server URL 必须在企业设置中配置
+      // Do NOT use hardcoded default value - read from enterprise config instead
+      // 不使用硬编码默认值 - 从企业配置读取
+      if (!this.config.mossServerUrl) {
+        throw new Error('Moss Server URL not configured. Please configure server URL in enterprise settings.');
+      }
+
+      const api = initMossApi(this.config.mossServerUrl);
 
       // Use JWT token directly (from eeclaw auth storage)
       // 直接使用 JWT token（来自 eeclaw auth storage）
