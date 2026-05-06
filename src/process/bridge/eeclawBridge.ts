@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode } from '@/common/enterpriseDebugConfig';
+import { resetConversationProvider } from '../providers';
 
 export function initEeclawBridge(): void {
   // Set app mode and update main process cache
@@ -72,7 +73,11 @@ export function initEeclawBridge(): void {
       setCachedAuthToken(data.access_token);
       setCachedAppMode('e');
 
-      mainLog('eeclawBridge', 'Login successful, cache updated');
+      // Reset provider singleton so next call creates RemoteConversationProvider
+      // 重置 Provider 单例，下次调用时会创建 RemoteConversationProvider
+      resetConversationProvider();
+
+      mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
 
       return {
         success: true,
