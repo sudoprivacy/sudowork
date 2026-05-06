@@ -445,6 +445,15 @@ const LoginPage: React.FC = () => {
             <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
               登录
             </Button>
+
+            <div className='text-center mt-12px'>
+              <span
+                className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors'
+                onClick={handleBackToModeSelect}
+              >
+                ← 返回模式选择
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -519,6 +528,15 @@ const LoginPage: React.FC = () => {
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
             {mode === 'login' ? '登录' : '注册'}
           </Button>
+
+          <div className='text-center mt-12px'>
+            <span
+              className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors'
+              onClick={handleBackToModeSelect}
+            >
+              ← 返回模式选择
+            </span>
+          </div>
         </div>
       </div>
     </div>
