@@ -86,15 +86,16 @@ export class RemoteConversationProvider implements IConversationProvider {
 
       const api = initMossApi(this.config.mossServerUrl);
 
-      // Use JWT token directly (from eeclaw auth storage)
-      // 直接使用 JWT token（来自 eeclaw auth storage）
-      if (!this.config.authToken) {
-        throw new Error('Enterprise auth token not set. Please login first.');
-      }
-
       // Set the JWT access token directly, no conversion needed
       // 直接设置 JWT access token，无需转换
-      api.setAccessToken(this.config.authToken);
+      if (this.config.authToken) {
+        api.setAccessToken(this.config.authToken);
+      }
+      
+      // Ensure the token is valid, triggering a refresh if needed
+      // If authToken was empty, getValidToken will attempt to refresh from ProcessConfig
+      await api.ensureAuthenticated();
+      
       this.mossApi = api;
       mainLog('RemoteProvider', 'Moss API initialized with JWT token');
       return api;

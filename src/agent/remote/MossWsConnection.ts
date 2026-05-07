@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
+import { ProcessConfig } from '@/process/initStorage';
 
 /**
  * Moss Server WebSocket connection config
@@ -113,6 +114,45 @@ export class MossWsConnection {
   private async exchangeToken(): Promise<string> {
     if (this.config.authToken && this.config.authToken.startsWith('eyJ')) {
       return this.config.authToken;
+    }
+
+    // Try to get token from ProcessConfig if authToken is empty
+    if (!this.config.authToken) {
+      try {
+        const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+        if (authStorage?.access_token?.startsWith('eyJ')) {
+          this.config.authToken = authStorage.access_token;
+          return authStorage.access_token;
+        }
+        // Try refresh token if access token is missing/expired
+        if (authStorage?.refresh_token) {
+          const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authStorage.device_id ? { 'X-Device-Id': authStorage.device_id } : {}),
+            },
+            body: JSON.stringify({
+              grant_type: 'refresh_token',
+              refresh_token: authStorage.refresh_token,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          const data = await response.json();
+          if (response.ok && data.access_token) {
+            await ProcessConfig.set('eeclaw.authStorage', {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token || authStorage.refresh_token,
+              expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+              device_id: authStorage.device_id,
+            });
+            this.config.authToken = data.access_token;
+            return data.access_token;
+          }
+        }
+      } catch (e) {
+        mainError('MossWsConnection', 'Failed to get token from ProcessConfig:', e);
+      }
     }
 
     const grantType = this.config.authToken ? 'api_key' : 'password';

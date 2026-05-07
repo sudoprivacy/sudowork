@@ -70,6 +70,9 @@ async function getValidToken(): Promise<string> {
       await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
       setCachedAuthToken(data.access_token);
 
+      // We explicitly DO NOT update enterprise config globally from here
+      // ProcessConfig handles sync internally for 'eeclaw.authStorage'
+
       // Notify renderer process about the refreshed token
       try {
         ipcBridge.eeclaw.tokenRefreshed.emit({

@@ -8,7 +8,7 @@ import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
 import OpenClawAgent from './task/OpenClawAgent';
 import RemoteAgent from './task/RemoteAgent';
-import { ProcessChat } from './initStorage';
+import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
 import { mainLog, mainError } from '@process/utils/mainLogger';
@@ -68,7 +68,15 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         mainError('WorkerManage', 'Moss Server URL not configured for remote-agent conversation');
         return null;
       }
-      const authToken = extra?.authToken || '';
+      let authToken = extra?.authToken || '';
+      if (!authToken) {
+        try {
+          const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+          if (authStorage?.access_token) {
+            authToken = authStorage.access_token;
+          }
+        } catch { /* ignore */ }
+      }
       const wsUrl = extra?.acpWsUrl;
       const mossSessionPending = extra?.mossSessionPending;
       const mossSessionId = extra?.mossSessionId;

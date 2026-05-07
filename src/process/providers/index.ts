@@ -9,38 +9,41 @@ import { LocalConversationProvider } from './LocalConversationProvider';
 import { RemoteConversationProvider } from './RemoteConversationProvider';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import { mainLog } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@process/initStorage';
 
-// Singleton provider instance / 单例 Provider 实例
 let currentProvider: IConversationProvider | null = null;
 let currentProviderType: 'local' | 'remote' | null = null;
 
-/**
- * Get the current conversation provider
- * 获取当前的会话 Provider
- *
- * Returns appropriate provider based on enterprise mode:
- * 根据企业模式返回相应的 Provider：
- * - Local mode: LocalConversationProvider (database-backed) / 本地模式：LocalConversationProvider（数据库）
- * - Enterprise mode: RemoteConversationProvider (Moss Server) / 企业模式：RemoteConversationProvider（Moss Server）
- *
- * Provider is cached as singleton - call resetProvider() to switch.
- * Provider 作为单例缓存 - 调用 resetProvider() 来切换。
- */
 export function getConversationProvider(): IConversationProvider {
   const isEnterprise = isEnterpriseMode();
 
-  // Return cached provider if type matches / 如果类型匹配，返回缓存的 Provider
   if (currentProvider && currentProviderType === (isEnterprise ? 'remote' : 'local')) {
     return currentProvider;
   }
 
-  // Create new provider / 创建新的 Provider
   if (isEnterprise) {
     const config = getEnterpriseConfig();
-    mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${config.mossServerUrl || 'not set'}, Token: ${config.authToken ? 'set' : 'not set'}`);
+    
+    // Read the freshest token from ProcessConfig (not from stale memory cache)
+    let freshestToken = config.authToken;
+    let serverUrl = config.mossServerUrl;
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.access_token) {
+        freshestToken = authStorage.access_token;
+      }
+      const storedUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (storedUrl) {
+        serverUrl = storedUrl;
+      }
+    } catch { /* ignore */ }
+    
+    mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${serverUrl || 'not set'}, Token: ${freshestToken ? 'set' : 'not set'}`);
 
-    if (!config.mossServerUrl || !config.authToken) {
-      mainLog('Provider', 'Enterprise config incomplete, falling back to LOCAL provider');
+    // In enterprise mode with a server URL, always use RemoteConversationProvider
+    // even if token is temporarily missing - the provider will trigger token refresh
+    if (!serverUrl) {
+      mainLog('Provider', 'Enterprise server URL not configured, falling back to LOCAL provider');
       currentProvider = new LocalConversationProvider();
       currentProviderType = 'local';
       return currentProvider;
@@ -48,16 +51,16 @@ export function getConversationProvider(): IConversationProvider {
 
     currentProvider = new RemoteConversationProvider({
       isEnterpriseMode: true,
-      mossServerUrl: config.mossServerUrl,
-      authToken: config.authToken,
+      authToken: freshestToken || '',
+      mossServerUrl: serverUrl,
     });
     currentProviderType = 'remote';
-  } else {
-    mainLog('Provider', 'Using LOCAL provider (Local Mode)');
-    currentProvider = new LocalConversationProvider();
-    currentProviderType = 'local';
+    return currentProvider;
   }
 
+  mainLog('Provider', 'Using LOCAL provider (Local Mode)');
+  currentProvider = new LocalConversationProvider();
+  currentProviderType = 'local';
   return currentProvider;
 }
 

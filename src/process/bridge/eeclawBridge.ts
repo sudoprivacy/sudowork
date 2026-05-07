@@ -85,11 +85,9 @@ async function getValidToken(): Promise<string> {
       return data.access_token;
     } catch (error) {
       mainWarn('eeclawBridge', 'Token refresh failed:', error);
-      // On refresh failure, clear auth storage and return empty (will trigger 401/login screen)
-      // 刷新失败时，清除认证存储并返回空（将触发 401/登录界面）
-      await ProcessConfig.set('eeclaw.authStorage', null);
+      // Do NOT clear authStorage on refresh failure - the refresh_token may still be valid
+      // and the user can retry. Only clear the in-memory cache.
       setCachedAuthToken('');
-      resetConversationProvider();
       throw error;
     } finally {
       refreshPromise = null;
