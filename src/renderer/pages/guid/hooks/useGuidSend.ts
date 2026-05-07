@@ -12,6 +12,7 @@ import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
@@ -75,6 +76,8 @@ export type GuidSendResult = {
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
 
+  const { isEnterprise } = useAppMode();
+
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
@@ -91,9 +94,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
-      // Only fallback within the same routing category:
-      // ACP types (claude, qwen, codebuddy, etc.) can fallback to each other,
-      // but never to OpenClaw Gateway — it has different capabilities.
       const fallback = getAvailableFallbackAgent();
       const isSameCategory = fallback && fallback !== 'openclaw-gateway' && effectiveAgentType !== 'openclaw-gateway';
       if (fallback && fallback !== effectiveAgentType && isSameCategory) {
@@ -108,30 +108,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-// Scode fallback: if scode is selected but not available, switch to openclaw-gateway
-    if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
-      const gatewayAgentInfo = findAgentByKey('openclaw-gateway');
-      if (gatewayAgentInfo) {
-        Message.info(
-          t('guid.autoSwitchedAgent', {
-            defaultValue: 'scode is not available, switched to openclaw-gateway',
-            from: 'scode',
-            to: 'openclaw-gateway',
-          })
-        );
-        finalEffectiveAgentType = 'openclaw-gateway';
-      } else {
-        Message.error(
-          t('guid.agentNotAvailable', {
-            defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
-          })
-        );
-        return;
-      }
-    }
-
-    // Remote Agent path (Moss Server - enterprise mode)
-    if (selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent') {
+    // Enterprise mode: always route through remote-agent, skip scode/gateway checks
+    if (isEnterprise || selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent' || selectedAgentKey.startsWith('custom:')) {
       console.log('Enterprise mode: Creating remote-agent conversation');
 
       try {
@@ -141,13 +119,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         // 这避免了重复创建 Moss session
         const conversation = await ipcBridge.conversation.create.invoke({
           type: 'remote-agent',
-          name: input, // Use user input as initial name / 使用用户输入作为初始名称
+          name: input,
           model: {} as TProviderWithModel,
           extra: {
             workspace: finalWorkspace,
             backend: 'remote-agent',
             agentName: agentInfo?.name || 'Moss Server',
-            presetAssistantId: agentInfo?.name || 'Moss Server',
+            presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
           },
@@ -179,6 +157,28 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         throw error;
       }
       return;
+    }
+
+    // Non-enterprise: scode fallback check
+    if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
+      const gatewayAgentInfo = findAgentByKey('openclaw-gateway');
+      if (gatewayAgentInfo) {
+        Message.info(
+          t('guid.autoSwitchedAgent', {
+            defaultValue: 'scode is not available, switched to openclaw-gateway',
+            from: 'scode',
+            to: 'openclaw-gateway',
+          })
+        );
+        finalEffectiveAgentType = 'openclaw-gateway';
+      } else {
+        Message.error(
+          t('guid.agentNotAvailable', {
+            defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
+          })
+        );
+        return;
+      }
     }
 
     // OpenClaw Gateway path (explicit gateway selection or preset that still routes to gateway)
