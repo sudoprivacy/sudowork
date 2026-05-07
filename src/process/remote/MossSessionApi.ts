@@ -412,7 +412,17 @@ export class MossSessionApi {
     const token = await this.ensureAuthenticated();
     mainLog('MossSessionApi', `Connecting to WebSocket: ${wsUrl}`);
 
-    const ws = new WebSocket(wsUrl, {
+    // Append refresh_token to wsUrl for server-side token refresh on WS upgrade
+    let wsUrlWithRefresh = wsUrl;
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
+        wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch { /* ignore */ }
+
+    const ws = new WebSocket(wsUrlWithRefresh, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

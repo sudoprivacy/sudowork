@@ -222,12 +222,22 @@ export class MossWsConnection {
       throw new Error('No ws_url available');
     }
 
+    // Append refresh_token to wsUrl for server-side token refresh on WS upgrade
+    let wsUrlWithRefresh = this.wsUrl!;
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
+        wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch { /* ignore */ }
+
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('WebSocket connection timeout'));
       }, this.CONNECTION_TIMEOUT_MS);
 
-      this.ws = new WebSocket(this.wsUrl!, {
+      this.ws = new WebSocket(wsUrlWithRefresh, {
         headers: { 'Authorization': `Bearer ${this.accessToken}` },
       });
 
