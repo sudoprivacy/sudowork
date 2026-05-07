@@ -14,9 +14,10 @@ export function initDatabaseBridge(): void {
   ipcBridge.database.getConversationMessages.provider(({ conversation_id, page = 0, pageSize = 10000 }) => {
     try {
       const provider = getConversationProvider();
-      // Note: For remote provider, messages are stored on Moss Server, not locally
-      // 注意：对于远程 Provider，消息存储在 Moss Server 上，不在本地
-      // The provider.getMessages() returns empty array for remote-agent
+      // For remote provider, messages are now stored locally after sync
+      // Local-first approach: reads from local DB first, falls back to Moss Server API
+      // 对于远程 Provider，消息在同步后存储在本地
+      // 本地优先策略：先从本地数据库读取，回退到 Moss Server API
       return provider.getMessages(conversation_id, page, pageSize);
     } catch (error) {
       mainError('DatabaseBridge', 'Error getting conversation messages:', error);

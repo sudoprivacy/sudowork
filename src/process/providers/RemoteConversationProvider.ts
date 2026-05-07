@@ -174,15 +174,21 @@ export class RemoteConversationProvider implements IConversationProvider {
   }
 
   /**
-   * Get conversation - handles both pending and existing Moss sessions
-   * 获取会话 - 处理待创建和已存在的 Moss session
+   * Get conversation - LOCAL-FIRST approach
+   * 获取会话 - 本地优先策略
+   *
+   * Returns local DB record immediately without blocking on Moss Server API calls.
+   * Moss Server connection (resume/attach) is deferred to when the user actually
+   * sends a message, avoiding white screen when Moss Server is unavailable.
+   *
+   * 立即返回本地数据库记录，不阻塞等待 Moss Server API 调用。
+   * Moss Server 连接（resume/attach）延迟到用户实际发送消息时，
+   * 避免 Moss Server 不可用时白屏。
    */
   async getConversation(id: string): Promise<TChatConversation | undefined> {
     try {
       const db = getDatabase();
 
-      // Check local cache first
-      // 先检查本地缓存
       const existing = db.getConversation(id);
       if (!existing.success || !existing.data) {
         mainLog('RemoteProvider', `Conversation ${id} not found in local DB`);
@@ -190,94 +196,7 @@ export class RemoteConversationProvider implements IConversationProvider {
       }
 
       const conversation = existing.data;
-
-      // Extract extra fields
-      // 提取 extra 字段
-      const extra = existing.data.extra as {
-        mossSessionPending?: boolean;
-        acpWsUrl?: string;
-        mossSessionId?: string;
-      };
-
-      // If Moss session is pending OR no Moss session ID exists, return local record
-      // 如果 Moss session 待创建 或者 没有 Moss session ID，返回本地记录
-      // This handles:
-      // 1. New conversations with mossSessionPending: true
-      // 2. Existing conversations where Moss session was never created (mossSessionId undefined)
-      if (extra?.mossSessionPending || !extra?.mossSessionId) {
-        mainLog('RemoteProvider', `Conversation ${id} is pending Moss session creation (pending=${extra?.mossSessionPending}, mossSessionId=${extra?.mossSessionId})`);
-        return conversation;
-      }
-
-      // Existing Moss session - get wsUrl via resume API
-      // 已存在的 Moss session - 通过 resume API 获取 wsUrl
-      // Use the actual Moss session ID, not the local conversation ID
-      // 使用实际的 Moss session ID，不是本地会话 ID
-      const mossSessionId = extra.mossSessionId;
-      const api = await this.ensureMossApi();
-
-      // First check session status via GET /api/v1/sessions/:id
-      // 先通过 GET /api/v1/sessions/:id 检查 session 状态
-      const sessionInfo = await api.getSession(mossSessionId);
-      mainLog('RemoteProvider', `Session API response: ${JSON.stringify(sessionInfo)}`);
-      const status = sessionInfo.status || sessionInfo.desiredState;
-
-      mainLog('RemoteProvider', `Session ${mossSessionId} status: ${status}`);
-
-      // If session ended/terminated, call resume API to restart
-      // 如果 session 已结束，调用 resume API 重启
-      if (status === 'ended' || status === 'terminated' || status === 'detached') {
-        mainLog('RemoteProvider', `Session ${mossSessionId} ended, resuming...`);
-        const resumeResult = await api.resumeSession(mossSessionId);
-
-        // Update conversation with new wsUrl
-        // 更新会话的 wsUrl
-        const updatedConversation = {
-          ...conversation,
-          extra: {
-            ...conversation.extra,
-            acpWsUrl: resumeResult.wsUrl,
-            mossSessionPending: false,
-          },
-          status: 'finished',
-        } as TChatConversation;
-
-        db.updateConversation(id, updatedConversation);
-        return updatedConversation;
-      }
-
-      // Session is active - get wsUrl via GET /api/v1/sessions/:id (attach mode)
-      // Session 活跃 - 通过 GET API 获取 wsUrl（attach 模式）
-      const wsUrl = sessionInfo.wsUrl || sessionInfo.ws_url;
-      if (!wsUrl) {
-        // No wsUrl in response, call resume to get one
-        // 响应中没有 wsUrl，调用 resume 获取
-        const resumeResult = await api.resumeSession(mossSessionId);
-        const updatedConversation = {
-          ...conversation,
-          extra: {
-            ...conversation.extra,
-            acpWsUrl: resumeResult.wsUrl,
-            mossSessionPending: false,
-          },
-          status: 'finished',
-        } as TChatConversation;
-
-        db.updateConversation(id, updatedConversation);
-        return updatedConversation;
-      }
-
-      // Return conversation with wsUrl
-      // 返回带有 wsUrl 的会话
-      return {
-        ...conversation,
-        extra: {
-          ...conversation.extra,
-          acpWsUrl: wsUrl,
-          mossSessionPending: false,
-        },
-        status: 'finished',
-      } as TChatConversation;
+      return conversation;
     } catch (error) {
       mainError('RemoteProvider', `Failed to get conversation: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -374,237 +293,107 @@ export class RemoteConversationProvider implements IConversationProvider {
     // 按 modifyTime 排序
     conversations.sort((a, b) => (b.modifyTime || 0) - (a.modifyTime || 0));
 
-    mainLog('RemoteProvider', `Listed ${conversations.length} remote conversations from local DB`);
     return conversations;
   }
 
   // ========== Messages / 消息 ==========
 
   /**
-   * Get messages from Moss Server
-   * 从 Moss Server 获取消息
+   * Convert Moss Server messages to TMessage format (reusable)
+   * 将 Moss Server 消息转换为 TMessage 格式（可复用）
    */
-  async getMessages(conversationId: string, _page = 0, _pageSize = 10000): Promise<TMessage[]> {
-    try {
-      const db = getDatabase();
-      const existing = db.getConversation(conversationId);
+  private convertMossMessagesToTMessages(
+    allMessages: any[],
+    conversationId: string,
+    mossSessionId: string,
+  ): { messages: TMessage[]; foundModel: string } {
+    const messages: TMessage[] = [];
+    let messageIndex = 0;
+    let foundModel = '';
 
-      // If session is pending or no Moss session ID, no messages yet
-      // 如果 session 待创建 或者 没有 Moss session ID，还没有消息
-      const extra = existing.data?.extra as { mossSessionPending?: boolean; mossSessionId?: string } | undefined;
-      if (!existing.success || !existing.data || extra?.mossSessionPending || !extra?.mossSessionId) {
-        mainLog('RemoteProvider', `Session ${conversationId} is pending or no Moss session ID, no messages`);
-        return [];
+    for (const msg of allMessages) {
+      const msgType = msg.type;
+      const innerRole = msg.message?.role;
+      const msgModel = msg.message?.model;
+
+      if (msgType === 'assistant' && msgModel) {
+        foundModel = msgModel;
       }
 
-      // Use the actual Moss session ID for API calls
-      // 使用实际的 Moss session ID 进行 API 调用
-      const mossSessionId = extra.mossSessionId;
-      const api = await this.ensureMossApi();
-      const contextData = await api.getSessionContext(mossSessionId);
-
-      mainLog('RemoteProvider', `Session context raw data: ${JSON.stringify(contextData?.context)}`);
-
-      if (!contextData?.context?.messages?.length) {
-        mainLog('RemoteProvider', `No messages found for Moss session ${mossSessionId}`);
-        return [];
+      if (msgType !== 'user' && msgType !== 'assistant' && innerRole !== 'user' && innerRole !== 'assistant') {
+        continue;
       }
 
-      // Convert Moss messages to TMessage format
-      // 将 Moss 消息转换为 TMessage 格式
-      // Moss message structure: { type: "user"|"assistant", message: { role, content } }
-      // Moss 消息结构：{ type: "user"|"assistant", message: { role, content } }
-      const allMessages = contextData.context.messages;
-      mainLog('RemoteProvider', `Total messages: ${allMessages.length}, types: ${allMessages.map((m: any) => m.type).join(',')}`);
+      const contentArray = msg.message?.content || msg.content || [];
+      const timestamp = new Date(msg.timestamp || Date.now()).getTime();
+      const isError = msg.error || msg.isApiErrorMessage;
+      const msgRole = msgType || innerRole || 'unknown';
 
-      const messages: TMessage[] = [];
-      let messageIndex = 0;
-      let foundModel = '';
+      if (isError && msgRole === 'assistant') {
+        const errorText = Array.isArray(contentArray)
+          ? contentArray
+              .filter((c: any) => c?.type === 'text')
+              .map((c: any) => c.text || '')
+              .join('\n')
+          : typeof contentArray === 'string' ? contentArray : '';
+        messages.push({
+          id: `${conversationId}-${messageIndex++}`,
+          conversation_id: conversationId,
+          type: 'tips',
+          position: 'left',
+          content: { content: errorText || msg.error || 'Unknown error', type: 'error' },
+          create_time: timestamp,
+          status: 'finished',
+        } as unknown as TMessage);
+        continue;
+      }
 
-      for (const msg of allMessages) {
-        const msgType = msg.type;
-        const innerRole = msg.message?.role;
-        const msgModel = msg.message?.model;
-
-        // Extract model info from the LAST (most recent) assistant message
-        // 从最后一条（最近一条）assistant 消息中提取模型信息
-        // Update model info from every assistant message (last one wins)
-        // 从每条 assistant 消息更新模型信息（最后一条生效）
-        if (msgType === 'assistant' && msgModel) {
-          foundModel = msgModel;
-        }
-
-        // Skip non-user/assistant messages
-        // 跳过非 user/assistant 消息
-        if (msgType !== 'user' && msgType !== 'assistant' && innerRole !== 'user' && innerRole !== 'assistant') {
-          continue;
-        }
-
-        const contentArray = msg.message?.content || msg.content || [];
-        const timestamp = new Date(msg.timestamp || Date.now()).getTime();
-        const isError = msg.error || msg.isApiErrorMessage;
-        const msgRole = msgType || innerRole || 'unknown';
-
-        // Handle error messages
-        // 处理错误消息
-        if (isError && msgRole === 'assistant') {
-          const errorText = Array.isArray(contentArray)
-            ? contentArray
-                .filter((c: any) => c?.type === 'text')
-                .map((c: any) => c.text || '')
-                .join('\n')
-            : typeof contentArray === 'string' ? contentArray : '';
-          messages.push({
-            id: `${conversationId}-${messageIndex++}`,
-            conversation_id: conversationId,
-            type: 'tips',
-            position: 'left',
-            content: { content: errorText || msg.error || 'Unknown error', type: 'error' },
-            create_time: timestamp,
-            status: 'finished',
-          } as unknown as TMessage);
-          continue;
-        }
-
-        // User messages: process each content block
-        // 用户消息：处理每个 content block
-        if (msgRole === 'user' && Array.isArray(contentArray)) {
-          for (const block of contentArray) {
-            if (block?.type === 'text') {
-              // text block → text message
-              // text block → text 消息
-              const textContent = block.text || '';
-              if (textContent && textContent.trim()) {
-                messages.push({
-                  id: `${conversationId}-${messageIndex++}`,
-                  conversation_id: conversationId,
-                  type: 'text',
-                  role: 'user',
-                  position: 'right',
-                  content: { content: textContent },
-                  create_time: timestamp,
-                  status: 'finished',
-                } as unknown as TMessage);
-              }
-            } else if (block?.type === 'tool_result') {
-              // tool_result block → update tool call status or error tips
-              // tool_result block → 更新工具调用状态或错误提示
-              const toolUseId = block.tool_use_id || block.toolCallId;
-              const isError = block.is_error;
-              const resultContent = block.content || '';
-
-              if (isError) {
-                // Tool execution failed → tips message with error
-                // 工具执行失败 → 错误提示消息
-                messages.push({
-                  id: `${conversationId}-${messageIndex++}`,
-                  msg_id: toolUseId,
-                  conversation_id: conversationId,
-                  type: 'tips',
-                  position: 'left',
-                  content: { content: resultContent || 'Tool execution failed', type: 'error' },
-                  create_time: timestamp,
-                  status: 'finished',
-                } as unknown as TMessage);
-              } else {
-                // Tool execution success → update tool call status to completed
-                // 工具执行成功 → 更新工具调用状态为 completed
-                // Note: This creates a separate message; frontend will merge by toolCallId
-                // 注意：这会创建独立消息；前端会根据 toolCallId 合并
-                messages.push({
-                  id: `${conversationId}-${messageIndex++}`,
-                  msg_id: toolUseId,
-                  conversation_id: conversationId,
-                  type: 'acp_tool_call',
-                  position: 'left',
-                  content: {
-                    sessionId: mossSessionId,
-                    update: {
-                      sessionUpdate: 'tool_call_update',
-                      toolCallId: toolUseId,
-                      status: 'completed',
-                      content: [{ type: 'content', content: { type: 'text', text: resultContent } }],
-                    },
-                  },
-                  create_time: timestamp,
-                  status: 'finished',
-                } as unknown as TMessage);
-              }
-            }
-          }
-          continue;
-        }
-
-        // Fallback: User messages with simple text content
-        // 后备处理：用户消息的简单文本内容
-        if (msgRole === 'user') {
-          const textContent = Array.isArray(contentArray)
-            ? contentArray
-                .filter((c: any) => c?.type === 'text')
-                .map((c: any) => c.text || '')
-                .join('\n')
-            : typeof contentArray === 'string' ? contentArray : '';
-          if (textContent && textContent.trim()) {
-            messages.push({
-              id: `${conversationId}-${messageIndex++}`,
-              conversation_id: conversationId,
-              type: 'text',
-              role: 'user',
-              position: 'right',
-              content: { content: textContent },
-              create_time: timestamp,
-              status: 'finished',
-            } as unknown as TMessage);
-          }
-          continue;
-        }
-
-        // Assistant messages: process each content block separately
-        // Assistant 消息：分别处理每个 content block
-        if (msgRole === 'assistant' && Array.isArray(contentArray)) {
-          for (const block of contentArray) {
-            if (block?.type === 'thinking') {
-              // thinking block → skip, same as realtime transformMessage
-              // thinking block → 跳过，与实时消息 transformMessage 处理一致
-              // thinking 内容不显示在 UI 中
-              // thinking content is not displayed in UI
-              // Do nothing, skip this block
-            } else if (block?.type === 'text') {
-              // text block → text message
-              // text block → text 消息
-              const textContent = block.text || '';
-              if (textContent && textContent.trim()) {
-                messages.push({
-                  id: `${conversationId}-${messageIndex++}`,
-                  conversation_id: conversationId,
-                  type: 'text',
-                  role: 'assistant',
-                  position: 'left',
-                  content: { content: textContent },
-                  create_time: timestamp,
-                  status: 'finished',
-                } as unknown as TMessage);
-              }
-            } else if (block?.type === 'tool_use') {
-              // tool_use block → acp_tool_call message
-              // Must use ToolCallUpdate format with 'update' property
-              // tool_use block → acp_tool_call 消息，必须使用 ToolCallUpdate 格式（包含 update 属性）
+      if (msgRole === 'user' && Array.isArray(contentArray)) {
+        for (const block of contentArray) {
+          if (block?.type === 'text') {
+            const textContent = block.text || '';
+            if (textContent && textContent.trim()) {
               messages.push({
                 id: `${conversationId}-${messageIndex++}`,
-                msg_id: block.id || `${conversationId}-${messageIndex}`,
+                conversation_id: conversationId,
+                type: 'text',
+                role: 'user',
+                position: 'right',
+                content: { content: textContent },
+                create_time: timestamp,
+                status: 'finished',
+              } as unknown as TMessage);
+            }
+          } else if (block?.type === 'tool_result') {
+            const toolUseId = block.tool_use_id || block.toolCallId;
+            const isError = block.is_error;
+            const resultContent = block.content || '';
+
+            if (isError) {
+              messages.push({
+                id: `${conversationId}-${messageIndex++}`,
+                msg_id: toolUseId,
+                conversation_id: conversationId,
+                type: 'tips',
+                position: 'left',
+                content: { content: resultContent || 'Tool execution failed', type: 'error' },
+                create_time: timestamp,
+                status: 'finished',
+              } as unknown as TMessage);
+            } else {
+              messages.push({
+                id: `${conversationId}-${messageIndex++}`,
+                msg_id: toolUseId,
                 conversation_id: conversationId,
                 type: 'acp_tool_call',
                 position: 'left',
                 content: {
                   sessionId: mossSessionId,
                   update: {
-                    sessionUpdate: 'tool_call',
-                    toolCallId: block.id || `${conversationId}-${messageIndex}`,
+                    sessionUpdate: 'tool_call_update',
+                    toolCallId: toolUseId,
                     status: 'completed',
-                    title: block.name,
-                    kind: 'execute',
-                    rawInput: block.input,
-                    content: [],
+                    content: [{ type: 'content', content: { type: 'text', text: resultContent } }],
                   },
                 },
                 create_time: timestamp,
@@ -612,32 +401,226 @@ export class RemoteConversationProvider implements IConversationProvider {
               } as unknown as TMessage);
             }
           }
-        } else if (msgRole === 'assistant') {
-          // Fallback: handle string content
-          // 后备处理：字符串内容
-          const textContent = typeof contentArray === 'string' ? contentArray : '';
-          if (textContent && textContent.trim()) {
+        }
+        continue;
+      }
+
+      if (msgRole === 'user') {
+        const textContent = Array.isArray(contentArray)
+          ? contentArray
+              .filter((c: any) => c?.type === 'text')
+              .map((c: any) => c.text || '')
+              .join('\n')
+          : typeof contentArray === 'string' ? contentArray : '';
+        if (textContent && textContent.trim()) {
+          messages.push({
+            id: `${conversationId}-${messageIndex++}`,
+            conversation_id: conversationId,
+            type: 'text',
+            role: 'user',
+            position: 'right',
+            content: { content: textContent },
+            create_time: timestamp,
+            status: 'finished',
+          } as unknown as TMessage);
+        }
+        continue;
+      }
+
+      if (msgRole === 'assistant' && Array.isArray(contentArray)) {
+        for (const block of contentArray) {
+          if (block?.type === 'thinking') {
+            // thinking content is not displayed in UI
+          } else if (block?.type === 'text') {
+            const textContent = block.text || '';
+            if (textContent && textContent.trim()) {
+              messages.push({
+                id: `${conversationId}-${messageIndex++}`,
+                conversation_id: conversationId,
+                type: 'text',
+                role: 'assistant',
+                position: 'left',
+                content: { content: textContent },
+                create_time: timestamp,
+                status: 'finished',
+              } as unknown as TMessage);
+            }
+          } else if (block?.type === 'tool_use') {
             messages.push({
               id: `${conversationId}-${messageIndex++}`,
+              msg_id: block.id || `${conversationId}-${messageIndex}`,
               conversation_id: conversationId,
-              type: 'text',
-              role: 'assistant',
+              type: 'acp_tool_call',
               position: 'left',
-              content: { content: textContent },
+              content: {
+                sessionId: mossSessionId,
+                update: {
+                  sessionUpdate: 'tool_call',
+                  toolCallId: block.id || `${conversationId}-${messageIndex}`,
+                  status: 'completed',
+                  title: block.name,
+                  kind: 'execute',
+                  rawInput: block.input,
+                  content: [],
+                },
+              },
               create_time: timestamp,
               status: 'finished',
             } as unknown as TMessage);
           }
         }
+      } else if (msgRole === 'assistant') {
+        const textContent = typeof contentArray === 'string' ? contentArray : '';
+        if (textContent && textContent.trim()) {
+          messages.push({
+            id: `${conversationId}-${messageIndex++}`,
+            conversation_id: conversationId,
+            type: 'text',
+            role: 'assistant',
+            position: 'left',
+            content: { content: textContent },
+            create_time: timestamp,
+            status: 'finished',
+          } as unknown as TMessage);
+        }
+      }
+    }
+
+    return { messages, foundModel };
+  }
+
+  /**
+   * Get messages - LOCAL-FIRST approach
+   * 获取消息 - 本地优先策略
+   *
+   * 1. Check local DB first → return if messages exist (fast, offline-capable)
+   * 2. If no local messages AND mossSessionId available → try Moss Server, save locally, return
+   * 3. If mossSessionPending or no mossSessionId → return empty
+   * 4. If Moss Server unavailable → log only, return empty (no throw)
+   */
+  async getMessages(conversationId: string, _page = 0, _pageSize = 10000): Promise<TMessage[]> {
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(conversationId);
+
+      const extra = existing.data?.extra as { mossSessionPending?: boolean; mossSessionId?: string } | undefined;
+      if (!existing.success || !existing.data || extra?.mossSessionPending || !extra?.mossSessionId) {
+        return [];
       }
 
-      // Store model info for getModelInfo API (not as TMessage)
-      // 存储模型信息供 getModelInfo API 使用（不作为 TMessage）
-      // Note: Model info is sent via acp_model_info message type during realtime streaming
-      // 注意：实时流式消息时通过 acp_model_info 消息类型发送
+      // 1. Check local DB first / 先检查本地数据库
+      const localMessages = db.getConversationMessages(conversationId, 0, 10000);
+      if (localMessages.data && localMessages.data.length > 0) {
+        return localMessages.data;
+      }
+
+      // 2. No local messages - try Moss Server and save locally
+      // 没有本地消息 - 尝试从 Moss Server 获取并保存到本地
+      const mossSessionId = extra.mossSessionId;
+      try {
+        const api = await this.ensureMossApi();
+        const contextData = await api.getSessionContext(mossSessionId);
+
+        if (!contextData?.context?.messages?.length) {
+          return [];
+        }
+
+        const allMessages = contextData.context.messages;
+        const { messages, foundModel } = this.convertMossMessagesToTMessages(allMessages, conversationId, mossSessionId);
+
+        // Save to local DB for future local-first reads / 保存到本地数据库供后续本地优先读取
+        for (const msg of messages) {
+          try {
+            db.insertMessage(msg);
+          } catch (insertErr) {
+            mainError('RemoteProvider', `Failed to insert message to local DB: ${insertErr}`);
+          }
+        }
+        mainLog('RemoteProvider', `Saved ${messages.length} messages to local DB from Moss session ${mossSessionId}`);
+
+        if (foundModel) {
+          this.cachedModelInfo.set(conversationId, {
+            source: 'models',
+            currentModelId: foundModel,
+            currentModelLabel: foundModel,
+            canSwitch: false,
+            availableModels: [],
+          });
+        }
+
+        // Sync customTitle from Moss Server if available / 同步 Moss Server 的 customTitle
+        const customTitle = contextData.context?.customTitle;
+        if (customTitle && existing.data.name !== customTitle) {
+          db.updateConversation(conversationId, { name: customTitle } as Partial<TChatConversation>);
+        }
+
+        return messages;
+      } catch (mossError) {
+        // Moss Server unavailable - log only, don't throw / Moss Server 不可用 - 仅记录日志，不抛出
+        mainLog('RemoteProvider', `Moss Server unavailable for getMessages, conversation ${conversationId}: ${mossError instanceof Error ? mossError.message : String(mossError)}`);
+        return [];
+      }
+    } catch (error) {
+      mainLog('RemoteProvider', `Failed to get messages for ${conversationId}: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    }
+  }
+
+  /**
+   * Sync messages from Moss Server to local DB
+   * 从 Moss Server 同步消息到本地数据库
+   *
+   * Called when user clicks on a history conversation to ensure local data is up-to-date.
+   * 当用户点击历史会话时调用，确保本地数据是最新的。
+   *
+   * 1. Fetch messages from Moss Server via getSessionContext API
+   * 2. Clear existing local messages (avoid duplicates)
+   * 3. Insert all converted messages to local DB
+   * 4. Sync conversation name from Moss Server's customTitle
+   * 5. Update mossSessionUpdatedAt timestamp
+   */
+  async syncFromMossServer(conversationId: string): Promise<{ syncedCount: number; nameUpdated: boolean }> {
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(conversationId);
+
+      if (!existing.success || !existing.data) {
+        mainLog('RemoteProvider', `Conversation ${conversationId} not found for sync`);
+        return { syncedCount: 0, nameUpdated: false };
+      }
+
+      const extra = existing.data.extra as { mossSessionPending?: boolean; mossSessionId?: string } | undefined;
+      if (extra?.mossSessionPending || !extra?.mossSessionId) {
+        mainLog('RemoteProvider', `Conversation ${conversationId} is pending or no Moss session ID, skip sync`);
+        return { syncedCount: 0, nameUpdated: false };
+      }
+
+      const mossSessionId = extra.mossSessionId;
+      const api = await this.ensureMossApi();
+      const contextData = await api.getSessionContext(mossSessionId);
+
+      if (!contextData?.context?.messages?.length) {
+        mainLog('RemoteProvider', `No messages found for Moss session ${mossSessionId} during sync`);
+        return { syncedCount: 0, nameUpdated: false };
+      }
+
+      const allMessages = contextData.context.messages;
+      const { messages, foundModel } = this.convertMossMessagesToTMessages(allMessages, conversationId, mossSessionId);
+
+      // Clear existing local messages to avoid duplicates / 清除现有本地消息避免重复
+      db.deleteConversationMessages(conversationId);
+
+      // Insert all converted messages / 插入所有转换后的消息
+      for (const msg of messages) {
+        try {
+          db.insertMessage(msg);
+        } catch (insertErr) {
+          mainError('RemoteProvider', `Failed to insert message during sync: ${insertErr}`);
+        }
+      }
+
+      // Update model info cache / 更新模型信息缓存
       if (foundModel) {
-        // Cache model info for this conversation (will be returned by getModelInfo)
-        // 缓存此会话的模型信息（由 getModelInfo 返回）
         this.cachedModelInfo.set(conversationId, {
           source: 'models',
           currentModelId: foundModel,
@@ -647,11 +630,34 @@ export class RemoteConversationProvider implements IConversationProvider {
         });
       }
 
-      mainLog('RemoteProvider', `Loaded ${messages.length} messages from Moss for session ${mossSessionId}`);
-      return messages;
+      // Sync customTitle from Moss Server / 同步 Moss Server 的 customTitle
+      let nameUpdated = false;
+      const customTitle = contextData.context?.customTitle;
+      if (customTitle && existing.data.name !== customTitle) {
+        db.updateConversation(conversationId, {
+          name: customTitle,
+          extra: {
+            ...existing.data.extra,
+            mossSessionUpdatedAt: Date.now(),
+          },
+        } as Partial<TChatConversation>);
+        nameUpdated = true;
+        mainLog('RemoteProvider', `Synced conversation name from Moss Server: "${existing.data.name}" → "${customTitle}"`);
+      } else {
+        // Update mossSessionUpdatedAt timestamp only / 仅更新时间戳
+        db.updateConversation(conversationId, {
+          extra: {
+            ...existing.data.extra,
+            mossSessionUpdatedAt: Date.now(),
+          },
+        } as Partial<TChatConversation>);
+      }
+
+      mainLog('RemoteProvider', `Synced ${messages.length} messages from Moss Server for session ${mossSessionId}`);
+      return { syncedCount: messages.length, nameUpdated };
     } catch (error) {
-      mainError('RemoteProvider', `Failed to get messages: ${error instanceof Error ? error.message : String(error)}`);
-      return [];
+      mainError('RemoteProvider', `Failed to sync from Moss Server: ${error instanceof Error ? error.message : String(error)}`);
+      return { syncedCount: 0, nameUpdated: false };
     }
   }
 

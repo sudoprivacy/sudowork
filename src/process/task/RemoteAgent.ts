@@ -13,6 +13,7 @@ import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { getConversationProvider } from '../providers';
+import { addOrUpdateMessage } from '../message';
 
 /**
  * RemoteAgent data interface
@@ -327,12 +328,72 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     const enrichedMsg = { ...msg, conversation_id: this.conversation_id };
     ipcBridge.conversation.responseStream.emit(enrichedMsg);
 
+    // Persist messages to local DB for enterprise mode local-first reads
+    // 将消息持久化到本地数据库，支持企业模式本地优先读取
+    if (msg.type === 'content' || msg.type === 'user_content' || msg.type === 'acp_tool_call' || msg.type === 'error') {
+      try {
+        const tMessage = this.streamMsgToTMessage(enrichedMsg);
+        if (tMessage) {
+          addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      } catch (err) {
+        mainLog('RemoteAgent', `Failed to persist stream message to local DB: ${err}`);
+      }
+    }
+
     // Only set finished status when receiving 'finish' message
     // 'content' messages are streaming and do NOT indicate session end
     // 只有收到 'finish' 消息才设置 finished 状态
     // 'content' 消息是流式的，不代表会话结束
     if (msg.type === 'finish') {
       this.status = 'finished';
+    }
+  }
+
+  /**
+   * Convert stream IResponseMessage to TMessage for local DB persistence
+   * 将流式 IResponseMessage 转换为 TMessage 用于本地数据库持久化
+   */
+  private streamMsgToTMessage(msg: IResponseMessage): import('@/common/chatLib').TMessage | null {
+    switch (msg.type) {
+      case 'content':
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: { content: msg.data as string },
+        } as any;
+      case 'user_content':
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: msg.msg_id,
+          position: 'right',
+          conversation_id: msg.conversation_id,
+          content: { content: msg.data as string },
+        } as any;
+      case 'acp_tool_call':
+        return {
+          id: uuid(),
+          type: 'acp_tool_call',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: msg.data as any,
+        } as any;
+      case 'error':
+        return {
+          id: uuid(),
+          type: 'tips',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: { content: msg.data as string, type: 'error' },
+        } as any;
+      default:
+        return null;
     }
   }
 
