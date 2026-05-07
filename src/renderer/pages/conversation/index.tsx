@@ -41,6 +41,32 @@ const ChatConversationIndex: React.FC = () => {
     });
   }, [id, mutate]);
 
+  // Enterprise mode: sync messages from Moss Server when clicking a history conversation
+  // 企业模式：点击历史会话时从 Moss Server 同步消息到本地数据库
+  useEffect(() => {
+    if (!data || data.type !== 'remote-agent') return;
+    const extra = data.extra as { mossSessionId?: string; mossSessionPending?: boolean } | undefined;
+    if (!extra?.mossSessionId || extra?.mossSessionPending) return;
+
+    ipcBridge.conversation.syncMessages
+      .invoke({ conversation_id: id! })
+      .then((result) => {
+        if (result.success && result.data) {
+          if (result.data.syncedCount > 0) {
+            console.log(`[ConversationSync] Synced ${result.data.syncedCount} messages from Moss Server`);
+          }
+          if (result.data.syncedCount > 0 || result.data.nameUpdated) {
+            // Refresh sidebar and conversation data / 刷新侧边栏和会话数据
+            emitter.emit('chat.history.refresh');
+            void mutate();
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('[ConversationSync] Failed to sync messages from Moss Server:', err);
+      });
+  }, [data?.id, data?.type]);
+
   useEffect(() => {
     if (!id) return;
 
