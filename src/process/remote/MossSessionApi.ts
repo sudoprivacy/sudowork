@@ -5,9 +5,93 @@
  */
 
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@process/initStorage';
+import { setCachedAuthToken } from '@/common/enterpriseDebugConfig';
+import { ipcBridge } from '@/common';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
 import type { IResponseMessage } from '@/common/ipcBridge';
+
+let refreshPromise: Promise<string> | null = null;
+
+async function getValidToken(): Promise<string> {
+  const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+  if (!authStorage) {
+    throw new Error('No auth storage found');
+  }
+
+  const { access_token, refresh_token, expires_at, device_id } = authStorage;
+
+  if (expires_at > Date.now() + 5 * 60 * 1000) {
+    return access_token;
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) {
+        throw new Error('No server URL found');
+      }
+
+      if (!refresh_token) {
+        throw new Error('No refresh token available');
+      }
+
+      const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(device_id ? { 'X-Device-Id': device_id } : {}),
+        },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          refresh_token,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'token_refresh_failed');
+      }
+
+      const newAuthStorage = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || refresh_token,
+        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+        device_id,
+      };
+
+      await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+      setCachedAuthToken(data.access_token);
+
+      // Notify renderer process about the refreshed token
+      try {
+        ipcBridge.eeclaw.tokenRefreshed.emit({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || refresh_token,
+          expires_at: newAuthStorage.expires_at,
+        });
+      } catch (e) {
+        mainLog('MossSessionApi', 'Failed to emit token refresh event to renderer:', e);
+      }
+
+      return data.access_token;
+    } catch (error) {
+      mainError('MossSessionApi', 'Token refresh failed:', error);
+      throw error;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
 
 /**
  * Moss Server Session API client
@@ -28,12 +112,7 @@ export class MossSessionApi {
 
   /**
    * Set access token directly (JWT from eeclaw auth storage)
-   * 直接设置 access token（eeclaw auth storage 中的 JWT）
-   *
-   * In production, enterprise login returns JWT access_token which is used directly.
-   * No need to convert API-KEY to auth-token.
-   * 生产环境中，企业登录返回 JWT access_token，直接使用。
-   * 无需将 API-KEY 转换为 auth-token。
+   * Directly setting the access token. For automatic refresh, use ensureAuthenticated() instead.
    *
    * @param accessToken - JWT access token from enterprise login
    */
@@ -42,17 +121,20 @@ export class MossSessionApi {
   }
 
   /**
-   * Ensure access token is set
-   * 确保 access token 已设置
-   *
-   * Throws error if token is not set (should be set during initialization).
-   * 如果 token 未设置则抛出错误（应在初始化时设置）。
+   * Ensure access token is valid, refreshing if necessary
+   * Returns a valid access token, refreshing if expired (within 5 min buffer).
    */
   async ensureAuthenticated(): Promise<string> {
-    if (!this.accessToken) {
-      throw new Error('Access token not set. Please call setAccessToken() first.');
+    if (this.accessToken) {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.expires_at && authStorage.expires_at > Date.now() + 5 * 60 * 1000) {
+        return this.accessToken;
+      }
     }
-    return this.accessToken;
+
+    const token = await getValidToken();
+    this.accessToken = token;
+    return token;
   }
 
   /**
@@ -68,14 +150,12 @@ export class MossSessionApi {
    * 此方法仅保留用于未来的管理/调试目的。
    */
   async listSessions(): Promise<MossSession[]> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -93,9 +173,7 @@ export class MossSessionApi {
    * POST /api/v1/sessions
    */
   async createSession(params: { cwd?: string; assistantName?: string; dangerouslySkipPermissions?: boolean; runtimeType?: 'host' | 'docker' }): Promise<MossSession> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Creating session: cwd=${params.cwd}, assistant=${params.assistantName || 'default'}`);
 
@@ -117,7 +195,7 @@ export class MossSessionApi {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -137,14 +215,12 @@ export class MossSessionApi {
    * GET /api/v1/sessions/{sessionId}
    */
   async getSession(sessionId: string): Promise<MossSession> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -164,16 +240,14 @@ export class MossSessionApi {
    * DELETE /api/v1/sessions/{sessionId}
    */
   async deleteSession(sessionId: string): Promise<void> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Deleting session: ${sessionId}`);
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -197,9 +271,7 @@ export class MossSessionApi {
    * PATCH /api/v1/sessions/{sessionId}
    */
   async updateSession(sessionId: string, updates: { title?: string }): Promise<MossSession> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Updating session: ${sessionId}, updates: ${JSON.stringify(updates)}`);
 
@@ -207,7 +279,7 @@ export class MossSessionApi {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(updates),
     });
@@ -242,16 +314,14 @@ export class MossSessionApi {
       messages: any[];
     };
   }> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Getting session context: ${sessionId}`);
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/context`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -270,16 +340,14 @@ export class MossSessionApi {
    * POST /api/v1/sessions/{sessionId}/terminate
    */
   async terminateSession(sessionId: string): Promise<void> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Terminating session: ${sessionId}`);
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/terminate`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -303,16 +371,14 @@ export class MossSessionApi {
    * POST /api/v1/sessions/{sessionId}/resume
    */
   async resumeSession(sessionId: string): Promise<{ wsUrl: string; session: MossSession }> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated');
-    }
+    const token = await this.ensureAuthenticated();
 
     mainLog('MossSessionApi', `Resuming session: ${sessionId}`);
 
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/resume`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -340,11 +406,12 @@ export class MossSessionApi {
    * Returns a promise that resolves when connection is established
    */
   async connectAndSend(sessionId: string, wsUrl: string, message: string, onMessage: (msg: IResponseMessage) => void, onFinish: () => void, onError: (err: Error) => void): Promise<void> {
+    const token = await this.ensureAuthenticated();
     mainLog('MossSessionApi', `Connecting to WebSocket: ${wsUrl}`);
 
     const ws = new WebSocket(wsUrl, {
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

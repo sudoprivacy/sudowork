@@ -126,7 +126,10 @@ export class MossWsConnection {
 
     const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.config.authToken ? { 'X-Device-Id': 'moss-ws-connection' } : {}),
+      },
       body: JSON.stringify(body),
     });
 
@@ -491,9 +494,17 @@ export class MossWsConnection {
   }
 
   private handleClose(code: number, reason: string): void {
+    const wasConnected = this.state === 'connected';
     this.state = 'closed';
     this.ws = null;
-    this.callbacks.onDisconnected?.();
+
+    // Auto-reconnect for unexpected closures during an active session
+    if (wasConnected && code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+      mainLog('MossWsConnection', `Connection closed unexpectedly (code=${code}), scheduling reconnect (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
+      this.scheduleReconnect();
+    } else {
+      this.callbacks.onDisconnected?.();
+    }
   }
 
   private scheduleReconnect(): void {
