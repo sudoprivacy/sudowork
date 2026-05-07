@@ -296,23 +296,32 @@ export const moss = {
   /** Check if enterprise mode is enabled */
   isEnterpriseMode: bridge.buildProvider<boolean, void>('moss.is-enterprise-mode'),
   /** Get Moss Server URL and auth config */
-  getConfig: bridge.buildProvider<{
-    serverUrl: string;
-    hasToken: boolean;
-  }, void>('moss.get-config'),
+  getConfig: bridge.buildProvider<
+    {
+      serverUrl: string;
+      hasToken: boolean;
+    },
+    void
+  >('moss.get-config'),
   /** Set JWT auth token directly (no conversion needed) */
-  setAuthToken: bridge.buildProvider<IBridgeResponse, {
-    authToken: string;
-  }>('moss.set-auth-token'),
+  setAuthToken: bridge.buildProvider<
+    IBridgeResponse,
+    {
+      authToken: string;
+    }
+  >('moss.set-auth-token'),
   /** List all sessions from Moss Server */
   listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>('moss.list-sessions'),
   /** Create a new session on Moss Server */
-  createSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, {
-    cwd?: string;
-    assistantName?: string;
-    dangerouslySkipPermissions?: boolean;
-    runtimeType?: 'host' | 'docker';
-  }>('moss.create-session'),
+  createSession: bridge.buildProvider<
+    IBridgeResponse<MossSessionInfo>,
+    {
+      cwd?: string;
+      assistantName?: string;
+      dangerouslySkipPermissions?: boolean;
+      runtimeType?: 'host' | 'docker';
+    }
+  >('moss.create-session'),
   /** Get session details */
   getSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string }>('moss.get-session'),
   /** Delete a session */
@@ -322,12 +331,15 @@ export const moss = {
   /** Resume an existing session to get WebSocket URL */
   resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
   /** Send message to session (WebSocket) */
-  sendMessage: bridge.buildProvider<IBridgeResponse, {
-    sessionId: string;
-    wsUrl: string;
-    content: string;
-    files?: string[];
-  }>('moss.send-message'),
+  sendMessage: bridge.buildProvider<
+    IBridgeResponse,
+    {
+      sessionId: string;
+      wsUrl: string;
+      content: string;
+      files?: string[];
+    }
+  >('moss.send-message'),
   /** Stream response from Moss Server */
   responseStream: bridge.buildEmitter<IResponseMessage>('moss.response-stream'),
   /** Stop/interrupt current operation */
@@ -1660,7 +1672,7 @@ export interface UserProfileData {
 
 export const eeclaw = {
   /** Fetch enterprise cloud assistants from the enterprise server */
-  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string }>>, void>('eeclaw.get-cloud-assistants'),
+  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>>, void>('eeclaw.get-cloud-assistants'),
   /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
   verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
   /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
@@ -1669,6 +1681,7 @@ export const eeclaw = {
   login: bridge.buildProvider<
     IBridgeResponse<{
       access_token: string;
+      refresh_token?: string;
       expires_in: number;
       user: { id: string; name: string; role: string; orgId: string };
     }>,
@@ -1676,4 +1689,8 @@ export const eeclaw = {
   >('eeclaw.login'),
   /** Set app mode and update main process cache */
   setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
+  /** Logout from enterprise server and clear local credentials */
+  logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
+  /** Emitted when the main process refreshes the enterprise auth token */
+  tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
 };

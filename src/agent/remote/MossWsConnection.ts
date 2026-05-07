@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
+import { ProcessConfig } from '@/process/initStorage';
 
 /**
  * Moss Server WebSocket connection config
@@ -115,6 +116,45 @@ export class MossWsConnection {
       return this.config.authToken;
     }
 
+    // Try to get token from ProcessConfig if authToken is empty
+    if (!this.config.authToken) {
+      try {
+        const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+        if (authStorage?.access_token?.startsWith('eyJ')) {
+          this.config.authToken = authStorage.access_token;
+          return authStorage.access_token;
+        }
+        // Try refresh token if access token is missing/expired
+        if (authStorage?.refresh_token) {
+          const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authStorage.device_id ? { 'X-Device-Id': authStorage.device_id } : {}),
+            },
+            body: JSON.stringify({
+              grant_type: 'refresh_token',
+              refresh_token: authStorage.refresh_token,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          const data = await response.json();
+          if (response.ok && data.access_token) {
+            await ProcessConfig.set('eeclaw.authStorage', {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token || authStorage.refresh_token,
+              expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+              device_id: authStorage.device_id,
+            });
+            this.config.authToken = data.access_token;
+            return data.access_token;
+          }
+        }
+      } catch (e) {
+        mainError('MossWsConnection', 'Failed to get token from ProcessConfig:', e);
+      }
+    }
+
     const grantType = this.config.authToken ? 'api_key' : 'password';
     const body = grantType === 'api_key'
       ? { grant_type: 'api_key', api_key: this.config.authToken }
@@ -126,7 +166,10 @@ export class MossWsConnection {
 
     const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.config.authToken ? { 'X-Device-Id': 'moss-ws-connection' } : {}),
+      },
       body: JSON.stringify(body),
     });
 
@@ -491,9 +534,17 @@ export class MossWsConnection {
   }
 
   private handleClose(code: number, reason: string): void {
+    const wasConnected = this.state === 'connected';
     this.state = 'closed';
     this.ws = null;
-    this.callbacks.onDisconnected?.();
+
+    // Auto-reconnect for unexpected closures during an active session
+    if (wasConnected && code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+      mainLog('MossWsConnection', `Connection closed unexpectedly (code=${code}), scheduling reconnect (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
+      this.scheduleReconnect();
+    } else {
+      this.callbacks.onDisconnected?.();
+    }
   }
 
   private scheduleReconnect(): void {

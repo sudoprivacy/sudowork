@@ -105,8 +105,7 @@ type UseGuidAgentSelectionOptions = {
 export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
 
-  // Initial selected agent key based on enterprise mode
-  // 企业模式默认选择 'remote-agent'，非企业模式选择默认预设类型
+  // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
   const getInitialAgentKey = useCallback(() => {
     return isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
   }, [isEnterprise]);
@@ -169,12 +168,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, []);
 
   // When isEnterprise changes, update the default agent selection
-  // 当企业模式变化时，更新默认 Agent 选择
   useEffect(() => {
     if (isEnterprise) {
-      // Enterprise mode: always select 'remote-agent'
-      // 企业模式：始终选择 'remote-agent'
-      if (selectedAgentKeyRef.current !== 'remote-agent') {
+      // Enterprise mode: default to generic 'remote-agent' (no specific assistant)
+      if (selectedAgentKeyRef.current !== 'remote-agent' && !selectedAgentKeyRef.current.startsWith('custom:')) {
         _setSelectedAgentKey('remote-agent');
         selectedAgentKeyRef.current = 'remote-agent';
         ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
@@ -182,9 +179,8 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         });
       }
     } else {
-      // Consumer mode: reset to default preset if currently on remote-agent
-      // 消费者模式：如果当前是 remote-agent 则重置为默认预设
-      if (selectedAgentKeyRef.current === 'remote-agent') {
+      // Consumer mode: reset to default preset if currently on remote-agent or custom
+      if (selectedAgentKeyRef.current === 'remote-agent' || selectedAgentKeyRef.current.startsWith('custom:')) {
         _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
         selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
         ConfigStorage.set('guid.lastSelectedAgent', DEFAULT_PRESET_AGENT_TYPE).catch((error) => {
@@ -209,7 +205,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
    * Returns "custom:uuid" for custom agents, backend type for others.
    */
   const getAgentKey = (agent: { backend: AcpBackend; customAgentId?: string }) => {
-    return agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
+    return agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
   };
 
   /**
@@ -219,7 +215,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
       const customAgentId = key.slice(7);
-      const foundInAvailable = availableAgents?.find((a) => a.backend === 'custom' && a.customAgentId === customAgentId);
+      const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
       if (foundInAvailable) return foundInAvailable;
 
       const assistant = customAgents.find((a) => a.id === customAgentId);
@@ -260,22 +256,25 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   useEffect(() => {
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
       if (isEnterprise) {
-        // Enterprise agents: { key, name }[] -> AvailableAgent format
-        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string }>;
-        const mapped: AvailableAgent[] = enterpriseAgents.map((a) => ({
+        // Enterprise agents: always include generic 'Remote Agent' first, then server assistants
+        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>;
+        const serverAgents: AvailableAgent[] = enterpriseAgents.map((a) => ({
           backend: 'remote-agent' as AcpBackend,
           name: a.name,
           customAgentId: a.key,
+          isPreset: true,
+          avatar: a.emoji || a.avatar || undefined,
+          context: a.description || undefined,
         }));
-        // Always ensure at least one 'remote-agent' is available in enterprise mode
-        // 企业模式下始终确保至少有一个 'remote-agent' 可用
-        if (mapped.length === 0) {
-          mapped.push({
+        // Generic Remote Agent is always the first option
+        const mapped: AvailableAgent[] = [
+          {
             backend: 'remote-agent' as AcpBackend,
             name: 'Remote Agent',
             customAgentId: undefined,
-          });
-        }
+          },
+          ...serverAgents,
+        ];
         setAvailableAgents(mapped);
         availableAgentsRef.current = mapped;
       } else {
@@ -295,19 +294,17 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     }
   }, [availableAgentsData, isEnterprise]);
 
-  // Enterprise mode: default to 'remote-agent' when agents are loaded
-  // This effect runs when:
-  // 1. isEnterprise changes from false to true
-  // 2. availableAgents loads/changes in enterprise mode
+  // Enterprise mode: keep current selection if valid (remote-agent is always valid)
   useEffect(() => {
     if (isEnterprise && availableAgents && availableAgents.length > 0) {
-      // Always force 'remote-agent' in enterprise mode, regardless of current selection
-      _setSelectedAgentKey('remote-agent');
-      selectedAgentKeyRef.current = 'remote-agent';
-      // Save to storage for persistence
-      ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
-        console.error('Failed to save enterprise agent:', error);
-      });
+      // 'remote-agent' is always a valid selection in enterprise mode
+      // If user selected a specific custom agent, keep it
+      const currentKey = selectedAgentKeyRef.current;
+      const isValid = currentKey === 'remote-agent' || availableAgents.find(a => getAgentKey(a) === currentKey);
+      if (!isValid) {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+      }
     }
   }, [isEnterprise, availableAgents]);
 
@@ -339,13 +336,12 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           return key === currentKey;
         });
 
-        // If current selection is not valid (e.g., enterprise mode: 'openclaw-gateway' not available),
-        // auto-select the first available agent (e.g., 'remote-agent')
-        // Use ref to prevent infinite loops from re-triggering
-        if (!currentIsInAvailable && !hasAutoSelectedAgentRef.current) {
+        // If current selection is not valid, auto-select first available — BUT NOT in enterprise mode
+        // (enterprise mode: 'remote-agent' is always valid, and we don't force-select specific agents)
+        if (!currentIsInAvailable && !hasAutoSelectedAgentRef.current && !isEnterprise) {
           hasAutoSelectedAgentRef.current = true;
           const firstAgent = availableAgents[0];
-          const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+          const firstKey = firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
           _setSelectedAgentKeyWithRef(firstKey);
           // Save to storage for persistence
           ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
