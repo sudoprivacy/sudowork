@@ -357,8 +357,9 @@ function prepareClaude(customEnv?: Record<string, string>): NpxPrepareResult {
 }
 
 /** Prepare clean env + resolve npx + run diagnostics for Codex ACP bridge. */
-async function prepareCodex(): Promise<NpxPrepareResult> {
+async function prepareCodex(customEnv?: Record<string, string>): Promise<NpxPrepareResult> {
   const cleanEnv = prepareCleanEnv();
+  if (customEnv) Object.assign(cleanEnv, customEnv);
   ensureMinNodeVersion(cleanEnv, 20, 10, 'Codex ACP bridge');
 
   const codexCommand = process.platform === 'win32' ? 'codex.cmd' : 'codex';
@@ -408,8 +409,9 @@ async function prepareCodex(): Promise<NpxPrepareResult> {
 }
 
 /** Prepare clean env + resolve npx + load MCP config for CodeBuddy. */
-async function prepareCodebuddy(): Promise<NpxPrepareResult> {
+async function prepareCodebuddy(customEnv?: Record<string, string>): Promise<NpxPrepareResult> {
   const cleanEnv = prepareCleanEnv();
+  if (customEnv) Object.assign(cleanEnv, customEnv);
   ensureMinNodeVersion(cleanEnv, 20, 10, 'CodeBuddy ACP');
 
   // Load user's MCP config if available (~/.codebuddy/mcp.json)
@@ -577,11 +579,11 @@ export function connectClaude(workingDir: string, hooks: NpxConnectHooks, custom
 }
 
 /** Connect to Codex ACP bridge via npx. */
-export function connectCodex(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
-  return connectNpxBackend({ backend: 'codex', npxPackage: CODEX_ACP_NPX_PACKAGE, prepareFn: prepareCodex, workingDir, ...hooks });
+export function connectCodex(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {
+  return connectNpxBackend({ backend: 'codex', npxPackage: CODEX_ACP_NPX_PACKAGE, prepareFn: () => prepareCodex(customEnv), workingDir, ...hooks });
 }
 
 /** Connect to CodeBuddy ACP via npx. */
-export function connectCodebuddy(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
-  return connectNpxBackend({ backend: 'codebuddy', npxPackage: CODEBUDDY_ACP_NPX_PACKAGE, prepareFn: prepareCodebuddy, workingDir, ...hooks, extraArgs: ['--acp'], detached: process.platform !== 'win32' });
+export function connectCodebuddy(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {
+  return connectNpxBackend({ backend: 'codebuddy', npxPackage: CODEBUDDY_ACP_NPX_PACKAGE, prepareFn: () => prepareCodebuddy(customEnv), workingDir, ...hooks, extraArgs: ['--acp'], detached: process.platform !== 'win32' });
 }

@@ -48,6 +48,7 @@ import { initSecretBridge } from './secretBridge';
 import { initPwdLoginBridge } from './pwdLoginBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
 import { initTelemetryBridge } from './telemetryBridge';
+import { initAuthProxyBridge } from './authProxyBridge';
 import { initMossBridge } from './mossBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
@@ -98,6 +99,7 @@ export function initAllBridges(): void {
   initHealthMonitorBridge();
   initImageGenerationBridge();
   initSecretBridge();
+  initAuthProxyBridge();
   initPwdLoginBridge();
   initWorkspaceBridge();
   initTelemetryBridge();

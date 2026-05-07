@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '../../common';
 import { getSecretStoreClient } from '@common/nexus/secret-store';
+import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initSecretBridge(): void {
@@ -24,6 +25,7 @@ export function initSecretBridge(): void {
     try {
       const client = getSecretStoreClient();
       await client.putSecret(namespace, key, value, description);
+      cachePut(namespace, key, value);
       mainLog('SecretBridge', `Secret saved [${namespace}/${key}]`);
       return { success: true };
     } catch (err) {
@@ -47,6 +49,7 @@ export function initSecretBridge(): void {
     try {
       const client = getSecretStoreClient();
       const deleted = await client.deleteSecret(namespace, key);
+      cacheDelete(namespace, key);
       mainLog('SecretBridge', `Secret deleted [${namespace}/${key}]`);
       return { success: true, data: deleted };
     } catch (err) {
@@ -59,6 +62,9 @@ export function initSecretBridge(): void {
     try {
       const client = getSecretStoreClient();
       const restored = await client.restoreSecret(namespace, key);
+      // Re-load the restored value into cache from Nexus
+      const value = await client.getSecret(namespace, key);
+      cachePut(namespace, key, value);
       mainLog('SecretBridge', `Secret restored [${namespace}/${key}]`);
       return { success: true, data: restored };
     } catch (err) {

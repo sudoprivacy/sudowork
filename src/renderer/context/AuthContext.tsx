@@ -135,6 +135,37 @@ const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
+/**
+ * Refresh Auth Proxy rules after successful login.
+ * Reads enabled config item IDs from storage and triggers a rules refresh.
+ */
+async function refreshAuthProxyRulesAfterLogin(): Promise<void> {
+  try {
+    const enabledMap = await ConfigStorage.get('settings.tenant.enabled') as Record<number, boolean> | undefined;
+    const enabledIds = enabledMap
+      ? Object.entries(enabledMap).filter(([, v]) => v).map(([k]) => Number(k))
+      : [];
+
+    if (enabledIds.length === 0) return;
+
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) return;
+    const authStorage: AuthStorage = JSON.parse(stored);
+
+    const result = await ipcBridge.authProxy.refreshRules.invoke({
+      accessToken: authStorage.access_token,
+      enabledConfigItemIds: enabledIds,
+    });
+    if (result.success) {
+      console.log('[Auth] Auth Proxy rules refreshed after login');
+    } else {
+      console.warn('[Auth] Auth Proxy rules refresh failed after login:', result.msg);
+    }
+  } catch (err) {
+    console.warn('[Auth] Auth Proxy rules refresh error after login:', err);
+  }
+}
+
 function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { apiKey?: string }> } } | null | undefined): boolean {
   return Object.values(config?.models?.providers || {}).some((provider) => !!provider?.apiKey?.trim());
 }
@@ -300,6 +331,11 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
+
+  // Trigger Auth Proxy rules refresh after login
+  if (isDesktopRuntime) {
+    void refreshAuthProxyRulesAfterLogin();
+  }
 
   if (isDesktopRuntime) {
     void ipcBridge.sudoclaw.restartGateway

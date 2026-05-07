@@ -1607,6 +1607,20 @@ export const telemetry = {
   flush: bridge.buildProvider<IBridgeResponse, void>('telemetry.flush'),
 };
 
+// ==================== Auth Proxy API ====================
+// Manage Auth Proxy server lifecycle, rules cache, and status
+
+import type { AuthProxyRule } from '@/common/types/authProxy';
+
+export const authProxy = {
+  /** Get all cached Config Items rules */
+  getRules: bridge.buildProvider<IBridgeResponse<AuthProxyRule[]>, void>('authProxy.getRules'),
+  /** Refresh Config Items rules from sudowork-server */
+  refreshRules: bridge.buildProvider<IBridgeResponse<void>, { accessToken: string; enabledConfigItemIds: number[] }>('authProxy.refreshRules'),
+  /** Get Auth Proxy server running status and port */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number | null }>, void>('authProxy.getStatus'),
+};
+
 // ==================== Crash API ====================
 // Crash/Exception reporting for sudoclaw-qms CrashReporter
 // Crash/异常上报 (替代 Sentry SDK)
