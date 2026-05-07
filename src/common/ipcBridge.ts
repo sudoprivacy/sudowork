@@ -1672,7 +1672,7 @@ export interface UserProfileData {
 
 export const eeclaw = {
   /** Fetch enterprise cloud assistants from the enterprise server */
-  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string }>>, void>('eeclaw.get-cloud-assistants'),
+  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>>, void>('eeclaw.get-cloud-assistants'),
   /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
   verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
   /** Get current user profile from enterprise server (runs in main process to avoid CORS) */

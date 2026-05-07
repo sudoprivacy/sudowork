@@ -260,12 +260,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   useEffect(() => {
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
       if (isEnterprise) {
-        // Enterprise agents: { key, name }[] -> AvailableAgent format
-        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string }>;
+        // Enterprise agents: { key, name, avatar, emoji, description }[] -> AvailableAgent format
+        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>;
         const mapped: AvailableAgent[] = enterpriseAgents.map((a) => ({
-          backend: 'remote-agent' as AcpBackend,
+          backend: 'custom' as AcpBackend,
           name: a.name,
           customAgentId: a.key,
+          isPreset: true,
+          avatar: a.emoji || a.avatar || undefined,
+          context: a.description || undefined,
         }));
         // Always ensure at least one 'remote-agent' is available in enterprise mode
         // 企业模式下始终确保至少有一个 'remote-agent' 可用
@@ -295,19 +298,17 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     }
   }, [availableAgentsData, isEnterprise]);
 
-  // Enterprise mode: default to 'remote-agent' when agents are loaded
-  // This effect runs when:
-  // 1. isEnterprise changes from false to true
-  // 2. availableAgents loads/changes in enterprise mode
+  // Enterprise mode: default to first available enterprise agent
   useEffect(() => {
     if (isEnterprise && availableAgents && availableAgents.length > 0) {
-      // Always force 'remote-agent' in enterprise mode, regardless of current selection
-      _setSelectedAgentKey('remote-agent');
-      selectedAgentKeyRef.current = 'remote-agent';
-      // Save to storage for persistence
-      ConfigStorage.set('guid.lastSelectedAgent', 'remote-agent').catch((error) => {
-        console.error('Failed to save enterprise agent:', error);
-      });
+      const firstKey = getAgentKey(availableAgents[0]);
+      if (selectedAgentKeyRef.current !== firstKey && !availableAgents.find(a => getAgentKey(a) === selectedAgentKeyRef.current)) {
+        _setSelectedAgentKey(firstKey);
+        selectedAgentKeyRef.current = firstKey;
+        ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+          console.error('Failed to save enterprise agent:', error);
+        });
+      }
     }
   }, [isEnterprise, availableAgents]);
 

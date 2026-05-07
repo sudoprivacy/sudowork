@@ -233,7 +233,7 @@ export function initEeclawBridge(): void {
 
       const accessToken = await getValidToken();
 
-      const response = await fetch(`${serverUrl}/api/v1/assistants`, {
+      const response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -252,7 +252,14 @@ export function initEeclawBridge(): void {
       }
 
       const data = await response.json();
-      const assistants: Array<{ key: string; name: string }> = data.data ?? data ?? [];
+      // Server returns InstalledAssistantInfo[], map to { key, name, avatar, emoji, description }
+      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : data?.data ?? []).map((a: any) => ({
+        key: a.id || a.name,
+        name: a.displayName || a.name,
+        avatar: a.avatar || undefined,
+        emoji: a.emoji || undefined,
+        description: a.description || undefined,
+      }));
       return { success: true, data: assistants };
     } catch (error) {
       mainWarn('eeclawBridge', 'getCloudAssistants error:', error);
