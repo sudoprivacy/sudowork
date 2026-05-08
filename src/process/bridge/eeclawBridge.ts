@@ -60,6 +60,53 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
       const data = await response.json();
 
       if (!response.ok) {
+        // If "Invalid refresh token", the renderer may have already rotated it.
+        // Invalidate cache and retry once with the latest token from file.
+        if (data?.error === 'Invalid refresh token' || response.status === 401) {
+          mainLog('eeclawBridge', '[getValidToken] Got Invalid refresh token, invalidating cache and retrying with latest from file');
+          ProcessConfig.invalidateCache();
+          const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
+          if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
+            mainLog('eeclawBridge', `[getValidToken] Found different refresh_token in file, retrying with ${latestAuth.refresh_token.slice(0, 20)}...`);
+            const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Device-Id': latestAuth.device_id,
+              },
+              body: JSON.stringify({
+                grant_type: 'refresh_token',
+                refresh_token: latestAuth.refresh_token,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            const retryData = await retryResponse.json();
+            if (retryResponse.ok && retryData.access_token) {
+              const newAuthStorage = {
+                access_token: retryData.access_token,
+                refresh_token: retryData.refresh_token || latestAuth.refresh_token,
+                expires_at: Date.now() + (retryData.expires_in || 3600) * 1000,
+                device_id: latestAuth.device_id,
+              };
+              mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
+              await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+              setCachedAuthToken(retryData.access_token);
+              try {
+                ipcBridge.eeclaw.tokenRefreshed.emit({
+                  access_token: retryData.access_token,
+                  refresh_token: retryData.refresh_token || latestAuth.refresh_token,
+                  expires_at: newAuthStorage.expires_at,
+                });
+              } catch (e) {
+                mainLog('eeclawBridge', 'Failed to emit token refresh event:', e);
+              }
+              return retryData.access_token;
+            }
+            mainWarn('eeclawBridge', `[getValidToken] Retry also failed: status=${retryResponse.status}, error=${retryData?.error || 'unknown'}`);
+          } else {
+            mainWarn('eeclawBridge', '[getValidToken] No different refresh_token found in file after cache invalidation');
+          }
+        }
         mainWarn('eeclawBridge', `[getValidToken] Refresh failed: status=${response.status}, error=${data?.error || 'unknown'}`);
         throw new Error(data?.error || 'token_refresh_failed');
       }
@@ -90,8 +137,6 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
       return data.access_token;
     } catch (error) {
       mainWarn('eeclawBridge', 'Token refresh failed:', error);
-      // Do NOT clear authStorage on refresh failure - the refresh_token may still be valid
-      // and the user can retry. Only clear the in-memory cache.
       setCachedAuthToken('');
       throw error;
     } finally {
@@ -269,6 +314,24 @@ export function initEeclawBridge(): void {
     } catch (error) {
       mainWarn('eeclawBridge', 'getCloudAssistants error:', error);
       return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.refreshToken.provider(async () => {
+    try {
+      const token = await getValidToken(true);
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      return {
+        success: true,
+        data: {
+          access_token: token,
+          refresh_token: authStorage?.refresh_token,
+          expires_at: authStorage?.expires_at,
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'refreshToken error:', error);
+      return { success: false, error: String((error as Error)?.message || error), data: undefined };
     }
   });
 

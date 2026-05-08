@@ -380,64 +380,32 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     refreshPromiseRef.current = (async () => {
       try {
-        // Enterprise mode: refresh via MOSS server directly (CORS supported)
+        // Enterprise mode: delegate to main process getValidToken via IPC to avoid race conditions
         const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
         if (eeclawStored) {
           try {
             const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
-            if (!authStorage.refresh_token) {
-              console.warn('[Auth] No enterprise refresh_token available, cannot refresh');
-              return false;
-            }
 
-            const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-            if (!serverUrl) {
-              console.warn('[Auth] No enterprise server URL available');
-              return false;
-            }
-
-            const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                grant_type: 'refresh_token',
-                refresh_token: authStorage.refresh_token,
-              }),
-            });
-
-            const data = await response.json();
-            if (response.ok && data.access_token) {
+            const result = await ipcBridge.eeclaw.refreshToken.invoke();
+            if (result.success && result.data) {
               const newStorage: EeclawAuthStorage = {
-                access_token: data.access_token,
-                refresh_token: data.refresh_token || authStorage.refresh_token,
-                expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+                access_token: result.data.access_token,
+                refresh_token: result.data.refresh_token || authStorage.refresh_token,
+                expires_at: result.data.expires_at || Date.now() + 3600 * 1000,
                 user: authStorage.user,
                 device_id: authStorage.device_id,
               };
 
               localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(newStorage));
-
-              // Sync to ConfigStorage for eeclawBridge
-              try {
-                await ConfigStorage.set('eeclaw.authStorage', {
-                  access_token: data.access_token,
-                  refresh_token: data.refresh_token || authStorage.refresh_token,
-                  expires_at: newStorage.expires_at,
-                  device_id: authStorage.device_id,
-                });
-              } catch (e) {
-                console.warn('[Auth] Failed to sync refreshed enterprise token to ConfigStorage:', e);
-              }
-
-              setUser({ ...authStorage.user, token: data.access_token });
+              setUser({ ...authStorage.user, token: result.data.access_token });
               lastRefreshAtRef.current = Date.now();
-              console.log('[Auth] Enterprise token refreshed successfully');
+              console.log('[Auth] Enterprise token refreshed successfully via IPC');
               return true;
             }
-            console.error('[Auth] Enterprise token refresh failed:', data?.error || 'unknown');
+            console.error('[Auth] Enterprise token refresh via IPC failed');
             return false;
           } catch (error) {
-            console.error('[Auth] Enterprise token refresh failed:', error);
+            console.error('[Auth] Enterprise token refresh via IPC failed:', error);
             return false;
           }
         }
