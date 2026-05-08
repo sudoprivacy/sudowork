@@ -46,6 +46,7 @@ import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
 import { initSecretBridge } from './secretBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
+import { initManagedAgentBridge } from './managedAgentBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -93,6 +94,7 @@ export function initAllBridges(): void {
   initImageGenerationBridge();
   initSecretBridge();
   initWorkspaceBridge();
+  initManagedAgentBridge();
 }
 
 /**

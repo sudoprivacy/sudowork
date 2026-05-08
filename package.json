@@ -64,7 +64,8 @@
     "test:e2e": "python -m pytest tests/e2e/ -v",
     "test:libreoffice": "npx tsx test-libreoffice.ts",
     "prepare": "husky",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "build:native": "cd native/nexus-napi && napi build --release"
   },
   "keywords": [],
   "author": {
@@ -73,6 +74,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@napi-rs/cli": "^3.0.0",
     "@electron/fuses": "^1.8.0",
     "@electron/notarize": "^3.1.0",
     "@testing-library/jest-dom": "^6.9.1",
