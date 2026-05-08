@@ -34,9 +34,9 @@ export async function startAuthProxy(): Promise<number> {
 
   try {
     // Dynamic import minimatch to avoid bundling issues
-    const { match } = await import('minimatch' as string) as { match: (str: string, pattern: string) => boolean };
+    const minimatchDefault = (await import('minimatch' as string) as unknown as { default: (str: string, pattern: string) => boolean }).default;
 
-    server = new AuthProxyServer(match);
+    server = new AuthProxyServer(minimatchDefault);
     serverPort = await server.start();
     return serverPort;
   } catch (error) {
