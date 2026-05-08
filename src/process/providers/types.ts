@@ -86,6 +86,20 @@ export interface IConversationProvider {
    * @returns Response with success status / 响应状态
    */
   stop(conversationId: string): Promise<IBridgeResponse>;
+
+  /**
+   * Sync messages from remote server to local DB (enterprise mode only)
+   * 从远程服务器同步消息到本地数据库（仅企业模式）
+   *
+   * Only implemented by RemoteConversationProvider.
+   * 仅由 RemoteConversationProvider 实现。
+   * Called when user clicks on a history conversation to ensure local data is up-to-date.
+   * 当用户点击历史会话时调用，确保本地数据是最新的。
+   *
+   * @param conversationId Conversation ID / 会话 ID
+   * @returns Sync result with count and name update status / 同步结果（消息数量和名称更新状态）
+   */
+  syncFromMossServer?(conversationId: string): Promise<{ syncedCount: number; nameUpdated: boolean }>;
 }
 
 /**

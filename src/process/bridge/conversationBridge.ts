@@ -1147,4 +1147,29 @@ This identity statement takes priority over the default identity in USER.md.
       return Promise.resolve();
     }
   });
+
+  // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
+  ipcBridge.conversation.syncMessages.provider(async ({ conversation_id }) => {
+    try {
+      const provider = getConversationProvider();
+      if (provider.type !== 'remote' || !provider.syncFromMossServer) {
+        return { success: true, data: { syncedCount: 0, nameUpdated: false } };
+      }
+
+      const result = await provider.syncFromMossServer(conversation_id);
+
+      if (result.nameUpdated) {
+        ipcBridge.database.conversationChanged.emit({
+          conversationId: conversation_id,
+          source: 'aionui',
+          action: 'updated',
+        });
+      }
+
+      return { success: true, data: result };
+    } catch (error) {
+      mainError('conversationBridge', 'Error syncing messages from Moss Server:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error), data: { syncedCount: 0, nameUpdated: false } };
+    }
+  });
 }

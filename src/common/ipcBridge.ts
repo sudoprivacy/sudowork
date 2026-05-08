@@ -62,6 +62,8 @@ export const conversation = {
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
   // Add a single message to the database (used for saving pending messages before unmount)
   addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
+  // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
+  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean }>, { conversation_id: string }>('conversation.sync-messages'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
