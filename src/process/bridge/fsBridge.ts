@@ -488,6 +488,23 @@ export function initFsBridge(): void {
     }
   });
 
+  // 读取二进制文件为 Base64 字符串（可安全通过 JSON 序列化的 IPC 传输）
+  // Read binary file as Base64 string (safe for JSON-serialized IPC transport)
+  ipcBridge.fs.readFileBase64.provider(async ({ path: filePath }) => {
+    try {
+      // Breadcrumb: file read (base64)
+      fileBreadcrumbs.read(filePath);
+
+      return await fs.readFile(filePath, { encoding: 'base64' });
+    } catch (error) {
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
+      mainError('fsBridge', 'Failed to read file as base64:', error);
+      throw error;
+    }
+  });
+
   // 写入文件
   ipcBridge.fs.writeFile.provider(async ({ path: filePath, data }) => {
     try {
