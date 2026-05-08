@@ -1245,7 +1245,24 @@ export const channel = {
   getPluginCredentials: bridge.buildProvider<IBridgeResponse<IPluginCredentials | null>, { pluginId: string }>('channel.get-plugin-credentials'),
   enablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string; config: Record<string, unknown> }>('channel.enable-plugin'),
   disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.disable-plugin'),
-  testPlugin: bridge.buildProvider<IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>, { pluginId: string; token: string; extraConfig?: { appId?: string; appSecret?: string } }>('channel.test-plugin'),
+  testPlugin: bridge.buildProvider<IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>, { pluginId: string; token: string; extraConfig?: { appId?: string; appSecret?: string; corpId?: string; agentId?: string } }>('channel.test-plugin'),
+
+  // WeCom 自建应用: create approval application, returns sp_no
+  wecomAppCreateApproval: bridge.buildProvider<IBridgeResponse<{ spNo: string }>, {
+    pluginId: string;
+    chatId: string;
+    creatorUserid: string;
+    templateId: string;
+    applyData: Record<string, unknown>;
+    summaryList?: Array<{ summary_info: Array<{ text: string; lang: string }> }>;
+    useTemplateApprover?: 0 | 1;
+    approver?: Array<{ attr: number; userid: string[] }>;
+    notifyer?: string[];
+    notifyType?: 1 | 2 | 3;
+    applyNickname?: string;
+    cardTemplateName?: string;
+    cardSummary?: string;
+  }>('channel.wecom-app-create-approval'),
 
   // Pairing Management
   getPendingPairings: bridge.buildProvider<IBridgeResponse<IChannelPairingRequest[]>, void>('channel.get-pending-pairings'),

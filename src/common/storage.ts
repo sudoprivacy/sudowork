@@ -149,6 +149,17 @@ export interface IConfigStorageRefer {
     customAgentId?: string;
     name?: string;
   };
+  // WeCom 自建应用 assistant default model / 企业微信自建应用助手默认模型
+  'assistant.wecom-app.defaultModel'?: {
+    id: string;
+    useModel: string;
+  };
+  // WeCom 自建应用 assistant agent selection / 企业微信自建应用助手所使用的 Agent
+  'assistant.wecom-app.agent'?: {
+    backend: AcpBackendAll;
+    customAgentId?: string;
+    name?: string;
+  };
   // Safety hook enabled state / 安全 Hook 启用状态
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置

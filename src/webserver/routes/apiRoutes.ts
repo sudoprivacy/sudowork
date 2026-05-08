@@ -14,6 +14,7 @@ import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { ExtensionRegistry } from '@/extensions';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';
+import { registerChannelCallbackRoutes } from './channelCallbackRoutes';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_AUTHORIZATION = 'sud0@sudo';
@@ -203,6 +204,7 @@ export function registerApiRoutes(app: Express): void {
   app.use('/api/directory', apiRateLimiter, validateApiAccess, directoryApi);
 
   registerExtensionWebuiRoutes(app, validateApiAccess);
+  registerChannelCallbackRoutes(app);
 
   /**
    * 扩展资产 API（WebUI）- Extension asset API (WebUI)

@@ -29,7 +29,7 @@ export function initChannelBridge(): void {
    */
   channel.getPluginStatus.provider(async () => {
     try {
-      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao']);
+      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'wecom-app', 'zentao']);
 
       let dbPlugins: import('@/channels/types').IChannelPluginConfig[] = [];
       try {
@@ -136,6 +136,7 @@ export function initChannelBridge(): void {
         dingtalk: 'DingTalk',
         wechat: 'WeChat',
         wecom: 'WeCom',
+        'wecom-app': 'WeCom App',
         zentao: 'Zentao',
       };
       for (const builtinType of BUILTIN_TYPES) {
@@ -236,6 +237,48 @@ export function initChannelBridge(): void {
     } catch (error: any) {
       mainError('ChannelBridge', 'testPlugin error:', error);
       return { success: false, data: { success: false, error: error.message } };
+    }
+  });
+
+  /**
+   * Create a WeCom 自建应用 approval. Returns the sp_no. Renders a
+   * button_interaction card into the conversation identified by chatId.
+   */
+  channel.wecomAppCreateApproval.provider(async (params) => {
+    try {
+      const manager = getChannelManager();
+      const pluginManager = manager.getPluginManager();
+      const plugin = pluginManager?.getPlugin(params.pluginId);
+      if (!plugin) return { success: false, msg: `plugin not found: ${params.pluginId}` };
+      if (plugin.type !== 'wecom-app') {
+        return { success: false, msg: `plugin ${params.pluginId} is not a wecom-app plugin` };
+      }
+      const { WeComAppPlugin } = await import('@/channels/plugins/wecom-app/WeComAppPlugin');
+      if (!(plugin instanceof WeComAppPlugin)) {
+        return { success: false, msg: `plugin ${params.pluginId} is not a WeComAppPlugin instance` };
+      }
+      const spNo = await plugin.createApproval(
+        params.chatId,
+        {
+          creator_userid: params.creatorUserid,
+          template_id: params.templateId,
+          apply_data: params.applyData,
+          summary_list: params.summaryList ?? [],
+          use_template_approver: params.useTemplateApprover,
+          approver: params.approver,
+          notifyer: params.notifyer,
+          notify_type: params.notifyType,
+          apply_nickname: params.applyNickname,
+        },
+        {
+          templateName: params.cardTemplateName,
+          summary: params.cardSummary,
+        },
+      );
+      return { success: true, data: { spNo } };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'wecomAppCreateApproval error:', error);
+      return { success: false, msg: error?.message ?? 'unknown error' };
     }
   });
 

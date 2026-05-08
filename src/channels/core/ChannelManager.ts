@@ -17,6 +17,7 @@ import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
+import { WeComAppPlugin } from '../plugins/wecom-app/WeComAppPlugin';
 import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
@@ -56,6 +57,7 @@ export class ChannelManager {
     registerPlugin('dingtalk', DingTalkPlugin);
     registerPlugin('wechat', WeChatPlugin);
     registerPlugin('wecom', WeComPlugin);
+    registerPlugin('wecom-app', WeComAppPlugin);
     registerPlugin('zentao', ZentaoPlugin);
   }
 
@@ -207,7 +209,7 @@ export class ChannelManager {
     }
 
     const enabledPlugins = result.data.filter((p) => p.enabled);
-    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao']);
+    const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'wecom-app', 'zentao']);
     const extensionRegistry = ExtensionRegistry.getInstance();
 
     for (const plugin of enabledPlugins) {
@@ -302,6 +304,24 @@ export class ChannelManager {
       const secret = config.secret as string | undefined;
       if (botId && secret) {
         credentials = { botId, secret };
+      }
+    } else if (pluginType === 'wecom-app') {
+      const corpId = config.corpId as string | undefined;
+      const agentId = config.agentId as string | undefined;
+      const appSecret = config.appSecret as string | undefined;
+      const encodingAesKey = config.encodingAesKey as string | undefined;
+      const callbackToken = config.callbackToken as string | undefined;
+      const publicBaseUrl = config.publicBaseUrl as string | undefined;
+      if (corpId && agentId && appSecret) {
+        credentials = {
+          ...(credentials || {}),
+          corpId,
+          agentId,
+          appSecret,
+          encodingAesKey,
+          callbackToken,
+          publicBaseUrl,
+        };
       }
     } else if (pluginType === 'zentao') {
       const serverUrl = config.serverUrl as string | undefined;
@@ -415,7 +435,7 @@ export class ChannelManager {
         // This allows reconfiguring with new bot credentials
         // Note: We keep credentials so user can re-enable without re-entering
         const pluginType = existingResult.data.type;
-        if (pluginType === 'wecom' || pluginType === 'wechat') {
+        if (pluginType === 'wecom' || pluginType === 'wechat' || pluginType === 'wecom-app') {
           console.log(`[ChannelManager] Clearing all users and sessions for ${pluginType} on disable`);
           // Delete all channel users for this platform
           db.deleteChannelUsersByPlatform(pluginType);
@@ -434,7 +454,11 @@ export class ChannelManager {
    * For extension plugins that don't have a static testConnection method,
    * returns a generic "not supported" response.
    */
-  async testPlugin(pluginId: string, token: string, extraConfig?: { appId?: string; appSecret?: string }): Promise<{ success: boolean; botUsername?: string; error?: string }> {
+  async testPlugin(
+    pluginId: string,
+    token: string,
+    extraConfig?: { appId?: string; appSecret?: string; corpId?: string; agentId?: string },
+  ): Promise<{ success: boolean; botUsername?: string; error?: string }> {
     const pluginType = this.getPluginTypeFromId(pluginId);
 
     if (pluginType === 'telegram') {
@@ -488,6 +512,21 @@ export class ChannelManager {
       };
     }
 
+    if (pluginType === 'wecom-app') {
+      const corpId = extraConfig?.corpId;
+      const agentId = extraConfig?.agentId;
+      const appSecret = extraConfig?.appSecret;
+      if (!corpId || !agentId || !appSecret) {
+        return { success: false, error: 'CorpID, AgentID, and App Secret are required for WeCom App' };
+      }
+      const result = await WeComAppPlugin.testConnection(corpId, agentId, appSecret);
+      return {
+        success: result.success,
+        botUsername: result.botInfo?.name,
+        error: result.error,
+      };
+    }
+
     if (pluginType === 'zentao') {
       const serverUrl = extraConfig?.appId;
       const zentaoUsername = token;
@@ -516,6 +555,7 @@ export class ChannelManager {
     if (pluginId.startsWith('lark')) return 'lark';
     if (pluginId.startsWith('dingtalk')) return 'dingtalk';
     if (pluginId.startsWith('wechat')) return 'wechat';
+    if (pluginId.startsWith('wecom-app')) return 'wecom-app';
     if (pluginId.startsWith('wecom')) return 'wecom';
     if (pluginId.startsWith('zentao')) return 'zentao';
     // Extension plugins: use pluginId as type (e.g., 'ext-feishu')

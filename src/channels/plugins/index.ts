@@ -20,3 +20,6 @@ export { WeChatPlugin } from './wechat/WeChatPlugin';
 
 // WeCom (WeChat Work) plugin
 export { WeComPlugin } from './wecom/WeComPlugin';
+
+// WeCom 自建应用 (self-built corp app) plugin
+export { WeComAppPlugin } from './wecom-app/WeComAppPlugin';

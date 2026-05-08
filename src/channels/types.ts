@@ -9,7 +9,7 @@
 /**
  * Built-in platform types for channel plugins.
  */
-export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao';
+export type BuiltinPluginType = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'wecom-app' | 'zentao';
 
 /**
  * Supported platform types for plugins.
@@ -44,6 +44,12 @@ export interface IPluginCredentials {
   // WeCom (WeChat Work)
   botId?: string;
   secret?: string;
+  // WeCom 自建应用 (self-built corp app)
+  corpId?: string;
+  agentId?: string;
+  encodingAesKey?: string;
+  callbackToken?: string;
+  publicBaseUrl?: string;
   // Zentao
   serverUrl?: string;
   zentaoUsername?: string;
@@ -64,6 +70,7 @@ export function hasPluginCredentials(type: PluginType, credentials?: IPluginCred
   if (type === 'telegram') return !!credentials.token;
   if (type === 'wechat') return !!(credentials.token && credentials.accountId);
   if (type === 'wecom') return !!(credentials.botId && credentials.secret);
+  if (type === 'wecom-app') return !!(credentials.corpId && credentials.agentId && credentials.appSecret);
   if (type === 'zentao') return !!(credentials.serverUrl && credentials.zentaoUsername && credentials.zentaoPassword);
   // Extension or unknown plugins: check if any credential value is non-empty
   return Object.values(credentials).some((v) => v !== undefined && v !== null && v !== '');
@@ -514,14 +521,22 @@ export function pairingRequestToRow(request: IChannelPairingRequest): IChannelPa
  * Channel platform type for model configuration.
  * Includes built-in platforms and extension-contributed platforms (string).
  */
-export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao' | (string & {});
+export type ChannelPlatform = 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'wecom-app' | 'zentao' | (string & {});
 
 /**
  * Type guard to check if a string is a known built-in ChannelPlatform.
  * Extension platform types are valid but not matched here.
  */
-export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'zentao' {
-  return value === 'telegram' || value === 'lark' || value === 'dingtalk' || value === 'wechat' || value === 'wecom' || value === 'zentao';
+export function isBuiltinChannelPlatform(value: string): value is 'telegram' | 'lark' | 'dingtalk' | 'wechat' | 'wecom' | 'wecom-app' | 'zentao' {
+  return (
+    value === 'telegram' ||
+    value === 'lark' ||
+    value === 'dingtalk' ||
+    value === 'wechat' ||
+    value === 'wecom' ||
+    value === 'wecom-app' ||
+    value === 'zentao'
+  );
 }
 
 /**
@@ -551,7 +566,7 @@ export function resolveChannelConvType(backend: string): { convType: string; con
  * - empty segments are omitted
  */
 export function getChannelConversationName(platform: ChannelPlatform | PluginType, type?: string, backend?: string, chatId?: string): string {
-  const shortPlatform: Record<string, string> = { telegram: 'tg', dingtalk: 'ding', wechat: 'wx', wecom: 'qywx' };
+  const shortPlatform: Record<string, string> = { telegram: 'tg', dingtalk: 'ding', wechat: 'wx', wecom: 'qywx', 'wecom-app': 'qywxapp' };
   const parts: string[] = [shortPlatform[platform] ?? platform];
   if (type) parts.push(type);
   if (type === 'acp' && backend) parts.push(backend);
