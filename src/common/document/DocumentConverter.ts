@@ -55,7 +55,7 @@ export class DocumentConverter {
 
     const children: FileChild[] = [];
 
-    // 辅助函数：处理内联节点 (text, strong, emphasis, inlineCode, link)
+    // 辅助函数：处理内联节点 (text, strong, emphasis, inlineCode, link, delete, image)
     const processInlineNodes = (nodes: any[], baseOptions: any = {}): ITextRun[] => {
       const runs: ITextRun[] = [];
       for (const node of nodes) {
@@ -65,6 +65,8 @@ export class DocumentConverter {
           runs.push(...processInlineNodes(node.children, { ...baseOptions, bold: true }));
         } else if (node.type === 'emphasis') {
           runs.push(...processInlineNodes(node.children, { ...baseOptions, italics: true }));
+        } else if (node.type === 'delete') {
+          runs.push(...processInlineNodes(node.children, { ...baseOptions, strike: true }));
         } else if (node.type === 'inlineCode') {
           runs.push(
             new TextRun({
@@ -80,6 +82,16 @@ export class DocumentConverter {
               ...baseOptions,
               color: '0563C1',
               underline: {},
+            })
+          );
+        } else if (node.type === 'image') {
+          // Images cannot be embedded inline easily; use alt text as placeholder
+          runs.push(
+            new TextRun({
+              ...baseOptions,
+              text: node.alt || '[image]',
+              italics: true,
+              color: '6A737D',
             })
           );
         } else if (node.type === 'break') {
@@ -113,37 +125,53 @@ export class DocumentConverter {
           break;
         }
         case 'list': {
-          node.children.forEach((listItem: any, index: number) => {
-            // 处理列表项中的内容 (通常是 paragraph)
+          // 递归处理列表项，支持嵌套列表和复杂内容
+          const processListItem = (listItem: any, level: number, ordered: boolean, itemIndex: number) => {
             listItem.children.forEach((child: any) => {
               if (child.type === 'paragraph') {
                 children.push(
                   new Paragraph({
                     children: processInlineNodes(child.children),
-                    bullet: node.ordered ? undefined : { level: 0 },
-                    numbering: node.ordered
+                    bullet: ordered ? undefined : { level },
+                    numbering: ordered
                       ? {
                           reference: 'main-numbering',
-                          level: 0,
-                          instance: index,
+                          level,
+                          instance: itemIndex,
                         }
                       : undefined,
                   })
                 );
+              } else if (child.type === 'list') {
+                // 嵌套列表：递增缩进层级
+                child.children.forEach((nestedItem: any, nestedIndex: number) => {
+                  processListItem(nestedItem, level + 1, child.ordered, nestedIndex);
+                });
+              } else {
+                // 其他块级内容 (代码块、引用等) 直接作为普通节点处理
+                visit(child);
               }
             });
+          };
+
+          node.children.forEach((listItem: any, index: number) => {
+            processListItem(listItem, 0, node.ordered, index);
           });
           break;
         }
         case 'code': {
+          // 将多行代码按 \n 拆分，使用 break 属性在 Word 中正确换行
+          const codeLines = (node.value as string).split('\n');
+          const codeRuns: ITextRun[] = [];
+          codeLines.forEach((line: string, lineIndex: number) => {
+            if (lineIndex > 0) {
+              codeRuns.push(new TextRun({ text: '', break: 1, font: 'Consolas' }));
+            }
+            codeRuns.push(new TextRun({ text: line, font: 'Consolas' }));
+          });
           children.push(
             new Paragraph({
-              children: [
-                new TextRun({
-                  text: node.value,
-                  font: 'Consolas',
-                }),
-              ],
+              children: codeRuns,
               shading: { fill: 'F5F5F5' },
               border: {
                 top: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
@@ -157,6 +185,7 @@ export class DocumentConverter {
           break;
         }
         case 'blockquote': {
+          // 递归处理 blockquote 内的所有子节点类型
           node.children.forEach((child: any) => {
             if (child.type === 'paragraph') {
               children.push(
@@ -169,6 +198,22 @@ export class DocumentConverter {
                   spacing: { before: 120, after: 120 },
                 })
               );
+            } else if (child.type === 'heading') {
+              const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
+              children.push(
+                new Paragraph({
+                  heading: levels[child.depth - 1] || HeadingLevel.HEADING_1,
+                  children: processInlineNodes(child.children),
+                  indent: { left: 720 },
+                  border: {
+                    left: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 24 },
+                  },
+                  spacing: { before: 240, after: 120 },
+                })
+              );
+            } else {
+              // 其他块级内容 (列表、代码块、嵌套 blockquote 等) 直接处理
+              visit(child);
             }
           });
           break;
@@ -231,6 +276,28 @@ export class DocumentConverter {
                 style: {
                   paragraph: {
                     indent: { left: 720, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 1,
+                format: 'lowerLetter',
+                text: '%2)',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 1440, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 2,
+                format: 'lowerRoman',
+                text: '%3.',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 2160, hanging: 360 },
                   },
                 },
               },

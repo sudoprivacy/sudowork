@@ -79,6 +79,7 @@ export default defineConfig({
         'src/common/sudoworkAuthLogin.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
+        'src/common/document/DocumentConverter.ts',
         // Renderer utils
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
