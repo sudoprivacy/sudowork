@@ -332,11 +332,6 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setStatus('authenticated');
   setReady(true);
 
-  // Trigger Auth Proxy rules refresh after login
-  if (isDesktopRuntime) {
-    void refreshAuthProxyRulesAfterLogin();
-  }
-
   if (isDesktopRuntime) {
     void ipcBridge.sudoclaw.restartGateway
       .invoke()
@@ -714,6 +709,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       abortRef.current?.abort();
     };
   }, [refresh]);
+
+  // Auth Proxy: 登录状态变化时自动刷新 rules
+  useEffect(() => {
+    if (status === 'authenticated' && isDesktopRuntime) {
+      void refreshAuthProxyRulesAfterLogin();
+    }
+  }, [status]);
 
   // Sync token refresh events from main process to renderer localStorage
   // Main process (MossSessionApi/eeclawBridge) may refresh tokens, revoking the old
