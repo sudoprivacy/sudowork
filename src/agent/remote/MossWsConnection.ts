@@ -9,6 +9,7 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
+import { getValidToken } from '@/process/bridge/eeclawBridge';
 
 /**
  * Moss Server WebSocket connection config
@@ -116,42 +117,16 @@ export class MossWsConnection {
       return this.config.authToken;
     }
 
-    // Try to get token from ProcessConfig if authToken is empty
+    // Try shared getValidToken which handles refresh with dedup
     if (!this.config.authToken) {
       try {
-        const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
-        if (authStorage?.access_token?.startsWith('eyJ')) {
-          this.config.authToken = authStorage.access_token;
-          return authStorage.access_token;
-        }
-        // Try refresh token if access token is missing/expired
-        if (authStorage?.refresh_token) {
-          const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(authStorage.device_id ? { 'X-Device-Id': authStorage.device_id } : {}),
-            },
-            body: JSON.stringify({
-              grant_type: 'refresh_token',
-              refresh_token: authStorage.refresh_token,
-            }),
-            signal: AbortSignal.timeout(15000),
-          });
-          const data = await response.json();
-          if (response.ok && data.access_token) {
-            await ProcessConfig.set('eeclaw.authStorage', {
-              access_token: data.access_token,
-              refresh_token: data.refresh_token || authStorage.refresh_token,
-              expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-              device_id: authStorage.device_id,
-            });
-            this.config.authToken = data.access_token;
-            return data.access_token;
-          }
+        const token = await getValidToken();
+        if (token) {
+          this.config.authToken = token;
+          return token;
         }
       } catch (e) {
-        mainError('MossWsConnection', 'Failed to get token from ProcessConfig:', e);
+        mainError('MossWsConnection', 'Failed to get valid token:', e);
       }
     }
 
@@ -199,14 +174,33 @@ export class MossWsConnection {
       body.runtime = { type: this.config.runtimeType };
     }
 
-    const response = await fetch(`${this.config.serverUrl}/api/v1/sessions`, {
+    let token = this.accessToken || await getValidToken();
+    let response = await fetch(`${this.config.serverUrl}/api/v1/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
+
+    if (response.status === 401) {
+      mainLog('MossWsConnection', 'Create session returned 401, force refreshing token and retrying');
+      try {
+        token = await getValidToken(true);
+        this.accessToken = token;
+        response = await fetch(`${this.config.serverUrl}/api/v1/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (refreshError) {
+        mainError('MossWsConnection', 'Token refresh on 401 failed:', refreshError);
+      }
+    }
 
     if (!response.ok) {
       const text = await response.text();
@@ -222,12 +216,22 @@ export class MossWsConnection {
       throw new Error('No ws_url available');
     }
 
+    // Append refresh_token to wsUrl for server-side token refresh on WS upgrade
+    let wsUrlWithRefresh = this.wsUrl!;
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
+        wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch { /* ignore */ }
+
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('WebSocket connection timeout'));
       }, this.CONNECTION_TIMEOUT_MS);
 
-      this.ws = new WebSocket(this.wsUrl!, {
+      this.ws = new WebSocket(wsUrlWithRefresh, {
         headers: { 'Authorization': `Bearer ${this.accessToken}` },
       });
 

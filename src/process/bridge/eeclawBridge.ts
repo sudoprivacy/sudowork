@@ -12,7 +12,7 @@ import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
 
-async function getValidToken(): Promise<string> {
+export async function getValidToken(forceRefresh = false): Promise<string> {
   const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
 
@@ -22,26 +22,28 @@ async function getValidToken(): Promise<string> {
 
   const { access_token, refresh_token, expires_at, device_id } = authStorage;
 
-  // If token is still valid (more than 5 minutes before expiration), return it
-  // 如果令牌仍然有效（距离过期超过 5 分钟），则返回它
-  if (expires_at > Date.now() + 5 * 60 * 1000) {
+  const now = Date.now();
+  const remainingMs = expires_at - now;
+
+  if (!forceRefresh && expires_at > now + 5 * 60 * 1000) {
+    mainLog('eeclawBridge', `[getValidToken] Token still valid (remaining=${Math.round(remainingMs / 1000)}s), returning cached access_token`);
     return access_token;
   }
 
-  // If already refreshing, wait for it
-  // 如果已经在刷新，则等待它
   if (refreshPromise) {
+    mainLog('eeclawBridge', '[getValidToken] Refresh already in progress, waiting...');
     return refreshPromise;
   }
 
-  // Start refresh
-  // 开始刷新
+  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh (refresh_token=${refresh_token ? refresh_token.slice(0, 20) + '...' : 'NONE'})`);
+
   refreshPromise = (async () => {
     try {
       if (!refresh_token) {
         throw new Error('No refresh token available');
       }
 
+      mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
       const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
         method: 'POST',
         headers: {
@@ -58,15 +60,18 @@ async function getValidToken(): Promise<string> {
       const data = await response.json();
 
       if (!response.ok) {
+        mainWarn('eeclawBridge', `[getValidToken] Refresh failed: status=${response.status}, error=${data?.error || 'unknown'}`);
         throw new Error(data?.error || 'token_refresh_failed');
       }
 
       const newAuthStorage = {
         access_token: data.access_token,
-        refresh_token: data.refresh_token || refresh_token, // Keep old one if not provided
+        refresh_token: data.refresh_token || refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         device_id,
       };
+
+      mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}, new_refresh_token=${newAuthStorage.refresh_token ? newAuthStorage.refresh_token.slice(0, 20) + '...' : 'NONE'}`);
 
       await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
       setCachedAuthToken(data.access_token);
