@@ -20,6 +20,7 @@ const NEXUS_READY_MARKER = '.nexus-bin-ready';
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
+const NEXUS_DEFAULT_GRPC_PORT = 2028;
 
 /** OSS base URL for downloading Nexus binaries at runtime */
 const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
@@ -130,6 +131,16 @@ class DynamicNexusService {
 
   get port(): number {
     return this._port;
+  }
+
+  /** gRPC Call handler port (default 2028, override via NEXUS_GRPC_PORT env). */
+  get grpcPort(): number {
+    const env = process.env.NEXUS_GRPC_PORT;
+    if (env) {
+      const parsed = parseInt(env, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return NEXUS_DEFAULT_GRPC_PORT;
   }
 
   get setupStage(): NexusSetupStage {

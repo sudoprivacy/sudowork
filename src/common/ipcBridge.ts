@@ -755,6 +755,25 @@ export const nexus = {
   stop: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.stop'),
 };
 
+// ManagedAgent gRPC service (nexusd :2028) / 托管代理 gRPC 服务
+export const managedAgent = {
+  /** Start a new managed agent session */
+  startSession: bridge.buildProvider<
+    IBridgeResponse<{ sessionId: string; workspacePath: string }>,
+    { agentId: string; repos: string[]; model: string; ownerId?: string; zoneId?: string }
+  >('managed-agent.start-session'),
+  /** Cancel a running managed agent session */
+  cancelSession: bridge.buildProvider<
+    IBridgeResponse<{ cancelled: boolean }>,
+    { sessionId: string; mode: 'graceful' | 'force' }
+  >('managed-agent.cancel-session'),
+  /** Get the status of a managed agent session */
+  getSession: bridge.buildProvider<
+    IBridgeResponse<{ sessionId: string; agentId: string; workspacePath: string; model: string; state: string }>,
+    { sessionId: string }
+  >('managed-agent.get-session'),
+};
+
 // Deep link protocol handling / 深度链接协议处理
 export const deepLink = {
   /** Emitted when app is opened via aionui:// protocol URL */

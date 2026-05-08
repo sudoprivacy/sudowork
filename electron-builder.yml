@@ -26,6 +26,10 @@ files:
   - skills/**/*
   - assistant/**/*
   - package.json
+  # Rust napi addon (nexus gRPC client)
+  - native/nexus-napi/*.node
+  - native/nexus-napi/index.js
+  - native/nexus-napi/index.d.ts
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
@@ -242,6 +246,7 @@ buildDependenciesFromSource: false
 nodeGypRebuild: false
 
 asarUnpack:
+  - 'native/nexus-napi/*.node'
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'
