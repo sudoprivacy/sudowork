@@ -55,7 +55,11 @@ export class DocumentConverter {
 
     const children: FileChild[] = [];
 
-    // 辅助函数：处理内联节点 (text, strong, emphasis, inlineCode, link)
+    // Monotonically increasing numbering instance counter so each
+    // top-level ordered list gets its own continuous sequence.
+    let numberingInstance = 0;
+
+    // 辅助函数：处理内联节点 (text, strong, emphasis, inlineCode, link, delete, image)
     const processInlineNodes = (nodes: any[], baseOptions: any = {}): ITextRun[] => {
       const runs: ITextRun[] = [];
       for (const node of nodes) {
@@ -65,6 +69,8 @@ export class DocumentConverter {
           runs.push(...processInlineNodes(node.children, { ...baseOptions, bold: true }));
         } else if (node.type === 'emphasis') {
           runs.push(...processInlineNodes(node.children, { ...baseOptions, italics: true }));
+        } else if (node.type === 'delete') {
+          runs.push(...processInlineNodes(node.children, { ...baseOptions, strike: true }));
         } else if (node.type === 'inlineCode') {
           runs.push(
             new TextRun({
@@ -82,11 +88,50 @@ export class DocumentConverter {
               underline: {},
             })
           );
+        } else if (node.type === 'image') {
+          // Render image alt text as placeholder
+          const alt = node.alt || node.url || 'image';
+          runs.push(new TextRun({ ...baseOptions, text: `[${alt}]`, italics: true }));
         } else if (node.type === 'break') {
           runs.push(new TextRun({ ...baseOptions, text: '', break: 1 }));
         }
       }
       return runs;
+    };
+
+    /**
+     * Recursively process a list node and all nested list items.
+     * @param listNode  - an AST node of type 'list'
+     * @param level     - nesting depth (0 = top-level)
+     * @param instance  - numbering instance for ordered lists
+     */
+    const processList = (listNode: any, level: number, instance: number) => {
+      for (const listItem of listNode.children) {
+        let isFirstChild = true;
+        for (const child of listItem.children) {
+          if (child.type === 'paragraph') {
+            // The first paragraph carries the bullet / number.
+            // Continuation paragraphs are indented but not bulleted.
+            children.push(
+              new Paragraph({
+                children: processInlineNodes(child.children),
+                bullet: listNode.ordered ? undefined : isFirstChild ? { level } : undefined,
+                numbering: listNode.ordered && isFirstChild ? { reference: 'main-numbering', level, instance } : undefined,
+                indent: !isFirstChild && !listNode.ordered ? { left: 720 * (level + 1) } : undefined,
+                spacing: { before: 60, after: 60 },
+              })
+            );
+            isFirstChild = false;
+          } else if (child.type === 'list') {
+            // Nested list — recurse with deeper level
+            processList(child, level + 1, instance);
+          } else {
+            // Other block-level content inside list items (code, blockquote, etc.)
+            // Delegate to visit() so they get rendered in place
+            visit(child);
+          }
+        }
+      }
     };
 
     // 2. 遍历 AST 节点
@@ -113,37 +158,24 @@ export class DocumentConverter {
           break;
         }
         case 'list': {
-          node.children.forEach((listItem: any, index: number) => {
-            // 处理列表项中的内容 (通常是 paragraph)
-            listItem.children.forEach((child: any) => {
-              if (child.type === 'paragraph') {
-                children.push(
-                  new Paragraph({
-                    children: processInlineNodes(child.children),
-                    bullet: node.ordered ? undefined : { level: 0 },
-                    numbering: node.ordered
-                      ? {
-                          reference: 'main-numbering',
-                          level: 0,
-                          instance: index,
-                        }
-                      : undefined,
-                  })
-                );
-              }
-            });
-          });
+          const instance = numberingInstance++;
+          processList(node, 0, instance);
           break;
         }
         case 'code': {
+          // Split multi-line code into separate TextRun entries with break:1
+          // so that newlines are preserved in Word.
+          const lines = (node.value as string).split('\n');
+          const codeRuns: ITextRun[] = [];
+          lines.forEach((line, i) => {
+            if (i > 0) {
+              codeRuns.push(new TextRun({ text: '', break: 1 }));
+            }
+            codeRuns.push(new TextRun({ text: line, font: 'Consolas' }));
+          });
           children.push(
             new Paragraph({
-              children: [
-                new TextRun({
-                  text: node.value,
-                  font: 'Consolas',
-                }),
-              ],
+              children: codeRuns,
               shading: { fill: 'F5F5F5' },
               border: {
                 top: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
@@ -157,18 +189,33 @@ export class DocumentConverter {
           break;
         }
         case 'blockquote': {
+          const bqStyle = {
+            indent: { left: 720 },
+            border: {
+              left: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 24 },
+            },
+            spacing: { before: 120, after: 120 },
+          };
           node.children.forEach((child: any) => {
             if (child.type === 'paragraph') {
               children.push(
                 new Paragraph({
                   children: processInlineNodes(child.children),
-                  indent: { left: 720 },
-                  border: {
-                    left: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 24 },
-                  },
-                  spacing: { before: 120, after: 120 },
+                  ...bqStyle,
                 })
               );
+            } else if (child.type === 'heading') {
+              const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
+              children.push(
+                new Paragraph({
+                  heading: levels[child.depth - 1] || HeadingLevel.HEADING_1,
+                  children: processInlineNodes(child.children),
+                  ...bqStyle,
+                })
+              );
+            } else {
+              // Lists, code blocks, etc. inside blockquotes
+              visit(child);
             }
           });
           break;
@@ -231,6 +278,28 @@ export class DocumentConverter {
                 style: {
                   paragraph: {
                     indent: { left: 720, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 1,
+                format: 'lowerLetter',
+                text: '%2)',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 1440, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 2,
+                format: 'lowerRoman',
+                text: '%3.',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 2160, hanging: 360 },
                   },
                 },
               },

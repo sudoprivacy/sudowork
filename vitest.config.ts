@@ -74,6 +74,7 @@ export default defineConfig({
         'src/agent/acp/AcpConnection.ts',
         'src/agent/acp/modelInfo.ts',
         // Common
+        'src/common/document/DocumentConverter.ts',
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',
         'src/common/sudoworkAuthLogin.ts',
