@@ -287,8 +287,22 @@ const PreviewPanel: React.FC = () => {
       let ext = 'txt';
       const nameExt = metadata?.fileName?.split('.').pop();
 
-      // 图片文件：从 Base64 数据或文件路径读取 / Image files: read from Base64 data or file path
-      if (contentType === 'image') {
+      // 二进制文件类型（Word、PPT、Excel、PDF）：从原始文件路径读取二进制数据
+      // Binary file types (Word, PPT, Excel, PDF): read binary data from the original file path
+      const binaryContentTypes = ['word', 'ppt', 'excel', 'pdf'];
+      if (binaryContentTypes.includes(contentType) && metadata?.filePath) {
+        const buffer = await ipcBridge.fs.readFileBuffer.invoke({ path: metadata.filePath });
+        // 根据文件类型设置 MIME 类型 / Set MIME type based on file type
+        const mimeTypes: Record<string, string> = {
+          word: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          ppt: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          pdf: 'application/pdf',
+        };
+        blob = new Blob([buffer], { type: mimeTypes[contentType] || 'application/octet-stream' });
+        ext = nameExt || contentType;
+      } else if (contentType === 'image') {
+        // 图片文件：从 Base64 数据或文件路径读取 / Image files: read from Base64 data or file path
         let dataUrl = content;
         // 如果没有 Base64 数据，从文件路径读取 / If no Base64 data, read from file path
         if (!dataUrl && metadata?.filePath) {
