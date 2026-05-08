@@ -292,6 +292,9 @@ const PreviewPanel: React.FC = () => {
       const binaryContentTypes = ['word', 'ppt', 'excel', 'pdf'];
       if (binaryContentTypes.includes(contentType) && metadata?.filePath) {
         const buffer = await ipcBridge.fs.readFileBuffer.invoke({ path: metadata.filePath });
+        // IPC 序列化可能导致 ArrayBuffer 变为普通对象，需要用 Uint8Array 包装
+        // IPC serialization may convert ArrayBuffer to a plain object, wrap with Uint8Array
+        const bytes = new Uint8Array(buffer);
         // 根据文件类型设置 MIME 类型 / Set MIME type based on file type
         const mimeTypes: Record<string, string> = {
           word: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -299,7 +302,7 @@ const PreviewPanel: React.FC = () => {
           excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           pdf: 'application/pdf',
         };
-        blob = new Blob([buffer], { type: mimeTypes[contentType] || 'application/octet-stream' });
+        blob = new Blob([bytes], { type: mimeTypes[contentType] || 'application/octet-stream' });
         ext = nameExt || contentType;
       } else if (contentType === 'image') {
         // 图片文件：从 Base64 数据或文件路径读取 / Image files: read from Base64 data or file path
