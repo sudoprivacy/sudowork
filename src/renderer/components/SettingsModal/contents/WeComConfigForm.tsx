@@ -11,6 +11,7 @@ import { openExternalUrl } from '@/renderer/utils/platform';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -63,6 +64,7 @@ const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
 
   // WeCom credentials
   const [botId, setBotId] = useState('');
@@ -519,7 +521,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         </div>
       )}
 
-      {/* Agent Selection */}
+      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {!isEnterprise && (
       <div className='flex flex-col gap-8px'>
         <PreferenceRow label={t('settings.wecom.agent', 'Agent')} description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}>
           <Dropdown
@@ -556,11 +559,14 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
           </Dropdown>
         </PreferenceRow>
       </div>
+      )}
 
-      {/* Default Model Selection */}
+      {/* Default Model Selection - hidden in enterprise mode */}
+      {!isEnterprise && (
       <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}>
         <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
       </PreferenceRow>
+      )}
 
       {/* Connection Status - always show when enabled */}
       {pluginStatus?.enabled && (

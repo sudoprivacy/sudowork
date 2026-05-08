@@ -17,6 +17,7 @@ import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh } from '@icon-pa
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /**
  * 偏好设置行组件
@@ -57,6 +58,7 @@ const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
   const [activeTab, setActiveTab] = useState<'channels' | 'secrets'>('channels');
 
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
@@ -722,14 +724,16 @@ const WebuiModalContent: React.FC = () => {
             </span>
           }
         />
-        <Tabs.TabPane
-          key='secrets'
-          title={
-            <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
-              <span className='text-14px'>{t('settings.secrets', '秘钥管理')}</span>
-            </span>
-          }
-        />
+        {!isEnterprise && (
+          <Tabs.TabPane
+            key='secrets'
+            title={
+              <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+                <span className='text-14px'>{t('settings.secrets', '秘钥管理')}</span>
+              </span>
+            }
+          />
+        )}
       </Tabs>
 
       {/* {activeTab === 'webui' ? (

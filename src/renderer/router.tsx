@@ -36,7 +36,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 // Enterprise-allowed settings paths
-const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/display', '/settings/system', '/settings/about'];
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/display', '/settings/webui', '/settings/system', '/settings/about'];
 
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {

@@ -11,7 +11,7 @@ import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /** Enterprise mode builtin tab IDs (restricted subset) - synced with SettingsSider */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'webui', 'system', 'about'] as const;
 interface SettingsPageWrapperProps {
   children: React.ReactNode;
   className?: string;
