@@ -1709,4 +1709,6 @@ export const eeclaw = {
   logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
+  /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
+  refreshToken: bridge.buildProvider<IBridgeResponse<{ access_token: string; refresh_token?: string; expires_at: number }>, void>('eeclaw.refresh-token'),
 };
