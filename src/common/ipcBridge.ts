@@ -196,6 +196,7 @@ export const fs = {
   fetchRemoteImage: bridge.buildProvider<string, { url: string }>('fetch-remote-image'), // 远程图片转base64
   readFile: bridge.buildProvider<string, { path: string }>('read-file'), // 读取文件内容（UTF-8）
   readFileBuffer: bridge.buildProvider<ArrayBuffer, { path: string }>('read-file-buffer'), // 读取二进制文件为 ArrayBuffer
+  readFileBase64: bridge.buildProvider<string, { path: string }>('read-file-base64'), // 读取二进制文件为 Base64 字符串（适用于 IPC JSON 序列化场景）
   createTempFile: bridge.buildProvider<string, { fileName: string }>('create-temp-file'), // 创建临时文件
   createDir: bridge.buildProvider<boolean, { path: string }>('create-dir'), // 创建目录
   writeFile: bridge.buildProvider<boolean, { path: string; data: Uint8Array | string }>('write-file'), // 写入文件
