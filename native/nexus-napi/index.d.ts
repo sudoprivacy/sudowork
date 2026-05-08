@@ -5,8 +5,8 @@
 
 export class NexusGrpcClient {
   constructor(endpoint: string);
-  call(method: string, payload: string, authToken: string): Promise<string>;
-  read(path: string, authToken: string): Promise<Buffer>;
-  write(path: string, content: Buffer, authToken: string): Promise<void>;
-  ping(authToken: string): Promise<string>;
+  call(method: string, payload: string, authToken: string): string;
+  read(path: string, authToken: string): Buffer;
+  write(path: string, content: Buffer, authToken: string): void;
+  ping(authToken: string): string;
 }

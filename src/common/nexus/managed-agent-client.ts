@@ -55,12 +55,12 @@ export class ManagedAgentClient {
     this.authToken = authToken;
   }
 
-  private async rpc<T>(method: string, params: Record<string, unknown>): Promise<T> {
-    const raw = await this.client.call(method, JSON.stringify(params), this.authToken);
+  private rpc<T>(method: string, params: Record<string, unknown>): T {
+    const raw = this.client.call(method, JSON.stringify(params), this.authToken);
     return JSON.parse(raw) as T;
   }
 
-  async startSession(params: StartSessionParams): Promise<StartSessionResult> {
+  startSession(params: StartSessionParams): StartSessionResult {
     return this.rpc<StartSessionResult>('managed_agent.start_session_v1', {
       agent_id: params.agentId,
       repos: params.repos,
@@ -70,14 +70,14 @@ export class ManagedAgentClient {
     });
   }
 
-  async cancelSession(params: CancelSessionParams): Promise<CancelSessionResult> {
+  cancelSession(params: CancelSessionParams): CancelSessionResult {
     return this.rpc<CancelSessionResult>('managed_agent.cancel_v1', {
       session_id: params.sessionId,
       mode: params.mode,
     });
   }
 
-  async getSession(params: GetSessionParams): Promise<GetSessionResult> {
+  getSession(params: GetSessionParams): GetSessionResult {
     return this.rpc<GetSessionResult>('managed_agent.get_session_v1', {
       session_id: params.sessionId,
     });
