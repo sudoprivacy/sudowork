@@ -5,96 +5,11 @@
  */
 
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
-import { setCachedAuthToken } from '@/common/enterpriseDebugConfig';
-import { ipcBridge } from '@/common';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
 import type { IResponseMessage } from '@/common/ipcBridge';
-
-let refreshPromise: Promise<string> | null = null;
-
-async function getValidToken(): Promise<string> {
-  const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
-  if (!authStorage) {
-    throw new Error('No auth storage found');
-  }
-
-  const { access_token, refresh_token, expires_at, device_id } = authStorage;
-
-  if (expires_at > Date.now() + 5 * 60 * 1000) {
-    return access_token;
-  }
-
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  refreshPromise = (async () => {
-    try {
-      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
-      if (!serverUrl) {
-        throw new Error('No server URL found');
-      }
-
-      if (!refresh_token) {
-        throw new Error('No refresh token available');
-      }
-
-      const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(device_id ? { 'X-Device-Id': device_id } : {}),
-        },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token,
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || 'token_refresh_failed');
-      }
-
-      const newAuthStorage = {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token || refresh_token,
-        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-        device_id,
-      };
-
-      await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
-      setCachedAuthToken(data.access_token);
-
-      // We explicitly DO NOT update enterprise config globally from here
-      // ProcessConfig handles sync internally for 'eeclaw.authStorage'
-
-      // Notify renderer process about the refreshed token
-      try {
-        ipcBridge.eeclaw.tokenRefreshed.emit({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token || refresh_token,
-          expires_at: newAuthStorage.expires_at,
-        });
-      } catch (e) {
-        mainLog('MossSessionApi', 'Failed to emit token refresh event to renderer:', e);
-      }
-
-      return data.access_token;
-    } catch (error) {
-      mainError('MossSessionApi', 'Token refresh failed:', error);
-      throw error;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
-}
 
 /**
  * Moss Server Session API client
@@ -141,6 +56,44 @@ export class MossSessionApi {
   }
 
   /**
+   * Force refresh the access token, ignoring cache.
+   * Used when a 401 response indicates the current token is invalid on the server.
+   */
+  async forceRefreshToken(): Promise<string> {
+    mainLog('MossSessionApi', 'Force refreshing token due to 401');
+    this.accessToken = null;
+    const token = await getValidToken(true);
+    this.accessToken = token;
+    return token;
+  }
+
+  /**
+   * Fetch with automatic 401 retry: if the first request returns 401,
+   * force-refresh the token and retry once.
+   */
+  private async fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+    const token = await this.ensureAuthenticated();
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+
+    let response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+      mainLog('MossSessionApi', `Request to ${url} returned 401, attempting token refresh and retry`);
+      try {
+        const newToken = await this.forceRefreshToken();
+        const retryHeaders = new Headers(options.headers);
+        retryHeaders.set('Authorization', `Bearer ${newToken}`);
+        response = await fetch(url, { ...options, headers: retryHeaders });
+      } catch (refreshError) {
+        mainError('MossSessionApi', 'Token refresh on 401 failed:', refreshError);
+      }
+    }
+
+    return response;
+  }
+
+  /**
    * Get all sessions from Moss Server
    * GET /api/v1/sessions
    *
@@ -153,13 +106,8 @@ export class MossSessionApi {
    * 此方法仅保留用于未来的管理/调试目的。
    */
   async listSessions(): Promise<MossSession[]> {
-    const token = await this.ensureAuthenticated();
-
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -176,8 +124,6 @@ export class MossSessionApi {
    * POST /api/v1/sessions
    */
   async createSession(params: { cwd?: string; assistantName?: string; dangerouslySkipPermissions?: boolean; runtimeType?: 'host' | 'docker' }): Promise<MossSession> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Creating session: cwd=${params.cwd}, assistant=${params.assistantName || 'default'}`);
 
     const body: Record<string, unknown> = {
@@ -186,19 +132,14 @@ export class MossSessionApi {
       assistant_name: params.assistantName,
     };
 
-    // Only include runtime if runtimeType is specified
-    // 只有当 runtimeType 指定时才包含 runtime 字段
-    // Moss Server will use its default if not provided
-    // 如果不提供，Moss Server 会使用默认值
     if (params.runtimeType) {
       body.runtime = { type: params.runtimeType };
     }
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -218,13 +159,8 @@ export class MossSessionApi {
    * GET /api/v1/sessions/{sessionId}
    */
   async getSession(sessionId: string): Promise<MossSession> {
-    const token = await this.ensureAuthenticated();
-
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -243,15 +179,10 @@ export class MossSessionApi {
    * DELETE /api/v1/sessions/{sessionId}
    */
   async deleteSession(sessionId: string): Promise<void> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Deleting session: ${sessionId}`);
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -274,15 +205,12 @@ export class MossSessionApi {
    * PATCH /api/v1/sessions/{sessionId}
    */
   async updateSession(sessionId: string, updates: { title?: string }): Promise<MossSession> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Updating session: ${sessionId}, updates: ${JSON.stringify(updates)}`);
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(updates),
     });
@@ -317,15 +245,10 @@ export class MossSessionApi {
       messages: any[];
     };
   }> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Getting session context: ${sessionId}`);
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/context`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}/context`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -343,15 +266,10 @@ export class MossSessionApi {
    * POST /api/v1/sessions/{sessionId}/terminate
    */
   async terminateSession(sessionId: string): Promise<void> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Terminating session: ${sessionId}`);
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/terminate`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}/terminate`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {
@@ -374,15 +292,10 @@ export class MossSessionApi {
    * POST /api/v1/sessions/{sessionId}/resume
    */
   async resumeSession(sessionId: string): Promise<{ wsUrl: string; session: MossSession }> {
-    const token = await this.ensureAuthenticated();
-
     mainLog('MossSessionApi', `Resuming session: ${sessionId}`);
 
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${sessionId}/resume`, {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${sessionId}/resume`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!response.ok) {

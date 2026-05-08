@@ -562,13 +562,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           setReady(true);
 
           // Sync token to ConfigStorage for eeclawBridge
+          // Prefer ProcessConfig's refresh_token if it's newer (main process may have rotated it)
           try {
+            const existingConfig = await ConfigStorage.get('eeclaw.authStorage');
+            const configRefreshToken = existingConfig?.refresh_token;
+            const configExpiresAt = existingConfig?.expires_at;
+
+            // Use the newer refresh_token: the one from ProcessConfig if it was refreshed by main process
+            const useConfigRefreshToken = configRefreshToken && configRefreshToken !== authStorage.refresh_token;
+            const finalRefreshToken = useConfigRefreshToken ? configRefreshToken : authStorage.refresh_token;
+            const finalExpiresAt = (configExpiresAt && configExpiresAt > authStorage.expires_at) ? configExpiresAt : authStorage.expires_at;
+            const finalAccessToken = (configExpiresAt && configExpiresAt > authStorage.expires_at && existingConfig?.access_token) ? existingConfig.access_token : authStorage.access_token;
+
             await ConfigStorage.set('eeclaw.authStorage', {
-              access_token: authStorage.access_token,
-              refresh_token: authStorage.refresh_token,
-              expires_at: authStorage.expires_at,
+              access_token: finalAccessToken,
+              refresh_token: finalRefreshToken,
+              expires_at: finalExpiresAt,
               device_id: authStorage.device_id,
             });
+
+            // If ProcessConfig had a newer token, also update localStorage
+            if (finalRefreshToken !== authStorage.refresh_token || finalExpiresAt !== authStorage.expires_at) {
+              authStorage.access_token = finalAccessToken;
+              authStorage.refresh_token = finalRefreshToken;
+              authStorage.expires_at = finalExpiresAt;
+              localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(authStorage));
+              console.log('[Auth] Synced newer token from ProcessConfig to localStorage');
+            }
           } catch (e) {
             console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage:', e);
           }
@@ -690,6 +710,32 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       abortRef.current?.abort();
     };
   }, [refresh]);
+
+  // Sync token refresh events from main process to renderer localStorage
+  // Main process (MossSessionApi/eeclawBridge) may refresh tokens, revoking the old
+  // refresh_token on the server. Without this sync, renderer would try to use the
+  // old refresh_token and get "Invalid refresh token" errors.
+  useEffect(() => {
+    const unsubscribe = ipcBridge.eeclaw.tokenRefreshed.on((data) => {
+      const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+      if (eeclawStored) {
+        try {
+          const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+          authStorage.access_token = data.access_token;
+          authStorage.refresh_token = data.refresh_token;
+          authStorage.expires_at = data.expires_at;
+          localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(authStorage));
+          setUser({ ...authStorage.user, token: data.access_token });
+          console.log('[Auth] Token synced from main process refresh');
+        } catch (e) {
+          console.error('[Auth] Failed to sync token refresh from main process:', e);
+        }
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
