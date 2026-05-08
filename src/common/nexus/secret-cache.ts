@@ -112,6 +112,15 @@ class SecretCacheImpl {
   }
 
   /**
+   * Remove a cache entry.
+   * Keeps the entry in the migrated set (secret remains migrated in Nexus,
+   * just not available locally). After delete, resolveSecret() returns empty string.
+   */
+  delete(namespace: string, key: string): void {
+    this.cache.delete(`${namespace}:${key}`);
+  }
+
+  /**
    * Async write to Nexus only (no cache update).
    * Used for initial migration.
    */
@@ -201,4 +210,13 @@ export function putSecretToNexus(namespace: string, key: string, value: string):
  */
 export function markMigrated(namespace: string, key: string, value: string): void {
   secretCache.markMigrated(namespace, key, value);
+}
+
+/**
+ * Synchronous removal of a cache entry.
+ * Used after soft-deleting a secret from Nexus to ensure Auth Proxy
+ * no longer injects the deleted secret.
+ */
+export function cacheDelete(namespace: string, key: string): void {
+  secretCache.delete(namespace, key);
 }

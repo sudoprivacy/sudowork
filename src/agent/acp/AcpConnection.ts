@@ -17,6 +17,7 @@ import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
 
@@ -77,12 +78,21 @@ export class AcpConnection {
   // so scode must NOT be routed through this path.
   private useLspFraming = false;
 
+  // Auth Proxy token for this child process (generated before spawn, registered after)
+  private proxyToken: string | null = null;
+
   /**
    * Kill the current child process (if any) and clear process-related state.
    * Used by both disconnect() and retry paths. Does NOT reset session-level
    * state (sessionId, backend, etc.) — that is disconnect()'s responsibility.
    */
   private async terminateChild(): Promise<void> {
+    // Revoke Auth Proxy token before killing child
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
+    }
+
     if (!this.child) {
       this.isDetached = false;
       return;
@@ -100,6 +110,10 @@ export class AcpConnection {
   private async spawnAndSetup(result: SpawnResult, backend: string): Promise<void> {
     this.child = result.child;
     this.isDetached = result.isDetached;
+    // Register Auth Proxy token now that child.pid is available
+    if (this.proxyToken && this.child?.pid) {
+      registerToken(this.proxyToken, this.child.pid);
+    }
     await this.setupChildProcessHandlers(backend);
   }
 
@@ -173,6 +187,16 @@ export class AcpConnection {
       this.workingDir = workingDir;
     }
 
+    // Auth Proxy: generate token and inject into child process env
+    const authProxyPort = getAuthProxyPort();
+    if (authProxyPort) {
+      this.proxyToken = crypto.randomUUID();
+      const envWithProxy = { ...customEnv };
+      envWithProxy.SUDOWORK_AUTH_PROXY_URL = `http://127.0.0.1:${authProxyPort}/proxy`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_TOKEN = this.proxyToken;
+      customEnv = envWithProxy;
+    }
+
     // Shared hooks for npx backends: wire spawned child into this connection
     const npxHooks = {
       setup: async (result: SpawnResult) => {
@@ -190,11 +214,11 @@ export class AcpConnection {
         break;
 
       case 'codebuddy':
-        await connectCodebuddy(workingDir, npxHooks);
+        await connectCodebuddy(workingDir, npxHooks, customEnv);
         break;
 
       case 'codex':
-        await connectCodex(workingDir, npxHooks);
+        await connectCodex(workingDir, npxHooks, customEnv);
         break;
 
       case 'gemini':
@@ -429,6 +453,12 @@ export class AcpConnection {
    * Similar to Codex's handleProcessExit implementation
    */
   private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // Revoke Auth Proxy token (parallel cleanup path to terminateChild)
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
+    }
+
     // 1. Reject all pending requests with clear error message
     for (const [_id, request] of this.pendingRequests) {
       if (request.timeoutId) {

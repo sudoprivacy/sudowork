@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { secret } from '@/common/ipcBridge';
+import { secret, authProxy } from '@/common/ipcBridge';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -182,11 +182,20 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
       setEnabledMap(newMap);
       try {
         await ConfigStorage.set(TENANT_ENABLED_STORAGE_KEY, newMap);
+
+        // Notify Auth Proxy to refresh rules cache
+        const token = await ensureValidToken();
+        if (token) {
+          const enabledIds = Object.entries(newMap).filter(([, v]) => v).map(([k]) => Number(k));
+          authProxy.refreshRules.invoke({ accessToken: token, enabledConfigItemIds: enabledIds }).catch((err) => {
+            console.warn('[TenantConfig] Failed to refresh Auth Proxy rules:', err);
+          });
+        }
       } catch (err) {
         console.error('[TenantConfig] Failed to save enabled state:', err);
       }
     },
-    [enabledMap],
+    [enabledMap, ensureValidToken],
   );
 
   const saveItem = useCallback(

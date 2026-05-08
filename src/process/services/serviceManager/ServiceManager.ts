@@ -126,6 +126,13 @@ export class ServiceManager {
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    // Stop Auth Proxy first — no new requests should be accepted after shutdown begins
+    try {
+      const { stopAuthProxy } = await import('@process/services/authProxy');
+      await stopAuthProxy();
+    } catch {
+      /* ignore */
+    }
     try {
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
       await componentHealthMonitor.stop();
@@ -232,7 +239,17 @@ export class ServiceManager {
         this.secretsReadyResolve = resolve;
       });
       this.initializeSecrets()
-        .then(() => this.secretsReadyResolve?.(true))
+        .then(async () => {
+          // Start Auth Proxy after secrets are initialized
+          try {
+            const { startAuthProxy } = await import('@process/services/authProxy');
+            const port = await startAuthProxy();
+            mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+          } catch (err) {
+            mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
+          }
+          this.secretsReadyResolve?.(true);
+        })
         .catch((err) => {
           mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
           this.secretsReadyResolve?.(false);
