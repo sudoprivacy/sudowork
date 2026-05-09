@@ -9,8 +9,21 @@
  * Wraps the Rust napi addon (`nexus-napi`) with typed request/response shapes.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { NexusGrpcClient } = require('../../../native/nexus-napi') as typeof import('../../../native/nexus-napi');
+// Lazy-load the native addon. In both dev and packaged mode, resolve
+// from the app root (app.getAppPath()) so the path survives bundling.
+function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron');
+    const path = require('path');
+    const appRoot = app.isPackaged
+      ? app.getAppPath().replace('app.asar', 'app.asar.unpacked')
+      : app.getAppPath();
+    return require(path.join(appRoot, 'native', 'nexus-napi'));
+  } catch {
+    throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
+  }
+}
 
 export interface StartSessionParams {
   agentId: string;
@@ -47,10 +60,11 @@ export interface GetSessionResult {
 }
 
 export class ManagedAgentClient {
-  private client: InstanceType<typeof NexusGrpcClient>;
+  private client: InstanceType<ReturnType<typeof loadNativeBinding>['NexusGrpcClient']>;
   private authToken: string;
 
   constructor(endpoint: string, authToken = '') {
+    const { NexusGrpcClient } = loadNativeBinding();
     this.client = new NexusGrpcClient(endpoint);
     this.authToken = authToken;
   }
