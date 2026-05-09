@@ -10,6 +10,7 @@ import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
@@ -263,6 +264,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         const config = await ProcessConfig.get('acp.config');
         if (!cliPath && config?.[data.backend]?.cliPath) {
           cliPath = config[data.backend].cliPath;
+        }
+        // Fallback: resolve from acpDetector (handles channel conversations and restored sessions)
+        if (!cliPath) {
+          const detected = acpDetector.getDetectedAgents().find((a) => a.backend === data.backend);
+          if (detected?.cliPath) {
+            cliPath = detected.cliPath;
+          }
         }
         const legacyYoloMode = data.yoloMode ?? (config?.[data.backend] as any)?.yoloMode;
 

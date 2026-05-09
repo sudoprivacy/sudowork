@@ -1078,6 +1078,35 @@ const initStorage = async () => {
   // Wait for both assistant config and database init to complete
   await Promise.all([assistantsPromise, dbPromise]);
 
+  // 7. Migrate channel agent from openclaw-gateway (Sudoclaw) to scode (Sudo Code)
+  // 渠道 agent 从 openclaw-gateway (Sudoclaw) 迁移到 scode (Sudo Code)
+  const CHANNEL_AGENT_MIGRATION_KEY = 'migration.channelAgentMigratedToScode';
+  const channelAgentMigrationDone = await configFile.get(CHANNEL_AGENT_MIGRATION_KEY).catch(() => false);
+  if (!channelAgentMigrationDone) {
+    try {
+      const CHANNEL_AGENT_KEYS = [
+        'assistant.telegram.agent',
+        'assistant.lark.agent',
+        'assistant.dingtalk.agent',
+        'assistant.wechat.agent',
+        'assistant.wecom.agent',
+      ] as const;
+      for (const key of CHANNEL_AGENT_KEYS) {
+        const saved = await configFile.get(key).catch(() => undefined);
+        if (saved && typeof saved === 'object' && (saved as any).backend === 'openclaw-gateway') {
+          (saved as any).backend = 'scode';
+          (saved as any).name = 'Sudo Code';
+          await configFile.set(key, saved);
+          mainLog('Sudowork', `Migrated ${key} from openclaw-gateway to scode`);
+        }
+      }
+      await configFile.set(CHANNEL_AGENT_MIGRATION_KEY, true);
+      mainLog('Sudowork', 'Channel agent migration to scode completed');
+    } catch (error) {
+      mainError('Sudowork', 'Failed to migrate channel agent:', error);
+    }
+  }
+
   perfLog('initStorage.total', Date.now() - startTime);
 
   application.systemInfo.provider(() => {

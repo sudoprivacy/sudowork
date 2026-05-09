@@ -146,7 +146,7 @@ export const handleSessionNew: ActionHandler = async (context) => {
   } catch {
     // ignore
   }
-  const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'claude') as string;
+  const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'scode') as string;
   const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
   const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
@@ -156,6 +156,10 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Always create a NEW conversation for "session.new" (scoped by chatId)
   const channelChatId = context.chatId;
   const { convType, convBackend } = resolveChannelConvType(backend);
+
+  // Resolve cliPath from detected agents so AcpAgent can spawn the CLI correctly
+  const detectedAgent = acpDetector.getDetectedAgents().find((a) => a.backend === backend);
+  const cliPath = detectedAgent?.cliPath;
   // 使用用户昵称作为初始标题（与自动创建会话保持一致），后续首条消息会自动更新标题
   // Use user display name as initial title (consistent with auto-created conversations),
   // the title will be auto-updated on the first message
@@ -178,6 +182,7 @@ export const handleSessionNew: ActionHandler = async (context) => {
           channelChatId,
           extra: {
             backend: backend as AcpBackend,
+            cliPath,
             customAgentId,
             agentName,
           },
@@ -509,7 +514,7 @@ export const handleAgentSelect: ActionHandler = async (context, params) => {
 function getAgentDisplayName(agentType: ChannelAgentType): string {
   const names: Record<ChannelAgentType, string> = {
     acp: '🧠 Claude',
-    'openclaw-gateway': '🦞 Sudoclaw',
+    'openclaw-gateway': '⚡ Sudo Code',
   };
   return names[agentType] || agentType;
 }
@@ -519,7 +524,7 @@ function getAgentDisplayName(agentType: ChannelAgentType): string {
  * Only returns types that are supported by channels
  */
 function backendToChannelAgentType(backend: string): ChannelAgentType | null {
-  if (backend === 'openclaw-gateway') return 'openclaw-gateway';
+  if (backend === 'scode') return 'acp';
   // All other detected backends (claude, gemini, codex, qwen, etc.) use ACP
   return 'acp';
 }
@@ -533,7 +538,7 @@ function getAgentEmoji(backend: string): string {
     gemini: '🤖',
     codex: '⚡',
     qwen: '🔮',
-    'openclaw-gateway': '🦞',
+    'openclaw-gateway': '⚡',
   };
   return emojis[backend] || '🤖';
 }
