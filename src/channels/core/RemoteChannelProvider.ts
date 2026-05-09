@@ -129,7 +129,6 @@ export class RemoteChannelProvider implements IChannelProvider {
   }
 
   async deletePlugin(pluginId: string): Promise<boolean> {
-    // No specific delete API in spec, but disable might be enough or we add DELETE /plugins/:id
     const resp = await fetch(`${this.baseUrl}/plugins/${pluginId}/disable`, {
       method: 'POST',
       headers: this.headers,
@@ -198,6 +197,9 @@ export class RemoteChannelProvider implements IChannelProvider {
       conversationId: s.conversationId || s.conversation_id,
       workspace: s.workspace,
       chatId: s.chatId || s.chat_id,
+      title: s.title,
+      source: s.source,
+      status: s.status,
       createdAt: s.createdAt || s.created_at,
       lastActivity: s.lastActivity || s.last_activity,
     }));

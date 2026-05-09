@@ -189,6 +189,9 @@ export interface IChannelSession {
   conversationId?: string;
   workspace?: string;
   chatId?: string; // Channel chat isolation ID (e.g. user:xxx, group:xxx)
+  title?: string;
+  source?: string;
+  status?: string;
   createdAt: number;
   lastActivity: number;
 }

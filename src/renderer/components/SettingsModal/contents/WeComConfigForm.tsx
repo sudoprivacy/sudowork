@@ -118,15 +118,14 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
-  // Clear local state when plugin is disabled
-  // This ensures the input fields are unlocked after disabling
+  // Refresh when plugin status changes
   useEffect(() => {
-    if (pluginStatus && !pluginStatus.enabled) {
-      // Plugin is disabled - clear local state immediately
-      // No need to reload from backend since we know users were deleted
-      console.log('[WeComConfig] Plugin disabled, clearing local state');
-      setAuthorizedUsers([]);
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
       setPendingPairings([]);
+      setAuthorizedUsers([]);
     }
   }, [pluginStatus?.enabled]);
 

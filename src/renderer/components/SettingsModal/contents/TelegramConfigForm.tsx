@@ -79,7 +79,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     try {
       const result = await channel.getPendingPairings.invoke();
       if (result.success && result.data) {
-        setPendingPairings(result.data);
+        setPendingPairings(result.data.filter((p) => p.platformType === 'telegram'));
       }
     } catch (error) {
       console.error('[ChannelSettings] Failed to load pending pairings:', error);
@@ -108,6 +108,17 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     void loadPendingPairings();
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
+
+  // Refresh when plugin status changes
+  useEffect(() => {
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
+      setPendingPairings([]);
+      setAuthorizedUsers([]);
+    }
+  }, [pluginStatus?.enabled]);
 
   // Load saved credentials for backfill
   useEffect(() => {

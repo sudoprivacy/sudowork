@@ -441,6 +441,10 @@ export class ChannelManager {
         const success = await provider.updatePluginEnabled(pluginId, false, 'stopped');
         if (success) {
           console.log(`[ChannelManager] Enterprise mode: plugin ${pluginId} disabled on Moss Server`);
+
+          // For WeCom and WeChat: Moss Server handles user/session cleanup internally
+          // so we don't need to call provider.deleteUsersByPlatform here.
+
           return { success: true };
         } else {
           return { success: false, error: 'Failed to disable plugin on Moss Server' };
@@ -494,7 +498,10 @@ export class ChannelManager {
         const credentials: Record<string, any> = {};
         if (pluginType === 'telegram') {
           credentials.token = token;
-        } else if (pluginType === 'lark' || pluginType === 'dingtalk') {
+        } else if (pluginType === 'dingtalk') {
+          credentials.clientId = extraConfig?.appId;
+          credentials.clientSecret = extraConfig?.appSecret;
+        } else if (pluginType === 'lark') {
           credentials.appId = extraConfig?.appId;
           credentials.appSecret = extraConfig?.appSecret;
         } else if (pluginType === 'wecom') {

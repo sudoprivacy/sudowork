@@ -125,6 +125,17 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
+  // Refresh when plugin status changes
+  useEffect(() => {
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
+      setPendingPairings([]);
+      setAuthorizedUsers([]);
+    }
+  }, [pluginStatus?.enabled]);
+
   // Load saved credentials for backfill
   useEffect(() => {
     // Skip if user has already entered values in the form
