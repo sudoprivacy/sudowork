@@ -14,6 +14,7 @@ import { IflowMcpAgent } from './agents/IflowMcpAgent';
 import { GeminiMcpAgent } from './agents/GeminiMcpAgent';
 import { AionuiMcpAgent } from './agents/AionuiMcpAgent';
 import { CodexMcpAgent } from './agents/CodexMcpAgent';
+import { ScodeMcpAgent } from './agents/ScodeMcpAgent';
 import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncResult, McpSource } from './McpProtocol';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
@@ -77,6 +78,7 @@ export class McpService {
   constructor() {
     this.agents = new Map([
       ['claude', new ClaudeMcpAgent()],
+      ['scode', new ScodeMcpAgent()],
       ['codebuddy', new CodebuddyMcpAgent()],
       ['qwen', new QwenMcpAgent()],
       ['iflow', new IflowMcpAgent()],
