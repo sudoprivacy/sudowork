@@ -10,9 +10,9 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
 import { mutate } from 'swr';
-import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
 type RefreshOptions = {
@@ -46,13 +46,8 @@ const RuntimeModalContent: React.FC = () => {
   const [libreOfficePhase, setLibreOfficePhase] = useState<ILibreOfficeInstallPhase | undefined>(undefined);
   const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
 
-  const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
-  const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
-  const [sudoclawGatewayPort, setSudoclawGatewayPort] = useState<number | undefined>(undefined);
-  const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
-  const [sudoclawStatusResolved, setSudoclawStatusResolved] = useState<boolean>(false);
-  const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
-  const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
+  const [scodeStatus, setScodeStatus] = useState<ICliStatus | null>(null);
+  const [scodeLoad, setScodeLoad] = useState<LoadState>('idle');
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -226,78 +221,36 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshLibreOffice, t]);
 
-  const refreshSudoclaw = useCallback(async () => {
+  const refreshScode = useCallback(async () => {
     try {
-      const res = await sudoclawIpc.getStatus.invoke();
+      const res = await scodeIpc.getStatus.invoke();
       if (res?.success && res.data) {
-        setSudoclawInstalled(res.data.installed);
-        setSudoclawVersion(res.data.version);
-        setSudoclawGatewayPort(res.data.gatewayPort);
-        setSudoclawGatewayRunning(!!res.data.gatewayRunning);
+        const { installed, version } = res.data;
+        setScodeStatus(installed ? { installed: true, source: 'managed', version } : { installed: false, source: 'none' });
       } else {
-        setSudoclawInstalled(false);
-        setSudoclawVersion(undefined);
-        setSudoclawGatewayPort(undefined);
-        setSudoclawGatewayRunning(false);
+        setScodeStatus({ installed: false, source: 'none' });
       }
-    } finally {
-      setSudoclawStatusResolved(true);
+    } catch {
+      setScodeStatus({ installed: false, source: 'none' });
     }
   }, []);
 
-  const installSudoclaw = useCallback(async () => {
-    setSudoclawLoad('installing');
-    setSudoclawPhase(undefined);
+  const installScode = useCallback(async () => {
+    setScodeLoad('installing');
     try {
-      const res = await sudoclawIpc.install.invoke();
+      const res = await scodeIpc.install.invoke();
       if (res?.success) {
-        await refreshSudoclaw();
-        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Sudoclaw' }));
+        await refreshScode();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Sudocode' }));
       } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Sudoclaw' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Sudocode' }));
       }
     } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Sudoclaw' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Sudocode' }));
     } finally {
-      setSudoclawLoad('idle');
-      setSudoclawPhase(undefined);
+      setScodeLoad('idle');
     }
-  }, [refreshSudoclaw, t]);
-
-  const uninstallSudoclaw = useCallback(async () => {
-    setSudoclawLoad('loading');
-    try {
-      const res = await sudoclawIpc.uninstall.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Sudoclaw' }));
-        await refreshSudoclaw();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Sudoclaw' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Sudoclaw' }));
-    } finally {
-      setSudoclawLoad('idle');
-    }
-  }, [refreshSudoclaw, t]);
-
-  const startSudoclawGateway = useCallback(async () => {
-    setSudoclawLoad('loading');
-    try {
-      const res = await sudoclawIpc.startGateway.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.startSuccess', { name: 'Sudoclaw' }));
-        await new Promise((r) => setTimeout(r, 3000));
-        await refreshSudoclaw();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.startFailed', { name: 'Sudoclaw' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.startFailed', { name: 'Sudoclaw' }));
-    } finally {
-      setSudoclawLoad('idle');
-    }
-  }, [refreshSudoclaw, t]);
+  }, [refreshScode, t]);
 
   const refreshNexus = useCallback(async () => {
     try {
@@ -376,20 +329,14 @@ const RuntimeModalContent: React.FC = () => {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshSudoclaw(), refreshNexus(), refreshLibreOffice(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshNexus(), refreshLibreOffice(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshSudoclaw]
+    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshScode]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
     void refreshRuntimePage();
-    void sudoclawIpc.getInstallState.invoke().then((res) => {
-      if (res?.success && res.data?.installing) {
-        setSudoclawLoad('installing');
-        if (res.data.phase) setSudoclawPhase(res.data.phase);
-      }
-    });
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
       if (res?.success && res.data?.installing) {
         setLibreOfficeLoad('installing');
@@ -421,14 +368,12 @@ const RuntimeModalContent: React.FC = () => {
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
     });
-    const unsubSudoclawProgress = sudoclawIpc.installProgress.on(({ phase }) => {
-      setSudoclawLoad('installing');
-      setSudoclawPhase(phase);
+    const unsubScodeProgress = scodeIpc.installProgress.on(() => {
+      setScodeLoad('installing');
     });
-    const unsubSudoclawResult = sudoclawIpc.installResult.on(() => {
-      setSudoclawLoad('idle');
-      setSudoclawPhase(undefined);
-      void refreshSudoclaw();
+    const unsubScodeResult = scodeIpc.installResult.on(() => {
+      setScodeLoad('idle');
+      void refreshScode();
     });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
@@ -444,14 +389,14 @@ const RuntimeModalContent: React.FC = () => {
       unsubNode();
       unsubClaude();
       unsubClaudeProgress();
-      unsubSudoclawProgress();
-      unsubSudoclawResult();
+      unsubScodeProgress();
+      unsubScodeResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshLibreOffice]);
 
   const tableData: ToolRow[] = [
     {
@@ -491,20 +436,14 @@ const RuntimeModalContent: React.FC = () => {
       onUninstall: uninstallLibreOffice,
     },
     {
-      key: 'sudoclaw',
-      displayName: 'Sudoclaw',
-      command: 'openclaw',
+      key: 'sudocode',
+      displayName: 'Sudocode',
+      command: 'scode',
       badge: 'SC',
-      status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
-      statusResolved: sudoclawStatusResolved,
-      sudoclawGatewayPort,
-      sudoclawGatewayRunning,
-      loadState: sudoclawLoad,
-      installPhase: sudoclawPhase,
-      onRefresh: refreshSudoclaw,
-      onInstall: installSudoclaw,
-      onUninstall: uninstallSudoclaw,
-      onStart: startSudoclawGateway,
+      status: scodeStatus,
+      loadState: scodeLoad,
+      onRefresh: refreshScode,
+      onInstall: scodeStatus?.installed ? undefined : installScode,
     },
     {
       key: 'nexus',
@@ -530,7 +469,7 @@ const RuntimeModalContent: React.FC = () => {
     node: 'bg-cyan-1 color-cyan-6 border border-cyan-3',
     claude: 'bg-orange-1 color-orange-6 border border-orange-3',
     libreoffice: 'bg-green-1 color-green-6 border border-green-3',
-    sudoclaw: 'bg-purple-1 color-purple-6 border border-purple-3',
+    sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
     nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
   };
 
@@ -563,7 +502,7 @@ const RuntimeModalContent: React.FC = () => {
                         <div className='min-w-0 flex-1 space-y-8px'>
                           <div className='flex flex-col gap-8px lg:flex-row lg:items-center lg:gap-10px'>
                             <span className='text-15px md:text-16px font-600 text-t-primary leading-22px md:leading-24px'>{record.displayName}</span>
-                            {record.key !== 'sudoclaw' && <span className='w-fit px-8px py-2px rd-999px text-11px md:text-12px font-mono bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>}
+                            <span className='w-fit px-8px py-2px rd-999px text-11px md:text-12px font-mono bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>
                           </div>
 
                           <div className='flex flex-wrap items-center gap-8px'>

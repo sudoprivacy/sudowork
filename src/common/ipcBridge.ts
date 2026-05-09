@@ -720,6 +720,14 @@ export const scode = {
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Update only the default_model field in sudocode.json */
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
+  /** Get scode installation status */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; version?: string }>, void>('scode.get-status'),
+  /** Install or reinstall scode binary */
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('scode.install'),
+  /** Emitted during installation to report progress */
+  installProgress: bridge.buildEmitter<{ phase: string; percent?: number }>('scode.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('scode.install-result'),
 };
 
 // Initialization status for runtime dependencies

@@ -12,7 +12,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { SCODE_DIR } from '@process/services/scode/ScodeInstallService';
+import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import fs from 'fs';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -85,6 +85,48 @@ export function registerScodeBridge(): void {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Failed to set default model: ${msg}`);
       return { success: false, msg };
+    }
+  });
+
+  ipcBridge.scode.getStatus.provider(async () => {
+    try {
+      const installed = isScodeInstalled();
+      const { installedVersion } = getScodeVersionState();
+      return { success: true, data: { installed, version: installedVersion } };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to get scode status: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  let scodeInstalling = false;
+
+  ipcBridge.scode.install.provider(async () => {
+    if (scodeInstalling) {
+      return { success: true };
+    }
+    scodeInstalling = true;
+    try {
+      const ok = await ensureScodeInstalled({
+        forceReinstall: true,
+        onProgress: (percent) => {
+          ipcBridge.scode.installProgress.emit({ phase: 'installing', percent });
+        },
+      });
+      if (ok) {
+        ipcBridge.scode.installResult.emit({ success: true });
+      } else {
+        ipcBridge.scode.installResult.emit({ success: false, msg: 'Scode installation failed' });
+      }
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Scode install error: ${msg}`);
+      ipcBridge.scode.installResult.emit({ success: false, msg });
+      return { success: false, msg };
+    } finally {
+      scodeInstalling = false;
     }
   });
 }
