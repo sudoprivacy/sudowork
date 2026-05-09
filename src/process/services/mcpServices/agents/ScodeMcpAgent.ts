@@ -144,10 +144,15 @@ export class ScodeMcpAgent extends AbstractMcpAgent {
     const installOperation = async () => {
       try {
         const settings = readSettings();
-        const mcpConfig: Record<string, unknown> = {};
+        // Merge with existing mcpServers to avoid overwriting servers not in this batch
+        const existing = (settings.mcpServers as Record<string, unknown>) || {};
+        const mcpConfig: Record<string, unknown> = { ...existing };
 
         for (const server of mcpServers) {
-          if (!server.enabled) continue;
+          if (!server.enabled) {
+            delete mcpConfig[server.name];
+            continue;
+          }
           const config = toScodeServerConfig(server);
           if (config) {
             mcpConfig[server.name] = config;
