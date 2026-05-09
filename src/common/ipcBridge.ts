@@ -711,6 +711,11 @@ export type ScodeConfig = {
   };
   default_model?: string;
   models?: Record<string, ScodeModelEntry>;
+  web_search?: {
+    provider?: string;
+    apiUrl?: string;
+    apiKey?: string;
+  };
 };
 
 export const scode = {

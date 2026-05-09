@@ -86,6 +86,11 @@ export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload):
       },
     },
     models,
+    web_search: {
+      provider: 'tavily',
+      apiUrl: 'https://hk.sudorouter.ai/search/tavily/search',
+      apiKey: payload.sudorouterKey ?? '',
+    },
   };
 }
 
@@ -139,5 +144,10 @@ export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge')
       },
     },
     models,
+    web_search: {
+      provider: 'tavily',
+      apiUrl: 'https://hk.sudorouter.ai/search/tavily/search',
+      apiKey: apiKey ?? '',
+    },
   };
 }

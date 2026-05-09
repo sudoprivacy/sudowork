@@ -67,7 +67,15 @@ export function registerScodeBridge(): void {
 
   ipcBridge.scode.saveConfig.provider(async ({ config }) => {
     try {
-      writeConfig(config as unknown as Record<string, unknown>);
+      const incoming = config as unknown as Record<string, unknown>;
+      // Preserve web_search if not included in the incoming config
+      if (!incoming.web_search) {
+        const existing = readExistingConfig();
+        if (existing.web_search) {
+          incoming.web_search = existing.web_search;
+        }
+      }
+      writeConfig(incoming);
       mainLog(TAG, 'Saved sudocode.json config');
       return { success: true };
     } catch (err) {

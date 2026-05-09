@@ -516,6 +516,12 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     }
   }
 
+  // Inject web search base URL for scode so WebSearch tool is available in ACP mode
+  if (backend === 'scode' && !cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL) {
+    cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL = 'https://html.duckduckgo.com/html/';
+    mainLog('[ACP scode]', 'Injected SUDOCODE_WEB_SEARCH_BASE_URL (DuckDuckGo)');
+  }
+
   // Inject Claude Code OAuth token for scode subscription auth if available
   if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
     try {
