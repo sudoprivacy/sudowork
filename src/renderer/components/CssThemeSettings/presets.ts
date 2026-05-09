@@ -13,7 +13,7 @@ import glitteringInputFieldCss from './presets/glittering-input-field.css?raw';
  * 默认主题 ID / Default theme ID
  * 用于标识默认主题（无自定义 CSS）/ Used to identify the default theme (no custom CSS)
  */
-export const DEFAULT_THEME_ID = 'grid-theme';
+export const DEFAULT_THEME_ID = 'glittering-input-field';
 
 /**
  * 预设 CSS 主题列表 / Preset CSS themes list
