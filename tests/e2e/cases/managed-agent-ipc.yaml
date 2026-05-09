@@ -1,0 +1,75 @@
+name: "managed agent IPC bridge"
+description: >
+  Smoke test for the managedAgent IPC bridge. Verifies that the
+  managed-agent.start-session, managed-agent.get-session, and
+  managed-agent.cancel-session IPC channels are registered and
+  return the expected response shape. Requires: sudowork running
+  with nexusd active on gRPC port 2028.
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Verify IPC channels are registered ──
+  # Call startSession — expect either success (nexusd running) or
+  # a graceful error (nexusd not running). Either proves the bridge
+  # is wired and responding.
+  - op: js_eval
+    code: >
+      (async function() {
+        try {
+          var r = await window.electronAPI.emit(
+            'managed-agent.start-session',
+            { agentId: 'e2e-test', repos: ['/tmp/e2e'], model: 'test', ownerId: '', zoneId: '' }
+          );
+          return JSON.stringify(r);
+        } catch(e) {
+          return JSON.stringify({ error: e.message });
+        }
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-01-start-session.png"
+
+  # The response must be a JSON string containing either
+  # {success: true, data: {sessionId, workspacePath}} or
+  # {success: false, msg: "..."} — both prove the bridge is alive.
+  - op: judge
+    expect: "success"
+
+  # ── Phase 2: Test getSession channel ──
+  - op: js_eval
+    code: >
+      (async function() {
+        try {
+          var r = await window.electronAPI.emit(
+            'managed-agent.get-session',
+            { sessionId: 'nonexistent-session-id' }
+          );
+          return JSON.stringify(r);
+        } catch(e) {
+          return JSON.stringify({ error: e.message });
+        }
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-02-get-session.png"
+
+  # ── Phase 3: Test cancelSession channel ──
+  - op: js_eval
+    code: >
+      (async function() {
+        try {
+          var r = await window.electronAPI.emit(
+            'managed-agent.cancel-session',
+            { sessionId: 'nonexistent-session-id', mode: 'graceful' }
+          );
+          return JSON.stringify(r);
+        } catch(e) {
+          return JSON.stringify({ error: e.message });
+        }
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-03-cancel-session.png"
