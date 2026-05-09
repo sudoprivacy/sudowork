@@ -345,7 +345,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       await this.connect();
 
       // Re-apply persisted mode after session start/resume
-      if (this.currentMode && this.currentMode !== 'default') {
+      // codex/scode 不支持 session/set_mode，跳过
+      if (this.currentMode && this.currentMode !== 'default' && this.options.backend !== 'codex' && this.options.backend !== 'scode') {
         try {
           await this.connection.setSessionMode(this.currentMode);
           mainLog('[AcpAgent]', `Re-applied persisted mode: ${this.currentMode}`);
@@ -1261,7 +1262,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async setMode(mode: string): Promise<{ success: boolean; msg?: string; data?: { mode: string } }> {
-    if (this.options.backend === 'codex') {
+    if (this.options.backend === 'codex' || this.options.backend === 'scode') {
       const prev = this.currentMode;
       this.currentMode = mode;
       this.yoloMode = this.isYoloMode(mode);
