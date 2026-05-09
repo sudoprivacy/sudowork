@@ -109,7 +109,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
 
     // Enterprise mode: always route through remote-agent, skip scode/gateway checks
-    if (isEnterprise || selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent' || selectedAgentKey.startsWith('custom:')) {
+    // 企业模式：始终使用 remote-agent，跳过 scode/gateway 检查
+    // Note: custom agents in consumer mode should use local agents (acp/openclaw-gateway)
+    // 注意：个人模式下的自定义助手应该使用本地 Agent（acp/openclaw-gateway）
+    if (isEnterprise || selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent') {
       console.log('Enterprise mode: Creating remote-agent conversation');
 
       try {
