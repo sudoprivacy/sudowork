@@ -9,7 +9,7 @@ import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import type { AcpBackendAll } from '@/types/acpTypes';
+import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
@@ -53,8 +53,6 @@ interface TelegramConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onTokenChange?: (token: string) => void;
 }
-
-const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onTokenChange }) => {
   const { t } = useTranslation();
@@ -146,7 +144,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
         const [agentsResp, saved] = await Promise.all([acpConversation.getAvailableAgents.invoke(), ConfigStorage.get('assistant.telegram.agent')]);
 
         if (agentsResp.success && agentsResp.data) {
-          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_VISIBLE_AGENT_BACKEND);
+          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_DEFAULT_AGENT_BACKEND);
           const list = visibleAgents.map((a) => ({ backend: a.backend, name: a.name, customAgentId: a.customAgentId, isPreset: a.isPreset, isExtension: a.isExtension }));
           setAvailableAgents(list);
         }
@@ -332,7 +330,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
   };
 
   const isGeminiAgent = selectedAgent.backend === 'gemini';
-  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_VISIBLE_AGENT_BACKEND, name: 'Sudoclaw' }];
+  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
     <div className='flex flex-col gap-24px'>
@@ -395,7 +393,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
             }
           >
             <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudoclaw'}</span>
+              <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
               <Down theme='outline' size={14} />
             </Button>
           </Dropdown>

@@ -215,3 +215,7 @@ resources/installerHeader.bmp
 tests/e2e/ops/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/
+# Sudo Code local artifacts
+.nexus/sudocode/settings.local.json
+.scode/sessions/
+.sudocodehip/

@@ -82,6 +82,8 @@ export interface IConfigStorageRefer {
   'migration.promptsI18nAdded'?: boolean;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
+  /** Migration flag: channel agent migrated from openclaw-gateway (Sudoclaw) to scode (Sudo Code) */
+  'migration.channelAgentMigratedToScode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
