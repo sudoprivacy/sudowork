@@ -249,6 +249,21 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
 }
 
 /**
+ * Pattern to match temporary workspace naming convention: <backend>-temp-<timestamp>
+ * Matches any workspace ending with -temp- followed by digits (Unix timestamp)
+ * Examples: scode-temp-1234567890, sudoclaw-temp-1234567890, claude-temp-1234567890
+ */
+const TEMP_WORKSPACE_REGEX = /-temp-\d+$/;
+
+/**
+ * Check if a directory name is a temporary workspace
+ * 检查目录名是否为临时工作空间
+ */
+function isTempWorkspace(name: string): boolean {
+  return TEMP_WORKSPACE_REGEX.test(name);
+}
+
+/**
  * Clean up files that were mistakenly written to the parent workspace directory
  * 清理错误写入父工作空间目录的文件
  *
@@ -256,7 +271,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
  * instead of the session-specific workspace. This function detects and moves
  * those files to the correct session workspace.
  *
- * @param sessionWorkspace - The session workspace path (e.g., /.../workspace/sudoclaw-temp-xxx)
+ * @param sessionWorkspace - The session workspace path (e.g., /.../workspace/scode-temp-xxx)
  * @param parentWorkspace - The parent workspace path (e.g., /.../workspace)
  * @param maxAgeMs - Maximum file age to consider (default: 5 minutes)
  */
@@ -292,7 +307,8 @@ export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWork
       // Skip directories (except if it's a non-session temp directory)
       if (!entry.isFile()) {
         // Check if it's a directory that might be misplaced (like unpacked_docx)
-        if (entry.isDirectory() && !PARENT_EXCLUDED_NAMES.has(entry.name) && !entry.name.startsWith('sudoclaw-temp-')) {
+        // Skip temp workspace directories (e.g., scode-temp-xxx, sudoclaw-temp-xxx)
+        if (entry.isDirectory() && !PARENT_EXCLUDED_NAMES.has(entry.name) && !isTempWorkspace(entry.name)) {
           const dirPath = path.join(parentWorkspace, entry.name);
           try {
             const stat = await fs.stat(dirPath);
@@ -312,8 +328,8 @@ export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWork
         continue;
       }
 
-      // Skip excluded names and session workspace directories
-      if (PARENT_EXCLUDED_NAMES.has(entry.name) || entry.name.startsWith('sudoclaw-temp-')) {
+      // Skip excluded names and temp workspace directories
+      if (PARENT_EXCLUDED_NAMES.has(entry.name) || isTempWorkspace(entry.name)) {
         continue;
       }
 
