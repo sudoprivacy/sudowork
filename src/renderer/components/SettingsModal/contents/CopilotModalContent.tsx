@@ -389,7 +389,7 @@ const CopilotModalContent: React.FC = () => {
               Copilot
             </Title>
             <Text type='secondary' className='text-13px'>
-              配置 SudoClaw
+              配置 Sudo Code
             </Text>
           </div>
           <Space>

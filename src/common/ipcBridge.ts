@@ -714,6 +714,8 @@ export type ScodeConfig = {
 };
 
 export const scode = {
+  /** Read scode config from ~/.nexus/sudocode/sudocode.json */
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Update only the default_model field in sudocode.json */

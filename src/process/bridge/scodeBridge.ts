@@ -54,6 +54,17 @@ export function writeScodeDefaultModel(modelId: string): void {
 }
 
 export function registerScodeBridge(): void {
+  ipcBridge.scode.getConfig.provider(async () => {
+    try {
+      const config = readExistingConfig();
+      return { success: true, data: config };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to read sudocode.json: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
   ipcBridge.scode.saveConfig.provider(async ({ config }) => {
     try {
       writeConfig(config as unknown as Record<string, unknown>);
