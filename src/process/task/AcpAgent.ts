@@ -19,6 +19,7 @@ import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
@@ -618,6 +619,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
+        const displayContent = appendNexusFilesMarker(data.content, data.files || [], this.workspace);
         const userMessage: TMessage = {
           id: data.msg_id,
           msg_id: data.msg_id,
@@ -625,7 +627,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           position: 'right',
           conversation_id: this.conversation_id,
           content: {
-            content: data.content,
+            content: displayContent,
             ...(data.cronMeta && { cronMeta: data.cronMeta }),
           },
           createdAt: Date.now(),
@@ -640,7 +642,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           type: 'user_content',
           conversation_id: this.conversation_id,
           msg_id: data.msg_id,
-          data: data.cronMeta ? { content: userMessage.content.content, cronMeta: data.cronMeta } : userMessage.content.content,
+          data: data.cronMeta ? { content: displayContent, cronMeta: data.cronMeta } : displayContent,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
