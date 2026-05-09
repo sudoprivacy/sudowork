@@ -10,6 +10,7 @@ import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
@@ -264,6 +265,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         if (!cliPath && config?.[data.backend]?.cliPath) {
           cliPath = config[data.backend].cliPath;
         }
+        // Fallback: resolve from acpDetector (handles channel conversations and restored sessions)
+        if (!cliPath) {
+          const detected = acpDetector.getDetectedAgents().find((a) => a.backend === data.backend);
+          if (detected?.cliPath) {
+            cliPath = detected.cliPath;
+          }
+        }
         const legacyYoloMode = data.yoloMode ?? (config?.[data.backend] as any)?.yoloMode;
 
         if (legacyYoloMode && this.currentMode === 'default' && !data.sessionMode) {
@@ -337,7 +345,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       await this.connect();
 
       // Re-apply persisted mode after session start/resume
-      if (this.currentMode && this.currentMode !== 'default') {
+      // codex/scode 不支持 session/set_mode，跳过
+      if (this.currentMode && this.currentMode !== 'default' && this.options.backend !== 'codex' && this.options.backend !== 'scode') {
         try {
           await this.connection.setSessionMode(this.currentMode);
           mainLog('[AcpAgent]', `Re-applied persisted mode: ${this.currentMode}`);
@@ -1253,7 +1262,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async setMode(mode: string): Promise<{ success: boolean; msg?: string; data?: { mode: string } }> {
-    if (this.options.backend === 'codex') {
+    if (this.options.backend === 'codex' || this.options.backend === 'scode') {
       const prev = this.currentMode;
       this.currentMode = mode;
       this.yoloMode = this.isYoloMode(mode);

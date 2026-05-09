@@ -387,7 +387,7 @@ export class TelegramPlugin extends BasePlugin {
     // 处理 agent 选择回调，格式: agent:{agentType}
     // Handle agent selection callback, format: agent:{agentType}
     if (category === 'agent') {
-      const agentType = extractAction(data); // acp, openclaw-gateway
+      const agentType = extractAction(data); // acp
       const unifiedMessage = toUnifiedIncomingMessage(ctx);
       if (unifiedMessage && this.messageHandler) {
         unifiedMessage.content.type = 'action';

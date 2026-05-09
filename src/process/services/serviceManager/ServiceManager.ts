@@ -83,6 +83,15 @@ export class ServiceManager {
 
     this.shuttingDown = false;
     this.startupInProgress = true;
+
+    // 提前创建 secrets promise，让消费者可以立即 await
+    // Promise 在 startNexusOnce() 中通过 initializeSecrets() resolve
+    if (!this.secretsReadyPromise) {
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
+      });
+    }
+
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
 
@@ -115,6 +124,7 @@ export class ServiceManager {
       initStatusManager.setDetail('核心服务启动失败，请手动点击重试或重装。');
       initStatusManager.addLog(`⚠ 启动失败：${message}`);
       mainError('ServiceManager', 'Startup readiness verification failed', err);
+      this.secretsReadyResolve?.(false);
     } finally {
       this.startupInProgress = false;
     }
@@ -235,9 +245,7 @@ export class ServiceManager {
 
       // Initialize secrets system after Nexus is healthy
       // This runs migration (if needed) and preloads the secret cache
-      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
-        this.secretsReadyResolve = resolve;
-      });
+      // secretsReadyPromise 已在 startup() 入口处创建
       this.initializeSecrets()
         .then(async () => {
           // Start Auth Proxy after secrets are initialized
@@ -860,19 +868,12 @@ export class ServiceManager {
   /**
    * Wait for the secrets system to be initialized.
    * Channel plugins call this before loading to ensure credentials are available.
-   * Polls until the promise is created (Nexus may still be starting),
-   * then awaits its resolution.
+   * secretsReadyPromise 在 startup() 入口处创建，此处直接 await 其 resolve。
    */
   async waitForSecrets(): Promise<boolean> {
-    // Poll until the promise is created by startNexusOnce()
-    const POLL_INTERVAL_MS = 200;
-    while (!this.secretsReadyPromise) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      // startup 已结束但未创建 secretsReadyPromise → startup 在到达 startNexusOnce 之前失败
-      if (!this.startupInProgress) {
-        mainWarn('ServiceManager', 'waitForSecrets: startup completed without creating secretsReadyPromise');
-        return false;
-      }
+    if (!this.secretsReadyPromise) {
+      // startup 未被调用（如 enterprise 模式或新用户模式）
+      return false;
     }
     return this.secretsReadyPromise;
   }

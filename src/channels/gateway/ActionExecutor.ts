@@ -31,6 +31,7 @@ import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugi
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 
 function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
@@ -488,7 +489,7 @@ export class ActionExecutor {
         } catch {
           // ignore
         }
-        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'openclaw-gateway') as string;
+        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'scode') as string;
         const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
@@ -497,6 +498,10 @@ export class ActionExecutor {
 
         // Map backend to conversation type for lookup
         const { convType, convBackend } = resolveChannelConvType(backend);
+
+        // Resolve cliPath from detected agents so AcpAgent can spawn the CLI correctly
+        const detectedAgent = acpDetector.getDetectedAgents().find((a) => a.backend === backend);
+        const cliPath = detectedAgent?.cliPath;
 
         // Build human-readable conversation name (just the user's display name)
         // TODO: WeChat API doesn't provide user display names in messages — find a way to resolve human-readable names (e.g., via a contacts/profile API)
@@ -510,28 +515,20 @@ export class ActionExecutor {
 
         const result = existing
           ? { success: true as const, conversation: existing }
-          : backend === 'openclaw-gateway'
-            ? await ConversationService.createConversation({
-                type: 'openclaw-gateway',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: { workspace: getChannelWorkspacePath(source) },
-              })
-            : await ConversationService.createConversation({
-                type: 'acp',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: {
-                  backend: backend as AcpBackend,
-                  customAgentId,
-                  agentName,
-                  workspace: getChannelWorkspacePath(source),
-                },
-              });
+          : await ConversationService.createConversation({
+              type: 'acp',
+              model,
+              name: conversationName,
+              source,
+              channelChatId: chatId,
+              extra: {
+                backend: backend as AcpBackend,
+                cliPath,
+                customAgentId,
+                agentName,
+                workspace: getChannelWorkspacePath(source),
+              },
+            });
 
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);

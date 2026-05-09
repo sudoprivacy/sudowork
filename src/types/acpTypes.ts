@@ -21,6 +21,12 @@
 export const DEFAULT_PRESET_AGENT_TYPE = 'scode' as const;
 export const LEGACY_SUDOCLAW_PRESET_AGENT_TYPE = 'sudoclaw' as const;
 
+/**
+ * 渠道（Telegram/Lark/钉钉/微信/企业微信）默认使用的 Agent 后端
+ * Default agent backend for channels (Telegram/Lark/DingTalk/WeChat/WeCom)
+ */
+export const CHANNEL_DEFAULT_AGENT_BACKEND = 'scode' as const;
+
 export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
 
 /**

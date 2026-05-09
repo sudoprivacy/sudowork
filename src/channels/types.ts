@@ -177,7 +177,7 @@ export interface IChannelUserRow {
 /**
  * Agent types supported in assistant sessions
  */
-export type ChannelAgentType = 'acp' | 'openclaw-gateway';
+export type ChannelAgentType = 'acp';
 
 /**
  * User session in the assistant system
@@ -540,8 +540,7 @@ export function isChannelPlatform(value: string): value is ChannelPlatform {
  * Centralizes the backend → convType mapping used across channels.
  */
 export function resolveChannelConvType(backend: string): { convType: string; convBackend?: string } {
-  if (backend === 'openclaw-gateway') return { convType: 'openclaw-gateway' };
-  // All other backends (claude, qwen, etc.) use ACP protocol
+  // All backends (scode, claude, gemini, codex, qwen, etc.) use ACP protocol
   return { convType: 'acp', convBackend: backend };
 }
 
