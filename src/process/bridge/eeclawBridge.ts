@@ -154,6 +154,19 @@ export function initEeclawBridge(): void {
     await ProcessConfig.set('system.appMode', mode);
     setCachedAppMode(mode);
     mainLog('eeclawBridge', `App mode set to: ${mode}`);
+
+    // For enterprise mode, initialize ChannelManager if not already done
+    // This handles hot-start from ModeSetup when user selects Enterprise mode
+    if (mode === 'e') {
+      try {
+        const { getChannelManager } = await import('@/channels');
+        getChannelManager().initialize().catch((error) => {
+          mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
+        });
+      } catch (error) {
+        mainLog('eeclawBridge', 'Failed to import ChannelManager: ' + String(error));
+      }
+    }
   });
 
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
