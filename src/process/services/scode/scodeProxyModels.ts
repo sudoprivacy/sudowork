@@ -63,6 +63,17 @@ function readScodeProxyModelsFromConfig(): ScodeProxyModel[] {
   }
 }
 
+function readScodeDefaultModelFromConfig(): string | null {
+  try {
+    const raw = fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as { default_model?: unknown };
+    if (typeof parsed.default_model === 'string' && parsed.default_model.trim()) {
+      return parsed.default_model.trim();
+    }
+  } catch {}
+  return null;
+}
+
 export function getScodeProxyModelInfoSync(currentModelId?: string | null): AcpModelInfo | null {
   const availableModels = readScodeProxyModelsFromConfig();
   if (availableModels.length === 0) {
@@ -70,7 +81,8 @@ export function getScodeProxyModelInfoSync(currentModelId?: string | null): AcpM
   }
 
   const explicitModelId = typeof currentModelId === 'string' && currentModelId.trim() ? currentModelId.trim() : null;
-  const defaultModelId = getDefaultAcpModelId('scode');
+  // Prefer default_model from sudocode.json (persisted user choice), fallback to hardcoded default
+  const defaultModelId = readScodeDefaultModelFromConfig() ?? getDefaultAcpModelId('scode');
   const defaultInList = defaultModelId ? availableModels.some((model) => model.id === defaultModelId) : false;
   const effectiveCurrentModelId = explicitModelId || (defaultInList ? defaultModelId : availableModels[0].id);
   const effectiveCurrentModelLabel = availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || effectiveCurrentModelId;

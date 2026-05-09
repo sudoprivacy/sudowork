@@ -341,7 +341,18 @@ export function initAcpConversationBridge(): void {
       if (!task || !(task instanceof AcpAgent)) {
         return { success: false, msg: 'Conversation not found or not an ACP agent' };
       }
-      return { success: true, data: { modelInfo: await task.setModel(modelId) } };
+      const modelInfo = await task.setModel(modelId);
+
+      // Persist default model to sudocode.json when switching scode models
+      const conv = getDatabase().getConversation(conversationId);
+      if (conv?.data?.extra?.backend === 'scode') {
+        try {
+          const { writeScodeDefaultModel } = await import('./scodeBridge');
+          writeScodeDefaultModel(modelId);
+        } catch { /* best-effort */ }
+      }
+
+      return { success: true, data: { modelInfo } };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       return { success: false, msg: errorMsg };

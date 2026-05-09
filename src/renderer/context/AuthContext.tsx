@@ -4,7 +4,7 @@ import { ConfigStorage } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
-import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
+import { extractLoginSudoclawPayload, mergeLoginUserData, buildScodeConfigFromLoginPayload } from '@/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
 
@@ -316,6 +316,14 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
       if (!saveRes?.success) {
         throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
+      }
+
+      // 同步写入 sudocode.json（C 端登录，与 sudoclaw.json 并行过渡期）
+      if (loginSudoclawPayload) {
+        const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload);
+        await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
+          console.warn('[Auth] Failed to save scode config:', err);
+        });
       }
     } catch (error) {
       setSyncMessage(null);

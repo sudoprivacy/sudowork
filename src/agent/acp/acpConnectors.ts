@@ -430,6 +430,26 @@ async function prepareCodebuddy(customEnv?: Record<string, string>): Promise<Npx
 }
 
 /**
+ * Read proxy credentials from sudocode.json auth_modes.proxy.sudorouter.
+ * Returns apiKey and baseUrl (with /v1 suffix stripped since scode appends it).
+ */
+function readProxyCredsFromSudocode(): { apiKey: string; baseUrl: string } | null {
+  try {
+    const configPath = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    const content = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(content);
+    const sudorouter = config?.auth_modes?.proxy?.sudorouter;
+    if (sudorouter && typeof sudorouter.apiKey === 'string' && typeof sudorouter.baseUrl === 'string') {
+      const baseUrl = sudorouter.baseUrl.replace(/\/v1\/?$/, '');
+      return { apiKey: sudorouter.apiKey, baseUrl };
+    }
+  } catch {
+    // sudocode.json not found or unreadable — fall through
+  }
+  return null;
+}
+
+/**
  * Read Anthropic-compatible credentials from sudoclaw.json providers.
  * Looks for the first provider with api=anthropic-messages and returns
  * its apiKey and baseUrl (with /v1 suffix stripped since scode appends it).
@@ -477,18 +497,21 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // Inject proxy credentials for scode - scode uses PROXY_AUTH_TOKEN + PROXY_BASE_URL
   // for proxy mode, not ANTHROPIC_API_KEY (which triggers direct api.anthropic.com)
   if (backend === 'scode' && !cleanEnv.PROXY_AUTH_TOKEN && !cleanEnv.ANTHROPIC_API_KEY) {
-    const creds = readAnthropicCredsFromSudoclaw();
+    // Prefer sudocode.json, fallback to sudoclaw.json (transition period)
+    const sudocodeCreds = readProxyCredsFromSudocode();
+    const creds = sudocodeCreds ?? readAnthropicCredsFromSudoclaw();
+    const source = sudocodeCreds ? 'sudocode.json' : 'sudoclaw.json';
     if (creds) {
       // Detect if baseUrl is a proxy (e.g., sudorouter) and use proxy env vars
       // Otherwise fall back to direct API key injection
       if (creds.baseUrl.includes('sudorouter') || creds.baseUrl.includes('proxy')) {
         cleanEnv.PROXY_AUTH_TOKEN = creds.apiKey;
         cleanEnv.PROXY_BASE_URL = creds.baseUrl;
-        mainLog('[ACP scode]', 'Injected proxy credentials (PROXY_AUTH_TOKEN) from sudoclaw.json');
+        mainLog('[ACP scode]', `Injected proxy credentials (PROXY_AUTH_TOKEN) from ${source}`);
       } else {
         cleanEnv.ANTHROPIC_API_KEY = creds.apiKey;
         cleanEnv.ANTHROPIC_BASE_URL = creds.baseUrl;
-        mainLog('[ACP scode]', 'Injected Anthropic credentials from sudoclaw.json');
+        mainLog('[ACP scode]', `Injected Anthropic credentials from ${source}`);
       }
     }
   }

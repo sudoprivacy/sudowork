@@ -62,3 +62,82 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
     models,
   };
 }
+
+/**
+ * Build sudocode.json config from C-端 login payload.
+ * Format follows sudocode.sample.json schema.
+ */
+export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload): import('./ipcBridge').ScodeConfig {
+  const models: Record<string, import('./ipcBridge').ScodeModelEntry> = {};
+  for (const modelId of payload.models) {
+    models[modelId] = {
+      alias: modelId,
+      name: modelId,
+      input: ['text'],
+      providers: {
+        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
+      },
+    };
+  }
+  return {
+    auth_modes: {
+      proxy: {
+        sudorouter: { baseUrl: payload.modelServiceUrl, apiKey: payload.sudorouterKey },
+      },
+    },
+    models,
+  };
+}
+
+/**
+ * Build sudocode.json config from SudoclawConfig (CopilotModalContent settings save).
+ * Extracts sudorouter provider credentials and model list from sudoclaw format.
+ */
+export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge').SudoclawConfig): import('./ipcBridge').ScodeConfig | null {
+  const providers = config?.models?.providers;
+  if (!providers || typeof providers !== 'object') return null;
+
+  // Find the sudorouter provider (the main one with baseUrl and apiKey)
+  let baseUrl: string | undefined;
+  let apiKey: string | undefined;
+  const allModelIds: string[] = [];
+
+  for (const [, provider] of Object.entries(providers)) {
+    if (provider.baseUrl?.includes('sudorouter') && provider.apiKey) {
+      if (!baseUrl) {
+        baseUrl = provider.baseUrl;
+        apiKey = provider.apiKey;
+      }
+      if (provider.models) {
+        for (const m of provider.models) {
+          if (m.id && !allModelIds.includes(m.id)) {
+            allModelIds.push(m.id);
+          }
+        }
+      }
+    }
+  }
+
+  if (!baseUrl || !apiKey || allModelIds.length === 0) return null;
+
+  const models: Record<string, import('./ipcBridge').ScodeModelEntry> = {};
+  for (const modelId of allModelIds) {
+    models[modelId] = {
+      alias: modelId,
+      name: modelId,
+      input: ['text'],
+      providers: {
+        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
+      },
+    };
+  }
+
+  return {
+    auth_modes: {
+      proxy: {
+        sudorouter: { baseUrl, apiKey },
+      },
+    },
+    models,
+  };
+}

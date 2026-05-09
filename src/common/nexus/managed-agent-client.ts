@@ -9,8 +9,15 @@
  * Wraps the Rust napi addon (`nexus-napi`) with typed request/response shapes.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { NexusGrpcClient } = require('../../../native/nexus-napi') as typeof import('../../../native/nexus-napi');
+// Lazy-load the native addon to avoid crash when the binary path
+// cannot be resolved at bundle time (e.g. dev mode via electron-vite).
+function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
+  try {
+    return require('../../../native/nexus-napi');
+  } catch {
+    throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
+  }
+}
 
 export interface StartSessionParams {
   agentId: string;
@@ -47,10 +54,11 @@ export interface GetSessionResult {
 }
 
 export class ManagedAgentClient {
-  private client: InstanceType<typeof NexusGrpcClient>;
+  private client: InstanceType<ReturnType<typeof loadNativeBinding>['NexusGrpcClient']>;
   private authToken: string;
 
   constructor(endpoint: string, authToken = '') {
+    const { NexusGrpcClient } = loadNativeBinding();
     this.client = new NexusGrpcClient(endpoint);
     this.authToken = authToken;
   }

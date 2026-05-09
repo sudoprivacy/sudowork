@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
+import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
@@ -162,29 +163,40 @@ const CopilotModalContent: React.FC = () => {
     setSaving(true);
     try {
       const patch = buildPatchFromForm();
-      const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-      if (res?.success) {
-        // Prompt user to restart Gateway
-        Modal.confirm({
-          title: '配置已保存',
-          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
-          okText: '重启 Gateway',
-          cancelText: '稍后重启',
-          onOk: async () => {
-            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-            if (restartRes?.success) {
-              Message.success('Gateway 重启中...');
-              setTimeout(() => {
-                void loadConfig();
-              }, 3000);
-            } else {
-              Message.error(restartRes?.msg || '重启失败');
-            }
-          },
-        });
-      } else {
-        Message.error(res?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
+
+      // 主：写入 sudocode.json
+      const scodeConfig = buildScodeConfigFromSudoclawConfig(patch);
+      if (scodeConfig) {
+        const scodeRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
+        if (!scodeRes?.success) {
+          Message.error(scodeRes?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
+          return;
+        }
       }
+
+      // 备：同步写入 sudoclaw.json
+      await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch }).catch((err) => {
+        console.warn('[CopilotSettings] Failed to sync sudoclaw.json (backup):', err);
+      });
+
+      // Prompt user to restart Gateway
+      Modal.confirm({
+        title: '配置已保存',
+        content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+        okText: '重启 Gateway',
+        cancelText: '稍后重启',
+        onOk: async () => {
+          const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+          if (restartRes?.success) {
+            Message.success('Gateway 重启中...');
+            setTimeout(() => {
+              void loadConfig();
+            }, 3000);
+          } else {
+            Message.error(restartRes?.msg || '重启失败');
+          }
+        },
+      });
     } catch (err) {
       Message.error(err instanceof Error ? err.message : String(err));
     } finally {

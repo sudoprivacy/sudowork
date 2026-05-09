@@ -54,6 +54,7 @@ import { initMossBridge } from './mossBridge';
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
 import { initManagedAgentBridge } from './managedAgentBridge';
+import { registerScodeBridge } from './scodeBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -108,6 +109,7 @@ export function initAllBridges(): void {
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
   initManagedAgentBridge();
+  registerScodeBridge();
 }
 
 /**

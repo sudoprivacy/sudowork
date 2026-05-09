@@ -686,6 +686,40 @@ export const sudoclaw = {
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
 };
 
+// Scode config (~/.nexus/sudocode/sudocode.json)
+// Matches sudocode.json schema: auth_modes, models, default_model
+export type ScodeModelProvider = {
+  provider?: string;
+  model?: string;
+  api?: string;
+};
+export type ScodeModelEntry = {
+  alias?: string;
+  name?: string;
+  input?: string[];
+  providers?: {
+    subscription?: ScodeModelProvider;
+    proxy?: ScodeModelProvider;
+    'api-key'?: ScodeModelProvider;
+  };
+};
+export type ScodeConfig = {
+  auth_modes?: {
+    subscription?: Record<string, { baseUrl?: string; token?: string; authFile?: string }>;
+    proxy?: Record<string, { baseUrl?: string; apiKey?: string }>;
+    'api-key'?: Record<string, { baseUrl?: string; apiKey?: string }>;
+  };
+  default_model?: string;
+  models?: Record<string, ScodeModelEntry>;
+};
+
+export const scode = {
+  /** Save full scode config to ~/.nexus/sudocode/sudocode.json (overwrite) */
+  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
+  /** Update only the default_model field in sudocode.json */
+  setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
+};
+
 // Initialization status for runtime dependencies
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
 export type InitStepStatus = 'pending' | 'active' | 'done' | 'error';
