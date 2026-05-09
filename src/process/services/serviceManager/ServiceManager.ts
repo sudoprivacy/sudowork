@@ -574,6 +574,13 @@ export class ServiceManager {
 
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
+
+      // Also sync generation model to sudocode.json so the image-generation skill
+      // bash script can read it without depending on sudoclaw.json.
+      if (generationModel) {
+        const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
+        writeScodeImageModel(generationModel);
+      }
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }

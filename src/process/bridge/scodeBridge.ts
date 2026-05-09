@@ -53,7 +53,40 @@ export function writeScodeDefaultModel(modelId: string): void {
   mainLog(TAG, `Updated default_model to "${modelId}"`);
 }
 
+/**
+ * Update the image generation model in sudocode.json tools.imageGenerationModel.
+ * Used by ServiceManager to keep the model in sync so the image-generation skill
+ * bash script can read it without depending on sudoclaw.json.
+ */
+export function writeScodeImageModel(modelId: string): void {
+  const existing = readExistingConfig();
+  const tools = (existing.tools as Record<string, unknown>) || {};
+  existing.tools = { ...tools, imageGenerationModel: modelId };
+  writeConfig(existing);
+  mainLog(TAG, `Updated tools.imageGenerationModel to "${modelId}"`);
+}
+
+/**
+ * Sync image generation model from ProcessConfig to sudocode.json on startup.
+ * This runs independently of sudoclaw so it works even when openclaw is not used.
+ */
+async function syncImageModelOnStartup(): Promise<void> {
+  try {
+    const { ProcessConfig } = await import('@process/initStorage');
+    const { DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
+    const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
+    const switchOn = imageConfig ? imageConfig.switch : true;
+    const modelId = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
+    if (modelId) {
+      writeScodeImageModel(modelId);
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to sync image model on startup: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function registerScodeBridge(): void {
+  void syncImageModelOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
       const config = readExistingConfig();
@@ -92,6 +125,19 @@ export function registerScodeBridge(): void {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Failed to set default model: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.scode.setImageModel.provider(async ({ modelId }) => {
+    try {
+      if (modelId) {
+        writeScodeImageModel(modelId);
+      }
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to set image model: ${msg}`);
       return { success: false, msg };
     }
   });

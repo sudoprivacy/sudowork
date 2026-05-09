@@ -12,7 +12,9 @@ import { detectImageMimeType } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
+import { SCODE_DIR } from '../services/scode/ScodeInstallService';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
+const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
 
 /**
  * Detect image MIME type and file extension from magic bytes.
@@ -38,6 +40,18 @@ function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
  * 3. Any model.config provider whose baseUrl contains sudorouter.ai
  */
 export function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
+  // Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+  try {
+    const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw) as { auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> } };
+    const sr = config?.auth_modes?.proxy?.sudorouter;
+    if (sr?.apiKey) {
+      const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
+      return { baseUrl, apiKey: sr.apiKey };
+    }
+  } catch {
+    // ignored
+  }
   try {
     const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
     const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };

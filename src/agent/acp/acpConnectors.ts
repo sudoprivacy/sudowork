@@ -516,6 +516,13 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     }
   }
 
+  // Inject SUDOCODE_CONFIG_PATH for scode so skill bash scripts can locate sudocode.json
+  // even when claude-code overrides $HOME to a sandbox directory (.sandbox-home/).
+  if (backend === 'scode' && !cleanEnv.SUDOCODE_CONFIG_PATH) {
+    cleanEnv.SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
+  }
+
   // Inject web search base URL for scode so WebSearch tool is available in ACP mode
   if (backend === 'scode' && !cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL) {
     cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL = 'https://html.duckduckgo.com/html/';

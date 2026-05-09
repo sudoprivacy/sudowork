@@ -66,8 +66,29 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and IMAGE_MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
+# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files (with env var overrides)
+# Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+_SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
+if [ -f "$_SUDOCODE_CFG" ]; then
+  eval "$(python3 -c "
+import json, sys
+try:
+    c = json.load(open(sys.argv[1]))
+    sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
+    base_url = sr.get('baseUrl','')
+    api_key = sr.get('apiKey','')
+    image_model = c.get('tools',{}).get('imageGenerationModel','')
+    if isinstance(image_model, str) and '/' in image_model:
+        image_model = image_model.rsplit('/', 1)[-1]
+    print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
+    print(f'_CFG_API_KEY={repr(api_key)}')
+    print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
+except: pass
+" "$_SUDOCODE_CFG" 2>/dev/null)"
+fi
+
+# Fallback: sudoclaw.json (legacy)
+if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
   eval "$(python3 -c "
 import json, sys
 try:
@@ -76,8 +97,6 @@ try:
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
     image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
-    # Strip any 'provider/' prefix (e.g. 'sudorouter/gpt-image-1.5' -> 'gpt-image-1.5');
-    # sudorouter /images/generations expects the bare model id.
     if isinstance(image_model, str) and '/' in image_model:
         image_model = image_model.rsplit('/', 1)[-1]
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
@@ -187,13 +206,17 @@ fi
 echo "[generate_image] Response length: ${#RESPONSE}" >&2
 echo "[generate_image] Response preview: ${RESPONSE:0:200}" >&2
 
-WATERMARK_TEXT="${WATERMARK_TEXT:-Sudoclaw}"
+WATERMARK_TEXT="${WATERMARK_TEXT:-Sudo Code}"
 
 # Add watermark to image
 add_watermark() {
   python3 -c "
 import sys, os
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    print('[watermark] PIL not available, skipping watermark', file=sys.stderr)
+    sys.exit(0)
 
 path = sys.argv[1]
 text = sys.argv[2]
@@ -228,7 +251,7 @@ draw.text((x, y), text, font=font, fill=(255, 255, 255, 230))
 
 out = Image.alpha_composite(img, txt_layer)
 out.convert('RGB').save(path)
-print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}')
+print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}', file=sys.stderr)
 " "$1" "$WATERMARK_TEXT" "${WATERMARK_SCALE:-0.8}"
 }
 
@@ -295,7 +318,10 @@ print(f'[generate_image] Saved: {filename} ({len(image_bytes)} bytes)', file=sys
 print(filename)
 " "$FILENAME")
 
-# Add watermark after save
+# Add watermark after save (non-fatal — skip if PIL unavailable)
 if [ -f "$SAVED_FILE" ]; then
-  add_watermark "$SAVED_FILE"
+  add_watermark "$SAVED_FILE" || echo "[generate_image] Watermark skipped (PIL unavailable)" >&2
 fi
+
+# Print saved file path to stdout so the caller (scode) can display the image
+echo "$SAVED_FILE"
