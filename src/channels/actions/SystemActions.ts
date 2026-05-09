@@ -164,29 +164,19 @@ export const handleSessionNew: ActionHandler = async (context) => {
   // Use user display name as initial title (consistent with auto-created conversations),
   // the title will be auto-updated on the first message
   const name = context.channelUser?.displayName || context.displayName || getChannelConversationName(platform, convType, convBackend, channelChatId);
-  const result =
-    backend === 'openclaw-gateway'
-      ? await ConversationService.createConversation({
-          type: 'openclaw-gateway',
-          model,
-          source,
-          name,
-          channelChatId,
-          extra: {},
-        })
-      : await ConversationService.createConversation({
-          type: 'acp',
-          model,
-          source,
-          name,
-          channelChatId,
-          extra: {
-            backend: backend as AcpBackend,
-            cliPath,
-            customAgentId,
-            agentName,
-          },
-        });
+  const result = await ConversationService.createConversation({
+    type: 'acp',
+    model,
+    source,
+    name,
+    channelChatId,
+    extra: {
+      backend: backend as AcpBackend,
+      cliPath,
+      customAgentId,
+      agentName,
+    },
+  });
 
   if (!result.success || !result.conversation) {
     return createErrorResponse(`Failed to create session: ${result.error || 'Unknown error'}`);
@@ -514,7 +504,6 @@ export const handleAgentSelect: ActionHandler = async (context, params) => {
 function getAgentDisplayName(agentType: ChannelAgentType): string {
   const names: Record<ChannelAgentType, string> = {
     acp: '🧠 Claude',
-    'openclaw-gateway': '⚡ Sudo Code',
   };
   return names[agentType] || agentType;
 }
@@ -524,8 +513,6 @@ function getAgentDisplayName(agentType: ChannelAgentType): string {
  * Only returns types that are supported by channels
  */
 function backendToChannelAgentType(backend: string): ChannelAgentType | null {
-  if (backend === 'scode') return 'acp';
-  // All other detected backends (claude, gemini, codex, qwen, etc.) use ACP
   return 'acp';
 }
 
@@ -538,7 +525,7 @@ function getAgentEmoji(backend: string): string {
     gemini: '🤖',
     codex: '⚡',
     qwen: '🔮',
-    'openclaw-gateway': '⚡',
+    scode: '⚡',
   };
   return emojis[backend] || '🤖';
 }

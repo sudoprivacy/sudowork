@@ -515,29 +515,20 @@ export class ActionExecutor {
 
         const result = existing
           ? { success: true as const, conversation: existing }
-          : backend === 'openclaw-gateway'
-            ? await ConversationService.createConversation({
-                type: 'openclaw-gateway',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: { workspace: getChannelWorkspacePath(source) },
-              })
-            : await ConversationService.createConversation({
-                type: 'acp',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: {
-                  backend: backend as AcpBackend,
-                  cliPath,
-                  customAgentId,
-                  agentName,
-                  workspace: getChannelWorkspacePath(source),
-                },
-              });
+          : await ConversationService.createConversation({
+              type: 'acp',
+              model,
+              name: conversationName,
+              source,
+              channelChatId: chatId,
+              extra: {
+                backend: backend as AcpBackend,
+                cliPath,
+                customAgentId,
+                agentName,
+                workspace: getChannelWorkspacePath(source),
+              },
+            });
 
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
