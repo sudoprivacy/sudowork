@@ -20,6 +20,7 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
+import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
 
@@ -49,6 +50,9 @@ export const initializeProcess = async () => {
   const bridgeStart = Date.now();
   try {
     await import('./initBridge');
+    // Refresh enterprise config cache before mode branching
+    // This ensures isEnterpriseMode() returns correct value in ChannelManager
+    await refreshEnterpriseCache();
     mainLog('Process', 'Bridge initialized successfully');
   } catch (error) {
     mainError('Process', 'Bridge initialization failed', error);
@@ -71,7 +75,15 @@ export const initializeProcess = async () => {
   const appMode = ProcessConfig.getSync('system.appMode') ?? null;
 
   if (appMode === 'e') {
-    // Enterprise mode: bridge is ready, skip local services, set ready immediately
+    // Enterprise mode: initialize ChannelManager for channel settings UI
+    // but skip local services (handled by Moss Server)
+    const channelStart = Date.now();
+    try {
+      await getChannelManager().initialize();
+    } catch (error) {
+      mainError('Process', 'Failed to initialize ChannelManager', error);
+    }
+    perfLog('ChannelManager', Date.now() - channelStart);
     initStatusManager.setStatus('ready', '初始化完成', 100);
   } else if (appMode === 'c') {
     // Consumer mode: normal full startup

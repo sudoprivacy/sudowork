@@ -11,6 +11,7 @@ import { openExternalUrl } from '@/renderer/utils/platform';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -55,19 +56,28 @@ interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
+  onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
 
 const LARK_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/feishu.html';
 const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
-const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
 
   // Lark credentials
   const [appId, setAppId] = useState('');
   const [appSecret, setAppSecret] = useState('');
   const [encryptKey, setEncryptKey] = useState('');
   const [verificationToken, setVerificationToken] = useState('');
+
+  // Notify parent of credential changes (for enterprise mode switch toggle)
+  useEffect(() => {
+    if (onCredentialsChange) {
+      onCredentialsChange({ appId, appSecret, encryptKey: encryptKey.trim() || undefined, verificationToken: verificationToken.trim() || undefined });
+    }
+  }, [appId, appSecret, encryptKey, verificationToken, onCredentialsChange]);
 
   const [showOptional, setShowOptional] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
@@ -120,10 +130,25 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
+  // Refresh when plugin status changes
+  useEffect(() => {
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
+      setPendingPairings([]);
+      setAuthorizedUsers([]);
+    }
+  }, [pluginStatus?.enabled]);
+
   // Load saved credentials for backfill
   useEffect(() => {
-    // Only load if plugin has credentials configured and no values are currently entered
-    if (!pluginStatus?.hasToken || appId || appSecret) return;
+    // Skip if user has already entered values in the form
+    if (appId || appSecret) return;
+
+    // In enterprise mode, always try to load credentials from Moss Server
+    // In consumer mode, only load if plugin has credentials configured
+    if (!isEnterprise && !pluginStatus?.hasToken) return;
 
     const loadCredentials = async () => {
       try {
@@ -140,7 +165,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     };
 
     void loadCredentials();
-  }, [pluginStatus]);
+  }, [pluginStatus, isEnterprise]);
 
   // Load available agents + saved selection
   useEffect(() => {
@@ -236,6 +261,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         Message.success(t('settings.lark.connectionSuccess', 'Connected to Lark API!'));
 
         // Auto-enable bot after successful test
+        // In enterprise mode, this persists credentials to Moss Server via enablePlugin API
         await handleAutoEnable();
       } else {
         setCredentialsTested(false);
@@ -538,20 +564,21 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         </>
       )}
 
-      {/* Test Connection Button - only show when not connected or no existing users */}
+      {/* Test Connection Button - show when not connected or no existing users */}
       {!hasExistingUsers && !pluginStatus?.connected && (
         <div className='flex justify-end'>
           {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? (
             // Credentials already saved but not entered in UI - show info message
             <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span>
           ) : null}
-          <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !appId.trim() && !appSecret.trim()}>
+          <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={(!isEnterprise && pluginStatus?.hasToken && !appId.trim() && !appSecret.trim()) || (isEnterprise && !appId.trim() && !appSecret.trim())}>
             {t('settings.lark.testAndConnect', 'Test & Connect')}
           </Button>
         </div>
       )}
 
-      {/* Agent Selection */}
+      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {!isEnterprise && (
       <div className='flex flex-col gap-8px'>
         <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
           <Dropdown
@@ -588,11 +615,14 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           </Dropdown>
         </PreferenceRow>
       </div>
+      )}
 
-      {/* Default Model Selection */}
+      {/* Default Model Selection - hidden in enterprise mode */}
+      {!isEnterprise && (
       <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.lark.defaultModelDesc', '用于Agent对话时调用')}>
         <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
       </PreferenceRow>
+      )}
 
       {/* Connection Status - show when bot is enabled */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (

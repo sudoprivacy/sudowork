@@ -10,6 +10,7 @@ import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -57,6 +58,7 @@ const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onTokenChange }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
 
   const [telegramToken, setTelegramToken] = useState('');
   const [testLoading, setTestLoading] = useState(false);
@@ -77,7 +79,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     try {
       const result = await channel.getPendingPairings.invoke();
       if (result.success && result.data) {
-        setPendingPairings(result.data);
+        setPendingPairings(result.data.filter((p) => p.platformType === 'telegram'));
       }
     } catch (error) {
       console.error('[ChannelSettings] Failed to load pending pairings:', error);
@@ -106,6 +108,17 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     void loadPendingPairings();
     void loadAuthorizedUsers();
   }, [loadPendingPairings, loadAuthorizedUsers]);
+
+  // Refresh when plugin status changes
+  useEffect(() => {
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
+      setPendingPairings([]);
+      setAuthorizedUsers([]);
+    }
+  }, [pluginStatus?.enabled]);
 
   // Load saved credentials for backfill
   useEffect(() => {
@@ -350,7 +363,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
         </div>
       </PreferenceRow>
 
-      {/* Agent Selection */}
+      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {!isEnterprise && (
       <div className='flex flex-col gap-8px'>
         <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.assistant.agentDescTelegram', 'Used for Telegram conversations')}>
           <Dropdown
@@ -387,11 +401,14 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
           </Dropdown>
         </PreferenceRow>
       </div>
+      )}
 
-      {/* Default Model Selection */}
+      {/* Default Model Selection - hidden in enterprise mode */}
+      {!isEnterprise && (
       <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.assistant.defaultModelDesc', '用于Agent对话时调用')}>
         <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
       </PreferenceRow>
+      )}
 
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && pluginStatus?.connected && authorizedUsers.length === 0 && (

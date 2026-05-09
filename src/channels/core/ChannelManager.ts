@@ -7,6 +7,7 @@
 import { getDatabase } from '@/process/database';
 import { serviceManager } from '@process/services/serviceManager';
 import { ExtensionRegistry } from '@/extensions';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelDefaultModel } from '../actions/SystemActions';
 import { ActionExecutor } from '../gateway/ActionExecutor';
@@ -21,6 +22,9 @@ import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
+import { LocalChannelProvider } from './LocalChannelProvider';
+import { RemoteChannelProvider } from './RemoteChannelProvider';
+import type { IChannelProvider } from './IChannelProvider';
 
 /**
  * ChannelManager - Main orchestrator for the Channel subsystem
@@ -47,6 +51,7 @@ export class ChannelManager {
   private sessionManager: SessionManager | null = null;
   private pairingService: PairingService | null = null;
   private actionExecutor: ActionExecutor | null = null;
+  private provider: IChannelProvider | null = null;
 
   private constructor() {
     // Private constructor for singleton pattern
@@ -81,6 +86,10 @@ export class ChannelManager {
     console.log('[ChannelManager] Initializing...');
 
     try {
+      // Initialize provider based on mode
+      const isEnterprise = isEnterpriseMode();
+      this.provider = isEnterprise ? new RemoteChannelProvider() : new LocalChannelProvider();
+
       // Register extension-contributed channel plugins (from ExtensionRegistry)
       this.registerExtensionChannelPlugins();
 
@@ -98,18 +107,18 @@ export class ChannelManager {
       this.pluginManager.setConfirmHandler(async (userId: string, platform: string, callId: string, value: string) => {
         // 查找用户
         // Find user
-        const db = getDatabase();
-        const userResult = db.getChannelUserByPlatform(userId, platform as PluginType);
-        if (!userResult.data) {
+        const provider = this.getProvider();
+        const user = await provider.getUserByPlatform(userId, platform as PluginType);
+        if (!user) {
           console.error(`[ChannelManager] User not found: ${userId}@${platform}`);
           return;
         }
 
         // 查找 session 获取 conversationId
         // Find session to get conversationId
-        const session = this.sessionManager?.getSession(userResult.data.id);
+        const session = this.sessionManager?.getSession(user.id);
         if (!session?.conversationId) {
-          console.error(`[ChannelManager] Session not found for user: ${userResult.data.id}`);
+          console.error(`[ChannelManager] Session not found for user: ${user.id}`);
           return;
         }
 
@@ -141,6 +150,12 @@ export class ChannelManager {
    * channel plugins attempt to read them via resolveSecret().
    */
   private async waitForSecretsReady(): Promise<boolean> {
+    // Enterprise mode: secrets managed by Moss Server, skip waiting
+    if (isEnterpriseMode()) {
+      console.log('[ChannelManager] Enterprise mode: skipping secrets wait (managed by Moss Server)');
+      return true;
+    }
+
     try {
       const secretsReady = await serviceManager.waitForSecrets();
       if (!secretsReady) {
@@ -198,15 +213,15 @@ export class ChannelManager {
    * Load and start enabled plugins from database
    */
   private async loadEnabledPlugins(): Promise<void> {
-    const db = getDatabase();
-    const result = db.getChannelPlugins();
-
-    if (!result.success || !result.data) {
-      console.warn('[ChannelManager] Failed to load plugins:', result.error);
+    if (isEnterpriseMode()) {
+      console.log('[ChannelManager] Enterprise Mode: Plugins managed by Moss Server');
       return;
     }
 
-    const enabledPlugins = result.data.filter((p) => p.enabled);
+    const provider = this.getProvider();
+    const plugins = await provider.getPlugins();
+
+    const enabledPlugins = plugins.filter((p) => p.enabled);
     const builtinStartableTypes = new Set<PluginType>(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao']);
     const extensionRegistry = ExtensionRegistry.getInstance();
 
@@ -223,7 +238,7 @@ export class ChannelManager {
           status: 'stopped',
           updatedAt: Date.now(),
         };
-        db.upsertChannelPlugin(nextConfig);
+        await provider.upsertPlugin(nextConfig);
         continue;
       }
 
@@ -232,7 +247,7 @@ export class ChannelManager {
       } catch (error) {
         console.error(`[ChannelManager] Failed to start plugin ${plugin.id}:`, error);
         // Update status to error
-        db.updateChannelPluginStatus(plugin.id, 'error');
+        await provider.updatePluginStatus(plugin.id, 'error');
       }
     }
   }
@@ -253,17 +268,24 @@ export class ChannelManager {
    * For extension plugins, fields are extracted from manifest metadata.
    */
   async enablePlugin(pluginId: string, config: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
-    // Ensure manager is initialized
-    if (!this.initialized || !this.pluginManager) {
-      console.error('[ChannelManager] Cannot enable plugin: manager not initialized');
-      return { success: false, error: 'Assistant manager not initialized' };
+    // Enterprise mode: only need provider, not pluginManager
+    if (isEnterpriseMode()) {
+      if (!this.initialized) {
+        console.error('[ChannelManager] Cannot enable plugin: manager not initialized');
+        return { success: false, error: 'Channel manager not initialized' };
+      }
+    } else {
+      // Consumer mode: need both initialized and pluginManager
+      if (!this.initialized || !this.pluginManager) {
+        console.error('[ChannelManager] Cannot enable plugin: manager not initialized');
+        return { success: false, error: 'Assistant manager not initialized' };
+      }
     }
 
-    const db = getDatabase();
+    const provider = this.getProvider();
 
     // Get existing plugin or create new one
-    const existingResult = db.getChannelPlugin(pluginId);
-    const existing = existingResult.data;
+    const existing = await provider.getPlugin(pluginId);
 
     // Resolve plugin type
     const pluginType = (existing?.type || this.getPluginTypeFromId(pluginId)) as PluginType;
@@ -377,9 +399,26 @@ export class ChannelManager {
       updatedAt: Date.now(),
     };
 
-    const saveResult = db.upsertChannelPlugin(pluginConfig);
-    if (!saveResult.success) {
-      return { success: false, error: saveResult.error };
+    const success = await provider.upsertPlugin(pluginConfig);
+    if (!success) {
+      return { success: false, error: 'Failed to save plugin configuration' };
+    }
+
+    // Enterprise mode: plugin is managed by Moss Server, no local start needed
+    if (isEnterpriseMode()) {
+      console.log(`[ChannelManager] Enterprise mode: plugin ${pluginId} enabled on Moss Server`);
+
+      // Update status to reflect the enabled state from Moss Server
+      try {
+        const updatedPlugin = await provider.getPlugin(pluginId);
+        if (updatedPlugin) {
+          await provider.updatePluginStatus(pluginId, updatedPlugin.status, updatedPlugin.lastConnected);
+        }
+      } catch {
+        // Best-effort status refresh
+      }
+
+      return { success: true };
     }
 
     try {
@@ -394,31 +433,46 @@ export class ChannelManager {
    * Disable and stop a plugin
    */
   async disablePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
-    const db = getDatabase();
+    const provider = this.getProvider();
 
     try {
+      // Enterprise mode: plugin is managed by Moss Server
+      if (isEnterpriseMode()) {
+        const success = await provider.updatePluginEnabled(pluginId, false, 'stopped');
+        if (success) {
+          console.log(`[ChannelManager] Enterprise mode: plugin ${pluginId} disabled on Moss Server`);
+
+          // For WeCom and WeChat: Moss Server handles user/session cleanup internally
+          // so we don't need to call provider.deleteUsersByPlatform here.
+
+          return { success: true };
+        } else {
+          return { success: false, error: 'Failed to disable plugin on Moss Server' };
+        }
+      }
+
       // Stop the plugin
       await this.pluginManager?.stopPlugin(pluginId);
 
       // Update database
-      const existingResult = db.getChannelPlugin(pluginId);
-      if (existingResult.data) {
+      const existing = await provider.getPlugin(pluginId);
+      if (existing) {
         const updated: IChannelPluginConfig = {
-          ...existingResult.data,
+          ...existing,
           enabled: false,
           status: 'stopped',
           updatedAt: Date.now(),
         };
-        db.upsertChannelPlugin(updated);
+        await provider.upsertPlugin(updated);
 
         // For WeCom and WeChat: clear all authorized users and sessions when disabled
         // This allows reconfiguring with new bot credentials
         // Note: We keep credentials so user can re-enable without re-entering
-        const pluginType = existingResult.data.type;
+        const pluginType = existing.type;
         if (pluginType === 'wecom' || pluginType === 'wechat') {
           console.log(`[ChannelManager] Clearing all users and sessions for ${pluginType} on disable`);
           // Delete all channel users for this platform
-          db.deleteChannelUsersByPlatform(pluginType);
+          await provider.deleteUsersByPlatform(pluginType);
           // Note: We keep credentials so user can re-enable without re-entering
         }
       }
@@ -436,6 +490,32 @@ export class ChannelManager {
    */
   async testPlugin(pluginId: string, token: string, extraConfig?: { appId?: string; appSecret?: string }): Promise<{ success: boolean; botUsername?: string; error?: string }> {
     const pluginType = this.getPluginTypeFromId(pluginId);
+
+    // Enterprise mode: delegate test to Moss Server via RemoteChannelProvider
+    if (isEnterpriseMode()) {
+      const provider = this.getProvider();
+      if ('testConnection' in provider) {
+        const credentials: Record<string, any> = {};
+        if (pluginType === 'telegram') {
+          credentials.token = token;
+        } else if (pluginType === 'dingtalk') {
+          credentials.clientId = extraConfig?.appId;
+          credentials.clientSecret = extraConfig?.appSecret;
+        } else if (pluginType === 'lark') {
+          credentials.appId = extraConfig?.appId;
+          credentials.appSecret = extraConfig?.appSecret;
+        } else if (pluginType === 'wecom') {
+          credentials.botId = extraConfig?.appId;
+          credentials.secret = extraConfig?.appSecret;
+        } else {
+          // For extension plugins, pass all config
+          if (token) credentials.token = token;
+          if (extraConfig?.appId) credentials.appId = extraConfig.appId;
+          if (extraConfig?.appSecret) credentials.appSecret = extraConfig.appSecret;
+        }
+        return await (provider as any).testConnection(pluginId, credentials);
+      }
+    }
 
     if (pluginType === 'telegram') {
       const result = await TelegramPlugin.testConnection(token);
@@ -481,21 +561,6 @@ export class ChannelManager {
         return { success: false, error: 'Bot ID and Secret are required for WeCom' };
       }
       const result = await WeComPlugin.testConnection(botId, secret);
-      return {
-        success: result.success,
-        botUsername: result.botInfo?.name,
-        error: result.error,
-      };
-    }
-
-    if (pluginType === 'zentao') {
-      const serverUrl = extraConfig?.appId;
-      const zentaoUsername = token;
-      const zentaoPassword = extraConfig?.appSecret;
-      if (!serverUrl || !zentaoUsername || !zentaoPassword) {
-        return { success: false, error: 'Server URL, username and password are required for Zentao' };
-      }
-      const result = await ZentaoPlugin.testConnection(serverUrl, zentaoUsername, zentaoPassword);
       return {
         success: result.success,
         botUsername: result.botInfo?.name,
@@ -572,7 +637,16 @@ export class ChannelManager {
    * which conversation to use.
    */
   async syncChannelSettings(platform: ChannelPlatform, agent: { backend: string; customAgentId?: string; name?: string }, model?: { id: string; useModel: string }): Promise<{ success: boolean; error?: string }> {
-    if (!this.initialized || !this.sessionManager) {
+    if (!this.initialized) {
+      return { success: false, error: 'Channel manager not initialized' };
+    }
+
+    // Enterprise mode: delegate to Moss Server via provider
+    if (isEnterpriseMode()) {
+      return this.getProvider().syncChannelSettings(platform, agent, model);
+    }
+
+    if (!this.sessionManager) {
       return { success: false, error: 'Channel manager not initialized' };
     }
 
@@ -627,6 +701,18 @@ export class ChannelManager {
   }
 
   // ==================== Accessors ====================
+
+  /**
+   * Get the active channel provider
+   */
+  getProvider(): IChannelProvider {
+    if (!this.provider) {
+      // Fallback if not initialized (should not happen in practice)
+      const isEnterprise = isEnterpriseMode();
+      this.provider = isEnterprise ? new RemoteChannelProvider() : new LocalChannelProvider();
+    }
+    return this.provider;
+  }
 
   getPluginManager(): PluginManager | null {
     return this.pluginManager;

@@ -17,7 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
 
 /** Enterprise mode builtin tab IDs (restricted subset). */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'webui', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
