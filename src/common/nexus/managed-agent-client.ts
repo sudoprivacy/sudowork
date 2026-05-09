@@ -9,11 +9,17 @@
  * Wraps the Rust napi addon (`nexus-napi`) with typed request/response shapes.
  */
 
-// Lazy-load the native addon to avoid crash when the binary path
-// cannot be resolved at bundle time (e.g. dev mode via electron-vite).
+// Lazy-load the native addon. In both dev and packaged mode, resolve
+// from the app root (app.getAppPath()) so the path survives bundling.
 function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
   try {
-    return require('../../../native/nexus-napi');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron');
+    const path = require('path');
+    const appRoot = app.isPackaged
+      ? app.getAppPath().replace('app.asar', 'app.asar.unpacked')
+      : app.getAppPath();
+    return require(path.join(appRoot, 'native', 'nexus-napi'));
   } catch {
     throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
   }
