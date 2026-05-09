@@ -860,11 +860,15 @@ This identity statement takes priority over the default identity in USER.md.
       console.error('Failed to clear saved agent:', error);
     });
 
-    // Check if openclaw-gateway is available (non-enterprise mode)
-    // If not available (enterprise mode), select first available agent directly
+    // Check if scode is available first, then fallback to openclaw-gateway (non-enterprise mode)
+    // If neither available (enterprise mode), select first available agent directly
     const agents = availableAgentsRef.current;
+    const scodeAvailable = agents?.some((a) => a.backend === 'scode');
     const openclawAvailable = agents?.some((a) => a.backend === 'openclaw-gateway');
-    if (openclawAvailable) {
+    if (scodeAvailable) {
+      _setSelectedAgentKey('scode');
+      selectedAgentKeyRef.current = 'scode';
+    } else if (openclawAvailable) {
       _setSelectedAgentKey('openclaw-gateway');
       selectedAgentKeyRef.current = 'openclaw-gateway';
     } else if (agents && agents.length > 0) {

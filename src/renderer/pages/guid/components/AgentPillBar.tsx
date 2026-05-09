@@ -30,16 +30,18 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
     switch (backend) {
       case 'remote-agent':
         return -1; // Moss Server (enterprise) - highest priority
+      case 'scode':
+        return 0; // Sudo Code - highest priority for consumer
       case 'openclaw-gateway':
-        return 0;
-      case 'claude':
         return 1;
-      case 'gemini':
+      case 'claude':
         return 2;
+      case 'gemini':
+        return 3;
       case 'custom':
-        return 3; // Extensions/custom agents last
+        return 4; // Extensions/custom agents last
       default:
-        return 4; // Other agents come after
+        return 5; // Other agents come after
     }
   };
 
@@ -83,7 +85,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
         }}
       >
         {sortedAgents
-          .filter((agent) => agent.backend !== 'custom' || agent.isExtension || agent.isPreset)
+          .filter((agent) => agent.backend !== 'custom' && agent.backend !== 'openclaw-gateway' && agent.backend !== 'gemini')
           .map((agent, index) => {
             const isSelected = selectedAgentKey === getAgentKey(agent);
             const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);
