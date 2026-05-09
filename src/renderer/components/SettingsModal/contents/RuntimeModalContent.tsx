@@ -437,7 +437,7 @@ const RuntimeModalContent: React.FC = () => {
     },
     {
       key: 'sudocode',
-      displayName: 'Sudocode',
+      displayName: 'Sudo Code',
       command: 'scode',
       badge: 'SC',
       status: scodeStatus,
