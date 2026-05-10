@@ -382,6 +382,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         }
       }
 
+      // For scode backend, unconditionally call setModel via ACP RPC to ensure
+      // scode uses the correct model for this session (not its own default).
+      if (this.options.backend === 'scode' && this.persistedModelId) {
+        try {
+          await this.connection.setModel(this.persistedModelId);
+          mainLog('[AcpAgent]', `scode: forced setModel("${this.persistedModelId}") via ACP RPC`);
+        } catch (error) {
+          mainWarn('[AcpAgent]', `scode: forced setModel failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
       // Cache model list for Guid page
       const modelInfo = this.getModelInfo();
       if (modelInfo && modelInfo.availableModels?.length > 0) {

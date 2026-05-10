@@ -123,6 +123,10 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // Remove CLAUDECODE env var to prevent claude-agent-sdk from detecting
   // a nested session when Sudowork itself is launched from Claude Code.
   delete cleanEnv.CLAUDECODE;
+  // Remove ANTHROPIC_MODEL to prevent scode from inheriting a stale model alias
+  // from the user's shell (e.g. "glm-5.1"). The model is controlled by sudowork
+  // via settings.json and ACP session/set_model RPC.
+  delete cleanEnv.ANTHROPIC_MODEL;
   // Strip npm lifecycle vars inherited from parent `npm start` process.
   // These (npm_config_*, npm_lifecycle_*, npm_package_*) can cause npx to
   // behave as if running inside an npm script, interfering with package

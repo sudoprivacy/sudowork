@@ -13,12 +13,12 @@ import path from 'path';
 import os from 'os';
 
 const TAG = 'ScodeMcpAgent';
-const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
+export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
 
 /**
  * Read existing settings.json, returns empty object on failure.
  */
-function readSettings(): Record<string, unknown> {
+export function readSettings(): Record<string, unknown> {
   try {
     return JSON.parse(fs.readFileSync(SCODE_SETTINGS_PATH, 'utf-8'));
   } catch {
@@ -29,7 +29,7 @@ function readSettings(): Record<string, unknown> {
 /**
  * Write settings.json, preserving non-MCP fields.
  */
-function writeSettings(settings: Record<string, unknown>): void {
+export function writeSettings(settings: Record<string, unknown>): void {
   const dir = path.dirname(SCODE_SETTINGS_PATH);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(SCODE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');

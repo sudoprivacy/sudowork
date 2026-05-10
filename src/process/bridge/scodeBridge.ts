@@ -13,6 +13,7 @@
 
 import { ipcBridge } from '@/common';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
+import { readSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import fs from 'fs';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -51,6 +52,16 @@ export function writeScodeDefaultModel(modelId: string): void {
   existing.default_model = modelId;
   writeConfig(existing);
   mainLog(TAG, `Updated default_model to "${modelId}"`);
+
+  // Sync model field to settings.json (scode reads "model" from settings.json)
+  try {
+    const settings = readSettings();
+    settings.model = modelId;
+    writeSettings(settings);
+    mainLog(TAG, `Synced model "${modelId}" to settings.json`);
+  } catch (err) {
+    mainWarn(TAG, `Failed to sync model to settings.json: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -85,8 +96,27 @@ async function syncImageModelOnStartup(): Promise<void> {
   }
 }
 
+/**
+ * Ensure settings.json has a model field set (scode reads this on startup).
+ * On fresh install, defaults to DEFAULT_SCODE_MODEL_ID.
+ */
+async function ensureSettingsModelOnStartup(): Promise<void> {
+  try {
+    const { DEFAULT_SCODE_MODEL_ID } = await import('@/common/acp/defaultModels');
+    const settings = readSettings();
+    if (!settings.model) {
+      settings.model = DEFAULT_SCODE_MODEL_ID;
+      writeSettings(settings);
+      mainLog(TAG, `Initialized settings.json model to "${DEFAULT_SCODE_MODEL_ID}"`);
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to ensure settings model: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function registerScodeBridge(): void {
   void syncImageModelOnStartup();
+  void ensureSettingsModelOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
       const config = readExistingConfig();

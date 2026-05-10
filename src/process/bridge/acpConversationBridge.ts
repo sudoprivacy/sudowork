@@ -343,7 +343,7 @@ export function initAcpConversationBridge(): void {
       }
       const modelInfo = await task.setModel(modelId);
 
-      // Persist default model to sudocode.json when switching scode models
+      // Persist default model to sudocode.json and settings.json when switching scode models
       const conv = getDatabase().getConversation(conversationId);
       if (conv?.data?.extra?.backend === 'scode') {
         try {
