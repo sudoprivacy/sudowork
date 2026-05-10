@@ -523,6 +523,14 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
   }
 
+  // Inject HOME for scode (Rust binary) to locate ~/.nexus/sudocode/sudocode.json
+  // On Windows packaged Electron, HOME is not set (Windows uses USERPROFILE instead)
+  // scode has 5+ paths that depend on HOME without USERPROFILE fallback
+  if (backend === 'scode' && !cleanEnv.HOME) {
+    cleanEnv.HOME = os.homedir();
+    mainLog('[ACP scode]', `Injected HOME: ${cleanEnv.HOME}`);
+  }
+
   // Inject web search base URL for scode so WebSearch tool is available in ACP mode
   if (backend === 'scode' && !cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL) {
     cleanEnv.SUDOCODE_WEB_SEARCH_BASE_URL = 'https://html.duckduckgo.com/html/';
