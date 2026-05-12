@@ -80,6 +80,30 @@ describe('normalizeWindowsImagePaths', () => {
     const input = '![](C:/Users/16674/.nexus/sudoclaw/workspace/shaobing.png)';
     expect(normalizeWindowsImagePaths(input)).toBe(input);
   });
+
+  it('should strip Windows extended-length path prefix \\\\?\\', () => {
+    const input = '![](\\\\?\\C:\\Users\\zouqi\\.nexus\\scode-temp-1778554568911\\cute_little_girl.png)';
+    const expected = '![](C:/Users/zouqi/.nexus/scode-temp-1778554568911/cute_little_girl.png)';
+    expect(normalizeWindowsImagePaths(input)).toBe(expected);
+  });
+
+  it('should strip \\\\?\\ prefix with alt text', () => {
+    const input = '![一个可爱的小女孩，卡通风格](\\\\?\\C:\\Users\\zouqi\\.nexus\\scode-temp-1778554568911\\cute_little_girl.png)';
+    const expected = '![一个可爱的小女孩，卡通风格](C:/Users/zouqi/.nexus/scode-temp-1778554568911/cute_little_girl.png)';
+    expect(normalizeWindowsImagePaths(input)).toBe(expected);
+  });
+
+  it('should handle \\\\?\\ prefix in mixed content', () => {
+    const input = 'I have successfully generated the image.\n\n![](\\\\?\\C:\\Users\\zouqi\\.nexus\\scode-temp-1778554568911\\cute_little_girl.png)\n\nHere it is!';
+    const expected = 'I have successfully generated the image.\n\n![](C:/Users/zouqi/.nexus/scode-temp-1778554568911/cute_little_girl.png)\n\nHere it is!';
+    expect(normalizeWindowsImagePaths(input)).toBe(expected);
+  });
+
+  it('should handle both \\\\?\\ prefixed and normal Windows paths in same content', () => {
+    const input = '![img1](\\\\?\\C:\\Users\\test\\a.png)\n![img2](D:\\photos\\b.png)';
+    const expected = '![img1](C:/Users/test/a.png)\n![img2](D:/photos/b.png)';
+    expect(normalizeWindowsImagePaths(input)).toBe(expected);
+  });
 });
 
 describe('defaultUrlTransform sanitization (root cause of empty src)', () => {
@@ -145,5 +169,16 @@ describe('preprocessContentMessage', () => {
     };
     const result = preprocessContentMessage(message);
     expect(result).toBe(message);
+  });
+
+  it('should strip \\\\?\\ prefix and normalize Windows paths in content messages', () => {
+    const message = {
+      type: 'content' as const,
+      conversation_id: 'test-conv',
+      msg_id: 'test-msg',
+      data: '![](\\\\?\\C:\\Users\\zouqi\\.nexus\\scode-temp-1778554568911\\cute_little_girl.png)',
+    };
+    const result = preprocessContentMessage(message);
+    expect(result.data).toBe('![](C:/Users/zouqi/.nexus/scode-temp-1778554568911/cute_little_girl.png)');
   });
 });

@@ -613,8 +613,10 @@ export const handleImageGenerationWithWorkspace = (message: TMessage, workspace:
           return match;
         }
         // Windows 绝对路径：标准化反斜杠为正斜杠
+        // 同时去除 Windows 扩展长度路径前缀 \\?\
         if (/^[A-Za-z]:/.test(imagePath) || imagePath.startsWith('\\')) {
-          const normalizedPath = imagePath.replace(/\\/g, '/');
+          const cleanPath = imagePath.replace(/^\\\\\?\\/, '');
+          const normalizedPath = cleanPath.replace(/\\/g, '/');
           return `![${alt}](${normalizedPath})`;
         }
         // Unix 绝对路径，保持不变
