@@ -632,7 +632,9 @@ export function initSkillHubBridge(): void {
   // Download and install skill
   ipcBridge.skillHub.downloadAndInstallSkill.provider(async ({ skillName, displayName, sourceUrl, version, checksum, skillMeta }) => {
     try {
-      mainLog('SkillHub', `Downloading skill: ${skillName} version: ${version}`);
+      // Trim skillName to prevent directory names with leading/trailing spaces
+      const trimmedSkillName = skillName.trim();
+      mainLog('SkillHub', `Downloading skill: ${trimmedSkillName} version: ${version}`);
 
       // Download zip file
       const zipBuffer = await downloadFile(sourceUrl, (percent) => {
@@ -651,12 +653,12 @@ export function initSkillHubBridge(): void {
       const hubSkillsDir = getHubSkillsDir();
       await fs.mkdir(hubSkillsDir, { recursive: true });
 
-      const skillDir = path.join(hubSkillsDir, skillName);
+      const skillDir = path.join(hubSkillsDir, trimmedSkillName);
 
       await removeExistingInstalledSkillDirs({
         userSkillsDir: hubSkillsDir,
-        requestedSkillName: skillName,
-        finalSkillDirName: skillName,
+        requestedSkillName: trimmedSkillName,
+        finalSkillDirName: trimmedSkillName,
       });
       await fs.mkdir(skillDir, { recursive: true });
 
@@ -668,7 +670,7 @@ export function initSkillHubBridge(): void {
       const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
       const meta = {
         id: skillMeta?.id ?? '',
-        name: skillName,
+        name: trimmedSkillName,
         display_name: skillMeta?.display_name ?? displayName,
         description: skillMeta?.description ?? '',
         icon: skillMeta?.icon ?? '',
@@ -687,7 +689,7 @@ export function initSkillHubBridge(): void {
       };
       await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
 
-      mainLog('SkillHub', `Successfully installed skill "${skillName}" v${version} to ${skillDir}`);
+      mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
 
       // Reload Sudoclaw gateway to pick up new skills.
       // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
@@ -704,7 +706,7 @@ export function initSkillHubBridge(): void {
       return {
         success: true,
         data: {
-          skillName,
+          skillName: trimmedSkillName,
           installedVersion: version,
         },
       };
