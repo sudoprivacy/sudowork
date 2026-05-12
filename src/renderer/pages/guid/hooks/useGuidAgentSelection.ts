@@ -251,10 +251,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       if (isEnterprise) {
         const mossAssistant = customAgents.find((a) => a.id === customAgentId);
         if (mossAssistant) {
+          // Extract original Moss key from id (remove 'moss:' prefix)
+          // Moss Server expects the original key, not 'moss:{key}'
+          const mossKey = mossAssistant.id.startsWith('moss:') ? mossAssistant.id.slice(5) : mossAssistant.id;
           return {
             backend: 'remote-agent' as AcpBackend,
             name: mossAssistant.name,
-            customAgentId: mossAssistant.id,
+            customAgentId: mossKey, // Use original Moss key for Moss Server
             isPreset: true,
             avatar: mossAssistant.avatar,
             context: mossAssistant.description,
