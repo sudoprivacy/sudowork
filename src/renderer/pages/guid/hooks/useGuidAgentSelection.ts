@@ -20,6 +20,32 @@ import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
 
 /**
+ * Moss Server assistant from cloud API
+ */
+type MossAssistant = {
+  key: string;
+  name: string;
+  avatar?: string;
+  emoji?: string;
+  description?: string;
+};
+
+/**
+ * Map Moss Server assistant to AcpBackendConfig for display in AssistantSelectionArea
+ */
+function mapMossAssistantToConfig(assistant: MossAssistant): AcpBackendConfig {
+  return {
+    id: `moss:${assistant.key}`,
+    name: assistant.name,
+    avatar: assistant.emoji || assistant.avatar,
+    description: assistant.description,
+    isPreset: true,
+    enabled: true,
+    presetAgentType: 'remote-agent',
+  };
+}
+
+/**
  * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
  * Also detects [Identity Override] blocks that we inject
  */
@@ -211,13 +237,35 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   /**
    * Find agent by key.
    * Supports both "custom:uuid" format and plain backend type.
+   * For enterprise mode, also checks customAgents for Moss assistants.
    */
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
       const customAgentId = key.slice(7);
+
+      // First check availableAgents (for non-enterprise custom agents)
       const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
       if (foundInAvailable) return foundInAvailable;
 
+      // For enterprise mode, check customAgents (Moss assistants)
+      if (isEnterprise) {
+        const mossAssistant = customAgents.find((a) => a.id === customAgentId);
+        if (mossAssistant) {
+          // Extract original Moss key from id (remove 'moss:' prefix)
+          // Moss Server expects the original key, not 'moss:{key}'
+          const mossKey = mossAssistant.id.startsWith('moss:') ? mossAssistant.id.slice(5) : mossAssistant.id;
+          return {
+            backend: 'remote-agent' as AcpBackend,
+            name: mossAssistant.name,
+            customAgentId: mossKey, // Use original Moss key for Moss Server
+            isPreset: true,
+            avatar: mossAssistant.avatar,
+            context: mossAssistant.description,
+          };
+        }
+      }
+
+      // Fallback: check customAgents for non-enterprise
       const assistant = customAgents.find((a) => a.id === customAgentId);
       if (assistant) {
         return {
@@ -256,28 +304,25 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   useEffect(() => {
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
       if (isEnterprise) {
-        // Enterprise agents: always include generic 'Remote Agent' first, then server assistants
-        const enterpriseAgents = availableAgentsData as unknown as Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>;
-        const serverAgents: AvailableAgent[] = enterpriseAgents.map((a) => ({
-          backend: 'remote-agent' as AcpBackend,
-          name: a.name,
-          customAgentId: a.key,
-          isPreset: true,
-          avatar: a.emoji || a.avatar || undefined,
-          context: a.description || undefined,
-        }));
-        // Generic Remote Agent is always the first option
+        // Enterprise mode: Moss assistants go to customAgents, only Remote Agent in availableAgents
+        const enterpriseAgents = availableAgentsData as unknown as MossAssistant[];
+
+        // Map Moss assistants to customAgents for bottom display
+        const mossCustomAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
+        setCustomAgents(mossCustomAgents);
+
+        // availableAgents only contains Remote Agent for top AgentPillBar
         const mapped: AvailableAgent[] = [
           {
             backend: 'remote-agent' as AcpBackend,
             name: 'Remote Agent',
             customAgentId: undefined,
           },
-          ...serverAgents,
         ];
         setAvailableAgents(mapped);
         availableAgentsRef.current = mapped;
       } else {
+        // Consumer mode: unchanged
         setAvailableAgents(availableAgentsData as AvailableAgent[]);
         availableAgentsRef.current = availableAgentsData as AvailableAgent[];
       }
@@ -291,22 +336,26 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       };
       setAvailableAgents([defaultAgent]);
       availableAgentsRef.current = [defaultAgent];
+      setCustomAgents([]); // Clear customAgents on API failure
     }
   }, [availableAgentsData, isEnterprise]);
 
-  // Enterprise mode: keep current selection if valid (remote-agent is always valid)
+  // Enterprise mode: keep current selection if valid
   useEffect(() => {
     if (isEnterprise && availableAgents && availableAgents.length > 0) {
-      // 'remote-agent' is always a valid selection in enterprise mode
-      // If user selected a specific custom agent, keep it
       const currentKey = selectedAgentKeyRef.current;
-      const isValid = currentKey === 'remote-agent' || availableAgents.find(a => getAgentKey(a) === currentKey);
-      if (!isValid) {
+      // 'remote-agent' is always valid
+      if (currentKey === 'remote-agent') return;
+
+      // Check if current selection is a valid Moss assistant
+      const isValidMossAssistant = customAgents.some((a) => `custom:${a.id}` === currentKey);
+
+      if (!isValidMossAssistant) {
         _setSelectedAgentKey('remote-agent');
         selectedAgentKeyRef.current = 'remote-agent';
       }
     }
-  }, [isEnterprise, availableAgents]);
+  }, [isEnterprise, availableAgents, customAgents]);
 
   // Load last selected agent (skip when URL parameter takes priority)
   // Auto-select first available agent if current selection is not valid (enterprise mode case)
@@ -855,13 +904,19 @@ This identity statement takes priority over the default identity in USER.md.
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
     hasAutoSelectedAgentRef.current = false;
+
     // Clear persisted agent key so it won't be restored on next mount
     ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
       console.error('Failed to clear saved agent:', error);
     });
 
-    // Check if scode is available first, then fallback to openclaw-gateway (non-enterprise mode)
-    // If neither available (enterprise mode), select first available agent directly
+    // Enterprise mode: re-fetch Moss assistants from server
+    if (isEnterprise) {
+      void mutate('eeclaw.agents.cloud');
+      return;
+    }
+
+    // Consumer mode: check for scode/openclaw-gateway availability
     const agents = availableAgentsRef.current;
     const scodeAvailable = agents?.some((a) => a.backend === 'scode');
     const openclawAvailable = agents?.some((a) => a.backend === 'openclaw-gateway');
@@ -872,7 +927,6 @@ This identity statement takes priority over the default identity in USER.md.
       _setSelectedAgentKey('openclaw-gateway');
       selectedAgentKeyRef.current = 'openclaw-gateway';
     } else if (agents && agents.length > 0) {
-      // Enterprise mode: select first available agent (remote-agent)
       const firstAgent = agents[0];
       const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
       _setSelectedAgentKey(firstKey);
