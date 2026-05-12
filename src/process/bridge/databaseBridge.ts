@@ -27,9 +27,9 @@ export function initDatabaseBridge(): void {
 
   // Get user conversations (paginated) via Provider
   // 通过 Provider 获取用户会话（分页）
-  ipcBridge.database.getUserConversations.provider(async ({ page = 0, pageSize = 10000 }) => {
+  ipcBridge.database.getUserConversations.provider(async ({ page = 0, pageSize = 10000, sessionMode }) => {
     try {
-      const provider = getConversationProvider();
+      const provider = getConversationProvider(sessionMode);
 
       // For remote provider, this fetches from Moss Server
       // 对于远程 Provider，从 Moss Server 获取

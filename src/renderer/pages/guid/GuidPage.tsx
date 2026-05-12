@@ -33,7 +33,7 @@ import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
 import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
-import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
+import { useGuidAgentSelection, getRendererSessionMode } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
@@ -47,6 +47,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAddEventListener } from '@/renderer/utils/emitter';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { mutate } from 'swr';
 import styles from './index.module.css';
 
@@ -58,6 +59,7 @@ const GuidPage: React.FC = () => {
   const { closeAllTabs, openTab } = useConversationTabs();
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
+  const { isEnterprise } = useAppMode();
   // Read current menu and skill from URL query params
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
@@ -263,6 +265,7 @@ const GuidPage: React.FC = () => {
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
+    sessionMode: agentSelection.sessionMode,
 
     // Agent helpers
     findAgentByKey: agentSelection.findAgentByKey,
@@ -638,7 +641,7 @@ const GuidPage: React.FC = () => {
                   {t('conversation.welcome.title')}
                 </p>
 
-                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} /> : null}
 
                 <PromptTemplates
                   visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
@@ -715,7 +718,7 @@ const GuidPage: React.FC = () => {
               )
             ) : (
               /* Assistant selection grid */
-              <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} />}</>
+              <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />}</>
             )}
           </div>
         )}
