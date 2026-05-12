@@ -67,24 +67,52 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   const [treeKey, setTreeKey] = useState(Math.random());
   const [expandedKeys, _setExpandedKeys] = useState<string[]>([]);
 
+  // 从 localStorage 获取持久化的展开状态
+  const getPersistedExpandedKeys = useCallback(() => {
+    try {
+      if (!conversation_id) return null;
+      const stored = localStorage.getItem(`workspace-expanded-keys-${conversation_id}`);
+      if (stored) {
+        return JSON.parse(stored) as string[];
+      }
+    } catch {
+      // 忽略错误
+    }
+    return null;
+  }, [conversation_id]);
+
   // 使用 ref 跟踪用户当前展开的 key，避免在刷新时丢失状态
   // Use ref to track user's current expanded keys, preventing state loss during refreshes
   const expandedKeysRef = useRef<string[]>([]);
 
-  // 包装 setExpandedKeys，自动同步 state 和 ref
-  // Wrap setExpandedKeys to auto-sync state and ref
+  // 包装 setExpandedKeys，自动同步 state 和 ref 以及 localStorage
+  // Wrap setExpandedKeys to auto-sync state, ref and localStorage
   const setExpandedKeys = useCallback((keys: string[] | ((prev: string[]) => string[])) => {
     if (typeof keys === 'function') {
       _setExpandedKeys((prev) => {
         const newKeys = keys(prev);
         expandedKeysRef.current = newKeys;
+        if (conversation_id) {
+          try {
+            localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(newKeys));
+          } catch {
+            // ignore
+          }
+        }
         return newKeys;
       });
     } else {
       expandedKeysRef.current = keys;
       _setExpandedKeys(keys);
+      if (conversation_id) {
+        try {
+          localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(keys));
+        } catch {
+          // ignore
+        }
+      }
     }
-  }, []);
+  }, [conversation_id]);
 
   // Selection state / 选中状态
   const [selected, setSelected] = useState<string[]>([]);
@@ -97,7 +125,17 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   // Reset first load flag when conversation switches
   useEffect(() => {
     isFirstLoadRef.current = true;
-  }, [conversation_id]);
+
+    // 切换会话时，尝试从 localStorage 恢复展开状态
+    const persistedKeys = getPersistedExpandedKeys();
+    if (persistedKeys) {
+      expandedKeysRef.current = persistedKeys;
+      _setExpandedKeys(persistedKeys);
+    } else {
+      expandedKeysRef.current = []; // 切换会话时重置展开状态
+      _setExpandedKeys([]);
+    }
+  }, [conversation_id, workspace, getPersistedExpandedKeys]);
 
   const selectedKeysRef = useRef<string[]>([]);
   const selectedNodeRef = useRef<SelectedNodeRef | null>(null);
@@ -135,20 +173,16 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   const loadWorkspace = useCallback(
     (path: string, search?: string) => {
       const seq = ++loadSeqRef.current;
-      console.warn('[WS_DEBUG] loadWorkspace called', { seq, path, workspace, conversation_id, search });
       setLoadingHandler(true);
       return ipcBridge.conversation.getWorkspace
         .invoke({ path, workspace, conversation_id, search: search || '' })
         .then((res) => {
           const filteredRes = filterHiddenWorkspaceDirs(res, { eventPrefix, backend });
-          const childCount = filteredRes?.[0]?.children?.length ?? 0;
-          console.warn('[WS_DEBUG] getWorkspace returned', { seq, current: loadSeqRef.current, resLength: filteredRes?.length, childCount, rootName: filteredRes?.[0]?.name });
 
           // Ignore stale responses from aborted requests:
           // The backend aborts previous getWorkspace calls, returning [].
           // Only apply the result from the latest request.
           if (seq !== loadSeqRef.current) {
-            console.warn('[WS_DEBUG] ignoring stale response', { seq, current: loadSeqRef.current });
             return filteredRes;
           }
 
@@ -172,17 +206,30 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           } else if (isFirstLoadRef.current) {
             // 大目录优化：如果子项超过 100 个，只展开前两层
             // Large directory optimization: if children > 100, only expand first 2 levels
-            const childCount = filteredRes?.[0]?.children?.length ?? 0;
-            if (childCount > 100) {
-              setExpandedKeys(getLimitedDepthKeys(filteredRes, 2));
+            // 如果从 localStorage 恢复了持久化的状态，则优先使用
+            // If persisted state is restored from localStorage, use it first
+            const persistedKeys = getPersistedExpandedKeys();
+            if (persistedKeys && persistedKeys.length > 0) {
+              const validKeys = filterValidExpandedKeys(persistedKeys, filteredRes);
+              setExpandedKeys(validKeys);
+            } else if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
+              const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
+              setExpandedKeys(validKeys);
             } else {
-              setExpandedKeys(getFirstLevelKeys(filteredRes));
+              const childCount = filteredRes?.[0]?.children?.length ?? 0;
+              if (childCount > 100) {
+                setExpandedKeys(getLimitedDepthKeys(filteredRes, 2));
+              } else {
+                setExpandedKeys(getFirstLevelKeys(filteredRes));
+              }
             }
           } else {
             // 保留用户展开状态，过滤掉已不存在的目录
             // Preserve user's expanded keys, filter out deleted directories
-            const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
-            setExpandedKeys(validKeys);
+            if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
+              const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
+              setExpandedKeys(validKeys);
+            }
           }
 
           // 根据是否有文件决定工作空间面板的展开/折叠状态
