@@ -107,6 +107,7 @@ const OpenClawSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const { setSendBoxHandler } = usePreviewContext();
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
   const [aiProcessing, setAiProcessing] = useState(false);
   const [openclawStatus, setOpenClawStatus] = useState<string | null>(null);
@@ -477,7 +478,9 @@ const OpenClawSendBox: React.FC<{
   );
 
   const onSendHandler = async (message: string, skills?: string[]) => {
-    await sendOpenClawMessage(message, skills);
+    // Fallback to local state if skills not provided by event
+    const activeSkills = skills || selectedSkills;
+    await sendOpenClawMessage(message, activeSkills);
   };
 
   useEffect(() => {
@@ -714,8 +717,7 @@ const OpenClawSendBox: React.FC<{
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         onSkillsChange={(skills) => {
-          // Store skills in ref or state if needed for session management
-          // For now, they're passed directly to onSend
+          setSelectedSkills(skills);
         }}
         workspaceFiles={workspaceFiles}
       ></SendBox>

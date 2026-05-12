@@ -42,8 +42,8 @@ export const BOTTOM_BUFFER_PX = 40;
 interface UseAutoScrollOptions {
   /** Message list for detecting new messages */
   messages: TMessage[];
-  /** Total item count for scroll target */
-  itemCount: number;
+  /** Total items in the rendered list (including summaries/separators) */
+  items: any[];
 }
 
 interface UseAutoScrollReturn {
@@ -73,10 +73,12 @@ interface UseAutoScrollReturn {
   bottomSpacerHeight: number;
 }
 
-export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): UseAutoScrollReturn {
+export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAutoScrollReturn {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [bottomSpacerHeight, setBottomSpacerHeight] = useState(0);
+
+  const itemCount = items.length;
 
   // Refs for scroll control
   const userScrolledRef = useRef(false);
@@ -140,6 +142,9 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // `CSS.escape` may not exist in all test environments — fall back to a
     // naive quote escape for IDs that don't contain special characters.
     const escapeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(turnMsgId) : turnMsgId.replace(/"/g, '\\"');
+
+    // Optimization: avoid querying DOM on every render if possible
+    // but we need the latest position for accurate spacer calculation
     const userEl = scroller.querySelector(`[data-message-id="${escapeId}"]`) as HTMLElement | null;
     if (!userEl) {
       // The user prompt is no longer rendered (either virtualized off-screen
@@ -163,7 +168,8 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     const footerHeight = BOTTOM_BUFFER_PX + spacerHeightRef.current;
     const turnContent = Math.max(0, scroller.scrollHeight - footerHeight - userOffsetInScroll);
 
-    const desiredSpacer = Math.max(0, vh - turnContent);
+    // Ensure we don't have a negative spacer and leave some buffer
+    const desiredSpacer = Math.max(0, vh - turnContent - 10);
 
     if (Math.abs(desiredSpacer - spacerHeightRef.current) >= 1) {
       spacerHeightRef.current = desiredSpacer;
@@ -247,11 +253,16 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   // without external scrollToIndex calls that cause jitter. Disabled while we
   // are pinning the user prompt at the top, so the empty spacer below gets
   // filled instead of scrolling the prompt off the screen.
-  const handleFollowOutput = useCallback((isAtBottom: boolean): false | 'auto' => {
-    if (userScrolledRef.current || !isAtBottom) return false;
-    if (isPinnedRef.current) return false;
-    return 'auto';
-  }, []);
+  const handleFollowOutput = useCallback(
+    (isAtBottom: boolean): false | 'auto' => {
+      if (userScrolledRef.current || !isAtBottom) return false;
+      if (isPinnedRef.current) return false;
+
+      // Always follow output when aiProcessing is active and we are near bottom
+      return 'auto';
+    },
+    []
+  );
 
   // Reliable bottom state detection from Virtuoso
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
@@ -307,6 +318,17 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // "just scroll to top" behavior.
     if (isNewMessage && lastMessage?.position === 'right') {
       userScrolledRef.current = false;
+
+      // Find the index of the newly added user message in the items array
+      // This is necessary because separators or turn actions might have been added
+      // We search from the end for efficiency
+      const lastUserMsgIdx = items.findLastIndex((item) => (item as any).msg_id === lastMessage.msg_id && (item as any).position === 'right');
+      const targetIdx = lastUserMsgIdx !== -1 ? lastUserMsgIdx : items.length - 1;
+
+      // Reset scroll position to top when starting a new turn to avoid overflow issues
+      // with the dynamic spacer recomputation
+      virtuosoRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+
       const vh = viewportHeightRef.current;
       const canPin = vh > 0 && scrollerElRef.current !== null;
       if (canPin) {
@@ -327,12 +349,16 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
           if (virtuosoRef.current) {
             lastProgrammaticScrollTimeRef.current = Date.now();
             virtuosoRef.current.scrollToIndex({
-              index: itemCount - 1,
+              index: targetIdx,
               align: 'start',
               behavior: 'auto', // Use auto for immediate positioning
             });
+
+            // Recompute spacer after initial scroll to ensure user message is pinned
             if (canPin) {
-              requestAnimationFrame(() => recomputeSpacer());
+              setTimeout(() => {
+                recomputeSpacer();
+              }, 100);
             }
           }
         });
@@ -344,7 +370,12 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // streaming). First, keep the spacer in sync with the new content so we
     // can correctly decide whether to stay pinned or resume auto-follow.
     if (turnStartMsgIdRef.current) {
-      requestAnimationFrame(() => recomputeSpacer());
+      // Small delay to ensure React Virtuoso has updated the DOM with new items
+      // before we measure for the spacer
+      const timer = setTimeout(() => {
+        recomputeSpacer();
+      }, 50);
+      return () => clearTimeout(timer);
     }
 
     // While pinned we intentionally do NOT auto-scroll — the user prompt needs
@@ -378,7 +409,7 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
         });
       });
     }
-  }, [messages, itemCount, recomputeSpacer, resetTurnMode]);
+  }, [messages, itemCount, items, recomputeSpacer, resetTurnMode]);
 
   // Hide scroll button handler
   const hideScrollButton = useCallback(() => {
