@@ -286,6 +286,9 @@ export class SkillManager {
   }
   // 查找技能目录
   private async findSkillDir(skillName: string, includeDisabled = true): Promise<{ dir: string; category: SkillCategory; isDisabled: boolean } | null> {
+    // Trim skillName to handle cases where metadata had leading/trailing spaces
+    const trimmedName = skillName.trim();
+
     // 搜索启用目录
     const searchDirs = [
       { dir: this.customDir, category: 'custom' as SkillCategory },
@@ -294,20 +297,27 @@ export class SkillManager {
       { dir: path.join(this.systemDir, '_builtin'), category: 'system' as SkillCategory },
     ];
 
-    for (const { dir, category } of searchDirs) {
-      const skillDir = path.join(dir, skillName);
-      if (existsSync(skillDir)) {
-        return { dir: skillDir, category, isDisabled: false };
+    // Try trimmed name first, then original name (for backward compatibility with dirs created with spaces)
+    const namesToTry = [trimmedName, skillName].filter((n, i, arr) => arr.indexOf(n) === i);
+
+    for (const name of namesToTry) {
+      for (const { dir, category } of searchDirs) {
+        const skillDir = path.join(dir, name);
+        if (existsSync(skillDir)) {
+          return { dir: skillDir, category, isDisabled: false };
+        }
       }
     }
 
     // 搜索禁用目录
     if (includeDisabled) {
-      for (const { dir, category } of searchDirs) {
-        const disableDir = this.getDisableDir(dir);
-        const skillDir = path.join(disableDir, skillName);
-        if (existsSync(skillDir)) {
-          return { dir: skillDir, category, isDisabled: true };
+      for (const name of namesToTry) {
+        for (const { dir, category } of searchDirs) {
+          const disableDir = this.getDisableDir(dir);
+          const skillDir = path.join(disableDir, name);
+          if (existsSync(skillDir)) {
+            return { dir: skillDir, category, isDisabled: true };
+          }
         }
       }
     }
