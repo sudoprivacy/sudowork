@@ -223,7 +223,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         _setSelectedAgentKey('remote-agent');
         selectedAgentKeyRef.current = 'remote-agent';
       }
-      window.dispatchEvent(new Event('chat.history.refresh'));
+      emitter.emit('chat.history.refresh');
     });
   }, []);
 
@@ -234,7 +234,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     rendererCachedSessionMode = mode;
     ConfigStorage.set('guid.sessionMode', mode).catch(() => {});
     ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
-    window.dispatchEvent(new Event('chat.history.refresh'));
+    emitter.emit('chat.history.refresh');
 
     // Reset selectedAgentKey to the default for the new mode
     // 切换 mode 时重置 agent 选择为对应 mode 的默认值
