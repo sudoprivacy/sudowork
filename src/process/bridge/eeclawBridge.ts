@@ -399,6 +399,8 @@ export function initEeclawBridge(): void {
     try {
       const { syncIncrementalFromRemote } = await import('@process/sync/remoteToLocalSync');
       const result = await syncIncrementalFromRemote();
+      // Emit sync completed event to notify renderer
+      ipcBridge.eeclaw.syncCompleted.emit(result);
       return {
         success: true,
         data: result,
