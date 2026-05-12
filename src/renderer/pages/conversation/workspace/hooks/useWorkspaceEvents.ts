@@ -67,7 +67,8 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   useEffect(() => {
     setFiles([]);
     setSelected([]);
-    setExpandedKeys([]);
+    // 不要在这里重置展开状态，由 useWorkspaceTree 的 useEffect 负责处理（读取 localStorage 或清空）
+    // Do not reset expanded keys here, handled by useWorkspaceTree's useEffect (reading localStorage or clearing)
     selectedNodeRef.current = null;
     selectedKeysRef.current = [];
     setTreeKey(Math.random());
