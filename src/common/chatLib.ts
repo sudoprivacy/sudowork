@@ -345,7 +345,13 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         msg_id: message.msg_id,
         position: message.type === 'content' ? 'left' : 'right',
         conversation_id: message.conversation_id,
-        content: isRichData ? { content: (data as { content: string; cronMeta?: CronMessageMeta }).content, cronMeta: (data as { cronMeta?: CronMessageMeta }).cronMeta } : { content: data as string },
+        content: isRichData
+          ? {
+              content: (data as any).content,
+              ...((data as any).cronMeta ? { cronMeta: (data as any).cronMeta } : {}),
+              ...((data as any).skills ? { skills: (data as any).skills } : {})
+            }
+          : { content: data as string },
       };
     }
     case 'tool_call': {

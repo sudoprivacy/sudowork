@@ -383,7 +383,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
-    itemCount: processedList.length,
+    items: processedList,
   });
 
   useEffect(() => {
