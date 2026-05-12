@@ -606,7 +606,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta }): Promise<{
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[] }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -639,6 +639,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           conversation_id: this.conversation_id,
           content: {
             content: displayContent,
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
             ...(data.cronMeta && { cronMeta: data.cronMeta }),
           },
           createdAt: Date.now(),
@@ -649,11 +650,20 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         } catch {
           // Conversation might not exist in DB yet
         }
+        let responseData: any = displayContent;
+        if (data.cronMeta || (data.skills && data.skills.length > 0)) {
+          responseData = {
+            content: displayContent,
+            ...(data.cronMeta && { cronMeta: data.cronMeta }),
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills })
+          };
+        }
+
         const userResponseMessage: IResponseMessage = {
           type: 'user_content',
           conversation_id: this.conversation_id,
           msg_id: data.msg_id,
-          data: data.cronMeta ? { content: displayContent, cronMeta: data.cronMeta } : displayContent,
+          data: responseData,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
@@ -745,6 +755,11 @@ This identity statement takes priority over the default identity in USER.md.
         if (data.files && data.files.length > 0) {
           const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
           contentToSend = fileRefs + ' ' + contentToSend;
+        }
+
+        if (data.skills && data.skills.length > 0) {
+          const skillTags = data.skills.map((skill) => `<command-name>${skill}</command-name>`).join('\n');
+          contentToSend = `${skillTags}\n\n${contentToSend}`;
         }
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);

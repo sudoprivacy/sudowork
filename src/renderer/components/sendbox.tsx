@@ -520,9 +520,10 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+          borderRadius: '0 0 20px 20px',
           ...(isFileDragging
             ? {
                 backgroundColor: 'var(--color-primary-light-1)',

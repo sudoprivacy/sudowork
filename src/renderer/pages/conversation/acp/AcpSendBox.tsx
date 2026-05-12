@@ -436,6 +436,7 @@ const AcpSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
   // Sync local aiProcessing state to parent via onAiProcessingChange
   // 将本地 aiProcessing 状态同步到父组件
@@ -542,7 +543,7 @@ const AcpSendBox: React.FC<{
           msg_id,
           conversation_id,
           files,
-          skills: skills.length > 0 ? skills : undefined,
+          skills: skills,
         });
 
         if (result && result.success === true) {
@@ -588,6 +589,9 @@ const AcpSendBox: React.FC<{
       return;
     }
 
+    // Fallback to local state if skills not provided by event (rare, but safer)
+    const activeSkills = skills || selectedSkills;
+
     const msg_id = uuid();
 
     // ACP: 不使用 buildDisplayMessage，直接传原始 message
@@ -613,7 +617,7 @@ const AcpSendBox: React.FC<{
         msg_id,
         conversation_id,
         files: allFiles,
-        skills: skills || [],
+        skills: activeSkills,
       });
 
       void checkAndUpdateTitle(conversation_id, message);
@@ -857,8 +861,7 @@ const AcpSendBox: React.FC<{
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         onSkillsChange={(skills) => {
-          // Store skills in ref or state if needed for session management
-          // For now, they're passed directly to onSend
+          setSelectedSkills(skills);
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
         workspaceFiles={workspaceFiles}
