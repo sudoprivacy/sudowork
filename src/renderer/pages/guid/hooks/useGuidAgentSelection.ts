@@ -216,6 +216,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       const mode = stored ?? 'remote';
       _setSessionMode(mode);
       rendererCachedSessionMode = mode;
+      if (mode === 'local') {
+        _setSelectedAgentKey('scode');
+        selectedAgentKeyRef.current = 'scode';
+      } else {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+      }
       window.dispatchEvent(new Event('chat.history.refresh'));
     });
   }, []);
