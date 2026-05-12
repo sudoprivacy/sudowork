@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge, skillHub, assistantHub } from '@/common';
+import { eeclaw } from '@/common/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
@@ -17,8 +18,8 @@ import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssis
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
-import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload } from '@icon-park/react';
+import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, UploadOne } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +27,7 @@ import { useAuth } from '@/renderer/context/AuthContext';
 import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 // ==================== Types ====================
 
@@ -90,7 +92,9 @@ const InstalledAssistantCard: React.FC<{
   onDuplicate: () => void;
   onUpload?: () => void;
   onClick: () => void;
-}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick }) => {
+  /** Enterprise mode: publish button element */
+  enterprisePublishButton?: React.ReactNode;
+}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick, enterprisePublishButton }) => {
   const { t } = useTranslation();
   const isCustom = !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
   const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled;
@@ -116,8 +120,8 @@ const InstalledAssistantCard: React.FC<{
 
   return (
     <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
-      {/* Avatar + toggle */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+      {/* Avatar */}
+      <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
           {avatarImage ? (
             <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
@@ -129,20 +133,10 @@ const InstalledAssistantCard: React.FC<{
             </div>
           )}
         </div>
-        {isCustom && (
-          <div
-            className='mt-6px w-full flex justify-center'
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
-          </div>
-        )}
       </div>
 
       {/* Content */}
-      <div className='flex-1 min-w-0 pr-58px'>
+      <div className='flex-1 min-w-0'>
         <div className='h-20px flex items-center'>
           <span className='font-medium text-13px text-t-primary truncate' title={displayName.length > 15 ? displayName : undefined}>
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
@@ -153,6 +147,20 @@ const InstalledAssistantCard: React.FC<{
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
             <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
+          </div>
+        )}
+        {/* Toggle + Enterprise publish button row - at the bottom */}
+        {isCustom && (
+          <div className='mt-8px flex items-center justify-between'>
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
+            </div>
+            {/* Enterprise publish button - at the rightmost, same row as toggle */}
+            {enterprisePublishButton}
           </div>
         )}
       </div>
@@ -296,6 +304,9 @@ const AssistantDetailModal: React.FC<{
   const [relatedSkillTags, setRelatedSkillTags] = useState<Map<string, string>>(new Map());
   const [loadingSkills, setLoadingSkills] = useState(false);
 
+  // Use useAppMode hook for renderer process (enterpriseDebugConfig.isEnterpriseMode only works in main process)
+  const { isEnterprise } = useAppMode();
+
   // Check if assistant has a valid download URL
   const hasDownloadUrl = Boolean(assistant?._sourceUrl);
 
@@ -335,10 +346,13 @@ const AssistantDetailModal: React.FC<{
     const fetchData = async () => {
       try {
         if (isElectronDesktop()) {
-          // Fetch assistant detail
-          const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
-          if (res.success && res.data) {
-            setDetail(res.data);
+          // In enterprise mode, skip SkillHub API calls - only use local data
+          if (!isEnterprise) {
+            // Fetch assistant detail from Hub (personal mode only)
+            const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
+            if (res.success && res.data) {
+              setDetail(res.data);
+            }
           }
 
           // Fetch related skill details by IDs
@@ -379,9 +393,9 @@ const AssistantDetailModal: React.FC<{
               }
             }
 
-            // Fetch remaining skills from Hub API
+            // Fetch remaining skills from Hub API (personal mode only)
             let hubSkills: ISkillHubSkill[] = [];
-            if (notFoundSkillIds.length > 0) {
+            if (notFoundSkillIds.length > 0 && !isEnterprise) {
               const skillsRes = await assistantHub.fetchSkillDetailsByIds.invoke({ skillIds: notFoundSkillIds });
               if (skillsRes.success && skillsRes.data) {
                 hubSkills = skillsRes.data;
@@ -418,7 +432,7 @@ const AssistantDetailModal: React.FC<{
       }
     };
     void fetchData();
-  }, [visible, assistant, localSkillByIdMap]);
+  }, [visible, assistant, localSkillByIdMap, isEnterprise]);
 
   if (!assistant) return null;
 
@@ -609,6 +623,7 @@ const AgentModalContent: React.FC = () => {
 
   // Hub state (for store/exclusive tabs)
   const { user } = useAuth();
+  const enterpriseCode = user?.enterprise_code?.trim();
   const navigate = useNavigate();
   const [hubAssistantList, setHubAssistantList] = useState<IAssistantHubSkill[]>([]);
   const [hubCategories, setHubCategories] = useState<string[]>([]);
@@ -632,7 +647,39 @@ const AgentModalContent: React.FC = () => {
   const [uploadConfirmVisible, setUploadConfirmVisible] = useState(false);
   const [uploadAssistant, setUploadAssistant] = useState<AssistantListItem | null>(null);
   const [uploading, setUploading] = useState(false);
-  const enterpriseCode = user?.enterprise_code?.trim();
+
+  // Enterprise mode detection - use useAppMode hook for renderer process
+  const { isEnterprise } = useAppMode();
+
+  // Upload/Publish state for enterprise mode
+  const [uploadingAssistantName, setUploadingAssistantName] = useState<string | null>(null);
+  const [publishingAssistantName, setPublishingAssistantName] = useState<string | null>(null);
+
+  // Tenant assistants state for exclusive tab in enterprise mode
+  const [tenantAssistants, setTenantAssistants] = useState<
+    Array<{
+      id: string;
+      name: string;
+      displayName?: string;
+      description?: string;
+      version?: string;
+      status: 'pending' | 'approved' | 'rejected';
+      author?: string;
+      authorName?: string;
+      enabledSkills?: string[];
+      approvedAt?: string;
+      installed?: boolean;
+    }>
+  >([]);
+  const [tenantAssistantsLoading, setTenantAssistantsLoading] = useState(false);
+  const [installingTenantAssistantId, setInstallingTenantAssistantId] = useState<string | null>(null);
+
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState<{
+    syncing: boolean;
+    skills: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> };
+    assistants: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> };
+  }>({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
 
   const avatarImageMap = React.useMemo<Record<string, string>>(
     () => ({
@@ -883,6 +930,58 @@ const AgentModalContent: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [activeTab, hubSearchQuery, fetchHubAssistants]);
+
+  // Listen for sync completed event (enterprise mode)
+  useEffect(() => {
+    if (!isEnterprise || !isElectronDesktop()) return;
+
+    const handleSyncCompleted = (data: { skills: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; assistants: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } }) => {
+      setSyncStatus({ syncing: false, skills: data.skills, assistants: data.assistants });
+      // Refresh installed list after sync
+      void fetchInstalledAssistantNames();
+    };
+
+    const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
+    return () => unsubscribe();
+  }, [isEnterprise, fetchInstalledAssistantNames]);
+
+  // Trigger sync when switching to store tab in enterprise mode
+  // Only trigger if not already syncing (avoid duplicate requests)
+  useEffect(() => {
+    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) return;
+
+    // Skip if already syncing to avoid duplicate requests
+    if (syncStatus.syncing) return;
+
+    // Reset sync status and trigger sync
+    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+
+    eeclaw.syncFromRemote.invoke().catch((err) => {
+      console.error('Failed to trigger sync:', err);
+      setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+    });
+  }, [isEnterprise, activeTab, syncStatus.syncing]);
+
+  // Fetch tenant assistants when switching to exclusive tab in enterprise mode
+  useEffect(() => {
+    if (!isEnterprise || activeTab !== 'exclusive' || !isElectronDesktop()) return;
+
+    const fetchTenantAssistants = async () => {
+      setTenantAssistantsLoading(true);
+      try {
+        const res = await eeclaw.getTenantAssistants.invoke();
+        if (res.success && res.data) {
+          setTenantAssistants(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch tenant assistants:', err);
+      } finally {
+        setTenantAssistantsLoading(false);
+      }
+    };
+
+    void fetchTenantAssistants();
+  }, [isEnterprise, activeTab]);
 
   // IntersectionObserver for infinite scroll
   const findScrollParent = useCallback((el: HTMLElement | null): HTMLElement | null => {
@@ -1257,6 +1356,132 @@ const AgentModalContent: React.FC = () => {
     }
   }, [uploadAssistant, localeKey, enterpriseCode, t]);
 
+  // ---- Enterprise mode: Upload custom assistant to Moss Server ----
+  const handleUploadCustomAssistant = useCallback(
+    async (assistant: AssistantListItem): Promise<{ success: boolean; msg?: string }> => {
+      console.log('[handleUploadCustomAssistant] Starting upload for assistant:', assistant.id);
+      if (!isElectronDesktop()) {
+        console.log('[handleUploadCustomAssistant] Not desktop, returning');
+        return { success: false, msg: 'Not desktop' };
+      }
+
+      const assistantName = assistant.id;
+      const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
+      const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
+
+      setUploadingAssistantName(assistantName);
+      try {
+        console.log('[handleUploadCustomAssistant] Calling eeclaw.uploadCustomAssistant.invoke with:', { assistantName, displayName, description });
+        const res = await eeclaw.uploadCustomAssistant.invoke({
+          assistantName,
+          displayName,
+          description,
+          enabledSkills: assistant.enabledSkills,
+        });
+        console.log('[handleUploadCustomAssistant] Upload response:', res);
+        if (res.success && res.data) {
+          agentMessage.success(
+            t('settings.assistant.uploadSuccess', {
+              name: displayName,
+              defaultValue: `助手 "${displayName}" 已上传到服务器`,
+            })
+          );
+          // Refresh installed list
+          void loadAssistants();
+          return { success: true };
+        } else {
+          return { success: false, msg: res.msg || 'Unknown error' };
+        }
+      } catch (err) {
+        console.error('Failed to upload custom assistant:', err);
+        return { success: false, msg: String(err) };
+      } finally {
+        setUploadingAssistantName(null);
+      }
+    },
+    [localeKey, loadAssistants, t]
+  );
+
+  // ---- Enterprise mode: Publish assistant as tenant-exclusive ----
+  const handlePublishTenantAssistant = useCallback(
+    async (assistantId: string, assistantName: string) => {
+      if (!isElectronDesktop()) return;
+
+      setPublishingAssistantName(assistantName);
+      try {
+        const res = await eeclaw.publishTenantAssistant.invoke({ assistantId });
+        if (res.success && res.data) {
+          agentMessage.success(
+            t('settings.assistant.publishSuccess', {
+              name: assistantName,
+              defaultValue: `助手 "${assistantName}" 已提交发布申请，等待管理员审批`,
+            })
+          );
+          void loadAssistants();
+        } else {
+          agentMessage.error(
+            t('settings.assistant.publishFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `发布失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to publish tenant assistant:', err);
+        agentMessage.error(
+          t('settings.assistant.publishFailed', {
+            msg: String(err),
+            defaultValue: `发布失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setPublishingAssistantName(null);
+      }
+    },
+    [loadAssistants, t]
+  );
+
+  // ---- Enterprise mode: Install tenant assistant ----
+  const handleInstallTenantAssistant = useCallback(
+    async (assistantId: string, assistantName: string) => {
+      if (!isElectronDesktop()) return;
+
+      setInstallingTenantAssistantId(assistantId);
+      try {
+        const res = await eeclaw.installTenantAssistant.invoke({ assistantId });
+        if (res.success && res.data) {
+          agentMessage.success(
+            t('settings.assistant.installTenantSuccess', {
+              name: assistantName,
+              defaultValue: `专属助手 "${assistantName}" 已安装`,
+            })
+          );
+          // Update tenant assistants list to mark as installed
+          setTenantAssistants((prev) => prev.map((a) => (a.id === assistantId ? { ...a, installed: true } : a)));
+          void loadAssistants();
+        } else {
+          agentMessage.error(
+            t('settings.assistant.installTenantFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `安装失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to install tenant assistant:', err);
+        agentMessage.error(
+          t('settings.assistant.installTenantFailed', {
+            msg: String(err),
+            defaultValue: `安装失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setInstallingTenantAssistantId(null);
+      }
+    },
+    [loadAssistants, t]
+  );
+
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
   const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
@@ -1361,7 +1586,38 @@ const AgentModalContent: React.FC = () => {
         });
         setActiveAssistantId(newId);
         await loadAssistants();
-        agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+
+        // Enterprise mode: sync upload to Moss Server after create
+        console.log('[AgentModalContent] isEnterprise:', isEnterprise);
+        if (isEnterprise) {
+          console.log('[AgentModalContent] Enterprise mode: starting sync upload to Moss Server');
+          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+          if (result.success && result.data) {
+            const newAssistantInfo = result.data.find((a) => a.meta?.id === newId || a.name === newId);
+            console.log('[AgentModalContent] newAssistantInfo:', newAssistantInfo);
+            if (newAssistantInfo) {
+              const newAssistant: AssistantListItem = {
+                ...toBackendConfig(newAssistantInfo),
+                _category: newAssistantInfo.category,
+                _isHubInstalled: newAssistantInfo.isHubInstalled,
+              };
+              console.log('[AgentModalContent] Calling handleUploadCustomAssistant');
+              const uploadRes = await handleUploadCustomAssistant(newAssistant);
+              console.log('[AgentModalContent] uploadRes:', uploadRes);
+              if (uploadRes.success) {
+                agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+              } else {
+                agentMessage.error(t('settings.assistant.uploadFailed', { msg: uploadRes.msg, defaultValue: `上传失败: ${uploadRes.msg}` }));
+              }
+            } else {
+              agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+            }
+          } else {
+            agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+          }
+        } else {
+          agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+        }
       } else {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
@@ -1472,6 +1728,44 @@ const AgentModalContent: React.FC = () => {
     </div>
   );
 
+  // Render custom assistants with enterprise action buttons (publish only, auto-upload on create)
+  const renderCustomAssistantGridWithEnterpriseActions = (list: AssistantListItem[]) => (
+    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+      {list.map((assistant) => {
+        const assistantId = assistant.id;
+        const isPublishing = publishingAssistantName === assistantId;
+        const publishStatus = (assistant as any).publish_status;
+
+        // Enterprise publish button element - placed below delete button
+        const enterprisePublishButton =
+          isEnterprise && !publishStatus ? (
+            <Tooltip content={t('settings.assistant.publishAsTenant', { defaultValue: '发布为专属助手' })}>
+              <button
+                className='w-20px h-20px rd-4px flex items-center justify-center bg-fill-2 hover:bg-primary hover:text-white transition-colors cursor-pointer border-none'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handlePublishTenantAssistant(assistantId, assistant.name);
+                }}
+                disabled={isPublishing}
+              >
+                {isPublishing ? <Spin size={12} /> : <Share size={12} />}
+              </button>
+            </Tooltip>
+          ) : isEnterprise && publishStatus === 'pending' ? (
+            <Tooltip content={t('settings.assistant.publishPending', { defaultValue: '发布审批中' })}>
+              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-warning text-white text-10px'>⏳</span>
+            </Tooltip>
+          ) : isEnterprise && publishStatus === 'approved' ? (
+            <Tooltip content={t('settings.assistant.publishApproved', { defaultValue: '已发布为专属助手' })}>
+              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-success text-white text-10px'>✓</span>
+            </Tooltip>
+          ) : undefined;
+
+        return <InstalledAssistantCard key={assistantId} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onClick={() => void handleEdit(assistant)} enterprisePublishButton={enterprisePublishButton} />;
+      })}
+    </div>
+  );
+
   // ==================== Main render ====================
 
   return (
@@ -1493,6 +1787,24 @@ const AgentModalContent: React.FC = () => {
             {assistants.length > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{assistants.length}</span>}
           </button>
         </div>
+
+        {/* Sync status indicator for enterprise mode - compact inline style */}
+        {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
+          <div className='flex items-center gap-6px px-10px py-4px bg-primary-light-1 rd-6px flex-shrink-0'>
+            <Spin size={12} />
+            <span className='text-11px text-primary'>{t('settings.assistant.syncing', { defaultValue: '同步中...' })}</span>
+          </div>
+        )}
+        {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.failed.length > 0) && (
+          <div className='flex items-center gap-6px px-10px py-4px bg-fill-2 rd-6px flex-shrink-0'>
+            <span className='text-11px text-t-secondary'>
+              {t('settings.assistant.syncCompletedShort', {
+                installed: syncStatus.assistants.installed.length,
+                defaultValue: `已同步 ${syncStatus.assistants.installed.length} 个助手`,
+              })}
+            </span>
+          </div>
+        )}
 
         {/* Search - for store/exclusive tabs */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
@@ -1527,7 +1839,69 @@ const AgentModalContent: React.FC = () => {
 
           {/* Assistant grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleHubScroll}>
-            {activeTab === 'exclusive' && !enterpriseCode ? (
+            {/* Enterprise mode: show tenant assistants from Moss Server */}
+            {activeTab === 'exclusive' && isEnterprise ? (
+              tenantAssistantsLoading ? (
+                <div className='flex justify-center items-center py-48px'>
+                  <Spin size={28} />
+                </div>
+              ) : tenantAssistants.length === 0 ? (
+                <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
+                  <Shield size='32' className='text-t-tertiary' />
+                  <span className='text-13px'>{t('settings.assistant.noTenantAssistants', { defaultValue: '暂无专属助手' })}</span>
+                </div>
+              ) : (
+                <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {tenantAssistants
+                    .filter((a) => a.status === 'approved')
+                    .map((assistant) => {
+                      const isInstalling = installingTenantAssistantId === assistant.id;
+                      const isInstalled = assistant.installed === true;
+                      return (
+                        <div
+                          key={assistant.id}
+                          className='bg-base rd-12px border border-line p-12px flex items-start gap-12px cursor-pointer hover:border-primary transition-colors'
+                          onClick={() => {
+                            if (!isInstalled && !isInstalling) {
+                              void handleInstallTenantAssistant(assistant.id, assistant.name);
+                            }
+                          }}
+                        >
+                          <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-2 flex items-center justify-center'>
+                            <Robot size='24' className='text-t-tertiary' />
+                          </div>
+                          <div className='flex-1 min-w-0 flex flex-col gap-4px'>
+                            <div className='text-13px font-medium text-t-primary truncate'>{assistant.displayName || assistant.name}</div>
+                            <div className='text-11px text-t-secondary line-clamp-2'>{assistant.description || ''}</div>
+                            <div className='flex items-center gap-4px mt-4px'>
+                              {assistant.authorName && <span className='text-10px text-t-tertiary'>{assistant.authorName}</span>}
+                              {assistant.version && <span className='text-10px text-t-tertiary'>v{assistant.version}</span>}
+                            </div>
+                          </div>
+                          {/* Install/Installed indicator */}
+                          <div className='flex-shrink-0'>
+                            {isInstalled ? (
+                              <span className='px-6px py-2px bg-success text-white text-10px rd-4px'>{t('common.installed', { defaultValue: '已安装' })}</span>
+                            ) : isInstalling ? (
+                              <Spin size={16} />
+                            ) : (
+                              <button
+                                className='px-6px py-2px bg-primary text-white text-10px rd-4px cursor-pointer border-none hover:opacity-80'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleInstallTenantAssistant(assistant.id, assistant.name);
+                                }}
+                              >
+                                {t('common.install', { defaultValue: '安装' })}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )
+            ) : activeTab === 'exclusive' && !enterpriseCode ? (
               <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
                 <Shield size='32' className='text-t-tertiary' />
                 <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属助手。' })}</span>
@@ -1615,7 +1989,7 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-t-primary'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                 </div>
-                {customAssistants.length > 0 ? renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
+                {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
               </section>
 
               {/* Hub/store assistants section */}

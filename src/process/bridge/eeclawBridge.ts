@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
-import { mainWarn, mainLog } from '@process/utils/mainLogger';
+import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode } from '@/common/enterpriseDebugConfig';
 import { resetConversationProvider } from '../providers';
 
@@ -160,9 +160,11 @@ export function initEeclawBridge(): void {
     if (mode === 'e') {
       try {
         const { getChannelManager } = await import('@/channels');
-        getChannelManager().initialize().catch((error) => {
-          mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
-        });
+        getChannelManager()
+          .initialize()
+          .catch((error) => {
+            mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
+          });
       } catch (error) {
         mainLog('eeclawBridge', 'Failed to import ChannelManager: ' + String(error));
       }
@@ -228,6 +230,22 @@ export function initEeclawBridge(): void {
       resetConversationProvider();
 
       mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
+
+      // 【新增】后台静默同步，不阻塞登录流程
+      // Background silent sync after enterprise login, non-blocking
+      import('@process/sync/remoteToLocalSync')
+        .then(({ syncAllFromRemote }) => syncAllFromRemote())
+        .then((result) => {
+          mainLog('eeclawBridge', 'Background sync completed', {
+            skills: result.skills.installed.length,
+            assistants: result.assistants.installed.length,
+          });
+          // Emit sync completed event to notify renderer
+          ipcBridge.eeclaw.syncCompleted.emit(result);
+        })
+        .catch((err) => {
+          mainError('eeclawBridge', 'Background sync failed:', err);
+        });
 
       return {
         success: true,
@@ -316,7 +334,7 @@ export function initEeclawBridge(): void {
 
       const data = await response.json();
       // Server returns InstalledAssistantInfo[], map to { key, name, avatar, emoji, description }
-      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : data?.data ?? []).map((a: any) => ({
+      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : (data?.data ?? [])).map((a: any) => ({
         key: a.id || a.name,
         name: a.displayName || a.name,
         avatar: a.avatar || undefined,
@@ -374,5 +392,157 @@ export function initEeclawBridge(): void {
       mainLog('eeclawBridge', 'Logged out, local storage cleared');
     }
     return { success: true, data: {} };
+  });
+
+  // Manual sync trigger (for Local mode or retry)
+  ipcBridge.eeclaw.syncFromRemote.provider(async () => {
+    try {
+      const { syncIncrementalFromRemote } = await import('@process/sync/remoteToLocalSync');
+      const result = await syncIncrementalFromRemote();
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      mainError('eeclawBridge', 'syncFromRemote error:', error);
+      return {
+        success: false,
+        data: {
+          skills: { installed: [], skipped: [], failed: [] },
+          assistants: { installed: [], skipped: [], failed: [] },
+        },
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  // === Custom Skill/Assistant Upload ===
+  ipcBridge.eeclaw.uploadCustomSkill.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomSkill called with params:', params);
+    try {
+      const { uploadCustomSkill } = await import('@process/sync/customUpload');
+      const result = await uploadCustomSkill(params);
+      mainLog('eeclawBridge', 'uploadCustomSkill result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.uploadCustomAssistant.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomAssistant called with params:', params);
+    try {
+      const { uploadCustomAssistant } = await import('@process/sync/customUpload');
+      const result = await uploadCustomAssistant(params);
+      mainLog('eeclawBridge', 'uploadCustomAssistant result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // === Tenant Skill/Assistant ===
+  ipcBridge.eeclaw.getTenantSkills.provider(async () => {
+    try {
+      const { fetchTenantSkills } = await import('@process/sync/tenantSync');
+      const skills = await fetchTenantSkills();
+      return { success: true, data: skills };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantSkills error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.getTenantAssistants.provider(async () => {
+    try {
+      const { fetchTenantAssistants } = await import('@process/sync/tenantSync');
+      const assistants = await fetchTenantAssistants();
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantAssistants error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantSkill.provider(async ({ skillId }) => {
+    try {
+      const { installTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await installTenantSkill(skillId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantAssistant.provider(async ({ assistantId }) => {
+    try {
+      const { installTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await installTenantAssistant(assistantId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantSkill.provider(async ({ skillId, publishNote }) => {
+    try {
+      const { publishTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await publishTenantSkill(skillId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            skillId: result.skillId || skillId,
+            skillName: result.skillName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantAssistant.provider(async ({ assistantId, publishNote }) => {
+    try {
+      const { publishTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await publishTenantAssistant(assistantId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            assistantId: result.assistantId || assistantId,
+            assistantName: result.assistantName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
   });
 }

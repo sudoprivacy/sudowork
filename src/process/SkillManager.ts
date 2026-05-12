@@ -10,6 +10,8 @@ import { app } from 'electron';
 import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { mainLog, mainError } from './utils/mainLogger';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -62,17 +64,23 @@ export interface ISkillInfo {
  * Skill Manager 类
  */
 export class SkillManager {
-  private skillsDir: string;
-  private hubDir: string;
-  private systemDir: string;
-  private customDir: string;
+  // Use getters for dynamic directory resolution based on current mode
+  private get skillsDir(): string {
+    return getSkillsDir();
+  }
+  private get hubDir(): string {
+    return getHubSkillsDir();
+  }
+  private get systemDir(): string {
+    return getSystemSkillsDir();
+  }
+  private get customDir(): string {
+    return getCustomSkillsDir();
+  }
 
   constructor() {
-    this.skillsDir = getSkillsDir();
-    this.hubDir = getHubSkillsDir();
-    this.systemDir = getSystemSkillsDir();
-    this.customDir = getCustomSkillsDir();
-    this.ensureDirs();
+    // Directory paths are now resolved dynamically via getters
+    // ensureDirs() is called on first access if needed
   }
 
   // 确保所有目录存在
@@ -101,6 +109,37 @@ export class SkillManager {
 
     const existing = candidates.find((candidate) => fsExistsSync(candidate));
     return existing || candidates[0];
+  }
+
+  /**
+   * Read skill metadata file, trying both Moss and Sudowork meta file names
+   * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+   * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+   */
+  private async readSkillMetaFile(skillDir: string): Promise<{ content: string; fileName: string } | null> {
+    const isEnterprise = isEnterpriseMode();
+    const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+
+    for (const fileName of metaFiles) {
+      const filePath = path.join(skillDir, fileName);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return { content, fileName };
+      } catch {
+        // Try next file
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Write skill metadata file, using correct file name based on current mode
+   */
+  private async writeSkillMetaFile(skillDir: string, meta: ISkillMeta): Promise<void> {
+    const isEnterprise = isEnterpriseMode();
+    const fileName = isEnterprise ? MOSS_SKILL_META_FILE : SKILL_HUB_META_FILE;
+    const filePath = path.join(skillDir, fileName);
+    await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
   }
 
   // 搜索技能目录（排除 _ 开头的目录）
@@ -197,9 +236,9 @@ export class SkillManager {
     let isHubInstalled = category === 'hub';
     let enabled = true;
 
-    try {
-      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-      meta = JSON.parse(raw) as ISkillMeta;
+    const metaResult = await this.readSkillMetaFile(skillDir);
+    if (metaResult) {
+      meta = JSON.parse(metaResult.content) as ISkillMeta;
 
       if (!forceBuiltin && meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
@@ -221,7 +260,7 @@ export class SkillManager {
           }
         }
       }
-    } catch {
+    } else {
       // 没有 metadata 文件，默认为自定义
       meta = { source_type: 'upload' };
       isHubInstalled = false;
@@ -253,7 +292,12 @@ export class SkillManager {
 
   // 获取所有已安装的技能列表
   async getInstalledSkills(): Promise<ISkillInfo[]> {
+    this.ensureDirs();
     const skills: ISkillInfo[] = [];
+
+    // Debug: log enterprise mode and directories
+    const isEnterprise = isEnterpriseMode();
+    mainLog('SkillManager', `getInstalledSkills: isEnterpriseMode=${isEnterprise}, hubDir=${this.hubDir}`);
 
     // 1. 扫描所有启用的技能目录
     const enabledDirs = await this.scanAllSkillDirs();
@@ -340,14 +384,12 @@ export class SkillManager {
       }
 
       // 检查是否为内置技能
-      try {
-        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const metaResult = await this.readSkillMetaFile(skillDir);
+      if (metaResult) {
+        const meta = JSON.parse(metaResult.content) as ISkillMeta;
         if (meta.is_builtin === true) {
           return { success: false, msg: '内置技能无法禁用' };
         }
-      } catch {
-        // 没有 metadata 文件，允许禁用
       }
 
       // 获取基础目录
@@ -376,16 +418,15 @@ export class SkillManager {
       await fs.rename(skillDir, destDir);
 
       // 修改 meta
-      const metaFilePath = path.join(destDir, SKILL_HUB_META_FILE);
-      try {
-        const raw = await fs.readFile(metaFilePath, 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const existingMeta = await this.readSkillMetaFile(destDir);
+      if (existingMeta) {
+        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
         meta.enabled = false;
-        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-      } catch {
+        await this.writeSkillMetaFile(destDir, meta);
+      } else {
         // 没有 meta 文件，创建一个
-        const newMeta = { enabled: false, source_type: 'upload' };
-        await fs.writeFile(metaFilePath, JSON.stringify(newMeta, null, 2), 'utf-8');
+        const newMeta: ISkillMeta = { enabled: false, source_type: 'upload' };
+        await this.writeSkillMetaFile(destDir, newMeta);
       }
 
       mainLog('SkillManager', `Disabled skill: ${skillName}`);
@@ -431,16 +472,15 @@ export class SkillManager {
       await fs.rename(skillDir, destDir);
 
       // 修改 meta
-      const metaFilePath = path.join(destDir, SKILL_HUB_META_FILE);
-      try {
-        const raw = await fs.readFile(metaFilePath, 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const existingMeta = await this.readSkillMetaFile(destDir);
+      if (existingMeta) {
+        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
         meta.enabled = true;
-        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-      } catch {
+        await this.writeSkillMetaFile(destDir, meta);
+      } else {
         // 没有 meta 文件，创建一个
-        const newMeta = { enabled: true, source_type: 'upload' };
-        await fs.writeFile(metaFilePath, JSON.stringify(newMeta, null, 2), 'utf-8');
+        const newMeta: ISkillMeta = { enabled: true, source_type: 'upload' };
+        await this.writeSkillMetaFile(destDir, newMeta);
       }
 
       mainLog('SkillManager', `Enabled skill: ${skillName}`);
@@ -462,14 +502,12 @@ export class SkillManager {
       const { dir: skillDir, isDisabled } = result;
 
       // 检查是否为内置技能
-      try {
-        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const metaResult = await this.readSkillMetaFile(skillDir);
+      if (metaResult) {
+        const meta = JSON.parse(metaResult.content) as ISkillMeta;
         if (meta.is_builtin === true) {
           return { success: false, msg: '内置技能无法卸载' };
         }
-      } catch {
-        // 没有 meta 文件，允许卸载
       }
 
       await fs.rm(skillDir, { recursive: true, force: true });
