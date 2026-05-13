@@ -42,9 +42,9 @@ export interface TenantConfigResponse {
  */
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: undefined,
-  app_name: 'SudoClaw',
+  app_name: 'SudoWork',
   top_name: 'SudoWork',
   login_desp: 'AgentOps | 办公专家',
-  about_name: 'SudoClaw',
+  about_name: 'SudoWork',
   app_company_name: '北京数牍科技有限公司',
 };
