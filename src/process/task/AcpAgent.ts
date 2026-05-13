@@ -142,6 +142,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
 
+  // Flag to track if user cancelled - ignore subsequent messages
+  private userCancelled: boolean = false;
+
   // Tool call tracking for file_send messages to channel clients
   private toolCallMeta = new Map<string, { toolName: string; rawInput?: Record<string, unknown> }>();
 
@@ -622,6 +625,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     const managerSendStart = Date.now();
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+
+    // Reset user cancelled flag for new message
+    this.userCancelled = false;
+
     try {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
@@ -1085,6 +1092,9 @@ This identity statement takes priority over the default identity in USER.md.
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
 
+    // Mark as user cancelled to ignore subsequent messages from backend
+    this.userCancelled = true;
+
     // 1. Flush buffered streaming text
     this.streamTextBuffer.flushAll();
 
@@ -1117,34 +1127,49 @@ This identity statement takes priority over the default identity in USER.md.
 
     this.status = 'finished';
 
+    // 5. Emit user cancelled message
+    this.emitUserCancelledMessage();
+
+    // 6. Always emit finish to ensure UI state is reset
+    this.handleStreamEvent({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+
     if (result === 'disconnected') {
       // Backend didn't respond to cancel — process was killed
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
       // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
-      // Emit finish only for disconnect path (cancel path already emitted via onEndTurn)
-      this.handleStreamEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
       return;
     }
 
     if (result === 'abandoned') {
-      void this.handleSignalEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
+      // Backend didn't respond in time, but we already emitted finish
       return;
     }
 
     // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
-    // The finish event was already emitted by handleEndTurn() when the backend responded
+  }
+
+  /**
+   * Emit user cancelled message
+   * 发送用户终止提示消息
+   */
+  private emitUserCancelledMessage(): void {
+    // Direct emit to bypass handleStreamEvent's userCancelled check
+    ipcBridge.conversation.responseStream.emit({
+      type: 'tips',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
+        type: 'warning',
+        content: '请求已被用户终止',
+      },
+    });
   }
 
   kill() {
@@ -1393,6 +1418,12 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Connection Event Handlers ==========
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
+    // Ignore session updates if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring session update after user cancel: sessionUpdate=${data.update?.sessionUpdate}`);
+      return;
+    }
+
     try {
       if (data.update?.sessionUpdate === 'available_commands_update') {
         const commandUpdate = data as AvailableCommandsUpdate;
@@ -1709,6 +1740,12 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Stream & Signal Pipeline (merged from Manager) ==========
 
   private handleStreamEvent(message: IResponseMessage): void {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring message after user cancel: type=${message.type}`);
+      return;
+    }
+
     const pipelineStart = Date.now();
 
     if (message.type === 'agent_status') {
@@ -1793,6 +1830,12 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring signal event after user cancel: type=${v.type}`);
+      return;
+    }
+
     this.streamTextBuffer.flushAll();
 
     if (v.type === 'acp_permission') {

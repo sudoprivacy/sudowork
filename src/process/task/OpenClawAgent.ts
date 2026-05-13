@@ -38,19 +38,10 @@ import { ProcessConfig } from '@process/initStorage';
 import { serviceManager } from '@process/services/serviceManager';
 
 // Telemetry imports for conversation tracking
-import {
-  startConversationTracking,
-  endConversationSuccess,
-  endConversationError,
-  endConversationUserCancel,
-} from '../telemetry';
+import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
-import {
-  conversationBreadcrumbs,
-  apiBreadcrumbs,
-  systemBreadcrumbs,
-} from '../telemetry/BreadcrumbTracker';
+import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -660,6 +651,26 @@ ${draftsInstruction}`;
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
       }
     }
+
+    // Emit user cancelled message
+    this.emitUserCancelledMessage();
+  }
+
+  /**
+   * Emit user cancelled message
+   * 发送用户终止提示消息
+   */
+  private emitUserCancelledMessage(): void {
+    // Direct emit to bypass any message filtering
+    ipcBridge.openclawConversation.responseStream.emit({
+      type: 'tips',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
+        type: 'warning',
+        content: '请求已被用户终止',
+      },
+    });
   }
 
   private async handleImageCommand(args: string): Promise<AcpResult> {
