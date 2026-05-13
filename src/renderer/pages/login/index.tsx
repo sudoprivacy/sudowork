@@ -405,11 +405,11 @@ const LoginPage: React.FC = () => {
             <div className='login-page__logo'>
               <img
                 src={SudoworkIcon}
-                alt={tenantName || 'SudoClaw'}
+                alt={tenantName || 'SudoWork'}
                 className='w-64px h-64px object-contain'
               />
             </div>
-            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantName || 'SudoClaw'}</h1>
+            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantName || 'SudoWork'}</h1>
             <p className='text-13px text-t-secondary'>企业版登录</p>
           </div>
 

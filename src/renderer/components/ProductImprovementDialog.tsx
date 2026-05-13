@@ -97,7 +97,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
           <div className="text-13px text-t-secondary leading-relaxed">
             {t(
               'settings.productImprovement.privacy',
-              '开启后将匿名收集 SudoClaw 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。'
+              '开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。'
             )}
           </div>
         </div>

@@ -104,7 +104,7 @@ const RegisterPage: React.FC = () => {
           <div className='login-page__logo'>
             <AionLogoMark />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoClaw</h1>
+          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoWork</h1>
           <p className='text-13px text-t-secondary'>完成注册，开始使用</p>
         </div>
 
