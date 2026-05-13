@@ -191,6 +191,9 @@ export class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
+          // Reset Nexus running state after killing port processes
+          // because preparePortForStart may have killed the process externally
+          dynamicNexusService.resetRunningState();
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
           initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
