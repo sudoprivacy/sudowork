@@ -917,7 +917,7 @@
     "description": "Help us continuously improve the product experience for better service.",
     "hint": "When enabled, we do not collect your conversation content or personal information. You can turn off this feature at any time.",
     "dialogTitle": "Product Improvement Program",
-    "privacy": "When enabled, SudoClaw performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "privacy": "When enabled, SudoWork performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
     "confirm": "Enable",
     "cancel": "Not Now"
   }
