@@ -149,6 +149,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private userModelOverride: string | null = null;
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
+  private lastUserMessage: string | null = null;
 
   // Slash commands
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
@@ -634,6 +635,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Breadcrumb: conversation started
       conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
+
+      // Store user's message for file-sending intent detection
+      // 存储用户消息用于检测文件发送意图
+      if (data.content) {
+        this.lastUserMessage = data.content;
+        console.log(`[AcpAgent] Stored lastUserMessage: "${data.content.substring(0, 100)}..."`);
+      }
 
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
@@ -1402,6 +1410,7 @@ This identity statement takes priority over the default identity in USER.md.
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+        console.log(`[AcpAgent] tool_call event: toolName=${toolName}, toolCallId=${toolCallId}`);
 
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
@@ -1439,28 +1448,53 @@ This identity statement takes priority over the default identity in USER.md.
         // Intercept file-creation tool calls: send generated files to channel clients (e.g., WeChat, Lark)
         if (toolStatus === 'completed' && toolCallId) {
           const meta = this.toolCallMeta.get(toolCallId);
+          console.log(`[AcpAgent] tool_call_update completed: toolCallId=${toolCallId}, hasMeta=${!!meta}, meta=${meta ? JSON.stringify({ toolName: meta.toolName, rawInput: meta.rawInput }) : 'null'}`);
           if (meta) {
             const toolName = meta.toolName;
             const rawInput = meta.rawInput;
-            const kind = this.inferToolKind(toolName);
+            console.log(`[AcpAgent] Processing tool call: toolName=${toolName}, lastUserMessage=${this.lastUserMessage?.substring(0, 50)}...`);
 
-            // Strategy 1: Direct file-creation tools (Write/Edit/Create) — extract path from tool args
-            const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
-            if (filePath) {
-              this.sendFileToChannels(filePath);
-              // Refresh snapshot so Strategy 2 won't re-detect this file
-              this.refreshWorkspaceFileSnapshot();
-            }
-
-            // Strategy 2: Execute-class tools (Bash/Shell) — scan workspace for new/modified files
-            // Covers cases like: Write tool creates .js script -> Bash runs "node xxx.js" -> script writes .jpg
-            if (kind === 'execute') {
-              const newFiles = this.detectNewFilesFromWorkspace();
-              for (const newFile of newFiles) {
-                this.sendFileToChannels(newFile);
+            // Strategy 1: SendUserMessage tool - Agent explicitly sends files to user
+            // This is the preferred way for Agent to send files
+            const n = toolName.toLowerCase();
+            if (n === 'sendusermessage' || n === 'brief') {
+              const attachments = rawInput?.attachments as Array<string> | undefined;
+              if (attachments && attachments.length > 0) {
+                for (const attachmentPath of attachments) {
+                  if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+                    this.sendFileToChannels(attachmentPath.trim());
+                  }
+                }
+                this.refreshWorkspaceFileSnapshot();
               }
-              // Refresh snapshot immediately to avoid re-sending same files on next execute tool
-              this.refreshWorkspaceFileSnapshot();
+            }
+            // Strategy 2: write_file tool - Auto-send files when user requested them
+            // This handles cases where Agent creates files but doesn't use SendUserMessage
+            else if (/write|edit|create/.test(n)) {
+              console.log(`[AcpAgent] Detected write/edit/create tool: ${toolName}`);
+              const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
+              console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
+              if (filePath) {
+                // Check if user's original message indicates they want the file sent
+                const userMessage = this.lastUserMessage?.toLowerCase() || '';
+                const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);
+                console.log(`[AcpAgent] userWantsFileSent=${userWantsFileSent}, userMessage="${userMessage.substring(0, 100)}"`);
+                // Also check if file is NOT a draft (intermediate file)
+                const ext = nodePath.extname(filePath).toLowerCase();
+                const isDraftExtension = ext === '.md' && (filePath.includes('temp') || filePath.includes('payload') || filePath.includes('draft'));
+                const isIntermediateScript = ext === '.py' && (filePath.includes('create_') || filePath.includes('generate_') || filePath.includes('convert_'));
+                console.log(`[AcpAgent] ext=${ext}, isDraftExtension=${isDraftExtension}, isIntermediateScript=${isIntermediateScript}`);
+
+                if (userWantsFileSent && !isDraftExtension && !isIntermediateScript) {
+                  console.log(`[AcpAgent] User requested file, auto-sending: ${filePath}`);
+                  this.sendFileToChannels(filePath);
+                  this.refreshWorkspaceFileSnapshot();
+                } else {
+                  console.log(`[AcpAgent] Skipping file send: userWantsFileSent=${userWantsFileSent}, isDraft=${isDraftExtension}, isIntermediate=${isIntermediateScript}`);
+                }
+              }
+            } else {
+              console.log(`[AcpAgent] Tool ${toolName} does not match write/edit/create pattern`);
             }
           }
           // Clean up tool call meta after processing
@@ -2477,6 +2511,30 @@ This identity statement takes priority over the default identity in USER.md.
   private extractFilePathFromToolCall(toolName: string, rawInput?: Record<string, unknown>): string | null {
     if (!rawInput) return null;
     const n = toolName.toLowerCase();
+
+    // Handle SendUserMessage tool: extract attachments (array of file paths)
+    if (n === 'sendusermessage' || n === 'brief') {
+      const attachments = rawInput.attachments as Array<string> | undefined;
+      if (attachments && attachments.length > 0) {
+        // Return the first valid attachment path
+        for (const attachmentPath of attachments) {
+          if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+            const resolvedPath = attachmentPath.trim();
+            // Verify the file exists
+            try {
+              if (fs.existsSync(resolvedPath)) {
+                return resolvedPath;
+              }
+            } catch {
+              // Continue to next attachment if this one doesn't exist
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // Handle file-creation tools (Write/Edit/Create)
     if (!/write|edit|create/.test(n)) return null;
 
     const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
@@ -2515,14 +2573,31 @@ This identity statement takes priority over the default identity in USER.md.
    * Called when a tool call completes successfully.
    */
   private sendFileToChannels(filePath: string): void {
+    // Resolve relative paths to absolute paths using workspace root
+    let resolvedPath = filePath;
+    if (!nodePath.isAbsolute(filePath)) {
+      resolvedPath = nodePath.resolve(this.workspace, filePath);
+    }
+
+    // Verify the file exists before sending
+    try {
+      if (!fs.existsSync(resolvedPath)) {
+        console.warn(`[AcpAgent] sendFileToChannels: file not found: ${resolvedPath}`);
+        return;
+      }
+    } catch {
+      console.warn(`[AcpAgent] sendFileToChannels: error checking file existence: ${resolvedPath}`);
+      return;
+    }
+
     const fileMessage: IResponseMessage = {
       type: 'file_send',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
       data: {
-        filePath,
-        fileName: nodePath.basename(filePath),
-        fileType: this.classifyFileType(filePath),
+        filePath: resolvedPath,
+        fileName: nodePath.basename(resolvedPath),
+        fileType: this.classifyFileType(resolvedPath),
       },
     };
     this.handleStreamEvent(fileMessage);
