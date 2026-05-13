@@ -48,7 +48,7 @@ export const useGuidMention = ({ availableAgents, customAgentAvatarMap, selected
   const [mentionSelectorOpen, setMentionSelectorOpen] = useState(false);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
-  const mentionMatchRegex = useMemo(() => /(?:^|\s)@([^\s@]*)$/, []);
+  const mentionMatchRegex = useMemo(() => /@([^\s@]*)$/, []);
 
   const mentionOptions = useMemo(() => {
     const agents = availableAgents || [];

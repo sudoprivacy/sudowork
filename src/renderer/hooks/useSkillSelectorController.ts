@@ -9,8 +9,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
 // Match @ followed by query text, ending at the current cursor position
-// Matches @ at start of input or after whitespace
-const AT_QUERY_RE = /(?:^|\s)@([^\s@]*)$/;
+// Matches @ anywhere in the input (start, after whitespace, or after any character)
+const AT_QUERY_RE = /@([^\s@]*)$/;
 
 /**
  * Extract the @ query from input text based on cursor position.
@@ -29,18 +29,13 @@ export function stripAtQuery(input: string, cursorPosition?: number): string {
   const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input;
   const textAfterCursor = cursorPosition !== undefined ? input.slice(cursorPosition) : '';
 
-  const match = textBeforeCursor.match(/(?:^|\s)@[^\s@]*$/);
+  const match = textBeforeCursor.match(/@[^\s@]*$/);
   if (!match) return input;
 
   const matchStart = match.index ?? 0;
   const prefix = textBeforeCursor.slice(0, matchStart);
 
-  let resultPrefix = prefix;
-  if (match[0].startsWith(' ') || match[0].startsWith('\t') || match[0].startsWith('\n')) {
-    resultPrefix = prefix + match[0][0];
-  }
-
-  return resultPrefix + textAfterCursor;
+  return prefix + textAfterCursor;
 }
 
 /**
@@ -50,18 +45,13 @@ export function replaceAtQuery(input: string, replacement: string, cursorPositio
   const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input;
   const textAfterCursor = cursorPosition !== undefined ? input.slice(cursorPosition) : '';
 
-  const match = textBeforeCursor.match(/(?:^|\s)@[^\s@]*$/);
+  const match = textBeforeCursor.match(/@[^\s@]*$/);
   if (!match) return input + replacement;
 
   const matchStart = match.index ?? 0;
   const prefix = textBeforeCursor.slice(0, matchStart);
 
-  let resultPrefix = prefix;
-  if (match[0].startsWith(' ') || match[0].startsWith('\t') || match[0].startsWith('\n')) {
-    resultPrefix = prefix + match[0][0];
-  }
-
-  return resultPrefix + replacement + ' ' + textAfterCursor;
+  return prefix + replacement + ' ' + textAfterCursor;
 }
 
 export type AtMentionTab = 'skills' | 'files';
