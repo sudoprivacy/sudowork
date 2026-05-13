@@ -45,9 +45,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const api = window.avatarApi;
     if (!api) {
-      // Preload not loaded (e.g. dev mode mismatch). Stay in idle and log
-      // for diagnostic purposes; the orb still renders so the window is
-      // visibly alive.
       console.warn('[Avatar] window.avatarApi missing; preload may not be wired');
       return;
     }
@@ -86,7 +83,6 @@ const App: React.FC = () => {
           setFsmState('error');
           break;
         default:
-          // Ignore other event types in MVP-0; MVP-1 expands the FSM.
           break;
       }
     });
