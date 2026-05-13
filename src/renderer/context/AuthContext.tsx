@@ -327,6 +327,11 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
         await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
           console.warn('[Auth] Failed to save scode config:', err);
         });
+        // 同步 settings.json 模型为 C端第一个有效模型，防止 E端残留模型 ID 导致 scode 崩溃
+        const firstModel = loginSudoclawPayload.models[0];
+        if (firstModel) {
+          await ipcBridge.scode.setDefaultModel.invoke({ modelId: firstModel }).catch(() => {});
+        }
       }
     } catch (error) {
       setSyncMessage(null);
