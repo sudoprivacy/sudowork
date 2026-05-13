@@ -19,6 +19,8 @@ export interface AuthUser {
   model_service_url?: string;
   models?: string[];
   phone?: string;
+  localAuth?: boolean;
+  localModeAvailable?: boolean;
   points?: {
     total: number;
     used: number;
@@ -130,7 +132,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const AUTH_USER_ENDPOINT = '/api/auth/user';
 const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
-const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
+export const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -235,13 +237,14 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
 }
 
 // Map MOSS enterprise user to AuthUser compatible type
-function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: string }, token?: string): AuthUser {
+function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: string; localAuth?: boolean }, token?: string): AuthUser {
   return {
     id: enterpriseUser.id,
     nickname: enterpriseUser.name,
     role: (enterpriseUser.role as AuthUser['role']) || 'USER',
     status: 1, // default active
     token,
+    localAuth: enterpriseUser.localAuth === true,
   };
 }
 
@@ -869,6 +872,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // Map MOSS user to AuthUser compatible type
       const mappedUser = mapEnterpriseUser(data.user, data.access_token);
 
+      // --- localModeAvailable calculation (before localStorage serialization) ---
+      const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key
+        && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+      mappedUser.localModeAvailable = localModeAvailable;
+
       // Save to localStorage (eeclaw_auth_v1, separate from C-side)
       const eeclawAuthStorage: EeclawAuthStorage = {
         access_token: data.access_token,
@@ -878,6 +886,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         device_id: deviceId,
       };
       localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
+
+      // --- sudocode.json generation/cleanup + sessionMode reset ---
+      if (isDesktopRuntime) {
+        if (localModeAvailable) {
+          const loginSudoclawPayload = extractLoginSudoclawPayload(result);
+          if (loginSudoclawPayload) {
+            const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload);
+            await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
+              console.warn('[Auth] Failed to save scode config on enterprise login:', err);
+            });
+          }
+        } else {
+          await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+          await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+          await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
+        }
+      }
 
       // Save user info to ConfigStorage
       try {
@@ -966,6 +991,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         await ipcBridge.eeclaw.logout.invoke();
       } catch (e) {
         console.warn('[Auth] Failed to invoke main-process logout:', e);
+      }
+
+      // Cleanup sudocode.json and reset sessionMode on enterprise logout
+      if (isDesktopRuntime) {
+        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
       }
 
       // Clear enterprise ConfigStorage (but keep system.appMode = 'e')

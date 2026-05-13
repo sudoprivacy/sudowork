@@ -1772,7 +1772,10 @@ export const eeclaw = {
       access_token: string;
       refresh_token?: string;
       expires_in: number;
-      user: { id: string; name: string; role: string; orgId: string };
+      user: { id: string; name: string; role: string; orgId: string; localAuth: boolean };
+      sudorouter_key?: string;
+      model_service_url?: string;
+      models?: string[];
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
   >('eeclaw.login'),

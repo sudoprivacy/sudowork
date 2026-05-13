@@ -24,9 +24,11 @@ type AgentPillBarProps = {
   onSessionModeChange?: (mode: 'remote' | 'local') => void;
   /** Whether the app is in enterprise mode */
   isEnterprise?: boolean;
+  /** Whether local mode is available (localAuth=true + config complete) */
+  localModeAvailable?: boolean;
 };
 
-const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise }) => {
+const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
 
@@ -102,18 +104,21 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
           >
             <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Remote</span>
           </div>
-          {/* Divider */}
-          <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>
-          {/* Local tab */}
-          <div
-            data-agent-pill='true'
-            data-session-mode='local'
-            className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`}
-            style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
-            onClick={() => onSessionModeChange?.('local')}
-          >
-            <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Local</span>
-          </div>
+          {/* Divider + Local tab - only shown when localModeAvailable */}
+          {localModeAvailable && (
+            <>
+              <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>
+              <div
+                data-agent-pill='true'
+                data-session-mode='local'
+                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`}
+                style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
+                onClick={() => onSessionModeChange?.('local')}
+              >
+                <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Local</span>
+              </div>
+            </>
+          )}
         </div>
       ) : (
       /* Consumer mode: original pill bar */

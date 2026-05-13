@@ -14,6 +14,7 @@ import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/h
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import { ipcBridge } from '@/common';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { skillHub } from '@/common/ipcBridge';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
@@ -60,6 +61,7 @@ const GuidPage: React.FC = () => {
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
   const { isEnterprise } = useAppMode();
+  const { user } = useAuth();
   // Read current menu and skill from URL query params
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
@@ -641,7 +643,7 @@ const GuidPage: React.FC = () => {
                   {t('conversation.welcome.title')}
                 </p>
 
-                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} /> : null}
+                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} localModeAvailable={user?.localModeAvailable} /> : null}
 
                 <PromptTemplates
                   visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}

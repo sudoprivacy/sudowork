@@ -18,6 +18,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
+import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
@@ -212,8 +213,22 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // --- sessionMode: initialization from ConfigStorage ---
   // 应用启动时从 ConfigStorage 异步读取 sessionMode，同步更新模块缓存
   useEffect(() => {
-    ConfigStorage.get('guid.sessionMode').then((stored) => {
-      const mode = stored ?? 'remote';
+    ConfigStorage.get('guid.sessionMode').then(async (stored) => {
+      let mode = stored ?? 'remote';
+      // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
+      if (mode === 'local') {
+        try {
+          const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+          const authData = eeclawStored ? JSON.parse(eeclawStored) : null;
+          if (!authData?.user?.localModeAvailable) {
+            mode = 'remote';
+            await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+          }
+        } catch {
+          mode = 'remote';
+          await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        }
+      }
       _setSessionMode(mode);
       rendererCachedSessionMode = mode;
       if (mode === 'local') {
