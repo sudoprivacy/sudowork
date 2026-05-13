@@ -468,7 +468,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           return key === savedAgentKey;
         });
 
-        if (isInAvailable) {
+        if (isInAvailable && !(isEnterprise && sessionMode === 'local')) {
           _setSelectedAgentKeyWithRef(savedAgentKey);
         }
       } catch (error) {
@@ -1003,6 +1003,14 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }, [isEnterprise, sessionMode]);
 
+  // For enterprise Local mode, only expose scode to the mention selector
+  const mentionAvailableAgents = useMemo(() => {
+    if (isEnterprise && sessionMode === 'local') {
+      return (availableAgents ?? []).filter(a => a.backend === 'scode');
+    }
+    return availableAgents;
+  }, [isEnterprise, sessionMode, availableAgents]);
+
   return {
     selectedAgentKey,
     setSelectedAgentKey,
@@ -1010,6 +1018,7 @@ This identity statement takes priority over the default identity in USER.md.
     selectedAgentInfo,
     isPresetAgent,
     availableAgents,
+    mentionAvailableAgents,
     customAgents,
     sessionMode,
     setSessionMode,

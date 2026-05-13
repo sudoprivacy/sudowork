@@ -238,7 +238,7 @@ const GuidPage: React.FC = () => {
   );
 
   const mention = useGuidMention({
-    availableAgents: agentSelection.availableAgents,
+    availableAgents: agentSelection.mentionAvailableAgents,
     customAgentAvatarMap: agentSelection.customAgentAvatarMap,
     selectedAgentKey: agentSelection.selectedAgentKey,
     setSelectedAgentKey: agentSelection.setSelectedAgentKey,
