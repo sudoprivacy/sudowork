@@ -76,6 +76,8 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
     <div className='w-full flex justify-center'>
       {/* Enterprise mode: Remote/Local tab */}
       {isEnterprise ? (
+        localModeAvailable ? (
+        /* Enterprise with Local mode: Remote | Local tab switcher */
         <div
           className='flex items-center justify-center'
           style={{
@@ -104,22 +106,45 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
           >
             <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Remote</span>
           </div>
-          {/* Divider + Local tab - only shown when localModeAvailable */}
-          {localModeAvailable && (
-            <>
-              <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>
-              <div
-                data-agent-pill='true'
-                data-session-mode='local'
-                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`}
-                style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
-                onClick={() => onSessionModeChange?.('local')}
-              >
-                <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Local</span>
-              </div>
-            </>
-          )}
+          {/* Divider + Local tab */}
+          <>
+            <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>
+            <div
+              data-agent-pill='true'
+              data-session-mode='local'
+              className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`}
+              style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
+              onClick={() => onSessionModeChange?.('local')}
+            >
+              <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Local</span>
+            </div>
+          </>
         </div>
+        ) : (
+        /* Enterprise without Local mode: single pill with consumer style */
+        <div
+          className='flex items-center justify-center'
+          style={{
+            marginBottom: 20,
+            padding: '6px',
+            borderRadius: '30px',
+            backgroundColor: 'var(--color-guid-agent-bar, var(--aou-2))',
+            width: isMobile ? 'calc(100% + 28px)' : 'fit-content',
+            maxWidth: isMobile ? 'none' : '100%',
+            marginLeft: isMobile ? -14 : 0,
+            marginRight: isMobile ? -14 : 0,
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div
+            className={`group relative flex items-center whitespace-nowrap px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}`}
+            style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}
+          >
+            <img src={getAgentLogo('remote-agent')} alt='Remote Agent' width={20} height={20} style={{ objectFit: 'contain', flexShrink: 0 }} />
+            <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>Remote Agent</span>
+          </div>
+        </div>
+        )
       ) : (
       /* Consumer mode: original pill bar */
       <div
