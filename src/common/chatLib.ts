@@ -54,7 +54,7 @@ export const joinPath = (basePath: string, relativePath: string): string => {
  * @description 跟对话相关的消息类型申明 及相关处理
  */
 
-type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
+type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
 
 interface IMessage<T extends TMessageType, Content extends Record<string, any>> {
   /**
@@ -186,6 +186,22 @@ export type IMessageAgentStatus = IMessage<
 
 export type IMessageAcpPermission = IMessage<'acp_permission', AcpPermissionRequest>;
 
+/** ACP Question request data (from AskUserQuestion tool) */
+export interface AcpQuestionData {
+  /** The question text to display */
+  question: string;
+  /** Clickable options for the user to select */
+  options: string[];
+  /** The conversation ID to send the answer back to */
+  conversationId: string;
+  /** Whether the question has been answered */
+  answered?: boolean;
+  /** The selected answer (set after user responds) */
+  selectedAnswer?: string;
+}
+
+export type IMessageAcpQuestion = IMessage<'acp_question', AcpQuestionData>;
+
 export type IMessageAcpToolCall = IMessage<'acp_tool_call', ToolCallUpdate>;
 
 export type IMessageCodexPermission = IMessage<'codex_permission', CodexPermissionRequest>;
@@ -294,7 +310,7 @@ export interface IFileSendData {
 export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 
 // eslint-disable-next-line max-len
-export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
+export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
 export interface IConfirmation<Option extends any = any> {
@@ -387,6 +403,16 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
       return {
         id: uuid(),
         type: 'acp_permission',
+        msg_id: message.msg_id,
+        position: 'left',
+        conversation_id: message.conversation_id,
+        content: message.data as any,
+      };
+    }
+    case 'acp_question': {
+      return {
+        id: uuid(),
+        type: 'acp_question',
         msg_id: message.msg_id,
         position: 'left',
         conversation_id: message.conversation_id,

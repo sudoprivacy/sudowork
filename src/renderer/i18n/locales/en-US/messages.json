@@ -28,6 +28,7 @@
   "noOptionsAvailable": "No options available",
   "processing": "Processing...",
   "responseSentSuccessfully": "Response sent successfully",
+  "questionAnswered": "Answered",
   "confirmation": {
     "applyChange": "Apply this change?",
     "allowExecution": "Allow execution?",

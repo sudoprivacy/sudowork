@@ -28,6 +28,7 @@
   "noOptionsAvailable": "Seçenek yok",
   "processing": "İşleniyor...",
   "responseSentSuccessfully": "Yanıt başarıyla gönderildi",
+  "questionAnswered": "Yanıtlandı",
   "confirmation": {
     "applyChange": "Bu değişikliği uygula?",
     "allowExecution": "Yürütmeye izin ver?",

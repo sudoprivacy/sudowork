@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, IMessageAcpQuestion, IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 
@@ -276,7 +276,7 @@ export class AcpAdapter {
 
   /**
    * Check if a tool call is a user-facing message tool (SendUserMessage/AskUserQuestion)
-   * and generate a text message for the UI if so.
+   * and generate a text message or interactive question for the UI if so.
    * Called by AcpAgent after processing tool_call_update.
    */
   generateUserMessageFromToolCall(update: ToolCallUpdateStatus): TMessage | null {
@@ -300,33 +300,65 @@ export class AcpAdapter {
       const resultText = content[0]?.content?.text;
       if (!resultText) return null;
 
-      const result = JSON.parse(resultText) as { message?: string; question?: string; answer?: string };
+      const result = JSON.parse(resultText) as { message?: string; question?: string; answer?: string; options?: string[] };
 
-      // For SendUserMessage, display the message
-      // For AskUserQuestion, display the question and answer
-      let displayText = '';
+      // For SendUserMessage, display as plain text message
       if (toolName === 'SendUserMessage' && result.message) {
-        displayText = result.message;
-      } else if (toolName === 'AskUserQuestion' && result.question) {
-        displayText = result.question;
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: `${toolCallId}-user-msg`,
+          conversation_id: this.conversationId,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            content: result.message,
+          },
+        } as IMessageText;
+      }
+
+      // For AskUserQuestion, generate an interactive question card with clickable options
+      if (toolName === 'AskUserQuestion' && result.question) {
+        const options = result.options || [];
+
+        // If there are options, show interactive question card
+        if (options.length > 0) {
+          return {
+            id: uuid(),
+            type: 'acp_question',
+            msg_id: `${toolCallId}-user-msg`,
+            conversation_id: this.conversationId,
+            createdAt: Date.now(),
+            position: 'left',
+            content: {
+              question: result.question,
+              options,
+              conversationId: this.conversationId,
+              answered: false,
+            },
+          } as IMessageAcpQuestion;
+        }
+
+        // No options available, fallback to plain text display
+        let displayText = result.question;
         if (result.answer) {
           displayText += `\n\n**回答**: ${result.answer}`;
         }
+
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: `${toolCallId}-user-msg`,
+          conversation_id: this.conversationId,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            content: displayText,
+          },
+        } as IMessageText;
       }
 
-      if (!displayText) return null;
-
-      return {
-        id: uuid(),
-        type: 'text',
-        msg_id: `${toolCallId}-user-msg`,
-        conversation_id: this.conversationId,
-        createdAt: Date.now(),
-        position: 'left',
-        content: {
-          content: displayText,
-        },
-      } as IMessageText;
+      return null;
     } catch {
       // JSON parse failed, ignore
       return null;

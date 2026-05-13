@@ -562,6 +562,7 @@ export type I18nKey =
   | 'messages.option'
   | 'messages.permissionRequest'
   | 'messages.processing'
+  | 'messages.questionAnswered'
   | 'messages.responseSentSuccessfully'
   | 'messages.scrollToBottom'
   | 'messages.unknownMessageType'
