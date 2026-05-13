@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog } from '@process/utils/mainLogger';
-import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode } from '@/common/enterpriseDebugConfig';
+import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -169,6 +169,14 @@ export function initEeclawBridge(): void {
     }
   });
 
+  // Set session mode (remote/local) for enterprise mode
+  // 设置 session 模式（remote/local），用于企业模式
+  ipcBridge.eeclaw.setSessionMode.provider(async ({ mode }) => {
+    setCachedSessionMode(mode);
+    resetConversationProvider();
+    mainLog('eeclawBridge', `Session mode set to: ${mode}`);
+  });
+
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
     try {
       const response = await fetch(`${serverUrl}/api/v1/tenant/config`, {
@@ -240,7 +248,11 @@ export function initEeclawBridge(): void {
             name: data.user.name,
             role: data.user.role,
             orgId: data.user.orgId,
+            localAuth: data.user.localAuth === true,
           },
+          sudorouter_key: data.sudorouter_key,
+          model_service_url: data.model_service_url,
+          models: Array.isArray(data.models) ? data.models : undefined,
         },
       };
     } catch (error) {

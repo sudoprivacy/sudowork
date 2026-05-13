@@ -96,6 +96,9 @@ const ModeSetup: React.FC = () => {
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
         await ConfigStorage.set('eeclaw.tenantName', result.data.app_company_name);
 
+        // Notify main process to start local services, then reload renderer
+        await ipcBridge.application.startConsumerServices.invoke();
+
         // Reload page — setAppMode triggers re-render that unmounts this component
         // before any navigation can execute, so use reload instead
         window.location.reload();

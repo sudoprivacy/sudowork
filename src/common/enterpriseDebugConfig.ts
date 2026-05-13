@@ -36,6 +36,9 @@ import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
 let cachedAppMode: 'c' | 'e' | null = null;
 let cachedServerUrl: string = '';
 let cachedAuthToken: string = '';
+// Cache for guid session mode (remote/local), updated by refreshEnterpriseCache and setSessionMode IPC
+// guid session 模式缓存（remote/local），由 refreshEnterpriseCache 和 setSessionMode IPC 更新
+let cachedSessionMode: 'remote' | 'local' = 'remote';
 
 // Dynamic import for ProcessConfig (main process only)
 // ProcessConfig 的动态导入（仅主进程）
@@ -63,6 +66,7 @@ export async function refreshEnterpriseCache(): Promise<void> {
     const authStorage = config.getSync('eeclaw.authStorage');
     cachedAuthToken = authStorage?.access_token || '';
     cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
+    cachedSessionMode = config.getSync('guid.sessionMode') || 'remote';
   } catch {
     // Keep existing cache values on error
   }
@@ -214,4 +218,20 @@ export function getEnterpriseConfig(): {
     mossServerUrl: cachedServerUrl,
     authToken: cachedAuthToken,
   };
+}
+
+/**
+ * Get cached session mode (remote/local) for enterprise mode
+ * 获取缓存的 session 模式（remote/local），用于企业模式
+ */
+export function getCachedSessionMode(): 'remote' | 'local' {
+  return cachedSessionMode;
+}
+
+/**
+ * Set cached session mode (called by setSessionMode IPC handler)
+ * 设置缓存的 session 模式（由 setSessionMode IPC handler 调用）
+ */
+export function setCachedSessionMode(mode: 'remote' | 'local'): void {
+  cachedSessionMode = mode;
 }

@@ -16,7 +16,7 @@ import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
 import RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 
@@ -62,8 +62,9 @@ export function initAcpConversationBridge(): void {
   // Enrich with MCP transport support info so the frontend can show accurate counts
   ipcBridge.acpConversation.getAvailableAgents.provider(() => {
     try {
-      // Enterprise mode: ONLY show remote-agent (Moss Server), hide all local agents
-      if (isEnterpriseMode()) {
+      // Enterprise Remote mode: ONLY show remote-agent (Moss Server), hide all local agents
+      // Enterprise Local mode: fall through to local agent detection
+      if (isEnterpriseMode() && getCachedSessionMode() === 'remote') {
         return Promise.resolve({
           success: true,
           data: [{

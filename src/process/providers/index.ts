@@ -7,23 +7,29 @@
 import type { IConversationProvider, IProviderConfig } from './types';
 import { LocalConversationProvider } from './LocalConversationProvider';
 import { RemoteConversationProvider } from './RemoteConversationProvider';
-import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
+import { isEnterpriseMode, getEnterpriseConfig, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { mainLog } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
 
 let currentProvider: IConversationProvider | null = null;
 let currentProviderType: 'local' | 'remote' | null = null;
 
-export function getConversationProvider(): IConversationProvider {
+export function getConversationProvider(sessionMode?: 'remote' | 'local'): IConversationProvider {
   const isEnterprise = isEnterpriseMode();
+  // Determine effective target provider type based on sessionMode parameter or cache
+  // 根据 sessionMode 参数或缓存确定有效的目标 Provider 类型
+  const effectiveMode = isEnterprise
+    ? (sessionMode ?? getCachedSessionMode())
+    : 'local'; // C端始终 local
+  const targetType: 'local' | 'remote' = effectiveMode === 'remote' ? 'remote' : 'local';
 
-  if (currentProvider && currentProviderType === (isEnterprise ? 'remote' : 'local')) {
+  if (currentProvider && currentProviderType === targetType) {
     return currentProvider;
   }
 
-  if (isEnterprise) {
+  if (targetType === 'remote') {
     const config = getEnterpriseConfig();
-    
+
     // Read the freshest token from ProcessConfig (not from stale memory cache)
     let freshestToken = config.authToken;
     let serverUrl = config.mossServerUrl;
@@ -37,7 +43,7 @@ export function getConversationProvider(): IConversationProvider {
         serverUrl = storedUrl;
       }
     } catch { /* ignore */ }
-    
+
     mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${serverUrl || 'not set'}, Token: ${freshestToken ? 'set' : 'not set'}`);
 
     // In enterprise mode with a server URL, always use RemoteConversationProvider
@@ -83,8 +89,10 @@ export function resetConversationProvider(): void {
  * Check if currently using remote provider
  * 检查当前是否使用远程 Provider
  */
-export function isRemoteProvider(): boolean {
-  return isEnterpriseMode();
+export function isRemoteProvider(sessionMode?: 'remote' | 'local'): boolean {
+  if (!isEnterpriseMode()) return false;
+  if (sessionMode !== undefined) return sessionMode === 'remote';
+  return true; // 兼容旧调用方（无参数时保持原行为：E端默认 remote）
 }
 
 /**
