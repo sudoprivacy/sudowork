@@ -142,6 +142,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
 
+  // Tool call tracking for file_send messages to channel clients
+  private toolCallMeta = new Map<string, { toolName: string; rawInput?: Record<string, unknown> }>();
+
   // Model tracking
   private userModelOverride: string | null = null;
   private pendingModelSwitchNotice: string | null = null;
@@ -154,6 +157,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Message pipeline
   private readonly streamTextBuffer = new StreamTextBuffer();
   private readonly cronAccumulator = new CronTextAccumulator();
+
+  // Workspace file tracking for channel file_send messages
+  private workspaceFileSnapshot = new Map<string, number>();
 
   // Extra config passed to connection
   private extra: {
@@ -195,6 +201,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     };
 
     this.setupConnectionHandlers();
+    this.refreshWorkspaceFileSnapshot();
   }
 
   // ========== Connection Lifecycle ==========
@@ -655,7 +662,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           responseData = {
             content: displayContent,
             ...(data.cronMeta && { cronMeta: data.cronMeta }),
-            ...(data.skills && data.skills.length > 0 && { skills: data.skills })
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
           };
         }
 
@@ -1130,6 +1137,8 @@ This identity statement takes priority over the default identity in USER.md.
 
   kill() {
     this.streamTextBuffer.flushAll();
+    this.toolCallMeta.clear();
+    this.workspaceFileSnapshot.clear();
 
     let killed = false;
     const GRACE_PERIOD_MS = 500;
@@ -1397,6 +1406,14 @@ This identity statement takes priority over the default identity in USER.md.
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
 
+        // Store tool call meta for file_send detection
+        if (toolCallId) {
+          this.toolCallMeta.set(toolCallId, {
+            toolName,
+            rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          });
+        }
+
         if (NavigationInterceptor.isNavigationTool(toolName)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
@@ -1417,6 +1434,37 @@ This identity statement takes priority over the default identity in USER.md.
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
+        // Intercept file-creation tool calls: send generated files to channel clients (e.g., WeChat, Lark)
+        if (toolStatus === 'completed' && toolCallId) {
+          const meta = this.toolCallMeta.get(toolCallId);
+          if (meta) {
+            const toolName = meta.toolName;
+            const rawInput = meta.rawInput;
+            const kind = this.inferToolKind(toolName);
+
+            // Strategy 1: Direct file-creation tools (Write/Edit/Create) — extract path from tool args
+            const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
+            if (filePath) {
+              this.sendFileToChannels(filePath);
+              // Refresh snapshot so Strategy 2 won't re-detect this file
+              this.refreshWorkspaceFileSnapshot();
+            }
+
+            // Strategy 2: Execute-class tools (Bash/Shell) — scan workspace for new/modified files
+            // Covers cases like: Write tool creates .js script -> Bash runs "node xxx.js" -> script writes .jpg
+            if (kind === 'execute') {
+              const newFiles = this.detectNewFilesFromWorkspace();
+              for (const newFile of newFiles) {
+                this.sendFileToChannels(newFile);
+              }
+              // Refresh snapshot immediately to avoid re-sending same files on next execute tool
+              this.refreshWorkspaceFileSnapshot();
+            }
+          }
+          // Clean up tool call meta after processing
+          this.toolCallMeta.delete(toolCallId);
         }
 
         if (toolCallId && this.pendingNavigationTools.has(toolCallId)) {
@@ -2268,6 +2316,216 @@ This identity statement takes priority over the default identity in USER.md.
 
   get hasActiveSession(): boolean {
     return this.connection.hasActiveSession;
+  }
+
+  // ========== Workspace File Tracking for Channel Clients ==========
+
+  /** Document extensions that should trigger file sending to channel clients */
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    // Office documents
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
+    // Text/data formats
+    '.csv',
+    '.txt',
+    '.md',
+    '.html',
+    '.htm',
+    '.xml',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.toml',
+    // Code files (common programming languages)
+    '.js',
+    '.ts',
+    '.jsx',
+    '.tsx',
+    '.py',
+    '.rb',
+    '.go',
+    '.rs',
+    '.java',
+    '.kt',
+    '.swift',
+    '.c',
+    '.cpp',
+    '.h',
+    '.hpp',
+    '.cs',
+    '.php',
+    '.lua',
+    '.r',
+    '.sql',
+    // Shell/scripts
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.ps1',
+    '.bat',
+    '.cmd',
+    '.vbs',
+    // Config files
+    '.conf',
+    '.config',
+    '.ini',
+    '.env',
+    '.properties',
+    // Markup/styles
+    '.css',
+    '.scss',
+    '.sass',
+    '.less',
+    '.vue',
+    '.svelte',
+    // Archive/compressed
+    '.zip',
+    '.tar',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.7z',
+    '.rar',
+    // Other common formats
+    '.log',
+    '.rst',
+    '.adoc',
+    '.tex',
+    '.org',
+  ]);
+
+  /** Image extensions */
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg', '.heic', '.heif', '.avif']);
+
+  /**
+   * Build or refresh the workspace file snapshot.
+   * Scans the workspace root (non-recursive, depth=1) and records each deliverable file's mtime.
+   * Files inside .drafts/ directory are excluded.
+   */
+  private refreshWorkspaceFileSnapshot(): void {
+    this.workspaceFileSnapshot.clear();
+    if (!this.workspace) return;
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          this.workspaceFileSnapshot.set(entry.name, stat.mtimeMs);
+        } catch {
+          // stat failed (file deleted between readdir and stat), skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip silently
+    }
+  }
+
+  /**
+   * After an execute-class tool completes, scan workspace for newly created or modified deliverable files.
+   * Returns absolute paths of files that are new or have a newer mtime than the snapshot.
+   */
+  private detectNewFilesFromWorkspace(): string[] {
+    if (!this.workspace) return [];
+    const newFiles: string[] = [];
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          const prevMtime = this.workspaceFileSnapshot.get(entry.name);
+
+          // New file (not in snapshot) or modified file (mtime changed)
+          if (prevMtime === undefined || stat.mtimeMs > prevMtime) {
+            newFiles.push(fullPath);
+          }
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip
+    }
+
+    return newFiles;
+  }
+
+  /**
+   * Extract file path from a tool call if it represents a file-creation operation.
+   * Returns null if the tool call is not a file-creation operation or the file doesn't exist.
+   */
+  private extractFilePathFromToolCall(toolName: string, rawInput?: Record<string, unknown>): string | null {
+    if (!rawInput) return null;
+    const n = toolName.toLowerCase();
+    if (!/write|edit|create/.test(n)) return null;
+
+    const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
+    if (!filePath || typeof filePath !== 'string') return null;
+
+    const ext = nodePath.extname(filePath).toLowerCase();
+    if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) return null;
+
+    // Verify the file actually exists on disk
+    try {
+      if (!fs.existsSync(filePath)) return null;
+    } catch {
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /** Classify a file path as 'image' or 'file' based on its extension */
+  private classifyFileType(filePath: string): 'image' | 'file' {
+    const ext = nodePath.extname(filePath).toLowerCase();
+    return AcpAgent.IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file';
+  }
+
+  /** Infer tool kind from name */
+  private inferToolKind(name: string): 'read' | 'edit' | 'execute' | null {
+    const n = name.toLowerCase();
+    if (/read|view|list|search|grep|glob|find|get|fetch/.test(n)) return 'read';
+    if (/write|edit|create|delete|patch|update|insert|remove/.test(n)) return 'edit';
+    if (/exec|run|bash|shell|terminal/.test(n)) return 'execute';
+    return null;
+  }
+
+  /**
+   * Send file_send message to channel clients for generated files.
+   * Called when a tool call completes successfully.
+   */
+  private sendFileToChannels(filePath: string): void {
+    const fileMessage: IResponseMessage = {
+      type: 'file_send',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
+        filePath,
+        fileName: nodePath.basename(filePath),
+        fileType: this.classifyFileType(filePath),
+      },
+    };
+    this.handleStreamEvent(fileMessage);
   }
 }
 
