@@ -773,8 +773,12 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (data.skills && data.skills.length > 0) {
+          mainLog('AcpAgent', `sendMessage: processing skills=${JSON.stringify(data.skills)}`);
           const skillTags = data.skills.map((skill) => `<command-name>${skill}</command-name>`).join('\n');
           contentToSend = `${skillTags}\n\n${contentToSend}`;
+          mainLog('AcpAgent', `sendMessage: added skill tags to content, contentToSend starts with: ${contentToSend.substring(0, 100)}`);
+        } else {
+          mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
         }
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
@@ -1443,6 +1447,14 @@ This identity statement takes priority over the default identity in USER.md.
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
+        // Generate user message for SendUserMessage/AskUserQuestion tool results
+        if (toolStatus === 'completed') {
+          const userMessage = this.adapter.generateUserMessageFromToolCall(statusUpdate);
+          if (userMessage) {
+            this.emitMessage(userMessage);
+          }
         }
 
         // Intercept file-creation tool calls: send generated files to channel clients (e.g., WeChat, Lark)
