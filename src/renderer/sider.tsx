@@ -18,6 +18,20 @@ import { useAppMode } from './hooks/useAppMode';
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
 
+/**
+ * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替代。
+ * 例：13812345678 → 138****5678
+ */
+function maskPhone(phone: string): string {
+  if (!phone) return '';
+  // 仅对 11 位纯数字手机号做脱敏，其他格式原样返回
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}****${digits.slice(7)}`;
+  }
+  return phone;
+}
+
 interface SiderProps {
   onSessionClick?: () => void;
   collapsed?: boolean;
@@ -62,9 +76,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
-  // 从 AuthContext 获取实际用户信息
+  // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
   const userInfo = {
-    email: currentUser?.phone || '',
+    email: maskPhone(currentUser?.phone || ''),
     name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };
