@@ -150,6 +150,17 @@ export class WeChatApiClient {
     console.log('[WeChatApiClient] sendMessage request:', JSON.stringify(payload));
     const response = await this.apiFetch<Record<string, unknown>>('ilink/bot/sendmessage', payload as unknown as Record<string, unknown>, WECHAT_API_TIMEOUT_MS);
     console.log('[WeChatApiClient] sendMessage response:', JSON.stringify(response));
+
+    // Check for error response (ret != 0 or errcode != 0)
+    const ret = response.ret as number | undefined;
+    const errcode = response.errcode as number | undefined;
+    if (ret !== undefined && ret !== 0) {
+      console.error(`[WeChatApiClient] sendMessage failed with ret=${ret}`);
+    }
+    if (errcode !== undefined && errcode !== 0) {
+      console.error(`[WeChatApiClient] sendMessage failed with errcode=${errcode}, errmsg=${response.errmsg || 'unknown'}`);
+    }
+
     return response;
   }
 

@@ -154,7 +154,11 @@ export class WeChatPlugin extends BasePlugin {
       const chunks = splitMessage(text, WECHAT_MESSAGE_LIMIT);
       for (const chunk of chunks) {
         const textPayload = toWeChatSendPayload(userId, { type: 'text', text: chunk }, contextToken);
-        await this.apiClient.sendMessage(textPayload);
+        const response = await this.apiClient.sendMessage(textPayload);
+        const ret = response.ret as number | undefined;
+        if (ret !== undefined && ret !== 0) {
+          console.error(`[WeChatPlugin] Text message failed with ret=${ret}`);
+        }
       }
     }
 
@@ -206,8 +210,8 @@ export class WeChatPlugin extends BasePlugin {
   /**
    * Send a single media item as a separate message.
    */
-  private async sendMediaItem(item: WeChatMessageItem, userId: string, contextToken: string): Promise<void> {
-    if (!this.apiClient) return;
+  private async sendMediaItem(item: WeChatMessageItem, userId: string, contextToken: string): Promise<boolean> {
+    if (!this.apiClient) return false;
     const clientId = `sudowork-wechat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const mediaPayload = {
       msg: {
@@ -221,7 +225,21 @@ export class WeChatPlugin extends BasePlugin {
       },
     };
     console.log('[WeChatPlugin] sendMessage media item:', JSON.stringify(mediaPayload, null, 2));
-    await this.apiClient.sendMessage(mediaPayload);
+    const response = await this.apiClient.sendMessage(mediaPayload);
+
+    // Check for errors
+    const ret = response.ret as number | undefined;
+    const errcode = response.errcode as number | undefined;
+    if (ret !== undefined && ret !== 0) {
+      console.error(`[WeChatPlugin] sendMediaItem failed with ret=${ret}, item type=${item.type}`);
+      return false;
+    }
+    if (errcode !== undefined && errcode !== 0) {
+      console.error(`[WeChatPlugin] sendMediaItem failed with errcode=${errcode}, errmsg=${response.errmsg || 'unknown'}`);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -265,10 +283,7 @@ export class WeChatPlugin extends BasePlugin {
     }
 
     // Relative path: try resolving against workspace directory, then cwd
-    const candidates = [
-      this.mediaDir ? path.resolve(this.mediaDir, filePath) : null,
-      path.resolve(process.cwd(), filePath),
-    ].filter(Boolean) as string[];
+    const candidates = [this.mediaDir ? path.resolve(this.mediaDir, filePath) : null, path.resolve(process.cwd(), filePath)].filter(Boolean) as string[];
 
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
