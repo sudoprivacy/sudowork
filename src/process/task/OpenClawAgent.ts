@@ -661,19 +661,16 @@ ${draftsInstruction}`;
    * 发送用户终止提示消息
    */
   private emitUserCancelledMessage(): void {
-    const message: TMessage = {
-      id: uuid(),
-      msg_id: uuid(),
-      conversation_id: this.conversation_id,
+    // Direct emit to bypass any message filtering
+    ipcBridge.openclawConversation.responseStream.emit({
       type: 'tips',
-      position: 'center',
-      createdAt: Date.now(),
-      content: {
-        content: '请求已被用户终止',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
         type: 'warning',
+        content: '请求已被用户终止',
       },
-    };
-    this.emitTMessage(message);
+    });
   }
 
   private async handleImageCommand(args: string): Promise<AcpResult> {

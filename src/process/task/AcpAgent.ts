@@ -1160,18 +1160,16 @@ This identity statement takes priority over the default identity in USER.md.
    * 发送用户终止提示消息
    */
   private emitUserCancelledMessage(): void {
-    const message: TMessage = {
-      id: uuid(),
-      conversation_id: this.conversation_id,
+    // Direct emit to bypass handleStreamEvent's userCancelled check
+    ipcBridge.conversation.responseStream.emit({
       type: 'tips',
-      position: 'center',
-      createdAt: Date.now(),
-      content: {
-        content: '请求已被用户终止',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
         type: 'warning',
+        content: '请求已被用户终止',
       },
-    };
-    this.emitMessage(message);
+    });
   }
 
   kill() {
