@@ -4,13 +4,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  -webkit-app-region: drag;
 }
 
 .orb {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
+  /* Make the orb draggable */
+  -webkit-app-region: drag;
   transition:
     background 150ms ease-out,
     box-shadow 150ms ease-out,
