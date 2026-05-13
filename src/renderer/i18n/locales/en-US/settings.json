@@ -526,6 +526,7 @@
   "feedback": "Feedback",
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
+  "privacyPolicy": "Privacy Policy",
   "checkForUpdates": "Check for updates",
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "saveModelConfigFailed": "Failed to save model configuration",
