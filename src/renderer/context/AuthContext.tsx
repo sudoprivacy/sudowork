@@ -896,6 +896,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
               console.warn('[Auth] Failed to save scode config on enterprise login:', err);
             });
+            // Sync settings.json model to first enterprise model so scode uses a valid model on startup
+            const firstModel = loginSudoclawPayload.models[0];
+            if (firstModel) {
+              await ipcBridge.scode.setDefaultModel.invoke({ modelId: firstModel }).catch(() => {});
+            }
           }
         } else {
           await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
