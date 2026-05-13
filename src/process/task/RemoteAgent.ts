@@ -301,8 +301,33 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * Stop streaming response
    */
   async stop(): Promise<void> {
-    this.connection?.sendInterrupt();
+    // Send interrupt to Moss Server and wait for confirmation
+    const confirmed = (await this.connection?.sendInterruptAndWait()) ?? false;
+
+    if (!confirmed) {
+      mainLog('RemoteAgent', 'Interrupt confirmation timeout or not connected, proceeding anyway');
+    }
+
+    // Emit user cancelled message before finish
+    this.emitUserCancelledMessage();
+
     this.emitFinishMessage();
+  }
+
+  /**
+   * Emit user cancelled message
+   * 发送用户终止提示消息
+   */
+  private emitUserCancelledMessage(): void {
+    ipcBridge.conversation.responseStream.emit({
+      type: 'tips',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(36),
+      data: {
+        type: 'warning',
+        content: '请求已被用户终止',
+      },
+    });
   }
 
   /**
