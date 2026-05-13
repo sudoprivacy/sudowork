@@ -1,7 +1,9 @@
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
 import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
+import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface GeminiModelSelection {
   currentModel?: TProviderWithModel;
@@ -20,6 +22,7 @@ export interface UseGeminiModelSelectionOptions {
 
 // Centralize model selection logic for reuse across header, send box, and channel settings
 export const useGeminiModelSelection = ({ initialModel, onSelectModel }: UseGeminiModelSelectionOptions): GeminiModelSelection => {
+  const { t } = useTranslation();
   const [currentModel, setCurrentModel] = useState<TProviderWithModel | undefined>(initialModel);
 
   useEffect(() => {
@@ -37,9 +40,11 @@ export const useGeminiModelSelection = ({ initialModel, onSelectModel }: UseGemi
       const ok = await onSelectModel(provider, modelName);
       if (ok) {
         setCurrentModel(selected);
+        const displayName = formatModelLabel(provider, modelName) || modelName;
+        Message.success(t('common.modelSwitchSuccess', { model: displayName }));
       }
     },
-    [onSelectModel]
+    [onSelectModel, formatModelLabel, t]
   );
 
   const getDisplayModelName = useCallback(

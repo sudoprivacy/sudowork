@@ -44,6 +44,7 @@
   "deleteFailed": "삭제 실패",
   "default": "기본",
   "defaultModel": "기본 모델",
+  "modelSwitchSuccess": "{{model}}(으)로 전환되었습니다",
   "escToCancel": "취소하려면 esc",
   "create": "생성",
   "createSuccess": "생성 성공",
