@@ -225,6 +225,7 @@ export class AcpAdapter {
   /**
    * Update existing ACP tool call message
    * Returns the updated message with the same msg_id so composeMessage can merge it
+   * Also generates text messages for SendUserMessage/AskUserQuestion tool results
    */
   private updateAcpToolCall(update: ToolCallUpdateStatus): IMessageAcpToolCall | null {
     const toolCallData = update.update;
@@ -271,6 +272,65 @@ export class AcpAdapter {
 
     // Return the updated message with same msg_id - composeMessage will merge it with existing
     return updatedMessage;
+  }
+
+  /**
+   * Check if a tool call is a user-facing message tool (SendUserMessage/AskUserQuestion)
+   * and generate a text message for the UI if so.
+   * Called by AcpAgent after processing tool_call_update.
+   */
+  generateUserMessageFromToolCall(update: ToolCallUpdateStatus): TMessage | null {
+    const toolCallId = update.update.toolCallId;
+    const existingMessage = this.activeToolCalls.get(toolCallId);
+    if (!existingMessage) return null;
+
+    const toolName = existingMessage.content.update.title;
+    if (toolName !== 'SendUserMessage' && toolName !== 'AskUserQuestion') {
+      return null;
+    }
+
+    // Only generate message when tool completes
+    if (update.update.status !== 'completed') return null;
+
+    // Parse the tool result to extract the message
+    const content = update.update.content;
+    if (!content || content.length === 0) return null;
+
+    try {
+      const resultText = content[0]?.content?.text;
+      if (!resultText) return null;
+
+      const result = JSON.parse(resultText) as { message?: string; question?: string; answer?: string };
+
+      // For SendUserMessage, display the message
+      // For AskUserQuestion, display the question and answer
+      let displayText = '';
+      if (toolName === 'SendUserMessage' && result.message) {
+        displayText = result.message;
+      } else if (toolName === 'AskUserQuestion' && result.question) {
+        displayText = result.question;
+        if (result.answer) {
+          displayText += `\n\n**回答**: ${result.answer}`;
+        }
+      }
+
+      if (!displayText) return null;
+
+      return {
+        id: uuid(),
+        type: 'text',
+        msg_id: `${toolCallId}-user-msg`,
+        conversation_id: this.conversationId,
+        createdAt: Date.now(),
+        position: 'left',
+        content: {
+          content: displayText,
+        },
+      } as IMessageText;
+    } catch {
+      // JSON parse failed, ignore
+      return null;
+    }
   }
 
   /**
