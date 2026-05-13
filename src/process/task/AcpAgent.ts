@@ -1117,6 +1117,9 @@ This identity statement takes priority over the default identity in USER.md.
 
     this.status = 'finished';
 
+    // 5. Emit user cancelled message
+    this.emitUserCancelledMessage();
+
     if (result === 'disconnected') {
       // Backend didn't respond to cancel — process was killed
       this.emitStatusMessage('disconnected');
@@ -1145,6 +1148,25 @@ This identity statement takes priority over the default identity in USER.md.
 
     // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
     // The finish event was already emitted by handleEndTurn() when the backend responded
+  }
+
+  /**
+   * Emit user cancelled message
+   * 发送用户终止提示消息
+   */
+  private emitUserCancelledMessage(): void {
+    const message: TMessage = {
+      id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'tips',
+      position: 'center',
+      createdAt: Date.now(),
+      content: {
+        content: '请求已被用户终止',
+        type: 'warning',
+      },
+    };
+    this.emitMessage(message);
   }
 
   kill() {

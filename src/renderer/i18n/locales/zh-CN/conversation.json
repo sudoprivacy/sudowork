@@ -269,5 +269,6 @@
     "request_sent": "生成请求已发送",
     "failed": "生成失败",
     "preset_registered": "已保存为全局预设"
-  }
+  },
+  "userCancelled": "请求已被用户终止"
 }
