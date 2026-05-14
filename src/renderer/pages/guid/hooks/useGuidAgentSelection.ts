@@ -104,6 +104,8 @@ export type GuidAgentSelectionResult = {
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
   availableAgents: AvailableAgent[] | undefined;
+  /** Available agents filtered for mention selector (enterprise local mode only exposes scode) */
+  mentionAvailableAgents: AvailableAgent[] | undefined;
   customAgents: AcpBackendConfig[];
   /** Current session mode (remote/local) - only meaningful in enterprise mode */
   sessionMode: 'remote' | 'local';
@@ -310,7 +312,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   /**
    * Find agent by key.
    * Supports both "custom:uuid" format and plain backend type.
-   * For enterprise mode, also checks customAgents for Moss assistants.
+   * For enterprise mode, also checks customAgents for local assistants.
    */
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
@@ -320,33 +322,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
       if (foundInAvailable) return foundInAvailable;
 
-      // For enterprise mode, check customAgents (Moss assistants)
-      if (isEnterprise) {
-        const mossAssistant = customAgents.find((a) => a.id === customAgentId);
-        if (mossAssistant) {
-          // Extract original Moss key from id (remove 'moss:' prefix)
-          // Moss Server expects the original key, not 'moss:{key}'
-          const mossKey = mossAssistant.id.startsWith('moss:') ? mossAssistant.id.slice(5) : mossAssistant.id;
-          return {
-            backend: 'remote-agent' as AcpBackend,
-            name: mossAssistant.name,
-            customAgentId: mossKey, // Use original Moss key for Moss Server
-            isPreset: true,
-            avatar: mossAssistant.avatar,
-            context: mossAssistant.description,
-          };
-        }
-      }
-
-      // Fallback: check customAgents for non-enterprise
+      // Check customAgents (local assistants from hub/tenant/custom/system directories)
       const assistant = customAgents.find((a) => a.id === customAgentId);
       if (assistant) {
         return {
           backend: 'custom' as AcpBackend,
           name: assistant.name,
           customAgentId: assistant.id,
-          isPreset: true,
-          context: '',
+          isPreset: assistant.isPreset,
+          context: assistant.description || '',
           avatar: assistant.avatar,
         };
       }
@@ -383,9 +367,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         // Enterprise Remote mode: Moss assistants go to customAgents, only Remote Agent in availableAgents
         const enterpriseAgents = availableAgentsData as unknown as MossAssistant[];
 
-        // Map Moss assistants to customAgents for bottom display
-        const mossCustomAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
-        setCustomAgents(mossCustomAgents);
+        // Convert MossAssistant to AcpBackendConfig for display
+        const localAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
+        setCustomAgents(localAgents);
 
         // availableAgents only contains Remote Agent for top AgentPillBar
         const mapped: AvailableAgent[] = [
@@ -412,7 +396,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       };
       setAvailableAgents([defaultAgent]);
       availableAgentsRef.current = [defaultAgent];
-      setCustomAgents([]); // Clear customAgents on API failure
+      setCustomAgents([]); // Clear customAgents on loading failure
     }
   }, [availableAgentsData, isEnterprise, sessionMode]);
 
@@ -423,10 +407,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       // 'remote-agent' is always valid
       if (currentKey === 'remote-agent') return;
 
-      // Check if current selection is a valid Moss assistant
-      const isValidMossAssistant = customAgents.some((a) => `custom:${a.id}` === currentKey);
+      // Check if current selection is a valid local assistant
+      const isValidAssistant = customAgents.some((a) => `custom:${a.id}` === currentKey);
 
-      if (!isValidMossAssistant) {
+      if (!isValidAssistant) {
         _setSelectedAgentKey('remote-agent');
         selectedAgentKeyRef.current = 'remote-agent';
       }
@@ -989,9 +973,9 @@ This identity statement takes priority over the default identity in USER.md.
       console.error('Failed to clear saved agent:', error);
     });
 
-    // Enterprise mode: re-fetch Moss assistants from server
+    // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
     if (isEnterprise) {
-      void mutate('eeclaw.agents.cloud');
+      void mutate('assistantHub.installed');
       return;
     }
 

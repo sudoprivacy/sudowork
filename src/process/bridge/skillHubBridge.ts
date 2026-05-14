@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import fsSync from 'fs';
+import fsSync, { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -13,7 +13,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
+import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS, ProcessConfig } from '@/process/initStorage';
 import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
 import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
@@ -22,6 +22,8 @@ import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
 
 const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
@@ -29,9 +31,41 @@ const AUTHORIZATION = 'sud0@sudo';
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+const MOSS_SKILL_META_FILE = '_moss_meta.json';
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
+
+/**
+ * Read skill metadata file, trying both Moss and Sudowork meta file names
+ * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+ * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+ */
+async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ content: string; fileName: string } | null> {
+  const isEnterprise = isEnterpriseMode();
+  const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+
+  for (const fileName of metaFiles) {
+    const filePath = path.join(skillDir, fileName);
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      return { content, fileName };
+    } catch {
+      // Try next file
+    }
+  }
+  return null;
+}
+
+/**
+ * Write skill metadata file, using correct file name based on current mode
+ */
+async function writeSkillMetaFile(skillDir: string, meta: SkillHubMeta): Promise<void> {
+  const isEnterprise = isEnterpriseMode();
+  const fileName = isEnterprise ? MOSS_SKILL_META_FILE : SKILL_HUB_META_FILE;
+  const filePath = path.join(skillDir, fileName);
+  await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
+}
 
 function normalizeInstalledSkillVersion(version: string | undefined | null): string {
   const normalized = (version || '').trim();
@@ -207,14 +241,12 @@ async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillNa
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         const skillDir = path.join(parentDir, entry.name);
-        try {
-          const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-          const meta = JSON.parse(raw) as import('@/common/ipcBridge').ISkillHubMeta;
+        const metaResult = await readSkillMetaFileWithFallback(skillDir);
+        if (metaResult) {
+          const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
           if (meta.name === skillName || meta.display_name === skillName) {
             return skillDir;
           }
-        } catch {
-          // Ignore
         }
       }
     } catch {
@@ -380,12 +412,11 @@ async function readSkillManifestFromDirectory(
 }
 
 async function readSkillHubMetaFromDirectory(skillDir: string): Promise<SkillHubMeta | null> {
-  try {
-    const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-    return JSON.parse(raw) as SkillHubMeta;
-  } catch {
-    return null;
+  const metaResult = await readSkillMetaFileWithFallback(skillDir);
+  if (metaResult) {
+    return JSON.parse(metaResult.content) as SkillHubMeta;
   }
+  return null;
 }
 
 async function readInstalledVersionFromDirectory(skillDir: string): Promise<string> {
@@ -452,7 +483,6 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
 
   await fs.rename(skillDir, customDir);
 
-  const metaFilePath = path.join(customDir, SKILL_HUB_META_FILE);
   const installedAt = new Date().toISOString();
   const meta: SkillHubMeta = {
     id: importedMeta?.id?.trim() || '',
@@ -473,7 +503,7 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
     installed_version: installedVersion,
     installed_at: installedAt,
   };
-  await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+  await writeSkillMetaFile(customDir, meta);
 
   // Run security audit synchronously so the report is ready when the frontend opens the audit modal
   try {
@@ -578,6 +608,89 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
       mainLog('SkillHub', 'Fetching skills with params:', { cursor, limit, query, category, tenantId });
+
+      // 企业模式：从本地 hub/ 目录加载已同步的技能
+      if (isEnterpriseMode()) {
+        // 企业模式下，技能库展示本地已同步的内容
+        // 专属技能 Tab (tenantId 存在时) 从本地 tenant/ 目录加载
+        const sourceType = tenantId ? 'tenant' : 'hub';
+        const skillsDir = sourceType === 'tenant' ? path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.tenant) : path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+
+        mainLog('SkillHub', `Enterprise mode: loading skills from ${skillsDir}`);
+
+        // 读取本地目录中的技能
+        const skills: import('@/common/ipcBridge').ISkillHubSkill[] = [];
+
+        if (existsSync(skillsDir)) {
+          const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            // Skip directories starting with _ (like _disable)
+            if (entry.name.startsWith('_')) continue;
+
+            const dirName = entry.name;
+            const skillDir = path.join(skillsDir, dirName);
+
+            // Read metadata first for search filtering
+            const metaResult = await readSkillMetaFileWithFallback(skillDir);
+            if (metaResult) {
+              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+
+              // Use meta.name if available (same logic as SkillManager.readSkillInfo)
+              const skillName = meta.name?.trim() || dirName;
+              const displayName = meta.display_name || skillName;
+              const description = meta.description || '';
+
+              // Search filter: search by name, display_name, and description
+              if (query) {
+                const queryLower = query.toLowerCase();
+                const nameMatch = skillName.toLowerCase().includes(queryLower);
+                const displayNameMatch = displayName.toLowerCase().includes(queryLower);
+                const descriptionMatch = description.toLowerCase().includes(queryLower);
+                if (!nameMatch && !displayNameMatch && !descriptionMatch) continue;
+              }
+
+              // Category filter
+              if (category && category !== 'all') {
+                const skillCategories = meta.categories || [];
+                if (!skillCategories.includes(category)) continue;
+              }
+
+              skills.push({
+                id: meta.id || skillName,
+                name: skillName,
+                display_name: displayName,
+                description: description,
+                icon: meta.icon || '',
+                emoji: meta.emoji || null,
+                category: meta.category || '',
+                categories: meta.categories || [],
+                applicable_scenarios: meta.applicable_scenarios || null,
+                core_features: meta.core_features || null,
+                homepage: meta.homepage || null,
+                author_id: meta.author_id || '',
+                star_count: 0,
+                created_at: meta.installed_at || new Date().toISOString(),
+                updated_at: meta.installed_at || new Date().toISOString(),
+                visible_to: meta.visible_to || null,
+                version: meta.installed_version || '1.0.0',
+              });
+            }
+          }
+        }
+
+        // 企业模式不支持分页，返回所有结果
+        return {
+          success: true,
+          data: {
+            skills,
+            next_cursor: null,
+            has_more: false,
+          },
+        };
+      }
+
+      // 个人模式：从 SudoPrivacy Skill Hub API 获取数据
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
@@ -601,6 +714,34 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.fetchCategories.provider(async () => {
     try {
       mainLog('SkillHub', 'Fetching categories');
+
+      // 企业模式：从本地已安装的技能中提取分类
+      if (isEnterpriseMode()) {
+        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+        const categoriesSet = new Set<string>();
+
+        if (existsSync(hubSkillsDir)) {
+          const entries = await fs.readdir(hubSkillsDir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+
+            const skillDir = path.join(hubSkillsDir, entry.name);
+            const metaResult = await readSkillMetaFileWithFallback(skillDir);
+            if (metaResult) {
+              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              if (meta.categories) {
+                for (const cat of meta.categories) {
+                  categoriesSet.add(cat);
+                }
+              }
+            }
+          }
+        }
+
+        return { success: true, data: Array.from(categoriesSet) };
+      }
+
+      // 个人模式：从 SudoPrivacy Skill Hub API 获取分类
       const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: AUTHORIZATION },
       });
@@ -617,6 +758,51 @@ export function initSkillHubBridge(): void {
   ipcBridge.skillHub.fetchSkillDetail.provider(async ({ skillId }) => {
     try {
       mainLog('SkillHub', 'Fetching skill detail:', skillId);
+
+      // 企业模式：从本地 hub/ 目录获取详情
+      if (isEnterpriseMode()) {
+        // 先尝试从 hub 目录查找
+        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+
+        if (existsSync(hubSkillsDir)) {
+          const entries = await fs.readdir(hubSkillsDir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+
+            const skillDir = path.join(hubSkillsDir, entry.name);
+            const metaResult = await readSkillMetaFileWithFallback(skillDir);
+            if (metaResult) {
+              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              // 匹配 id 或 name (use meta.name for name matching)
+              const skillName = meta.name?.trim() || entry.name;
+              if (meta.id === skillId || skillName === skillId || entry.name === skillId) {
+                const detail = {
+                  id: meta.id || entry.name,
+                  name: skillName,
+                  display_name: meta.display_name || skillName,
+                  description: meta.description || '',
+                  icon: meta.icon || '',
+                  emoji: meta.emoji || null,
+                  category: meta.category || '',
+                  categories: meta.categories || [],
+                  applicable_scenarios: meta.applicable_scenarios || null,
+                  core_features: meta.core_features || null,
+                  homepage: meta.homepage || null,
+                  author_id: meta.author_id || '',
+                  version: meta.installed_version || '1.0.0',
+                  visible_to: meta.visible_to || null,
+                };
+                return { success: true, data: detail };
+              }
+            }
+          }
+        }
+
+        // 未找到
+        return { success: false, msg: 'Skill not found in local hub directory' };
+      }
+
+      // 个人模式：从 SudoPrivacy Skill Hub API 获取详情
       const response = await fetch(`${SKILL_HUB_BASE_URL}/${skillId}`, {
         headers: { Authorization: AUTHORIZATION },
       });
@@ -665,10 +851,9 @@ export function initSkillHubBridge(): void {
       await extractSkillZipToDirectory(zipBuffer, skillDir);
 
       // Write hub metadata file so installed skills can be displayed with full info
-      // NOTE: _sudowork_meta.json is the single source of truth for installed version.
+      // NOTE: Metadata file is the single source of truth for installed version.
       // The standalone sudowork-version file is no longer written for new installs.
-      const metaFilePath = path.join(skillDir, SKILL_HUB_META_FILE);
-      const meta = {
+      const meta: SkillHubMeta = {
         id: skillMeta?.id ?? '',
         name: trimmedSkillName,
         display_name: skillMeta?.display_name ?? displayName,
@@ -687,7 +872,7 @@ export function initSkillHubBridge(): void {
         installed_version: version,
         installed_at: new Date().toISOString(),
       };
-      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+      await writeSkillMetaFile(skillDir, meta);
 
       mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
 
@@ -798,6 +983,8 @@ export function initSkillHubBridge(): void {
         isAutoInjectedBuiltin: skill.isAutoInjectedBuiltin === true,
         isHubInstalled: skill.isHubInstalled,
         enabled: skill.enabled,
+        // 目录分类优先，作为主要分类依据
+        category: skill.category,
         meta: skill.meta
           ? {
               ...skill.meta,
@@ -827,9 +1014,9 @@ export function initSkillHubBridge(): void {
   });
 
   // Uninstall a skill (using SkillManager)
-  ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
+  ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName, category }) => {
     try {
-      const result = await skillManager.uninstallSkill(skillName);
+      const result = await skillManager.uninstallSkill(skillName, category);
       if (result.success) {
         void (async () => {
           try {
@@ -848,9 +1035,9 @@ export function initSkillHubBridge(): void {
   });
 
   // Enable/disable a skill (using SkillManager)
-  ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled }) => {
+  ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled, category }) => {
     try {
-      const result = enabled ? await skillManager.enableSkill(skillName) : await skillManager.disableSkill(skillName);
+      const result = enabled ? await skillManager.enableSkill(skillName, category) : await skillManager.disableSkill(skillName, category);
       if (result.success) {
         void (async () => {
           try {

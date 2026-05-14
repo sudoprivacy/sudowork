@@ -17,14 +17,14 @@ import type { AcpBackendConfig } from '@/types/acpTypes';
 
 /** Convert a single IAssistantInfo to AcpBackendConfig for renderer consumption. */
 export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
-  const meta = info.meta;
+  const meta = info.meta || {};
   // Always use directory name (info.name) as id for consistent lookup
   const id = info.isBuiltin ? `builtin-${info.name}` : info.name;
   // isPreset = builtin or hub-installed (NOT user-created custom assistants)
   const isPreset = info.isBuiltin || info.isHubInstalled;
   return {
     id,
-    name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.id || info.name,
+    name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.name || meta.id || info.name,
     nameI18n: meta.nameI18n,
     descriptionI18n: meta.descriptionI18n,
     avatar: meta.avatar,

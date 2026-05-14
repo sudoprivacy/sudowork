@@ -27,6 +27,7 @@ import { Close, Lightning, Robot, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 type AssistantEditDrawerProps = {
   visible: boolean;
@@ -59,6 +60,7 @@ const AGENT_OPTIONS = [
 
 const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assistantId, localeKey, onClose, onSaved }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
 
   // Edit state
@@ -123,9 +125,24 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
         if (!res.success || !res.data) return;
 
-        // Find the assistant by id (directory name)
-        const foundInfo = res.data.find((a) => a.name === assistantId || a.meta.id === assistantId);
-        if (cancelled || !foundInfo) return;
+        // Find the assistant by id (directory name), meta.id (UUID), or display name
+        // assistantId can be: directory name (UUID), builtin-xxx, or display name
+        const foundInfo = res.data.find((a) => {
+          // Match by directory name (a.name)
+          if (a.name === assistantId) return true;
+          // Match by meta.id (UUID from server)
+          if (a.meta?.id === assistantId) return true;
+          // Match by display name (nameI18n or meta.name)
+          const displayName = a.meta?.nameI18n?.['zh-CN'] || a.meta?.nameI18n?.['en-US'] || a.meta?.name;
+          if (displayName === assistantId) return true;
+          // Match by builtin prefix (builtin-xxx)
+          if (a.isBuiltin && `builtin-${a.name}` === assistantId) return true;
+          return false;
+        });
+        if (cancelled || !foundInfo) {
+          console.warn('[AssistantEditDrawer] Assistant not found:', assistantId, 'Available:', res.data.map(a => ({ name: a.name, metaId: a.meta?.id, displayName: a.meta?.nameI18n?.['zh-CN'] || a.meta?.name })));
+          return;
+        }
 
         // Convert to config format, preserving isHubInstalled flag
         const found: AssistantConfigWithMeta = {
@@ -237,7 +254,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       const lookupName = resolveAssistantName(assistant.id);
 
       // For custom assistants, save all fields (presetAgentType stays locked to Sudo Code)
-      await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+      const updateResult = await ipcBridge.assistantHub.updateAssistantMeta.invoke({
         name: lookupName,
         updates: {
           nameI18n: { 'zh-CN': editName },
@@ -248,6 +265,11 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         },
       });
 
+      if (!updateResult.success) {
+        Message.error(t('settings.assistant.saveFailed', { msg: updateResult.msg || 'Unknown error', defaultValue: `保存失败: ${updateResult.msg || '未知错误'}` }));
+        return;
+      }
+
       // Save rules file if changed
       if (editContext.trim()) {
         await ipcBridge.fs.writeAssistantRule.invoke({
@@ -257,10 +279,15 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         });
       }
 
-      // Refresh agent detection
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
-      await mutate('acp.agents.available');
-      await mutate('assistantHub.installed');
+      // Refresh agent detection - use different refresh logic based on mode
+      if (isEnterprise) {
+        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
+        await mutate('assistantHub.installed');
+      } else {
+        // Personal mode: refresh ACP agents
+        await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+        await mutate('acp.agents.available');
+      }
 
       Message.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
       onSaved();
@@ -269,7 +296,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       console.error('Failed to save assistant:', error);
       Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
-  }, [assistant, isReadonly, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
+  }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
 
   const editAvatarImage = resolveAvatarImage(editAvatar);
 

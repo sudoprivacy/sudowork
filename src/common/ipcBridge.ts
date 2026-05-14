@@ -14,6 +14,7 @@ import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICss
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
 
 // OpenClaw model pricing API response type
 export interface IOpenClawModelsResponse {
@@ -1227,6 +1228,14 @@ export interface ISkillHubSkill {
   core_features: string | null;
   created_at: string;
   updated_at: string;
+  /** Enterprise mode: visibility configuration */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Enterprise mode: download URL */
+  source_url?: string | null;
+  /** Enterprise mode: checksum for verification */
+  checksum?: string | null;
+  /** Enterprise mode: version */
+  version?: string;
 }
 
 export interface ISkillHubVersion {
@@ -1277,11 +1286,21 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
-  source_type?: 'hub' | 'upload' | 'custom';
+  source_type?: 'hub' | 'upload' | 'custom' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
   installed_at: string;
+  /** Visibility configuration for enterprise skills (department_ids filter) */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Whether this skill has been uploaded to Moss Server */
+  uploaded?: boolean;
+  /** Timestamp when uploaded to Moss Server */
+  uploaded_at?: string;
+  /** Publish status for tenant-exclusive skills */
+  publish_status?: 'pending' | 'approved' | 'rejected';
+  /** Timestamp when published as tenant-exclusive */
+  published_at?: string;
 }
 
 /** Info returned for each locally installed skill */
@@ -1297,6 +1316,8 @@ export interface IInstalledSkillInfo {
   isAutoInjectedBuiltin?: boolean;
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
+  /** Category of the skill (custom, hub, system, tenant) */
+  category?: 'custom' | 'hub' | 'system' | 'tenant';
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
   meta?: ISkillHubMeta;
 }
@@ -1316,10 +1337,10 @@ export const skillHub = {
   importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
-  /** Enable or disable a custom installed skill */
-  setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean }>('skill-hub.set-skill-enabled'),
-  /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
-  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
+  /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
+  setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.set-skill-enabled'),
+  /** Uninstall a hub-installed skill by directory name (builtin skills are rejected). Optionally specify category to disambiguate skills with same name in different directories. */
+  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.uninstall-skill'),
   /** Get security audit report for a skill */
   getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
   /** Run security audit for a skill (re-scan) */
@@ -1357,6 +1378,10 @@ export interface IAssistantHubSkill {
   defaultInitPrompt?: string | null;
   /** Internal: download URL from API (mapped from sourceUrl) */
   _sourceUrl?: string;
+  /** Enterprise mode: visibility configuration */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Enterprise mode: version */
+  version?: string;
 }
 
 export interface IAssistantHubVersion {
@@ -1393,22 +1418,22 @@ export interface IAssistantInstallResult {
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
   getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
-  /** Enable an assistant (set meta.enabled = true) */
-  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.enable-assistant'),
-  /** Disable an assistant (set meta.enabled = false) */
-  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.disable-assistant'),
+  /** Enable an assistant (set meta.enabled = true). Optionally specify category to disambiguate assistants with same name in different directories. */
+  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.enable-assistant'),
+  /** Disable an assistant (set meta.enabled = false). Optionally specify category to disambiguate assistants with same name in different directories. */
+  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.disable-assistant'),
   /** Merge partial updates into an assistant's _sudowork_meta.json */
-  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta> }>('assistant-hub.update-assistant-meta'),
+  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta>; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.update-assistant-meta'),
   /** Read _sudowork_meta.json for a specific assistant */
   getAssistantMeta: bridge.buildProvider<IBridgeResponse<IAssistantMeta | null>, { name: string }>('assistant-hub.get-assistant-meta'),
   /** Create a new custom assistant with metadata and optional rule content */
   createAssistant: bridge.buildProvider<IBridgeResponse<void>, { meta: IAssistantMeta; ruleContent?: string }>('assistant-hub.create-assistant'),
-  /** Uninstall an assistant (delete directory; blocks builtins) */
-  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.uninstall-assistant'),
+  /** Uninstall an assistant (delete directory; blocks builtins). Optionally specify category to disambiguate assistants with same name in different directories. */
+  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.uninstall-assistant'),
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
-  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('assistant-hub.fetch-assistants'),
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant' }>('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
@@ -1789,4 +1814,61 @@ export const eeclaw = {
   tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
   /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
   refreshToken: bridge.buildProvider<IBridgeResponse<{ access_token: string; refresh_token?: string; expires_at: number }>, void>('eeclaw.refresh-token'),
+  /** Trigger manual sync of remote skills and assistants to local (for Local mode) */
+  syncFromRemote: bridge.buildProvider<IBridgeResponse<SyncAllResult>, void>('eeclaw.sync-from-remote'),
+  /** Emitted when background sync completes after enterprise login */
+  syncCompleted: bridge.buildEmitter<SyncAllResult>('eeclaw.sync-completed'),
+
+  // === Custom Skill/Assistant Upload ===
+  /** Upload custom skill to Moss Server */
+  uploadCustomSkill: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { skillName: string; displayName: string; description?: string; version?: string; sourcePath?: string }>('eeclaw.upload-custom-skill'),
+  /** Upload custom assistant to Moss Server */
+  uploadCustomAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { assistantName: string; assistantId: string; displayName: string; description?: string; version?: string; enabledSkills?: string[]; memoryMode?: 'session' | 'user'; sourcePath?: string }>('eeclaw.upload-custom-assistant'),
+
+  // === Tenant Skill/Assistant ===
+  /** Fetch tenant-exclusive skills from Moss Server */
+  getTenantSkills: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        displayName?: string;
+        description?: string;
+        version?: string;
+        status: 'pending' | 'approved' | 'rejected';
+        author?: string;
+        authorName?: string;
+        approvedAt?: string;
+        installed?: boolean;
+      }>
+    >,
+    void
+  >('eeclaw.get-tenant-skills'),
+  /** Fetch tenant-exclusive assistants from Moss Server */
+  getTenantAssistants: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        displayName?: string;
+        description?: string;
+        version?: string;
+        status: 'pending' | 'approved' | 'rejected';
+        author?: string;
+        authorName?: string;
+        enabledSkills?: string[];
+        approvedAt?: string;
+        installed?: boolean;
+      }>
+    >,
+    void
+  >('eeclaw.get-tenant-assistants'),
+  /** Install tenant skill to local */
+  installTenantSkill: bridge.buildProvider<IBridgeResponse<{ name: string }>, { skillId: string }>('eeclaw.install-tenant-skill'),
+  /** Install tenant assistant to local */
+  installTenantAssistant: bridge.buildProvider<IBridgeResponse<{ name: string }>, { assistantId: string }>('eeclaw.install-tenant-assistant'),
+  /** Publish skill as tenant-exclusive */
+  publishTenantSkill: bridge.buildProvider<IBridgeResponse<{ id: string; skillId: string; skillName: string; status: string; message?: string }>, { skillId: string; publishNote?: string }>('eeclaw.publish-tenant-skill'),
+  /** Publish assistant as tenant-exclusive */
+  publishTenantAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; assistantId: string; assistantName: string; status: string; message?: string }>, { assistantId: string; publishNote?: string }>('eeclaw.publish-tenant-assistant'),
 };
