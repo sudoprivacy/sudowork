@@ -13,7 +13,7 @@ import type { AcpModelInfo } from '@/types/acpTypes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
-import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -191,13 +191,15 @@ const AcpModelSelector: React.FC<{
         .then((result) => {
           if (result.success && result.data?.modelInfo) {
             setModelInfo(result.data.modelInfo);
+            const modelLabel = result.data.modelInfo.currentModelLabel || modelId;
+            Message.success(t('common.modelSwitchSuccess', { model: modelLabel }));
           }
         })
         .catch((error) => {
           console.error('[AcpModelSelector] Failed to set model:', error);
         });
     },
-    [conversationId]
+    [conversationId, t]
   );
 
   const defaultModelLabel = t('common.defaultModel');

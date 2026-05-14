@@ -700,6 +700,25 @@ export class ChannelManager {
     return cleanedUp;
   }
 
+  // ==================== System Resume ====================
+
+  /**
+   * Resume all running plugins after system wake from sleep.
+   * Called from powerMonitor.on('resume').
+   */
+  async resumePlugins(): Promise<void> {
+    if (!this.pluginManager) return;
+
+    const plugins = this.pluginManager.getAllPlugins();
+    for (const plugin of plugins) {
+      try {
+        await plugin.resume();
+      } catch (error) {
+        console.error('[ChannelManager] Failed to resume plugin:', error);
+      }
+    }
+  }
+
   // ==================== Accessors ====================
 
   /**

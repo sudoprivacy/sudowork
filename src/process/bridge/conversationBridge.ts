@@ -465,15 +465,21 @@ export function initConversationBridge(): void {
     // 使用 Provider 抽象层创建会话
     mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
 
-    // Enterprise mode: force remote-agent type for all conversations
-    // 企业模式：强制使用 remote-agent 类型
+    // Read sessionMode from extra.sessionModeParam (rendered process passes it explicitly)
+    // 从 extra.sessionModeParam 读取 sessionMode（渲染进程显式传递）
+    const sessionMode = params.extra?.sessionModeParam as 'remote' | 'local' | undefined;
+
+    // Enterprise mode Remote session: force remote-agent type for all conversations
+    // 企业模式 Remote 会话：强制使用 remote-agent 类型
+    // Local session in enterprise mode should NOT be forced to remote-agent
+    // 企业模式 Local 会话不应强制为 remote-agent
     let finalParams = params;
-    if (isRemoteProvider() && params.type !== 'remote-agent') {
-      mainLog('conversationBridge', `Enterprise mode: forcing remote-agent type`);
+    if (isRemoteProvider(sessionMode) && params.type !== 'remote-agent') {
+      mainLog('conversationBridge', `Enterprise remote mode: forcing remote-agent type`);
       finalParams = { ...params, type: 'remote-agent' };
     }
 
-    const provider = getConversationProvider();
+    const provider = getConversationProvider(sessionMode);
     const conversation = await provider.createConversation(finalParams);
 
     mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);

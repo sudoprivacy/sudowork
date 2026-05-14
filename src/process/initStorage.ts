@@ -1147,8 +1147,17 @@ const skillsContentCache = new Map<string, string>();
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
-  // Search in all subdirectories for the skill metadata
   const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+
+  // First check if skill exists in any _disable directory (disabled via directory move)
+  for (const subdir of subdirs) {
+    const disabledSkillDir = path.join(getSkillsDir(), subdir, '_disable', skillName);
+    if (existsSync(disabledSkillDir)) {
+      return false;
+    }
+  }
+
+  // Search in all subdirectories for the skill metadata
   for (const subdir of subdirs) {
     const skillMetaPath = path.join(getSkillsDir(), subdir, skillName, SKILL_HUB_META_FILE);
     try {

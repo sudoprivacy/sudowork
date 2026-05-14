@@ -524,7 +524,7 @@ export const openclawConversation = {
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
+  getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
@@ -1009,6 +1009,8 @@ export interface ICreateConversationParams {
     presetAssistantId?: string;
     /** Initial session mode selected on Guid page (from AgentModeSelector) */
     sessionMode?: string;
+    /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
+    sessionModeParam?: 'remote' | 'local';
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
@@ -1770,12 +1772,17 @@ export const eeclaw = {
       access_token: string;
       refresh_token?: string;
       expires_in: number;
-      user: { id: string; name: string; role: string; orgId: string };
+      user: { id: string; name: string; role: string; orgId: string; localAuth: boolean };
+      sudorouter_key?: string;
+      model_service_url?: string;
+      models?: string[];
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
   >('eeclaw.login'),
   /** Set app mode and update main process cache */
   setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
+  /** Set session mode (remote/local) for enterprise mode and update main process cache */
+  setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
   /** Logout from enterprise server and clear local credentials */
   logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */

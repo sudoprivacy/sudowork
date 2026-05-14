@@ -71,6 +71,8 @@ export interface IConfigStorageRefer {
   'workspace.pasteConfirm'?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
+  // guid 页面 session 模式（E端 Local/Remote 切换）/ Guid page session mode (Enterprise Local/Remote toggle)
+  'guid.sessionMode'?: 'remote' | 'local';
   // 迁移标记：修复老版本中助手 enabled 默认值问题 / Migration flag: fix assistant enabled default value issue
   'migration.assistantEnabledFixed'?: boolean;
   // 迁移标记：为 cowork 助手添加默认启用的 skills / Migration flag: add default enabled skills for cowork assistant

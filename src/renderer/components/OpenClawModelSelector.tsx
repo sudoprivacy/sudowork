@@ -7,7 +7,7 @@
 import { ipcBridge, type IOpenClawModelsResponse } from '@/common';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { Button, Dropdown, Menu } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -163,9 +163,12 @@ const OpenClawModelSelector: React.FC<{
         return;
       }
 
-      await syncSelectedModel(model, { updateState: true, force: true, reason: 'manual' });
+      const success = await syncSelectedModel(model, { updateState: true, force: true, reason: 'manual' });
+      if (success) {
+        Message.success(t('common.modelSwitchSuccess', { model: model.model_id }));
+      }
     },
-    [models, syncSelectedModel]
+    [models, syncSelectedModel, t]
   );
 
   // Ensure the current model is synced on first load as well.
