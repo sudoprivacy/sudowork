@@ -1117,21 +1117,31 @@ This identity statement takes priority over the default identity in USER.md.
     this.confirmations = [];
 
     // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
-    // abandon the local wait but keep the session/process alive for the next turn.
+    // force disconnect to stop the process.
+    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
-      result = await this.connection.cancel();
+      result = await this.connection.cancel(5000); // 5 seconds timeout
     } catch {
-      await this.connection.disconnect();
       result = 'disconnected';
+    }
+
+    // If backend didn't acknowledge cancel or abandoned, force disconnect
+    // 如果后端没有确认取消或放弃，强制断开连接
+    if (result === 'abandoned' || result === 'disconnected') {
+      mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
+      await this.connection.disconnect();
     }
 
     this.status = 'finished';
 
-    // 5. Emit user cancelled message
+    // 5. Clear incomplete tool calls from message list
+    this.emitClearIncompleteTools();
+
+    // 6. Emit user cancelled message
     this.emitUserCancelledMessage();
 
-    // 6. Always emit finish to ensure UI state is reset
+    // 7. Always emit finish to ensure UI state is reset
     this.handleStreamEvent({
       type: 'finish',
       conversation_id: this.conversation_id,
@@ -1139,38 +1149,56 @@ This identity statement takes priority over the default identity in USER.md.
       data: null,
     });
 
-    if (result === 'disconnected') {
-      // Backend didn't respond to cancel — process was killed
+    // 8. Clear state for next turn
+    if (result !== 'cancelled') {
+      // Backend was disconnected or abandoned - clear state for fresh start
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
-      // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
-      return;
     }
-
-    if (result === 'abandoned') {
-      // Backend didn't respond in time, but we already emitted finish
-      return;
-    }
-
-    // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
   }
 
   /**
-   * Emit user cancelled message
-   * 发送用户终止提示消息
+   * Emit clear incomplete tools message
+   * 发送清理未完成工具调用的消息
    */
-  private emitUserCancelledMessage(): void {
-    // Direct emit to bypass handleStreamEvent's userCancelled check
-    ipcBridge.conversation.responseStream.emit({
-      type: 'tips',
+  private emitClearIncompleteTools(): void {
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'clear_incomplete_tools',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
-      data: {
-        type: 'warning',
-        content: '请求已被用户终止',
-      },
+      data: null,
     });
+  }
+
+  /**
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
+   */
+  private emitUserCancelledMessage(): void {
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass handleStreamEvent's userCancelled check
+    ipcBridge.acpConversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
   }
 
   kill() {

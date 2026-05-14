@@ -645,33 +645,55 @@ ${draftsInstruction}`;
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
 
+    // Send abort request to gateway
     if (this.connection?.isConnected && this.connection?.sessionKey) {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
       } catch (err) {
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
+        // If abort fails, disconnect to force stop
+        this.connection.stop();
       }
     }
 
     // Emit user cancelled message
     this.emitUserCancelledMessage();
+
+    // Emit finish to ensure UI state is reset
+    this.handleEndTurn();
   }
 
   /**
-   * Emit user cancelled message
-   * 发送用户终止提示消息
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
    */
   private emitUserCancelledMessage(): void {
-    // Direct emit to bypass any message filtering
-    ipcBridge.openclawConversation.responseStream.emit({
-      type: 'tips',
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
-      data: {
-        type: 'warning',
-        content: '请求已被用户终止',
-      },
-    });
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass any message filtering
+    ipcBridge.openclawConversation.responseStream.emit(msg);
+
+    // Also emit to generic conversation stream for channel clients
+    ipcBridge.conversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   private async handleImageCommand(args: string): Promise<AcpResult> {

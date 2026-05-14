@@ -7,7 +7,7 @@ import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -43,6 +43,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const updateMessageList = useUpdateMessageList();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -147,6 +148,23 @@ const useAcpMessage = (conversation_id: string) => {
       if (pendingTimeout && shouldCancelAcpFinishTimeout(message.type)) {
         clearTimeout(pendingTimeout);
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      }
+
+      // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
+      // 在 transformMessage 之前处理 clear_incomplete_tools（它不是标准消息类型）
+      if (message.type === 'clear_incomplete_tools') {
+        // Clear all tool calls from message list (user cancelled)
+        // 清理消息列表中所有工具调用（用户终止）
+        updateMessageList((list) => {
+          return list.filter((msg) => {
+            // Remove all tool-related messages
+            if (msg.type === 'acp_tool_call') return false;
+            if (msg.type === 'codex_tool_call') return false;
+            if (msg.type === 'tool_call') return false;
+            return true;
+          });
+        });
+        return;
       }
 
       let transformedMessage: TMessage | undefined;
