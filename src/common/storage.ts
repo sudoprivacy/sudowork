@@ -209,6 +209,8 @@ interface IChatConversation<T, Extra> {
   extra: Extra;
   model: TProviderWithModel;
   status?: 'pending' | 'running' | 'finished' | undefined;
+  /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
+  processingStartTime?: number;
   /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
