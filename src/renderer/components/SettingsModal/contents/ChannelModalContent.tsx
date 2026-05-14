@@ -120,7 +120,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
           })
           .catch((err) => console.warn(`[ChannelSettings] syncChannelSettings failed for ${platform}:`, err));
 
-        Message.success(t('settings.assistant.modelSwitched', 'Model switched successfully'));
+        // Toast notification is handled by useGeminiModelSelection hook
         return true;
       } catch (error) {
         console.error(`[ChannelSettings] Failed to save model for ${configKey}:`, error);

@@ -142,10 +142,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
 
+  // Flag to track if user cancelled - ignore subsequent messages
+  private userCancelled: boolean = false;
+
+  // Tool call tracking for file_send messages to channel clients
+  private toolCallMeta = new Map<string, { toolName: string; rawInput?: Record<string, unknown> }>();
+
   // Model tracking
   private userModelOverride: string | null = null;
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
+  private lastUserMessage: string | null = null;
 
   // Slash commands
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
@@ -154,6 +161,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Message pipeline
   private readonly streamTextBuffer = new StreamTextBuffer();
   private readonly cronAccumulator = new CronTextAccumulator();
+
+  // Workspace file tracking for channel file_send messages
+  private workspaceFileSnapshot = new Map<string, number>();
 
   // Extra config passed to connection
   private extra: {
@@ -195,6 +205,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     };
 
     this.setupConnectionHandlers();
+    this.refreshWorkspaceFileSnapshot();
   }
 
   // ========== Connection Lifecycle ==========
@@ -614,6 +625,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     const managerSendStart = Date.now();
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    this.processingStartTime = Date.now();
+
+    // Reset user cancelled flag for new message
+    this.userCancelled = false;
+
     try {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
@@ -627,6 +643,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Breadcrumb: conversation started
       conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
+
+      // Store user's message for file-sending intent detection
+      // 存储用户消息用于检测文件发送意图
+      if (data.content) {
+        this.lastUserMessage = data.content;
+        console.log(`[AcpAgent] Stored lastUserMessage: "${data.content.substring(0, 100)}..."`);
+      }
 
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
@@ -655,7 +678,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           responseData = {
             content: displayContent,
             ...(data.cronMeta && { cronMeta: data.cronMeta }),
-            ...(data.skills && data.skills.length > 0 && { skills: data.skills })
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
           };
         }
 
@@ -758,8 +781,12 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (data.skills && data.skills.length > 0) {
+          mainLog('AcpAgent', `sendMessage: processing skills=${JSON.stringify(data.skills)}`);
           const skillTags = data.skills.map((skill) => `<command-name>${skill}</command-name>`).join('\n');
           contentToSend = `${skillTags}\n\n${contentToSend}`;
+          mainLog('AcpAgent', `sendMessage: added skill tags to content, contentToSend starts with: ${contentToSend.substring(0, 100)}`);
+        } else {
+          mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
         }
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
@@ -1066,6 +1093,9 @@ This identity statement takes priority over the default identity in USER.md.
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
 
+    // Mark as user cancelled to ignore subsequent messages from backend
+    this.userCancelled = true;
+
     // 1. Flush buffered streaming text
     this.streamTextBuffer.flushAll();
 
@@ -1087,49 +1117,94 @@ This identity statement takes priority over the default identity in USER.md.
     this.confirmations = [];
 
     // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
-    // abandon the local wait but keep the session/process alive for the next turn.
+    // force disconnect to stop the process.
+    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
-      result = await this.connection.cancel();
+      result = await this.connection.cancel(5000); // 5 seconds timeout
     } catch {
-      await this.connection.disconnect();
       result = 'disconnected';
+    }
+
+    // If backend didn't acknowledge cancel or abandoned, force disconnect
+    // 如果后端没有确认取消或放弃，强制断开连接
+    if (result === 'abandoned' || result === 'disconnected') {
+      mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
+      await this.connection.disconnect();
     }
 
     this.status = 'finished';
 
-    if (result === 'disconnected') {
-      // Backend didn't respond to cancel — process was killed
+    // 5. Clear incomplete tool calls from message list
+    this.emitClearIncompleteTools();
+
+    // 6. Emit user cancelled message
+    this.emitUserCancelledMessage();
+
+    // 7. Always emit finish to ensure UI state is reset
+    this.handleStreamEvent({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+
+    // 8. Clear state for next turn
+    if (result !== 'cancelled') {
+      // Backend was disconnected or abandoned - clear state for fresh start
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
-      // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
-      // Emit finish only for disconnect path (cancel path already emitted via onEndTurn)
-      this.handleStreamEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
-      return;
     }
+  }
 
-    if (result === 'abandoned') {
-      void this.handleSignalEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
-      return;
-    }
+  /**
+   * Emit clear incomplete tools message
+   * 发送清理未完成工具调用的消息
+   */
+  private emitClearIncompleteTools(): void {
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'clear_incomplete_tools',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+  }
 
-    // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
-    // The finish event was already emitted by handleEndTurn() when the backend responded
+  /**
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
+   */
+  private emitUserCancelledMessage(): void {
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass handleStreamEvent's userCancelled check
+    ipcBridge.acpConversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
   }
 
   kill() {
     this.streamTextBuffer.flushAll();
+    this.toolCallMeta.clear();
+    this.workspaceFileSnapshot.clear();
 
     let killed = false;
     const GRACE_PERIOD_MS = 500;
@@ -1372,6 +1447,12 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Connection Event Handlers ==========
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
+    // Ignore session updates if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring session update after user cancel: sessionUpdate=${data.update?.sessionUpdate}`);
+      return;
+    }
+
     try {
       if (data.update?.sessionUpdate === 'available_commands_update') {
         const commandUpdate = data as AvailableCommandsUpdate;
@@ -1393,9 +1474,18 @@ This identity statement takes priority over the default identity in USER.md.
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+        console.log(`[AcpAgent] tool_call event: toolName=${toolName}, toolCallId=${toolCallId}`);
 
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
+
+        // Store tool call meta for file_send detection
+        if (toolCallId) {
+          this.toolCallMeta.set(toolCallId, {
+            toolName,
+            rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          });
+        }
 
         if (NavigationInterceptor.isNavigationTool(toolName)) {
           if (toolCallId) {
@@ -1417,6 +1507,70 @@ This identity statement takes priority over the default identity in USER.md.
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
+        // Generate user message for SendUserMessage/AskUserQuestion tool results
+        if (toolStatus === 'completed') {
+          const userMessage = this.adapter.generateUserMessageFromToolCall(statusUpdate);
+          if (userMessage) {
+            this.emitMessage(userMessage);
+          }
+        }
+
+        // Intercept file-creation tool calls: send generated files to channel clients (e.g., WeChat, Lark)
+        if (toolStatus === 'completed' && toolCallId) {
+          const meta = this.toolCallMeta.get(toolCallId);
+          console.log(`[AcpAgent] tool_call_update completed: toolCallId=${toolCallId}, hasMeta=${!!meta}, meta=${meta ? JSON.stringify({ toolName: meta.toolName, rawInput: meta.rawInput }) : 'null'}`);
+          if (meta) {
+            const toolName = meta.toolName;
+            const rawInput = meta.rawInput;
+            console.log(`[AcpAgent] Processing tool call: toolName=${toolName}, lastUserMessage=${this.lastUserMessage?.substring(0, 50)}...`);
+
+            // Strategy 1: SendUserMessage tool - Agent explicitly sends files to user
+            // This is the preferred way for Agent to send files
+            const n = toolName.toLowerCase();
+            if (n === 'sendusermessage' || n === 'brief') {
+              const attachments = rawInput?.attachments as Array<string> | undefined;
+              if (attachments && attachments.length > 0) {
+                for (const attachmentPath of attachments) {
+                  if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+                    this.sendFileToChannels(attachmentPath.trim());
+                  }
+                }
+                this.refreshWorkspaceFileSnapshot();
+              }
+            }
+            // Strategy 2: write_file tool - Auto-send files when user requested them
+            // This handles cases where Agent creates files but doesn't use SendUserMessage
+            else if (/write|edit|create/.test(n)) {
+              console.log(`[AcpAgent] Detected write/edit/create tool: ${toolName}`);
+              const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
+              console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
+              if (filePath) {
+                // Check if user's original message indicates they want the file sent
+                const userMessage = this.lastUserMessage?.toLowerCase() || '';
+                const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);
+                console.log(`[AcpAgent] userWantsFileSent=${userWantsFileSent}, userMessage="${userMessage.substring(0, 100)}"`);
+                // Also check if file is NOT a draft (intermediate file)
+                const ext = nodePath.extname(filePath).toLowerCase();
+                const isDraftExtension = ext === '.md' && (filePath.includes('temp') || filePath.includes('payload') || filePath.includes('draft'));
+                const isIntermediateScript = ext === '.py' && (filePath.includes('create_') || filePath.includes('generate_') || filePath.includes('convert_'));
+                console.log(`[AcpAgent] ext=${ext}, isDraftExtension=${isDraftExtension}, isIntermediateScript=${isIntermediateScript}`);
+
+                if (userWantsFileSent && !isDraftExtension && !isIntermediateScript) {
+                  console.log(`[AcpAgent] User requested file, auto-sending: ${filePath}`);
+                  this.sendFileToChannels(filePath);
+                  this.refreshWorkspaceFileSnapshot();
+                } else {
+                  console.log(`[AcpAgent] Skipping file send: userWantsFileSent=${userWantsFileSent}, isDraft=${isDraftExtension}, isIntermediate=${isIntermediateScript}`);
+                }
+              }
+            } else {
+              console.log(`[AcpAgent] Tool ${toolName} does not match write/edit/create pattern`);
+            }
+          }
+          // Clean up tool call meta after processing
+          this.toolCallMeta.delete(toolCallId);
         }
 
         if (toolCallId && this.pendingNavigationTools.has(toolCallId)) {
@@ -1615,6 +1769,12 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Stream & Signal Pipeline (merged from Manager) ==========
 
   private handleStreamEvent(message: IResponseMessage): void {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring message after user cancel: type=${message.type}`);
+      return;
+    }
+
     const pipelineStart = Date.now();
 
     if (message.type === 'agent_status') {
@@ -1699,6 +1859,12 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring signal event after user cancel: type=${v.type}`);
+      return;
+    }
+
     this.streamTextBuffer.flushAll();
 
     if (v.type === 'acp_permission') {
@@ -2268,6 +2434,257 @@ This identity statement takes priority over the default identity in USER.md.
 
   get hasActiveSession(): boolean {
     return this.connection.hasActiveSession;
+  }
+
+  // ========== Workspace File Tracking for Channel Clients ==========
+
+  /** Document extensions that should trigger file sending to channel clients */
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    // Office documents
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
+    // Text/data formats
+    '.csv',
+    '.txt',
+    '.md',
+    '.html',
+    '.htm',
+    '.xml',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.toml',
+    // Code files (common programming languages)
+    '.js',
+    '.ts',
+    '.jsx',
+    '.tsx',
+    '.py',
+    '.rb',
+    '.go',
+    '.rs',
+    '.java',
+    '.kt',
+    '.swift',
+    '.c',
+    '.cpp',
+    '.h',
+    '.hpp',
+    '.cs',
+    '.php',
+    '.lua',
+    '.r',
+    '.sql',
+    // Shell/scripts
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.ps1',
+    '.bat',
+    '.cmd',
+    '.vbs',
+    // Config files
+    '.conf',
+    '.config',
+    '.ini',
+    '.env',
+    '.properties',
+    // Markup/styles
+    '.css',
+    '.scss',
+    '.sass',
+    '.less',
+    '.vue',
+    '.svelte',
+    // Archive/compressed
+    '.zip',
+    '.tar',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.7z',
+    '.rar',
+    // Other common formats
+    '.log',
+    '.rst',
+    '.adoc',
+    '.tex',
+    '.org',
+  ]);
+
+  /** Image extensions */
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg', '.heic', '.heif', '.avif']);
+
+  /**
+   * Build or refresh the workspace file snapshot.
+   * Scans the workspace root (non-recursive, depth=1) and records each deliverable file's mtime.
+   * Files inside .drafts/ directory are excluded.
+   */
+  private refreshWorkspaceFileSnapshot(): void {
+    this.workspaceFileSnapshot.clear();
+    if (!this.workspace) return;
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          this.workspaceFileSnapshot.set(entry.name, stat.mtimeMs);
+        } catch {
+          // stat failed (file deleted between readdir and stat), skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip silently
+    }
+  }
+
+  /**
+   * After an execute-class tool completes, scan workspace for newly created or modified deliverable files.
+   * Returns absolute paths of files that are new or have a newer mtime than the snapshot.
+   */
+  private detectNewFilesFromWorkspace(): string[] {
+    if (!this.workspace) return [];
+    const newFiles: string[] = [];
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          const prevMtime = this.workspaceFileSnapshot.get(entry.name);
+
+          // New file (not in snapshot) or modified file (mtime changed)
+          if (prevMtime === undefined || stat.mtimeMs > prevMtime) {
+            newFiles.push(fullPath);
+          }
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip
+    }
+
+    return newFiles;
+  }
+
+  /**
+   * Extract file path from a tool call if it represents a file-creation operation.
+   * Returns null if the tool call is not a file-creation operation or the file doesn't exist.
+   */
+  private extractFilePathFromToolCall(toolName: string, rawInput?: Record<string, unknown>): string | null {
+    if (!rawInput) return null;
+    const n = toolName.toLowerCase();
+
+    // Handle SendUserMessage tool: extract attachments (array of file paths)
+    if (n === 'sendusermessage' || n === 'brief') {
+      const attachments = rawInput.attachments as Array<string> | undefined;
+      if (attachments && attachments.length > 0) {
+        // Return the first valid attachment path
+        for (const attachmentPath of attachments) {
+          if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+            const resolvedPath = attachmentPath.trim();
+            // Verify the file exists
+            try {
+              if (fs.existsSync(resolvedPath)) {
+                return resolvedPath;
+              }
+            } catch {
+              // Continue to next attachment if this one doesn't exist
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // Handle file-creation tools (Write/Edit/Create)
+    if (!/write|edit|create/.test(n)) return null;
+
+    const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
+    if (!filePath || typeof filePath !== 'string') return null;
+
+    const ext = nodePath.extname(filePath).toLowerCase();
+    if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) return null;
+
+    // Verify the file actually exists on disk
+    try {
+      if (!fs.existsSync(filePath)) return null;
+    } catch {
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /** Classify a file path as 'image' or 'file' based on its extension */
+  private classifyFileType(filePath: string): 'image' | 'file' {
+    const ext = nodePath.extname(filePath).toLowerCase();
+    return AcpAgent.IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file';
+  }
+
+  /** Infer tool kind from name */
+  private inferToolKind(name: string): 'read' | 'edit' | 'execute' | null {
+    const n = name.toLowerCase();
+    if (/read|view|list|search|grep|glob|find|get|fetch/.test(n)) return 'read';
+    if (/write|edit|create|delete|patch|update|insert|remove/.test(n)) return 'edit';
+    if (/exec|run|bash|shell|terminal/.test(n)) return 'execute';
+    return null;
+  }
+
+  /**
+   * Send file_send message to channel clients for generated files.
+   * Called when a tool call completes successfully.
+   */
+  private sendFileToChannels(filePath: string): void {
+    // Resolve relative paths to absolute paths using workspace root
+    let resolvedPath = filePath;
+    if (!nodePath.isAbsolute(filePath)) {
+      resolvedPath = nodePath.resolve(this.workspace, filePath);
+    }
+
+    // Verify the file exists before sending
+    try {
+      if (!fs.existsSync(resolvedPath)) {
+        console.warn(`[AcpAgent] sendFileToChannels: file not found: ${resolvedPath}`);
+        return;
+      }
+    } catch {
+      console.warn(`[AcpAgent] sendFileToChannels: error checking file existence: ${resolvedPath}`);
+      return;
+    }
+
+    const fileMessage: IResponseMessage = {
+      type: 'file_send',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
+        filePath: resolvedPath,
+        fileName: nodePath.basename(resolvedPath),
+        fileType: this.classifyFileType(resolvedPath),
+      },
+    };
+    this.handleStreamEvent(fileMessage);
   }
 }
 

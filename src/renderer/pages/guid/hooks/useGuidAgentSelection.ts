@@ -12,13 +12,48 @@ import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
-import { fetchAssistantsAsConfigs, toBackendConfig } from '@/renderer/shared/agents/assistantAdapter';
+import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
-import type { IAssistantInfo } from '@/process/AssistantManager';
+import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
+
+// Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
+// 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
+let rendererCachedSessionMode: 'remote' | 'local' = 'remote';
+
+/** 供 useConversations 等非 GuidPage 组件树同步读取当前 sessionMode */
+export function getRendererSessionMode(): 'remote' | 'local' {
+  return rendererCachedSessionMode;
+}
+
+/**
+ * Moss Server assistant from cloud API
+ */
+type MossAssistant = {
+  key: string;
+  name: string;
+  avatar?: string;
+  emoji?: string;
+  description?: string;
+};
+
+/**
+ * Map Moss Server assistant to AcpBackendConfig for display in AssistantSelectionArea
+ */
+function mapMossAssistantToConfig(assistant: MossAssistant): AcpBackendConfig {
+  return {
+    id: `moss:${assistant.key}`,
+    name: assistant.name,
+    avatar: assistant.emoji || assistant.avatar,
+    description: assistant.description,
+    isPreset: true,
+    enabled: true,
+    presetAgentType: 'remote-agent',
+  };
+}
 
 /**
  * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
@@ -69,7 +104,13 @@ export type GuidAgentSelectionResult = {
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
   availableAgents: AvailableAgent[] | undefined;
+  /** Available agents filtered for mention selector (enterprise local mode only exposes scode) */
+  mentionAvailableAgents: AvailableAgent[] | undefined;
   customAgents: AcpBackendConfig[];
+  /** Current session mode (remote/local) - only meaningful in enterprise mode */
+  sessionMode: 'remote' | 'local';
+  /** Set session mode and trigger history refresh */
+  setSessionMode: (mode: 'remote' | 'local') => void;
   selectedMode: string;
   setSelectedMode: React.Dispatch<React.SetStateAction<string>>;
   acpCachedModels: Record<string, AcpModelInfo>;
@@ -118,6 +159,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // Track availableAgents with ref for resetSelection to access
   const availableAgentsRef = useRef<AvailableAgent[] | undefined>(undefined);
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
+  // Session mode state (remote/local) - SSOT for enterprise mode
+  // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
+  const [sessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
@@ -166,6 +210,62 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       }
       return newModelId;
     });
+  }, []);
+
+  // --- sessionMode: initialization from ConfigStorage ---
+  // 应用启动时从 ConfigStorage 异步读取 sessionMode，同步更新模块缓存
+  // 仅企业模式需要 sessionMode，C端用户无需初始化
+  useEffect(() => {
+    if (!isEnterprise) return;
+    ConfigStorage.get('guid.sessionMode').then(async (stored) => {
+      let mode = stored ?? 'remote';
+      // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
+      if (mode === 'local') {
+        try {
+          const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+          const authData = eeclawStored ? JSON.parse(eeclawStored) : null;
+          if (!authData?.user?.localModeAvailable) {
+            mode = 'remote';
+            await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+          }
+        } catch {
+          mode = 'remote';
+          await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        }
+      }
+      _setSessionMode(mode);
+      rendererCachedSessionMode = mode;
+      if (mode === 'local') {
+        _setSelectedAgentKey('scode');
+        selectedAgentKeyRef.current = 'scode';
+      } else {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+      }
+      emitter.emit('chat.history.refresh');
+    });
+  }, [isEnterprise]);
+
+  // --- sessionMode: setSessionMode wrapper with side effects ---
+  // setSessionMode 封装：同步模块缓存 + 持久化 + IPC + 刷新历史 + 重置 agent 选择
+  const setSessionMode = useCallback((mode: 'remote' | 'local') => {
+    _setSessionMode(mode);
+    rendererCachedSessionMode = mode;
+    ConfigStorage.set('guid.sessionMode', mode).catch(() => {});
+    ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
+    emitter.emit('chat.history.refresh');
+
+    setCustomAgents([]);
+
+    // Reset selectedAgentKey to the default for the new mode
+    // 切换 mode 时重置 agent 选择为对应 mode 的默认值
+    if (mode === 'local') {
+      _setSelectedAgentKey('scode');
+      selectedAgentKeyRef.current = 'scode';
+    } else {
+      _setSelectedAgentKey('remote-agent');
+      selectedAgentKeyRef.current = 'remote-agent';
+    }
   }, []);
 
   // When isEnterprise changes, update the default agent selection
@@ -248,13 +348,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, [customAgents]);
 
   // --- SWR: Fetch available agents ---
-  // Enterprise mode: load from local directories (hub/tenant/custom/system) like "My Assistants" page
-  // Consumer mode: load from ACP detection
-  const swrKey = isEnterprise ? 'assistantHub.installed' : 'acp.agents.available';
+  // E端 Remote 模式使用云端助手列表，其他模式使用本地 ACP agent 列表
+  const swrKey = (isEnterprise && sessionMode === 'remote')
+    ? 'eeclaw.agents.cloud'
+    : 'acp.agents.available';
   const { data: availableAgentsData } = useSWR(swrKey, async () => {
-    if (isEnterprise) {
-      // Load assistants from local directories (hub/tenant/custom/system)
-      const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+    if (isEnterprise && sessionMode === 'remote') {
+      const result = await ipcBridge.eeclaw.getCloudAssistants.invoke();
       return result.data ?? [];
     }
     const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
@@ -263,12 +363,12 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   useEffect(() => {
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
-      if (isEnterprise) {
-        // Enterprise mode: Load assistants from local directories (hub/tenant/custom/system)
-        const assistantInfos = availableAgentsData as IAssistantInfo[];
+      if (isEnterprise && sessionMode === 'remote') {
+        // Enterprise Remote mode: Moss assistants go to customAgents, only Remote Agent in availableAgents
+        const enterpriseAgents = availableAgentsData as unknown as MossAssistant[];
 
-        // Convert IAssistantInfo to AcpBackendConfig for display
-        const localAgents: AcpBackendConfig[] = assistantInfos.map(toBackendConfig);
+        // Convert MossAssistant to AcpBackendConfig for display
+        const localAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
         setCustomAgents(localAgents);
 
         // availableAgents only contains Remote Agent for top AgentPillBar
@@ -286,9 +386,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         setAvailableAgents(availableAgentsData as AvailableAgent[]);
         availableAgentsRef.current = availableAgentsData as AvailableAgent[];
       }
-    } else if (isEnterprise) {
-      // Enterprise mode: even if loading fails, provide a default remote-agent
-      // 企业模式：即使加载失败，也提供默认的 remote-agent
+    } else if (isEnterprise && sessionMode === 'remote') {
+      // Enterprise mode: even if API fails, provide a default remote-agent
+      // 企业模式：即使 API 失败，也提供默认的 remote-agent
       const defaultAgent: AvailableAgent = {
         backend: 'remote-agent' as AcpBackend,
         name: 'Remote Agent',
@@ -298,11 +398,11 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       availableAgentsRef.current = [defaultAgent];
       setCustomAgents([]); // Clear customAgents on loading failure
     }
-  }, [availableAgentsData, isEnterprise]);
+  }, [availableAgentsData, isEnterprise, sessionMode]);
 
-  // Enterprise mode: keep current selection if valid
+  // Enterprise mode Remote session: keep current selection if valid
   useEffect(() => {
-    if (isEnterprise && availableAgents && availableAgents.length > 0) {
+    if (isEnterprise && sessionMode === 'remote' && availableAgents && availableAgents.length > 0) {
       const currentKey = selectedAgentKeyRef.current;
       // 'remote-agent' is always valid
       if (currentKey === 'remote-agent') return;
@@ -315,7 +415,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         selectedAgentKeyRef.current = 'remote-agent';
       }
     }
-  }, [isEnterprise, availableAgents, customAgents]);
+  }, [isEnterprise, sessionMode, availableAgents, customAgents]);
 
   // Load last selected agent (skip when URL parameter takes priority)
   // Auto-select first available agent if current selection is not valid (enterprise mode case)
@@ -369,7 +469,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           return key === savedAgentKey;
         });
 
-        if (isInAvailable) {
+        if (isInAvailable && !(isEnterprise && sessionMode === 'local')) {
           _setSelectedAgentKeyWithRef(savedAgentKey);
         }
       } catch (error) {
@@ -385,8 +485,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
 
   // Load custom agents + extension-contributed assistants
+  // E端 Remote 模式下跳过本地助手加载；E端 Local 模式和 C端都加载
   useEffect(() => {
-    if (isEnterprise) return; // 企业模式不需要本地自定义助手
+    if (isEnterprise && sessionMode === 'remote') return;
     let isActive = true;
     Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([agents, extAssistants]) => {
@@ -445,7 +546,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     return () => {
       isActive = false;
     };
-  }, [isEnterprise, availableCustomAgentIds]);
+  }, [isEnterprise, sessionMode, availableCustomAgentIds]);
 
   // Pre-select assistant from URL parameter (assistantFromUrl)
   useEffect(() => {
@@ -803,9 +904,8 @@ This identity statement takes priority over the default identity in USER.md.
 
   const refreshCustomAgents = useCallback(async () => {
     try {
-      if (isEnterprise) {
-        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
-        await mutate('assistantHub.installed');
+      if (isEnterprise && sessionMode === 'remote') {
+        await mutate('eeclaw.agents.cloud');
         return;
       }
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
@@ -829,7 +929,7 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);
     }
-  }, [isEnterprise]);
+  }, [isEnterprise, sessionMode]);
 
   useEffect(() => {
     void refreshCustomAgents();
@@ -842,9 +942,8 @@ This identity statement takes priority over the default identity in USER.md.
   // then revalidates the SWR cache so the UI picks up the change.
   useEffect(() => {
     const handler = () => {
-      if (isEnterprise) {
-        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
-        void mutate('assistantHub.installed');
+      if (isEnterprise && sessionMode === 'remote') {
+        void mutate('eeclaw.agents.cloud');
         return;
       }
       void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
@@ -855,14 +954,16 @@ This identity statement takes priority over the default identity in USER.md.
     return () => {
       emitter.off('guid.reset', handler);
     };
-  }, [isEnterprise]);
+  }, [isEnterprise, sessionMode]);
 
   // Reset agent selection to default state (no assistant selected)
   // In enterprise mode, directly select the first available agent (remote-agent)
   // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
-    _setSelectedAgentKey(isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE);
-    selectedAgentKeyRef.current = isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
+    // In enterprise remote mode, default to remote-agent; in local mode, default to scode
+    const defaultKey = isEnterprise && sessionMode === 'remote' ? 'remote-agent' : (isEnterprise && sessionMode === 'local' ? 'scode' : DEFAULT_PRESET_AGENT_TYPE);
+    _setSelectedAgentKey(defaultKey);
+    selectedAgentKeyRef.current = defaultKey;
     _setSelectedMode('default');
     _setSelectedAcpModel(null);
     hasAutoSelectedAgentRef.current = false;
@@ -901,7 +1002,15 @@ This identity statement takes priority over the default identity in USER.md.
       _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
       selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
     }
-  }, [isEnterprise]);
+  }, [isEnterprise, sessionMode]);
+
+  // For enterprise Local mode, only expose scode to the mention selector
+  const mentionAvailableAgents = useMemo(() => {
+    if (isEnterprise && sessionMode === 'local') {
+      return (availableAgents ?? []).filter(a => a.backend === 'scode');
+    }
+    return availableAgents;
+  }, [isEnterprise, sessionMode, availableAgents]);
 
   return {
     selectedAgentKey,
@@ -910,7 +1019,10 @@ This identity statement takes priority over the default identity in USER.md.
     selectedAgentInfo,
     isPresetAgent,
     availableAgents,
+    mentionAvailableAgents,
     customAgents,
+    sessionMode,
+    setSessionMode,
     selectedMode,
     setSelectedMode,
     acpCachedModels,

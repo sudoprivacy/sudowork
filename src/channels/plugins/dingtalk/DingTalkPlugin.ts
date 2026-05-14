@@ -28,6 +28,12 @@ import type { DingTalkStreamMessage } from './DingTalkAdapter';
 const EVENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const EVENT_CACHE_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
+// Reconnection settings
+const RECONNECT_INITIAL_DELAY = 1000;  // 1 second
+const RECONNECT_MAX_DELAY = 60 * 1000; // 60 seconds
+const RECONNECT_BACKOFF_FACTOR = 2;
+const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
+
 // DingTalk API base URL (new version)
 const DINGTALK_API_BASE = 'https://api.dingtalk.com';
 
@@ -86,6 +92,12 @@ export class DingTalkPlugin extends BasePlugin {
   // Store sessionWebhook per chatId for fallback sending
   private webhookCache: Map<string, string> = new Map();
 
+  // Reconnection state
+  private shouldReconnect: boolean = false;
+  private reconnectDelay: number = RECONNECT_INITIAL_DELAY;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+
   // Local directory for downloaded media files (lazy-initialized)
   private mediaDir: string | null = null;
 
@@ -105,6 +117,60 @@ export class DingTalkPlugin extends BasePlugin {
   }
 
   /**
+   * Create DWClient instance and register callbacks.
+   * Extracted from onStart() for reuse during reconnection.
+   */
+  private async createClient(): Promise<void> {
+    // Use `as any` to bypass SDK type declaration deficiency: the DWClient constructor's
+    // TypeScript signature (client.d.ts:62-68) does not include autoReconnect, but the
+    // runtime merges it via {...defaultConfig, ...opts} (client.mjs:41-44).
+    // Must explicitly disable autoReconnect: otherwise the SDK's auto-reconnect (1s delay)
+    // fires before our health check (30s), causing heartbeat interval leaks
+    // (close handler doesn't clear old interval, client.mjs:166-176).
+    this.client = new DWClient({
+      clientId: this.clientId,
+      clientSecret: this.clientSecret,
+      keepAlive: true,
+      autoReconnect: false,
+      debug: false,
+    } as any);
+
+    // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
+    this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
+      // Immediately acknowledge the message to prevent retry
+      this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process message asynchronously
+      try {
+        const data: DingTalkStreamMessage = JSON.parse(msg.data);
+        void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
+          mainError('DingTalkPlugin', 'Error handling robot message', error);
+        });
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to parse robot message', error);
+      }
+    });
+
+    // Register card callback listener
+    this.client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
+      // Acknowledge card callback
+      this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process card action asynchronously
+      try {
+        const data = JSON.parse(msg.data);
+        void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
+          mainError('DingTalkPlugin', 'Error handling card callback', error);
+        });
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to parse card callback', error);
+      }
+    });
+
+    await this.client.connect();
+  }
+
+  /**
    * Start WebSocket Stream connection
    */
   protected async onStart(): Promise<void> {
@@ -113,56 +179,12 @@ export class DingTalkPlugin extends BasePlugin {
     }
 
     try {
-      // Refresh access token first
       await this.refreshAccessToken();
-
-      // Create DWClient
-      this.client = new DWClient({
-        clientId: this.clientId,
-        clientSecret: this.clientSecret,
-        keepAlive: true,
-        debug: false,
-      });
-
-      // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
-      this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
-        // Immediately acknowledge the message to prevent retry
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process message asynchronously
-        try {
-          const data: DingTalkStreamMessage = JSON.parse(msg.data);
-          void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
-            mainError('DingTalkPlugin', 'Error handling robot message', error);
-          });
-        } catch (error) {
-          mainError('DingTalkPlugin', 'Failed to parse robot message', error);
-        }
-      });
-
-      // Register card callback listener
-      this.client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
-        // Acknowledge card callback
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process card action asynchronously
-        try {
-          const data = JSON.parse(msg.data);
-          void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
-            mainError('DingTalkPlugin', 'Error handling card callback', error);
-          });
-        } catch (error) {
-          mainError('DingTalkPlugin', 'Failed to parse card callback', error);
-        }
-      });
-
-      // Connect
-      await this.client.connect();
+      this.shouldReconnect = true;
+      await this.createClient();
       this.isConnected = true;
-
-      // Start event cache cleanup timer
       this.startEventCleanup();
-
+      this.startHealthCheck();
       mainLog('DingTalkPlugin', `Started for client ${this.clientId}`);
     } catch (error) {
       mainError('DingTalkPlugin', 'Failed to start', error);
@@ -174,6 +196,9 @@ export class DingTalkPlugin extends BasePlugin {
    * Stop connection and cleanup
    */
   protected async onStop(): Promise<void> {
+    this.shouldReconnect = false;
+    this.stopHealthCheck();
+    this.stopReconnect();
     this.stopEventCleanup();
 
     if (this.client) {
@@ -193,6 +218,132 @@ export class DingTalkPlugin extends BasePlugin {
     this.isConnected = false;
 
     mainLog('DingTalkPlugin', 'Stopped and cleaned up');
+  }
+
+  // ==================== Reconnection ====================
+
+  /**
+   * Reconnect to DingTalk Stream with a fresh DWClient instance.
+   * Destroys the old instance (clearing its heartbeat interval),
+   * refreshes the access token, then creates a new connection.
+   */
+  private async reconnect(): Promise<void> {
+    // Defensively stop health check to prevent timer leaks from any future call path
+    this.stopHealthCheck();
+
+    // Guard: if connection is already alive, skip reconnect.
+    // Prevents resume() and health check from triggering a double reconnect
+    // that would kill the first one's newly established connection.
+    if (this.client && this.client.connected && this.client.registered) {
+      this.isConnected = true;
+      this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+      this.startHealthCheck();
+      return;
+    }
+
+    // 1. Destroy old instance (disconnect clears heartbeat interval)
+    if (this.client) {
+      try {
+        this.client.disconnect();
+      } catch {}
+      this.client = null;
+    }
+
+    this.isConnected = false;
+
+    // 2. Refresh token
+    await this.refreshAccessToken();
+
+    // 3. Create fresh DWClient instance and connect
+    await this.createClient();
+
+    // 4. Update state and restart health check
+    this.isConnected = true;
+    this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+    this.startHealthCheck();
+    mainLog('DingTalkPlugin', 'Reconnected successfully');
+  }
+
+  /**
+   * Schedule a reconnection attempt with exponential backoff.
+   */
+  private scheduleReconnect(): void {
+    if (!this.shouldReconnect) return;
+    this.stopReconnect();
+
+    mainLog('DingTalkPlugin', `Reconnecting in ${this.reconnectDelay / 1000}s...`);
+
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnect()
+        .then(() => {
+          this.setStatus('running');
+        })
+        .catch((error) => {
+          mainError('DingTalkPlugin', 'Reconnection failed:', error);
+          this.reconnectDelay = Math.min(
+            this.reconnectDelay * RECONNECT_BACKOFF_FACTOR,
+            RECONNECT_MAX_DELAY
+          );
+          this.scheduleReconnect();
+        });
+    }, this.reconnectDelay);
+  }
+
+  private stopReconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  // ==================== Health Check ====================
+
+  /**
+   * Periodically check SDK connection state.
+   * SDK sets client.connected=false / client.registered=false on SYSTEM "disconnect"
+   * without closing the WebSocket, so we poll these flags.
+   */
+  private startHealthCheck(): void {
+    this.stopHealthCheck();
+    this.healthCheckTimer = setInterval(() => {
+      if (this.shouldReconnect && this.client) {
+        if (!this.client.connected || !this.client.registered) {
+          mainWarn('DingTalkPlugin', 'Connection lost detected by health check', {
+            connected: this.client.connected,
+            registered: this.client.registered,
+          });
+          this.isConnected = false;
+          this.scheduleReconnect();
+          this.stopHealthCheck();
+        }
+      }
+    }, HEALTH_CHECK_INTERVAL);
+  }
+
+  private stopHealthCheck(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+  }
+
+  // ==================== System Resume ====================
+
+  /**
+   * Resume connection after system wake from sleep.
+   * Called by ChannelManager.resumePlugins() from powerMonitor.on('resume').
+   */
+  async resume(): Promise<void> {
+    if (!this.shouldReconnect || !this.client) return;
+
+    // Check if connection has died
+    if (!this.client.connected || !this.client.registered) {
+      mainLog('DingTalkPlugin', 'System resume: connection lost, triggering reconnect');
+      this.isConnected = false;
+      this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+      this.stopHealthCheck();
+      this.scheduleReconnect();
+    }
   }
 
   /**

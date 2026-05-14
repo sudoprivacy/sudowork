@@ -504,6 +504,7 @@
   "feedback": "피드백",
   "contactMe": "연락처",
   "officialWebsite": "공식 웹사이트",
+  "privacyPolicy": "개인정보 처리방침",
   "checkForUpdates": "업데이트 확인",
   "includePrereleaseUpdates": "프리릴리즈/dev 빌드 포함",
   "saveModelConfigFailed": "모델 구성 저장 실패",

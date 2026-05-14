@@ -349,7 +349,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
           ? {
               content: (data as any).content,
               ...((data as any).cronMeta ? { cronMeta: (data as any).cronMeta } : {}),
-              ...((data as any).skills ? { skills: (data as any).skills } : {})
+              ...((data as any).skills ? { skills: (data as any).skills } : {}),
             }
           : { content: data as string },
       };
@@ -441,6 +441,20 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as IFileSendData,
+      };
+    }
+    case 'tips': {
+      const data = message.data as { type?: string; content: string };
+      return {
+        id: uuid(),
+        type: 'tips',
+        msg_id: message.msg_id,
+        position: 'center',
+        conversation_id: message.conversation_id,
+        content: {
+          content: data.content,
+          type: (data.type || 'warning') as 'error' | 'success' | 'warning',
+        },
       };
     }
     // Disabled: available_commands messages are too noisy and distracting in the chat UI

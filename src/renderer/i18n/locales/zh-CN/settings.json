@@ -385,7 +385,6 @@
   "assistant.copyCode": "复制配对码",
   "assistant.modelSaved": "模型已保存",
   "assistant.modelSaveFailed": "保存模型失败",
-  "assistant.tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改",
   "assistant.tokenValid": "Token 有效",
   "assistant.defaultModel": "对话模型",
   "assistant.defaultModelDesc": "用于Agent对话时调用",
@@ -526,6 +525,7 @@
   "feedback": "意见反馈",
   "contactMe": "联系我",
   "officialWebsite": "官网",
+  "privacyPolicy": "隐私声明",
   "checkForUpdates": "检查更新",
   "includePrereleaseUpdates": "包含预发布/dev 版本",
   "saveModelConfigFailed": "保存模型配置失败",
@@ -653,7 +653,8 @@
     "agentDescTelegram": "用于与Channel进行对话",
     "autoFollowCliModel": "自动跟随CLI运行时的模型",
     "agentSwitched": "Agent 切换成功",
-    "modelSwitched": "模型切换成功"
+    "modelSwitched": "模型切换成功",
+    "tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改"
   },
   "lark": {
     "appId": "App ID",
@@ -919,7 +920,7 @@
     "description": "帮助我们持续优化产品体验，为您带来更好的服务。",
     "hint": "开启后不会收集您的对话内容或个人信息，您可以随时关闭此功能。",
     "dialogTitle": "产品体验改进计划",
-    "privacy": "开启后将匿名收集 SudoClaw 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
+    "privacy": "开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
     "confirm": "确认开启",
     "cancel": "暂不开启"
   }

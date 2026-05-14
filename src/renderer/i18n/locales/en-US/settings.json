@@ -385,7 +385,6 @@
   "assistant.copyCode": "Copy pairing code",
   "assistant.modelSaved": "Model saved",
   "assistant.modelSaveFailed": "Failed to save model",
-  "assistant.tokenLocked": "Please close the Channel and delete all authorized users before modifying the configuration",
   "assistant.tokenValid": "Token valid",
   "assistant.defaultModel": "Default Model",
   "assistant.defaultModelDesc": "Model used for Telegram conversations. Default uses GEMINI CLI as Agent",
@@ -526,6 +525,7 @@
   "feedback": "Feedback",
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
+  "privacyPolicy": "Privacy Policy",
   "checkForUpdates": "Check for updates",
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "saveModelConfigFailed": "Failed to save model configuration",
@@ -653,7 +653,8 @@
     "agentDescTelegram": "Used for Telegram conversations",
     "autoFollowCliModel": "Automatically follow the model when CLI is running",
     "agentSwitched": "Agent switched successfully",
-    "modelSwitched": "Model switched successfully"
+    "modelSwitched": "Model switched successfully",
+    "tokenLocked": "Please close the Channel and delete all authorized users before modifying the configuration"
   },
   "lark": {
     "appId": "App ID",
@@ -917,7 +918,7 @@
     "description": "Help us continuously improve the product experience for better service.",
     "hint": "When enabled, we do not collect your conversation content or personal information. You can turn off this feature at any time.",
     "dialogTitle": "Product Improvement Program",
-    "privacy": "When enabled, SudoClaw performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "privacy": "When enabled, SudoWork performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
     "confirm": "Enable",
     "cancel": "Not Now"
   }

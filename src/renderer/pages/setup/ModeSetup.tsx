@@ -96,6 +96,9 @@ const ModeSetup: React.FC = () => {
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
         await ConfigStorage.set('eeclaw.tenantName', result.data.app_company_name);
 
+        // Notify main process to start local services, then reload renderer
+        await ipcBridge.application.startConsumerServices.invoke();
+
         // Reload page — setAppMode triggers re-render that unmounts this component
         // before any navigation can execute, so use reload instead
         window.location.reload();
@@ -129,7 +132,7 @@ const ModeSetup: React.FC = () => {
         <div className='mode-setup__header'>
           <img src={SudoworkIcon} alt='Sudowork' className='mode-setup__logo' />
           <h1 className='text-28px font-700 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>
-            欢迎使用 SudoClaw
+            欢迎使用 SudoWork
           </h1>
           <p className='text-14px text-t-secondary'>请选择您的使用模式</p>
         </div>

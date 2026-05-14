@@ -44,6 +44,7 @@
   "deleteFailed": "削除に失敗しました",
   "default": "デフォルト",
   "defaultModel": "デフォルトモデル",
+  "modelSwitchSuccess": "{{model}} に切り替えました",
   "escToCancel": "ESC でキャンセル",
   "create": "作成",
   "createSuccess": "作成に成功しました",

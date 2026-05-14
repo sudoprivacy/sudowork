@@ -63,10 +63,20 @@ export class MossWsConnection {
   private reconnectAttempts = 0;
   private isUserAbortSession = false;
 
+  // Pending interrupt requests waiting for confirmation
+  private pendingInterrupts = new Map<
+    string,
+    {
+      sentAt: number;
+      resolve: (confirmed: boolean) => void;
+    }
+  >();
+
   private readonly MAX_RECONNECT_ATTEMPTS = 8;
   private readonly BASE_RECONNECT_DELAY_MS = 1000;
   private readonly MAX_RECONNECT_DELAY_MS = 8000;
   private readonly CONNECTION_TIMEOUT_MS = 30000;
+  private readonly INTERRUPT_CONFIRMATION_TIMEOUT_MS = 5000;
 
   constructor(
     private config: MossWsConnectionConfig,
@@ -102,7 +112,6 @@ export class MossWsConnection {
       this.reconnectAttempts = 0;
       this.callbacks.onConnected?.();
       mainLog('MossWsConnection', 'WebSocket connected');
-
     } catch (error) {
       this.state = 'idle';
       const err = error instanceof Error ? error : new Error(String(error));
@@ -131,13 +140,14 @@ export class MossWsConnection {
     }
 
     const grantType = this.config.authToken ? 'api_key' : 'password';
-    const body = grantType === 'api_key'
-      ? { grant_type: 'api_key', api_key: this.config.authToken }
-      : {
-          grant_type: 'password',
-          ...(this.config.username ? { username: this.config.username } : {}),
-          ...(this.config.password ? { password: this.config.password } : {}),
-        };
+    const body =
+      grantType === 'api_key'
+        ? { grant_type: 'api_key', api_key: this.config.authToken }
+        : {
+            grant_type: 'password',
+            ...(this.config.username ? { username: this.config.username } : {}),
+            ...(this.config.password ? { password: this.config.password } : {}),
+          };
 
     const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
       method: 'POST',
@@ -154,7 +164,7 @@ export class MossWsConnection {
       throw new Error(`Failed to exchange token: ${response.status} ${text}`);
     }
 
-    const data = await response.json() as { access_token: string };
+    const data = (await response.json()) as { access_token: string };
     return data.access_token;
   }
 
@@ -174,12 +184,12 @@ export class MossWsConnection {
       body.runtime = { type: this.config.runtimeType };
     }
 
-    let token = this.accessToken || await getValidToken();
+    let token = this.accessToken || (await getValidToken());
     let response = await fetch(`${this.config.serverUrl}/api/v1/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -193,7 +203,7 @@ export class MossWsConnection {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
         });
@@ -224,7 +234,9 @@ export class MossWsConnection {
         const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
         wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -232,7 +244,7 @@ export class MossWsConnection {
       }, this.CONNECTION_TIMEOUT_MS);
 
       this.ws = new WebSocket(wsUrlWithRefresh, {
-        headers: { 'Authorization': `Bearer ${this.accessToken}` },
+        headers: { Authorization: `Bearer ${this.accessToken}` },
       });
 
       this.ws.on('open', () => {
@@ -250,7 +262,7 @@ export class MossWsConnection {
   }
 
   private handleMessage(data: string): void {
-    const lines = data.split('\n').filter(line => line.trim());
+    const lines = data.split('\n').filter((line) => line.trim());
 
     for (const line of lines) {
       try {
@@ -272,6 +284,12 @@ export class MossWsConnection {
       if (!this.sessionId && msg.session_id) {
         this.sessionId = msg.session_id;
       }
+      return;
+    }
+
+    // Handle interrupt confirmation response from server
+    if (msg.type === 'control_response') {
+      this.handleControlResponse(msg);
       return;
     }
 
@@ -462,10 +480,7 @@ export class MossWsConnection {
     if (msg.type === 'auth_status') return;
     if (msg.type === 'prompt_suggestion') return;
 
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary',
-        'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event',
-        'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn',
-        'tool_use', 'tool_result', 'content', 'text', 'hello'].includes(msg.type)) {
+    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text', 'hello'].includes(msg.type)) {
       mainLog('MossWsConnection', `Unknown message type: ${msg.type}`);
       return;
     }
@@ -518,23 +533,68 @@ export class MossWsConnection {
 
   sendInterrupt(): void {
     if (this.state !== 'connected' || !this.ws) return;
-    this.ws.send(JSON.stringify({
-      type: 'control_request',
-      request_id: uuid(36),
-      request: { subtype: 'interrupt' },
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: 'control_request',
+        request_id: uuid(36),
+        request: { subtype: 'interrupt' },
+      })
+    );
+  }
+
+  /**
+   * Send interrupt and wait for confirmation
+   * 发送中断请求并等待确认
+   * @returns true if server confirmed interrupt, false if timeout
+   */
+  async sendInterruptAndWait(): Promise<boolean> {
+    if (this.state !== 'connected' || !this.ws) return false;
+
+    const requestId = uuid(36);
+
+    return new Promise((resolve) => {
+      // Set up timeout
+      const timeout = setTimeout(() => {
+        this.pendingInterrupts.delete(requestId);
+        mainLog('MossWsConnection', `Interrupt confirmation timeout for ${requestId}`);
+        resolve(false);
+      }, this.INTERRUPT_CONFIRMATION_TIMEOUT_MS);
+
+      // Store pending interrupt
+      this.pendingInterrupts.set(requestId, {
+        sentAt: Date.now(),
+        resolve: (confirmed: boolean) => {
+          clearTimeout(timeout);
+          this.pendingInterrupts.delete(requestId);
+          resolve(confirmed);
+        },
+      });
+
+      // Send interrupt request
+      this.ws!.send(
+        JSON.stringify({
+          type: 'control_request',
+          request_id: requestId,
+          request: { subtype: 'interrupt' },
+        })
+      );
+
+      mainLog('MossWsConnection', `Sent interrupt request ${requestId}, waiting for confirmation`);
+    });
   }
 
   respondToPermissionRequest(requestId: string, optionId: string): void {
     if (this.state !== 'connected' || !this.ws) return;
-    this.ws.send(JSON.stringify({
-      type: 'control_response',
-      response: {
-        subtype: 'success',
-        request_id: requestId,
-        response: { behavior: optionId },
-      },
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: 'control_response',
+        response: {
+          subtype: 'success',
+          request_id: requestId,
+          response: { behavior: optionId },
+        },
+      })
+    );
   }
 
   private handleClose(code: number, reason: string): void {
@@ -542,12 +602,31 @@ export class MossWsConnection {
     this.state = 'closed';
     this.ws = null;
 
+    // Reject any pending interrupt confirmations
+    for (const [, pending] of this.pendingInterrupts) {
+      pending.resolve(false);
+    }
+    this.pendingInterrupts.clear();
+
     // Auto-reconnect for unexpected closures during an active session
     if (wasConnected && code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
       mainLog('MossWsConnection', `Connection closed unexpectedly (code=${code}), scheduling reconnect (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
       this.scheduleReconnect();
     } else {
       this.callbacks.onDisconnected?.();
+    }
+  }
+
+  /**
+   * Handle control_response from server (interrupt confirmation)
+   */
+  private handleControlResponse(msg: any): void {
+    const requestId = msg.request_id;
+    const pending = this.pendingInterrupts.get(requestId);
+
+    if (pending) {
+      mainLog('MossWsConnection', `Received interrupt confirmation for ${requestId}`);
+      pending.resolve(true);
     }
   }
 
@@ -562,7 +641,7 @@ export class MossWsConnection {
     this.callbacks.onReconnecting?.(this.reconnectAttempts, this.MAX_RECONNECT_ATTEMPTS);
 
     setTimeout(() => {
-      this.connect().catch(err => {
+      this.connect().catch((err) => {
         this.callbacks.onError?.(err);
         if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
           this.scheduleReconnect();
@@ -582,21 +661,14 @@ export class MossWsConnection {
   private isUserAbortError(msg: any): boolean {
     if (msg.result_type === 'user') return true;
     const errorMsg = msg.errors?.join('\n') || msg.result || '';
-    if (errorMsg.includes('Request was aborted') ||
-        errorMsg.includes('AbortError') ||
-        errorMsg.includes('aborted by user') ||
-        errorMsg.includes('user abort')) return true;
+    if (errorMsg.includes('Request was aborted') || errorMsg.includes('AbortError') || errorMsg.includes('aborted by user') || errorMsg.includes('user abort')) return true;
     if (msg.stop_reason === 'abort' || msg.stop_reason === 'user_abort') return true;
     return false;
   }
 
   private isAbortRelatedText(text: string): boolean {
     const lowerText = text.toLowerCase();
-    return lowerText.includes('request interrupted by user') ||
-        lowerText.includes('request was aborted') ||
-        lowerText.includes('no response requested') ||
-        lowerText.includes('aborted by user') ||
-        lowerText.includes('interrupted by user');
+    return lowerText.includes('request interrupted by user') || lowerText.includes('request was aborted') || lowerText.includes('no response requested') || lowerText.includes('aborted by user') || lowerText.includes('interrupted by user');
   }
 
   isConnected(): boolean {

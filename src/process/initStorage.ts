@@ -1183,8 +1183,17 @@ async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enable
 }
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
-  // Search in all subdirectories for the skill metadata
   const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+
+  // First check if skill exists in any _disable directory (disabled via directory move)
+  for (const subdir of subdirs) {
+    const disabledSkillDir = path.join(getSkillsDir(), subdir, '_disable', skillName);
+    if (existsSync(disabledSkillDir)) {
+      return false;
+    }
+  }
+
+  // Search in all subdirectories for the skill metadata
   for (const subdir of subdirs) {
     const skillDir = path.join(getSkillsDir(), subdir, skillName);
     const meta = await readSkillMetaFileWithFallback(skillDir);

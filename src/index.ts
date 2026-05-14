@@ -636,6 +636,34 @@ const createWindow = (): void => {
     closeAvatarWindow();
   });
 
+  // Handle fullscreen transitions: ensure avatar window appears on the correct screen
+  // when main window enters fullscreen mode on macOS
+  mainWindow.on('enter-full-screen', () => {
+    if (avatarWindow && !avatarWindow.isDestroyed()) {
+      // Move avatar to the display where the main window is fullscreen
+      const display = screen.getDisplayMatching(mainWindow.getBounds());
+      const { x, y, width, height } = display.bounds;
+      const avatarBounds = avatarWindow.getBounds();
+      // Position avatar at bottom-right of the fullscreen display
+      avatarWindow.setPosition(
+        x + width - avatarBounds.width - 16,
+        y + height - avatarBounds.height - 16
+      );
+    }
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    if (avatarWindow && !avatarWindow.isDestroyed()) {
+      // Restore avatar to work area position
+      const workArea = screen.getPrimaryDisplay().workArea;
+      const avatarBounds = avatarWindow.getBounds();
+      avatarWindow.setPosition(
+        workArea.x + workArea.width - avatarBounds.width - 16,
+        workArea.y + workArea.height - avatarBounds.height - 16
+      );
+    }
+  });
+
   // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI, or nightly builds)
   // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景；nightly 版本也跳过自动更新提醒）
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
@@ -1001,6 +1029,15 @@ const handleAppReady = async (): Promise<void> => {
       })
       .catch((error) => {
         console.error('[App] Failed to handle system resume for cron:', error);
+      });
+
+    // Resume channel plugins (re-establish connections lost during sleep)
+    import('@/channels')
+      .then(({ getChannelManager }) => {
+        void getChannelManager().resumePlugins();
+      })
+      .catch((error) => {
+        console.error('[App] Failed to handle system resume for channels:', error);
       });
   });
 };
