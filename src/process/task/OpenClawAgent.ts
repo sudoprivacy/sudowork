@@ -644,16 +644,22 @@ ${draftsInstruction}`;
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
 
+    // Send abort request to gateway
     if (this.connection?.isConnected && this.connection?.sessionKey) {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
       } catch (err) {
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
+        // If abort fails, disconnect to force stop
+        this.connection.stop();
       }
     }
 
     // Emit user cancelled message
     this.emitUserCancelledMessage();
+
+    // Emit finish to ensure UI state is reset
+    this.handleEndTurn();
   }
 
   /**

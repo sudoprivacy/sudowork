@@ -1116,13 +1116,20 @@ This identity statement takes priority over the default identity in USER.md.
     this.confirmations = [];
 
     // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
-    // abandon the local wait but keep the session/process alive for the next turn.
+    // force disconnect to stop the process.
+    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
-      result = await this.connection.cancel();
+      result = await this.connection.cancel(5000); // 5 seconds timeout
     } catch {
-      await this.connection.disconnect();
       result = 'disconnected';
+    }
+
+    // If backend didn't acknowledge cancel or abandoned, force disconnect
+    // 如果后端没有确认取消或放弃，强制断开连接
+    if (result === 'abandoned' || result === 'disconnected') {
+      mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
+      await this.connection.disconnect();
     }
 
     this.status = 'finished';
@@ -1138,21 +1145,13 @@ This identity statement takes priority over the default identity in USER.md.
       data: null,
     });
 
-    if (result === 'disconnected') {
-      // Backend didn't respond to cancel — process was killed
+    // 7. Clear state for next turn
+    if (result !== 'cancelled') {
+      // Backend was disconnected or abandoned - clear state for fresh start
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
-      // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
-      return;
     }
-
-    if (result === 'abandoned') {
-      // Backend didn't respond in time, but we already emitted finish
-      return;
-    }
-
-    // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
   }
 
   /**
