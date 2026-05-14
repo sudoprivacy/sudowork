@@ -129,6 +129,12 @@ class DynamicNexusService {
     return this._running;
   }
 
+  /** Reset running state - used when process is killed externally */
+  resetRunningState(): void {
+    this._running = false;
+    this.process = null;
+  }
+
   get port(): number {
     return this._port;
   }
