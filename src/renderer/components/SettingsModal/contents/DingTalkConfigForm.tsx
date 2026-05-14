@@ -388,7 +388,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
         required
       >
         {hasExistingUsers ? (
-          <Tooltip content={t('settings.assistant.tokenLocked', 'Please close the Channel and delete all authorized users before modifying')}>
+          <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
             <span>
               <Input
                 value={clientId}
@@ -441,7 +441,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
         required
       >
         {hasExistingUsers ? (
-          <Tooltip content={t('settings.assistant.tokenLocked', 'Please close the Channel and delete all authorized users before modifying')}>
+          <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
             <span>
               <Input.Password
                 value={clientSecret}

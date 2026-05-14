@@ -239,6 +239,14 @@ export abstract class BasePlugin {
    */
   abstract getBotInfo(): { username?: string; displayName?: string } | null;
 
+  /**
+   * Resume connection after system wake from sleep.
+   * Override in subclasses that need to re-establish connections.
+   */
+  async resume(): Promise<void> {
+    // Default: no-op
+  }
+
   // ==================== Static Methods ====================
 
   /**

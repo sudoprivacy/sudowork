@@ -1030,6 +1030,15 @@ const handleAppReady = async (): Promise<void> => {
       .catch((error) => {
         console.error('[App] Failed to handle system resume for cron:', error);
       });
+
+    // Resume channel plugins (re-establish connections lost during sleep)
+    import('@/channels')
+      .then(({ getChannelManager }) => {
+        void getChannelManager().resumePlugins();
+      })
+      .catch((error) => {
+        console.error('[App] Failed to handle system resume for channels:', error);
+      });
   });
 };
 
