@@ -234,7 +234,7 @@ export class DingTalkPlugin extends BasePlugin {
     // Guard: if connection is already alive, skip reconnect.
     // Prevents resume() and health check from triggering a double reconnect
     // that would kill the first one's newly established connection.
-    if (this.client && this.client.connected && this.client.registered) {
+    if (this.client && this.client.connected) {
       this.isConnected = true;
       this.reconnectDelay = RECONNECT_INITIAL_DELAY;
       this.startHealthCheck();
@@ -299,18 +299,19 @@ export class DingTalkPlugin extends BasePlugin {
   // ==================== Health Check ====================
 
   /**
-   * Periodically check SDK connection state.
-   * SDK sets client.connected=false / client.registered=false on SYSTEM "disconnect"
-   * without closing the WebSocket, so we poll these flags.
+   * Periodically check SDK connection state via the connected flag.
+   * SDK sets client.connected=false on WebSocket close and on SYSTEM "disconnect"
+   * (which can occur without closing the WebSocket). The keepAlive ping/pong
+   * heartbeat (8s interval) also triggers terminate() on timeout, which sets
+   * connected=false via the close event.
    */
   private startHealthCheck(): void {
     this.stopHealthCheck();
     this.healthCheckTimer = setInterval(() => {
       if (this.shouldReconnect && this.client) {
-        if (!this.client.connected || !this.client.registered) {
+        if (!this.client.connected) {
           mainWarn('DingTalkPlugin', 'Connection lost detected by health check', {
             connected: this.client.connected,
-            registered: this.client.registered,
           });
           this.isConnected = false;
           this.scheduleReconnect();
@@ -337,7 +338,7 @@ export class DingTalkPlugin extends BasePlugin {
     if (!this.shouldReconnect || !this.client) return;
 
     // Check if connection has died
-    if (!this.client.connected || !this.client.registered) {
+    if (!this.client.connected) {
       mainLog('DingTalkPlugin', 'System resume: connection lost, triggering reconnect');
       this.isConnected = false;
       this.reconnectDelay = RECONNECT_INITIAL_DELAY;
