@@ -5,7 +5,7 @@
  */
 
 import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
-import type { AcpBackendConfig } from '../types';
+import type { AcpBackendConfig, AvailableAgent } from '../types';
 import { Plus, Robot } from '@icon-park/react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -16,6 +16,12 @@ type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
   localeKey: string;
   onSelectAssistant: (assistantId: string) => void;
+  /** Enterprise mode available agents (cloud assistants) for Remote mode */
+  availableAgents?: AvailableAgent[];
+  /** Current session mode (remote/local) for enterprise mode */
+  sessionMode?: 'remote' | 'local';
+  /** Whether the app is in enterprise mode */
+  isEnterprise?: boolean;
 };
 
 /**
@@ -23,11 +29,37 @@ type AssistantSelectionAreaProps = {
  * The selected assistant view (header, description, prompts) is now handled
  * directly in GuidPage for proper layout ordering.
  */
-const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant }) => {
+const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant, availableAgents, sessionMode, isEnterprise }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Only render if there are any assistants (preset or user-created)
+  // Enterprise Remote mode: render cloud assistants from availableAgents
+  // E端 Remote 模式：渲染 availableAgents 中的企业助手（不依赖 customAgents）
+  if (isEnterprise && sessionMode === 'remote' && availableAgents) {
+    const cloudAssistants = availableAgents.filter(
+      (a) => a.isPreset && a.customAgentId
+    );
+    if (cloudAssistants.length === 0) return null;
+
+    return (
+      <div className='mt-16px w-full'>
+        <div className='flex flex-wrap gap-8px justify-center'>
+          {cloudAssistants.map((assistant) => {
+            const avatarValue = assistant.avatar?.trim();
+            const isImageAvatar = Boolean(avatarValue && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarValue) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarValue)));
+            return (
+              <div key={assistant.customAgentId} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.customAgentId}`)}>
+                {isImageAvatar ? <img src={avatarValue} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: '18px' }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                <span className='text-14px text-2 hover:text-1'>{assistant.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Local mode / C端：需要 customAgents 数据才能渲染
   if (!customAgents || customAgents.length === 0) return null;
 
   // Separate preset assistants (builtin + hub-installed) from user-created custom assistants

@@ -8,7 +8,6 @@ import { logger } from '@office-ai/platform';
 import { initAllBridges } from './bridge';
 import { cronService } from '@process/services/cron/CronService';
 import { mainWarn, mainLog } from '@process/utils/mainLogger';
-import { isEnterpriseMode } from '@/common/eeclawMode';
 import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 
 logger.config({ print: true });
@@ -23,12 +22,10 @@ initAllBridges();
   mainLog('initBridge', 'Enterprise config cache refreshed');
 })();
 
-// Initialize cron service only in consumer mode
-// CronService depends on local SQLite, local agents, local file system — all skipped in enterprise mode
+// Initialize cron service in all modes
+// CronService depends on local SQLite, local agents — now available in enterprise mode too
 (async () => {
-  if (!(await isEnterpriseMode())) {
-    void cronService.init().catch((error) => {
-      mainWarn('initBridge', 'CronService initialization failed:', error.message);
-    });
-  }
+  void cronService.init().catch((error) => {
+    mainWarn('initBridge', 'CronService initialization failed:', error.message);
+  });
 })();

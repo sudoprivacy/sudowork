@@ -37,6 +37,9 @@ export type GuidSendDeps = {
   selectedAcpModel: string | null;
   currentModel: TProviderWithModel | undefined;
 
+  /** Current session mode (remote/local) for enterprise mode */
+  sessionMode: 'remote' | 'local';
+
   // Agent helpers
   findAgentByKey: (key: string) => AvailableAgent | undefined;
   getEffectiveAgentType: (agentInfo: { backend: AcpBackend; customAgentId?: string } | undefined) => EffectiveAgentInfo;
@@ -74,7 +77,7 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
+  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
 
   const { isEnterprise } = useAppMode();
 
@@ -108,11 +111,11 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-    // Enterprise mode: always route through remote-agent, skip scode/gateway checks
-    // 企业模式：始终使用 remote-agent，跳过 scode/gateway 检查
-    // Note: custom agents in consumer mode should use local agents (acp/openclaw-gateway)
-    // 注意：个人模式下的自定义助手应该使用本地 Agent（acp/openclaw-gateway）
-    if (isEnterprise || selectedAgent === 'remote-agent' || selectedAgentKey === 'remote-agent') {
+    // Enterprise Remote mode: route through remote-agent
+    // 企业 Remote 模式：使用 remote-agent
+    // Local mode in enterprise: use ACP scode path (same as consumer)
+    // 企业 Local 模式：使用 ACP scode 路径（与 C 端相同）
+    if ((isEnterprise && sessionMode === 'remote') || selectedAgentKey === 'remote-agent') {
       console.log('Enterprise mode: Creating remote-agent conversation');
 
       try {
@@ -131,6 +134,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
+            sessionModeParam: 'remote',
           },
         });
 
@@ -285,6 +289,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: selectedAcpModel || undefined,
+            sessionModeParam: 'local',
           },
         });
 
@@ -314,7 +319,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         throw error;
       }
     }
-  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
+  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
 
   const sendMessageHandler = useCallback(() => {
     setLoading(true);

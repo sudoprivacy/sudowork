@@ -74,9 +74,14 @@ export const initializeProcess = async () => {
   // uses BroadcastChannel IPC which doesn't work in the main process (no renderer yet).
   const appMode = ProcessConfig.getSync('system.appMode') ?? null;
 
-  if (appMode === 'e') {
-    // Enterprise mode: initialize ChannelManager for channel settings UI
-    // but skip local services (handled by Moss Server)
+  if (appMode) {
+    // Both Enterprise and Consumer modes: start local services + ChannelManager
+    // Enterprise mode now requires local services for Local session mode support
+    const serviceStart = Date.now();
+    const { serviceManager } = await import('./services/serviceManager');
+    void serviceManager.startup();
+    perfLog('serviceManager.startup', Date.now() - serviceStart);
+
     const channelStart = Date.now();
     try {
       await getChannelManager().initialize();
@@ -84,27 +89,6 @@ export const initializeProcess = async () => {
       mainError('Process', 'Failed to initialize ChannelManager', error);
     }
     perfLog('ChannelManager', Date.now() - channelStart);
-    initStatusManager.setStatus('ready', '初始化完成', 100);
-  } else if (appMode === 'c') {
-    // Consumer mode: normal full startup
-    const serviceStart = Date.now();
-    const { serviceManager } = await import('./services/serviceManager');
-    void serviceManager.startup();
-    perfLog('serviceManager.startup', Date.now() - serviceStart);
-
-    const parallelStart = Date.now();
-    await Promise.all([
-      (async () => {
-        const channelStart = Date.now();
-        try {
-          await getChannelManager().initialize();
-        } catch (error) {
-          mainError('Process', 'Failed to initialize ChannelManager', error);
-        }
-        perfLog('ChannelManager', Date.now() - channelStart);
-      })(),
-    ]);
-    perfLog('ChannelManager', Date.now() - parallelStart);
   } else {
     // New user (no appMode set): skip services, show ModeSetup
     // User selects C → startConsumerServices IPC + renderer reload (no app restart needed)
