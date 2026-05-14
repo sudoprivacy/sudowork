@@ -19,7 +19,8 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { AudioFile, Cloudy, DownSmall, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, FolderOpen, Magic, Refresh, Search, VideoFile } from '@icon-park/react';
+import { Cloudy, DownSmall, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
+import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -51,106 +52,7 @@ function isHiddenWorkspaceEntry(name: string): boolean {
 }
 
 function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
-  const extension = fileName.toLowerCase().split('.').pop() ?? '';
-
-  switch (extension) {
-    case 'txt':
-    case 'log':
-    case 'text':
-      return <FileTxt theme='outline' size='16' fill='var(--color-text-3)' />;
-    case 'md':
-    case 'markdown':
-    case 'mdx':
-      return <FileText theme='outline' size='16' fill='var(--color-text-2)' />;
-    case 'doc':
-    case 'docx':
-    case 'wps':
-    case 'rtf':
-    case 'odt':
-      return <FileWord theme='outline' size='16' fill='#3b82f6' />;
-    case 'pdf':
-      return <FilePdf theme='outline' size='16' fill='#ef4444' />;
-    case 'ppt':
-    case 'pptx':
-    case 'key':
-    case 'odp':
-      return <FilePpt theme='outline' size='16' fill='#f97316' />;
-    case 'xls':
-    case 'xlsx':
-    case 'csv':
-    case 'ods':
-      return <FileExcel theme='outline' size='16' fill='#22c55e' />;
-    case 'js':
-    case 'jsx':
-    case 'ts':
-    case 'tsx':
-    case 'mjs':
-    case 'cjs':
-    case 'json':
-    case 'jsonc':
-    case 'yaml':
-    case 'yml':
-    case 'toml':
-    case 'xml':
-    case 'html':
-    case 'htm':
-    case 'css':
-    case 'scss':
-    case 'less':
-    case 'py':
-    case 'java':
-    case 'go':
-    case 'rs':
-    case 'c':
-    case 'cc':
-    case 'cpp':
-    case 'cxx':
-    case 'h':
-    case 'hpp':
-    case 'sh':
-    case 'bash':
-    case 'zsh':
-    case 'sql':
-      return <FileCode theme='outline' size='16' fill='#8b5cf6' />;
-    case 'jpg':
-    case 'jpeg':
-    case 'png':
-    case 'webp':
-    case 'bmp':
-    case 'svg':
-    case 'ico':
-    case 'tif':
-    case 'tiff':
-    case 'avif':
-      return <FileJpg theme='outline' size='16' fill='#06b6d4' />;
-    case 'gif':
-      return <FileGif theme='outline' size='16' fill='#06b6d4' />;
-    case 'zip':
-    case 'rar':
-    case '7z':
-    case 'tar':
-    case 'gz':
-    case 'tgz':
-    case 'bz2':
-    case 'xz':
-      return <FileZip theme='outline' size='16' fill='#f59e0b' />;
-    case 'mp3':
-    case 'wav':
-    case 'flac':
-    case 'aac':
-    case 'm4a':
-    case 'ogg':
-      return <AudioFile theme='outline' size='16' fill='#ec4899' />;
-    case 'mp4':
-    case 'mov':
-    case 'avi':
-    case 'mkv':
-    case 'webm':
-    case 'm4v':
-      return <VideoFile theme='outline' size='16' fill='#6366f1' />;
-    default:
-      return <FileText theme='outline' size='16' fill='var(--color-text-3)' />;
-  }
+  return resolveFileIcon(fileName, { size: 16, theme: 'outline' });
 }
 
 const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
