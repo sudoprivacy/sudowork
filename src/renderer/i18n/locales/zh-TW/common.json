@@ -43,6 +43,7 @@
   "deleteFailed": "刪除失敗",
   "default": "預設",
   "defaultModel": "預設模型",
+  "modelSwitchSuccess": "已切換為 {{model}}",
   "escToCancel": "按 ESC 取消",
   "create": "建立",
   "createSuccess": "建立成功",

@@ -77,21 +77,7 @@ const Main = () => {
     return <ModeSetup />;
   }
 
-  // Enterprise mode: skip InitLoading (no local services to wait for)
-  if (isEnterprise) {
-    return (
-      <div className='size-full relative'>
-        <Router layout={<Layout sider={<Sider />} />} />
-        {!authReady && (
-          <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', zIndex: 9999, pointerEvents: 'none' }}>
-            <AppLoader />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Consumer mode: show InitLoading until services are ready.
+  // Show InitLoading until services are ready.
   // No separate AppLoader for "正在准备运行环境" — it caused a flash
   // when isModeResolved() resolved before primeStatusForStartup() set displayMode.
   if (!initReady && !isInitScreenSkipped) {
@@ -107,8 +93,8 @@ const Main = () => {
         </div>
       )}
 
-      {/* Product Improvement Dialog - shown only on first install for new users */}
-      <ProductImprovementDialog visible={showOptInDialog} onClose={handleOptInClose} />
+      {/* Product Improvement Dialog - shown only on first install for non-enterprise users */}
+      {!isEnterprise && <ProductImprovementDialog visible={showOptInDialog} onClose={handleOptInClose} />}
     </div>
   );
 };

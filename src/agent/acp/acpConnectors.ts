@@ -13,7 +13,7 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { promises as fs, readFileSync } from 'fs';
+import { mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
@@ -553,6 +553,31 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     } catch {
       // Claude Code credentials not available — scode will use other auth methods
     }
+  }
+
+  // Ensure settings.json model is valid before spawning scode.
+  // scode reads settings.json on startup and crashes (exit 1) if the model is not in sudocode.json models.
+  // This prevents a death loop: crash → reconnect → read bad settings.json → crash again.
+  if (backend === 'scode') {
+    try {
+      const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+      const settingsPath = path.join(scodeDir, 'settings.json');
+      let settings: Record<string, unknown> = {};
+      try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* no settings */ }
+      const scodeConfigPath = path.join(scodeDir, 'sudocode.json');
+      let scodeConfig: Record<string, unknown> = {};
+      try { scodeConfig = JSON.parse(readFileSync(scodeConfigPath, 'utf-8')); } catch { /* no config */ }
+      const availableModels = scodeConfig.models && typeof scodeConfig.models === 'object'
+        ? Object.keys(scodeConfig.models as Record<string, unknown>) : [];
+      const currentModel = typeof settings.model === 'string' ? settings.model : undefined;
+
+      if (currentModel && availableModels.length > 0 && !availableModels.includes(currentModel)) {
+        settings.model = availableModels[0];
+        mkdirSync(scodeDir, { recursive: true });
+        writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+        mainLog('[ACP scode]', `Corrected settings.json model from "${currentModel}" to "${availableModels[0]}"`);
+      }
+    } catch { /* best-effort */ }
   }
 
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);

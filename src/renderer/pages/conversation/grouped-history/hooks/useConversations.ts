@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
+import { getRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -41,8 +42,9 @@ export const useConversations = () => {
   // Fetch conversations via Provider abstraction layer (works for both local and enterprise mode)
   useEffect(() => {
     const refresh = () => {
+      const sessionMode = getRendererSessionMode();
       ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 10000 })
+        .invoke({ page: 0, pageSize: 10000, sessionMode })
         .then((data) => {
           if (data && Array.isArray(data)) {
             // Filter out health check conversations / 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话

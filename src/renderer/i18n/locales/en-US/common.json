@@ -47,6 +47,7 @@
   "deleteFailed": "Failed to delete",
   "default": "Default",
   "defaultModel": "Default Model",
+  "modelSwitchSuccess": "Switched to {{model}}",
   "escToCancel": "esc to cancel",
   "create": "Create",
   "createSuccess": "Created successfully",
