@@ -776,7 +776,10 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (data.files && data.files.length > 0) {
-          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
+          const fileRefs = data.files.map((filePath) => {
+            const normalized = filePath.replace(/\\/g, '/');
+            return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+          }).join(' ');
           contentToSend = fileRefs + ' ' + contentToSend;
         }
 
