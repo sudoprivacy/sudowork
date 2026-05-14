@@ -115,6 +115,7 @@ const OpenClawSendBox: React.FC<{
     description: '',
     subject: '',
   });
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>(undefined);
 
   // Use ref to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -233,11 +234,20 @@ const OpenClawSendBox: React.FC<{
       if (!res) {
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
         return;
       }
       const isRunning = res.status === 'running';
       setAiProcessing(isRunning);
       aiProcessingRef.current = isRunning;
+
+      // Restore processingStartTime for timer restoration
+      // 恢复 processingStartTime 用于计时器恢复
+      if (res.processingStartTime) {
+        setProcessingStartTime(res.processingStartTime);
+      } else {
+        setProcessingStartTime(undefined);
+      }
     });
 
     // Eagerly initialize the OpenClaw agent and recover its connection status.
@@ -594,7 +604,7 @@ const OpenClawSendBox: React.FC<{
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}

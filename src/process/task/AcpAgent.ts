@@ -625,6 +625,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     const managerSendStart = Date.now();
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    this.processingStartTime = Date.now();
 
     // Reset user cancelled flag for new message
     this.userCancelled = false;

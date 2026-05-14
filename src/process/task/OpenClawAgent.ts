@@ -446,6 +446,7 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    this.processingStartTime = Date.now();
     mainLog('OpenClawAgent', `sendMessage called: content="${data.content?.substring(0, 50)}..."`);
     try {
       await this.bootstrap;

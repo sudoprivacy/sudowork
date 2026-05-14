@@ -242,6 +242,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     this.status = 'running';
+    this.processingStartTime = Date.now();
 
     try {
       mainLog('RemoteAgent', 'Calling initAgent...');
