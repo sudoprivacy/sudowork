@@ -52,6 +52,7 @@ const useAcpMessage = (conversation_id: string) => {
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [contextLimit, setContextLimit] = useState<number>(0);
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>(undefined);
 
   // Use refs to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -347,6 +348,7 @@ const useAcpMessage = (conversation_id: string) => {
         runningRef.current = false;
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
         return;
       }
       const isRunning = res.status === 'running';
@@ -354,6 +356,14 @@ const useAcpMessage = (conversation_id: string) => {
       runningRef.current = isRunning;
       setAiProcessing(isRunning);
       aiProcessingRef.current = isRunning;
+
+      // Restore processingStartTime for timer restoration
+      // 恢复 processingStartTime 用于计时器恢复
+      if (res.processingStartTime) {
+        setProcessingStartTime(res.processingStartTime);
+      } else {
+        setProcessingStartTime(undefined);
+      }
 
       // Restore persisted context usage data
       if (res.type === 'acp' && res.extra?.lastTokenUsage) {
@@ -384,7 +394,7 @@ const useAcpMessage = (conversation_id: string) => {
     hasContentInTurnRef.current = false;
   }, []);
 
-  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit };
+  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, processingStartTime };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -429,7 +439,7 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
-  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
+  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, processingStartTime } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -740,7 +750,7 @@ const AcpSendBox: React.FC<{
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
