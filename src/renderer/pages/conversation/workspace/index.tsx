@@ -16,7 +16,7 @@ import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
+import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { AudioFile, Cloudy, DownSmall, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, FolderOpen, Magic, Refresh, Search, VideoFile } from '@icon-park/react';
@@ -491,6 +491,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const rootName = treeHook.files[0]?.name ?? '';
   // Check if this is a temporary workspace (check both path and root folder name)
   const isTemporaryWorkspace = checkIsTemporaryWorkspace(workspace) || checkIsTemporaryWorkspace(rootName);
+  const isChannelWorkspace = checkIsChannelWorkspace(workspace) || checkIsChannelWorkspace(rootName);
 
   // 当只有一个根目录且有子文件时，隐藏根目录直接展示子文件，因为 Toolbar 已经作为一级目录
   // Hide root directory when there's a single root with children, as Toolbar serves as the first-level directory
@@ -498,7 +499,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const visibleTreeData = useMemo(() => {
     let data = rawTreeData;
 
-    if (isTemporaryWorkspace) {
+    if (isTemporaryWorkspace || isChannelWorkspace) {
       const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
         nodes
           .filter((node) => !isHiddenWorkspaceEntry(node.name))
@@ -512,7 +513,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
     // 按文件名正序排列（文件夹优先）/ Sort by filename ascending (directories first)
     return sortTreeNodes(data);
-  }, [isTemporaryWorkspace, rawTreeData]);
+  }, [isTemporaryWorkspace, isChannelWorkspace, rawTreeData]);
 
   const treeData = useMemo(() => {
     const decorateNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
