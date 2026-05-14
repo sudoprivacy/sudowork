@@ -865,6 +865,17 @@ const AcpSendBox: React.FC<{
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
         workspaceFiles={workspaceFiles}
+        onAtFileSelected={(file) => {
+          const item: FileOrFolderItem = {
+            path: file.fullPath,
+            name: file.name,
+            isFile: file.isFile,
+            relativePath: file.relativePath,
+          };
+          const newAtPath = mergeFileSelectionItems([...atPath], [item]);
+          setAtPath(newAtPath);
+          emitter.emit('acp.selected.file.append', [item]);
+        }}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}
