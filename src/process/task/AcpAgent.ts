@@ -1134,10 +1134,13 @@ This identity statement takes priority over the default identity in USER.md.
 
     this.status = 'finished';
 
-    // 5. Emit user cancelled message
+    // 5. Clear incomplete tool calls from message list
+    this.emitClearIncompleteTools();
+
+    // 6. Emit user cancelled message
     this.emitUserCancelledMessage();
 
-    // 6. Always emit finish to ensure UI state is reset
+    // 7. Always emit finish to ensure UI state is reset
     this.handleStreamEvent({
       type: 'finish',
       conversation_id: this.conversation_id,
@@ -1145,13 +1148,26 @@ This identity statement takes priority over the default identity in USER.md.
       data: null,
     });
 
-    // 7. Clear state for next turn
+    // 8. Clear state for next turn
     if (result !== 'cancelled') {
       // Backend was disconnected or abandoned - clear state for fresh start
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
       this.bootstrap = undefined;
     }
+  }
+
+  /**
+   * Emit clear incomplete tools message
+   * 发送清理未完成工具调用的消息
+   */
+  private emitClearIncompleteTools(): void {
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'clear_incomplete_tools',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
   }
 
   /**

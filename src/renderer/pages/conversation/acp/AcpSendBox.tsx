@@ -7,7 +7,7 @@ import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -43,6 +43,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const updateMessageList = useUpdateMessageList();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -160,6 +161,19 @@ const useAcpMessage = (conversation_id: string) => {
         return;
       }
       switch (message.type) {
+        case 'clear_incomplete_tools':
+          // Clear incomplete tool calls from message list
+          // 清理消息列表中未完成的工具调用
+          updateMessageList((list) => {
+            return list.filter((msg) => {
+              // Keep non-tool messages
+              if (msg.type !== 'acp_tool_call') return true;
+              // Keep completed/failed tools
+              const status = msg.content?.update?.status;
+              return status === 'completed' || status === 'failed';
+            });
+          });
+          break;
         case 'thought':
           // Auto-recover running/aiProcessing state if thought arrives after finish
           // 如果 thought 在 finish 后到达，自动恢复 running/aiProcessing 状态
