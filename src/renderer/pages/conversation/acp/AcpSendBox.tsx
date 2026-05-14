@@ -162,15 +162,15 @@ const useAcpMessage = (conversation_id: string) => {
       }
       switch (message.type) {
         case 'clear_incomplete_tools':
-          // Clear incomplete tool calls from message list
-          // 清理消息列表中未完成的工具调用
+          // Clear all tool calls from message list (user cancelled)
+          // 清理消息列表中所有工具调用（用户终止）
           updateMessageList((list) => {
             return list.filter((msg) => {
-              // Keep non-tool messages
-              if (msg.type !== 'acp_tool_call') return true;
-              // Keep completed/failed tools
-              const status = msg.content?.update?.status;
-              return status === 'completed' || status === 'failed';
+              // Remove all tool-related messages
+              if (msg.type === 'acp_tool_call') return false;
+              if (msg.type === 'codex_tool_call') return false;
+              if (msg.type === 'tool_call') return false;
+              return true;
             });
           });
           break;
