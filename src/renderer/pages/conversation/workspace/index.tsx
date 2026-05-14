@@ -19,7 +19,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Cloudy, DownSmall, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
+import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
