@@ -149,6 +149,23 @@ const useAcpMessage = (conversation_id: string) => {
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
 
+      // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
+      // 在 transformMessage 之前处理 clear_incomplete_tools（它不是标准消息类型）
+      if (message.type === 'clear_incomplete_tools') {
+        // Clear all tool calls from message list (user cancelled)
+        // 清理消息列表中所有工具调用（用户终止）
+        updateMessageList((list) => {
+          return list.filter((msg) => {
+            // Remove all tool-related messages
+            if (msg.type === 'acp_tool_call') return false;
+            if (msg.type === 'codex_tool_call') return false;
+            if (msg.type === 'tool_call') return false;
+            return true;
+          });
+        });
+        return;
+      }
+
       let transformedMessage: TMessage | undefined;
       try {
         transformedMessage = transformMessage(message);
@@ -161,19 +178,6 @@ const useAcpMessage = (conversation_id: string) => {
         return;
       }
       switch (message.type) {
-        case 'clear_incomplete_tools':
-          // Clear all tool calls from message list (user cancelled)
-          // 清理消息列表中所有工具调用（用户终止）
-          updateMessageList((list) => {
-            return list.filter((msg) => {
-              // Remove all tool-related messages
-              if (msg.type === 'acp_tool_call') return false;
-              if (msg.type === 'codex_tool_call') return false;
-              if (msg.type === 'tool_call') return false;
-              return true;
-            });
-          });
-          break;
         case 'thought':
           // Auto-recover running/aiProcessing state if thought arrives after finish
           // 如果 thought 在 finish 后到达，自动恢复 running/aiProcessing 状态

@@ -1187,9 +1187,6 @@ This identity statement takes priority over the default identity in USER.md.
     // Direct emit to bypass handleStreamEvent's userCancelled check
     ipcBridge.acpConversation.responseStream.emit(msg);
 
-    // Also emit to generic conversation stream for channel clients
-    ipcBridge.conversation.responseStream.emit(msg);
-
     // Persist to local DB
     const tMessage: TMessage = {
       id: msg.msg_id,
