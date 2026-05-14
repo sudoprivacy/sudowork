@@ -7,7 +7,8 @@
 import type { IMessageFileSend } from '@/common/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
-import { FileText, Picture } from '@icon-park/react';
+import { resolveFileIcon } from '@/renderer/utils/fileIcon';
+import { Picture } from '@icon-park/react';
 import React, { useCallback } from 'react';
 
 const FILE_TYPE_LABELS: Record<string, string> = {
@@ -86,7 +87,7 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
   return (
     <div className='w-full'>
       <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
-        <FileText theme='filled' size='18' className='flex-shrink-0 text-t-secondary' />
+        <span className='flex-shrink-0'>{resolveFileIcon(fileName, { size: 18, theme: 'filled' })}</span>
         <div className='flex flex-col gap-2px'>
           <span className='text-t-primary text-14px'>{fileName}</span>
           <span className='text-t-tertiary text-12px'>{typeLabel}</span>
