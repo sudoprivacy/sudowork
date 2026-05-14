@@ -12,6 +12,12 @@
 
 set -euo pipefail
 
+# Detect available Python command (python3 may be a non-functional stub on Windows)
+PYTHON_CMD="python3"
+if ! command -v python3 >/dev/null 2>&1 || ! python3 -c "pass" 2>/dev/null; then
+  PYTHON_CMD="python"
+fi
+
 MODE="${1:-}"
 if [ "$MODE" != "gen" ] && [ "$MODE" != "edit" ]; then
   echo "Usage:" >&2
@@ -70,7 +76,7 @@ fi
 # Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
 _SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
 if [ -f "$_SUDOCODE_CFG" ]; then
-  eval "$(python3 -c "
+  eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
@@ -89,7 +95,7 @@ fi
 
 # Fallback: sudoclaw.json (legacy)
 if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
-  eval "$(python3 -c "
+  eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
@@ -135,7 +141,7 @@ if [ "$MODE" = "gen" ]; then
   ENDPOINT="${BASE_URL}/images/generations"
   echo "[generate_image] POST $ENDPOINT" >&2
 
-  RESPONSE=$(python3 -c "
+  RESPONSE=$($PYTHON_CMD -c "
 import json, sys
 payload = {
     'model': sys.argv[1],
@@ -157,7 +163,7 @@ else
 
   # Pad non-square images to a square with white background so the full image
   # fits in the output without cropping (letterbox for landscape, pillarbox for portrait).
-  PADDED_PATH=$(python3 -c "
+  PADDED_PATH=$($PYTHON_CMD -c "
 import sys
 from PIL import Image
 
@@ -210,7 +216,7 @@ WATERMARK_TEXT="${WATERMARK_TEXT:-Sudo Code}"
 
 # Add watermark to image
 add_watermark() {
-  python3 -c "
+  $PYTHON_CMD -c "
 import sys, os
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -257,7 +263,7 @@ print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}', file=sys
 
 # Extract image data, save to file, and print the path
 # Response is piped via stdin to avoid OS command-line arg size limits (b64 data can be 2.5MB+)
-SAVED_FILE=$(echo "$RESPONSE" | python3 -c "
+SAVED_FILE=$(echo "$RESPONSE" | $PYTHON_CMD -c "
 import json, sys, base64, os, urllib.request
 
 response = json.load(sys.stdin)
