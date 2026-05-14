@@ -255,18 +255,18 @@ export function initAssistantHubBridge(): void {
     }
   });
 
-  ipcBridge.assistantHub.enableAssistant.provider(async ({ name }) => {
-    const result = await assistantManager.enableAssistant(name);
+  ipcBridge.assistantHub.enableAssistant.provider(async ({ name, category }) => {
+    const result = await assistantManager.enableAssistant(name, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.disableAssistant.provider(async ({ name }) => {
-    const result = await assistantManager.disableAssistant(name);
+  ipcBridge.assistantHub.disableAssistant.provider(async ({ name, category }) => {
+    const result = await assistantManager.disableAssistant(name, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.updateAssistantMeta.provider(async ({ name, updates }) => {
-    const result = await assistantManager.updateAssistantMeta(name, updates);
+  ipcBridge.assistantHub.updateAssistantMeta.provider(async ({ name, updates, category }) => {
+    const result = await assistantManager.updateAssistantMeta(name, updates, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
@@ -285,7 +285,7 @@ export function initAssistantHubBridge(): void {
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name }) => {
+  ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name, category }) => {
     // Delete associated conversations before uninstalling assistant
     const deletedConversationIds: string[] = [];
     try {
@@ -312,7 +312,7 @@ export function initAssistantHubBridge(): void {
       mainWarn('AssistantHub', 'Error deleting associated conversations:', dbError);
     }
 
-    const result = await assistantManager.uninstallAssistant(name);
+    const result = await assistantManager.uninstallAssistant(name, category);
 
     // Emit conversationChanged events to notify renderer to refresh conversation list
     if (deletedConversationIds.length > 0) {
@@ -331,36 +331,55 @@ export function initAssistantHubBridge(): void {
   // === Hub API operations ===
 
   // Fetch assistants list from Hub API with cursor-based pagination
-  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
+  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId, sourceType }) => {
     try {
-      // 企业模式：从本地 hub/ 目录加载已同步的助手
-      if (isEnterpriseMode()) {
-        // 企业模式下，助手库展示本地已同步的内容
-        // 专属助手 Tab (tenantId 存在时) 从本地 tenant/ 目录加载
-        const sourceType = tenantId ? 'tenant' : 'hub';
-        const assistantsDir = sourceType === 'tenant' ? path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.tenant) : path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+      mainLog('AssistantHub', `fetchAssistants called with tenantId: ${tenantId}, sourceType: ${sourceType}, isEnterpriseMode: ${isEnterpriseMode()}`);
 
-        mainLog('AssistantHub', `Enterprise mode: loading assistants from ${assistantsDir}`);
+      // 企业模式：从本地 hub/ 或 tenant/ 目录加载已同步的助手
+      if (isEnterpriseMode()) {
+        // 企业模式下，根据 sourceType 决定从哪个目录加载
+        // sourceType='tenant' 表示专属助手，从 tenant/ 目录加载
+        // 其他情况从 hub/ 目录加载
+        const dirType = sourceType === 'tenant' ? 'tenant' : 'hub';
+        const assistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS[dirType]);
+
+        mainLog('AssistantHub', `Enterprise mode: dirType=${dirType}, loading assistants from ${assistantsDir}`);
 
         // 读取本地目录中的助手
         const assistants: IAssistantHubSkill[] = [];
 
+        mainLog('AssistantHub', `Directory exists: ${existsSync(assistantsDir)}`);
+
         if (existsSync(assistantsDir)) {
           const entries = await fs.readdir(assistantsDir, { withFileTypes: true });
+          mainLog('AssistantHub', `Found ${entries.length} entries in ${assistantsDir}`);
+
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
+            // Skip directories starting with _ (like _disable)
+            if (entry.name.startsWith('_')) continue;
 
             const assistantName = entry.name;
             const assistantDir = path.join(assistantsDir, assistantName);
 
-            // 过滤逻辑
-            if (query && !assistantName.toLowerCase().includes(query.toLowerCase())) continue;
-
+            // Read metadata first for search filtering
             const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
             if (metaResult) {
               const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
 
-              // 分类过滤
+              const displayName = meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || assistantName;
+              const description = meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '';
+
+              // Search filter: search by name, display_name, and description
+              if (query) {
+                const queryLower = query.toLowerCase();
+                const nameMatch = assistantName.toLowerCase().includes(queryLower);
+                const displayNameMatch = displayName.toLowerCase().includes(queryLower);
+                const descriptionMatch = description.toLowerCase().includes(queryLower);
+                if (!nameMatch && !displayNameMatch && !descriptionMatch) continue;
+              }
+
+              // Category filter
               if (category && category !== 'all') {
                 const assistantCategories = meta.categories || [];
                 if (!assistantCategories.includes(category)) continue;
@@ -369,8 +388,8 @@ export function initAssistantHubBridge(): void {
               assistants.push({
                 id: meta.id || assistantName,
                 name: assistantName,
-                display_name: meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || assistantName,
-                description: meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '',
+                display_name: displayName,
+                description: description,
                 avatar: meta.avatar || null,
                 emoji: meta.emoji || null,
                 categories: meta.categories || [],

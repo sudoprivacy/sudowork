@@ -14,7 +14,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
 import { getAssistantsDir } from '../initStorage';
-import { ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { mainWarn } from '@process/utils/mainLogger';
 
 type ResourceType = 'rules' | 'skills';
@@ -78,24 +79,28 @@ export async function readBuiltinResource(resourceType: ResourceType, fileName: 
  * Read assistant resource file with directory-based priority search.
  *
  * Search order:
- * 1. Custom: _my-custom-assistant/{id}/AGENT.md (or SKILLS.md)
- * 2. Hub: _hub/{id}/AGENT.md
- * 3. System: _system/{strippedId}/AGENT.md (strips `builtin-` prefix)
- * 4. Legacy flat files: {assistantsDir}/{id}.{locale}.md (backward compat)
- * 5. Bundled fallback: builtin resource directory
+ * Enterprise mode: custom/{id} > hub/{id} > system/{strippedId}
+ * Personal mode: _my-custom-assistant/{id} > _hub/{id} > _system/{strippedId}
  */
 export async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const fileName = resourceTypeToFile(resourceType);
 
-  // 1. Try directory-based paths with priority: custom > hub > system
-  const dirCandidates: string[] = [path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.custom, assistantId, fileName), path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.hub, assistantId, fileName)];
+  // 1. Try directory-based paths with priority: custom > hub > system - mode-aware
+  const subdirs = isEnterpriseMode()
+    ? { custom: ENTERPRISE_ASSISTANT_SUBDIRS.custom, hub: ENTERPRISE_ASSISTANT_SUBDIRS.hub, system: ENTERPRISE_ASSISTANT_SUBDIRS.system }
+    : { custom: ASSISTANT_SUBDIRS.custom, hub: ASSISTANT_SUBDIRS.hub, system: ASSISTANT_SUBDIRS.system };
+
+  const dirCandidates: string[] = [
+    path.join(getAssistantsDir(), subdirs.custom, assistantId, fileName),
+    path.join(getAssistantsDir(), subdirs.hub, assistantId, fileName),
+  ];
 
   // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
   const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
-  dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, strippedId, fileName));
+  dirCandidates.push(path.join(getAssistantsDir(), subdirs.system, strippedId, fileName));
   // Also try with the full id in system/
   if (strippedId !== assistantId) {
-    dirCandidates.push(path.join(getAssistantsDir(), ASSISTANT_SUBDIRS.system, assistantId, fileName));
+    dirCandidates.push(path.join(getAssistantsDir(), subdirs.system, assistantId, fileName));
   }
 
   for (const candidate of dirCandidates) {

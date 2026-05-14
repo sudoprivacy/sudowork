@@ -237,8 +237,10 @@ export function initEeclawBridge(): void {
         .then(({ syncAllFromRemote }) => syncAllFromRemote())
         .then((result) => {
           mainLog('eeclawBridge', 'Background sync completed', {
-            skills: result.skills.installed.length,
-            assistants: result.assistants.installed.length,
+            hubSkills: result.skills.hub.installed.length,
+            tenantSkills: result.skills.tenant.installed.length,
+            hubAssistants: result.assistants.hub.installed.length,
+            tenantAssistants: result.assistants.tenant.installed.length,
           });
           // Emit sync completed event to notify renderer
           ipcBridge.eeclaw.syncCompleted.emit(result);
@@ -410,8 +412,8 @@ export function initEeclawBridge(): void {
       return {
         success: false,
         data: {
-          skills: { installed: [], skipped: [], failed: [] },
-          assistants: { installed: [], skipped: [], failed: [] },
+          skills: { hub: { installed: [], skipped: [], failed: [] }, tenant: { installed: [], skipped: [], failed: [] } },
+          assistants: { hub: { installed: [], skipped: [], failed: [] }, tenant: { installed: [], skipped: [], failed: [] } },
         },
         msg: error instanceof Error ? error.message : String(error),
       };

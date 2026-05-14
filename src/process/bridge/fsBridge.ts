@@ -13,8 +13,9 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
-import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
-import { ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from '../constants/assistantStorage';
+import { getSystemDir, getAssistantsDir, getSkillsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '../initStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from '../constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { readDirectoryRecursive } from '../utils';
 import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -118,16 +119,17 @@ async function readBuiltinResource(resourceType: ResourceType, fileName: string)
  * 读取助手资源文件，支持语言回退
  *
  * Directory structure:
- * - Hub: _hub/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
- * - System: _system/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
- * - Custom: _my-custom-assistant/{id}/AGENT.md
+ * Enterprise mode: hub/{name}, system/{name}, custom/{id}
+ * Personal mode: _hub/{name}, _system/{name}, _my-custom-assistant/{id}
  */
 async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const assistantsDir = getAssistantsDir();
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
-  // 1. Try new directory structure (hub, system, custom)
-  const subdirs = [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
+  // 1. Try new directory structure (hub, system, custom) - mode-aware
+  const subdirs = isEnterpriseMode()
+    ? [ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system, ENTERPRISE_ASSISTANT_SUBDIRS.custom]
+    : [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
   for (const subdir of subdirs) {
     const assistantDir = path.join(assistantsDir, subdir, assistantId);
     try {
@@ -210,8 +212,9 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
  * Write assistant resource file to user directory
  * 写入助手资源文件到用户目录
  *
- * New directory structure for custom assistants:
- * - Custom: _my-custom-assistant/{id}/AGENT.md
+ * Directory structure:
+ * Enterprise mode: custom/{id}/AGENT.md
+ * Personal mode: _my-custom-assistant/{id}/AGENT.md
  */
 async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
   try {
@@ -220,7 +223,9 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
     // Check if the assistant directory exists in any of the new subdirs (hub, system, custom).
     // This ensures writes go to the same location that readAssistantResource() reads from,
     // preventing a read/write path mismatch where edits would be silently lost.
-    const subdirs = [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
+    const subdirs = isEnterpriseMode()
+      ? [ENTERPRISE_ASSISTANT_SUBDIRS.custom, ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system]
+      : [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
     for (const subdir of subdirs) {
       const assistantDir = path.join(assistantsDir, subdir, assistantId);
       try {

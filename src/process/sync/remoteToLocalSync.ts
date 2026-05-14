@@ -21,6 +21,7 @@ import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/in
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
@@ -28,7 +29,7 @@ import JSZip from 'jszip';
 import { skillManager } from '@process/SkillManager';
 import { assistantManager } from '@process/AssistantManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName } from '@/process/constants/enterpriseStorage';
+import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName } from '@/process/constants/enterpriseStorage';
 import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
@@ -40,6 +41,11 @@ export type SyncResult = {
   installed: string[];
   skipped: string[];
   failed: Array<{ id: string; name: string; error: string }>;
+};
+
+export type SyncAllResult = {
+  skills: { hub: SyncResult; tenant: SyncResult };
+  assistants: { hub: SyncResult; tenant: SyncResult };
 };
 
 export type RemoteSkillInfo = {
@@ -847,6 +853,9 @@ async function getLocalInstalledAssistants(): Promise<Set<string>> {
 /**
  * 同步远程 skills 到本地
  * 优先使用新版 API（通过 ID 下载），失败时回退到旧版 API
+ *
+ * 注意：只同步 isHubInstalled: true 的技能（从技能库安装的）
+ * 自定义技能和专属技能由各自的同步逻辑处理
  */
 export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -862,13 +871,18 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
   const remoteSkills = await getRemoteSkillsInstalled(serverUrl, token);
   mainLog('remoteToLocalSync', `Remote skills: ${remoteSkills.length}`);
 
+  // 1.5 只同步从技能库安装的技能（isHubInstalled: true）
+  // 自定义技能和专属技能由各自的同步逻辑处理
+  const hubSkills = remoteSkills.filter((s) => s.isHubInstalled === true);
+  mainLog('remoteToLocalSync', `Hub skills (isHubInstalled=true): ${hubSkills.length}`);
+
   // 2. 获取本地已安装列表（按 ID 判断）
   const localSkillIds = await getLocalInstalledSkillIds();
   mainLog('remoteToLocalSync', `Local skills (by ID): ${localSkillIds.size}`);
 
   // 3. 计算差异（按 ID）
-  const toInstall = remoteSkills.filter((s) => s.id && !localSkillIds.has(s.id));
-  const alreadyInstalled = remoteSkills.filter((s) => s.id && localSkillIds.has(s.id));
+  const toInstall = hubSkills.filter((s) => s.id && !localSkillIds.has(s.id));
+  const alreadyInstalled = hubSkills.filter((s) => s.id && localSkillIds.has(s.id));
   mainLog('remoteToLocalSync', `Skills to install: ${toInstall.length}`);
 
   const result: SyncResult = {
@@ -908,6 +922,9 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
 /**
  * 同步远程 assistants 到本地
  * 优先使用新版 API（通过 ID 下载），失败时回退到旧版 API
+ *
+ * 注意：只同步 isHubInstalled: true 的助手（从助手库安装的）
+ * 自定义助手和专属助手由各自的同步逻辑处理
  */
 export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -923,13 +940,18 @@ export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
   const remoteAssistants = await getRemoteAssistantsInstalled(serverUrl, token);
   mainLog('remoteToLocalSync', `Remote assistants: ${remoteAssistants.length}`);
 
+  // 1.5 只同步从助手库安装的助手（isHubInstalled: true）
+  // 自定义助手和专属助手由各自的同步逻辑处理
+  const hubAssistants = remoteAssistants.filter((a) => a.isHubInstalled === true);
+  mainLog('remoteToLocalSync', `Hub assistants (isHubInstalled=true): ${hubAssistants.length}`);
+
   // 2. 获取本地已安装列表（按 ID 判断）
   const localAssistantIds = await getLocalInstalledAssistantIds();
   mainLog('remoteToLocalSync', `Local assistants (by ID): ${localAssistantIds.size}`);
 
   // 3. 计算差异（按 ID）
-  const toInstall = remoteAssistants.filter((a) => a.id && !localAssistantIds.has(a.id));
-  const alreadyInstalled = remoteAssistants.filter((a) => a.id && localAssistantIds.has(a.id));
+  const toInstall = hubAssistants.filter((a) => a.id && !localAssistantIds.has(a.id));
+  const alreadyInstalled = hubAssistants.filter((a) => a.id && localAssistantIds.has(a.id));
   mainLog('remoteToLocalSync', `Assistants to install: ${toInstall.length}`);
 
   const result: SyncResult = {
@@ -969,31 +991,42 @@ export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
 /**
  * 全量同步（登录成功后调用）
  *
- * 并行同步 skills 和 assistants
+ * 并行同步 hub skills/assistants 和 tenant skills/assistants
  */
-export async function syncAllFromRemote(): Promise<{
-  skills: SyncResult;
-  assistants: SyncResult;
-}> {
+export async function syncAllFromRemote(): Promise<SyncAllResult> {
   mainLog('remoteToLocalSync', 'Starting full sync from remote...');
 
-  const [skills, assistants] = await Promise.all([
+  // 并行同步 hub 和 tenant
+  const [hubSkills, hubAssistants, tenantSkills, tenantAssistants] = await Promise.all([
     syncRemoteSkillsToLocal().catch((error) => {
-      mainError('remoteToLocalSync', 'Skill sync failed:', error);
+      mainError('remoteToLocalSync', 'Hub skill sync failed:', error);
       return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
     syncRemoteAssistantsToLocal().catch((error) => {
-      mainError('remoteToLocalSync', 'Assistant sync failed:', error);
+      mainError('remoteToLocalSync', 'Hub assistant sync failed:', error);
+      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+    }),
+    syncTenantSkillsToLocal().catch((error) => {
+      mainError('remoteToLocalSync', 'Tenant skill sync failed:', error);
+      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+    }),
+    syncTenantAssistantsToLocal().catch((error) => {
+      mainError('remoteToLocalSync', 'Tenant assistant sync failed:', error);
       return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
   ]);
 
   mainLog('remoteToLocalSync', 'Full sync completed', {
-    skills: skills.installed.length,
-    assistants: assistants.installed.length,
+    hubSkills: hubSkills.installed.length,
+    hubAssistants: hubAssistants.installed.length,
+    tenantSkills: tenantSkills.installed.length,
+    tenantAssistants: tenantAssistants.installed.length,
   });
 
-  return { skills, assistants };
+  return {
+    skills: { hub: hubSkills, tenant: tenantSkills },
+    assistants: { hub: hubAssistants, tenant: tenantAssistants },
+  };
 }
 
 /**
@@ -1001,11 +1034,226 @@ export async function syncAllFromRemote(): Promise<{
  *
  * 仅同步差异部分，比全量同步更快
  */
-export async function syncIncrementalFromRemote(): Promise<{
-  skills: SyncResult;
-  assistants: SyncResult;
-}> {
+export async function syncIncrementalFromRemote(): Promise<SyncAllResult> {
   // 增量同步逻辑与全量同步相同，只是调用时机不同
   // 差异计算已在 syncRemoteSkillsToLocal/syncRemoteAssistantsToLocal 中实现
   return syncAllFromRemote();
+}
+
+// ============ Tenant 同步逻辑 ============
+
+/**
+ * 同步专属技能到本地 tenant 目录
+ */
+async function syncTenantSkillsToLocal(): Promise<SyncResult> {
+  const { fetchTenantSkills, installTenantSkill } = await import('./tenantSync');
+
+  mainLog('remoteToLocalSync', 'Starting tenant skill sync...');
+
+  // 1. 获取远程专属技能列表（只获取已审核通过的）
+  const remoteSkills = await fetchTenantSkills();
+  const approvedSkills = remoteSkills.filter((s) => s.status === 'approved');
+  mainLog('remoteToLocalSync', `Remote tenant skills (approved): ${approvedSkills.length}`);
+
+  // 2. 获取本地已安装的专属技能 ID（包括 _disable 目录）
+  const localSkillIds = await getLocalTenantSkillIds();
+  mainLog('remoteToLocalSync', `Local tenant skills (by ID): ${localSkillIds.size}`);
+
+  // 3. 计算差异
+  const toInstall = approvedSkills.filter((s) => s.id && !localSkillIds.has(s.id));
+  const alreadyInstalled = approvedSkills.filter((s) => s.id && localSkillIds.has(s.id));
+  mainLog('remoteToLocalSync', `Tenant skills to install: ${toInstall.length}, already installed: ${alreadyInstalled.length}`);
+
+  const result: SyncResult = {
+    installed: [],
+    skipped: alreadyInstalled.map((s) => s.name),
+    failed: [],
+  };
+
+  // 4. 逐个安装
+  for (const skill of toInstall) {
+    try {
+      const installResult = await installTenantSkill(skill.id);
+      if (installResult.success) {
+        result.installed.push(skill.name);
+      } else {
+        result.failed.push({
+          id: skill.id,
+          name: skill.name,
+          error: installResult.error || 'Unknown error',
+        });
+      }
+    } catch (error) {
+      mainError('remoteToLocalSync', `Failed to install tenant skill ${skill.name}:`, error);
+      result.failed.push({
+        id: skill.id,
+        name: skill.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  mainLog('remoteToLocalSync', `Tenant skill sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+
+  return result;
+}
+
+/**
+ * 同步专属助手到本地 tenant 目录
+ */
+async function syncTenantAssistantsToLocal(): Promise<SyncResult> {
+  const { fetchTenantAssistants, installTenantAssistant } = await import('./tenantSync');
+
+  mainLog('remoteToLocalSync', 'Starting tenant assistant sync...');
+
+  // 1. 获取远程专属助手列表（只获取已审核通过的）
+  const remoteAssistants = await fetchTenantAssistants();
+  const approvedAssistants = remoteAssistants.filter((a) => a.status === 'approved');
+  mainLog('remoteToLocalSync', `Remote tenant assistants (approved): ${approvedAssistants.length}`);
+
+  // 2. 获取本地已安装的专属助手 ID（包括 _disable 目录）
+  const localAssistantIds = await getLocalTenantAssistantIds();
+  mainLog('remoteToLocalSync', `Local tenant assistants (by ID): ${localAssistantIds.size}`);
+
+  // 3. 计算差异
+  const toInstall = approvedAssistants.filter((a) => a.id && !localAssistantIds.has(a.id));
+  const alreadyInstalled = approvedAssistants.filter((a) => a.id && localAssistantIds.has(a.id));
+  mainLog('remoteToLocalSync', `Tenant assistants to install: ${toInstall.length}, already installed: ${alreadyInstalled.length}`);
+
+  const result: SyncResult = {
+    installed: [],
+    skipped: alreadyInstalled.map((a) => a.name),
+    failed: [],
+  };
+
+  // 4. 逐个安装
+  for (const assistant of toInstall) {
+    try {
+      const installResult = await installTenantAssistant(assistant.id);
+      if (installResult.success) {
+        result.installed.push(assistant.name);
+      } else {
+        result.failed.push({
+          id: assistant.id,
+          name: assistant.name,
+          error: installResult.error || 'Unknown error',
+        });
+      }
+    } catch (error) {
+      mainError('remoteToLocalSync', `Failed to install tenant assistant ${assistant.name}:`, error);
+      result.failed.push({
+        id: assistant.id,
+        name: assistant.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  mainLog('remoteToLocalSync', `Tenant assistant sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+
+  return result;
+}
+
+/**
+ * 获取本地已安装的专属技能 ID 集合（包括 _disable 目录）
+ */
+async function getLocalTenantSkillIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+
+  if (!isEnterpriseMode()) {
+    return ids;
+  }
+
+  try {
+    const tenantDir = getEnterpriseTenantSkillsDir();
+    if (!existsSync(tenantDir)) {
+      return ids;
+    }
+
+    // 扫描 tenant/ 和 tenant/_disable/ 目录
+    const dirsToScan = [tenantDir];
+    const disableDir = path.join(tenantDir, '_disable');
+    if (existsSync(disableDir)) {
+      dirsToScan.push(disableDir);
+    }
+
+    for (const dir of dirsToScan) {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('_')) continue;
+
+        const skillDir = path.join(dir, entry.name);
+        const metaFileName = getSkillMetaFileName();
+        const metaPath = path.join(skillDir, metaFileName);
+
+        if (existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as ISkillHubMeta;
+            if (meta.id) {
+              ids.add(meta.id);
+            }
+          } catch {
+            // Ignore invalid meta
+          }
+        }
+      }
+    }
+  } catch (error) {
+    mainWarn('remoteToLocalSync', 'Failed to get local tenant skill IDs:', error);
+  }
+
+  return ids;
+}
+
+/**
+ * 获取本地已安装的专属助手 ID 集合（包括 _disable 目录）
+ */
+async function getLocalTenantAssistantIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+
+  if (!isEnterpriseMode()) {
+    return ids;
+  }
+
+  try {
+    const tenantDir = getEnterpriseTenantAssistantsDir();
+    if (!existsSync(tenantDir)) {
+      return ids;
+    }
+
+    // 扫描 tenant/ 和 tenant/_disable/ 目录
+    const dirsToScan = [tenantDir];
+    const disableDir = path.join(tenantDir, '_disable');
+    if (existsSync(disableDir)) {
+      dirsToScan.push(disableDir);
+    }
+
+    for (const dir of dirsToScan) {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('_')) continue;
+
+        const assistantDir = path.join(dir, entry.name);
+        const metaFileName = getAssistantMetaFileName();
+        const metaPath = path.join(assistantDir, metaFileName);
+
+        if (existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as IAssistantMeta;
+            if (meta.id) {
+              ids.add(meta.id);
+            }
+          } catch {
+            // Ignore invalid meta
+          }
+        }
+      }
+    }
+  } catch (error) {
+    mainWarn('remoteToLocalSync', 'Failed to get local tenant assistant IDs:', error);
+  }
+
+  return ids;
 }

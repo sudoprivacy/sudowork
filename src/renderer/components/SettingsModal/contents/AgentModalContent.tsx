@@ -6,7 +6,7 @@
 
 import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, TProviderWithModel } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
@@ -19,7 +19,7 @@ import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/util
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, UploadOne } from '@icon-park/react';
+import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, UploadOne, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,7 @@ import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { emitter } from '@/renderer/utils/emitter';
 
 // ==================== Types ====================
 
@@ -94,10 +95,12 @@ const InstalledAssistantCard: React.FC<{
   onClick: () => void;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;
-}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick, enterprisePublishButton }) => {
+  /** Enterprise mode: whether to hide delete button (only custom assistants can be deleted) */
+  hideDelete?: boolean;
+}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick, enterprisePublishButton, hideDelete }) => {
   const { t } = useTranslation();
   const isCustom = !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
-  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled;
+  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete;
   const isEnabled = isExtension ? true : assistant.enabled !== false;
 
   const resolvedAvatar = assistant.avatar?.trim();
@@ -142,7 +145,7 @@ const InstalledAssistantCard: React.FC<{
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
           </span>
         </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{assistant.id}</div>}</div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
@@ -184,12 +187,8 @@ const InstalledAssistantCard: React.FC<{
           <Copy size='13' />
           <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
         </button>
-        {/* Shield (builtin/extension) or Delete (custom) */}
-        {assistant.isBuiltin || isExtension ? (
-          <div className='w-24px h-24px flex items-center justify-center text-primary' title='内置助手'>
-            <Shield size='15' />
-          </div>
-        ) : (
+        {/* Delete button - only for custom assistants that are not readonly */}
+        {!isReadonly && (
           <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
             <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-danger'>
               <Delete size='13' />
@@ -279,6 +278,81 @@ const HubAssistantCard: React.FC<{
             <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.install', { defaultValue: '安装' })}</span>
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+};
+
+// ==================== TenantAssistantCard (for exclusive tab in enterprise mode) ====================
+
+const TenantAssistantCard: React.FC<{
+  assistant: {
+    id: string;
+    name: string;
+    displayName?: string;
+    description?: string;
+    version?: string;
+    status: string;
+    author?: string;
+    authorName?: string;
+    enabledSkills?: string[];
+    approvedAt?: string;
+    installed?: boolean;
+  };
+  isInstalled: boolean;
+  installing: boolean;
+  installProgress: number;
+  onDuplicate: (e: React.MouseEvent) => void;
+  onClick: () => void;
+}> = ({ assistant, isInstalled, installing, installProgress, onDuplicate, onClick }) => {
+  const { t } = useTranslation();
+
+  const displayName = assistant.displayName || assistant.name;
+
+  // Tenant assistants are synced from server and always considered installed
+  // Show "已安装" badge and duplicate button (same as hub installed assistants)
+
+  return (
+    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+      {/* Icon */}
+      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+          <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+            <Robot theme='filled' size='22' className='text-primary' />
+          </div>
+        </div>
+        {/* Tenant assistants are always installed after sync */}
+        <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.assistant.installed', { defaultValue: '已安装' })}</span>
+      </div>
+
+      {/* Content */}
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-6px pr-100px min-w-0'>
+          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
+        </div>
+        <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description || ''}</div>
+        {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
+          <div className='mt-4px flex items-center gap-4px'>
+            <Lightning size='12' className='text-primary flex-shrink-0' />
+            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions - top right */}
+      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
+        {/* Installing progress */}
+        {installing ? (
+          <div className='w-52px'>
+            <Progress percent={installProgress} size='mini' />
+          </div>
+        ) : (
+          /* Duplicate button - tenant assistants are always installed, show duplicate like hub */
+          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
+            <Copy size='13' />
+            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -643,6 +717,14 @@ const AgentModalContent: React.FC = () => {
   const [duplicateConfirmVisible, setDuplicateConfirmVisible] = useState(false);
   const [duplicateAssistant, setDuplicateAssistant] = useState<IAssistantHubSkill | null>(null);
   const [duplicateInstalledAssistant, setDuplicateInstalledAssistant] = useState<AssistantListItem | null>(null);
+  // Duplicate tenant assistant state (for enterprise mode)
+  const [duplicateTenantAssistant, setDuplicateTenantAssistant] = useState<{
+    id: string;
+    name: string;
+    displayName?: string;
+    description?: string;
+    enabledSkills?: string[];
+  } | null>(null);
   // Upload assistant state
   const [uploadConfirmVisible, setUploadConfirmVisible] = useState(false);
   const [uploadAssistant, setUploadAssistant] = useState<AssistantListItem | null>(null);
@@ -654,6 +736,9 @@ const AgentModalContent: React.FC = () => {
   // Upload/Publish state for enterprise mode
   const [uploadingAssistantName, setUploadingAssistantName] = useState<string | null>(null);
   const [publishingAssistantName, setPublishingAssistantName] = useState<string | null>(null);
+
+  // Track if sync has been triggered for current tab session (avoid loop)
+  const syncTriggeredRef = useRef(false);
 
   // Tenant assistants state for exclusive tab in enterprise mode
   const [tenantAssistants, setTenantAssistants] = useState<
@@ -834,17 +919,13 @@ const AgentModalContent: React.FC = () => {
 
         const category = selectedHubCategoryRef.current === 'all' ? '' : selectedHubCategoryRef.current;
         const query = hubSearchQueryRef.current.trim();
-        const tenantId = currentAssistantTenantId;
-
-        if (activeTab === 'exclusive' && !tenantId) {
-          setHubAssistantList([]);
-          setHubNextCursor(null);
-          setHubHasMore(false);
-          return;
-        }
+        // Enterprise mode: use sourceType to specify directory (hub or tenant)
+        // Personal mode: use tenantId for tenant assistants
+        const sourceType = isEnterprise && activeTab === 'exclusive' ? 'tenant' : undefined;
+        const tenantId = isEnterprise ? undefined : currentAssistantTenantId;
 
         if (isElectronDesktop()) {
-          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId });
+          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId, sourceType });
           if (res.success && res.data) {
             const newAssistants = res.data.assistants || [];
             if (append) {
@@ -935,8 +1016,22 @@ const AgentModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: { skills: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; assistants: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } }) => {
-      setSyncStatus({ syncing: false, skills: data.skills, assistants: data.assistants });
+    const handleSyncCompleted = (data: {
+      skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+      assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+    }) => {
+      // Merge hub and tenant results for display
+      const mergedSkills = {
+        installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
+        skipped: [...data.skills.hub.skipped, ...data.skills.tenant.skipped],
+        failed: [...data.skills.hub.failed, ...data.skills.tenant.failed],
+      };
+      const mergedAssistants = {
+        installed: [...data.assistants.hub.installed, ...data.assistants.tenant.installed],
+        skipped: [...data.assistants.hub.skipped, ...data.assistants.tenant.skipped],
+        failed: [...data.assistants.hub.failed, ...data.assistants.tenant.failed],
+      };
+      setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
       // Refresh installed list after sync
       void fetchInstalledAssistantNames();
     };
@@ -946,21 +1041,35 @@ const AgentModalContent: React.FC = () => {
   }, [isEnterprise, fetchInstalledAssistantNames]);
 
   // Trigger sync when switching to store tab in enterprise mode
-  // Only trigger if not already syncing (avoid duplicate requests)
+  // Only trigger once per tab session, not on every syncStatus change
   useEffect(() => {
-    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) return;
+    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) {
+      // Reset ref when leaving store tab
+      syncTriggeredRef.current = false;
+      return;
+    }
 
-    // Skip if already syncing to avoid duplicate requests
-    if (syncStatus.syncing) return;
+    // Skip if already triggered for this tab session
+    if (syncTriggeredRef.current) return;
 
-    // Reset sync status and trigger sync
+    // Mark as triggered and start sync
+    syncTriggeredRef.current = true;
     setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
 
-    eeclaw.syncFromRemote.invoke().catch((err) => {
-      console.error('Failed to trigger sync:', err);
-      setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
-    });
-  }, [isEnterprise, activeTab, syncStatus.syncing]);
+    eeclaw.syncFromRemote.invoke()
+      .then((res) => {
+        if (!res.success) {
+          // Sync failed, reset status (syncCompleted event won't be emitted)
+          console.error('Sync failed:', res.msg);
+          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+        }
+        // If success, syncCompleted event will be emitted and handled separately
+      })
+      .catch((err) => {
+        console.error('Failed to trigger sync:', err);
+        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+      });
+  }, [isEnterprise, activeTab]);
 
   // Fetch tenant assistants when switching to exclusive tab in enterprise mode
   useEffect(() => {
@@ -1023,12 +1132,17 @@ const AgentModalContent: React.FC = () => {
 
   const refreshAgentDetection = useCallback(async () => {
     try {
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
-      await mutate('acp.agents.available');
+      if (isEnterprise) {
+        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
+        await mutate('assistantHub.installed');
+      } else {
+        await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+        await mutate('acp.agents.available');
+      }
     } catch {
       // ignore
     }
-  }, []);
+  }, [isEnterprise]);
 
   const loadAssistantContext = useCallback(
     async (assistantId: string): Promise<string> => {
@@ -1173,19 +1287,23 @@ const AgentModalContent: React.FC = () => {
     [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
-  // Go use installed assistant (navigate to guid page)
+  // Go use installed assistant (navigate to guid page with assistant pre-selected)
   const handleGoUseHubAssistant = useCallback(async () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
-    // Refresh agent detection before navigating so GuidPage's customAgents are up-to-date
+
+    // Use display_name for URL parameter to match customAgents.name in useGuidAgentSelection
+    // hubDetailAssistant.name is the identifier (UUID), display_name is the user-facing name
+    const assistantName = hubDetailAssistant.display_name || hubDetailAssistant.name;
     await refreshAgentDetection();
-    void navigate(`/guid?assistant=${encodeURIComponent(hubDetailAssistant.name)}`);
+    void navigate(`/guid?assistant=${encodeURIComponent(assistantName)}`);
   }, [hubDetailAssistant, navigate, refreshAgentDetection]);
 
   // Open duplicate confirm modal for hub assistant
   const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
     setDuplicateAssistant(assistant);
     setDuplicateInstalledAssistant(null);
+    setDuplicateTenantAssistant(null);
     setDuplicateConfirmVisible(true);
   }, []);
 
@@ -1193,107 +1311,23 @@ const AgentModalContent: React.FC = () => {
   const handleOpenDuplicateModalFromInstalled = useCallback((assistant: AssistantListItem) => {
     setDuplicateAssistant(null);
     setDuplicateInstalledAssistant(assistant);
+    setDuplicateTenantAssistant(null);
     setDuplicateConfirmVisible(true);
   }, []);
 
-  // Duplicate assistant to custom list
-  const handleDuplicateConfirm = useCallback(async () => {
-    if (!duplicateAssistant && !duplicateInstalledAssistant) return;
-    if (!isElectronDesktop()) {
-      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手复制仅在桌面端可用' }));
-      return;
-    }
-
-    try {
-      // Handle hub assistant duplication
-      if (duplicateAssistant) {
-        const baseName = duplicateAssistant.display_name || duplicateAssistant.name;
-        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
-        const customId = uuid(36); // Generate UUID for assistant ID
-
-        // Read the assistant rule content if already installed
-        let ruleContent: string | undefined = undefined;
-        if (hubInstalledAssistantNames.has(duplicateAssistant.name)) {
-          try {
-            const content = await ipcBridge.fs.readAssistantRule.invoke({
-              assistantId: duplicateAssistant.name,
-              locale: localeKey,
-            });
-            if (content && content.trim()) {
-              ruleContent = content;
-            }
-          } catch {
-            // No rule content available
-          }
-        }
-
-        // Create new custom assistant
-        await ipcBridge.assistantHub.createAssistant.invoke({
-          meta: {
-            id: customId,
-            nameI18n: { 'zh-CN': customName },
-            descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
-            avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
-            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
-            enabled: true,
-            source_type: 'custom',
-            enabledSkills: duplicateAssistant.skills || [],
-            defaultInitPrompt: duplicateAssistant.defaultInitPrompt,
-          },
-          ruleContent: ruleContent,
-        });
-
-        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
-      }
-
-      // Handle installed assistant duplication
-      if (duplicateInstalledAssistant) {
-        const baseName = duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name;
-        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
-        const customId = uuid(36); // Generate UUID for assistant ID
-
-        // Read the assistant rule content
-        let ruleContent: string | undefined = undefined;
-        try {
-          const content = await ipcBridge.fs.readAssistantRule.invoke({
-            assistantId: duplicateInstalledAssistant.id,
-            locale: localeKey,
-          });
-          if (content && content.trim()) {
-            ruleContent = content;
-          }
-        } catch {
-          // No rule content available
-        }
-
-        // Create new custom assistant
-        await ipcBridge.assistantHub.createAssistant.invoke({
-          meta: {
-            id: customId,
-            nameI18n: { 'zh-CN': customName },
-            descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
-            avatar: duplicateInstalledAssistant.avatar,
-            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
-            enabled: true,
-            source_type: 'custom',
-            enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
-            defaultInitPrompt: duplicateInstalledAssistant.defaultInitPrompt,
-          },
-          ruleContent: ruleContent,
-        });
-
-        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
-      }
-
-      await loadAssistants();
-      setDuplicateConfirmVisible(false);
-      setDuplicateAssistant(null);
-      setDuplicateInstalledAssistant(null);
-    } catch (err) {
-      console.error('Failed to duplicate assistant:', err);
-      agentMessage.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
-    }
-  }, [duplicateAssistant, duplicateInstalledAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t]);
+  // Open duplicate confirm modal for tenant assistant (enterprise mode)
+  const handleOpenDuplicateModalFromTenant = useCallback((assistant: {
+    id: string;
+    name: string;
+    displayName?: string;
+    description?: string;
+    enabledSkills?: string[];
+  }) => {
+    setDuplicateAssistant(null);
+    setDuplicateInstalledAssistant(null);
+    setDuplicateTenantAssistant(assistant);
+    setDuplicateConfirmVisible(true);
+  }, []);
 
   // Open upload confirm modal for custom assistant
   const handleUploadAssistant = useCallback(
@@ -1365,15 +1399,18 @@ const AgentModalContent: React.FC = () => {
         return { success: false, msg: 'Not desktop' };
       }
 
-      const assistantName = assistant.id;
-      const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
+      // Use assistant name (display name) as assistantName, not UUID
+      const assistantName = assistant.nameI18n?.[localeKey] || assistant.name;
+      const displayName = assistantName;
       const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
+      const assistantId = assistant.id; // UUID for server reference
 
       setUploadingAssistantName(assistantName);
       try {
-        console.log('[handleUploadCustomAssistant] Calling eeclaw.uploadCustomAssistant.invoke with:', { assistantName, displayName, description });
+        console.log('[handleUploadCustomAssistant] Calling eeclaw.uploadCustomAssistant.invoke with:', { assistantName, assistantId, displayName, description });
         const res = await eeclaw.uploadCustomAssistant.invoke({
           assistantName,
+          assistantId,
           displayName,
           description,
           enabledSkills: assistant.enabledSkills,
@@ -1441,6 +1478,191 @@ const AgentModalContent: React.FC = () => {
     [loadAssistants, t]
   );
 
+  // ---- Duplicate assistant to custom list ----
+  const handleDuplicateConfirm = useCallback(async () => {
+    if (!duplicateAssistant && !duplicateInstalledAssistant && !duplicateTenantAssistant) return;
+    if (!isElectronDesktop()) {
+      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手复制仅在桌面端可用' }));
+      return;
+    }
+
+    try {
+      // Handle hub assistant duplication
+      if (duplicateAssistant) {
+        const baseName = duplicateAssistant.display_name || duplicateAssistant.name;
+        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+        const customId = uuid(36); // Generate UUID for assistant ID
+
+        // Read the assistant rule content if already installed
+        let ruleContent: string | undefined = undefined;
+        if (hubInstalledAssistantNames.has(duplicateAssistant.name)) {
+          try {
+            const content = await ipcBridge.fs.readAssistantRule.invoke({
+              assistantId: duplicateAssistant.name,
+              locale: localeKey,
+            });
+            if (content && content.trim()) {
+              ruleContent = content;
+            }
+          } catch {
+            // No rule content available
+          }
+        }
+
+        // Create new custom assistant
+        await ipcBridge.assistantHub.createAssistant.invoke({
+          meta: {
+            id: customId,
+            nameI18n: { 'zh-CN': customName },
+            descriptionI18n: duplicateAssistant.description ? { 'zh-CN': duplicateAssistant.description } : undefined,
+            avatar: duplicateAssistant.avatar || duplicateAssistant.emoji,
+            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
+            enabled: true,
+            source_type: 'custom',
+            enabledSkills: duplicateAssistant.skills || [],
+            defaultInitPrompt: duplicateAssistant.defaultInitPrompt,
+          },
+          ruleContent: ruleContent,
+        });
+
+        // Enterprise mode: upload to Moss Server
+        if (isEnterprise) {
+          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+          if (result.success && result.data) {
+            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
+            if (newAssistantInfo) {
+              const newAssistant: AssistantListItem = {
+                ...toBackendConfig(newAssistantInfo),
+                _category: newAssistantInfo.category,
+                _isHubInstalled: newAssistantInfo.isHubInstalled,
+              };
+              await handleUploadCustomAssistant(newAssistant);
+            }
+          }
+        }
+
+        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      }
+
+      // Handle installed assistant duplication
+      if (duplicateInstalledAssistant) {
+        const baseName = duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name;
+        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+        const customId = uuid(36); // Generate UUID for assistant ID
+
+        // Read the assistant rule content
+        let ruleContent: string | undefined = undefined;
+        try {
+          const content = await ipcBridge.fs.readAssistantRule.invoke({
+            assistantId: duplicateInstalledAssistant.id,
+            locale: localeKey,
+          });
+          if (content && content.trim()) {
+            ruleContent = content;
+          }
+        } catch {
+          // No rule content available
+        }
+
+        // Create new custom assistant
+        await ipcBridge.assistantHub.createAssistant.invoke({
+          meta: {
+            id: customId,
+            nameI18n: { 'zh-CN': customName },
+            descriptionI18n: duplicateInstalledAssistant.descriptionI18n || (duplicateInstalledAssistant.description ? { 'zh-CN': duplicateInstalledAssistant.description } : undefined),
+            avatar: duplicateInstalledAssistant.avatar,
+            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
+            enabled: true,
+            source_type: 'custom',
+            enabledSkills: duplicateInstalledAssistant.enabledSkills || [],
+            defaultInitPrompt: duplicateInstalledAssistant.defaultInitPrompt,
+          },
+          ruleContent: ruleContent,
+        });
+
+        // Enterprise mode: upload to Moss Server
+        if (isEnterprise) {
+          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+          if (result.success && result.data) {
+            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
+            if (newAssistantInfo) {
+              const newAssistant: AssistantListItem = {
+                ...toBackendConfig(newAssistantInfo),
+                _category: newAssistantInfo.category,
+                _isHubInstalled: newAssistantInfo.isHubInstalled,
+              };
+              await handleUploadCustomAssistant(newAssistant);
+            }
+          }
+        }
+
+        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      }
+
+      // Handle tenant assistant duplication (enterprise mode)
+      if (duplicateTenantAssistant) {
+        const baseName = duplicateTenantAssistant.displayName || duplicateTenantAssistant.name;
+        const customName = t('settings.assistant.duplicatedName', { name: baseName, defaultValue: `自定义-${baseName}` });
+        const customId = uuid(36); // Generate UUID for assistant ID
+
+        // Read the assistant rule content (tenant assistants are synced to local tenant/ directory)
+        let ruleContent: string | undefined = undefined;
+        try {
+          const content = await ipcBridge.fs.readAssistantRule.invoke({
+            assistantId: duplicateTenantAssistant.name,
+            locale: localeKey,
+          });
+          if (content && content.trim()) {
+            ruleContent = content;
+          }
+        } catch {
+          // No rule content available
+        }
+
+        // Create new custom assistant
+        await ipcBridge.assistantHub.createAssistant.invoke({
+          meta: {
+            id: customId,
+            nameI18n: { 'zh-CN': customName },
+            descriptionI18n: duplicateTenantAssistant.description ? { 'zh-CN': duplicateTenantAssistant.description } : undefined,
+            presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
+            enabled: true,
+            source_type: 'custom',
+            enabledSkills: duplicateTenantAssistant.enabledSkills || [],
+          },
+          ruleContent: ruleContent,
+        });
+
+        // Enterprise mode: upload to Moss Server
+        if (isEnterprise) {
+          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
+          if (result.success && result.data) {
+            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
+            if (newAssistantInfo) {
+              const newAssistant: AssistantListItem = {
+                ...toBackendConfig(newAssistantInfo),
+                _category: newAssistantInfo.category,
+                _isHubInstalled: newAssistantInfo.isHubInstalled,
+              };
+              await handleUploadCustomAssistant(newAssistant);
+            }
+          }
+        }
+
+        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+      }
+
+      await loadAssistants();
+      setDuplicateConfirmVisible(false);
+      setDuplicateAssistant(null);
+      setDuplicateInstalledAssistant(null);
+      setDuplicateTenantAssistant(null);
+    } catch (err) {
+      console.error('Failed to duplicate assistant:', err);
+      agentMessage.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
+    }
+  }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
+
   // ---- Enterprise mode: Install tenant assistant ----
   const handleInstallTenantAssistant = useCallback(
     async (assistantId: string, assistantName: string) => {
@@ -1486,10 +1708,24 @@ const AgentModalContent: React.FC = () => {
   // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
   const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
 
-  // Categorize assistants into 3 groups by metadata (mirrors skill pattern: source_type / isBuiltin)
-  const hubAssistants = assistants.filter((a) => !a.isBuiltin && a._isHubInstalled);
-  const builtinAssistants = assistants.filter((a) => a.isBuiltin || isExtensionAssistant(a));
-  const customAssistants = assistants.filter((a) => !a.isBuiltin && !a._isHubInstalled && !isExtensionAssistant(a));
+  // ===== 分类逻辑：以目录分类（_category）为主，其他字段仅作兼容兜底 =====
+  // Tenant assistants: 目录分类为 tenant
+  const localTenantAssistants = assistants.filter((a) => a._category === 'tenant');
+  // Filter tenant assistants by search query
+  const filteredTenantAssistants = hubSearchQuery.trim()
+    ? localTenantAssistants.filter((a) => {
+        const displayName = a.nameI18n?.[localeKey] || a.name;
+        const description = a.descriptionI18n?.[localeKey] || a.description || '';
+        const query = hubSearchQuery.trim().toLowerCase();
+        return displayName.toLowerCase().includes(query) || description.toLowerCase().includes(query);
+      })
+    : localTenantAssistants;
+  // Hub assistants: 目录分类为 hub（_isHubInstalled 仅作兼容兜底）
+  const hubAssistants = assistants.filter((a) => a._category === 'hub' || (!a._category && !a.isBuiltin && a._isHubInstalled));
+  // Builtin assistants: 目录分类为 system 或 isBuiltin 为 true
+  const builtinAssistants = assistants.filter((a) => a._category === 'system' || a.isBuiltin || isExtensionAssistant(a));
+  // Custom assistants: 目录分类为 custom（其他字段仅作兼容兜底）
+  const customAssistants = assistants.filter((a) => a._category === 'custom' || (!a._category && !a.isBuiltin && !a._isHubInstalled && !isExtensionAssistant(a)));
 
   // Avatar helpers
   const isEmoji = useCallback((str: string) => {
@@ -1671,7 +1907,9 @@ const AgentModalContent: React.FC = () => {
     if (!activeAssistant) return;
     try {
       const lookupName = resolveAssistantName(activeAssistant.id);
-      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName });
+      // Pass category for precise assistant location
+      const assistantCategory = activeAssistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
+      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
       await loadAssistants();
       setDeleteConfirmVisible(false);
       setEditVisible(false);
@@ -1686,7 +1924,9 @@ const AgentModalContent: React.FC = () => {
   const handleDeleteFromCard = async (assistant: AssistantListItem) => {
     try {
       const lookupName = resolveAssistantName(assistant.id);
-      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName });
+      // Pass category for precise assistant location
+      const assistantCategory = assistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
+      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
       await loadAssistants();
       agentMessage.success(t('common.success', { defaultValue: 'Success' }));
       await refreshAgentDetection();
@@ -1703,10 +1943,12 @@ const AgentModalContent: React.FC = () => {
     }
     try {
       const lookupName = resolveAssistantName(assistant.id);
+      // Pass category for precise assistant location
+      const assistantCategory = assistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
       if (enabled) {
-        await ipcBridge.assistantHub.enableAssistant.invoke({ name: lookupName });
+        await ipcBridge.assistantHub.enableAssistant.invoke({ name: lookupName, category: assistantCategory });
       } else {
-        await ipcBridge.assistantHub.disableAssistant.invoke({ name: lookupName });
+        await ipcBridge.assistantHub.disableAssistant.invoke({ name: lookupName, category: assistantCategory });
       }
       await loadAssistants();
       await refreshAgentDetection();
@@ -1720,10 +1962,10 @@ const AgentModalContent: React.FC = () => {
 
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
-  const renderAssistantGrid = (list: AssistantListItem[]) => (
+  const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false) => (
     <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => (
-        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} />
+        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} hideDelete={hideDelete} />
       ))}
     </div>
   );
@@ -1795,14 +2037,10 @@ const AgentModalContent: React.FC = () => {
             <span className='text-11px text-primary'>{t('settings.assistant.syncing', { defaultValue: '同步中...' })}</span>
           </div>
         )}
-        {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.failed.length > 0) && (
-          <div className='flex items-center gap-6px px-10px py-4px bg-fill-2 rd-6px flex-shrink-0'>
-            <span className='text-11px text-t-secondary'>
-              {t('settings.assistant.syncCompletedShort', {
-                installed: syncStatus.assistants.installed.length,
-                defaultValue: `已同步 ${syncStatus.assistants.installed.length} 个助手`,
-              })}
-            </span>
+        {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.skipped.length > 0 || syncStatus.assistants.failed.length > 0) && (
+          <div className='flex items-center gap-6px px-10px py-4px bg-success-light rd-6px flex-shrink-0'>
+            <Check size={12} className='text-success' />
+            <span className='text-11px text-success'>{t('settings.assistant.syncCompleted', { defaultValue: '已同步' })}</span>
           </div>
         )}
 
@@ -1839,66 +2077,43 @@ const AgentModalContent: React.FC = () => {
 
           {/* Assistant grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleHubScroll}>
-            {/* Enterprise mode: show tenant assistants from Moss Server */}
+            {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
             {activeTab === 'exclusive' && isEnterprise ? (
-              tenantAssistantsLoading ? (
+              hubLoading ? (
                 <div className='flex justify-center items-center py-48px'>
                   <Spin size={28} />
                 </div>
-              ) : tenantAssistants.length === 0 ? (
+              ) : hubAssistantList.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
                   <Shield size='32' className='text-t-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noTenantAssistants', { defaultValue: '暂无专属助手' })}</span>
                 </div>
               ) : (
                 <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {tenantAssistants
-                    .filter((a) => a.status === 'approved')
-                    .map((assistant) => {
-                      const isInstalling = installingTenantAssistantId === assistant.id;
-                      const isInstalled = assistant.installed === true;
-                      return (
-                        <div
-                          key={assistant.id}
-                          className='bg-base rd-12px border border-line p-12px flex items-start gap-12px cursor-pointer hover:border-primary transition-colors'
-                          onClick={() => {
-                            if (!isInstalled && !isInstalling) {
-                              void handleInstallTenantAssistant(assistant.id, assistant.name);
-                            }
-                          }}
-                        >
-                          <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-2 flex items-center justify-center'>
-                            <Robot size='24' className='text-t-tertiary' />
-                          </div>
-                          <div className='flex-1 min-w-0 flex flex-col gap-4px'>
-                            <div className='text-13px font-medium text-t-primary truncate'>{assistant.displayName || assistant.name}</div>
-                            <div className='text-11px text-t-secondary line-clamp-2'>{assistant.description || ''}</div>
-                            <div className='flex items-center gap-4px mt-4px'>
-                              {assistant.authorName && <span className='text-10px text-t-tertiary'>{assistant.authorName}</span>}
-                              {assistant.version && <span className='text-10px text-t-tertiary'>v{assistant.version}</span>}
-                            </div>
-                          </div>
-                          {/* Install/Installed indicator */}
-                          <div className='flex-shrink-0'>
-                            {isInstalled ? (
-                              <span className='px-6px py-2px bg-success text-white text-10px rd-4px'>{t('common.installed', { defaultValue: '已安装' })}</span>
-                            ) : isInstalling ? (
-                              <Spin size={16} />
-                            ) : (
-                              <button
-                                className='px-6px py-2px bg-primary text-white text-10px rd-4px cursor-pointer border-none hover:opacity-80'
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleInstallTenantAssistant(assistant.id, assistant.name);
-                                }}
-                              >
-                                {t('common.install', { defaultValue: '安装' })}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  {hubAssistantList.map((assistant) => {
+                    return (
+                      <HubAssistantCard
+                        key={assistant.id}
+                        assistant={assistant}
+                        isInstalled={true}
+                        installing={false}
+                        installProgress={installProgress}
+                        onInstall={(e) => {
+                          e.stopPropagation();
+                          setHubDetailAssistant(assistant);
+                          setHubDetailVisible(true);
+                        }}
+                        onDuplicate={(e) => {
+                          e.stopPropagation();
+                          handleOpenDuplicateModal(assistant);
+                        }}
+                        onClick={() => {
+                          setHubDetailAssistant(assistant);
+                          setHubDetailVisible(true);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )
             ) : activeTab === 'exclusive' && !enterpriseCode ? (
@@ -1992,13 +2207,24 @@ const AgentModalContent: React.FC = () => {
                 {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
               </section>
 
+              {/* Tenant assistants section - enterprise mode only */}
+              {isEnterprise && (
+                <section>
+                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                    <div className='text-13px font-medium text-t-primary'>{t('settings.tenantAssistants', { defaultValue: '专属助手' })}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                  </div>
+                  {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantAssistants', { defaultValue: '暂无专属助手' })}</div>}
+                </section>
+              )}
+
               {/* Hub/store assistants section */}
               <section>
                 <div className='flex items-center justify-between gap-8px mb-10px'>
                   <div className='text-13px font-medium text-t-primary'>{t('settings.hubAssistants', { defaultValue: '商店助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                 </div>
-                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
+                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
               </section>
 
               {/* Builtin assistants section */}

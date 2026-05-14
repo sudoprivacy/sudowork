@@ -47,7 +47,10 @@ export interface CustomSkillUploadResult {
 }
 
 export interface CustomAssistantUploadParams {
+  /** Assistant name (display name, e.g., "微信公众号运营助手") */
   assistantName: string;
+  /** Assistant ID (UUID, e.g., "fb11954c-a848-41a2-967f-e1ef5e711fe6") */
+  assistantId: string;
   displayName: string;
   description?: string;
   version?: string;
@@ -120,6 +123,11 @@ async function uploadFile(url: string, token: string, params: Record<string, str
     description: params.description || '',
     version: params.version || '1.0.0',
   };
+
+  // Add id (UUID) if provided
+  if (params.id) {
+    body.id = params.id;
+  }
 
   // Add optional fields for assistants
   if (params.enabledSkills) {
@@ -320,7 +328,7 @@ ${params.description || 'Custom assistant created by user.'}
   // Create metadata
   const meta: IAssistantMeta = {
     id: '',
-    name: params.assistantName,
+    name: params.displayName, // Use actual user-input name
     nameI18n: { 'en-US': params.displayName },
     descriptionI18n: { 'en-US': params.description || '' },
     presetAgentType: 'claude',
@@ -357,13 +365,16 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
   }
 
   try {
-    // Determine source directory
+    // Determine source directory - use assistantId (UUID) as directory name
     let assistantDir: string;
     if (params.sourcePath) {
       assistantDir = params.sourcePath;
     } else {
-      assistantDir = getAssistantInstallDir(params.assistantName, 'custom');
+      // Local directory is named by assistantId (UUID)
+      assistantDir = getAssistantInstallDir(params.assistantId, 'custom');
     }
+
+    mainLog('CustomUpload', `[Upload Assistant] assistantName: ${params.assistantName}, assistantId: ${params.assistantId}, sourceDir: ${assistantDir}`);
 
     // Check if directory exists
     if (!existsSync(assistantDir)) {
@@ -386,7 +397,8 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
       uploadUrl,
       token,
       {
-        name: params.assistantName,
+        name: params.assistantName, // User-visible name
+        id: params.assistantId, // UUID for server reference
         displayName: params.displayName,
         description: params.description,
         version: params.version,
@@ -407,16 +419,24 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
 
     const result = await response.json();
     mainLog('CustomUpload', `Assistant upload successful: ${JSON.stringify(result)}`);
+    mainLog('CustomUpload', `[Upload Assistant] Server returned id: ${result.id}, local assistantName: ${params.assistantName}`);
 
-    // Update local metadata with server ID
+    // Update local metadata with server ID, preserving existing fields like ruleFile
     const metaFileName = getAssistantMetaFileName();
     const metaPath = path.join(assistantDir, metaFileName);
+    mainLog('CustomUpload', `[Upload Assistant] Updating metadata at: ${metaPath}`);
     if (existsSync(metaPath)) {
       const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as IAssistantMeta;
+      const oldId = meta.id;
       meta.id = result.id || '';
       meta.uploaded = true;
       meta.uploaded_at = new Date().toISOString();
+      // Preserve ruleFile field if it exists
+      // Note: ruleFile should already be set if AGENT.md was created during assistant creation
       await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+      mainLog('CustomUpload', `[Upload Assistant] Updated metadata: oldId=${oldId} -> newId=${meta.id}`);
+    } else {
+      mainWarn('CustomUpload', `[Upload Assistant] Metadata file not found at ${metaPath}`);
     }
 
     return {

@@ -11,11 +11,12 @@ import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from './initStorage';
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './constants/assistantStorage';
-import { mainLog, mainError } from './utils/mainLogger';
+import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
 
-export type AssistantCategory = 'custom' | 'hub' | 'system';
+export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
 export interface IAssistantInfo {
   /** Unique identifier from server */
@@ -43,9 +44,17 @@ export class AssistantManager {
   private get customDir(): string {
     return getCustomAssistantsDir();
   }
+  private get tenantDir(): string {
+    return getEnterpriseTenantAssistantsDir();
+  }
 
   private ensureDirs(): void {
-    for (const dir of [getAssistantsDir(), this.hubDir, this.systemDir, this.customDir]) {
+    const dirs = [getAssistantsDir(), this.hubDir, this.systemDir, this.customDir];
+    // Add tenant dir in enterprise mode
+    if (isEnterpriseMode()) {
+      dirs.push(this.tenantDir);
+    }
+    for (const dir of dirs) {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
@@ -109,6 +118,7 @@ export class AssistantManager {
   private getCategoryFromPath(assistantPath: string): AssistantCategory {
     if (assistantPath.startsWith(this.systemDir)) return 'system';
     if (assistantPath.startsWith(this.hubDir)) return 'hub';
+    if (isEnterpriseMode() && assistantPath.startsWith(this.tenantDir)) return 'tenant';
     return 'custom';
   }
 
@@ -149,13 +159,19 @@ export class AssistantManager {
 
   /**
    * Get all installed assistants (enabled + disabled).
-   * Scans system/, hub/, custom/ directories (enterprise) or _system/, _hub/, _my-custom-assistant/ (personal).
+   * Scans system/, hub/, custom/, tenant/ directories (enterprise) or _system/, _hub/, _my-custom-assistant/ (personal).
    */
   async getInstalledAssistants(): Promise<IAssistantInfo[]> {
     this.ensureDirs();
     const assistants: IAssistantInfo[] = [];
 
-    for (const baseDir of [this.systemDir, this.hubDir, this.customDir]) {
+    const baseDirs = [this.systemDir, this.hubDir, this.customDir];
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      baseDirs.push(this.tenantDir);
+    }
+
+    for (const baseDir of baseDirs) {
       const dirs = await this.scanAssistantDirs(baseDir);
       for (const assistantDir of dirs) {
         const category = this.getCategoryFromPath(assistantDir);
@@ -169,14 +185,19 @@ export class AssistantManager {
 
   /**
    * Find an assistant directory by name (or id) across all categories.
-   * Searches: custom → hub → system. Also tries stripping 'builtin-' prefix for system lookup.
+   * Searches: custom → tenant → hub → system. Also tries stripping 'builtin-' prefix for system lookup.
    */
   findAssistantDir(name: string): { dir: string; category: AssistantCategory } | null {
-    const searchDirs = [
-      { dir: this.customDir, category: 'custom' as AssistantCategory },
-      { dir: this.hubDir, category: 'hub' as AssistantCategory },
-      { dir: this.systemDir, category: 'system' as AssistantCategory },
+    const searchDirs: Array<{ dir: string; category: AssistantCategory }> = [
+      { dir: this.customDir, category: 'custom' },
+      { dir: this.hubDir, category: 'hub' },
+      { dir: this.systemDir, category: 'system' },
     ];
+
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      searchDirs.splice(1, 0, { dir: this.tenantDir, category: 'tenant' }); // Insert after custom
+    }
 
     for (const { dir, category } of searchDirs) {
       const assistantDir = path.join(dir, name);
@@ -198,6 +219,38 @@ export class AssistantManager {
   }
 
   /**
+   * Find an assistant directory by name and category (precise lookup).
+   * If category is specified, only searches in that category's directory.
+   */
+  findAssistantDirByCategory(name: string, category?: AssistantCategory): { dir: string; category: AssistantCategory } | null {
+    // If category is specified, search only in that directory
+    if (category) {
+      const categoryDirMap: Record<AssistantCategory, string> = {
+        custom: this.customDir,
+        hub: this.hubDir,
+        system: this.systemDir,
+        tenant: this.tenantDir,
+      };
+      const baseDir = categoryDirMap[category];
+      const assistantDir = path.join(baseDir, name);
+      if (existsSync(assistantDir)) {
+        return { dir: assistantDir, category };
+      }
+      // Try stripping 'builtin-' prefix for system dir lookup
+      if (category === 'system' && name.startsWith('builtin-')) {
+        const stripped = name.slice('builtin-'.length);
+        const systemPath = path.join(this.systemDir, stripped);
+        if (existsSync(systemPath)) {
+          return { dir: systemPath, category: 'system' };
+        }
+      }
+      return null;
+    }
+    // No category specified, use default search order
+    return this.findAssistantDir(name);
+  }
+
+  /**
    * Read metadata file for a specific assistant.
    */
   async getAssistantMeta(name: string): Promise<IAssistantMeta | null> {
@@ -214,10 +267,16 @@ export class AssistantManager {
   /**
    * Merge partial updates into an assistant's metadata file.
    */
-  async updateAssistantMeta(name: string, updates: Partial<IAssistantMeta>): Promise<{ success: boolean; msg?: string }> {
+  async updateAssistantMeta(name: string, updates: Partial<IAssistantMeta>, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = this.findAssistantDir(name);
-      if (!result) return { success: false, msg: 'Assistant not found' };
+      mainLog('AssistantManager', `updateAssistantMeta called: name=${name}, category=${category || 'auto'}`);
+      const result = this.findAssistantDirByCategory(name, category);
+      if (!result) {
+        mainWarn('AssistantManager', `Assistant not found: ${name} (category: ${category || 'auto'})`);
+        return { success: false, msg: 'Assistant not found' };
+      }
+
+      mainLog('AssistantManager', `Found assistant at: ${result.dir} (category: ${result.category})`);
 
       let meta: IAssistantMeta = {};
       const metaResult = await this.readAssistantMetaFile(result.dir);
@@ -227,6 +286,7 @@ export class AssistantManager {
 
       const merged = { ...meta, ...updates };
       await this.writeAssistantMetaFile(result.dir, merged);
+      mainLog('AssistantManager', `Successfully updated meta for: ${name}`);
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to update assistant meta:', error);
@@ -237,31 +297,31 @@ export class AssistantManager {
   /**
    * Enable an assistant (set meta.enabled = true).
    */
-  async enableAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
-    mainLog('AssistantManager', `Enabling assistant: ${name}`);
-    return this.updateAssistantMeta(name, { enabled: true });
+  async enableAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    mainLog('AssistantManager', `Enabling assistant: ${name} (category: ${category || 'auto'})`);
+    return this.updateAssistantMeta(name, { enabled: true }, category);
   }
 
   /**
    * Disable an assistant (set meta.enabled = false).
    */
-  async disableAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
-    mainLog('AssistantManager', `Disabling assistant: ${name}`);
-    return this.updateAssistantMeta(name, { enabled: false });
+  async disableAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    mainLog('AssistantManager', `Disabling assistant: ${name} (category: ${category || 'auto'})`);
+    return this.updateAssistantMeta(name, { enabled: false }, category);
   }
 
   /**
    * Update enabled skills for an assistant.
    */
-  async setEnabledSkills(name: string, skills: string[]): Promise<{ success: boolean; msg?: string }> {
-    return this.updateAssistantMeta(name, { enabledSkills: skills });
+  async setEnabledSkills(name: string, skills: string[], category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    return this.updateAssistantMeta(name, { enabledSkills: skills }, category);
   }
 
   /**
    * Update preset agent type for an assistant.
    */
-  async setPresetAgentType(name: string, agentType: string): Promise<{ success: boolean; msg?: string }> {
-    return this.updateAssistantMeta(name, { presetAgentType: agentType });
+  async setPresetAgentType(name: string, agentType: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    return this.updateAssistantMeta(name, { presetAgentType: agentType }, category);
   }
 
   /**
@@ -283,8 +343,12 @@ export class AssistantManager {
       // If ruleContent provided, write AGENT.md and set ruleFile
       let ruleFile: string | undefined = undefined;
       if (ruleContent) {
+        mainLog('AssistantManager', `Writing AGENT.md for assistant: ${id}, ruleContent length: ${ruleContent.length}`);
         await fs.writeFile(path.join(assistantDir, 'AGENT.md'), ruleContent, 'utf-8');
         ruleFile = 'AGENT.md';
+        mainLog('AssistantManager', `AGENT.md written successfully for: ${id}`);
+      } else {
+        mainLog('AssistantManager', `No ruleContent provided for assistant: ${id}, skipping AGENT.md`);
       }
 
       const fullMeta: IAssistantMeta = {
@@ -295,7 +359,7 @@ export class AssistantManager {
       };
       await this.writeAssistantMetaFile(assistantDir, fullMeta);
 
-      mainLog('AssistantManager', `Created assistant: ${id}`);
+      mainLog('AssistantManager', `Created assistant: ${id} at ${assistantDir}`);
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to create assistant:', error);
@@ -306,9 +370,9 @@ export class AssistantManager {
   /**
    * Uninstall an assistant (delete directory; blocks builtins).
    */
-  async uninstallAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
+  async uninstallAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = this.findAssistantDir(name);
+      const result = this.findAssistantDirByCategory(name, category);
       if (!result) return { success: false, msg: 'Assistant not found' };
 
       // Block uninstalling builtins
@@ -321,7 +385,8 @@ export class AssistantManager {
       }
 
       await fs.rm(result.dir, { recursive: true, force: true });
-      mainLog('AssistantManager', `Uninstalled assistant: ${name}`);
+      mainLog('AssistantManager', `Uninstalled assistant: ${name} from ${result.category}`);
+
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to uninstall assistant:', error);

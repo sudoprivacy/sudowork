@@ -625,31 +625,42 @@ export function initSkillHubBridge(): void {
           const entries = await fs.readdir(skillsDir, { withFileTypes: true });
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
+            // Skip directories starting with _ (like _disable)
+            if (entry.name.startsWith('_')) continue;
 
             const dirName = entry.name;
             const skillDir = path.join(skillsDir, dirName);
 
-            // 过滤逻辑
-            if (query && !dirName.toLowerCase().includes(query.toLowerCase())) continue;
-
+            // Read metadata first for search filtering
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
               const meta = JSON.parse(metaResult.content) as SkillHubMeta;
 
-              // 分类过滤
+              // Use meta.name if available (same logic as SkillManager.readSkillInfo)
+              const skillName = meta.name?.trim() || dirName;
+              const displayName = meta.display_name || skillName;
+              const description = meta.description || '';
+
+              // Search filter: search by name, display_name, and description
+              if (query) {
+                const queryLower = query.toLowerCase();
+                const nameMatch = skillName.toLowerCase().includes(queryLower);
+                const displayNameMatch = displayName.toLowerCase().includes(queryLower);
+                const descriptionMatch = description.toLowerCase().includes(queryLower);
+                if (!nameMatch && !displayNameMatch && !descriptionMatch) continue;
+              }
+
+              // Category filter
               if (category && category !== 'all') {
                 const skillCategories = meta.categories || [];
                 if (!skillCategories.includes(category)) continue;
               }
 
-              // Use meta.name if available (same logic as SkillManager.readSkillInfo)
-              // This ensures consistency between fetchSkills and getInstalledSkills
-              const skillName = meta.name?.trim() || dirName;
               skills.push({
                 id: meta.id || skillName,
                 name: skillName,
-                display_name: meta.display_name || skillName,
-                description: meta.description || '',
+                display_name: displayName,
+                description: description,
                 icon: meta.icon || '',
                 emoji: meta.emoji || null,
                 category: meta.category || '',
@@ -972,6 +983,8 @@ export function initSkillHubBridge(): void {
         isAutoInjectedBuiltin: skill.isAutoInjectedBuiltin === true,
         isHubInstalled: skill.isHubInstalled,
         enabled: skill.enabled,
+        // 目录分类优先，作为主要分类依据
+        category: skill.category,
         meta: skill.meta
           ? {
               ...skill.meta,
@@ -1001,9 +1014,9 @@ export function initSkillHubBridge(): void {
   });
 
   // Uninstall a skill (using SkillManager)
-  ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName }) => {
+  ipcBridge.skillHub.uninstallSkill.provider(async ({ skillName, category }) => {
     try {
-      const result = await skillManager.uninstallSkill(skillName);
+      const result = await skillManager.uninstallSkill(skillName, category);
       if (result.success) {
         void (async () => {
           try {
@@ -1022,9 +1035,9 @@ export function initSkillHubBridge(): void {
   });
 
   // Enable/disable a skill (using SkillManager)
-  ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled }) => {
+  ipcBridge.skillHub.setSkillEnabled.provider(async ({ skillName, enabled, category }) => {
     try {
-      const result = enabled ? await skillManager.enableSkill(skillName) : await skillManager.disableSkill(skillName);
+      const result = enabled ? await skillManager.enableSkill(skillName, category) : await skillManager.disableSkill(skillName, category);
       if (result.success) {
         void (async () => {
           try {

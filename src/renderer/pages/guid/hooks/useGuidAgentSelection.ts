@@ -12,38 +12,13 @@ import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
-import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
+import { fetchAssistantsAsConfigs, toBackendConfig } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/constants/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
-
-/**
- * Moss Server assistant from cloud API
- */
-type MossAssistant = {
-  key: string;
-  name: string;
-  avatar?: string;
-  emoji?: string;
-  description?: string;
-};
-
-/**
- * Map Moss Server assistant to AcpBackendConfig for display in AssistantSelectionArea
- */
-function mapMossAssistantToConfig(assistant: MossAssistant): AcpBackendConfig {
-  return {
-    id: `moss:${assistant.key}`,
-    name: assistant.name,
-    avatar: assistant.emoji || assistant.avatar,
-    description: assistant.description,
-    isPreset: true,
-    enabled: true,
-    presetAgentType: 'remote-agent',
-  };
-}
+import type { IAssistantInfo } from '@/process/AssistantManager';
 
 /**
  * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
@@ -237,7 +212,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   /**
    * Find agent by key.
    * Supports both "custom:uuid" format and plain backend type.
-   * For enterprise mode, also checks customAgents for Moss assistants.
+   * For enterprise mode, also checks customAgents for local assistants.
    */
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
@@ -247,33 +222,15 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
       if (foundInAvailable) return foundInAvailable;
 
-      // For enterprise mode, check customAgents (Moss assistants)
-      if (isEnterprise) {
-        const mossAssistant = customAgents.find((a) => a.id === customAgentId);
-        if (mossAssistant) {
-          // Extract original Moss key from id (remove 'moss:' prefix)
-          // Moss Server expects the original key, not 'moss:{key}'
-          const mossKey = mossAssistant.id.startsWith('moss:') ? mossAssistant.id.slice(5) : mossAssistant.id;
-          return {
-            backend: 'remote-agent' as AcpBackend,
-            name: mossAssistant.name,
-            customAgentId: mossKey, // Use original Moss key for Moss Server
-            isPreset: true,
-            avatar: mossAssistant.avatar,
-            context: mossAssistant.description,
-          };
-        }
-      }
-
-      // Fallback: check customAgents for non-enterprise
+      // Check customAgents (local assistants from hub/tenant/custom/system directories)
       const assistant = customAgents.find((a) => a.id === customAgentId);
       if (assistant) {
         return {
           backend: 'custom' as AcpBackend,
           name: assistant.name,
           customAgentId: assistant.id,
-          isPreset: true,
-          context: '',
+          isPreset: assistant.isPreset,
+          context: assistant.description || '',
           avatar: assistant.avatar,
         };
       }
@@ -291,10 +248,13 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, [customAgents]);
 
   // --- SWR: Fetch available agents ---
-  const swrKey = isEnterprise ? 'eeclaw.agents.cloud' : 'acp.agents.available';
+  // Enterprise mode: load from local directories (hub/tenant/custom/system) like "My Assistants" page
+  // Consumer mode: load from ACP detection
+  const swrKey = isEnterprise ? 'assistantHub.installed' : 'acp.agents.available';
   const { data: availableAgentsData } = useSWR(swrKey, async () => {
     if (isEnterprise) {
-      const result = await ipcBridge.eeclaw.getCloudAssistants.invoke();
+      // Load assistants from local directories (hub/tenant/custom/system)
+      const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
       return result.data ?? [];
     }
     const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
@@ -304,12 +264,12 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   useEffect(() => {
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
       if (isEnterprise) {
-        // Enterprise mode: Moss assistants go to customAgents, only Remote Agent in availableAgents
-        const enterpriseAgents = availableAgentsData as unknown as MossAssistant[];
+        // Enterprise mode: Load assistants from local directories (hub/tenant/custom/system)
+        const assistantInfos = availableAgentsData as IAssistantInfo[];
 
-        // Map Moss assistants to customAgents for bottom display
-        const mossCustomAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
-        setCustomAgents(mossCustomAgents);
+        // Convert IAssistantInfo to AcpBackendConfig for display
+        const localAgents: AcpBackendConfig[] = assistantInfos.map(toBackendConfig);
+        setCustomAgents(localAgents);
 
         // availableAgents only contains Remote Agent for top AgentPillBar
         const mapped: AvailableAgent[] = [
@@ -327,8 +287,8 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         availableAgentsRef.current = availableAgentsData as AvailableAgent[];
       }
     } else if (isEnterprise) {
-      // Enterprise mode: even if API fails, provide a default remote-agent
-      // 企业模式：即使 API 失败，也提供默认的 remote-agent
+      // Enterprise mode: even if loading fails, provide a default remote-agent
+      // 企业模式：即使加载失败，也提供默认的 remote-agent
       const defaultAgent: AvailableAgent = {
         backend: 'remote-agent' as AcpBackend,
         name: 'Remote Agent',
@@ -336,7 +296,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       };
       setAvailableAgents([defaultAgent]);
       availableAgentsRef.current = [defaultAgent];
-      setCustomAgents([]); // Clear customAgents on API failure
+      setCustomAgents([]); // Clear customAgents on loading failure
     }
   }, [availableAgentsData, isEnterprise]);
 
@@ -347,10 +307,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       // 'remote-agent' is always valid
       if (currentKey === 'remote-agent') return;
 
-      // Check if current selection is a valid Moss assistant
-      const isValidMossAssistant = customAgents.some((a) => `custom:${a.id}` === currentKey);
+      // Check if current selection is a valid local assistant
+      const isValidAssistant = customAgents.some((a) => `custom:${a.id}` === currentKey);
 
-      if (!isValidMossAssistant) {
+      if (!isValidAssistant) {
         _setSelectedAgentKey('remote-agent');
         selectedAgentKeyRef.current = 'remote-agent';
       }
@@ -844,7 +804,8 @@ This identity statement takes priority over the default identity in USER.md.
   const refreshCustomAgents = useCallback(async () => {
     try {
       if (isEnterprise) {
-        await mutate('eeclaw.agents.cloud');
+        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
+        await mutate('assistantHub.installed');
         return;
       }
       await ipcBridge.acpConversation.refreshCustomAgents.invoke();
@@ -882,7 +843,8 @@ This identity statement takes priority over the default identity in USER.md.
   useEffect(() => {
     const handler = () => {
       if (isEnterprise) {
-        void mutate('eeclaw.agents.cloud');
+        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
+        void mutate('assistantHub.installed');
         return;
       }
       void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
@@ -910,9 +872,9 @@ This identity statement takes priority over the default identity in USER.md.
       console.error('Failed to clear saved agent:', error);
     });
 
-    // Enterprise mode: re-fetch Moss assistants from server
+    // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
     if (isEnterprise) {
-      void mutate('eeclaw.agents.cloud');
+      void mutate('assistantHub.installed');
       return;
     }
 

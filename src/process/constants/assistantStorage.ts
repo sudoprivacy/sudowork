@@ -84,14 +84,14 @@ export interface IAssistantMeta {
    */
   resourceDir?: string;
   // Storage tracking fields
-  source_type?: 'hub' | 'custom' | 'builtin';
+  source_type?: 'hub' | 'custom' | 'builtin' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version?: string;
   installed_at?: string;
   // Hub API fields
-  /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin) */
-  tag?: 'hub' | 'custom' | 'system';
+  /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin), 'tenant' (enterprise-exclusive) */
+  tag?: 'hub' | 'custom' | 'system' | 'tenant';
   /** Associated skill IDs from Hub API (skills guaranteed to exist in Skill Hub) */
   skills?: string[];
   /** Hub category ID */

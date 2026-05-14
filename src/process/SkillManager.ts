@@ -12,6 +12,7 @@ import { toAssetUrl } from '@/extensions/assetProtocol';
 import { mainLog, mainError } from './utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
+import { getEnterpriseTenantSkillsDir } from './constants/enterpriseStorage';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -21,7 +22,7 @@ const VERSION_FILE_NAME = 'version.txt';
 const LEGACY_VERSION_FILE_NAME = 'sudowork-version';
 
 // Skill 分类
-export type SkillCategory = 'custom' | 'hub' | 'system';
+export type SkillCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
 // Skill 状态
 export type SkillStatus = 'enabled' | 'disabled';
@@ -77,6 +78,9 @@ export class SkillManager {
   private get customDir(): string {
     return getCustomSkillsDir();
   }
+  private get tenantDir(): string {
+    return getEnterpriseTenantSkillsDir();
+  }
 
   constructor() {
     // Directory paths are now resolved dynamically via getters
@@ -86,6 +90,10 @@ export class SkillManager {
   // 确保所有目录存在
   private ensureDirs(): void {
     const dirs = [this.skillsDir, this.hubDir, this.systemDir, this.customDir];
+    // Add tenant dir in enterprise mode
+    if (isEnterpriseMode()) {
+      dirs.push(this.tenantDir);
+    }
     for (const dir of dirs) {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
@@ -178,6 +186,12 @@ export class SkillManager {
       dirs.push(...builtinSubDirs);
     }
 
+    // 扫描企业模式下的 tenant 目录
+    if (isEnterpriseMode()) {
+      const tenantSubDirs = await this.scanSkillDirs(this.tenantDir);
+      dirs.push(...tenantSubDirs);
+    }
+
     return dirs;
   }
 
@@ -191,6 +205,11 @@ export class SkillManager {
       { base: this.systemDir, category: 'system' as SkillCategory },
       { base: path.join(this.systemDir, '_builtin'), category: 'system' as SkillCategory },
     ];
+
+    // Add tenant disable directory in enterprise mode
+    if (isEnterpriseMode()) {
+      disableDirs.push({ base: this.tenantDir, category: 'tenant' as SkillCategory });
+    }
 
     for (const { base } of disableDirs) {
       const disableDir = this.getDisableDir(base);
@@ -287,6 +306,9 @@ export class SkillManager {
     if (skillPath.startsWith(this.hubDir)) {
       return 'hub';
     }
+    if (isEnterpriseMode() && skillPath.startsWith(this.tenantDir)) {
+      return 'tenant';
+    }
     return 'custom';
   }
 
@@ -341,6 +363,11 @@ export class SkillManager {
       { dir: path.join(this.systemDir, '_builtin'), category: 'system' as SkillCategory },
     ];
 
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      searchDirs.splice(1, 0, { dir: this.tenantDir, category: 'tenant' as SkillCategory }); // Insert after custom
+    }
+
     // Try trimmed name first, then original name (for backward compatibility with dirs created with spaces)
     const namesToTry = [trimmedName, skillName].filter((n, i, arr) => arr.indexOf(n) === i);
 
@@ -369,15 +396,58 @@ export class SkillManager {
     return null;
   }
 
+  // 根据分类查找技能目录（优先按指定分类查找）
+  private async findSkillDirByCategory(skillName: string, category?: SkillCategory, includeDisabled = true): Promise<{ dir: string; category: SkillCategory; isDisabled: boolean } | null> {
+    // Trim skillName to handle cases where metadata had leading/trailing spaces
+    const trimmedName = skillName.trim();
+    const namesToTry = [trimmedName, skillName].filter((n, i, arr) => arr.indexOf(n) === i);
+
+    // 如果指定了分类，优先在该分类目录中查找
+    if (category) {
+      const categoryDirMap: Record<SkillCategory, string> = {
+        custom: this.customDir,
+        hub: this.hubDir,
+        system: this.systemDir,
+        tenant: this.tenantDir,
+      };
+      const baseDir = categoryDirMap[category];
+
+      // 搜索启用目录
+      for (const name of namesToTry) {
+        const skillDir = path.join(baseDir, name);
+        if (existsSync(skillDir)) {
+          return { dir: skillDir, category, isDisabled: false };
+        }
+      }
+
+      // 搜索禁用目录
+      if (includeDisabled) {
+        for (const name of namesToTry) {
+          const disableDir = this.getDisableDir(baseDir);
+          const skillDir = path.join(disableDir, name);
+          if (existsSync(skillDir)) {
+            return { dir: skillDir, category, isDisabled: true };
+          }
+        }
+      }
+
+      // 如果指定了分类但没找到，返回 null（不回退到其他分类）
+      return null;
+    }
+
+    // 未指定分类时，使用默认搜索顺序
+    return this.findSkillDir(skillName, includeDisabled);
+  }
+
   // 禁用技能
-  async disableSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async disableSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName);
+      const result = await this.findSkillDirByCategory(skillName, category);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }
 
-      const { dir: skillDir, category, isDisabled } = result;
+      const { dir: skillDir, category: foundCategory, isDisabled } = result;
 
       if (isDisabled) {
         return { success: false, msg: 'Skill is already disabled' };
@@ -394,12 +464,15 @@ export class SkillManager {
 
       // 获取基础目录
       let baseDir: string;
-      switch (category) {
+      switch (foundCategory) {
         case 'system':
           baseDir = this.systemDir;
           break;
         case 'hub':
           baseDir = this.hubDir;
+          break;
+        case 'tenant':
+          baseDir = this.tenantDir;
           break;
         default:
           baseDir = this.customDir;
@@ -429,7 +502,7 @@ export class SkillManager {
         await this.writeSkillMetaFile(destDir, newMeta);
       }
 
-      mainLog('SkillManager', `Disabled skill: ${skillName}`);
+      mainLog('SkillManager', `Disabled skill: ${skillName} (category: ${foundCategory})`);
       return { success: true };
     } catch (error) {
       mainError('SkillManager', 'Failed to disable skill:', error);
@@ -438,14 +511,14 @@ export class SkillManager {
   }
 
   // 启用技能
-  async enableSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async enableSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName, true);
+      const result = await this.findSkillDirByCategory(skillName, category, true);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }
 
-      const { dir: skillDir, category, isDisabled } = result;
+      const { dir: skillDir, category: foundCategory, isDisabled } = result;
 
       if (!isDisabled) {
         return { success: false, msg: 'Skill is already enabled' };
@@ -453,12 +526,15 @@ export class SkillManager {
 
       // 获取基础目录
       let baseDir: string;
-      switch (category) {
+      switch (foundCategory) {
         case 'system':
           baseDir = this.systemDir;
           break;
         case 'hub':
           baseDir = this.hubDir;
+          break;
+        case 'tenant':
+          baseDir = this.tenantDir;
           break;
         default:
           baseDir = this.customDir;
@@ -483,7 +559,7 @@ export class SkillManager {
         await this.writeSkillMetaFile(destDir, newMeta);
       }
 
-      mainLog('SkillManager', `Enabled skill: ${skillName}`);
+      mainLog('SkillManager', `Enabled skill: ${skillName} (category: ${foundCategory})`);
       return { success: true };
     } catch (error) {
       mainError('SkillManager', 'Failed to enable skill:', error);
@@ -492,9 +568,9 @@ export class SkillManager {
   }
 
   // 卸载技能
-  async uninstallSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async uninstallSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName, true);
+      const result = await this.findSkillDirByCategory(skillName, category, true);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }

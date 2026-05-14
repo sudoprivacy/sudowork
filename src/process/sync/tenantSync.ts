@@ -47,6 +47,8 @@ export interface TenantSkillInfo {
 export interface TenantAssistantInfo {
   id: string;
   name: string;
+  /** API may return display_name or displayName */
+  display_name?: string;
   displayName?: string;
   description?: string;
   version?: string;
@@ -230,26 +232,35 @@ export async function publishTenantSkill(skillId: string, publishNote?: string):
     return { success: false, error: 'Moss Server not configured or not authenticated' };
   }
 
+  const url = `${serverUrl}/api/v1/skills/tenant/publish`;
+  const requestBody = {
+    skillId,
+    publishNote: publishNote || '',
+  };
+
+  mainLog('TenantSync', `[Publish Skill] Request URL: ${url}`);
+  mainLog('TenantSync', `[Publish Skill] Request body: ${JSON.stringify(requestBody)}`);
+
   try {
-    const response = await fetch(`${serverUrl}/api/v1/skills/tenant/publish`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        skillId,
-        publishNote: publishNote || '',
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    mainLog('TenantSync', `[Publish Skill] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
+      mainError('TenantSync', `[Publish Skill] Error response: ${errorText}`);
       return { success: false, error: `Publish failed: HTTP ${response.status} - ${errorText}` };
     }
 
     const result = await response.json();
-    mainLog('TenantSync', `Skill publish request submitted: ${JSON.stringify(result)}`);
+    mainLog('TenantSync', `[Publish Skill] Success response: ${JSON.stringify(result)}`);
 
     return {
       success: true,
@@ -295,6 +306,8 @@ export async function fetchTenantAssistants(): Promise<TenantAssistantInfo[]> {
 
 /**
  * Install tenant assistant to local
+ * Moss Server already sets correct metadata (id=UUID, source_type=tenant) during approval.
+ * Sudowork just needs to download and extract to tenant directory.
  */
 export async function installTenantAssistant(assistantId: string): Promise<{ success: boolean; name?: string; error?: string }> {
   const { serverUrl, token } = getMossConfig();
@@ -329,47 +342,71 @@ export async function installTenantAssistant(assistantId: string): Promise<{ suc
       }
     });
 
-    // Extract to tenant directory
-    const tenantDir = getEnterpriseTenantAssistantsDir();
-    await fs.mkdir(tenantDir, { recursive: true });
+    // Extract to temp directory first to read original metadata
+    const tempDir = path.join(path.dirname(getEnterpriseTenantAssistantsDir()), '.temp-tenant-' + Date.now());
+    await fs.mkdir(tempDir, { recursive: true });
 
-    const assistantDir = path.join(tenantDir, assistant.name);
+    try {
+      await extractZipToDirectory(zipBuffer, tempDir);
 
-    // Remove existing if present
-    if (existsSync(assistantDir)) {
-      await fs.rm(assistantDir, { recursive: true, force: true });
+      // Find the assistant directory (might be nested)
+      let extractedDir = tempDir;
+      const entries = await fs.readdir(tempDir, { withFileTypes: true });
+      if (entries.length === 1 && entries[0].isDirectory()) {
+        extractedDir = path.join(tempDir, entries[0].name);
+      }
+
+      // Read original metadata to get the UUID (Moss Server sets correct id=UUID)
+      const originalMeta = await readAssistantMetaFromDir(extractedDir);
+      const assistantUuid = originalMeta?.id || path.basename(extractedDir);
+
+      // Move to tenant directory with UUID as directory name
+      const tenantDir = getEnterpriseTenantAssistantsDir();
+      await fs.mkdir(tenantDir, { recursive: true });
+
+      const assistantDir = path.join(tenantDir, assistantUuid);
+
+      // Remove existing if present
+      if (existsSync(assistantDir)) {
+        await fs.rm(assistantDir, { recursive: true, force: true });
+      }
+
+      // Move extracted directory to final location (preserves original metadata from Moss)
+      await fs.rename(extractedDir, assistantDir);
+
+      mainLog('TenantSync', `Successfully installed tenant assistant: ${assistantUuid}`);
+      return { success: true, name: assistantUuid };
+    } finally {
+      // Cleanup temp directory
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
     }
-
-    await extractZipToDirectory(zipBuffer, assistantDir);
-
-    // Write metadata
-    const meta: IAssistantMeta = {
-      id: assistant.id,
-      name: assistant.name,
-      nameI18n: { 'en-US': assistant.displayName || assistant.name },
-      descriptionI18n: { 'en-US': assistant.description || '' },
-      presetAgentType: 'claude',
-      defaultEnabledSkills: assistant.enabledSkills || [],
-      enabledSkills: assistant.enabledSkills || [],
-      source_type: 'hub',
-      tag: 'hub',
-      is_builtin: false,
-      enabled: true,
-      installed_version: assistant.version || '1.0.0',
-      installed_at: new Date().toISOString(),
-    };
-
-    const metaFileName = getAssistantMetaFileName();
-    const metaPath = path.join(assistantDir, metaFileName);
-    await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
-
-    mainLog('TenantSync', `Successfully installed tenant assistant: ${assistant.name}`);
-    return { success: true, name: assistant.name };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     mainError('TenantSync', `Failed to install tenant assistant ${assistantId}:`, error);
     return { success: false, error: errorMsg };
   }
+}
+
+/**
+ * Read assistant metadata from a directory
+ */
+async function readAssistantMetaFromDir(assistantDir: string): Promise<IAssistantMeta | null> {
+  const metaFiles = ['_moss_meta.json', '_sudowork_meta.json'];
+
+  for (const fileName of metaFiles) {
+    const filePath = path.join(assistantDir, fileName);
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(content) as IAssistantMeta;
+    } catch {
+      // Try next file
+    }
+  }
+  return null;
 }
 
 /**
@@ -382,26 +419,35 @@ export async function publishTenantAssistant(assistantId: string, publishNote?: 
     return { success: false, error: 'Moss Server not configured or not authenticated' };
   }
 
+  const url = `${serverUrl}/api/v1/agents/tenant/publish`;
+  const requestBody = {
+    assistantId,
+    publishNote: publishNote || '',
+  };
+
+  mainLog('TenantSync', `[Publish Assistant] Request URL: ${url}`);
+  mainLog('TenantSync', `[Publish Assistant] Request body: ${JSON.stringify(requestBody)}`);
+
   try {
-    const response = await fetch(`${serverUrl}/api/v1/agents/tenant/publish`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        assistantId,
-        publishNote: publishNote || '',
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    mainLog('TenantSync', `[Publish Assistant] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
+      mainError('TenantSync', `[Publish Assistant] Error response: ${errorText}`);
       return { success: false, error: `Publish failed: HTTP ${response.status} - ${errorText}` };
     }
 
     const result = await response.json();
-    mainLog('TenantSync', `Assistant publish request submitted: ${JSON.stringify(result)}`);
+    mainLog('TenantSync', `[Publish Assistant] Success response: ${JSON.stringify(result)}`);
 
     return {
       success: true,
