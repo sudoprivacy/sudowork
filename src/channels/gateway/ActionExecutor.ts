@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
-import { appendNexusFilesMarker, parseNexusFilesMarker } from '@/common/nexusFiles';
+import { parseNexusFilesMarker } from '@/common/nexusFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -573,9 +573,7 @@ export class ActionExecutor {
         // paths into image content blocks via processAtFileReferences().
         const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
         const plainText = content.text || `[${content.type} message]`;
-        const workspacePath = session.workspace || getChannelWorkspacePath(platform);
-        const displayMessage = appendNexusFilesMarker(plainText, files, workspacePath);
-        await this.handleChatMessage(context, displayMessage, files);
+        await this.handleChatMessage(context, plainText, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
