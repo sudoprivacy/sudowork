@@ -212,7 +212,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // --- sessionMode: initialization from ConfigStorage ---
   // 应用启动时从 ConfigStorage 异步读取 sessionMode，同步更新模块缓存
+  // 仅企业模式需要 sessionMode，C端用户无需初始化
   useEffect(() => {
+    if (!isEnterprise) return;
     ConfigStorage.get('guid.sessionMode').then(async (stored) => {
       let mode = stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
@@ -240,7 +242,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       }
       emitter.emit('chat.history.refresh');
     });
-  }, []);
+  }, [isEnterprise]);
 
   // --- sessionMode: setSessionMode wrapper with side effects ---
   // setSessionMode 封装：同步模块缓存 + 持久化 + IPC + 刷新历史 + 重置 agent 选择
