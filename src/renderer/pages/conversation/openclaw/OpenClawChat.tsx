@@ -10,7 +10,7 @@ import MessageList from '@renderer/messages/MessageList';
 import { MessageListProvider, useMessageLstCache } from '@renderer/messages/hooks';
 import HOC from '@renderer/utils/HOC';
 import React, { createContext, useEffect, useState } from 'react';
-import LocalImageView from '../../../components/LocalImageView';
+import LocalImageView from '@renderer/components/LocalImageView';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
 import SafetyChatConfirm from '../SafetyChatConfirm';
 import OpenClawSendBox from './OpenClawSendBox';
@@ -24,12 +24,7 @@ const OpenClawChat: React.FC<{
   agentName?: string;
 }> = ({ conversation_id, workspace, agentName }) => {
   useMessageLstCache(conversation_id);
-  const updateLocalImage = LocalImageView.useUpdateLocalImage();
   const [aiProcessing, setAiProcessing] = useState(false);
-
-  useEffect(() => {
-    updateLocalImage({ root: workspace });
-  }, [workspace]);
 
   // Reset aiProcessing when conversation changes
   // 切换会话时重置 aiProcessing 状态
@@ -41,9 +36,11 @@ const OpenClawChat: React.FC<{
     <AIProcessingContext.Provider value={aiProcessing}>
       <ConversationProvider value={{ conversationId: conversation_id, workspace, type: 'openclaw-gateway' }}>
         <div className='flex-1 flex flex-col px-20px min-h-0'>
-          <FlexFullContainer>
-            <MessageList className='flex-1' aiProcessing={aiProcessing} />
-          </FlexFullContainer>
+          <LocalImageView.Provider value={{ root: workspace }}>
+            <FlexFullContainer>
+              <MessageList className='flex-1' aiProcessing={aiProcessing} />
+            </FlexFullContainer>
+          </LocalImageView.Provider>
           <SafetyChatConfirm conversation_id={conversation_id}>
             <ConversationChatConfirm conversation_id={conversation_id}>
               <OpenClawSendBox conversation_id={conversation_id} onAiProcessingChange={setAiProcessing} agentName={agentName} />
