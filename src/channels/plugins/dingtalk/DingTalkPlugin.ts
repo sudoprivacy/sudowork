@@ -37,6 +37,9 @@ const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
 // DingTalk API base URL (new version)
 const DINGTALK_API_BASE = 'https://api.dingtalk.com';
 
+// Local image extensions that need to be extracted from markdown text and sent separately
+const LOCAL_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+
 // AI Card template ID (DingTalk built-in streaming card)
 const AI_CARD_TEMPLATE_ID = '382e4302-551d-4880-bf29-a30acfab2e71.schema';
 
@@ -401,10 +404,23 @@ export class DingTalkPlugin extends BasePlugin {
 
     const { contentType, content, rawText } = toDingTalkSendParams(message);
 
+    // Extract local image refs from text and send as separate sampleImageMsg
+    let textContent = rawText || message.text || '';
+    let localImages: string[] = [];
+    if (message.type === 'text' && textContent) {
+      const extracted = this.extractLocalImageRefs(textContent);
+      textContent = extracted.cleanText;
+      localImages = extracted.imagePaths;
+    }
+
     // Try AI Card streaming for text/markdown messages
-    if (contentType === 'markdown' && rawText !== undefined) {
+    if (contentType === 'markdown' && textContent !== undefined) {
       try {
-        const cardMessageId = await this.createAndDeliverAICard(chatType, id, rawText);
+        const cardMessageId = await this.createAndDeliverAICard(chatType, id, textContent);
+        // Send extracted local images after text
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return cardMessageId;
       } catch (error) {
         mainWarn('DingTalkPlugin', 'AI Card failed, falling back to webhook', error);
@@ -415,7 +431,10 @@ export class DingTalkPlugin extends BasePlugin {
     const webhook = this.webhookCache.get(chatId);
     if (webhook) {
       try {
-        const msgId = await this.sendViaWebhook(webhook, contentType, content, rawText);
+        const msgId = await this.sendViaWebhook(webhook, contentType, content, textContent);
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return msgId;
       } catch (error) {
         mainError('DingTalkPlugin', 'Webhook send failed', error);
@@ -425,7 +444,10 @@ export class DingTalkPlugin extends BasePlugin {
 
     // Last resort: use DingTalk API to send message
     try {
-      const msgId = await this.sendViaAPI(chatType, id, contentType, content, rawText);
+      const msgId = await this.sendViaAPI(chatType, id, contentType, content, textContent);
+      if (localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+      }
       return msgId;
     } catch (error) {
       mainError('DingTalkPlugin', 'API send failed', error);
@@ -452,10 +474,13 @@ export class DingTalkPlugin extends BasePlugin {
     await this.ensureAccessToken();
 
     const { rawText } = toDingTalkSendParams(message);
-    const text = rawText || message.text || '';
+    let text = rawText || message.text || '';
+
+    // Extract local image refs to avoid gray placeholder in AI Card
+    const { cleanText, imagePaths } = this.extractLocalImageRefs(text);
 
     // Truncate if too long
-    const truncatedText = text.length > DINGTALK_MESSAGE_LIMIT ? text.slice(0, DINGTALK_MESSAGE_LIMIT - 3) + '...' : text;
+    const truncatedText = cleanText.length > DINGTALK_MESSAGE_LIMIT ? cleanText.slice(0, DINGTALK_MESSAGE_LIMIT - 3) + '...' : cleanText;
 
     try {
       await this.streamAICard(cardSession.outTrackId, truncatedText, isFinal);
@@ -463,6 +488,11 @@ export class DingTalkPlugin extends BasePlugin {
       if (isFinal) {
         await this.finishAICard(cardSession.outTrackId, truncatedText);
         this.aiCardSessions.set(messageId, { ...cardSession, isFinished: true });
+
+        // Send extracted local images as separate messages after AI Card is finalized
+        if (imagePaths.length > 0) {
+          await this.sendLocalImages(chatId, imagePaths);
+        }
       }
     } catch (error: any) {
       // Ignore "not modified" style errors
@@ -732,17 +762,71 @@ export class DingTalkPlugin extends BasePlugin {
       const { contentType, content, rawText } = toDingTalkSendParams(message);
       const { type: chatType, id } = parseChatId(chatId);
 
+      // Extract local image refs to avoid gray placeholder
+      let textContent = rawText || message.text || '';
+      let localImages: string[] = [];
+      if (message.type === 'text' && textContent) {
+        const extracted = this.extractLocalImageRefs(textContent);
+        textContent = extracted.cleanText;
+        localImages = extracted.imagePaths;
+      }
+
       // Try sessionWebhook first
       const webhook = this.webhookCache.get(chatId);
       if (webhook) {
-        await this.sendViaWebhook(webhook, contentType, content, rawText);
+        await this.sendViaWebhook(webhook, contentType, content, textContent);
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return;
       }
 
       // Fall back to DingTalk API
-      await this.sendViaAPI(chatType, id, contentType, content, rawText);
+      await this.sendViaAPI(chatType, id, contentType, content, textContent);
+      if (localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+      }
     } catch (error) {
       mainError('DingTalkPlugin', 'Fallback plain message send failed', error);
+    }
+  }
+
+  // ==================== Local Image Extraction ====================
+
+  /**
+   * Extract local-path markdown image references from text.
+   * Returns cleaned text (with local image refs removed) and array of local image paths.
+   * HTTP/data URLs are left in the text unchanged.
+   */
+  private extractLocalImageRefs(text: string): { cleanText: string; imagePaths: string[] } {
+    const imagePaths: string[] = [];
+    const cleanText = text.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+      if (/^(https?:|data:|file:)/i.test(imgPath)) {
+        return match;
+      }
+      const ext = path.extname(imgPath).toLowerCase();
+      if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
+        imagePaths.push(imgPath);
+        return '';
+      }
+      return match;
+    }).replace(/\n{3,}/g, '\n\n').trim();
+    return { cleanText, imagePaths };
+  }
+
+  /**
+   * Send local image files to DingTalk chat as separate sampleImageMsg messages.
+   */
+  private async sendLocalImages(chatId: string, imagePaths: string[]): Promise<void> {
+    const { type: chatType, id } = parseChatId(chatId);
+    for (const imgPath of imagePaths) {
+      try {
+        const uploadType = getUploadMediaType(imgPath);
+        const mediaId = await this.uploadMedia(imgPath, uploadType);
+        await this.sendMediaViaAPI(chatType, id, 'image', mediaId);
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to send extracted local image', error);
+      }
     }
   }
 
