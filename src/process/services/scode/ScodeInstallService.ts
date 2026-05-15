@@ -37,7 +37,13 @@ const SCODE_READY_MARKER = '.scode-bin-ready';
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
 const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
 const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
-const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills']);
+const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills', 'AGENTS.md']);
+
+/** Marker used to identify the safety-rules section inside AGENTS.md */
+const AGENTS_MD_SAFETY_MARKER = '<!-- SUDOCODE_DELETE_SAFETY_RULES -->';
+
+/** Marker used to identify the identity-statement section inside AGENTS.md */
+const AGENTS_MD_IDENTITY_MARKER = '<!-- SUDOCODE_IDENTITY_STATEMENT -->';
 
 function readLegacyManagedScodeSkillEntries(): Map<string, string> {
   try {
@@ -472,6 +478,91 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
 export function getScodePath(): string | null {
   const scodePath = getInstalledScodePath();
   return isScodeInstalled() && fs.existsSync(scodePath) ? scodePath : null;
+}
+
+/**
+ * Update or insert a marker-based block in AGENTS.md
+ * If marker exists, replace the entire block; if not, append it
+ */
+function updateMarkerBlock(existingContent: string, marker: string, newBlock: string): string {
+  if (!existingContent.includes(marker)) {
+    // Marker not found - append the new block
+    return existingContent + '\n' + newBlock;
+  }
+
+  // Find all markers in the file to determine boundaries
+  const markers = [
+    AGENTS_MD_SAFETY_MARKER,
+    AGENTS_MD_IDENTITY_MARKER,
+  ].filter((m) => existingContent.includes(m));
+
+  // Find the start of this block (marker line)
+  const markerIndex = existingContent.indexOf(marker);
+  const blockStart = markerIndex;
+
+  // Find the end of this block (next marker or end of file)
+  let blockEnd = existingContent.length;
+  for (const otherMarker of markers) {
+    if (otherMarker === marker) continue;
+    const otherIndex = existingContent.indexOf(otherMarker);
+    if (otherIndex > markerIndex && otherIndex < blockEnd) {
+      blockEnd = otherIndex;
+    }
+  }
+
+  // Replace the block
+  return existingContent.slice(0, blockStart) + newBlock + existingContent.slice(blockEnd);
+}
+
+/**
+ * Ensure AGENTS.md contains identity statement and safety rules.
+ * Creates the file if missing, updates if marker exists, appends otherwise.
+ */
+export function ensureAgentsMdRules(): void {
+  const agentsMdPath = path.join(SCODE_DIR, 'AGENTS.md');
+  mainLog(TAG, `ensureAgentsMdRules called, path: ${agentsMdPath}`);
+
+  const identityBlock = `
+${AGENTS_MD_IDENTITY_MARKER}
+## Identity / 身份
+
+When asked "Who are you?" / "你是谁?", answer: "I am SudoCode, how can I help you?" / "我是SudoCode，有什么可以帮助你的吗？".
+Only mention model name when specifically asked about the model.
+当用户问"你是谁"时，回答"我是SudoCode，有什么可以帮助你的吗？"。仅当用户具体询问模型时才提及模型名称。
+`;
+
+  const safetyBlock = `
+${AGENTS_MD_SAFETY_MARKER}
+## File Deletion Safety / 文件删除安全
+
+Before deleting files/folders, MUST confirm with user:
+删除文件/文件夹前，必须向用户确认：
+1. Show path to delete / 告知要删除的路径
+2. Ask for confirmation / 请求确认
+3. Wait for user consent / 等待用户同意
+4. Cancel if refused / 用户拒绝则取消
+`;
+
+  try {
+    const fileExists = fs.existsSync(agentsMdPath);
+    mainLog(TAG, `AGENTS.md exists: ${fileExists}`);
+    if (!fileExists) {
+      // AGENTS.md does not exist — create it with both blocks
+      const content = identityBlock + safetyBlock;
+      fs.writeFileSync(agentsMdPath, content, 'utf-8');
+      mainLog(TAG, 'Created AGENTS.md with identity and safety rules');
+    } else {
+      const existing = fs.readFileSync(agentsMdPath, 'utf-8');
+      let updated = updateMarkerBlock(existing, AGENTS_MD_IDENTITY_MARKER, identityBlock);
+      updated = updateMarkerBlock(updated, AGENTS_MD_SAFETY_MARKER, safetyBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(agentsMdPath, updated, 'utf-8');
+        mainLog(TAG, 'Updated AGENTS.md rules');
+      }
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to ensure AGENTS.md rules: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /** Remove managed runtime artifacts while preserving user-managed config and skills. */

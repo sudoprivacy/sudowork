@@ -12,7 +12,7 @@ import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
-import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState } from '../scode/ScodeInstallService';
+import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState, ensureAgentsMdRules } from '../scode/ScodeInstallService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -38,6 +38,9 @@ class RuntimeInstaller {
    * false if a critical install failure occurred.
    */
   async ensureAll(options?: { startNexus?: () => Promise<void> }): Promise<boolean> {
+    // Always ensure AGENTS.md rules are in place on every startup
+    ensureAgentsMdRules();
+
     const isWin32 = process.platform === 'win32';
     const shouldAssumeBundledResources = app.isPackaged;
 
