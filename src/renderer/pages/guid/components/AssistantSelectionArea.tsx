@@ -33,12 +33,10 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Enterprise Remote mode: render cloud assistants from availableAgents
-  // E端 Remote 模式：渲染 availableAgents 中的企业助手（不依赖 customAgents）
-  if (isEnterprise && sessionMode === 'remote' && availableAgents) {
-    const cloudAssistants = availableAgents.filter(
-      (a) => a.isPreset && a.customAgentId
-    );
+  // Enterprise Remote mode: render assistants from customAgents
+  // E端 Remote 模式：助手来自本地 hub/system/custom/tenant 文件夹，id 为 UUID，存放在 customAgents
+  if (isEnterprise && sessionMode === 'remote') {
+    const cloudAssistants = (customAgents || []).filter((a) => a.enabled !== false);
     if (cloudAssistants.length === 0) return null;
 
     return (
@@ -46,11 +44,14 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
         <div className='flex flex-wrap gap-8px justify-center'>
           {cloudAssistants.map((assistant) => {
             const avatarValue = assistant.avatar?.trim();
-            const isImageAvatar = Boolean(avatarValue && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarValue) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarValue)));
+            const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
+            const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+            const avatarImage = mappedAvatar || resolvedAvatar;
+            const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div key={assistant.customAgentId} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.customAgentId}`)}>
-                {isImageAvatar ? <img src={avatarValue} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: '18px' }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
-                <span className='text-14px text-2 hover:text-1'>{assistant.name}</span>
+              <div key={assistant.id} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
+                {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: '18px' }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
           })}

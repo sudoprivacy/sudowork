@@ -30,32 +30,6 @@ export function getRendererSessionMode(): 'remote' | 'local' {
 }
 
 /**
- * Moss Server assistant from cloud API
- */
-type MossAssistant = {
-  key: string;
-  name: string;
-  avatar?: string;
-  emoji?: string;
-  description?: string;
-};
-
-/**
- * Map Moss Server assistant to AcpBackendConfig for display in AssistantSelectionArea
- */
-function mapMossAssistantToConfig(assistant: MossAssistant): AcpBackendConfig {
-  return {
-    id: `moss:${assistant.key}`,
-    name: assistant.name,
-    avatar: assistant.emoji || assistant.avatar,
-    description: assistant.description,
-    isPreset: true,
-    enabled: true,
-    presetAgentType: 'remote-agent',
-  };
-}
-
-/**
  * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
  * Also detects [Identity Override] blocks that we inject
  */
@@ -362,41 +336,26 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   });
 
   useEffect(() => {
+    if (isEnterprise && sessionMode === 'remote') {
+      // Enterprise Remote mode: availableAgents only contains Remote Agent for the top AgentPillBar.
+      // customAgents are loaded from local hub/tenant/custom/system folders by the effect below
+      // (those folders are kept in sync with the remote Moss server, so no extra cloud fetch is needed here).
+      // E端 Remote 模式：availableAgents 只占位 Remote Agent；customAgents 由下方 effect 从本地 hub/tenant/custom/system 加载。
+      const mapped: AvailableAgent[] = [
+        {
+          backend: 'remote-agent' as AcpBackend,
+          name: 'Remote Agent',
+          customAgentId: undefined,
+        },
+      ];
+      setAvailableAgents(mapped);
+      availableAgentsRef.current = mapped;
+      return;
+    }
     if (availableAgentsData && Array.isArray(availableAgentsData)) {
-      if (isEnterprise && sessionMode === 'remote') {
-        // Enterprise Remote mode: Moss assistants go to customAgents, only Remote Agent in availableAgents
-        const enterpriseAgents = availableAgentsData as unknown as MossAssistant[];
-
-        // Convert MossAssistant to AcpBackendConfig for display
-        const localAgents: AcpBackendConfig[] = enterpriseAgents.map(mapMossAssistantToConfig);
-        setCustomAgents(localAgents);
-
-        // availableAgents only contains Remote Agent for top AgentPillBar
-        const mapped: AvailableAgent[] = [
-          {
-            backend: 'remote-agent' as AcpBackend,
-            name: 'Remote Agent',
-            customAgentId: undefined,
-          },
-        ];
-        setAvailableAgents(mapped);
-        availableAgentsRef.current = mapped;
-      } else {
-        // Consumer mode: unchanged
-        setAvailableAgents(availableAgentsData as AvailableAgent[]);
-        availableAgentsRef.current = availableAgentsData as AvailableAgent[];
-      }
-    } else if (isEnterprise && sessionMode === 'remote') {
-      // Enterprise mode: even if API fails, provide a default remote-agent
-      // 企业模式：即使 API 失败，也提供默认的 remote-agent
-      const defaultAgent: AvailableAgent = {
-        backend: 'remote-agent' as AcpBackend,
-        name: 'Remote Agent',
-        customAgentId: undefined,
-      };
-      setAvailableAgents([defaultAgent]);
-      availableAgentsRef.current = [defaultAgent];
-      setCustomAgents([]); // Clear customAgents on loading failure
+      // Consumer mode / Enterprise Local: unchanged
+      setAvailableAgents(availableAgentsData as AvailableAgent[]);
+      availableAgentsRef.current = availableAgentsData as AvailableAgent[];
     }
   }, [availableAgentsData, isEnterprise, sessionMode]);
 
@@ -485,9 +444,9 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
 
   // Load custom agents + extension-contributed assistants
-  // E端 Remote 模式下跳过本地助手加载；E端 Local 模式和 C端都加载
+  // 所有模式（E 端 Remote/Local 和 C 端）都从本地 hub/tenant/custom/system 加载助手；
+  // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
-    if (isEnterprise && sessionMode === 'remote') return;
     let isActive = true;
     Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([agents, extAssistants]) => {
@@ -904,12 +863,13 @@ This identity statement takes priority over the default identity in USER.md.
 
   const refreshCustomAgents = useCallback(async () => {
     try {
-      if (isEnterprise && sessionMode === 'remote') {
-        await mutate('eeclaw.agents.cloud');
-        return;
+      // Enterprise modes (remote + local) and Consumer mode all read customAgents from local
+      // hub/tenant/custom/system. Only Consumer/Enterprise-Local need ACP availableAgents refresh.
+      // 企业模式（Remote/Local）和 C 端都从本地 hub/tenant/custom/system 重读；仅非企业 Remote 路径需要刷新 ACP availableAgents。
+      if (!(isEnterprise && sessionMode === 'remote')) {
+        await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+        await mutate('acp.agents.available');
       }
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
-      await mutate('acp.agents.available');
 
       // Reload customAgents state from assistantHub
       const agents = await fetchAssistantsAsConfigs();
@@ -943,7 +903,9 @@ This identity statement takes priority over the default identity in USER.md.
   useEffect(() => {
     const handler = () => {
       if (isEnterprise && sessionMode === 'remote') {
-        void mutate('eeclaw.agents.cloud');
+        // Enterprise Remote: customAgents come from local hub/tenant/custom/system; re-read them.
+        // 企业 Remote 模式：customAgents 来自本地目录，重新读取即可。
+        void refreshCustomAgents();
         return;
       }
       void ipcBridge.acpConversation.rescanAgents.invoke().then(() => {
@@ -954,7 +916,7 @@ This identity statement takes priority over the default identity in USER.md.
     return () => {
       emitter.off('guid.reset', handler);
     };
-  }, [isEnterprise, sessionMode]);
+  }, [isEnterprise, sessionMode, refreshCustomAgents]);
 
   // Reset agent selection to default state (no assistant selected)
   // In enterprise mode, directly select the first available agent (remote-agent)
