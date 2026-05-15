@@ -1,89 +1,168 @@
-.orb-container {
+.avatar-container {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-app-region: no-drag;
 }
 
-.orb {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  /* Make the orb draggable */
+.avatar-wrapper {
+  position: relative;
+  width: 52px;
+  height: 52px;
   -webkit-app-region: drag;
-  transition:
-    background 150ms ease-out,
-    box-shadow 150ms ease-out,
-    transform 150ms ease-out;
+  cursor: grab;
 }
 
-/* idle: gentle blue breathing */
-.orb-idle {
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(120, 180, 255, 0.85) 25%, rgba(50, 100, 200, 0.6) 70%, rgba(30, 60, 140, 0.4) 100%);
-  box-shadow:
-    0 0 32px 8px rgba(80, 140, 220, 0.4),
-    0 0 12px 2px rgba(255, 255, 255, 0.3) inset;
-  animation: orb-breathe 4s ease-in-out infinite;
+/* ── 主 logo ─────────────────────────────────────────── */
+
+.avatar-img {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 
-/* thinking: brighter cyan, faster pulse */
-.orb-thinking {
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95) 0%, rgba(140, 220, 255, 0.95) 20%, rgba(60, 160, 230, 0.75) 65%, rgba(30, 100, 180, 0.5) 100%);
-  box-shadow:
-    0 0 40px 10px rgba(100, 180, 255, 0.55),
-    0 0 16px 3px rgba(255, 255, 255, 0.4) inset;
-  animation: orb-pulse 1.6s ease-in-out infinite;
+.avatar-img--static {
+  border-radius: 50%;
+  object-fit: cover;
+  animation: avatar-breathe 4s ease-in-out infinite;
 }
 
-/* error: red, brief shake then settle */
-.orb-error {
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 150, 150, 0.85) 25%, rgba(220, 60, 60, 0.7) 70%, rgba(140, 30, 30, 0.5) 100%);
-  box-shadow:
-    0 0 36px 8px rgba(220, 80, 80, 0.55),
-    0 0 12px 2px rgba(255, 255, 255, 0.3) inset;
-  animation: orb-shake 600ms ease-out 1;
+.avatar-img--thinking {
+  border-radius: 0;
+  transform: scale(1.85);
+  transform-origin: center center;
 }
 
-@keyframes orb-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.92;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
+@keyframes avatar-breathe {
+  0%, 100% { transform: scale(0.93); }
+  50%       { transform: scale(1.07); }
 }
 
-@keyframes orb-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.14);
-    opacity: 0.85;
-  }
+/* ── 拖尾残影 ────────────────────────────────────────── */
+
+.avatar-trail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  pointer-events: none;
+  animation: avatar-breathe 4s ease-in-out infinite;
 }
 
-@keyframes orb-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-6px);
-  }
-  40% {
-    transform: translateX(6px);
-  }
-  60% {
-    transform: translateX(-4px);
-  }
-  80% {
-    transform: translateX(4px);
-  }
+.trail-1 {
+  z-index: 2;
+  opacity: 0.3;
+  animation-delay: -0.35s;
+  filter: blur(1.5px);
+}
+
+.trail-2 {
+  z-index: 1;
+  opacity: 0.18;
+  animation-delay: -0.7s;
+  filter: blur(3px);
+}
+
+.trail-3 {
+  z-index: 0;
+  opacity: 0.08;
+  animation-delay: -1.05s;
+  filter: blur(5px);
+}
+
+/* GIF 拖尾：无 breathing，直接模糊叠加 */
+.avatar-trail--gif {
+  animation: none;
+  border-radius: 0;
+  transform: scale(1.85);
+  transform-origin: center center;
+}
+
+.avatar-trail--gif.trail-1 { opacity: 0.28; filter: blur(2px); }
+.avatar-trail--gif.trail-2 { opacity: 0.16; filter: blur(4px); }
+.avatar-trail--gif.trail-3 { opacity: 0.07; filter: blur(7px); }
+
+/* ── 粒子环绕 ────────────────────────────────────────── */
+
+.avatar-particles {
+  position: absolute;
+  inset: -16px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.avatar-wrapper--idle .avatar-particles--outer {
+  animation: ring-spin 6s linear infinite;
+}
+.avatar-wrapper--idle .avatar-particles--inner {
+  animation: ring-spin-r 9s linear infinite;
+}
+
+.avatar-wrapper--thinking .avatar-particles--outer {
+  animation: ring-spin 1.8s linear infinite;
+}
+.avatar-wrapper--thinking .avatar-particles--inner {
+  animation: ring-spin-r 2.8s linear infinite;
+}
+
+@keyframes ring-spin   { from { transform: rotate(0deg);    } to { transform: rotate(360deg);  } }
+@keyframes ring-spin-r { from { transform: rotate(0deg);    } to { transform: rotate(-360deg); } }
+
+.avatar-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: #F59E0B;
+  top: 50%;
+  left: 50%;
+}
+
+/* 8 颗均匀分布，每 45° 一颗，半径 34px */
+.p1 { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; transform: rotate(0deg)   translateY(-34px); opacity: 0.95; }
+.p2 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(45deg)  translateY(-34px); opacity: 0.6;  }
+.p3 { width: 4px; height: 4px; margin: -2px   0 0 -2px;   transform: rotate(90deg)  translateY(-34px); opacity: 0.85; }
+.p4 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(135deg) translateY(-34px); opacity: 0.5;  }
+.p5 { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; transform: rotate(180deg) translateY(-34px); opacity: 0.9;  }
+.p6 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(225deg) translateY(-34px); opacity: 0.65; }
+.p7 { width: 4px; height: 4px; margin: -2px   0 0 -2px;   transform: rotate(270deg) translateY(-34px); opacity: 0.8;  }
+.p8 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(315deg) translateY(-34px); opacity: 0.45; }
+
+/* 内圈：半径 24px，5 颗，逆时针 */
+.q1 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(0deg)   translateY(-24px); opacity: 0.7;  }
+.q2 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(72deg)  translateY(-24px); opacity: 0.5;  }
+.q3 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(144deg) translateY(-24px); opacity: 0.65; }
+.q4 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(216deg) translateY(-24px); opacity: 0.45; }
+.q5 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(288deg) translateY(-24px); opacity: 0.6;  }
+
+.avatar-wrapper--thinking .avatar-particle {
+  background: #FCD34D;
+}
+
+.avatar-wrapper--error .avatar-particle {
+  background: #FF0000;
+}
+
+/* ── error 状态 ───────────────────────────────────────── */
+
+.avatar-wrapper--error .avatar-img--static {
+  filter: brightness(0) saturate(1) invert(16%) sepia(100%) saturate(5000%) hue-rotate(0deg) brightness(100%);
+  animation: avatar-breathe 4s ease-in-out infinite;
+}
+
+.avatar-wrapper--error .trail-1 {
+  filter: brightness(0) saturate(1) invert(16%) sepia(100%) saturate(5000%) hue-rotate(0deg) brightness(100%) blur(1.5px);
+}
+
+.avatar-wrapper--error .trail-2 {
+  filter: brightness(0) saturate(1) invert(16%) sepia(100%) saturate(5000%) hue-rotate(0deg) brightness(100%) blur(3px);
+}
+
+.avatar-wrapper--error .trail-3 {
+  filter: brightness(0) saturate(1) invert(16%) sepia(100%) saturate(5000%) hue-rotate(0deg) brightness(100%) blur(5px);
 }
