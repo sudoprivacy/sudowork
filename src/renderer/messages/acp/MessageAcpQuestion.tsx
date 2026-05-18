@@ -529,14 +529,34 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
           </>
         )}
 
-        {hasResponded && selectedAnswer && !isCancelled && (
-          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--color-success-light-1)', borderColor: 'rgb(var(--success-3))' }}>
-            <Text className='text-sm whitespace-pre-wrap' style={{ color: 'rgb(var(--success-6))' }}>
-              {'✓ '}
-              {t('messages.questionAnswered')}
-              {': '}
-              {selectedAnswer}
-            </Text>
+        {hasResponded && !isCancelled && (
+          <div className='mt-10px space-y-2'>
+            {items.map((item, idx) => {
+              const answer = hydratedAnswers.find((a) => a.id === item.id || a.index === idx + 1);
+              const displayValue = answer?.displayValue || '';
+              const skipped = answer?.skipped || false;
+              return (
+                <div
+                  key={item.id}
+                  className='p-2 rounded-md border'
+                  style={{
+                    backgroundColor: skipped ? 'var(--color-fill-1)' : 'var(--color-success-light-1)',
+                    borderColor: skipped ? 'rgb(var(--gray-3))' : 'rgb(var(--success-3))',
+                  }}
+                >
+                  <div className='text-xs text-t-secondary mb-1'>
+                    {items.length > 1 ? `${idx + 1}. ` : ''}
+                    {item.prompt}
+                  </div>
+                  <Text
+                    className='text-sm whitespace-pre-wrap'
+                    style={{ color: skipped ? 'var(--color-text-3)' : 'rgb(var(--success-6))' }}
+                  >
+                    {skipped ? `⊘ ${t('messages.questionSkipped')}` : `✓ ${displayValue}`}
+                  </Text>
+                </div>
+              );
+            })}
           </div>
         )}
 

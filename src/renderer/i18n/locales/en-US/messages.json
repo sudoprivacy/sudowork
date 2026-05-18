@@ -34,6 +34,7 @@
   "processing": "Processing...",
   "responseSentSuccessfully": "Response sent successfully",
   "questionAnswered": "Answered",
+  "questionSkipped": "Skipped",
   "yes": "Yes",
   "no": "No",
   "confirmation": {

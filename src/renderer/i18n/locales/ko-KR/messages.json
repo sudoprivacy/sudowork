@@ -34,6 +34,7 @@
   "processing": "처리 중...",
   "responseSentSuccessfully": "응답 전송 성공",
   "questionAnswered": "답변 완료",
+  "questionSkipped": "건너뜀",
   "yes": "예",
   "no": "아니오",
   "confirmation": {

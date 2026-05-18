@@ -34,6 +34,7 @@
   "processing": "Processing...",
   "responseSentSuccessfully": "応答が正常に送信されました",
   "questionAnswered": "回答済み",
+  "questionSkipped": "スキップ",
   "yes": "はい",
   "no": "いいえ",
   "confirmation": {

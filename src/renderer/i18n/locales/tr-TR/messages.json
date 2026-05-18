@@ -34,6 +34,7 @@
   "processing": "İşleniyor...",
   "responseSentSuccessfully": "Yanıt başarıyla gönderildi",
   "questionAnswered": "Yanıtlandı",
+  "questionSkipped": "Atlandı",
   "yes": "Evet",
   "no": "Hayır",
   "confirmation": {

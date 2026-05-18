@@ -34,6 +34,7 @@
   "processing": "处理中...",
   "responseSentSuccessfully": "响应已成功发送",
   "questionAnswered": "已回答",
+  "questionSkipped": "已跳过",
   "yes": "是",
   "no": "否",
   "confirmation": {

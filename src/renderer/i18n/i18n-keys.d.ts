@@ -567,6 +567,7 @@ export type I18nKey =
   | 'messages.processing'
   | 'messages.questionAnswered'
   | 'messages.questionCancelled'
+  | 'messages.questionSkipped'
   | 'messages.yes'
   | 'messages.no'
   | 'messages.recommended'
