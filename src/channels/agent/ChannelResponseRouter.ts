@@ -114,8 +114,12 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
 
           // Send accumulated text first
           if (accumulatedText.trim()) {
-            mainLog('ChannelResponseRouter', `Channel route (WeChat): sending text (${accumulatedText.length} chars)`);
-            await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
+            mainLog('ChannelResponseRouter', `Channel route (${channelSource}): sending text (${accumulatedText.length} chars)`);
+            const msgId = await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
+            // DingTalk AI Card: finalize to remove loading indicator
+            if (channelSource === 'dingtalk' && msgId) {
+              await plugin.editMessage(channelChatId, msgId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML', replyMarkup: {} as any });
+            }
           }
 
           // Send pending files after text
