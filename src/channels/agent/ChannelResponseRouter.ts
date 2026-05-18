@@ -34,7 +34,9 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
   // For WeChat and WeCom: accumulate text and send once at finish
   // WeChat: no edit support
   // WeCom: proactive push (aibot_send_msg) only supports non-streaming markdown
-  const shouldAccumulate = channelSource === 'wechat' || channelSource === 'wecom';
+  // DingTalk: createAndDeliverAICard creates card without content; only editMessage sets it,
+  // but ChannelResponseRouter doesn't call editMessage, so each sendMessage creates an empty card.
+  const shouldAccumulate = channelSource === 'wechat' || channelSource === 'wecom' || channelSource === 'dingtalk';
   let accumulatedText = '';
   const pendingFiles: Array<{ type: 'image' | 'file'; url: string; fileName?: string }> = [];
 

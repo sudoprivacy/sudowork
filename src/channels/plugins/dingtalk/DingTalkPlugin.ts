@@ -683,6 +683,15 @@ export class DingTalkPlugin extends BasePlugin {
       inputingStarted: false,
     });
 
+    // Set initial content so the card is not empty
+    if (_initialText) {
+      try {
+        await this.streamAICard(outTrackId, _initialText);
+      } catch (error) {
+        mainWarn('DingTalkPlugin', 'Failed to set initial AI Card content', error);
+      }
+    }
+
     return messageId;
   }
 
