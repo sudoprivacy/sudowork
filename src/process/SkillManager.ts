@@ -10,6 +10,9 @@ import { app } from 'electron';
 import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { mainLog, mainError } from './utils/mainLogger';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
+import { getEnterpriseTenantSkillsDir } from './constants/enterpriseStorage';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -19,7 +22,7 @@ const VERSION_FILE_NAME = 'version.txt';
 const LEGACY_VERSION_FILE_NAME = 'sudowork-version';
 
 // Skill 分类
-export type SkillCategory = 'custom' | 'hub' | 'system';
+export type SkillCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
 // Skill 状态
 export type SkillStatus = 'enabled' | 'disabled';
@@ -62,22 +65,35 @@ export interface ISkillInfo {
  * Skill Manager 类
  */
 export class SkillManager {
-  private skillsDir: string;
-  private hubDir: string;
-  private systemDir: string;
-  private customDir: string;
+  // Use getters for dynamic directory resolution based on current mode
+  private get skillsDir(): string {
+    return getSkillsDir();
+  }
+  private get hubDir(): string {
+    return getHubSkillsDir();
+  }
+  private get systemDir(): string {
+    return getSystemSkillsDir();
+  }
+  private get customDir(): string {
+    return getCustomSkillsDir();
+  }
+  private get tenantDir(): string {
+    return getEnterpriseTenantSkillsDir();
+  }
 
   constructor() {
-    this.skillsDir = getSkillsDir();
-    this.hubDir = getHubSkillsDir();
-    this.systemDir = getSystemSkillsDir();
-    this.customDir = getCustomSkillsDir();
-    this.ensureDirs();
+    // Directory paths are now resolved dynamically via getters
+    // ensureDirs() is called on first access if needed
   }
 
   // 确保所有目录存在
   private ensureDirs(): void {
     const dirs = [this.skillsDir, this.hubDir, this.systemDir, this.customDir];
+    // Add tenant dir in enterprise mode
+    if (isEnterpriseMode()) {
+      dirs.push(this.tenantDir);
+    }
     for (const dir of dirs) {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
@@ -101,6 +117,37 @@ export class SkillManager {
 
     const existing = candidates.find((candidate) => fsExistsSync(candidate));
     return existing || candidates[0];
+  }
+
+  /**
+   * Read skill metadata file, trying both Moss and Sudowork meta file names
+   * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+   * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+   */
+  private async readSkillMetaFile(skillDir: string): Promise<{ content: string; fileName: string } | null> {
+    const isEnterprise = isEnterpriseMode();
+    const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+
+    for (const fileName of metaFiles) {
+      const filePath = path.join(skillDir, fileName);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return { content, fileName };
+      } catch {
+        // Try next file
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Write skill metadata file, using correct file name based on current mode
+   */
+  private async writeSkillMetaFile(skillDir: string, meta: ISkillMeta): Promise<void> {
+    const isEnterprise = isEnterpriseMode();
+    const fileName = isEnterprise ? MOSS_SKILL_META_FILE : SKILL_HUB_META_FILE;
+    const filePath = path.join(skillDir, fileName);
+    await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
   }
 
   // 搜索技能目录（排除 _ 开头的目录）
@@ -139,6 +186,12 @@ export class SkillManager {
       dirs.push(...builtinSubDirs);
     }
 
+    // 扫描企业模式下的 tenant 目录
+    if (isEnterpriseMode()) {
+      const tenantSubDirs = await this.scanSkillDirs(this.tenantDir);
+      dirs.push(...tenantSubDirs);
+    }
+
     return dirs;
   }
 
@@ -152,6 +205,11 @@ export class SkillManager {
       { base: this.systemDir, category: 'system' as SkillCategory },
       { base: path.join(this.systemDir, '_builtin'), category: 'system' as SkillCategory },
     ];
+
+    // Add tenant disable directory in enterprise mode
+    if (isEnterpriseMode()) {
+      disableDirs.push({ base: this.tenantDir, category: 'tenant' as SkillCategory });
+    }
 
     for (const { base } of disableDirs) {
       const disableDir = this.getDisableDir(base);
@@ -197,9 +255,9 @@ export class SkillManager {
     let isHubInstalled = category === 'hub';
     let enabled = true;
 
-    try {
-      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-      meta = JSON.parse(raw) as ISkillMeta;
+    const metaResult = await this.readSkillMetaFile(skillDir);
+    if (metaResult) {
+      meta = JSON.parse(metaResult.content) as ISkillMeta;
 
       if (!forceBuiltin && meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
@@ -221,7 +279,7 @@ export class SkillManager {
           }
         }
       }
-    } catch {
+    } else {
       // 没有 metadata 文件，默认为自定义
       meta = { source_type: 'upload' };
       isHubInstalled = false;
@@ -248,12 +306,20 @@ export class SkillManager {
     if (skillPath.startsWith(this.hubDir)) {
       return 'hub';
     }
+    if (isEnterpriseMode() && skillPath.startsWith(this.tenantDir)) {
+      return 'tenant';
+    }
     return 'custom';
   }
 
   // 获取所有已安装的技能列表
   async getInstalledSkills(): Promise<ISkillInfo[]> {
+    this.ensureDirs();
     const skills: ISkillInfo[] = [];
+
+    // Debug: log enterprise mode and directories
+    const isEnterprise = isEnterpriseMode();
+    mainLog('SkillManager', `getInstalledSkills: isEnterpriseMode=${isEnterprise}, hubDir=${this.hubDir}`);
 
     // 1. 扫描所有启用的技能目录
     const enabledDirs = await this.scanAllSkillDirs();
@@ -297,6 +363,11 @@ export class SkillManager {
       { dir: path.join(this.systemDir, '_builtin'), category: 'system' as SkillCategory },
     ];
 
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      searchDirs.splice(1, 0, { dir: this.tenantDir, category: 'tenant' as SkillCategory }); // Insert after custom
+    }
+
     // Try trimmed name first, then original name (for backward compatibility with dirs created with spaces)
     const namesToTry = [trimmedName, skillName].filter((n, i, arr) => arr.indexOf(n) === i);
 
@@ -325,39 +396,83 @@ export class SkillManager {
     return null;
   }
 
+  // 根据分类查找技能目录（优先按指定分类查找）
+  private async findSkillDirByCategory(skillName: string, category?: SkillCategory, includeDisabled = true): Promise<{ dir: string; category: SkillCategory; isDisabled: boolean } | null> {
+    // Trim skillName to handle cases where metadata had leading/trailing spaces
+    const trimmedName = skillName.trim();
+    const namesToTry = [trimmedName, skillName].filter((n, i, arr) => arr.indexOf(n) === i);
+
+    // 如果指定了分类，优先在该分类目录中查找
+    if (category) {
+      const categoryDirMap: Record<SkillCategory, string> = {
+        custom: this.customDir,
+        hub: this.hubDir,
+        system: this.systemDir,
+        tenant: this.tenantDir,
+      };
+      const baseDir = categoryDirMap[category];
+
+      // 搜索启用目录
+      for (const name of namesToTry) {
+        const skillDir = path.join(baseDir, name);
+        if (existsSync(skillDir)) {
+          return { dir: skillDir, category, isDisabled: false };
+        }
+      }
+
+      // 搜索禁用目录
+      if (includeDisabled) {
+        for (const name of namesToTry) {
+          const disableDir = this.getDisableDir(baseDir);
+          const skillDir = path.join(disableDir, name);
+          if (existsSync(skillDir)) {
+            return { dir: skillDir, category, isDisabled: true };
+          }
+        }
+      }
+
+      // 如果指定了分类但没找到，返回 null（不回退到其他分类）
+      return null;
+    }
+
+    // 未指定分类时，使用默认搜索顺序
+    return this.findSkillDir(skillName, includeDisabled);
+  }
+
   // 禁用技能
-  async disableSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async disableSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName);
+      const result = await this.findSkillDirByCategory(skillName, category);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }
 
-      const { dir: skillDir, category, isDisabled } = result;
+      const { dir: skillDir, category: foundCategory, isDisabled } = result;
 
       if (isDisabled) {
         return { success: false, msg: 'Skill is already disabled' };
       }
 
       // 检查是否为内置技能
-      try {
-        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const metaResult = await this.readSkillMetaFile(skillDir);
+      if (metaResult) {
+        const meta = JSON.parse(metaResult.content) as ISkillMeta;
         if (meta.is_builtin === true) {
           return { success: false, msg: '内置技能无法禁用' };
         }
-      } catch {
-        // 没有 metadata 文件，允许禁用
       }
 
       // 获取基础目录
       let baseDir: string;
-      switch (category) {
+      switch (foundCategory) {
         case 'system':
           baseDir = this.systemDir;
           break;
         case 'hub':
           baseDir = this.hubDir;
+          break;
+        case 'tenant':
+          baseDir = this.tenantDir;
           break;
         default:
           baseDir = this.customDir;
@@ -376,19 +491,18 @@ export class SkillManager {
       await fs.rename(skillDir, destDir);
 
       // 修改 meta
-      const metaFilePath = path.join(destDir, SKILL_HUB_META_FILE);
-      try {
-        const raw = await fs.readFile(metaFilePath, 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const existingMeta = await this.readSkillMetaFile(destDir);
+      if (existingMeta) {
+        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
         meta.enabled = false;
-        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-      } catch {
+        await this.writeSkillMetaFile(destDir, meta);
+      } else {
         // 没有 meta 文件，创建一个
-        const newMeta = { enabled: false, source_type: 'upload' };
-        await fs.writeFile(metaFilePath, JSON.stringify(newMeta, null, 2), 'utf-8');
+        const newMeta: ISkillMeta = { enabled: false, source_type: 'upload' };
+        await this.writeSkillMetaFile(destDir, newMeta);
       }
 
-      mainLog('SkillManager', `Disabled skill: ${skillName}`);
+      mainLog('SkillManager', `Disabled skill: ${skillName} (category: ${foundCategory})`);
       return { success: true };
     } catch (error) {
       mainError('SkillManager', 'Failed to disable skill:', error);
@@ -397,14 +511,14 @@ export class SkillManager {
   }
 
   // 启用技能
-  async enableSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async enableSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName, true);
+      const result = await this.findSkillDirByCategory(skillName, category, true);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }
 
-      const { dir: skillDir, category, isDisabled } = result;
+      const { dir: skillDir, category: foundCategory, isDisabled } = result;
 
       if (!isDisabled) {
         return { success: false, msg: 'Skill is already enabled' };
@@ -412,12 +526,15 @@ export class SkillManager {
 
       // 获取基础目录
       let baseDir: string;
-      switch (category) {
+      switch (foundCategory) {
         case 'system':
           baseDir = this.systemDir;
           break;
         case 'hub':
           baseDir = this.hubDir;
+          break;
+        case 'tenant':
+          baseDir = this.tenantDir;
           break;
         default:
           baseDir = this.customDir;
@@ -431,19 +548,18 @@ export class SkillManager {
       await fs.rename(skillDir, destDir);
 
       // 修改 meta
-      const metaFilePath = path.join(destDir, SKILL_HUB_META_FILE);
-      try {
-        const raw = await fs.readFile(metaFilePath, 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const existingMeta = await this.readSkillMetaFile(destDir);
+      if (existingMeta) {
+        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
         meta.enabled = true;
-        await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
-      } catch {
+        await this.writeSkillMetaFile(destDir, meta);
+      } else {
         // 没有 meta 文件，创建一个
-        const newMeta = { enabled: true, source_type: 'upload' };
-        await fs.writeFile(metaFilePath, JSON.stringify(newMeta, null, 2), 'utf-8');
+        const newMeta: ISkillMeta = { enabled: true, source_type: 'upload' };
+        await this.writeSkillMetaFile(destDir, newMeta);
       }
 
-      mainLog('SkillManager', `Enabled skill: ${skillName}`);
+      mainLog('SkillManager', `Enabled skill: ${skillName} (category: ${foundCategory})`);
       return { success: true };
     } catch (error) {
       mainError('SkillManager', 'Failed to enable skill:', error);
@@ -452,9 +568,9 @@ export class SkillManager {
   }
 
   // 卸载技能
-  async uninstallSkill(skillName: string): Promise<{ success: boolean; msg?: string }> {
+  async uninstallSkill(skillName: string, category?: SkillCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = await this.findSkillDir(skillName, true);
+      const result = await this.findSkillDirByCategory(skillName, category, true);
       if (!result) {
         return { success: false, msg: 'Skill not found' };
       }
@@ -462,14 +578,12 @@ export class SkillManager {
       const { dir: skillDir, isDisabled } = result;
 
       // 检查是否为内置技能
-      try {
-        const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as ISkillMeta;
+      const metaResult = await this.readSkillMetaFile(skillDir);
+      if (metaResult) {
+        const meta = JSON.parse(metaResult.content) as ISkillMeta;
         if (meta.is_builtin === true) {
           return { success: false, msg: '内置技能无法卸载' };
         }
-      } catch {
-        // 没有 meta 文件，允许卸载
       }
 
       await fs.rm(skillDir, { recursive: true, force: true });

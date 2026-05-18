@@ -18,6 +18,8 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];
   status: 'pending' | 'running' | 'finished' | 'idle' | undefined;
+  /** 处理开始时间戳（毫秒）/ Processing start timestamp in milliseconds */
+  processingStartTime: number | undefined;
 
   /**
    * Whether this agent is in yolo mode (auto-approve)

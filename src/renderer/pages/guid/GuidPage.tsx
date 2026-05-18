@@ -560,11 +560,19 @@ const GuidPage: React.FC = () => {
     return { avatarValue, avatarImage, isImageAvatar };
   }, [selectedAssistantConfig]);
 
-  // Resolve current assistant agent type for dropdown
+  // Resolve current assistant agent type for dropdown.
+  // In enterprise mode, the runtime backend is determined by sessionMode (remote-agent / scode),
+  // not by the assistant metadata's presetAgentType. Display the actual backend so the logo
+  // matches the conversation that will be created (app logo for enterprise users).
+  // 企业模式下真正的后端由 sessionMode 决定（remote-agent / scode），与助手元数据中的 presetAgentType 无关，
+  // 这里按实际后端展示，避免本地元数据里残留的 'claude' 导致 logo 误显示。
   const currentAssistantAgentType = useMemo(() => {
     if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
+    if (isEnterprise) {
+      return agentSelection.sessionMode === 'remote' ? 'remote-agent' : 'scode';
+    }
     return normalizePresetAgentType(selectedAssistantConfig.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE;
-  }, [selectedAssistantConfig]);
+  }, [selectedAssistantConfig, isEnterprise, agentSelection.sessionMode]);
 
   // Whether we are in selected assistant mode (preset or user-created custom)
   const isAssistantMode = selectedAssistantConfig !== null;

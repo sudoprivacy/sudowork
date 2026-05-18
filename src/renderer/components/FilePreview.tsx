@@ -10,7 +10,7 @@ import type { PreviewContentType } from '@/common/types/preview';
 import { getFileExtension } from '@/renderer/services/FileService';
 import { ipcBridge } from '@/common';
 import { Image } from '@arco-design/web-react';
-import fileIcon from '@/renderer/assets/file-icon.svg';
+import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
@@ -155,7 +155,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
         onClick={handlePreviewClick}
       >
         <div className='w-40px h-40px rd-8px flex items-center justify-center flex-shrink-0'>
-          <img className='w-full h-full object-contain' src={fileIcon} alt='File Icon' />
+          {resolveFileIcon(fileName, { size: 28, theme: 'filled' })}
         </div>
         <div className='flex flex-col gap-2px min-w-0'>
           <span className='text-14px text-t-primary max-w-150px truncate'>{fileName}</span>

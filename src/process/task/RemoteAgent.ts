@@ -8,6 +8,7 @@ import BaseAgent from './BaseAgent';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
+import type { TMessage } from '@/common/chatLib';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '../utils/mainLogger';
@@ -241,6 +242,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     this.status = 'running';
+    this.processingStartTime = Date.now();
 
     try {
       mainLog('RemoteAgent', 'Calling initAgent...');
@@ -315,19 +317,33 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   /**
-   * Emit user cancelled message
-   * 发送用户终止提示消息
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
    */
   private emitUserCancelledMessage(): void {
-    ipcBridge.conversation.responseStream.emit({
-      type: 'tips',
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
       conversation_id: this.conversation_id,
       msg_id: uuid(36),
-      data: {
-        type: 'warning',
-        content: '请求已被用户终止',
-      },
-    });
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass any message filtering
+    ipcBridge.conversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   /**

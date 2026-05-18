@@ -65,7 +65,8 @@ export async function processAtFileReferences(content: string, workspace: string
 
   for (const atPath of atPaths) {
     const matchedUploadFile = uploadedFiles?.find((filePath) => {
-      if (atPath === filePath) return true;
+      const normalizedFilePath = filePath.replace(/\\/g, '/');
+      if (atPath === normalizedFilePath) return true;
       const fileName = filePath.split(/[\\/]/).pop() || filePath;
       return atPath === fileName;
     });

@@ -7,7 +7,7 @@ import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -43,6 +43,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const updateMessageList = useUpdateMessageList();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -52,6 +53,7 @@ const useAcpMessage = (conversation_id: string) => {
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [contextLimit, setContextLimit] = useState<number>(0);
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>(undefined);
 
   // Use refs to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
@@ -146,6 +148,23 @@ const useAcpMessage = (conversation_id: string) => {
       if (pendingTimeout && shouldCancelAcpFinishTimeout(message.type)) {
         clearTimeout(pendingTimeout);
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      }
+
+      // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
+      // 在 transformMessage 之前处理 clear_incomplete_tools（它不是标准消息类型）
+      if (message.type === 'clear_incomplete_tools') {
+        // Clear all tool calls from message list (user cancelled)
+        // 清理消息列表中所有工具调用（用户终止）
+        updateMessageList((list) => {
+          return list.filter((msg) => {
+            // Remove all tool-related messages
+            if (msg.type === 'acp_tool_call') return false;
+            if (msg.type === 'codex_tool_call') return false;
+            if (msg.type === 'tool_call') return false;
+            return true;
+          });
+        });
+        return;
       }
 
       let transformedMessage: TMessage | undefined;
@@ -347,6 +366,7 @@ const useAcpMessage = (conversation_id: string) => {
         runningRef.current = false;
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
         return;
       }
       const isRunning = res.status === 'running';
@@ -354,6 +374,14 @@ const useAcpMessage = (conversation_id: string) => {
       runningRef.current = isRunning;
       setAiProcessing(isRunning);
       aiProcessingRef.current = isRunning;
+
+      // Restore processingStartTime for timer restoration
+      // 恢复 processingStartTime 用于计时器恢复
+      if (res.processingStartTime) {
+        setProcessingStartTime(res.processingStartTime);
+      } else {
+        setProcessingStartTime(undefined);
+      }
 
       // Restore persisted context usage data
       if (res.type === 'acp' && res.extra?.lastTokenUsage) {
@@ -384,7 +412,7 @@ const useAcpMessage = (conversation_id: string) => {
     hasContentInTurnRef.current = false;
   }, []);
 
-  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit };
+  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, processingStartTime };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -429,7 +457,7 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
-  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
+  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit, processingStartTime } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -740,7 +768,7 @@ const AcpSendBox: React.FC<{
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
@@ -865,6 +893,17 @@ const AcpSendBox: React.FC<{
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
         workspaceFiles={workspaceFiles}
+        onAtFileSelected={(file) => {
+          const item: FileOrFolderItem = {
+            path: file.fullPath,
+            name: file.name,
+            isFile: file.isFile,
+            relativePath: file.relativePath,
+          };
+          const newAtPath = mergeFileSelectionItems([...atPath], [item]);
+          setAtPath(newAtPath);
+          emitter.emit('acp.selected.file.append', [item]);
+        }}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

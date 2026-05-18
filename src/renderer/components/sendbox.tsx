@@ -58,7 +58,9 @@ const SendBox: React.FC<{
   onSkillsChange?: (skills: string[]) => void;
   /** Workspace files for @ file references */
   workspaceFiles?: WorkspaceFileItem[];
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles }) => {
+  /** Called when a file is selected via @ selector, allowing parent to track the file */
+  onAtFileSelected?: (file: WorkspaceFileItem) => void;
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles, onAtFileSelected }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -353,6 +355,7 @@ const SendBox: React.FC<{
       // Replace @query with @relativePath in input
       const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
       setInput(newInput);
+      onAtFileSelected?.(file);
     },
   });
 

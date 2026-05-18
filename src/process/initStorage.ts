@@ -17,7 +17,9 @@ import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, 
 import { getDatabase } from './database/export';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
-import { SKILL_SUBDIRS } from './constants/skillStorage';
+import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -279,27 +281,36 @@ const getAssistantsDir = () => {
 };
 
 /**
- * 获取 Hub 安装助手目录路径 (_hub 子目录)
+ * 获取 Hub 安装助手目录路径
  * Get hub-installed assistants directory path
+ * Enterprise mode: assistants/hub
+ * Personal mode: assistants/_hub
  */
 const getHubAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_hub');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.hub);
 };
 
 /**
- * 获取系统/内置助手目录路径 (_system 子目录)
+ * 获取系统/内置助手目录路径
  * Get system/builtin assistants directory path
+ * Enterprise mode: assistants/system
+ * Personal mode: assistants/_system
  */
 const getSystemAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_system');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.system);
 };
 
 /**
- * 获取自定义助手目录路径 (_my-custom-assistant 子目录)
+ * 获取自定义助手目录路径
  * Get custom assistants directory path
+ * Enterprise mode: assistants/custom
+ * Personal mode: assistants/_my-custom-assistant
  */
 const getCustomAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_my-custom-assistant');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.custom);
 };
 
 /**
@@ -311,16 +322,19 @@ const getSkillsDir = () => {
 };
 
 /**
- * 获取系统技能根目录路径（_system 子目录）
- * Get system skills root directory path (_system subdirectory)
+ * 获取系统技能根目录路径
+ * Get system skills root directory path
+ * Enterprise mode: skills/system
+ * Personal mode: skills/_system
  */
 const getSystemSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.system);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.system);
 };
 
 /**
- * 获取内置技能目录路径（_system/_builtin 子目录）
- * Get builtin skills directory path (_system/_builtin subdirectory)
+ * 获取内置技能目录路径
+ * Get builtin skills directory path
  * Skills in this directory are automatically injected for ALL agents and scenarios
  */
 const getBuiltinSkillsDir = () => {
@@ -330,17 +344,23 @@ const getBuiltinSkillsDir = () => {
 /**
  * 获取 Hub 安装技能目录路径
  * Get hub-installed skills directory path
+ * Enterprise mode: skills/hub
+ * Personal mode: skills/_hub
  */
 const getHubSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.hub);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.hub);
 };
 
 /**
  * 获取自定义上传技能目录路径
  * Get custom uploaded skills directory path
+ * Enterprise mode: skills/custom
+ * Personal mode: skills/_my-custom-skill
  */
 const getCustomSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.custom);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.custom);
 };
 
 /**
@@ -1084,13 +1104,7 @@ const initStorage = async () => {
   const channelAgentMigrationDone = await configFile.get(CHANNEL_AGENT_MIGRATION_KEY).catch(() => false);
   if (!channelAgentMigrationDone) {
     try {
-      const CHANNEL_AGENT_KEYS = [
-        'assistant.telegram.agent',
-        'assistant.lark.agent',
-        'assistant.dingtalk.agent',
-        'assistant.wechat.agent',
-        'assistant.wecom.agent',
-      ] as const;
+      const CHANNEL_AGENT_KEYS = ['assistant.telegram.agent', 'assistant.lark.agent', 'assistant.dingtalk.agent', 'assistant.wechat.agent', 'assistant.wecom.agent'] as const;
       for (const key of CHANNEL_AGENT_KEYS) {
         const saved = await configFile.get(key).catch(() => undefined);
         if (saved && typeof saved === 'object' && (saved as any).backend === 'openclaw-gateway') {
@@ -1145,6 +1159,28 @@ export { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCusto
  */
 const skillsContentCache = new Map<string, string>();
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+const MOSS_SKILL_META_FILE = '_moss_meta.json';
+
+/**
+ * Read skill metadata file, trying both Moss and Sudowork meta file names
+ * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+ * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+ */
+async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enabled?: boolean } | null> {
+  const isEnterprise = isEnterpriseMode();
+  const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+
+  for (const fileName of metaFiles) {
+    const filePath = path.join(skillDir, fileName);
+    try {
+      const raw = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(raw) as { enabled?: boolean };
+    } catch {
+      // Try next file
+    }
+  }
+  return null;
+}
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
   const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
@@ -1159,25 +1195,21 @@ export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
 
   // Search in all subdirectories for the skill metadata
   for (const subdir of subdirs) {
-    const skillMetaPath = path.join(getSkillsDir(), subdir, skillName, SKILL_HUB_META_FILE);
-    try {
-      const raw = await fs.readFile(skillMetaPath, 'utf-8');
-      const meta = JSON.parse(raw) as { enabled?: boolean };
+    const skillDir = path.join(getSkillsDir(), subdir, skillName);
+    const meta = await readSkillMetaFileWithFallback(skillDir);
+    if (meta) {
       return meta.enabled !== false;
-    } catch {
-      // Not found in this subdir, continue
     }
   }
 
   // Fallback: check legacy flat path for backward compatibility
-  const legacyMetaPath = path.join(getSkillsDir(), skillName, SKILL_HUB_META_FILE);
-  try {
-    const raw = await fs.readFile(legacyMetaPath, 'utf-8');
-    const meta = JSON.parse(raw) as { enabled?: boolean };
+  const legacySkillDir = path.join(getSkillsDir(), skillName);
+  const meta = await readSkillMetaFileWithFallback(legacySkillDir);
+  if (meta) {
     return meta.enabled !== false;
-  } catch {
-    return true;
   }
+
+  return true;
 }
 
 /**

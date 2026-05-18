@@ -6,6 +6,12 @@
 
 set -euo pipefail
 
+# Detect available Python command (python3 may be a non-functional stub on Windows)
+PYTHON_CMD="python3"
+if ! command -v python3 >/dev/null 2>&1 || ! python3 -c "pass" 2>/dev/null; then
+  PYTHON_CMD="python"
+fi
+
 IMAGE_PATH="${1:-}"
 PROMPT="${2:-Describe this image in detail.}"
 
@@ -21,7 +27,7 @@ fi
 
 # Read BASE_URL, API_KEY, and MODEL from sudoclaw.json (with env var overrides)
 if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
-  eval "$(python3 -c "
+  eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
@@ -58,7 +64,7 @@ echo "[analyze_image] Prompt: $PROMPT" >&2
 
 # Build JSON payload via python (reads image file directly to avoid arg size limits)
 # and pipe to curl
-RESPONSE=$(python3 -c "
+RESPONSE=$($PYTHON_CMD -c "
 import json, sys, base64
 
 image_path = sys.argv[1]
@@ -106,7 +112,7 @@ echo "[analyze_image] Response length: ${#RESPONSE}" >&2
 echo "[analyze_image] Response preview: ${RESPONSE:0:200}" >&2
 
 # Extract the response content
-echo "$RESPONSE" | python3 -c "
+echo "$RESPONSE" | $PYTHON_CMD -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
