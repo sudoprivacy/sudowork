@@ -165,7 +165,6 @@ export class LocalConversationProvider implements IConversationProvider {
       const all = [...localDbConversations, ...fileOnly];
       all.sort((a, b) => (b.modifyTime || b.createTime || 0) - (a.modifyTime || a.createTime || 0));
 
-      mainLog('LocalProvider', `Listed ${all.length} local conversations (filtered out remote-agent)`);
       return all;
     } catch (error) {
       mainError('LocalProvider', 'Failed to list conversations:', error);
