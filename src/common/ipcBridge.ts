@@ -363,6 +363,7 @@ export const mode = {
 export const acpConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: conversation.responseStream,
+  answerQuestion: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }>('acp.answer-question'),
   detectCliPath: bridge.buildProvider<IBridgeResponse<{ path?: string }>, { backend: AcpBackend }>('acp.detect-cli-path'),
   getAvailableAgents: bridge.buildProvider<
     IBridgeResponse<

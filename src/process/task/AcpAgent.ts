@@ -15,7 +15,7 @@ import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
-import type { CronMessageMeta, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
@@ -23,7 +23,7 @@ import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
@@ -136,6 +136,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private connection: AcpConnection;
   private adapter: AcpAdapter;
   private pendingPermissions = new Map<string, { resolve: (response: { optionId: string }) => void; reject: (error: Error) => void }>();
+  private pendingQuestions = new Map<string, { resolve: (response: { answers: AcpQuestionResponseAnswer[] }) => void; reject: (error: Error) => void; msgId: string }>();
   private approvalStore = new AcpApprovalStore();
   private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
   private pendingNavigationTools = new Set<string>();
@@ -216,6 +217,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     };
     this.connection.onPermissionRequest = (data: AcpPermissionRequest) => {
       return this.handlePermissionRequest(data);
+    };
+    this.connection.onQuestionRequest = (data: AcpQuestionRequest) => {
+      return this.handleQuestionRequest(data);
     };
     this.connection.onEndTurn = () => {
       this.handleEndTurn();
@@ -1085,6 +1089,28 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
+    mainLog(
+      `[AcpAgent] answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`,
+    );
+    if (!this.pendingQuestions.has(toolCallId)) {
+      throw new Error(`Question request not found: ${toolCallId}`);
+    }
+
+    const pending = this.pendingQuestions.get(toolCallId)!;
+    this.pendingQuestions.delete(toolCallId);
+
+    // Persist the answered state so the card survives DB reloads / tab switches.
+    // 持久化已回答状态，确保切换会话或重新加载后卡片仍显示用户选择。
+    try {
+      this.emitQuestionAnswered(pending.msgId, answers);
+    } catch {
+      // Best-effort UI persistence; never let emit errors mask the resolve.
+    }
+
+    pending.resolve({ answers });
+  }
+
   async stop(): Promise<void> {
     // Telemetry: end conversation tracking (user cancel)
     endConversationUserCancel(this.conversation_id);
@@ -1104,6 +1130,11 @@ This identity statement takes priority over the default identity in USER.md.
       pending.reject(new Error('Cancelled'));
     }
     this.pendingPermissions.clear();
+    for (const [, pending] of this.pendingQuestions) {
+      this.emitQuestionCancelled(pending.msgId);
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingQuestions.clear();
     this.permissionRequestMeta.clear();
 
     // 3. Clear confirmation UI
@@ -1468,6 +1499,13 @@ This identity statement takes priority over the default identity in USER.md.
             this.handleStreamEvent(previewMessage);
           }
         }
+
+        if (this.extra.backend !== 'scode') {
+          const questionMessage = this.adapter.buildQuestionMessageFromToolCall(toolCallUpdate);
+          if (questionMessage) {
+            this.emitMessage(questionMessage);
+          }
+        }
       }
 
       if (data.update?.sessionUpdate === 'tool_call_update') {
@@ -1650,8 +1688,163 @@ This identity statement takes priority over the default identity in USER.md.
           this.pendingPermissions.delete(requestId);
           reject(new Error('Permission request timed out'));
         }
-      }, 70000);
+      }, 10 * 60 * 1000);
     });
+  }
+
+  private handleQuestionRequest(data: AcpQuestionRequest): Promise<{ answers: AcpQuestionResponseAnswer[] }> {
+    return new Promise((resolve, reject) => {
+      const requestId = this.resolveQuestionRequestId(data.toolCallId);
+
+      if (this.pendingQuestions.has(requestId)) {
+        const oldRequest = this.pendingQuestions.get(requestId);
+        if (oldRequest) {
+          oldRequest.reject(new Error('Replaced by new question request'));
+        }
+        this.pendingQuestions.delete(requestId);
+      }
+
+      const msgId = `${requestId}-user-msg`;
+      this.pendingQuestions.set(requestId, { resolve, reject, msgId });
+
+      try {
+        this.emitMessage({
+          id: uuid(),
+          type: 'acp_question',
+          msg_id: msgId,
+          conversation_id: this.conversation_id,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            question: data.title || data.description || data.questions[0]?.prompt || 'Question',
+            intro: data.description,
+            options: [],
+            items: data.questions.map((question) => ({
+              id: question.id,
+              prompt: question.prompt,
+              kind: question.kind,
+              options: question.options.map((option) => ({
+                label: option.label,
+                value: option.value,
+                description: option.description,
+                recommended: option.recommended === true,
+              })),
+              allowCustomInput: question.allowCustomInput === true,
+              customInputHint: question.customInputHint,
+              optional: !question.required,
+            })),
+            conversationId: this.conversation_id,
+            toolCallId: requestId,
+            answered: false,
+          },
+        });
+      } catch (error) {
+        this.pendingQuestions.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+
+      setTimeout(() => {
+        if (this.pendingQuestions.has(requestId)) {
+          this.pendingQuestions.delete(requestId);
+          mainWarn('AcpAgent', `Question request timed out: requestId=${requestId}`);
+          this.emitQuestionCancelled(msgId);
+          reject(new Error('Question request timed out'));
+        }
+      }, 10 * 60 * 1000);
+    });
+  }
+
+  /**
+   * Emit an acp_question update that records the user's answers so the card
+   * stays in the "answered" state after DB persistence / tab switches.
+   * 发送一个 acp_question 更新，将用户答案持久化到消息存储，避免切换会话后回显丢失。
+   */
+  private emitQuestionAnswered(msgId: string, answers: AcpQuestionResponseAnswer[]): void {
+    const answerItems = answers.map((answer, idx) => {
+      const submissionValue = answer.value ?? '';
+      const labelValue = typeof answer.label === 'string' ? answer.label : '';
+      const skipped = submissionValue === '[skipped]';
+      const displayValue = skipped ? '' : labelValue || submissionValue;
+      return {
+        id: answer.id,
+        index: idx + 1,
+        submissionValue,
+        displayValue,
+        skipped,
+      };
+    });
+
+    let selectedAnswer: string;
+    if (answerItems.length === 1) {
+      const only = answerItems[0];
+      selectedAnswer = only.displayValue || '[skipped]';
+    } else {
+      selectedAnswer = answerItems
+        .map((item) => `${item.index}. ${item.skipped ? '[skipped]' : item.displayValue}`)
+        .join('\n');
+    }
+
+    // Only include the fields that change: question/options/items/intro must be
+    // omitted so chatLib.composeMessage's shallow merge does not clobber the
+    // original prompt text on tab-switch reload.
+    // 只发送变化字段；composeMessage 用浅合并，若包含 question/options 会覆盖原始题面。
+    const partialContent = {
+      conversationId: this.conversation_id,
+      answered: true,
+      selectedAnswer,
+      answerItems,
+    } as unknown as AcpQuestionData;
+
+    this.emitMessage({
+      id: uuid(),
+      type: 'acp_question',
+      msg_id: msgId,
+      conversation_id: this.conversation_id,
+      createdAt: Date.now(),
+      position: 'left',
+      content: partialContent,
+    });
+  }
+
+  /**
+   * Emit an acp_question update that marks the card as cancelled, so the renderer
+   * can switch out of the interactive state when stop() or the timeout fires.
+   * 发送一个 acp_question 更新，将卡片标记为已取消，便于渲染端退出交互态。
+   */
+  private emitQuestionCancelled(msgId: string): void {
+    try {
+      this.emitMessage({
+        id: uuid(),
+        type: 'acp_question',
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        createdAt: Date.now(),
+        position: 'left',
+        content: {
+          // Required by AcpQuestionData; the renderer merges partial updates by msg_id.
+          question: '',
+          options: [],
+          conversationId: this.conversation_id,
+          answered: true,
+          cancelled: true,
+        },
+      });
+    } catch {
+      // Best-effort UI hint; never let emit errors mask the underlying rejection.
+    }
+  }
+
+  private resolveQuestionRequestId(requestToolCallId: string): string {
+    if (requestToolCallId && this.toolCallMeta.has(requestToolCallId)) {
+      return requestToolCallId;
+    }
+
+    const latestAskUserQuestion = Array.from(this.toolCallMeta.entries())
+      .reverse()
+      .find(([, meta]) => meta.toolName === 'AskUserQuestion');
+
+    return latestAskUserQuestion?.[0] || requestToolCallId;
   }
 
   private handleEndTurn(): void {
@@ -2037,6 +2230,10 @@ This identity statement takes priority over the default identity in USER.md.
         break;
       case 'acp_permission':
         responseMessage.type = 'acp_permission';
+        responseMessage.data = message.content;
+        break;
+      case 'acp_question':
+        responseMessage.type = 'acp_question';
         responseMessage.data = message.content;
         break;
       case 'tips': {

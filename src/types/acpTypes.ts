@@ -599,7 +599,10 @@ export interface AcpRequest {
 
 export interface AcpResponse {
   jsonrpc: typeof JSONRPC_VERSION;
-  id: number;
+  // JSON-RPC 2.0 allows id to be either a number or a string. ACP's Rust SDK
+  // allocates request ids as uuid strings, so responses to peer-initiated
+  // requests (e.g. `_scode/ask_user_question`) must echo the same string id.
+  id: number | string;
   result?: unknown;
   error?: {
     code: number;
@@ -923,6 +926,7 @@ export interface AcpFileReadRequest extends AcpRequest {
 export const ACP_METHODS = {
   SESSION_UPDATE: 'session/update',
   REQUEST_PERMISSION: 'session/request_permission',
+  ASK_USER_QUESTION: '_scode/ask_user_question',
   READ_TEXT_FILE: 'fs/read_text_file',
   WRITE_TEXT_FILE: 'fs/write_text_file',
   SET_CONFIG_OPTION: 'session/set_config_option',
@@ -948,6 +952,46 @@ export interface AcpPermissionRequestMessage {
   id: number;
   method: typeof ACP_METHODS.REQUEST_PERMISSION;
   params: AcpPermissionRequest;
+}
+
+export type AcpQuestionKind = 'single_select' | 'multi_select' | 'text' | 'boolean';
+
+export interface AcpQuestionRequestOption {
+  label: string;
+  value: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface AcpQuestionRequestItem {
+  id: string;
+  prompt: string;
+  kind?: AcpQuestionKind;
+  required: boolean;
+  allowCustomInput?: boolean;
+  customInputHint?: string;
+  options: AcpQuestionRequestOption[];
+}
+
+export interface AcpQuestionRequest {
+  sessionId: string;
+  toolCallId: string;
+  title?: string;
+  description?: string;
+  questions: AcpQuestionRequestItem[];
+}
+
+export interface AcpQuestionResponseAnswer {
+  id: string;
+  value: string;
+  label?: string;
+}
+
+export interface AcpQuestionRequestMessage {
+  jsonrpc: typeof JSONRPC_VERSION;
+  id: number;
+  method: typeof ACP_METHODS.ASK_USER_QUESTION;
+  params: AcpQuestionRequest;
 }
 
 /** 文件读取请求（带类型化 params）/ File read request (with typed params) */
@@ -980,4 +1024,4 @@ export interface AcpFileWriteMessage {
  * ACP incoming message union type.
  * TypeScript can automatically narrow the type based on the method field.
  */
-export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage;
+export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpQuestionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage;

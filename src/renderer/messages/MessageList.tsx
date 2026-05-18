@@ -69,6 +69,11 @@ const isDarkMode = () => {
   return document.documentElement.getAttribute('data-theme') === 'dark';
 };
 
+const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
+  const title = message.content?.update?.title;
+  return title === 'AskUserQuestion' || title === 'SendUserMessage';
+};
+
 const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = React.memo(
   HOC((props) => {
     const { message, isStreaming } = props as { message: TMessage; isStreaming?: boolean };
@@ -338,6 +343,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         continue;
       }
       if (message.type === 'acp_tool_call') {
+        if (isUserFacingAcpToolCall(message)) {
+          toolList = [];
+          diffsChanges = [];
+          continue;
+        }
         pushToolList(message);
         continue;
       }

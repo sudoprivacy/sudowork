@@ -186,18 +186,71 @@ export type IMessageAgentStatus = IMessage<
 
 export type IMessageAcpPermission = IMessage<'acp_permission', AcpPermissionRequest>;
 
+export type AcpQuestionItemKind = 'single_select' | 'multi_select' | 'text' | 'boolean';
+
+export interface AcpQuestionItemOption {
+  /** User-facing label */
+  label: string;
+  /** Backing submission value */
+  value: string;
+  /** Optional explanatory description */
+  description?: string;
+  /** Recommended option highlighted in UI */
+  recommended?: boolean;
+}
+
+export interface AcpQuestionItem {
+  /** Stable key for local form state */
+  id: string;
+  /** Prompt text for the individual question */
+  prompt: string;
+  /** Question kind controlling UI rendering */
+  kind?: AcpQuestionItemKind;
+  /** Suggested or strict options for this question */
+  options?: AcpQuestionItemOption[];
+  /** Whether free-form input is allowed */
+  allowCustomInput?: boolean;
+  /** Optional hint shown when custom input is enabled */
+  customInputHint?: string;
+  /** Whether the question can be left blank */
+  optional?: boolean;
+}
+
+export interface AcpQuestionAnswerItem {
+  /** Stable key matching AcpQuestionItem.id */
+  id: string;
+  /** Question index starting from 1 */
+  index: number;
+  /** User-visible display value */
+  displayValue: string;
+  /** Structured submission value */
+  submissionValue: string;
+  /** Whether the answer was skipped */
+  skipped?: boolean;
+}
+
 /** ACP Question request data (from AskUserQuestion tool) */
 export interface AcpQuestionData {
   /** The question text to display */
   question: string;
-  /** Clickable options for the user to select */
+  /** Optional intro/header text for multi-question prompts */
+  intro?: string;
+  /** Clickable options for the user to select (legacy single-question shape) */
   options: string[];
+  /** Parsed question items for multi-question prompts */
+  items?: AcpQuestionItem[];
   /** The conversation ID to send the answer back to */
   conversationId: string;
+  /** The originating tool call ID */
+  toolCallId?: string;
   /** Whether the question has been answered */
   answered?: boolean;
+  /** Whether the question was cancelled (user stopped or timed out) before being answered */
+  cancelled?: boolean;
   /** The selected answer (set after user responds) */
   selectedAnswer?: string;
+  /** Per-question answer state for consistent hydration */
+  answerItems?: AcpQuestionAnswerItem[];
 }
 
 export type IMessageAcpQuestion = IMessage<'acp_question', AcpQuestionData>;
@@ -603,6 +656,18 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
       }
     }
     // If no existing tool call found, add new one
+    return pushMessage(message);
+  }
+
+  // Handle acp_question message merging by msg_id so cancel/timeout updates patch the original card
+  if (message.type === 'acp_question' && message.msg_id) {
+    for (let i = 0, len = list.length; i < len; i++) {
+      const msg = list[i];
+      if (msg.type === 'acp_question' && msg.msg_id === message.msg_id) {
+        const merged = { ...msg.content, ...message.content };
+        return updateMessage(i, { ...msg, content: merged });
+      }
+    }
     return pushMessage(message);
   }
 
