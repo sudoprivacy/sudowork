@@ -411,10 +411,15 @@ export class DingTalkPlugin extends BasePlugin {
       const extracted = this.extractLocalImageRefs(textContent);
       textContent = extracted.cleanText;
       localImages = extracted.imagePaths;
+      // If text was fully extracted as images, just send the images directly
+      if (!textContent && localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+        return '';
+      }
     }
 
     // Try AI Card streaming for text/markdown messages
-    if (contentType === 'markdown' && textContent !== undefined) {
+    if (contentType === 'markdown' && textContent !== undefined && textContent !== '') {
       try {
         const cardMessageId = await this.createAndDeliverAICard(chatType, id, textContent);
         // Send extracted local images after text

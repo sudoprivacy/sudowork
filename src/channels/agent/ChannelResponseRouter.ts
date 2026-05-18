@@ -117,8 +117,13 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
             mainLog('ChannelResponseRouter', `Channel route (${channelSource}): sending text (${accumulatedText.length} chars)`);
             const msgId = await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
             // DingTalk AI Card: finalize to remove loading indicator
+            // Strip local image markdown from text to prevent editMessage from re-extracting and re-sending images
             if (channelSource === 'dingtalk' && msgId) {
-              await plugin.editMessage(channelChatId, msgId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML', replyMarkup: {} as any });
+              const cleanForEdit = accumulatedText.trim().replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+                if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
+                return '';
+              }).replace(/\n{3,}/g, '\n\n').trim();
+              await plugin.editMessage(channelChatId, msgId, { type: 'text', text: cleanForEdit, parseMode: 'HTML', replyMarkup: {} as any });
             }
           }
 
