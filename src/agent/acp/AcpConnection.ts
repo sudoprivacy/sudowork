@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { ChildProcess } from 'child_process';
 import { execFile as execFileCb } from 'child_process';
@@ -61,6 +61,9 @@ export class AcpConnection {
   public onPermissionRequest: (data: AcpPermissionRequest) => Promise<{
     optionId: string;
   }> = () => Promise.resolve({ optionId: 'allow' }); // Returns a resolved Promise for interface consistency
+  public onQuestionRequest: (data: AcpQuestionRequest) => Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> = () => Promise.resolve({ answers: [] });
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
   public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
@@ -624,6 +627,13 @@ export class AcpConnection {
 
   private sendResponseMessage(response: AcpResponse): void {
     if (this.child) {
+      try {
+        mainLog(
+          `[ACP-DIAG] sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`,
+        );
+      } catch {
+        // ignore log errors
+      }
       if (this.useLspFraming) {
         writeJsonRpcMessageLsp(this.child, response);
       } else {
@@ -677,6 +687,8 @@ export class AcpConnection {
     try {
       let result = null;
 
+      mainLog('ACP-DIAG', 'incoming method:', message.method);
+
       // 可辨识联合类型：TypeScript 根据 method 字面量自动窄化 params 类型
       switch (message.method) {
         case ACP_METHODS.SESSION_UPDATE:
@@ -704,6 +716,9 @@ export class AcpConnection {
         case ACP_METHODS.REQUEST_PERMISSION:
           result = await this.handlePermissionRequest(message.params);
           break;
+        case ACP_METHODS.ASK_USER_QUESTION:
+          result = await this.handleQuestionRequest(message.params);
+          break;
         case ACP_METHODS.READ_TEXT_FILE:
           result = await this.handleReadOperation(message.params);
           break;
@@ -712,8 +727,14 @@ export class AcpConnection {
           break;
       }
 
-      // If this is a request (has id), send response
-      if ('id' in message && typeof message.id === 'number') {
+      // If this is a request (has id), send response.
+      // JSON-RPC 2.0 allows id to be either a number or a string. The ACP
+      // Rust SDK (agent-client-protocol) allocates request ids as uuid
+      // strings via `Id::String(uuid::Uuid::new_v4().to_string())`, so we
+      // MUST accept string ids — narrowing to `number` here silently drops
+      // every response and hangs scode's `.await` for ext methods like
+      // `_scode/ask_user_question`.
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -721,7 +742,7 @@ export class AcpConnection {
         });
       }
     } catch (error) {
-      if ('id' in message && typeof message.id === 'number') {
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -763,6 +784,17 @@ export class AcpConnection {
       };
     } finally {
       // 无论成功还是失败，都恢复 session/prompt 请求的超时计时器
+      this.resumeSessionPromptTimeouts();
+    }
+  }
+
+  private async handleQuestionRequest(params: AcpQuestionRequest): Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> {
+    this.pauseSessionPromptTimeouts();
+    try {
+      return await this.onQuestionRequest(params);
+    } finally {
       this.resumeSessionPromptTimeouts();
     }
   }

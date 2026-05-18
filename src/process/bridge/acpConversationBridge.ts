@@ -404,4 +404,53 @@ export function initAcpConversationBridge(): void {
       return { success: false, msg: errorMsg };
     }
   });
+
+  ipcBridge.acpConversation.answerQuestion.provider(async ({ conversationId, toolCallId, answers }) => {
+    mainLog(
+      `[acpConversationBridge] answerQuestion called conv=${conversationId} toolCallId=${toolCallId} answerCount=${Array.isArray(answers) ? answers.length : 'N/A'}`,
+    );
+    if (!conversationId || typeof conversationId !== 'string') {
+      return { success: false, msg: 'Invalid conversationId' };
+    }
+    if (!toolCallId || typeof toolCallId !== 'string') {
+      return { success: false, msg: 'Invalid toolCallId' };
+    }
+    if (!Array.isArray(answers) || answers.length === 0) {
+      return { success: false, msg: 'answers must be a non-empty array' };
+    }
+
+    const sanitized: Array<{ id: string; value: string; label?: string }> = [];
+    for (const entry of answers) {
+      if (!entry || typeof entry !== 'object') {
+        return { success: false, msg: 'Invalid answer entry' };
+      }
+      const candidate = entry as { id?: unknown; value?: unknown; label?: unknown };
+      if (typeof candidate.id !== 'string' || !candidate.id.trim()) {
+        return { success: false, msg: 'Answer is missing id' };
+      }
+      if (typeof candidate.value !== 'string') {
+        return { success: false, msg: `Answer ${candidate.id} value must be a string` };
+      }
+      sanitized.push({
+        id: candidate.id,
+        value: candidate.value,
+        label: typeof candidate.label === 'string' ? candidate.label : undefined,
+      });
+    }
+
+    const task = WorkerManage.getTaskById(conversationId);
+    if (!task || !(task instanceof AcpAgent)) {
+      return { success: false, msg: 'Conversation not found or not an ACP agent' };
+    }
+
+    try {
+      await task.answerQuestion(toolCallId, sanitized);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 }

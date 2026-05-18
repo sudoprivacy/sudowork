@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, AcpQuestionItem, AcpQuestionItemKind, AcpQuestionItemOption, IMessageAcpQuestion, IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 
@@ -178,6 +178,215 @@ export class AcpAdapter {
     return null;
   }
 
+  private createQuestionMessage(toolCallId: string, questionData: AcpQuestionData): IMessageAcpQuestion {
+    return {
+      id: uuid(),
+      type: 'acp_question',
+      msg_id: `${toolCallId}-user-msg`,
+      conversation_id: this.conversationId,
+      createdAt: Date.now(),
+      position: 'left',
+      content: questionData,
+    };
+  }
+
+  private normalizeKind(value: unknown, hasOptions: boolean): AcpQuestionItemKind | undefined {
+    if (typeof value !== 'string') return hasOptions ? 'single_select' : undefined;
+    const normalized = value.trim();
+    if (normalized === 'single_select' || normalized === 'multi_select' || normalized === 'text' || normalized === 'boolean') {
+      return normalized;
+    }
+    return hasOptions ? 'single_select' : undefined;
+  }
+
+  private normalizeQuestionItems(items: unknown): AcpQuestionItem[] {
+    if (!Array.isArray(items)) return [];
+    return items
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
+        const candidate = item as Record<string, unknown>;
+        const prompt = typeof candidate.prompt === 'string' ? candidate.prompt.trim() : '';
+        if (!prompt) return null;
+        const options = Array.isArray(candidate.options)
+          ? candidate.options.map((option) => {
+              if (!option || typeof option !== 'object') return null;
+              const optionRecord = option as Record<string, unknown>;
+              const label = typeof optionRecord.label === 'string' ? optionRecord.label.trim() : '';
+              const value = typeof optionRecord.value === 'string' ? optionRecord.value.trim() : '';
+              const finalLabel = label || value;
+              const finalValue = value || label;
+              if (!finalLabel && !finalValue) return null;
+              const normalized: AcpQuestionItemOption = {
+                label: finalLabel,
+                value: finalValue,
+                description: typeof optionRecord.description === 'string' ? optionRecord.description : undefined,
+                recommended: optionRecord.recommended === true,
+              };
+              return normalized;
+            }).filter((option): option is AcpQuestionItemOption => Boolean(option))
+          : [];
+
+        const normalized: AcpQuestionItem = {
+          id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `q${index + 1}`,
+          prompt,
+          kind: this.normalizeKind(candidate.kind, options.length > 0),
+          options,
+          allowCustomInput: candidate.allowCustomInput === true,
+          customInputHint: typeof candidate.customInputHint === 'string' ? candidate.customInputHint : undefined,
+          optional: candidate.required === false || candidate.optional === true,
+        };
+        return normalized;
+      })
+      .filter((item): item is AcpQuestionItem => Boolean(item));
+  }
+
+  private buildQuestionData(raw: { title?: unknown; description?: unknown; question?: unknown; questions?: unknown }, toolCallId: string): AcpQuestionData | null {
+    const items = this.normalizeQuestionItems(raw.questions);
+    if (items.length === 0) {
+      const legacyQuestion = typeof raw.question === 'string' ? raw.question.trim() : '';
+      if (!legacyQuestion) return null;
+      return {
+        question: legacyQuestion,
+        options: [],
+        items: [{
+          id: 'q1',
+          prompt: legacyQuestion,
+          allowCustomInput: true,
+          optional: false,
+        }],
+        conversationId: this.conversationId,
+        toolCallId,
+        answered: false,
+      };
+    }
+
+    const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+    const description = typeof raw.description === 'string' ? raw.description.trim() : '';
+    const fallbackQuestion = typeof raw.question === 'string' ? raw.question.trim() : '';
+
+    return {
+      question: title || description || fallbackQuestion || items[0]?.prompt || 'Question',
+      intro: description || title || undefined,
+      options: [],
+      items,
+      conversationId: this.conversationId,
+      toolCallId,
+      answered: false,
+    };
+  }
+
+  private buildAnswerItems(answer: string, items?: AcpQuestionItem[]): AcpQuestionData['answerItems'] {
+    if (!answer || !items || items.length === 0) return undefined;
+
+    const normalized = answer.replace(/\r\n/g, '\n').trim();
+    if (!normalized) return undefined;
+
+    const lines = normalized
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const structured = lines
+      .map((line) => {
+        const match = line.match(/^Q(\d+):\s*(.*)$/i);
+        if (!match) return null;
+        const index = Number(match[1]);
+        const item = items[index - 1];
+        if (!item) return null;
+        const submissionValue = (match[2] || '').trim();
+        return {
+          id: item.id,
+          index,
+          submissionValue,
+          displayValue: submissionValue === '[skipped]' ? '' : submissionValue,
+          skipped: submissionValue === '[skipped]',
+        };
+      })
+      .filter(Boolean) as NonNullable<AcpQuestionData['answerItems']>;
+
+    if (structured.length > 0) {
+      return structured;
+    }
+
+    if (items.length === 1) {
+      return [{
+        id: items[0].id,
+        index: 1,
+        submissionValue: normalized,
+        displayValue: normalized === '[skipped]' ? '' : normalized,
+        skipped: normalized === '[skipped]',
+      }];
+    }
+
+    return undefined;
+  }
+
+  private buildAnswerItemsFromStructuredAnswers(
+    answers: Array<{ id?: string; value?: string; label?: string }>,
+    items?: AcpQuestionItem[]
+  ): AcpQuestionData['answerItems'] {
+    if (!items || items.length === 0 || answers.length === 0) return undefined;
+
+    const itemById = new Map(items.map((item, index) => [item.id, { item, index }]));
+    const normalized = answers
+      .map((answer, fallbackIndex) => {
+        const answerId = typeof answer.id === 'string' ? answer.id : '';
+        const resolved = answerId ? itemById.get(answerId) : undefined;
+        const index = resolved ? resolved.index + 1 : fallbackIndex + 1;
+        const itemId = resolved ? resolved.item.id : `q${index}`;
+        const submissionValue = String(answer.value || '').trim();
+        const displayValue = String(answer.label || answer.value || '').trim();
+        const skipped = !submissionValue;
+        return {
+          id: itemId,
+          index,
+          submissionValue: submissionValue || '[skipped]',
+          displayValue,
+          skipped,
+        };
+      })
+      .filter((answer) => answer.id && answer.index > 0);
+
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  buildQuestionMessageFromToolCall(update: ToolCallUpdate | ToolCallUpdateStatus): IMessageAcpQuestion | null {
+    const toolCallId = update.update.toolCallId;
+    const existingMessage = this.activeToolCalls.get(toolCallId);
+    const toolName = existingMessage?.content.update.title || ('title' in update.update ? update.update.title : undefined);
+
+    if (toolName !== 'AskUserQuestion') {
+      return null;
+    }
+
+    const rawInput = ('rawInput' in update.update ? update.update.rawInput : undefined) as Record<string, unknown> | undefined;
+    const fromRawInput = this.buildQuestionData(
+      {
+        title: rawInput?.title,
+        description: rawInput?.description,
+        question: rawInput?.question,
+        questions: rawInput?.questions,
+      },
+      toolCallId
+    );
+
+    if (fromRawInput) {
+      return this.createQuestionMessage(toolCallId, fromRawInput);
+    }
+
+    const content = 'content' in update.update ? update.update.content : undefined;
+    const resultText = content?.[0]?.type === 'content' ? content[0]?.content?.text : undefined;
+    if (!resultText) return null;
+
+    try {
+      const parsed = JSON.parse(resultText) as { title?: unknown; description?: unknown; question?: unknown; questions?: unknown };
+      const questionData = this.buildQuestionData(parsed, toolCallId);
+      return questionData ? this.createQuestionMessage(toolCallId, questionData) : null;
+    } catch {
+      return null;
+    }
+  }
+
   private createOrUpdateAcpToolCall(update: ToolCallUpdate): IMessageAcpToolCall | null {
     const toolCallId = update.update.toolCallId;
 
@@ -276,7 +485,7 @@ export class AcpAdapter {
 
   /**
    * Check if a tool call is a user-facing message tool (SendUserMessage/AskUserQuestion)
-   * and generate a text message for the UI if so.
+   * and generate a text message or interactive question for the UI if so.
    * Called by AcpAgent after processing tool_call_update.
    */
   generateUserMessageFromToolCall(update: ToolCallUpdateStatus): TMessage | null {
@@ -300,33 +509,82 @@ export class AcpAdapter {
       const resultText = content[0]?.content?.text;
       if (!resultText) return null;
 
-      const result = JSON.parse(resultText) as { message?: string; question?: string; answer?: string };
+      const result = JSON.parse(resultText) as {
+        message?: string;
+        question?: string;
+        answer?: string;
+        title?: unknown;
+        description?: unknown;
+        questions?: unknown;
+        answers?: Array<{ id?: string; value?: string; label?: string }>;
+      };
 
-      // For SendUserMessage, display the message
-      // For AskUserQuestion, display the question and answer
-      let displayText = '';
+      // For SendUserMessage, display as plain text message
       if (toolName === 'SendUserMessage' && result.message) {
-        displayText = result.message;
-      } else if (toolName === 'AskUserQuestion' && result.question) {
-        displayText = result.question;
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: `${toolCallId}-user-msg`,
+          conversation_id: this.conversationId,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            content: result.message,
+          },
+        } as IMessageText;
+      }
+
+      // For AskUserQuestion, prefer interactive question cards
+      if (toolName === 'AskUserQuestion' && (result.questions || result.question)) {
+        const questionMessage = this.buildQuestionMessageFromToolCall(update);
+        if (questionMessage) {
+          const answerItems = Array.isArray(result.answers) && result.answers.length > 0
+            ? this.buildAnswerItemsFromStructuredAnswers(result.answers, questionMessage.content.items)
+            : this.buildAnswerItems(result.answer || '', questionMessage.content.items);
+
+          if (answerItems && answerItems.length > 0) {
+            questionMessage.content.answered = true;
+            questionMessage.content.answerItems = answerItems;
+            questionMessage.content.selectedAnswer = answerItems
+              .map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`)
+              .join('\n');
+            return questionMessage;
+          }
+
+          if (result.answer) {
+            questionMessage.content.answered = true;
+            questionMessage.content.selectedAnswer = result.answer;
+            questionMessage.content.answerItems = this.buildAnswerItems(result.answer, questionMessage.content.items);
+            return questionMessage;
+          }
+
+          return null;
+        }
+
+        if (!result.answer) {
+          return null;
+        }
+
+        // No options available, fallback to plain text display
+        let displayText = result.question;
         if (result.answer) {
           displayText += `\n\n**回答**: ${result.answer}`;
         }
+
+        return {
+          id: uuid(),
+          type: 'text',
+          msg_id: `${toolCallId}-user-msg`,
+          conversation_id: this.conversationId,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            content: displayText,
+          },
+        } as IMessageText;
       }
 
-      if (!displayText) return null;
-
-      return {
-        id: uuid(),
-        type: 'text',
-        msg_id: `${toolCallId}-user-msg`,
-        conversation_id: this.conversationId,
-        createdAt: Date.now(),
-        position: 'left',
-        content: {
-          content: displayText,
-        },
-      } as IMessageText;
+      return null;
     } catch {
       // JSON parse failed, ignore
       return null;
