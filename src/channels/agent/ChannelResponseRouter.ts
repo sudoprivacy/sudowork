@@ -34,7 +34,9 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
   // For WeChat and WeCom: accumulate text and send once at finish
   // WeChat: no edit support
   // WeCom: proactive push (aibot_send_msg) only supports non-streaming markdown
-  const shouldAccumulate = channelSource === 'wechat' || channelSource === 'wecom';
+  // DingTalk: createAndDeliverAICard creates card without content; only editMessage sets it,
+  // but ChannelResponseRouter doesn't call editMessage, so each sendMessage creates an empty card.
+  const shouldAccumulate = channelSource === 'wechat' || channelSource === 'wecom' || channelSource === 'dingtalk';
   let accumulatedText = '';
   const pendingFiles: Array<{ type: 'image' | 'file'; url: string; fileName?: string }> = [];
 
@@ -112,8 +114,17 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
 
           // Send accumulated text first
           if (accumulatedText.trim()) {
-            mainLog('ChannelResponseRouter', `Channel route (WeChat): sending text (${accumulatedText.length} chars)`);
-            await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
+            mainLog('ChannelResponseRouter', `Channel route (${channelSource}): sending text (${accumulatedText.length} chars)`);
+            const msgId = await plugin.sendMessage(channelChatId, { type: 'text', text: accumulatedText.trim(), parseMode: 'HTML' });
+            // DingTalk AI Card: finalize to remove loading indicator
+            // Strip local image markdown from text to prevent editMessage from re-extracting and re-sending images
+            if (channelSource === 'dingtalk' && msgId) {
+              const cleanForEdit = accumulatedText.trim().replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+                if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
+                return '';
+              }).replace(/\n{3,}/g, '\n\n').trim();
+              await plugin.editMessage(channelChatId, msgId, { type: 'text', text: cleanForEdit, parseMode: 'HTML', replyMarkup: {} as any });
+            }
           }
 
           // Send pending files after text
