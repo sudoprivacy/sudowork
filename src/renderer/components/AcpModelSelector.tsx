@@ -65,6 +65,15 @@ const AcpModelSelector: React.FC<{
   // Fetch initial model info on mount, fallback to cached models if manager not ready
   useEffect(() => {
     let cancelled = false;
+
+    // For remote-agent (Moss Server), fetch models from Moss API
+    if (backend === 'remote-agent') {
+      fetchMossModelInfo(cancelled);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     ipcBridge.acpConversation.getModelInfo
       .invoke({ conversationId })
       .then((result) => {
@@ -73,12 +82,6 @@ const AcpModelSelector: React.FC<{
           const info = result.data.modelInfo;
           if (backend === 'codex') {
             console.log('[AcpModelSelector][codex] Initial model info:', info);
-          }
-          // For remote-agent, always use the model info returned (no local cache)
-          // remote-agent 直接使用返回的模型信息（没有本地缓存）
-          if (backend === 'remote-agent') {
-            setModelInfo(info);
-            return;
           }
           // When agent is not fully initialized, getModelInfo returns
           // canSwitch=false with empty availableModels. Prefer cached data
@@ -92,16 +95,15 @@ const AcpModelSelector: React.FC<{
           } else {
             setModelInfo(buildFallbackModelInfo(fallbackModelId));
           }
-        } else if (backend && backend !== 'remote-agent') {
+        } else if (backend) {
           // Manager not yet created — load cached model list from storage
-          // remote-agent has no local cache, skip this
           void loadCachedModelInfo(backend, cancelled);
         } else {
           setModelInfo(buildFallbackModelInfo(fallbackModelId));
         }
       })
       .catch(() => {
-        if (!cancelled && backend && backend !== 'remote-agent') {
+        if (!cancelled && backend) {
           void loadCachedModelInfo(backend, cancelled);
         } else if (!cancelled) {
           setModelInfo(buildFallbackModelInfo(fallbackModelId));
@@ -111,6 +113,63 @@ const AcpModelSelector: React.FC<{
     return () => {
       cancelled = true;
     };
+
+    async function fetchMossModelInfo(isCancelled: boolean) {
+      try {
+        // Fetch available models from Moss Server
+        const modelsResult = await ipcBridge.moss.getAvailableModels.invoke();
+        if (isCancelled) return;
+
+        if (!modelsResult.success || !modelsResult.data) {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
+          return;
+        }
+
+        const availableModels = modelsResult.data.map((m: any) => ({
+          id: m.id,
+          label: m.label || m.id,
+        }));
+
+        // Fetch user's current model preference
+        const userPrefResult = await ipcBridge.moss.getUserModel.invoke();
+        if (isCancelled) return;
+
+        let currentModelId = '';
+        let currentModelLabel = '';
+
+        // Priority: user preference > system default > first available
+        if (userPrefResult.success && userPrefResult.data?.modelId) {
+          // User has explicit preference
+          currentModelId = userPrefResult.data.modelId;
+          const match = availableModels.find((m: any) => m.id === currentModelId);
+          currentModelLabel = match?.label || currentModelId;
+        } else if (userPrefResult.success && userPrefResult.data?.systemDefaultModel) {
+          // Use system default model from server
+          currentModelId = userPrefResult.data.systemDefaultModel;
+          const match = availableModels.find((m: any) => m.id === currentModelId);
+          currentModelLabel = match?.label || currentModelId;
+        } else if (availableModels.length > 0) {
+          // Fallback to first available model
+          currentModelId = availableModels[0].id;
+          currentModelLabel = availableModels[0].label;
+        }
+
+        console.log(`[AcpModelSelector][remote-agent] Model selection: ${currentModelId} (userPref: ${userPrefResult.data?.modelId}, systemDefault: ${userPrefResult.data?.systemDefaultModel})`);
+
+        setModelInfo({
+          source: 'models',
+          currentModelId,
+          currentModelLabel,
+          canSwitch: availableModels.length > 1,
+          availableModels,
+        });
+      } catch (error) {
+        console.error('[AcpModelSelector][remote-agent] Failed to fetch Moss model info:', error);
+        if (!isCancelled) {
+          setModelInfo(buildFallbackModelInfo(fallbackModelId));
+        }
+      }
+    }
 
     async function loadCachedModelInfo(backendKey: string, isCancelled: boolean) {
       try {
@@ -142,6 +201,9 @@ const AcpModelSelector: React.FC<{
     }
   }, [conversationId, backend, fallbackModelId, initialModelId]);
 
+  // Track pending model switch for showing success message
+  const pendingModelSwitchRef = useRef<string | null>(null);
+
   // Listen for acp_model_info / codex_model_info events from responseStream
   useEffect(() => {
     const handler = (message: IResponseMessage) => {
@@ -150,6 +212,22 @@ const AcpModelSelector: React.FC<{
         const incoming = message.data as AcpModelInfo;
         if (backend === 'codex') {
           console.log('[AcpModelSelector][codex] Stream model info:', incoming);
+        }
+        // For remote-agent, check if this is a model switch confirmation
+        if (backend === 'remote-agent' && pendingModelSwitchRef.current) {
+          const modelLabel = incoming.currentModelLabel || incoming.currentModelId;
+          Message.success(t('common.modelSwitchSuccess', { model: modelLabel }));
+          pendingModelSwitchRef.current = null;
+          // For remote-agent, preserve availableModels from current state
+          // since server only sends currentModelId in model_changed event
+          if (!incoming.availableModels?.length && modelInfo?.availableModels?.length) {
+            setModelInfo({
+              ...incoming,
+              canSwitch: modelInfo.canSwitch,
+              availableModels: modelInfo.availableModels,
+            });
+            return;
+          }
         }
         // Preserve pre-selected model from Guid page until user manually switches.
         // The agent emits its default model during start (before re-apply), which
@@ -181,11 +259,51 @@ const AcpModelSelector: React.FC<{
       }
     };
     return ipcBridge.acpConversation.responseStream.on(handler);
-  }, [conversationId, initialModelId]);
+  }, [conversationId, backend, initialModelId, t, modelInfo]);
 
   const handleSelectModel = useCallback(
     (modelId: string) => {
       hasUserChangedModel.current = true;
+
+      // For remote-agent (Moss Server), use user model preference API
+      // The new model will take effect on the next message
+      if (backend === 'remote-agent') {
+        ipcBridge.moss.setUserModel
+          .invoke({ modelId })
+          .then(async (result) => {
+            if (result.success) {
+              const match = modelInfo?.availableModels.find((m) => m.id === modelId);
+              const modelLabel = match?.label || modelId;
+
+              // Also try to switch model for current session via WebSocket
+              // This will take effect immediately for the current session
+              // The UI will be updated when model_changed event is received
+              if (conversationId) {
+                // Set pending model switch to show success message when confirmed
+                pendingModelSwitchRef.current = modelId;
+                const setModelResult = await ipcBridge.acpConversation.setModel.invoke({ conversationId, modelId });
+                console.log('[AcpModelSelector][remote-agent] setModel result:', setModelResult);
+                // Success message will be shown when acp_model_info event is received
+              } else {
+                // No active session, just update preference and show success
+                setModelInfo({
+                  ...modelInfo!,
+                  currentModelId: modelId,
+                  currentModelLabel: modelLabel,
+                });
+                Message.success(t('common.modelSwitchSuccess', { model: modelLabel }));
+              }
+            } else {
+              Message.error(result.msg || t('common.modelSwitchFailed'));
+            }
+          })
+          .catch((error) => {
+            console.error('[AcpModelSelector][remote-agent] Failed to set model:', error);
+            Message.error(t('common.modelSwitchFailed'));
+          });
+        return;
+      }
+
       ipcBridge.acpConversation.setModel
         .invoke({ conversationId, modelId })
         .then((result) => {
@@ -199,7 +317,7 @@ const AcpModelSelector: React.FC<{
           console.error('[AcpModelSelector] Failed to set model:', error);
         });
     },
-    [conversationId, t]
+    [conversationId, backend, modelInfo, t]
   );
 
   const defaultModelLabel = t('common.defaultModel');

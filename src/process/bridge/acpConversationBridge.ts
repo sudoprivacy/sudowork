@@ -12,13 +12,14 @@ import { getDatabase } from '@process/database';
 import { getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgent from '@/process/task/AcpAgent';
+import RemoteAgent from '@/process/task/RemoteAgent';
 import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
 import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
-import RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
+import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 
 function getScodeConversationModelInfo(conversationId: string) {
   const result = getDatabase().getConversation(conversationId);
@@ -67,15 +68,17 @@ export function initAcpConversationBridge(): void {
       if (isEnterpriseMode() && getCachedSessionMode() === 'remote') {
         return Promise.resolve({
           success: true,
-          data: [{
-            backend: 'remote-agent' as any,
-            name: 'Moss Server',
-            cliPath: undefined,
-            isExtension: false,
-            customAgentId: undefined,
-            isPreset: false,
-            supportedTransports: ['stdio', 'sse', 'http', 'streamable_http'],
-          }],
+          data: [
+            {
+              backend: 'remote-agent' as any,
+              name: 'Moss Server',
+              cliPath: undefined,
+              isExtension: false,
+              customAgentId: undefined,
+              isPreset: false,
+              supportedTransports: ['stdio', 'sse', 'http', 'streamable_http'],
+            },
+          ],
         });
       }
 
@@ -337,25 +340,46 @@ export function initAcpConversationBridge(): void {
   // Set model for ACP agents
   // 设置 ACP 代理的模型
   ipcBridge.acpConversation.setModel.provider(async ({ conversationId, modelId }) => {
+    mainLog('AcpConversationBridge', `setModel called: conversationId=${conversationId}, modelId=${modelId}`);
     try {
       const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
-      if (!task || !(task instanceof AcpAgent)) {
-        return { success: false, msg: 'Conversation not found or not an ACP agent' };
-      }
-      const modelInfo = await task.setModel(modelId);
-
-      // Persist default model to sudocode.json and settings.json when switching scode models
-      const conv = getDatabase().getConversation(conversationId);
-      if (conv?.data?.extra?.backend === 'scode') {
-        try {
-          const { writeScodeDefaultModel } = await import('./scodeBridge');
-          writeScodeDefaultModel(modelId);
-        } catch { /* best-effort */ }
+      if (!task) {
+        mainLog('AcpConversationBridge', `setModel: Conversation not found`);
+        return { success: false, msg: 'Conversation not found' };
       }
 
-      return { success: true, data: { modelInfo } };
+      // Support both AcpAgent and RemoteAgent
+      if (task instanceof AcpAgent) {
+        mainLog('AcpConversationBridge', `setModel: Task is AcpAgent`);
+        const modelInfo = await task.setModel(modelId);
+
+        // Persist default model to sudocode.json and settings.json when switching scode models
+        const conv = getDatabase().getConversation(conversationId);
+        if (conv?.data?.extra?.backend === 'scode') {
+          try {
+            const { writeScodeDefaultModel } = await import('./scodeBridge');
+            writeScodeDefaultModel(modelId);
+          } catch {
+            /* best-effort */
+          }
+        }
+
+        return { success: true, data: { modelInfo } };
+      }
+
+      // For RemoteAgent, use setModel method
+      if (task instanceof RemoteAgent) {
+        mainLog('AcpConversationBridge', `setModel: Task is RemoteAgent`);
+        const result = task.setModel(modelId);
+        mainLog('AcpConversationBridge', `setModel: RemoteAgent result: ${JSON.stringify(result)}`);
+        return { success: result.success, msg: result.msg, data: { modelInfo: null } };
+      }
+
+      mainLog('AcpConversationBridge', `setModel: Unsupported agent type`);
+      return { success: false, msg: 'Model switching not supported for this agent type' };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      mainLog('AcpConversationBridge', `setModel error: ${errorMsg}`);
       return { success: false, msg: errorMsg };
     }
   });

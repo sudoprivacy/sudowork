@@ -180,7 +180,14 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       const newModelId = typeof modelId === 'function' ? modelId(prev) : modelId;
       const agentKey = selectedAgentRef.current;
       if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
-        void savePreferredModelId(agentKey, newModelId);
+        // For remote-agent, save to Moss Server via IPC
+        if (agentKey === 'remote-agent') {
+          ipcBridge.moss.setUserModel.invoke({ modelId: newModelId }).catch((error) => {
+            console.warn('[Guid][remote-agent] Failed to save model preference:', error);
+          });
+        } else {
+          void savePreferredModelId(agentKey, newModelId);
+        }
       }
       return newModelId;
     });
@@ -323,9 +330,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // --- SWR: Fetch available agents ---
   // E端 Remote 模式使用云端助手列表，其他模式使用本地 ACP agent 列表
-  const swrKey = (isEnterprise && sessionMode === 'remote')
-    ? 'eeclaw.agents.cloud'
-    : 'acp.agents.available';
+  const swrKey = isEnterprise && sessionMode === 'remote' ? 'eeclaw.agents.cloud' : 'acp.agents.available';
   const { data: availableAgentsData } = useSWR(swrKey, async () => {
     if (isEnterprise && sessionMode === 'remote') {
       const result = await ipcBridge.eeclaw.getCloudAssistants.invoke();
@@ -583,6 +588,74 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
       cancelled = true;
     };
   }, [selectedAgentKey]);
+
+  // Probe Moss Server model info for remote-agent in enterprise mode
+  // 企业模式下为 remote-agent 获取 Moss Server 模型列表
+  useEffect(() => {
+    if (!isEnterprise) return;
+    if (selectedAgentKey !== 'remote-agent') return;
+    if (sessionMode !== 'remote') return;
+    if (probedModelBackendsRef.current.has('remote-agent')) return;
+
+    let cancelled = false;
+    probedModelBackendsRef.current.add('remote-agent');
+
+    console.log('[Guid][remote-agent] Probing Moss Server model info...');
+
+    ipcBridge.moss.getAvailableModels
+      .invoke()
+      .then(async (modelsResult) => {
+        if (cancelled) return;
+        if (!modelsResult.success || !modelsResult.data) {
+          probedModelBackendsRef.current.delete('remote-agent');
+          return;
+        }
+
+        const availableModels = modelsResult.data.map((m: any) => ({
+          id: m.id,
+          label: m.label || m.id,
+        }));
+
+        // Also get user preference and system default
+        const userPrefResult = await ipcBridge.moss.getUserModel.invoke();
+        if (cancelled) return;
+
+        let currentModelId = '';
+        if (userPrefResult.success && userPrefResult.data?.modelId) {
+          currentModelId = userPrefResult.data.modelId;
+        } else if (userPrefResult.success && userPrefResult.data?.systemDefaultModel) {
+          currentModelId = userPrefResult.data.systemDefaultModel;
+        } else if (availableModels.length > 0) {
+          currentModelId = availableModels[0].id;
+        }
+
+        const modelInfo: AcpModelInfo = {
+          source: 'models',
+          currentModelId,
+          currentModelLabel: availableModels.find((m) => m.id === currentModelId)?.label || currentModelId,
+          canSwitch: availableModels.length > 1,
+          availableModels,
+        };
+
+        console.log(`[Guid][remote-agent] Moss model info: ${JSON.stringify(modelInfo)}`);
+
+        setAcpCachedModels((prev) => ({
+          ...prev,
+          ['remote-agent']: modelInfo,
+        }));
+
+        // Set selected model
+        _setSelectedAcpModel(currentModelId);
+      })
+      .catch((error) => {
+        probedModelBackendsRef.current.delete('remote-agent');
+        console.warn('[Guid][remote-agent] Failed to probe Moss model info:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEnterprise, selectedAgentKey, sessionMode]);
 
   // Reset selected ACP model when agent changes: prefer saved preference, fallback to cached default
   useEffect(() => {
@@ -923,11 +996,12 @@ This identity statement takes priority over the default identity in USER.md.
   // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
     // In enterprise remote mode, default to remote-agent; in local mode, default to scode
-    const defaultKey = isEnterprise && sessionMode === 'remote' ? 'remote-agent' : (isEnterprise && sessionMode === 'local' ? 'scode' : DEFAULT_PRESET_AGENT_TYPE);
+    const defaultKey = isEnterprise && sessionMode === 'remote' ? 'remote-agent' : isEnterprise && sessionMode === 'local' ? 'scode' : DEFAULT_PRESET_AGENT_TYPE;
     _setSelectedAgentKey(defaultKey);
     selectedAgentKeyRef.current = defaultKey;
     _setSelectedMode('default');
-    _setSelectedAcpModel(null);
+    // Don't clear selectedAcpModel - keep the user's model preference
+    // 不要清除 selectedAcpModel - 保留用户的模型偏好
     hasAutoSelectedAgentRef.current = false;
 
     // Clear persisted agent key so it won't be restored on next mount
@@ -969,7 +1043,7 @@ This identity statement takes priority over the default identity in USER.md.
   // For enterprise Local mode, only expose scode to the mention selector
   const mentionAvailableAgents = useMemo(() => {
     if (isEnterprise && sessionMode === 'local') {
-      return (availableAgents ?? []).filter(a => a.backend === 'scode');
+      return (availableAgents ?? []).filter((a) => a.backend === 'scode');
     }
     return availableAgents;
   }, [isEnterprise, sessionMode, availableAgents]);
