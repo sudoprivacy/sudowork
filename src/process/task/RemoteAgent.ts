@@ -406,15 +406,24 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           conversation_id: msg.conversation_id,
           content: { content: msg.data as string },
         } as any;
-      case 'user_content':
+      case 'user_content': {
+        // 过滤掉系统提示词，只保留用户请求部分
+        // 系统提示词格式：[Assistant Rules - You MUST follow these instructions]\n...\n\n[User Request]\n用户消息
+        let userContent = msg.data as string;
+        if (userContent.includes('[User Request]')) {
+          // 提取 [User Request] 之后的内容作为用户消息
+          const parts = userContent.split('[User Request]');
+          userContent = parts[parts.length - 1]?.trim() || userContent;
+        }
         return {
           id: uuid(),
           type: 'text',
           msg_id: msg.msg_id,
           position: 'right',
           conversation_id: msg.conversation_id,
-          content: { content: msg.data as string },
+          content: { content: userContent },
         } as any;
+      }
       case 'acp_tool_call':
         return {
           id: uuid(),
