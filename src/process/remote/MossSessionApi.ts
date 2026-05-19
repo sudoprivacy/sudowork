@@ -333,7 +333,9 @@ export class MossSessionApi {
         const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
         wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const ws = new WebSocket(wsUrlWithRefresh, {
       headers: {
@@ -446,6 +448,168 @@ export class MossSessionApi {
     );
   }
 
+  // ==================== Model Management ====================
+
+  /**
+   * Get available models from Moss Server
+   * GET /api/v1/models/available
+   */
+  async getAvailableModels(): Promise<Array<{ id: string; name: string; ratio: number }>> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/models/available`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get available models: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return data.data || [];
+  }
+
+  /**
+   * Get user's model preference
+   * GET /api/v1/users/{userId}/model
+   */
+  // 返回类型：用户偏好 + 系统默认模型
+// 保持返回类型声明不变，或者改成更完整的结构
+  async getUserModelPreference(): Promise<{
+    modelId: string;
+    updatedAt: number;
+    systemDefaultModel: string; // 把默认模型也加进来
+  } | null> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/users/me/model`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get user model preference: ${response.status} ${text}`);
+    }
+
+    const res = await response.json();
+    // 把用户偏好和系统默认模型合并成一个对象返回
+    if (res.data) {
+      return {
+        ...res.data,
+        systemDefaultModel: res.systemDefaultModel || '',
+      };
+    } else {
+      // 用户没设置偏好时，返回默认模型
+      return {
+        modelId: '',
+        updatedAt: 0,
+        systemDefaultModel: res.systemDefaultModel || '',
+      };
+    }
+  }
+
+  /**
+   * Set user's model preference
+   * PUT /api/v1/users/{userId}/model
+   */
+  async setUserModelPreference(modelId: string): Promise<{ modelId: string; updatedAt: number }> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/users/me/model`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ modelId }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to set user model preference: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Set model for current session via WebSocket
+   * Sends control_request with subtype 'set_model'
+   * If WebSocket is not connected, it will reconnect
+   */
+  async setModelForSession(sessionId: string, modelId: string): Promise<void> {
+    mainLog('MossSessionApi', `setModelForSession called: sessionId=${sessionId}, modelId=${modelId}`);
+
+    let ws = this.wsConnections.get(sessionId);
+
+    // If WebSocket is not connected, try to reconnect
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      mainLog('MossSessionApi', `WebSocket not connected for session ${sessionId}, reconnecting...`);
+
+      // Get session info to get wsUrl
+      try {
+        const sessionInfo = await this.resumeSession(sessionId);
+        const wsUrl = sessionInfo.wsUrl;
+
+        // Establish a new WebSocket connection (without sending a message)
+        const token = await this.ensureAuthenticated();
+        let wsUrlWithRefresh = wsUrl;
+        try {
+          const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+          if (authStorage?.refresh_token) {
+            const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
+            wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        ws = new WebSocket(wsUrlWithRefresh, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        this.wsConnections.set(sessionId, ws);
+
+        // Wait for connection to open
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('WebSocket connection timeout'));
+          }, 10000);
+
+          ws!.on('open', () => {
+            clearTimeout(timeout);
+            mainLog('MossSessionApi', `WebSocket reconnected for session ${sessionId}`);
+            resolve();
+          });
+
+          ws!.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        // Set up close handler
+        ws.on('close', (code, reason) => {
+          mainLog('MossSessionApi', `WebSocket closed: code=${code}, reason=${reason}`);
+          this.wsConnections.delete(sessionId);
+        });
+      } catch (err) {
+        mainError('MossSessionApi', `Failed to reconnect WebSocket for session ${sessionId}: ${err}`);
+        throw new Error(`Failed to reconnect WebSocket for session ${sessionId}`);
+      }
+    }
+
+    const message = JSON.stringify({
+      type: 'control_request',
+      request_id: uuid(36),
+      request: {
+        subtype: 'set_model',
+        model_id: modelId,
+      },
+    });
+
+    mainLog('MossSessionApi', `Sending model switch message: ${message}`);
+    ws.send(message);
+    mainLog('MossSessionApi', `Model switch request sent for session ${sessionId}: ${modelId}`);
+  }
+
   /**
    * Disconnect WebSocket
    */
@@ -515,11 +679,42 @@ export class MossSessionApi {
           },
         });
       }
+      // model_changed - 模型切换完成通知
+      if (msg.subtype === 'model_changed') {
+        const modelName = msg.model || 'unknown';
+        const sessionId = msg.session_id || '';
+        mainLog('MossSessionApi', `Model changed to: ${modelName} for session: ${sessionId}`);
+        // Emit model_changed event to frontend via IPC
+        // 通过 IPC 发送 model_changed 事件到前端
+        const { ipcBridge } = require('@/common');
+        ipcBridge.moss.modelChanged.emit({
+          sessionId,
+          model: modelName,
+        });
+        // Also send acp_model_info update
+        onMessage({
+          type: 'acp_model_info',
+          msg_id: uuid(36),
+          conversation_id: sessionId,
+          data: {
+            source: 'models',
+            currentModelId: modelName,
+            currentModelLabel: modelName,
+            canSwitch: false,
+            availableModels: [],
+          },
+        });
+      }
       return;
     }
 
-    // 3. control_request - 权限请求
+    // 3. control_request - 权限请求或中断
     if (msg.type === 'control_request') {
+      if (msg.request?.subtype === 'interrupt') {
+        mainLog('MossSessionApi', `Interrupt received from server for session: ${msg.session_id || ''}`);
+        onFinish();
+        return;
+      }
       onMessage({
         type: 'acp_permission',
         msg_id: msg.request_id,
@@ -710,10 +905,7 @@ export class MossSessionApi {
     }
 
     // Legacy/unknown types
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary',
-        'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event',
-        'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn',
-        'tool_use', 'tool_result', 'content', 'text'].includes(msg.type)) {
+    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text'].includes(msg.type)) {
       mainLog('MossSessionApi', `Unknown message type: ${msg.type}, skipping`);
       return;
     }
@@ -753,10 +945,7 @@ export class MossSessionApi {
 
     // Check error message for abort indicators
     const errorMsg = msg.errors?.join('\n') || msg.result || '';
-    if (errorMsg.includes('Request was aborted') ||
-        errorMsg.includes('AbortError') ||
-        errorMsg.includes('aborted by user') ||
-        errorMsg.includes('user abort')) {
+    if (errorMsg.includes('Request was aborted') || errorMsg.includes('AbortError') || errorMsg.includes('aborted by user') || errorMsg.includes('user abort')) {
       return true;
     }
 
@@ -771,11 +960,7 @@ export class MossSessionApi {
     const lowerText = text.toLowerCase();
     // Common abort/interrupt messages from Moss Server
     // Moss Server 常见的中止/中断消息
-    if (lowerText.includes('request interrupted by user') ||
-        lowerText.includes('request was aborted') ||
-        lowerText.includes('no response requested') ||
-        lowerText.includes('aborted by user') ||
-        lowerText.includes('interrupted by user')) {
+    if (lowerText.includes('request interrupted by user') || lowerText.includes('request was aborted') || lowerText.includes('no response requested') || lowerText.includes('aborted by user') || lowerText.includes('interrupted by user')) {
       return true;
     }
     return false;

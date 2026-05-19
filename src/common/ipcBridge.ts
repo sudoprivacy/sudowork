@@ -350,6 +350,18 @@ export const moss = {
   stop: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.stop'),
   /** Respond to permission request */
   respondPermission: bridge.buildProvider<IBridgeResponse, { sessionId: string; requestId: string; optionId: string }>('moss.respond-permission'),
+
+  // === Model Management ===
+  /** Get available models from Moss Server */
+  getAvailableModels: bridge.buildProvider<IBridgeResponse<Array<{ id: string; name: string; ratio: number }>>, void>('moss.get-available-models'),
+  /** Get user's model preference */
+  getUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number; systemDefaultModel: string } | null>, void>('moss.get-user-model'),
+  /** Set user's model preference */
+  setUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number }>, { modelId: string }>('moss.set-user-model'),
+  /** Set model for current session (via WebSocket) */
+  setModel: bridge.buildProvider<IBridgeResponse, { sessionId: string; modelId: string }>('moss.set-model'),
+  /** Model changed event (emitted when model switch completes) */
+  modelChanged: bridge.buildEmitter<{ sessionId: string; model: string }>('moss.model-changed'),
 };
 
 export const mode = {
@@ -811,20 +823,11 @@ export const nexus = {
 // ManagedAgent gRPC service (nexusd :2028) / 托管代理 gRPC 服务
 export const managedAgent = {
   /** Start a new managed agent session */
-  startSession: bridge.buildProvider<
-    IBridgeResponse<{ sessionId: string; workspacePath: string }>,
-    { agentId: string; repos: string[]; model: string; ownerId?: string; zoneId?: string }
-  >('managed-agent.start-session'),
+  startSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; workspacePath: string }>, { agentId: string; repos: string[]; model: string; ownerId?: string; zoneId?: string }>('managed-agent.start-session'),
   /** Cancel a running managed agent session */
-  cancelSession: bridge.buildProvider<
-    IBridgeResponse<{ cancelled: boolean }>,
-    { sessionId: string; mode: 'graceful' | 'force' }
-  >('managed-agent.cancel-session'),
+  cancelSession: bridge.buildProvider<IBridgeResponse<{ cancelled: boolean }>, { sessionId: string; mode: 'graceful' | 'force' }>('managed-agent.cancel-session'),
   /** Get the status of a managed agent session */
-  getSession: bridge.buildProvider<
-    IBridgeResponse<{ sessionId: string; agentId: string; workspacePath: string; model: string; state: string }>,
-    { sessionId: string }
-  >('managed-agent.get-session'),
+  getSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; agentId: string; workspacePath: string; model: string; state: string }>, { sessionId: string }>('managed-agent.get-session'),
 };
 
 // Deep link protocol handling / 深度链接协议处理
