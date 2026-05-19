@@ -1272,7 +1272,7 @@ const AgentModalContent: React.FC = () => {
           await loadAssistants();
           // Refresh agent detection so GuidPage's useGuidAgentSelection picks up the new assistant
           await refreshAgentDetection();
-          setHubDetailVisible(false);
+          // Keep modal open so user can directly click "Go Use" button
         } else {
           Message.error(t('settings.assistant.installFailed', { msg: res.msg || 'Unknown error', defaultValue: `安装失败: ${res.msg || '未知错误'}` }));
         }

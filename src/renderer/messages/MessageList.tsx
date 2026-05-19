@@ -11,6 +11,7 @@ import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
+import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
 import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
 import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import classNames from 'classnames';
@@ -68,6 +69,11 @@ const isDarkMode = () => {
   return document.documentElement.getAttribute('data-theme') === 'dark';
 };
 
+const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
+  const title = message.content?.update?.title;
+  return title === 'AskUserQuestion' || title === 'SendUserMessage';
+};
+
 const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = React.memo(
   HOC((props) => {
     const { message, isStreaming } = props as { message: TMessage; isStreaming?: boolean };
@@ -116,6 +122,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <MessageAgentStatus message={message}></MessageAgentStatus>;
       case 'acp_permission':
         return <MessageAcpPermission message={message}></MessageAcpPermission>;
+      case 'acp_question':
+        return <MessageAcpQuestion message={message}></MessageAcpQuestion>;
       case 'acp_tool_call':
         return <MessageAcpToolCall message={message}></MessageAcpToolCall>;
       case 'codex_permission':
@@ -335,6 +343,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         continue;
       }
       if (message.type === 'acp_tool_call') {
+        if (isUserFacingAcpToolCall(message)) {
+          toolList = [];
+          diffsChanges = [];
+          continue;
+        }
         pushToolList(message);
         continue;
       }
