@@ -74,11 +74,22 @@ export class MossWsConnection {
     }
   >();
 
+  // Pending model switch requests waiting for confirmation
+  private pendingModelSwitches = new Map<
+    string,
+    {
+      sentAt: number;
+      resolve: (success: boolean) => void;
+      modelId: string;
+    }
+  >();
+
   private readonly MAX_RECONNECT_ATTEMPTS = 8;
   private readonly BASE_RECONNECT_DELAY_MS = 1000;
   private readonly MAX_RECONNECT_DELAY_MS = 8000;
   private readonly CONNECTION_TIMEOUT_MS = 30000;
   private readonly INTERRUPT_CONFIRMATION_TIMEOUT_MS = 5000;
+  private readonly MODEL_SWITCH_TIMEOUT_MS = 30000;
 
   constructor(
     private config: MossWsConnectionConfig,
@@ -334,6 +345,9 @@ export class MossWsConnection {
     if (msg.type === 'system') {
       if (msg.subtype === 'init') {
         const modelName = msg.model || 'unknown';
+        // Remove proxy/ prefix for display
+        // 移除 proxy/ 前缀用于显示
+        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
         this.callbacks.onMessage({
           type: 'acp_model_info',
           msg_id: uuid(36),
@@ -341,7 +355,27 @@ export class MossWsConnection {
           data: {
             source: 'models',
             currentModelId: modelName,
-            currentModelLabel: modelName,
+            currentModelLabel: displayLabel,
+            canSwitch: false,
+            availableModels: [],
+          },
+        });
+      } else if (msg.subtype === 'model_changed') {
+        // Handle model change confirmation from server
+        // 处理服务器返回的模型切换确认
+        const modelName = msg.model || 'unknown';
+        mainLog('MossWsConnection', `Model changed to: ${modelName}`);
+        // Remove proxy/ prefix for display
+        // 移除 proxy/ 前缀用于显示
+        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
+        this.callbacks.onMessage({
+          type: 'acp_model_info',
+          msg_id: uuid(36),
+          conversation_id: '',
+          data: {
+            source: 'models',
+            currentModelId: modelName,
+            currentModelLabel: displayLabel,
             canSwitch: false,
             availableModels: [],
           },
@@ -601,6 +635,48 @@ export class MossWsConnection {
     );
   }
 
+  /**
+   * Set model for current session
+   * Sends control_request with subtype 'set_model' and waits for confirmation
+   */
+  setModel(modelId: string): { success: boolean; msg?: string } {
+    mainLog('MossWsConnection', `setModel called: modelId=${modelId}, state=${this.state}, ws=${!!this.ws}, readyState=${this.ws?.readyState}`);
+
+    if (this.state !== 'connected' || !this.ws) {
+      mainLog('MossWsConnection', `setModel rejected: state=${this.state}, ws=${!!this.ws}`);
+      return { success: false, msg: 'Not connected' };
+    }
+
+    // Check actual WebSocket state
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      mainLog('MossWsConnection', `WebSocket not in OPEN state: ${this.ws.readyState} (OPEN=${WebSocket.OPEN}, CLOSING=${WebSocket.CLOSING}, CLOSED=${WebSocket.CLOSED})`);
+      this.state = 'closed';
+      return { success: false, msg: 'WebSocket connection closed' };
+    }
+
+    const requestId = uuid(36);
+    const payload = JSON.stringify({
+      type: 'control_request',
+      request_id: requestId,
+      request: {
+        subtype: 'set_model',
+        model_id: modelId,
+      },
+    });
+
+    try {
+      this.ws.send(payload);
+      mainLog('MossWsConnection', `Model switch request sent: ${modelId}, requestId: ${requestId}`);
+      // Return success immediately - the actual confirmation will come via model_changed event
+      // The caller can listen for the event or check the result later
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainError('MossWsConnection', `Failed to send model switch: ${msg}`);
+      return { success: false, msg };
+    }
+  }
+
   private handleClose(code: number, reason: string): void {
     const wasConnected = this.state === 'connected';
     this.state = 'closed';
@@ -676,7 +752,14 @@ export class MossWsConnection {
   }
 
   isConnected(): boolean {
-    return this.state === 'connected';
+    // Check both internal state and actual WebSocket state
+    if (this.state !== 'connected') {
+      return false;
+    }
+    if (!this.ws) {
+      return false;
+    }
+    return this.ws.readyState === WebSocket.OPEN;
   }
 
   getSessionId(): string | null {

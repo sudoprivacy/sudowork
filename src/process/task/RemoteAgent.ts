@@ -369,6 +369,24 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.connection?.respondToPermissionRequest(callId, data);
   }
 
+  /**
+   * Set model for current session
+   * Returns immediately after sending the request - actual confirmation comes via model_changed event
+   */
+  setModel(modelId: string): { success: boolean; msg?: string } {
+    mainLog('RemoteAgent', `setModel called: modelId=${modelId}, connection=${!!this.connection}, isConnected=${this.connection?.isConnected()}`);
+    if (!this.connection?.isConnected()) {
+      mainLog('RemoteAgent', `setModel rejected: not connected`);
+      return { success: false, msg: 'Not connected' };
+    }
+    const result = this.connection.setModel(modelId);
+    mainLog('RemoteAgent', `setModel result: ${JSON.stringify(result)}`);
+    // Note: This returns immediately after sending the WebSocket message.
+    // The moss server will process the request asynchronously and emit model_changed event.
+    // The UI will be updated when the model_changed event is received.
+    return result;
+  }
+
   // ========== Event handlers ==========
 
   private handleStreamMessage(msg: IResponseMessage): void {

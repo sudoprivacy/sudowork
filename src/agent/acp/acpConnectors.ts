@@ -527,6 +527,26 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
   }
 
+  // Inject image generation config as env vars for skill bash scripts.
+  // On Windows with WSL bash, SUDOCODE_CONFIG_PATH (Windows path) is unreadable,
+  // so we pass the resolved values directly via IMAGE_MODEL / PROVIDER_BASE_URL / PROVIDER_API_KEY.
+  if (backend === 'scode' && !cleanEnv.IMAGE_MODEL) {
+    try {
+      const { resolveImageConfig } = await import('@process/bridge/imageGenerationBridge');
+      const imageConfig = await resolveImageConfig();
+      if (imageConfig) {
+        cleanEnv.IMAGE_MODEL = imageConfig.model;
+        cleanEnv.PROVIDER_BASE_URL = imageConfig.baseUrl;
+        cleanEnv.PROVIDER_API_KEY = imageConfig.apiKey;
+        mainLog('[ACP scode]', `Injected image gen env: IMAGE_MODEL=${imageConfig.model}, PROVIDER_BASE_URL=${imageConfig.baseUrl}`);
+      } else {
+        mainLog('[ACP scode]', 'No image generation config found, skipping IMAGE_MODEL/PROVIDER injection');
+      }
+    } catch (e) {
+      mainLog('[ACP scode]', `Failed to inject image gen env: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   // Inject HOME for scode (Rust binary) to locate ~/.nexus/sudocode/sudocode.json
   // On Windows packaged Electron, HOME is not set (Windows uses USERPROFILE instead)
   // scode has 5+ paths that depend on HOME without USERPROFILE fallback
