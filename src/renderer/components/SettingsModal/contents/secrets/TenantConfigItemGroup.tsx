@@ -87,13 +87,6 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
   const handleToggle = useCallback(
     async (checked: boolean) => {
       if (!checked) {
-        setLocalValues((prev) => {
-          const cleared: TenantConfigValues = {};
-          for (const entry of configItem.entries) {
-            cleared[entry.config_key] = '';
-          }
-          return cleared;
-        });
         void onToggleEnabled(checked);
       } else {
         const hasNewValues = configItem.entries.some((entry) => {

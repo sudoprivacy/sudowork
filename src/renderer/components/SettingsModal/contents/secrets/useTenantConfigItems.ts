@@ -15,7 +15,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from './types';
 
 const TENANT_ENABLED_STORAGE_KEY = 'settings.tenant.enabled';
-const MASKED_VALUE = '••••••••';
 
 interface UseTenantConfigItemsReturn {
   configItems: TenantConfigItem[];
@@ -144,16 +143,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
     }
 
     if (mountedRef.current) {
-      // Mask all loaded values — plain text should never appear in frontend state
-      const maskedMap: Record<number, TenantConfigValues> = {};
-      for (const [id, vals] of Object.entries(newValuesMap)) {
-        const masked: TenantConfigValues = {};
-        for (const [k, v] of Object.entries(vals)) {
-          masked[k] = v ? MASKED_VALUE : '';
-        }
-        maskedMap[Number(id)] = masked;
-      }
-      setValuesMap(maskedMap);
+      setValuesMap(newValuesMap);
     }
   }, [isEnterprise, user?.id]);
 
@@ -321,13 +311,6 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
             }),
           );
           const allSuccess = results.every(r => r.success);
-          if (allSuccess) {
-            const masked: TenantConfigValues = {};
-            for (const entry of entries) {
-              masked[entry.config_key] = values[entry.config_key]?.trim() ? MASKED_VALUE : '';
-            }
-            setValuesMap(prev => ({ ...prev, [configItemId]: masked }));
-          }
           return allSuccess;
         }
 
@@ -370,13 +353,6 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
           }),
         );
         const allSuccess = results.every(r => r.success);
-        if (allSuccess) {
-          const masked: TenantConfigValues = {};
-          for (const entry of entries) {
-            masked[entry.config_key] = values[entry.config_key]?.trim() ? MASKED_VALUE : '';
-          }
-          setValuesMap(prev => ({ ...prev, [configItemId]: masked }));
-        }
         return allSuccess;
       } catch (err) {
         console.error('[TenantConfig] Failed to save config item:', err);
