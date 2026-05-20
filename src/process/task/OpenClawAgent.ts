@@ -175,6 +175,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isFirstMessage: boolean = true;
   private expectReconnectOnClose = false;
   private hasEmittedTerminalConnectionError = false;
+  private userCancelled = false;
+  private stopPromise: Promise<void> | null = null;
+  private turnActive = false;
 
   /** Snapshot of known deliverable files and their mtime, used to detect new files created by Bash/execute tools */
   private workspaceFileSnapshot: Map<string, number> = new Map();
@@ -447,6 +450,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     this.processingStartTime = Date.now();
+    this.turnActive = true;
+    this.userCancelled = false;
+    this.stopPromise = null;
     mainLog('OpenClawAgent', `sendMessage called: content="${data.content?.substring(0, 50)}..."`);
     try {
       await this.bootstrap;
@@ -581,6 +587,8 @@ ${draftsInstruction}`;
     } catch (error) {
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -639,11 +647,26 @@ ${draftsInstruction}`;
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+    if (!this.turnActive) {
+      return;
+    }
+
+    this.stopPromise = this.performStop().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async performStop(): Promise<void> {
     // Telemetry: end conversation tracking (user cancel)
     endConversationUserCancel(this.conversation_id);
 
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
+    this.userCancelled = true;
 
     // Send abort request to gateway
     if (this.connection?.isConnected && this.connection?.sessionKey) {
@@ -704,7 +727,7 @@ ${draftsInstruction}`;
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
@@ -814,6 +837,8 @@ ${draftsInstruction}`;
       data: null,
     });
     this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
   }
@@ -1004,7 +1029,7 @@ ${draftsInstruction}`;
         this.handleEndTurn();
         break;
 
-      case 'error':
+      case 'error': {
         mainError(
           'OpenClawAgent',
           '[DIAG] ChatEvent error received:',
@@ -1031,6 +1056,7 @@ ${draftsInstruction}`;
         this.emitErrorMessage(translatedError);
         this.handleEndTurn();
         break;
+      }
 
       default:
         mainWarn('OpenClawAgent', 'handleChatEvent: unknown state:', (event as { state: unknown }).state);
@@ -1196,11 +1222,17 @@ ${draftsInstruction}`;
   }
 
   private handleEndTurn(): void {
-    // Telemetry: end conversation tracking (success)
-    endConversationSuccess(this.conversation_id);
+    if (!this.userCancelled) {
+      // Telemetry: end conversation tracking (success)
+      endConversationSuccess(this.conversation_id);
 
-    // Breadcrumb: conversation ended (success)
-    conversationBreadcrumbs.end(this.conversation_id, 'success');
+      // Breadcrumb: conversation ended (success)
+      conversationBreadcrumbs.end(this.conversation_id, 'success');
+    }
+
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
 
     // If still buffering a NO_REPLY prefix at end of turn, discard it silently.
     // A partial NO_REPLY prefix (e.g. "NO") that was never completed or diverged is
@@ -1377,6 +1409,11 @@ ${draftsInstruction}`;
 
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
+    if (this.userCancelled && message.type !== 'finish') {
+      mainLog('OpenClawAgent', `Ignoring stream message after user cancel: type=${message.type}`);
+      return;
+    }
+
     // Normalize Windows backslash paths in content messages before emission
     let msg: IResponseMessage = { ...message, conversation_id: this.conversation_id };
     if (msg.type === 'content' && typeof msg.data === 'string') {
@@ -1409,6 +1446,11 @@ ${draftsInstruction}`;
 
   /** Handle signal messages (permissions, finish) */
   private handleSignalMessage(message: IResponseMessage): void {
+    if (this.userCancelled && message.type !== 'finish') {
+      mainLog('OpenClawAgent', `Ignoring signal message after user cancel: type=${message.type}`);
+      return;
+    }
+
     const msg = { ...message, conversation_id: this.conversation_id };
 
     // Emit signal events to frontend

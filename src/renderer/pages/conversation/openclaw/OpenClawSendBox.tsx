@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
+import type { IResponseMessage } from '@/common/ipcBridge';
 import { transformMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/sendbox';
@@ -94,6 +95,12 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
+const USER_CANCELLED_TEXT = '请求已被用户终止';
+
+const isUserCancelledContent = (message: IResponseMessage): boolean => {
+  return message.type === 'content' && message.data === USER_CANCELLED_TEXT;
+};
+
 const OpenClawSendBox: React.FC<{
   conversation_id: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
@@ -120,6 +127,7 @@ const OpenClawSendBox: React.FC<{
   // Use ref to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
   const aiProcessingRef = useRef(aiProcessing);
+  const stopPendingRef = useRef(false);
 
   // Sync local aiProcessing state to parent via onAiProcessingChange
   React.useEffect(() => {
@@ -132,6 +140,8 @@ const OpenClawSendBox: React.FC<{
   // 切换会话时重置 aiProcessing 状态
   React.useEffect(() => {
     setAiProcessing(false);
+    setProcessingStartTime(undefined);
+    stopPendingRef.current = false;
   }, [conversation_id]);
 
   // Track whether current turn has content output
@@ -226,6 +236,7 @@ const OpenClawSendBox: React.FC<{
     setOpenClawStatus(null);
     setThought({ subject: '', description: '' });
     hasContentInTurnRef.current = false;
+    stopPendingRef.current = false;
 
     // Check actual conversation status from backend before resetting aiProcessing
     // to avoid flicker when switching to a running conversation
@@ -309,6 +320,9 @@ const OpenClawSendBox: React.FC<{
 
       switch (message.type) {
         case 'thought':
+          if (stopPendingRef.current) {
+            break;
+          }
           // Auto-recover aiProcessing state if thought arrives after finish
           // 如果 thought 在 finish 后到达，自动恢复 aiProcessing 状态
           if (!aiProcessingRef.current) {
@@ -325,6 +339,7 @@ const OpenClawSendBox: React.FC<{
               setAiProcessing(false);
               aiProcessingRef.current = false;
               setThought({ subject: '', description: '' });
+              setProcessingStartTime(undefined);
               finishTimeoutRef.current = null;
               // Notify StarOfficeMonitorCard to re-detect and auto-open panel
               if (starOfficeInstallInFlightRef.current) {
@@ -335,8 +350,35 @@ const OpenClawSendBox: React.FC<{
             hasContentInTurnRef.current = false;
           }
           break;
+        case 'start':
+          stopPendingRef.current = false;
+          {
+            const startData = message.data as { processingStartTime?: number } | null;
+            setProcessingStartTime(startData?.processingStartTime ?? Date.now());
+          }
+          if (!aiProcessingRef.current) {
+            setAiProcessing(true);
+            aiProcessingRef.current = true;
+          }
+          break;
         case 'content':
         case 'acp_permission': {
+          if (isUserCancelledContent(message)) {
+            setAiProcessing(false);
+            aiProcessingRef.current = false;
+            setThought({ subject: '', description: '' });
+            setProcessingStartTime(undefined);
+            hasContentInTurnRef.current = false;
+            stopPendingRef.current = false;
+            const transformedMessage = safeTransformMessage();
+            if (transformedMessage) {
+              addOrUpdateMessage(transformedMessage);
+            }
+            break;
+          }
+          if (stopPendingRef.current) {
+            break;
+          }
           // Mark that current turn has content output
           hasContentInTurnRef.current = true;
           // Auto-recover aiProcessing state if content arrives after finish
@@ -352,12 +394,18 @@ const OpenClawSendBox: React.FC<{
           break;
         }
         case 'agent_status': {
+          if (stopPendingRef.current) {
+            break;
+          }
           const statusData = message.data as { status: string; message: string };
           setOpenClawStatus(statusData.status);
           emitter.emit('agent.connection.status', conversation_id, statusData.status);
           break;
         }
         default: {
+          if (stopPendingRef.current) {
+            break;
+          }
           setThought({ subject: '', description: '' });
           const transformedMessage = safeTransformMessage();
           if (transformedMessage) {
@@ -393,6 +441,7 @@ const OpenClawSendBox: React.FC<{
       addOrUpdateMessage(userMessage, true);
       setAiProcessing(true);
       aiProcessingRef.current = true;
+      setProcessingStartTime(Date.now());
       starOfficeInstallInFlightRef.current = true;
       ipcBridge.openclawConversation.sendMessage
         .invoke({ input: text, msg_id, conversation_id, skills: ['star-office-helper'] })
@@ -403,6 +452,7 @@ const OpenClawSendBox: React.FC<{
         .catch(() => {
           setAiProcessing(false);
           aiProcessingRef.current = false;
+          setProcessingStartTime(undefined);
           starOfficeInstallInFlightRef.current = false;
         });
     },
@@ -467,6 +517,7 @@ const OpenClawSendBox: React.FC<{
       addOrUpdateMessage(userMessage, true);
       setAiProcessing(true);
       aiProcessingRef.current = true;
+      setProcessingStartTime(Date.now());
       try {
         await ipcBridge.openclawConversation.sendMessage.invoke({
           input: displayMessage,
@@ -481,6 +532,7 @@ const OpenClawSendBox: React.FC<{
         // Only reset aiProcessing on error, normal flow is reset by 'finish' event
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
         throw error;
       }
     },
@@ -545,6 +597,7 @@ const OpenClawSendBox: React.FC<{
         sessionStorage.setItem(processedKey, 'true');
         setAiProcessing(true);
         aiProcessingRef.current = true;
+        setProcessingStartTime(Date.now());
         const { input, files = [], skills = [] } = JSON.parse(stored) as { input: string; files?: string[]; skills?: string[] };
         const msg_id = `initial_${conversation_id}_${Date.now()}`;
         const loading_id = uuid();
@@ -570,6 +623,7 @@ const OpenClawSendBox: React.FC<{
         // Only reset aiProcessing on error, normal flow is reset by 'finish' event
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
       }
     };
 
@@ -585,19 +639,21 @@ const OpenClawSendBox: React.FC<{
   }, [conversation_id, openclawStatus, addOrUpdateMessage]);
 
   const handleStop = async (): Promise<void> => {
+    if (stopPendingRef.current) return;
+    stopPendingRef.current = true;
+    if (finishTimeoutRef.current) {
+      clearTimeout(finishTimeoutRef.current);
+      finishTimeoutRef.current = null;
+    }
+    setAiProcessing(false);
+    aiProcessingRef.current = false;
+    setThought({ subject: '', description: '' });
+    setProcessingStartTime(undefined);
+    hasContentInTurnRef.current = false;
     try {
       await ipcBridge.conversation.stop.invoke({ conversation_id });
     } finally {
-      // Clear pending finish timeout
-      if (finishTimeoutRef.current) {
-        clearTimeout(finishTimeoutRef.current);
-        finishTimeoutRef.current = null;
-      }
-
-      setAiProcessing(false);
-      aiProcessingRef.current = false;
-      setThought({ subject: '', description: '' });
-      hasContentInTurnRef.current = false;
+      stopPendingRef.current = false;
     }
   };
 

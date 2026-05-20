@@ -731,9 +731,7 @@ export function initConversationBridge(): void {
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
         // Update processingStartTime from running task / 从运行中的任务更新处理开始时间
-        if (task?.processingStartTime) {
-          conversation.processingStartTime = task.processingStartTime;
-        }
+        conversation.processingStartTime = task?.processingStartTime;
       }
 
       return conversation;

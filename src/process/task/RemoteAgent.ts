@@ -65,6 +65,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   private statusMessageId: string | null = null;
   private mossSessionId: string | null = null;
   private mossWsUrl: string | null = null;
+  private stopPromise: Promise<void> | null = null;
+  private turnActive = false;
+  private userCancelled = false;
 
   /** Workspace path for this agent */
   workspace: string;
@@ -259,6 +262,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     this.status = 'running';
     this.processingStartTime = Date.now();
+    this.turnActive = true;
+    this.userCancelled = false;
+    this.stopPromise = null;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
@@ -291,7 +297,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         type: 'start',
         conversation_id: this.conversation_id,
         msg_id: uuid(36),
-        data: null,
+        data: { processingStartTime: this.processingStartTime },
       });
 
       // Handle file references
@@ -315,6 +321,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       return result;
     } catch (error) {
       this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.emitErrorMessage(errorMsg);
       return { success: false, msg: errorMsg };
@@ -325,6 +333,22 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * Stop streaming response
    */
   async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+    if (!this.turnActive) {
+      return;
+    }
+
+    this.stopPromise = this.performStop().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async performStop(): Promise<void> {
+    this.userCancelled = true;
+
     // Send interrupt to Moss Server and wait for confirmation
     const confirmed = (await this.connection?.sendInterruptAndWait()) ?? false;
 
@@ -351,6 +375,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // Emit user cancelled message before finish
     this.emitUserCancelledMessage();
 
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
     this.emitFinishMessage();
   }
 
@@ -454,6 +481,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   // ========== Event handlers ==========
 
   private handleStreamMessage(msg: IResponseMessage): void {
+    if (this.userCancelled && msg.type !== 'finish') {
+      mainLog('RemoteAgent', `Ignoring stream message after user cancel: type=${msg.type}`);
+      return;
+    }
+
     const enrichedMsg = { ...msg, conversation_id: this.conversation_id };
     ipcBridge.conversation.responseStream.emit(enrichedMsg);
 
@@ -482,6 +514,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // 'content' 消息是流式的，不代表会话结束
     if (msg.type === 'finish') {
       this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
       // Clear turn-level file tracking for next turn
       // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
       this.currentTurnFiles.clear();
@@ -759,10 +793,13 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // After error, must emit finish to end the session
     // 发送错误后必须发送 finish 结束会话
     this.status = 'finished';
+    this.turnActive = false;
     this.emitFinishMessage();
   }
 
   private emitFinishMessage(): void {
+    this.turnActive = false;
+    this.processingStartTime = undefined;
     ipcBridge.conversation.responseStream.emit({
       type: 'finish',
       conversation_id: this.conversation_id,

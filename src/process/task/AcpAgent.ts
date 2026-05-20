@@ -145,6 +145,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Flag to track if user cancelled - ignore subsequent messages
   private userCancelled: boolean = false;
+  private stopPromise: Promise<void> | null = null;
+  private turnActive = false;
 
   // Tool call tracking for file_send messages to channel clients
   private toolCallMeta = new Map<string, { toolName: string; rawInput?: Record<string, unknown> }>();
@@ -637,9 +639,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     this.processingStartTime = Date.now();
+    this.turnActive = true;
 
     // Reset user cancelled flag for new message
     this.userCancelled = false;
+    this.stopPromise = null;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
@@ -890,6 +894,7 @@ This identity statement takes priority over the default identity in USER.md.
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+      this.turnActive = false;
       // Clear processingStartTime on error
       // 错误时清除处理开始时间
       this.processingStartTime = undefined;
@@ -1009,7 +1014,7 @@ This identity statement takes priority over the default identity in USER.md.
         type: 'start',
         conversation_id: this.conversation_id,
         msg_id: msg_id || uuid(),
-        data: null,
+        data: { processingStartTime: this.processingStartTime },
       });
 
       this.adapter.resetMessageTracking();
@@ -1112,7 +1117,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
-    mainLog(`[AcpAgent] answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`);
+    mainLog('[AcpAgent]', `answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`);
     if (!this.pendingQuestions.has(toolCallId)) {
       throw new Error(`Question request not found: ${toolCallId}`);
     }
@@ -1132,6 +1137,20 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+    if (!this.turnActive) {
+      return;
+    }
+
+    this.stopPromise = this.performStop().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async performStop(): Promise<void> {
     // Telemetry: end conversation tracking (user cancel)
     endConversationUserCancel(this.conversation_id);
 
@@ -1184,6 +1203,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     this.status = 'finished';
+    this.turnActive = false;
     // Clear processingStartTime on stop
     // 停止时清除处理开始时间
     this.processingStartTime = undefined;
@@ -1211,7 +1231,7 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitUserCancelledMessage();
 
     // 7. Always emit finish to ensure UI state is reset
-    this.handleStreamEvent({
+    void this.handleSignalEvent({
       type: 'finish',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
@@ -2106,11 +2126,13 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleEndTurn(): void {
-    // Telemetry: end conversation tracking (success)
-    endConversationSuccess(this.conversation_id);
+    if (!this.userCancelled) {
+      // Telemetry: end conversation tracking (success)
+      endConversationSuccess(this.conversation_id);
 
-    // Breadcrumb: conversation ended (success)
-    conversationBreadcrumbs.end(this.conversation_id, 'success');
+      // Breadcrumb: conversation ended (success)
+      conversationBreadcrumbs.end(this.conversation_id, 'success');
+    }
 
     // Clear turn-level file tracking for next turn
     // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
@@ -2287,7 +2309,7 @@ This identity statement takes priority over the default identity in USER.md.
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
     // Ignore messages if user has cancelled
-    if (this.userCancelled) {
+    if (this.userCancelled && v.type !== 'finish') {
       mainLog('[AcpAgent]', `Ignoring signal event after user cancel: type=${v.type}`);
       return;
     }
@@ -2319,6 +2341,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+      this.turnActive = false;
 
       // Delay clearing processingStartTime to match frontend's 1-second finish delay
       // This ensures timer can be restored if user switches conversations during the delay
@@ -2590,7 +2613,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     if (!modelArg) {
@@ -2666,6 +2689,7 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
@@ -2679,7 +2703,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
@@ -2773,6 +2797,7 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
@@ -2785,7 +2810,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
@@ -2818,6 +2843,7 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
