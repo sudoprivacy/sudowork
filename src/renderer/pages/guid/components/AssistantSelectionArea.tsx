@@ -67,8 +67,9 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   const presetAgents = customAgents.filter((a) => a.isPreset);
   const userCreatedAgents = customAgents.filter((a) => !a.isPreset);
 
-  const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-  const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+  // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
+  // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+  const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
   const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
 
   // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants

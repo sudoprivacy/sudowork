@@ -2227,14 +2227,14 @@ const AgentModalContent: React.FC = () => {
                 {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
               </section>
 
-              {/* Builtin assistants section */}
-              <section>
+              {/* Builtin assistants section - Hidden: temporarily disabled */}
+              {/* <section>
                 <div className='flex items-center justify-between gap-8px mb-10px'>
                   <div className='text-13px font-medium text-t-primary'>{t('settings.builtinAssistants', { defaultValue: '内置助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinAssistants.length}</span>
                 </div>
                 {builtinAssistants.length > 0 ? renderAssistantGrid(builtinAssistants) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>}
-              </section>
+              </section> */}
             </div>
           )}
         </AionScrollArea>
