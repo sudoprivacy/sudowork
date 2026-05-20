@@ -77,6 +77,66 @@ export function writeScodeImageModel(modelId: string): void {
   mainLog(TAG, `Updated tools.imageGenerationModel to "${modelId}"`);
 }
 
+/** Live model-list endpoint — same as the legacy OpenClaw model source. */
+const SPECIFIC_PRICING_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
+
+type SpecificPricingResponse = {
+  success?: boolean;
+  data?: Array<{ model_id?: string }>;
+};
+
+/**
+ * Fetch the live model list from sudorouter's specific_pricing endpoint and
+ * rewrite ONLY the `models` dict of sudocode.json. Preserves auth_modes /
+ * default_model / web_search / tools.
+ *
+ * Best-effort: on any fetch/parse failure (offline, timeout, success=false)
+ * this is a no-op — sudocode.json keeps its existing models so the dropdown
+ * degrades to the last-known list instead of going empty.
+ */
+export async function syncScodeModelsFromPricing(): Promise<void> {
+  let json: SpecificPricingResponse;
+  try {
+    const response = await fetch(SPECIFIC_PRICING_URL, { signal: AbortSignal.timeout(15000) });
+    json = (await response.json()) as SpecificPricingResponse;
+  } catch (err) {
+    mainWarn(TAG, `specific_pricing fetch failed, keeping existing models: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+
+  if (json.success !== true || !Array.isArray(json.data)) {
+    mainWarn(TAG, 'specific_pricing returned success!=true or no data, keeping existing models');
+    return;
+  }
+
+  const modelIds = json.data
+    .map((m) => (typeof m.model_id === 'string' ? m.model_id.trim() : ''))
+    .filter(Boolean);
+  if (modelIds.length === 0) {
+    mainWarn(TAG, 'specific_pricing returned empty model list, keeping existing models');
+    return;
+  }
+
+  // Rebuild the models dict — same ScodeModelEntry shape as
+  // buildScodeConfigFromLoginPayload (sudoworkAuthLogin.ts).
+  const models: Record<string, unknown> = {};
+  for (const modelId of modelIds) {
+    models[modelId] = {
+      alias: modelId,
+      name: modelId,
+      input: ['text'],
+      providers: {
+        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
+      },
+    };
+  }
+
+  const existing = readExistingConfig();
+  existing.models = models; // only replace `models`; other keys preserved
+  writeConfig(existing);
+  mainLog(TAG, `Synced ${modelIds.length} models from specific_pricing into sudocode.json`);
+}
+
 /**
  * Sync image generation model from ProcessConfig to sudocode.json on startup.
  * This runs independently of sudoclaw so it works even when openclaw is not used.
@@ -155,6 +215,22 @@ export function registerScodeBridge(): void {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Failed to set default model: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.scode.refreshModels.provider(async () => {
+    try {
+      await syncScodeModelsFromPricing();
+      const { getScodeProxyModelInfoSync } = await import('@process/services/scode/scodeProxyModels');
+      const info = getScodeProxyModelInfoSync();
+      if (!info) {
+        return { success: false, msg: 'No models available in sudocode.json' };
+      }
+      return { success: true, data: info };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to refresh models: ${msg}`);
       return { success: false, msg };
     }
   });

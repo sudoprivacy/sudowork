@@ -45,6 +45,8 @@
   "default": "기본",
   "defaultModel": "기본 모델",
   "modelSwitchSuccess": "{{model}}(으)로 전환되었습니다",
+  "modelListRefreshed": "모델 목록이 새로고침되었습니다",
+  "modelListRefreshFailed": "모델 목록 새로고침 실패",
   "escToCancel": "취소하려면 esc",
   "create": "생성",
   "createSuccess": "생성 성공",

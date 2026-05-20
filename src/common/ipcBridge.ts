@@ -739,6 +739,8 @@ export const scode = {
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Update only the default_model field in sudocode.json */
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
+  /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */
+  refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
   /** Sync image generation model to sudocode.json tools.imageGenerationModel */
   setImageModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string | null }>('scode.set-image-model'),
   /** Get scode installation status */
