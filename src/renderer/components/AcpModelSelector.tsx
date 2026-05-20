@@ -14,6 +14,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { IconRefresh } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -61,6 +62,8 @@ const AcpModelSelector: React.FC<{
   modelInfoRef.current = modelInfo;
   // Track whether user has manually switched model via dropdown
   const hasUserChangedModel = useRef(false);
+  // scode only: manual refresh of the live model list (specific_pricing)
+  const [refreshingModels, setRefreshingModels] = useState(false);
 
   // Fetch initial model info on mount, fallback to cached models if manager not ready
   useEffect(() => {
@@ -74,45 +77,83 @@ const AcpModelSelector: React.FC<{
       };
     }
 
-    ipcBridge.acpConversation.getModelInfo
-      .invoke({ conversationId })
-      .then((result) => {
-        if (cancelled) return;
-        if (result.success && result.data?.modelInfo) {
-          const info = result.data.modelInfo;
-          if (backend === 'codex') {
-            console.log('[AcpModelSelector][codex] Initial model info:', info);
-          }
-          // When agent is not fully initialized, getModelInfo returns
-          // canSwitch=false with empty availableModels. Prefer cached data
-          // in that case to keep the dropdown functional.
-          if (info.availableModels?.length > 0) {
-            setModelInfo(info);
-          } else if (backend) {
-            void loadCachedModelInfo(backend, cancelled);
-          } else if (info.currentModelId || info.currentModelLabel) {
-            setModelInfo(info);
-          } else {
-            setModelInfo(buildFallbackModelInfo(fallbackModelId));
-          }
-        } else if (backend) {
-          // Manager not yet created — load cached model list from storage
-          void loadCachedModelInfo(backend, cancelled);
-        } else {
-          setModelInfo(buildFallbackModelInfo(fallbackModelId));
-        }
-      })
-      .catch(() => {
-        if (!cancelled && backend) {
-          void loadCachedModelInfo(backend, cancelled);
-        } else if (!cancelled) {
-          setModelInfo(buildFallbackModelInfo(fallbackModelId));
-        }
-      });
+    // For scode, pull the live model list from sudorouter specific_pricing
+    // (rewrites sudocode.json models). Falls back to the standard path on
+    // failure so the dropdown still works offline.
+    if (backend === 'scode') {
+      void fetchScodeLiveModelInfo();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    runStandardModelInfoFetch();
 
     return () => {
       cancelled = true;
     };
+
+    async function fetchScodeLiveModelInfo() {
+      try {
+        const result = await ipcBridge.scode.refreshModels.invoke();
+        if (cancelled) return;
+        if (result.success && result.data && (result.data.availableModels?.length ?? 0) > 0) {
+          const info = result.data;
+          // Honor a Guid-page pre-selected model on first load.
+          if (!hasUserChangedModel.current && initialModelId) {
+            const match = info.availableModels.find((m) => m.id === initialModelId);
+            if (match) {
+              setModelInfo({ ...info, currentModelId: match.id, currentModelLabel: match.label });
+              return;
+            }
+          }
+          setModelInfo(info);
+          return;
+        }
+      } catch (error) {
+        console.error('[AcpModelSelector][scode] refreshModels failed:', error);
+      }
+      if (cancelled) return;
+      runStandardModelInfoFetch();
+    }
+
+    function runStandardModelInfoFetch() {
+      ipcBridge.acpConversation.getModelInfo
+        .invoke({ conversationId })
+        .then((result) => {
+          if (cancelled) return;
+          if (result.success && result.data?.modelInfo) {
+            const info = result.data.modelInfo;
+            if (backend === 'codex') {
+              console.log('[AcpModelSelector][codex] Initial model info:', info);
+            }
+            // When agent is not fully initialized, getModelInfo returns
+            // canSwitch=false with empty availableModels. Prefer cached data
+            // in that case to keep the dropdown functional.
+            if (info.availableModels?.length > 0) {
+              setModelInfo(info);
+            } else if (backend) {
+              void loadCachedModelInfo(backend, cancelled);
+            } else if (info.currentModelId || info.currentModelLabel) {
+              setModelInfo(info);
+            } else {
+              setModelInfo(buildFallbackModelInfo(fallbackModelId));
+            }
+          } else if (backend) {
+            // Manager not yet created — load cached model list from storage
+            void loadCachedModelInfo(backend, cancelled);
+          } else {
+            setModelInfo(buildFallbackModelInfo(fallbackModelId));
+          }
+        })
+        .catch(() => {
+          if (!cancelled && backend) {
+            void loadCachedModelInfo(backend, cancelled);
+          } else if (!cancelled) {
+            setModelInfo(buildFallbackModelInfo(fallbackModelId));
+          }
+        });
+    }
 
     async function fetchMossModelInfo(isCancelled: boolean) {
       try {
@@ -320,6 +361,32 @@ const AcpModelSelector: React.FC<{
     [conversationId, backend, modelInfo, t]
   );
 
+  // scode only: re-pull the live model list from sudorouter specific_pricing.
+  const handleRefreshModels = useCallback(async () => {
+    if (backend !== 'scode' || refreshingModels) return;
+    setRefreshingModels(true);
+    try {
+      const result = await ipcBridge.scode.refreshModels.invoke();
+      if (result.success && result.data) {
+        const data = result.data;
+        // Keep the current selection if it's still in the refreshed list.
+        setModelInfo((prev) => {
+          const keepId = prev?.currentModelId && data.availableModels.some((m) => m.id === prev.currentModelId) ? prev.currentModelId : data.currentModelId;
+          const keepLabel = data.availableModels.find((m) => m.id === keepId)?.label || keepId;
+          return { ...data, currentModelId: keepId, currentModelLabel: keepLabel };
+        });
+        Message.success(t('common.modelListRefreshed'));
+      } else {
+        Message.error(result.msg || t('common.modelListRefreshFailed'));
+      }
+    } catch (error) {
+      console.error('[AcpModelSelector][scode] handleRefreshModels failed:', error);
+      Message.error(t('common.modelListRefreshFailed'));
+    } finally {
+      setRefreshingModels(false);
+    }
+  }, [backend, refreshingModels, t]);
+
   const defaultModelLabel = t('common.defaultModel');
   const rawDisplayLabel = modelInfo?.currentModelLabel || modelInfo?.currentModelId || '';
   const displayLabel = getModelDisplayLabel({
@@ -376,6 +443,16 @@ const AcpModelSelector: React.FC<{
       trigger='click'
       droplist={
         <Menu>
+          {backend === 'scode' && (
+            <div
+              className='flex items-center justify-end px-12px py-4px border-b border-[var(--color-border-2)]'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Tooltip content={t('common.refresh')} position='top'>
+                <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
+              </Tooltip>
+            </div>
+          )}
           {modelInfo.availableModels.map((model) => {
             // 获取模型健康状态
             const providerConfig = modelConfig?.find((p) => p.platform?.includes(backend || ''));
