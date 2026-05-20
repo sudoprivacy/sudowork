@@ -36,6 +36,7 @@ import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
 let cachedAppMode: 'c' | 'e' | null = null;
 let cachedServerUrl: string = '';
 let cachedAuthToken: string = '';
+let cachedUserId: string = '';
 // Cache for guid session mode (remote/local), updated by refreshEnterpriseCache and setSessionMode IPC
 // guid session 模式缓存（remote/local），由 refreshEnterpriseCache 和 setSessionMode IPC 更新
 let cachedSessionMode: 'remote' | 'local' = 'remote';
@@ -67,6 +68,10 @@ export async function refreshEnterpriseCache(): Promise<void> {
     cachedAuthToken = authStorage?.access_token || '';
     cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
     cachedSessionMode = config.getSync('guid.sessionMode') || 'remote';
+    const userInfo = config.getSync('eeclaw.userInfo');
+    if (userInfo?.id) {
+      cachedUserId = userInfo.id;
+    }
   } catch {
     // Keep existing cache values on error
   }
@@ -179,6 +184,22 @@ export async function getMossServerUrlAsync(): Promise<string> {
   } catch {
     return '';
   }
+}
+
+/**
+ * Get cached user ID (synchronous, uses cached value)
+ * 获取缓存的用户 ID（同步，使用缓存值）
+ */
+export function getUserId(): string {
+  return cachedUserId;
+}
+
+/**
+ * Set cached user ID
+ * 设置缓存的用户 ID
+ */
+export function setCachedUserId(id: string): void {
+  cachedUserId = id;
 }
 
 /**

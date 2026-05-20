@@ -11,7 +11,9 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
 import TenantConfigSection from './TenantConfigSection';
+import { EnterpriseSecretSection } from './EnterpriseSecretSection';
 import { ZentaoChannelItem } from '../ZentaoConfigForm';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /**
  * Secret Management Content Component
@@ -20,10 +22,13 @@ const SecretModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
 
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const guideText = t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
+  const guideText = isEnterprise
+    ? t('settings.secrets.description.enterprise', '管理您的凭据，凭据安全存储在服务端。')
+    : t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
   const setupSteps = [t('settings.secrets.step1', '选择服务并填写秘钥信息。'), t('settings.secrets.step2', '点击保存完成配置。')];
 
   const handleRefresh = useCallback(() => {
@@ -53,8 +58,11 @@ const SecretModalContent: React.FC = () => {
         </div>
 
         <div className='space-y-12px mt-12px'>
-          {/* 禅道 */}
-          <ZentaoChannelItem />
+          {/* 企业凭据只读区域 */}
+          {isEnterprise && <EnterpriseSecretSection />}
+
+          {/* 禅道（仅C端） */}
+          {!isEnterprise && <ZentaoChannelItem />}
 
           {/* 租户配置项 */}
           <TenantConfigSection refreshTrigger={refreshCounter} />

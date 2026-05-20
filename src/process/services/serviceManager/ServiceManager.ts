@@ -255,7 +255,9 @@ export class ServiceManager {
           try {
             const { startAuthProxy } = await import('@process/services/authProxy');
             const port = await startAuthProxy();
-            mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+            if (port > 0) {
+              mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+            }
           } catch (err) {
             mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
           }
