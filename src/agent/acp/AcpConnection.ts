@@ -687,8 +687,6 @@ export class AcpConnection {
     try {
       let result = null;
 
-      mainLog('ACP-DIAG', 'incoming method:', message.method);
-
       // 可辨识联合类型：TypeScript 根据 method 字面量自动窄化 params 类型
       switch (message.method) {
         case ACP_METHODS.SESSION_UPDATE:
