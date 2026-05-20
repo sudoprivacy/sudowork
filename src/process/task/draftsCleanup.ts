@@ -13,7 +13,7 @@
  * directly to the workspace root instead of .drafts/.
  */
 
-import { DRAFTS_DIR_NAME, FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP } from '@/common/constants';
+import { DRAFTS_DIR_NAME, FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, DRAFT_FILE_PATTERNS, FINAL_FILE_PATTERNS, DRAFT_EXTENSIONS, FINAL_EXTENSIONS } from '@/common/constants';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -31,8 +31,64 @@ const EXCLUDED_NAMES = new Set([DRAFTS_DIR_NAME, '.git', '.gitignore', '.env', '
  */
 interface FileIntentResult {
   intent: 'final' | 'draft' | 'unknown';
+  reason: string;
   marker?: string; // 检测到的具体标记
   line?: number; // 标记所在行号
+}
+
+/**
+ * Check if file name matches draft patterns
+ * 检查文件名是否匹配草稿模式
+ */
+export function matchesDraftPattern(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+
+  // Check prefix patterns
+  for (const prefix of DRAFT_FILE_PATTERNS.prefixes) {
+    if (lower.startsWith(prefix)) {
+      return true;
+    }
+  }
+
+  // Check suffix patterns (before extension)
+  const ext = path.extname(lower);
+  const baseName = lower.slice(0, lower.length - ext.length);
+  for (const suffix of DRAFT_FILE_PATTERNS.suffixes) {
+    if (baseName.endsWith(suffix)) {
+      return true;
+    }
+  }
+
+  // Check extension
+  if (DRAFT_EXTENSIONS.includes(ext)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if file name matches final patterns
+ * 检查文件名是否匹配最终文件模式
+ */
+function matchesFinalPattern(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  const ext = path.extname(lower);
+  const baseName = lower.slice(0, lower.length - ext.length);
+
+  // Check suffix patterns
+  for (const suffix of FINAL_FILE_PATTERNS.suffixes) {
+    if (baseName.endsWith(suffix)) {
+      return true;
+    }
+  }
+
+  // Check extension
+  if (FINAL_EXTENSIONS.includes(ext)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -64,14 +120,14 @@ export function detectFileIntent(filePath: string, content: string): FileIntentR
         // 检测 final 标记
         for (const marker of FILE_INTENT_MARKERS.final) {
           if (commentContent.includes(marker)) {
-            return { intent: 'final', marker, line: i + 1 };
+            return { intent: 'final', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
           }
         }
 
         // 检测 draft 标记
         for (const marker of FILE_INTENT_MARKERS.draft) {
           if (commentContent.includes(marker)) {
-            return { intent: 'draft', marker, line: i + 1 };
+            return { intent: 'draft', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
           }
         }
       }
@@ -85,21 +141,21 @@ export function detectFileIntent(filePath: string, content: string): FileIntentR
       // 检测 final 标记
       for (const marker of FILE_INTENT_MARKERS.final) {
         if (commentContent.includes(marker)) {
-          return { intent: 'final', marker, line: i + 1 };
+          return { intent: 'final', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
         }
       }
 
       // 检测 draft 标记
       for (const marker of FILE_INTENT_MARKERS.draft) {
         if (commentContent.includes(marker)) {
-          return { intent: 'draft', marker, line: i + 1 };
+          return { intent: 'draft', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
         }
       }
     }
   }
 
   // 无标记 → unknown（默认视为 final）
-  return { intent: 'unknown' };
+  return { intent: 'unknown', reason: 'No marker found' };
 }
 
 /**
@@ -136,42 +192,65 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
       if (EXCLUDED_NAMES.has(entry.name)) continue;
 
       const filePath = path.join(workspace, entry.name);
+      let intentResult: FileIntentResult;
 
-      // 读取文件内容（前10行足够检测标记）
-      let content: string;
+      // Try to read file content for marker detection
+      let content: string | null = null;
       try {
         content = await fs.readFile(filePath, 'utf-8');
       } catch (readErr) {
-        // 无法读取的文件（如二进制文件）→ 默认保留
-        mainLog('draftsCleanup', `Cannot read ${entry.name}, treating as final (binary/locked)`);
+        // Binary or locked file - use pattern detection only
+        mainLog('draftsCleanup', `Cannot read ${entry.name}, using pattern detection only`);
+      }
+
+      // Priority 1: Check for markers in content
+      if (content) {
+        intentResult = detectFileIntent(filePath, content);
+        if (intentResult.intent === 'draft') {
+          filesToMove.push({
+            name: entry.name,
+            reason: `Detected @draft marker at line ${intentResult.line}`,
+          });
+          hasDraftScripts = true;
+          mainLog('draftsCleanup', `[MARKER] ${entry.name}: @draft detected at line ${intentResult.line}, will move to .drafts/`);
+          continue;
+        } else if (intentResult.intent === 'final') {
+          filesToKeep.push({
+            name: entry.name,
+            reason: `Detected @final marker at line ${intentResult.line}`,
+          });
+          mainLog('draftsCleanup', `[MARKER] ${entry.name}: @final detected at line ${intentResult.line}, will keep in workspace root`);
+          continue;
+        }
+      }
+
+      // Priority 2: Check final patterns (override draft patterns)
+      if (matchesFinalPattern(entry.name)) {
+        filesToKeep.push({
+          name: entry.name,
+          reason: 'Matches final file pattern',
+        });
+        mainLog('draftsCleanup', `[PATTERN] ${entry.name}: matches final pattern, keeping in workspace root`);
         continue;
       }
 
-      // 检测意图标记
-      const intentResult = detectFileIntent(filePath, content);
-
-      // 决策逻辑
-      if (intentResult.intent === 'draft') {
+      // Priority 3: Check draft patterns
+      if (matchesDraftPattern(entry.name)) {
         filesToMove.push({
           name: entry.name,
-          reason: `Detected @draft marker at line ${intentResult.line}`,
+          reason: 'Matches draft file pattern',
         });
         hasDraftScripts = true;
-        mainLog('draftsCleanup', `[MARKER] ${entry.name}: @draft detected at line ${intentResult.line}, will move to .drafts/`);
-      } else if (intentResult.intent === 'final') {
-        filesToKeep.push({
-          name: entry.name,
-          reason: `Detected @final marker at line ${intentResult.line}`,
-        });
-        mainLog('draftsCleanup', `[MARKER] ${entry.name}: @final detected at line ${intentResult.line}, will keep in workspace root`);
-      } else {
-        // unknown → 默认保留（保守策略）
-        filesToKeep.push({
-          name: entry.name,
-          reason: 'No marker found, defaulting to final',
-        });
-        mainLog('draftsCleanup', `[DEFAULT] ${entry.name}: no marker, treating as final (safe default)`);
+        mainLog('draftsCleanup', `[PATTERN] ${entry.name}: matches draft pattern, will move to .drafts/`);
+        continue;
       }
+
+      // Priority 4: Default - keep in workspace root (safe default)
+      filesToKeep.push({
+        name: entry.name,
+        reason: 'No marker or pattern match, defaulting to final',
+      });
+      mainLog('draftsCleanup', `[DEFAULT] ${entry.name}: no marker/pattern, treating as final (safe default)`);
     }
 
     // 如果没有需要移动的文件，直接返回
@@ -359,4 +438,76 @@ export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWork
   } catch (err) {
     mainError('draftsCleanup', 'Misplaced files cleanup failed:', err);
   }
+}
+
+/**
+ * Clean up draft files when session is cancelled/aborted
+ * 会话取消/中止时清理草稿文件
+ *
+ * This function is called when the user cancels a session.
+ * It removes all files in the .drafts/ directory and optionally
+ * removes draft files from the workspace root.
+ *
+ * @param workspace - The workspace root path
+ * @param removeDraftsFromRoot - Also remove draft files from workspace root (default: true)
+ * @returns Number of files removed
+ */
+export async function cleanupDraftsOnCancel(workspace: string, removeDraftsFromRoot: boolean = true): Promise<number> {
+  let removedCount = 0;
+
+  try {
+    const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
+
+    // 1. Remove all files in .drafts/ directory
+    if (fsSync.existsSync(draftsDir)) {
+      const draftEntries = await fs.readdir(draftsDir, { withFileTypes: true });
+
+      for (const entry of draftEntries) {
+        const entryPath = path.join(draftsDir, entry.name);
+        try {
+          if (entry.isDirectory()) {
+            await fs.rm(entryPath, { recursive: true, force: true });
+          } else {
+            await fs.unlink(entryPath);
+          }
+          removedCount++;
+          mainLog('draftsCleanup', `[CANCEL] Removed draft file: ${entry.name}`);
+        } catch (err) {
+          mainError('draftsCleanup', `Failed to remove draft file ${entry.name}:`, err);
+        }
+      }
+
+      mainLog('draftsCleanup', `[CANCEL] Cleaned up ${removedCount} draft file(s) from .drafts/`);
+    }
+
+    // 2. Optionally remove draft files from workspace root
+    if (removeDraftsFromRoot && fsSync.existsSync(workspace)) {
+      const entries = await fs.readdir(workspace, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (EXCLUDED_NAMES.has(entry.name)) continue;
+
+        // Check if file matches draft pattern
+        if (matchesDraftPattern(entry.name)) {
+          const filePath = path.join(workspace, entry.name);
+          try {
+            await fs.unlink(filePath);
+            removedCount++;
+            mainLog('draftsCleanup', `[CANCEL] Removed draft file from root: ${entry.name}`);
+          } catch (err) {
+            mainError('draftsCleanup', `Failed to remove draft file ${entry.name}:`, err);
+          }
+        }
+      }
+    }
+
+    if (removedCount > 0) {
+      mainLog('draftsCleanup', `[CANCEL] Total draft files removed: ${removedCount}`);
+    }
+  } catch (err) {
+    mainError('draftsCleanup', 'Draft cleanup on cancel failed:', err);
+  }
+
+  return removedCount;
 }
