@@ -40,7 +40,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
-import { cleanupIntermediateFiles } from './draftsCleanup';
+import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
 import BaseAgent from './BaseAgent';
 
@@ -166,6 +166,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Workspace file tracking for channel file_send messages
   private workspaceFileSnapshot = new Map<string, number>();
 
+  // Turn-level file tracking for precise cleanup on cancel
+  private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
+
   // Extra config passed to connection
   private extra: {
     workspace?: string;
@@ -207,6 +210,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     this.setupConnectionHandlers();
     this.refreshWorkspaceFileSnapshot();
+    // Initialize full workspace snapshot for Bash file tracking
+    // 初始化完整工作空间快照用于 Bash 文件追踪
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    mainLog('[AcpAgent]', `[INIT] Initialized workspace snapshot with ${this.workspaceFileSnapshot.size} files`);
   }
 
   // ========== Connection Lifecycle ==========
@@ -634,6 +641,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // Reset user cancelled flag for new message
     this.userCancelled = false;
 
+    // ★ Reset turn-level file tracking for new turn
+    // 重置 Turn 级别文件追踪，开始新的 Turn
+    this.currentTurnFiles.clear();
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
+
     try {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
@@ -780,10 +793,12 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (data.files && data.files.length > 0) {
-          const fileRefs = data.files.map((filePath) => {
-            const normalized = filePath.replace(/\\/g, '/');
-            return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
-          }).join(' ');
+          const fileRefs = data.files
+            .map((filePath) => {
+              const normalized = filePath.replace(/\\/g, '/');
+              return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+            })
+            .join(' ');
           contentToSend = fileRefs + ' ' + contentToSend;
         }
 
@@ -1094,9 +1109,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
-    mainLog(
-      `[AcpAgent] answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`,
-    );
+    mainLog(`[AcpAgent] answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`);
     if (!this.pendingQuestions.has(toolCallId)) {
       throw new Error(`Question request not found: ${toolCallId}`);
     }
@@ -1169,7 +1182,23 @@ This identity statement takes priority over the default identity in USER.md.
 
     this.status = 'finished';
 
-    // 5. Clear incomplete tool calls from message list
+    // 5. Clean up all tracked files on cancel (precise cleanup)
+    // 取消时精确清理追踪到的所有文件（包括 draft 和 final）
+    if (this.workspace) {
+      mainLog('[AcpAgent]', `[STOP] currentTurnFiles size: ${this.currentTurnFiles.size}`);
+      if (this.currentTurnFiles.size > 0) {
+        for (const [path, file] of this.currentTurnFiles) {
+          mainLog('[AcpAgent]', `[STOP] Tracked file: ${path}, intent: ${file.intent}`);
+        }
+        this.cleanupTrackedFiles().catch((err) => {
+          mainError('[AcpAgent]', 'Failed to cleanup tracked files:', err);
+        });
+      } else {
+        mainLog('[AcpAgent]', '[STOP] No tracked files to cleanup');
+      }
+    }
+
+    // 6. Clear incomplete tool calls from message list
     this.emitClearIncompleteTools();
 
     // 6. Emit user cancelled message
@@ -1193,6 +1222,38 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   /**
+   * Clean up all tracked files from current turn (both draft and final)
+   * 清理当前 Turn 追踪到的所有文件（包括 draft 和 final）
+   */
+  private async cleanupTrackedFiles(): Promise<number> {
+    let removedCount = 0;
+
+    for (const [requestedPath, file] of this.currentTurnFiles) {
+      try {
+        const fullPath = file.path;
+        if (fs.existsSync(fullPath)) {
+          await fs.promises.unlink(fullPath);
+          removedCount++;
+          mainLog('[AcpAgent]', `[CLEANUP] Removed tracked file: ${requestedPath} (intent: ${file.intent}, actual: ${fullPath})`);
+        } else {
+          mainLog('[AcpAgent]', `[CLEANUP] File already removed: ${fullPath}`);
+        }
+      } catch (err) {
+        mainError('[AcpAgent]', `Failed to remove file ${requestedPath}:`, err);
+      }
+    }
+
+    // Clear tracking
+    this.currentTurnFiles.clear();
+
+    if (removedCount > 0) {
+      mainLog('[AcpAgent]', `[CLEANUP] Total tracked files removed: ${removedCount}`);
+    }
+
+    return removedCount;
+  }
+
+  /**
    * Emit clear incomplete tools message
    * 发送清理未完成工具调用的消息
    */
@@ -1203,6 +1264,99 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: uuid(),
       data: null,
     });
+  }
+
+  /**
+   * Track files generated by Bash tool execution
+   * 追踪 Bash 工具执行产生的文件
+   *
+   * Scans workspace for new files after Bash completes and tracks them
+   * 在 Bash 完成后扫描工作空间新增文件并追踪
+   */
+  private trackBashGeneratedFiles(): void {
+    try {
+      const currentSnapshot = this.getWorkspaceFiles();
+
+      // Compare with previous snapshot to find new files
+      const previousSnapshot = this.workspaceFileSnapshot;
+      const newFiles: string[] = [];
+
+      for (const [file, time] of currentSnapshot) {
+        if (!previousSnapshot.has(file)) {
+          newFiles.push(file);
+        }
+      }
+
+      // Track new files
+      for (const file of newFiles) {
+        const fileName = nodePath.basename(file);
+        const relativePath = nodePath.relative(this.workspace, file);
+
+        // Skip excluded files and directories
+        const EXCLUDED = new Set(['.git', '.gitignore', '.env', '.env.local', 'node_modules', '.DS_Store', 'Thumbs.db', '.nexus']);
+        if (EXCLUDED.has(fileName) || fileName.startsWith('.nexus')) continue;
+
+        // Detect intent based on file name pattern
+        const intent = matchesDraftPattern(fileName) ? 'draft' : 'final';
+
+        // Track the file
+        this.currentTurnFiles.set(relativePath, {
+          path: file,
+          intent,
+          kind: 'create',
+        });
+        mainLog('[AcpAgent]', `[TRACK-BASH] New file detected: ${relativePath}, intent: ${intent}`);
+      }
+
+      // Update snapshot for next comparison
+      this.workspaceFileSnapshot = currentSnapshot;
+
+      if (newFiles.length > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total new files tracked: ${newFiles.length}`);
+      }
+    } catch (err) {
+      mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
+    }
+  }
+
+  /**
+   * Get current workspace files snapshot
+   * 获取当前工作空间文件快照
+   */
+  private getWorkspaceFiles(): Map<string, number> {
+    const snapshot = new Map<string, number>();
+
+    try {
+      // Scan workspace root
+      const scanDir = (dir: string, baseDir: string) => {
+        if (!fs.existsSync(dir)) return;
+
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = nodePath.join(dir, entry.name);
+
+          // Skip certain directories
+          if (entry.isDirectory()) {
+            const skipDirs = new Set(['.git', 'node_modules', '.nexus', '__pycache__', '.venv', 'venv']);
+            if (skipDirs.has(entry.name)) continue;
+            scanDir(fullPath, baseDir);
+          } else if (entry.isFile()) {
+            try {
+              const stat = fs.statSync(fullPath);
+              snapshot.set(fullPath, stat.mtimeMs);
+            } catch {
+              // Ignore stat errors
+            }
+          }
+        }
+      };
+
+      scanDir(this.workspace, this.workspace);
+    } catch (err) {
+      mainError('[AcpAgent]', 'Failed to get workspace files snapshot:', err);
+    }
+
+    return snapshot;
   }
 
   /**
@@ -1481,8 +1635,28 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Connection Event Handlers ==========
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
-    // Ignore session updates if user has cancelled
+    // Ignore most session updates if user has cancelled
+    // But still process Bash tool completions to track generated files for cleanup
+    // 用户取消后忽略大部分 session 更新，但仍然处理 Bash 工具完成事件以追踪生成的文件用于清理
     if (this.userCancelled) {
+      // Special handling: still track Bash-generated files even after cancel
+      // 特殊处理：即使取消后仍然追踪 Bash 生成的文件
+      if (data.update?.sessionUpdate === 'tool_call_update') {
+        const statusUpdate = data as ToolCallUpdateStatus;
+        const toolCallId = statusUpdate.update?.toolCallId;
+        const toolStatus = statusUpdate.update?.status;
+        const rawInput = statusUpdate.update?.rawInput;
+
+        if (toolStatus === 'completed' && rawInput) {
+          // Check if this is a Bash tool
+          const meta = this.toolCallMeta.get(toolCallId);
+          if (meta && meta.toolName.toLowerCase() === 'bash') {
+            mainLog('[AcpAgent]', `[TRACK-BASH-CANCEL] Bash completed after cancel, tracking generated files`);
+            this.trackBashGeneratedFiles();
+          }
+        }
+      }
+
       mainLog('[AcpAgent]', `Ignoring session update after user cancel: sessionUpdate=${data.update?.sessionUpdate}`);
       return;
     }
@@ -1567,9 +1741,51 @@ This identity statement takes priority over the default identity in USER.md.
             const rawInput = meta.rawInput;
             console.log(`[AcpAgent] Processing tool call: toolName=${toolName}, lastUserMessage=${this.lastUserMessage?.substring(0, 50)}...`);
 
+            // ★ Track file operations for precise cleanup on cancel
+            const n = toolName.toLowerCase();
+            if (n === 'write_file' || n === 'edit_file') {
+              const inputPath = rawInput?.path as string | undefined;
+              const content = rawInput?.content as string | undefined;
+              if (inputPath) {
+                // Detect file intent
+                let intent: 'draft' | 'final' = 'final';
+                if (content) {
+                  const intentResult = detectFileIntent(inputPath, content);
+                  if (intentResult.intent === 'draft') {
+                    intent = 'draft';
+                  } else if (intentResult.intent === 'final') {
+                    intent = 'final';
+                  } else {
+                    // Use pattern matching as fallback
+                    intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
+                  }
+                } else {
+                  intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
+                }
+
+                // Track the file
+                const actualPath = intent === 'draft' ? nodePath.join(this.workspace, '.drafts', nodePath.basename(inputPath)) : nodePath.join(this.workspace, inputPath);
+
+                this.currentTurnFiles.set(inputPath, {
+                  path: actualPath,
+                  intent,
+                  kind: n === 'write_file' ? 'create' : 'edit',
+                });
+                mainLog('[AcpAgent]', `[TRACK] File: ${inputPath}, intent: ${intent}, actualPath: ${actualPath}`);
+              }
+            }
+
+            // ★ Track files generated by Bash tool (scan workspace for new files)
+            // 追踪 Bash 工具产生的文件（扫描工作空间新增文件）
+            if (n === 'bash') {
+              mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
+              if (toolStatus === 'completed') {
+                this.trackBashGeneratedFiles();
+              }
+            }
+
             // Strategy 1: SendUserMessage tool - Agent explicitly sends files to user
             // This is the preferred way for Agent to send files
-            const n = toolName.toLowerCase();
             if (n === 'sendusermessage' || n === 'brief') {
               const attachments = rawInput?.attachments as Array<string> | undefined;
               if (attachments && attachments.length > 0) {
@@ -1715,12 +1931,15 @@ This identity statement takes priority over the default identity in USER.md.
         return;
       }
 
-      setTimeout(() => {
-        if (this.pendingPermissions.has(requestId)) {
-          this.pendingPermissions.delete(requestId);
-          reject(new Error('Permission request timed out'));
-        }
-      }, 10 * 60 * 1000);
+      setTimeout(
+        () => {
+          if (this.pendingPermissions.has(requestId)) {
+            this.pendingPermissions.delete(requestId);
+            reject(new Error('Permission request timed out'));
+          }
+        },
+        10 * 60 * 1000
+      );
     });
   }
 
@@ -1776,14 +1995,17 @@ This identity statement takes priority over the default identity in USER.md.
         return;
       }
 
-      setTimeout(() => {
-        if (this.pendingQuestions.has(requestId)) {
-          this.pendingQuestions.delete(requestId);
-          mainWarn('AcpAgent', `Question request timed out: requestId=${requestId}`);
-          this.emitQuestionCancelled(msgId);
-          reject(new Error('Question request timed out'));
-        }
-      }, 10 * 60 * 1000);
+      setTimeout(
+        () => {
+          if (this.pendingQuestions.has(requestId)) {
+            this.pendingQuestions.delete(requestId);
+            mainWarn('AcpAgent', `Question request timed out: requestId=${requestId}`);
+            this.emitQuestionCancelled(msgId);
+            reject(new Error('Question request timed out'));
+          }
+        },
+        10 * 60 * 1000
+      );
     });
   }
 
@@ -1812,9 +2034,7 @@ This identity statement takes priority over the default identity in USER.md.
       const only = answerItems[0];
       selectedAnswer = only.displayValue || '[skipped]';
     } else {
-      selectedAnswer = answerItems
-        .map((item) => `${item.index}. ${item.skipped ? '[skipped]' : item.displayValue}`)
-        .join('\n');
+      selectedAnswer = answerItems.map((item) => `${item.index}. ${item.skipped ? '[skipped]' : item.displayValue}`).join('\n');
     }
 
     // Only include the fields that change: question/options/items/intro must be
@@ -1885,6 +2105,11 @@ This identity statement takes priority over the default identity in USER.md.
 
     // Breadcrumb: conversation ended (success)
     conversationBreadcrumbs.end(this.conversation_id, 'success');
+
+    // Clear turn-level file tracking for next turn
+    // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
+    this.currentTurnFiles.clear();
+    mainLog('[AcpAgent]', '[END_TURN] Cleared currentTurnFiles for next turn');
 
     const msg: IResponseMessage = {
       type: 'finish',

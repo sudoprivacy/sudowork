@@ -68,6 +68,84 @@ export const FILE_INTENT_MARKERS = {
 };
 
 /**
+ * Draft file name patterns (prefixes and suffixes)
+ * 草稿文件名模式（前缀和后缀）
+ *
+ * Files matching these patterns are considered draft files
+ */
+export const DRAFT_FILE_PATTERNS = {
+  // Prefix patterns (file name starts with these)
+  prefixes: ['temp_', 'temp-', 'tmp_', 'tmp-', 'temporary_', 'temporary-', 'draft_', 'draft-', 'wip_', 'wip-', 'scratch_', 'scratch-', 'proto_', 'proto-', 'poc_', 'poc-', 'step_', 'step-', 'step1', 'step2', 'step3', 'step4', 'step5', 'phase_', 'phase-', 'phase1', 'phase2', 'phase3'],
+  // Suffix patterns (file name ends with these, before extension)
+  suffixes: ['_draft', '-draft', '_wip', '-wip', '_temp', '-temp', '_tmp', '-tmp', '_backup', '-backup', '_bak', '-bak', '_old', '-old'],
+};
+
+/**
+ * Final file name patterns (override draft patterns)
+ * 最终文件名模式（覆盖草稿模式）
+ */
+export const FINAL_FILE_PATTERNS = {
+  suffixes: ['_final', '-final', '_result', '-result', '_output', '-output', '_completed', '-completed', '_done', '-done'],
+};
+
+/**
+ * Draft file extensions
+ * 草稿文件扩展名
+ */
+export const DRAFT_EXTENSIONS = ['.tmp', '.temp', '.bak', '.backup', '.log', '.cache'];
+
+/**
+ * Final file extensions (user-requested code/data files)
+ * 最终文件扩展名（用户请求的代码/数据文件）
+ */
+export const FINAL_EXTENSIONS = [
+  // Documents
+  '.md',
+  '.txt',
+  '.pdf',
+  '.docx',
+  '.pptx',
+  // Data files
+  '.json',
+  '.yaml',
+  '.yml',
+  '.csv',
+  '.xlsx',
+  // Code files
+  '.py',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.rs',
+  '.go',
+  '.java',
+  '.kt',
+  '.c',
+  '.cpp',
+  '.h',
+  '.hpp',
+  '.rb',
+  '.php',
+  '.lua',
+  // Config files
+  '.toml',
+  '.ini',
+  '.conf',
+  '.cfg',
+  // Web/images
+  '.html',
+  '.css',
+  '.scss',
+  '.png',
+  '.jpg',
+  '.svg',
+];
+
+/**
  * 不同语言的注释语法映射
  * Comment syntax mapping for different languages
  */

@@ -15,6 +15,9 @@ import { mainLog, mainError } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { getConversationProvider } from '../providers';
 import { addOrUpdateMessage } from '../message';
+import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
+import * as nodePath from 'node:path';
+import * as fs from 'node:fs';
 
 /**
  * RemoteAgent data interface
@@ -64,12 +67,19 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   /** Workspace path for this agent */
   workspace: string;
 
+  /** Turn-level file tracking for precise cleanup on cancel */
+  private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
+
   constructor(data: RemoteAgentData) {
     super('remote-agent', data);
     this.conversation_id = data.conversation_id;
     this.options = data;
     this.status = 'pending';
     this.workspace = data.workspace || process.cwd();
+    // Initialize full workspace snapshot for Bash file tracking
+    // 初始化完整工作空间快照用于 Bash 文件追踪
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    mainLog('RemoteAgent', `[INIT] Initialized workspace snapshot with ${this.workspaceFileSnapshot.size} files`);
   }
 
   /**
@@ -244,6 +254,12 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.status = 'running';
     this.processingStartTime = Date.now();
 
+    // ★ Reset turn-level file tracking for new turn
+    // 重置 Turn 级别文件追踪，开始新的 Turn
+    this.currentTurnFiles.clear();
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    mainLog('RemoteAgent', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
+
     try {
       mainLog('RemoteAgent', 'Calling initAgent...');
       await this.initAgent();
@@ -310,10 +326,58 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       mainLog('RemoteAgent', 'Interrupt confirmation timeout or not connected, proceeding anyway');
     }
 
+    // Clean up all tracked files on cancel (precise cleanup)
+    // 取消时精确清理追踪到的所有文件（包括 draft 和 final）
+    if (this.workspace) {
+      mainLog('RemoteAgent', `[STOP] currentTurnFiles size: ${this.currentTurnFiles.size}`);
+      if (this.currentTurnFiles.size > 0) {
+        for (const [path, file] of this.currentTurnFiles) {
+          mainLog('RemoteAgent', `[STOP] Tracked file: ${path}, intent: ${file.intent}`);
+        }
+        this.cleanupTrackedFiles().catch((err) => {
+          mainError('RemoteAgent', 'Failed to cleanup tracked files:', err);
+        });
+      } else {
+        mainLog('RemoteAgent', '[STOP] No tracked files to cleanup');
+      }
+    }
+
     // Emit user cancelled message before finish
     this.emitUserCancelledMessage();
 
     this.emitFinishMessage();
+  }
+
+  /**
+   * Clean up all tracked files from current turn (both draft and final)
+   * 清理当前 Turn 追踪到的所有文件（包括 draft 和 final）
+   */
+  private async cleanupTrackedFiles(): Promise<number> {
+    let removedCount = 0;
+
+    for (const [requestedPath, file] of this.currentTurnFiles) {
+      try {
+        const fullPath = file.path;
+        if (fs.existsSync(fullPath)) {
+          await fs.promises.unlink(fullPath);
+          removedCount++;
+          mainLog('RemoteAgent', `[CLEANUP] Removed tracked file: ${requestedPath} (intent: ${file.intent}, actual: ${fullPath})`);
+        } else {
+          mainLog('RemoteAgent', `[CLEANUP] File already removed: ${fullPath}`);
+        }
+      } catch (err) {
+        mainError('RemoteAgent', `Failed to remove file ${requestedPath}:`, err);
+      }
+    }
+
+    // Clear tracking
+    this.currentTurnFiles.clear();
+
+    if (removedCount > 0) {
+      mainLog('RemoteAgent', `[CLEANUP] Total tracked files removed: ${removedCount}`);
+    }
+
+    return removedCount;
   }
 
   /**
@@ -400,14 +464,170 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       }
     }
 
+    // ★ Track file operations for precise cleanup on cancel
+    // 追踪文件操作用于取消时精确清理
+    if (msg.type === 'acp_tool_call') {
+      this.trackFileOperation(msg.data as any);
+    }
+
     // Only set finished status when receiving 'finish' message
     // 'content' messages are streaming and do NOT indicate session end
     // 只有收到 'finish' 消息才设置 finished 状态
     // 'content' 消息是流式的，不代表会话结束
     if (msg.type === 'finish') {
       this.status = 'finished';
+      // Clear turn-level file tracking for next turn
+      // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
+      this.currentTurnFiles.clear();
+      mainLog('RemoteAgent', '[FINISH] Cleared currentTurnFiles for next turn');
     }
   }
+
+  /**
+   * Track file operations from tool calls
+   * 追踪工具调用中的文件操作
+   */
+  private trackFileOperation(toolCallData: any): void {
+    if (!toolCallData) return;
+
+    const toolName = toolCallData.title?.toLowerCase() || '';
+    const rawInput = toolCallData.rawInput;
+    const status = toolCallData.status;
+
+    // Only track completed operations
+    if (status !== 'completed') return;
+
+    // Track write_file/edit_file operations
+    if (toolName === 'write_file' || toolName === 'edit_file') {
+      const inputPath = rawInput?.path as string | undefined;
+      const content = rawInput?.content as string | undefined;
+      if (!inputPath) return;
+
+      // Detect file intent
+      let intent: 'draft' | 'final' = 'final';
+      if (content) {
+        const intentResult = detectFileIntent(inputPath, content);
+        if (intentResult.intent === 'draft') {
+          intent = 'draft';
+        } else if (intentResult.intent === 'final') {
+          intent = 'final';
+        } else {
+          // Use pattern matching as fallback
+          intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
+        }
+      } else {
+        intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
+      }
+
+      // Track the file
+      const actualPath = intent === 'draft' ? nodePath.join(this.workspace, '.drafts', nodePath.basename(inputPath)) : nodePath.join(this.workspace, inputPath);
+
+      this.currentTurnFiles.set(inputPath, {
+        path: actualPath,
+        intent,
+        kind: toolName === 'write_file' ? 'create' : 'edit',
+      });
+      mainLog('RemoteAgent', `[TRACK] File: ${inputPath}, intent: ${intent}, actualPath: ${actualPath}`);
+    }
+
+    // Track files generated by Bash tool (scan workspace for new files)
+    // 追踪 Bash 工具产生的文件（扫描工作空间新增文件）
+    if (toolName === 'bash') {
+      this.trackBashGeneratedFiles();
+    }
+  }
+
+  /**
+   * Track files generated by Bash tool execution
+   * 追踪 Bash 工具执行产生的文件
+   */
+  private trackBashGeneratedFiles(): void {
+    try {
+      const currentSnapshot = this.getWorkspaceFiles();
+
+      // Compare with previous snapshot to find new files
+      const previousSnapshot = this.workspaceFileSnapshot;
+      const newFiles: string[] = [];
+
+      for (const [file, time] of currentSnapshot) {
+        if (!previousSnapshot.has(file)) {
+          newFiles.push(file);
+        }
+      }
+
+      // Track new files
+      for (const file of newFiles) {
+        const fileName = nodePath.basename(file);
+        const relativePath = nodePath.relative(this.workspace, file);
+
+        // Skip excluded files and directories
+        const EXCLUDED = new Set(['.git', '.gitignore', '.env', '.env.local', 'node_modules', '.DS_Store', 'Thumbs.db', '.nexus']);
+        if (EXCLUDED.has(fileName) || fileName.startsWith('.nexus')) continue;
+
+        // Detect intent based on file name pattern
+        const intent = matchesDraftPattern(fileName) ? 'draft' : 'final';
+
+        // Track the file
+        this.currentTurnFiles.set(relativePath, {
+          path: file,
+          intent,
+          kind: 'create',
+        });
+        mainLog('RemoteAgent', `[TRACK-BASH] New file detected: ${relativePath}, intent: ${intent}`);
+      }
+
+      // Update snapshot for next comparison
+      this.workspaceFileSnapshot = currentSnapshot;
+
+      if (newFiles.length > 0) {
+        mainLog('RemoteAgent', `[TRACK-BASH] Total new files tracked: ${newFiles.length}`);
+      }
+    } catch (err) {
+      mainError('RemoteAgent', 'Failed to track Bash generated files:', err);
+    }
+  }
+
+  /**
+   * Get current workspace files snapshot
+   * 获取当前工作空间文件快照
+   */
+  private getWorkspaceFiles(): Map<string, number> {
+    const snapshot = new Map<string, number>();
+
+    try {
+      // Scan workspace root
+      const scanDir = (dir: string) => {
+        if (!fs.existsSync(dir)) return;
+
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = nodePath.join(dir, entry.name);
+
+          // Skip certain directories
+          if (entry.isDirectory()) {
+            const skipDirs = new Set(['.git', 'node_modules', '.nexus', '__pycache__', '.venv', 'venv']);
+            if (skipDirs.has(entry.name)) continue;
+            scanDir(fullPath);
+          } else if (entry.isFile()) {
+            try {
+              const stat = fs.statSync(fullPath);
+              snapshot.set(fullPath, stat.mtimeMs);
+            } catch {
+              // Ignore stat errors
+            }
+          }
+        }
+      };
+
+      scanDir(this.workspace);
+    } catch (err) {
+      mainError('RemoteAgent', 'Failed to get workspace files snapshot:', err);
+    }
+
+    return snapshot;
+  }
+
+  private workspaceFileSnapshot: Map<string, number> = new Map();
 
   /**
    * Convert stream IResponseMessage to TMessage for local DB persistence
