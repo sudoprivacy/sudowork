@@ -607,8 +607,6 @@ export function initSkillHubBridge(): void {
   // Fetch skills list from Skill Hub API with cursor-based pagination
   ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
-      mainLog('SkillHub', 'Fetching skills with params:', { cursor, limit, query, category, tenantId });
-
       // 企业模式：从本地 hub/ 目录加载已同步的技能
       if (isEnterpriseMode()) {
         // 企业模式下，技能库展示本地已同步的内容
@@ -701,7 +699,6 @@ export function initSkillHubBridge(): void {
         headers: { Authorization: AUTHORIZATION },
       });
       const result = await response.json();
-      mainLog('SkillHub', 'Skills response:', result);
       // API returns { success, message, data: { skills, next_cursor, has_more } }
       return { success: true, data: result.data };
     } catch (error) {
@@ -746,7 +743,6 @@ export function initSkillHubBridge(): void {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
-      mainLog('SkillHub', 'Categories response:', data);
       return { success: true, data: data.data || [] };
     } catch (error) {
       mainError('SkillHub', 'Failed to fetch categories:', error);
@@ -757,8 +753,6 @@ export function initSkillHubBridge(): void {
   // Fetch skill detail from Skill Hub API
   ipcBridge.skillHub.fetchSkillDetail.provider(async ({ skillId }) => {
     try {
-      mainLog('SkillHub', 'Fetching skill detail:', skillId);
-
       // 企业模式：从本地 hub/ 目录获取详情
       if (isEnterpriseMode()) {
         // 先尝试从 hub 目录查找
@@ -807,7 +801,6 @@ export function initSkillHubBridge(): void {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
-      mainLog('SkillHub', 'Skill detail response:', data);
       return { success: true, data: data.data };
     } catch (error) {
       mainError('SkillHub', 'Failed to fetch skill detail:', error);
