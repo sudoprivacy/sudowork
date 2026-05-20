@@ -370,10 +370,14 @@ const useAcpMessage = (conversation_id: string) => {
         return;
       }
       const isRunning = res.status === 'running';
-      setRunning(isRunning);
-      runningRef.current = isRunning;
-      setAiProcessing(isRunning);
-      aiProcessingRef.current = isRunning;
+      // Use the cached processing state to determine if it's running
+      // If we have a processingStartTime from backend, it implies the task is processing
+      const isEffectivelyRunning = isRunning || res.processingStartTime !== undefined;
+      
+      setRunning(isEffectivelyRunning);
+      runningRef.current = isEffectivelyRunning;
+      setAiProcessing(isEffectivelyRunning);
+      aiProcessingRef.current = isEffectivelyRunning;
 
       // Restore processingStartTime for timer restoration
       // 恢复 processingStartTime 用于计时器恢复

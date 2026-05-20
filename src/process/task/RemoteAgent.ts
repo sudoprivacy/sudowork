@@ -47,6 +47,8 @@ export interface RemoteAgentData {
   sessionId?: string;
   /** Whether Moss session is pending creation */
   mossSessionPending?: boolean;
+  /** Enabled skill names (optional, for non-assistant sessions) */
+  enabledSkills?: string[];
 }
 
 /**
@@ -121,9 +123,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           // No wsUrl - will create new session
           wsUrl: undefined,
           sessionId: undefined,
+          // 新增: 传递启用的 skill 列表
+          enabledSkills: this.options.enabledSkills,
         };
 
-        mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd}, assistant=${config.assistantName || 'default'}`);
+        mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),
@@ -164,9 +168,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           // Resume mode: use existing wsUrl and sessionId
           wsUrl: this.options.wsUrl,
           sessionId: this.options.sessionId || this.conversation_id,
+          // 新增: 传递启用的 skill 列表（resume 模式也支持）
+          enabledSkills: this.options.enabledSkills,
         };
 
-        mainLog('RemoteAgent', `MossWsConnection config: resume=${!!config.wsUrl}, sessionId=${config.sessionId}`);
+        mainLog('RemoteAgent', `MossWsConnection config: resume=${!!config.wsUrl}, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),

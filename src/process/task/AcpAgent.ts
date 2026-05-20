@@ -890,6 +890,9 @@ This identity statement takes priority over the default identity in USER.md.
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+      // Clear processingStartTime on error
+      // 错误时清除处理开始时间
+      this.processingStartTime = undefined;
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1181,6 +1184,9 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     this.status = 'finished';
+    // Clear processingStartTime on stop
+    // 停止时清除处理开始时间
+    this.processingStartTime = undefined;
 
     // 5. Clean up all tracked files on cancel (precise cleanup)
     // 取消时精确清理追踪到的所有文件（包括 draft 和 final）
@@ -2313,6 +2319,14 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+
+      // Delay clearing processingStartTime to match frontend's 1-second finish delay
+      // This ensures timer can be restored if user switches conversations during the delay
+      // 延迟清除 processingStartTime 以匹配前端 1 秒的 finish 延迟
+      // 这确保在延迟期间切换会话时计时器可以恢复
+      setTimeout(() => {
+        this.processingStartTime = undefined;
+      }, 1500);
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
       if (this.workspace) {

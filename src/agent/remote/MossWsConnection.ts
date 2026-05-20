@@ -40,6 +40,8 @@ export interface MossWsConnectionConfig {
   wsUrl?: string;
   /** Resume mode: existing session ID */
   sessionId?: string;
+  /** Enabled skill names (optional, for non-assistant sessions) */
+  enabledSkills?: string[];
 }
 
 export interface MossWsCallbacks {
@@ -189,6 +191,8 @@ export class MossWsConnection {
       cwd: this.config.cwd,
       dangerously_skip_permissions: this.config.dangerouslySkipPermissions ?? false,
       assistant_name: this.config.assistantName,
+      // 新增: 发送启用的 skill 列表（仅当显式指定时）
+      enabled_skills: this.config.enabledSkills,
     };
 
     if (this.config.runtimeType) {
