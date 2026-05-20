@@ -322,8 +322,17 @@ const GuidPage: React.FC = () => {
     const currentInput = guidInput.input;
     const newInput = currentInput.trim() ? `${currentInput} @` : '@';
     guidInput.setInput(newInput);
-    guidInput.handleTextareaFocus();
-  }, [guidInput.input, guidInput.setInput, guidInput.handleTextareaFocus]);
+    setCursorPosition(newInput.length);
+    // Focus the textarea and move cursor to end so skill selector opens immediately
+    setTimeout(() => {
+      const textarea = guidContainerRef.current?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        const len = newInput.length;
+        textarea.setSelectionRange(len, len);
+      }
+    }, 0);
+  }, [guidInput.input, guidInput.setInput]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
