@@ -12,6 +12,14 @@ import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem, TenantConfigValues } from './types';
 
+function resolveIconUrl(iconUrl: string | null): string {
+  if (!iconUrl) return configItemDefaultIcon;
+  if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
+    return iconUrl;
+  }
+  return `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+}
+
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
   const [useDefault, setUseDefault] = useState(false);
 
@@ -19,7 +27,7 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl,
     setUseDefault(false);
   }, [iconUrl]);
 
-  const src = useDefault || !iconUrl ? configItemDefaultIcon : `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null);
 
   return <img src={src} alt={name} className='w-14px h-14px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
@@ -77,10 +85,42 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
   }, [localValues, onSave, enabled, onToggleEnabled, t, configItem.entries, configItem.name]);
 
   const handleToggle = useCallback(
-    (checked: boolean) => {
-      void onToggleEnabled(checked);
+    async (checked: boolean) => {
+      if (!checked) {
+        void onToggleEnabled(checked);
+      } else {
+        const hasNewValues = configItem.entries.some((entry) => {
+          const local = localValues[entry.config_key]?.trim() ?? '';
+          const external = externalValues[entry.config_key]?.trim() ?? '';
+          return local !== '' && local !== external;
+        });
+        if (hasNewValues) {
+          const emptyRequired = configItem.entries.find(
+            (e) => e.required === 1 && !localValues[e.config_key]?.trim(),
+          );
+          if (emptyRequired) {
+            Message.warning(
+              t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
+                configItemName: configItem.name,
+                entryName: emptyRequired.name,
+              }),
+            );
+            return;
+          }
+          const success = await onSave(localValues);
+          if (success) {
+            Message.success(t('settings.secrets.tenantSaveSuccess', '配置保存成功'));
+            onToggleEnabled(true);
+          } else {
+            Message.error(t('settings.secrets.tenantSaveFailed', '配置保存失败'));
+          }
+        } else {
+          setLocalValues(externalValues);
+          void onToggleEnabled(checked);
+        }
+      }
     },
-    [onToggleEnabled],
+    [localValues, externalValues, onSave, onToggleEnabled, t, configItem.entries, configItem.name],
   );
 
   return (

@@ -724,16 +724,14 @@ const WebuiModalContent: React.FC = () => {
             </span>
           }
         />
-        {!isEnterprise && (
-          <Tabs.TabPane
-            key='secrets'
-            title={
-              <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
-                <span className='text-14px'>{t('settings.secrets', '秘钥管理')}</span>
-              </span>
-            }
-          />
-        )}
+        <Tabs.TabPane
+          key='secrets'
+          title={
+            <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+              <span className='text-14px'>{isEnterprise ? t('settings.secrets.enterprise', '我的凭据') : t('settings.secrets', '秘钥管理')}</span>
+            </span>
+          }
+        />
       </Tabs>
 
       {/* {activeTab === 'webui' ? (

@@ -10,6 +10,7 @@
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { AuthProxyServer } from './AuthProxyServer';
 import { refreshRules, getRules } from './configItemsLoader';
+import { isEnterpriseMode } from '@common/enterpriseDebugConfig';
 
 // ============================================================================
 // Module state
@@ -28,6 +29,11 @@ let serverPort: number | null = null;
  * Returns the port the server is listening on.
  */
 export async function startAuthProxy(): Promise<number> {
+  if (isEnterpriseMode()) {
+    mainLog('AuthProxy', 'Enterprise mode - skipping local Auth Proxy (handled by Moss Server)');
+    return 0;
+  }
+
   if (server) {
     return server.getPort()!;
   }
