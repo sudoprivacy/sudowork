@@ -45,6 +45,8 @@
   "default": "デフォルト",
   "defaultModel": "デフォルトモデル",
   "modelSwitchSuccess": "{{model}} に切り替えました",
+  "modelListRefreshed": "モデルリストを更新しました",
+  "modelListRefreshFailed": "モデルリストの更新に失敗しました",
   "escToCancel": "ESC でキャンセル",
   "create": "作成",
   "createSuccess": "作成に成功しました",
