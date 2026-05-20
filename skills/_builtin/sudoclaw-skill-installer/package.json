@@ -1,7 +1,7 @@
 {
-  "name": "sudoclaw-skill-installer",
+  "name": "sudowork-skill-installer",
   "version": "1.0.0",
-  "description": "SudoClaw Skill Hub installer CLI",
+  "description": "Sudo Hub Skill installer CLI",
   "bin": {
     "sudoclaw-skill": "./scripts/sudoclaw-skill.mjs"
   },

@@ -1,5 +1,5 @@
 ---
-name: sudoclaw-skill-installer
+name: sudowork-skill-installer
 description: >
   🔧 PRIMARY skill installer for Sudowork. Use this skill for ALL skill installation requests.
 
