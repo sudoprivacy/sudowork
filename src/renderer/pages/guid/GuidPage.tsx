@@ -10,7 +10,7 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import { ipcBridge } from '@/common';
@@ -71,6 +71,7 @@ const GuidPage: React.FC = () => {
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [cursorPosition, setCursorPosition] = useState(0);
 
   // Edit drawer state
   const [editDrawerVisible, setEditDrawerVisible] = useState(false);
@@ -210,13 +211,15 @@ const GuidPage: React.FC = () => {
   // Skill selector controller
   const skillSelectorController = useSkillSelectorController({
     input: guidInput.input,
+    cursorPosition,
     skills: skillSelectorItems,
     selectedSkills,
     onSelectSkill: (skillName) => {
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      guidInput.setInput('');
+      // Strip the @query from input when selecting a skill, preserving user's other text
+      guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
@@ -303,6 +306,7 @@ const GuidPage: React.FC = () => {
     guidInput.setDir('');
     agentSelection.resetSelection();
     setSelectedSkills([]);
+    setCursorPosition(0);
     mention.setMentionOpen(false);
     mention.setMentionQuery(null);
     mention.setMentionSelectorVisible(false);
@@ -315,9 +319,11 @@ const GuidPage: React.FC = () => {
 
   // Trigger skill selector via @ button
   const handleTriggerSkillSelector = useCallback(() => {
-    guidInput.setInput('@');
+    const currentInput = guidInput.input;
+    const newInput = currentInput.trim() ? `${currentInput} @` : '@';
+    guidInput.setInput(newInput);
     guidInput.handleTextareaFocus();
-  }, [guidInput.setInput, guidInput.handleTextareaFocus]);
+  }, [guidInput.input, guidInput.setInput, guidInput.handleTextareaFocus]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -672,6 +678,10 @@ const GuidPage: React.FC = () => {
               onPaste={guidInput.onPaste}
               onFocus={guidInput.handleTextareaFocus}
               onBlur={guidInput.handleTextareaBlur}
+              onSelect={(e) => {
+                const target = e.currentTarget as HTMLTextAreaElement;
+                setCursorPosition(target.selectionStart);
+              }}
               placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
               isInputActive={guidInput.isInputFocused}
               isFileDragging={guidInput.isFileDragging}
