@@ -65,6 +65,10 @@ export type RemoteAssistantInfo = {
   version: string;
   source: string;
   isHubInstalled: boolean;
+  isBuiltin?: boolean;
+  tag?: string;
+  sourceType?: string | null;
+  meta?: { source_type?: string | null; tag?: string | null } | null;
   visibleTo: { department_ids: string[] | null } | null;
   enabledSkills: string[];
 };
@@ -161,6 +165,20 @@ async function getRemoteAssistantsInstalled(serverUrl: string, token: string): P
 
   const data = await fetchRemote<RemoteAssistantInfo[] | { data: RemoteAssistantInfo[] }>('/api/v1/agents/installed', serverUrl, token);
   return Array.isArray(data) ? data : (data.data ?? []);
+}
+
+function getRemoteAssistantSourceType(assistant: RemoteAssistantInfo): string {
+  return assistant.sourceType || assistant.meta?.source_type || assistant.tag || assistant.meta?.tag || (assistant.isHubInstalled ? 'hub' : '');
+}
+
+function getLocalAssistantSourceType(assistant: RemoteAssistantInfo): 'hub' | 'custom' {
+  return getRemoteAssistantSourceType(assistant) === 'custom' ? 'custom' : 'hub';
+}
+
+function isSyncableInstalledAssistant(assistant: RemoteAssistantInfo): boolean {
+  if (!assistant.id || !assistant.name || assistant.isBuiltin) return false;
+  const sourceType = getRemoteAssistantSourceType(assistant);
+  return assistant.isHubInstalled || sourceType === 'hub' || sourceType === 'custom' || sourceType === 'upload';
 }
 
 async function getSkillInstallDetailMock(name: string): Promise<SkillInstallDetail> {
@@ -770,6 +788,7 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
   }
 
   // Merge existing meta with remote info
+  const assistantSourceType = getLocalAssistantSourceType(assistant);
   const meta: IAssistantMeta = {
     // Start with existing meta or defaults
     id: existingMeta?.id || assistant.id,
@@ -779,8 +798,8 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
     avatar: existingMeta?.avatar || undefined,
     emoji: existingMeta?.emoji || undefined,
     presetAgentType: existingMeta?.presetAgentType || 'claude',
-    source_type: 'hub',
-    tag: 'hub',
+    source_type: assistantSourceType,
+    tag: assistantSourceType,
     skills: existingMeta?.skills || assistant.enabledSkills || [],
     category_id: existingMeta?.category_id || '',
     categories: existingMeta?.categories || [],
@@ -923,8 +942,8 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
  * 同步远程 assistants 到本地
  * 优先使用新版 API（通过 ID 下载），失败时回退到旧版 API
  *
- * 注意：只同步 isHubInstalled: true 的助手（从助手库安装的）
- * 自定义助手和专属助手由各自的同步逻辑处理
+ * 注意：同步 /api/v1/agents/installed 返回的 hub/custom/upload 助手。
+ * system 助手不需要同步，tenant 助手由专属同步逻辑处理。
  */
 export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -940,18 +959,17 @@ export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
   const remoteAssistants = await getRemoteAssistantsInstalled(serverUrl, token);
   mainLog('remoteToLocalSync', `Remote assistants: ${remoteAssistants.length}`);
 
-  // 1.5 只同步从助手库安装的助手（isHubInstalled: true）
-  // 自定义助手和专属助手由各自的同步逻辑处理
-  const hubAssistants = remoteAssistants.filter((a) => a.isHubInstalled === true);
-  mainLog('remoteToLocalSync', `Hub assistants (isHubInstalled=true): ${hubAssistants.length}`);
+  // 1.5 同步 Moss 已安装接口返回的 hub/custom/upload 助手
+  const syncableAssistants = remoteAssistants.filter(isSyncableInstalledAssistant);
+  mainLog('remoteToLocalSync', `Syncable installed assistants: ${syncableAssistants.length}`);
 
   // 2. 获取本地已安装列表（按 ID 判断）
   const localAssistantIds = await getLocalInstalledAssistantIds();
   mainLog('remoteToLocalSync', `Local assistants (by ID): ${localAssistantIds.size}`);
 
   // 3. 计算差异（按 ID）
-  const toInstall = hubAssistants.filter((a) => a.id && !localAssistantIds.has(a.id));
-  const alreadyInstalled = hubAssistants.filter((a) => a.id && localAssistantIds.has(a.id));
+  const toInstall = syncableAssistants.filter((a) => a.id && !localAssistantIds.has(a.id));
+  const alreadyInstalled = syncableAssistants.filter((a) => a.id && localAssistantIds.has(a.id));
   mainLog('remoteToLocalSync', `Assistants to install: ${toInstall.length}`);
 
   const result: SyncResult = {
