@@ -1047,7 +1047,7 @@ This identity statement takes priority over the default identity in USER.md.
       // Breadcrumb: API request
       apiBreadcrumbs.request(`session/prompt`, 'POST', this.conversation_id);
 
-      await this.connection.sendPrompt(processedContent, images);
+      await this.connection.sendPrompt(processedContent, images, msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
       // Breadcrumb: API response success

@@ -628,9 +628,7 @@ export class AcpConnection {
   private sendResponseMessage(response: AcpResponse): void {
     if (this.child) {
       try {
-        mainLog(
-          `[ACP-DIAG] sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`,
-        );
+        mainLog(`[ACP-DIAG] sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
       } catch {
         // ignore log errors
       }
@@ -967,7 +965,7 @@ export class AcpConnection {
     return defaultPath;
   }
 
-  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResponse> {
+  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, traceId?: string): Promise<AcpResponse> {
     if (!this.sessionId) {
       throw new Error('No active ACP session');
     }
@@ -983,11 +981,12 @@ export class AcpConnection {
       }
     }
 
-    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]`);
+    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]${traceId ? ` traceId=${traceId}` : ''}`);
 
     return await this.sendRequest('session/prompt', {
       sessionId: this.sessionId,
       prompt: promptBlocks,
+      _meta: traceId ? { traceId } : undefined,
     });
   }
 
